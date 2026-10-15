@@ -1,0 +1,238 @@
+---
+title: "ADR 033: API and event contract standard"
+date: "2026-10-15"
+status: "Accepted"
+tech_stack: ["OpenAPI", "CloudEvents", "AsyncAPI", "Kafka"]
+---
+
+## Context
+
+[ADR 014](/projects/personal-engineering-platform/adrs/014-hono-openapi)
+selects OpenAPI 3.1 for HTTP contracts, and
+[ADR 015](/projects/personal-engineering-platform/adrs/015-api-governance)
+selects Spectral and oasdiff for linting and compatibility checks. Recipe Site
+and Work Graph already generate and commit OpenAPI documents from the route
+schemas used at runtime. The repository does not have an equivalent contract
+for asynchronous messages.
+
+An event contract has concerns that an HTTP contract does not describe. A
+Kafka consumer needs to know topic topology, record keys, partition ordering,
+consumer groups, offset ownership, delivery guarantees, and failure routing.
+A queue consumer needs its own routing, acknowledgement, retry, and dead-letter
+rules. A portable event envelope cannot replace any of those transport rules.
+
+Projects also need one answer for schema ownership, generated bindings,
+examples, mocks, compatibility, deprecation, discovery, and publication.
+Without that answer, an OpenAPI or AsyncAPI file can be syntactically valid
+while still drifting from its runtime or leaving consumers unable to test a
+change before deployment.
+
+## Decision
+
+Use [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.1.html) for HTTP APIs.
+Use [AsyncAPI 3.0](https://www.asyncapi.com/docs/reference/specification/v3.0.0)
+for asynchronous APIs and
+[CloudEvents 1.0](https://github.com/cloudevents/spec/blob/main/cloudevents/spec.md)
+for event envelopes. A project that publishes asynchronous messages adopts
+both the `event-contracts` and `api-governance` platform layers. Applications
+continue to own their domain schemas and compatibility promises.
+
+### One source and committed contracts
+
+Runtime declarations are the source for OpenAPI and AsyncAPI generation. An
+HTTP service generates operations from the routes and validation schemas that
+handle requests. An event producer or consumer generates channels, operations,
+messages, bindings, and payload references from the registrations and schemas
+used by its runtime. A project may author a schema first only when code is then
+generated from it and the runtime imports that generated boundary.
+
+Commit the generated OpenAPI and AsyncAPI documents. Generation must be
+deterministic, and a repository check must regenerate them and fail on a diff.
+The committed files are review inputs, compatibility baselines, mock inputs,
+and consumer build inputs. They are not a second source to edit by hand.
+
+Every project exposes these jobs through mise:
+
+| Job      | Required behavior                                                                                   |
+| -------- | --------------------------------------------------------------------------------------------------- |
+| Generate | Rebuild committed contracts and referenced schemas from runtime declarations.                       |
+| Check    | Fail when generated output differs from the committed files.                                        |
+| Validate | Parse the declared specification version, resolve references, and validate every example.           |
+| Lint     | Apply the shared Spectral rules to OpenAPI plus format-specific rules to AsyncAPI and CloudEvents.  |
+| Compare  | Run oasdiff for a stable OpenAPI API and the schema-format compatibility check for stable messages. |
+| Test     | Exercise producer serialization and consumer deserialization against the committed contract.        |
+| Mock     | Start a deterministic mock from committed examples without importing application code.              |
+
+The root API lint task discovers project contract checks. A project can keep a
+compatibility gate disabled while an API is explicitly pre-stable, as Work
+Graph does today. It must record that state in its API index entry. Once an
+independent consumer relies on the contract, compatibility checks become a
+blocking CI gate.
+
+Examples are contract fixtures. Each operation or message has at least one
+valid example. Error variants and events with optional fields need examples
+when their shape affects consumer behavior. CI validates examples against the
+schema, and mocks return those exact fixtures. Contract tests prove that the
+producer can emit them and the consumer can read them. End-to-end tests remain
+responsible for broker and application behavior.
+
+### CloudEvents envelope
+
+Domain events use CloudEvents `specversion` 1.0. Producers and consumers must
+support the structured JSON content mode. They use the binary content mode
+when a transport binding maps attributes to native headers without losing
+them. Stored events and transport bridges prefer structured mode because the
+envelope remains self-contained.
+
+The CloudEvents core requires `specversion`, `id`, `source`, and `type`. This
+platform also requires `subject`, `time`, `datacontenttype`, and `dataschema`
+for domain events:
+
+| Attribute         | Convention                                                                                                                                          |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `type`            | `me.robbiepalmer.<project>.<event>.v<major>`. The event name is a completed domain fact, and the suffix changes only for an incompatible schema.    |
+| `source`          | The producer's catalog URI, such as `https://robbiepalmer.me/id/component/recipe-site/api`. It identifies the logical producer, not one deployment. |
+| `subject`         | A stable project-owned identifier for the entity the event describes, expressed as a URI reference such as `/recipes/<id>`.                         |
+| `id`              | An opaque identifier unique within the producer and source. A retry of the same logical event keeps the same value.                                 |
+| `time`            | The RFC 3339 UTC time when the domain fact occurred. Broker ingestion and processing times belong in telemetry.                                     |
+| `datacontenttype` | The exact payload media type, including encoding parameters when they affect decoding.                                                              |
+| `dataschema`      | The immutable catalog URI for the payload schema version. Its catalog record resolves to the published OCI digest.                                  |
+
+Commands and transport notifications that cannot name an entity may document
+why `subject` does not apply. Heartbeats that carry no domain payload may omit
+`dataschema`. Those exceptions belong in the AsyncAPI message description and
+must not weaken domain-event checks.
+
+Use CloudEvents extension attributes only for cross-cutting metadata that
+survives transports. Trace context, correlation identifiers, and an explicit
+partition key are suitable. Domain fields stay in `data`. Sensitive data does
+not move into attributes merely to make it searchable.
+
+### AsyncAPI and transport semantics
+
+An asynchronous application commits one AsyncAPI document per independently
+versioned API. The document names the real channel addresses and the send or
+receive operations performed by that application. Messages reference the
+CloudEvents envelope and the application-owned payload schema. Protocol
+bindings record the behavior consumers need to reproduce.
+
+For Kafka, the contract records:
+
+* topic names, ownership, partition count policy, and retention or compaction;
+* record-key schema, partitioning rule, and the scope of ordering guarantees;
+* producer acknowledgement and idempotence settings where they affect delivery;
+* consumer-group purpose, offset initialization, commit ownership, and replay policy;
+* the promised delivery mode, with at-least-once as the default unless the
+  complete processing transaction proves another guarantee;
+* retry topics or schedules, maximum attempts, poison-message handling, and
+  dead-letter topic ownership; and
+* payload compatibility mode and the registry or OCI schema coordinate used by
+  producers and consumers.
+
+Ordering is promised only within one partition and one key unless a project
+implements a stronger constraint. Consumer groups and offsets remain Kafka
+concepts. CloudEvents carries event identity and context, but it does not
+change topic routing, partitioning, replay, or delivery semantics.
+
+Queue and event-service bindings record the equivalent channel name, routing
+key or filter, acknowledgement point, visibility or lease timeout, retry
+schedule, delivery limit, dead-letter destination, ordering scope, and
+duplicate-handling requirement. If AsyncAPI has no standard field for a
+required guarantee, use a documented `x-` extension with a repository-owned
+schema rather than hiding the rule in prose outside the contract.
+
+### Payload schema boundaries
+
+Choose the payload format per API rather than translating the same domain
+model into every format:
+
+| Format              | Use it when                                                                                                                                                   | Compatibility rule                                                                                                                                                                      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| JSON Schema 2020-12 | JSON is the transport representation, browser or HTTP consumers are expected, or the event volume does not justify a binary schema system. It is the default. | Add optional fields and broaden readers within a major version. Do not remove required fields, narrow accepted values, or change a field's meaning.                                     |
+| Avro                | Kafka throughput, compact records, and registry-enforced evolution outweigh JSON readability.                                                                 | Select and enforce a registry compatibility mode. Prefer backward-transitive compatibility when consumers deploy independently. Defaults must make added fields readable by older data. |
+| Protocol Buffers    | Existing protobuf or RPC ecosystems, compact binary payloads, and generated cross-language bindings are the main requirement.                                 | Never reuse field numbers. Reserve removed numbers and names, and treat type or presence changes as incompatible unless the protobuf rules prove otherwise.                             |
+
+OpenAPI 3.1 schemas use its JSON Schema dialect. AsyncAPI references JSON
+Schema directly or uses its multi-format schema support for Avro and Protocol
+Buffers. CloudEvents wraps the selected payload bytes without converting them.
+
+The application repository owns source schemas. Pin generators and runtimes,
+generate bindings into the consuming component's standard `generated/`
+location, and commit output only when the language toolchain needs it. A stale
+generation check is mandatory. Shared tooling may package schemas and
+generators, but it must not take ownership of an application's domain model.
+
+### Identity, versions, and deprecation
+
+Every published contract has a repository catalog entry using
+`api:<project>/<api>`. Its `source_paths` include the committed OpenAPI or
+AsyncAPI document and separately stored schemas. The implementing component
+has a `provides` relation to the API. The component has a `produces` relation
+to each published contract artifact. Decision references explain the format
+and any local override.
+
+Contract releases use semantic versions. Compatible operations, messages, or
+optional fields increment the minor version. Documentation and example fixes
+that do not change accepted data increment the patch version. An incompatible
+change creates a new major version and, where the transport permits it, a new
+path, topic, message type suffix, or schema subject. Published schemas are
+immutable.
+
+OpenAPI operations use `deprecated: true`. AsyncAPI contracts use the
+repository `x-lifecycle` extension until the specification has an equivalent
+field for the affected object. The API index records the replacement and an
+earliest removal version or date. A deprecated contract remains generated,
+validated, mocked, and tested until its stated support period ends.
+
+### OCI publication
+
+Publish each released contract as an OCI artifact when the project has an
+artifact repository. The artifact contains the OpenAPI or AsyncAPI document,
+referenced schemas, and validated examples. Its `artifactType` identifies the
+contract bundle format, while each blob uses a media type for its actual
+format. An OCI descriptor digest is the immutable release identity.
+
+Use a semantic-version tag and optional moving major tag for discovery, but do
+not store a tag as delivery evidence. The catalog artifact record stores the
+repository, manifest media type, digest, size, and artifact type required by
+[ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities).
+OCI annotations include the catalog API ID, contract version, source revision,
+created time, and source URL. Until a project enables OCI publication, its
+committed contract remains authoritative and the catalog must not invent a
+digest.
+
+## Alternatives
+
+Hand-authored OpenAPI and AsyncAPI documents can put design before code. In the
+current services, runtime route and validation declarations already exist and
+have proved to be the more reliable source. Schema-first projects can still
+generate runtime bindings under this decision.
+
+CloudEvents alone would give messages common metadata and transport mappings.
+It would not describe application operations, channel topology, Kafka keys,
+consumer groups, offsets, retries, or dead-letter behavior. AsyncAPI retains
+those transport contracts.
+
+Using only JSON Schema would keep one schema language across HTTP and events.
+It would discard Avro registry compatibility and Protocol Buffers field-number
+evolution in systems that need them. Selecting per API keeps those costs local.
+
+A hosted API catalog could provide search and rendered documentation. The
+repository catalog already owns stable identities and source provenance. A
+hosted view may ingest the repository index later, but it is not the source of
+truth.
+
+## Consequences
+
+HTTP and asynchronous APIs now share generation, review, examples, testing,
+versioning, deprecation, catalog, and publication rules. Consumers can build
+against committed artifacts before a producer deploys.
+
+Event contracts are larger than payload schemas because they record delivery
+behavior that changes correctness. Projects must maintain examples, generated
+outputs, compatibility baselines, and catalog entries. Binary schema formats
+also add generators and compatibility tooling when a project selects them.
+
+CloudEvents provides one event identity model across transports without
+pretending that Kafka, queues, and event services behave alike. Domain schemas
+remain with the applications that understand and evolve them.
