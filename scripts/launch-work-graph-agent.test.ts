@@ -9,6 +9,8 @@ import {
   refreshRoutingProviders,
   selectCodexProvider,
   selectModel,
+  selectReasoningEffort,
+  selectRuntimeMode,
 } from "./launch-work-graph-agent.js";
 
 function ticket(
@@ -61,13 +63,19 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
 }
 
 describe("Work Graph ticket routing", () => {
-  it("leaves autonomy policy to Work Graph and repository instructions", () => {
-    const prompt = buildWorkerPrompt("ticket-1");
+  it("settles the review loop before the one-ticket owner-review gate", () => {
+    const prompt = buildWorkerPrompt("ticket-1", "/opt/bin/work-graph");
 
-    expect(prompt).toContain("claim and execute ticket ticket-1");
-    expect(prompt).toContain("Follow its context and the repository instructions");
+    expect(prompt).toContain("/opt/bin/work-graph");
+    expect(prompt).toContain("claim and execute only ticket ticket-1");
+    expect(prompt).toContain("never claim another ticket");
+    expect(prompt).toContain("open a draft pull request");
+    expect(prompt).toContain("Complete the pull request review loop at your discretion");
+    expect(prompt).toContain("once per unchanged head");
+    expect(prompt).toContain("then mark it ready for review");
+    expect(prompt).toContain("request owner approval in Work Graph and stop");
+    expect(prompt).toContain("Do not merge the pull request, release the ticket");
     expect(prompt).toContain("do not run mise trust again");
-    expect(prompt).not.toMatch(/safe|authori[sz]ed|ask|approval/iu);
   });
 
   it("uses a routine route and human-on-the-loop runtime for a bounded edit", () => {
@@ -98,7 +106,7 @@ describe("Work Graph ticket routing", () => {
     });
   });
 
-  it("raises Sol reasoning without selecting Astra for architecture work", () => {
+  it("caps critical architecture work at high reasoning", () => {
     expect(
       deriveTicketRoute(
         ticket({
@@ -116,30 +124,64 @@ describe("Work Graph ticket routing", () => {
     ).toMatchObject({
       complexity: "critical",
       preferredModels: ["gpt-5.6-sol"],
-      reasoningEffort: "xhigh",
+      reasoningEffort: "high",
       runtimeMode: "full-access",
     });
   });
 
-  it("sandboxes a concrete protected mutation without approving every read", () => {
-    expect(
-      deriveTicketRoute(
-        ticket({
-          title: "Rotate the production credential",
-          expedited: true,
-          expediteReason: "Credential expires today",
-          context: [
-            {
-              kind: "acceptance_criteria",
-              content: "Rotate the credential and deploy to production.",
-            },
-          ],
-        }),
-      ),
-    ).toMatchObject({
-      runtimeMode: "auto-accept-edits",
+  it("does not mistake a billing domain model for an external mutation", () => {
+    const selection = ticket({
+      title: "Model project costs, usage, time, allocation, and provenance",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Represent billing periods, payment provenance, and allocated cost.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: false,
+      runtimeMode: "full-access",
+    });
+    expect(() =>
+      assertTicketRouteSupported(selection.ticket.id, route),
+    ).not.toThrow();
+  });
+
+  it("rejects protected mutations instead of entering a prompt-heavy sandbox", () => {
+    const selection = ticket({
+      title: "Rotate the production credential",
+      expedited: true,
+      expediteReason: "Credential expires today",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Rotate the credential and deploy to production.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: true,
+      runtimeMode: "full-access",
       serviceTier: "priority",
     });
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
+  });
+
+  it("rejects plural payment mutations before a full-access launch", () => {
+    const selection = ticket({ title: "Refund payments" });
+    const route = deriveTicketRoute(selection);
+
+    expect(route.protectedMutation).toBe(true);
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
   });
 
   it.each([
@@ -267,5 +309,38 @@ describe("Work Graph ticket routing", () => {
         deriveTicketRoute(ticket()),
       ),
     ).toThrow("No ready authenticated Codex provider offers the selected policy model");
+  });
+
+  it("rejects a model override outside the approved route", () => {
+    const current = provider("codex");
+    current.models.push({
+      ...current.models[0],
+      slug: "gpt-6-astra",
+      name: "GPT-6 Astra",
+    });
+
+    expect(() =>
+      selectModel(
+        [current],
+        deriveTicketRoute(ticket()),
+        "gpt-6-astra",
+      ),
+    ).toThrow("outside the approved route policy");
+  });
+
+  it("rejects reasoning overrides above high", () => {
+    const route = deriveTicketRoute(ticket());
+
+    expect(selectReasoningEffort(route, "high")).toBe("high");
+    expect(() => selectReasoningEffort(route, "xhigh")).toThrow();
+  });
+
+  it("rejects prompt-heavy runtime overrides", () => {
+    const route = deriveTicketRoute(ticket());
+
+    expect(selectRuntimeMode(route)).toBe("full-access");
+    expect(() => selectRuntimeMode(route, "auto-accept-edits")).toThrow(
+      "outside the approved route policy",
+    );
   });
 });

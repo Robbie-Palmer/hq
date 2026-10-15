@@ -46,6 +46,7 @@ const RuntimeModeSchema = z.enum([
   "auto",
   "full-access",
 ]);
+const ReasoningEffortSchema = z.enum(["low", "medium", "high"]);
 const WorkGraphTicketSchema = z.looseObject({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -66,6 +67,7 @@ const WorkGraphSelectionSchema = z.object({
 
 type WorkGraphSelection = z.infer<typeof WorkGraphSelectionSchema>;
 type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
 type Complexity = "routine" | "standard" | "complex" | "critical";
 type WorkKind = "implementation" | "documentation";
 
@@ -73,8 +75,9 @@ export interface TicketRoute {
   complexity: Complexity;
   workKind: WorkKind;
   preferredModels: readonly string[];
-  reasoningEffort: string;
+  reasoningEffort: ReasoningEffort;
   runtimeMode: RuntimeMode;
+  protectedMutation: boolean;
   serviceTier: string;
   reasons: readonly string[];
 }
@@ -92,7 +95,7 @@ const protectedMutationSignals = [
   /\b(?:database|schema) migration\b/iu,
   /\b(?:delete production|destructive operation)\b/iu,
   /\b(?:terraform|kubectl) apply\b/iu,
-  /\b(?:payment|billing)\b/iu,
+  /\b(?:charge|execute|process|refund|send|submit)\b.{0,40}\b(?:billing|payments?)\b/iu,
 ];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
@@ -147,14 +150,10 @@ function complexityForScore(score: number): Complexity {
 
 function codexModelPolicy(complexity: Complexity): {
   models: readonly string[];
-  effort: string;
+  effort: ReasoningEffort;
 } {
   switch (complexity) {
     case "critical":
-      return {
-        models: ["gpt-5.6-sol"],
-        effort: "xhigh",
-      };
     case "complex":
     case "standard":
       return {
@@ -222,14 +221,15 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
     workKind,
     preferredModels: policy.models,
     reasoningEffort: policy.effort,
-    runtimeMode: protectedMutation ? "auto-accept-edits" : "full-access",
+    runtimeMode: "full-access",
+    protectedMutation,
     serviceTier: selection.ticket.expedited ? "priority" : "default",
     reasons: reasons.length === 0 ? ["bounded ticket context"] : reasons,
   };
 }
 
-export function buildWorkerPrompt(ticketId: string): string {
-  return `Using the Work Graph CLI, claim and execute ticket ${ticketId}. Follow its context and the repository instructions through the SDLC. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
+export function buildWorkerPrompt(ticketId: string, workGraphCli: string): string {
+  return `This is a one-ticket, human-gated pilot. Using ${workGraphCli}, claim and execute only ticket ${ticketId}; never claim another ticket. Follow its context and the repository instructions. Implement the ticket, run scoped mise validation, push the branch, and open a draft pull request. Do not retain unrelated formatter changes. Complete the pull request review loop at your discretion: monitor current-head CI, SonarQube, and review feedback; fix true issues; rerun relevant local checks; push coherent fixes; and settle review threads. You may rerun a failed remote workflow once per unchanged head when the evidence indicates a flaky or infrastructure failure. If that rerun fails, or the failure is ambiguous, request owner attention instead of retrying again. Keep the pull request in draft until required checks pass and review findings are settled, then mark it ready for review. Do not merge the pull request, release the ticket, or continue to another ticket. Once the pull request is ready with green CI and SonarQube and no true review finding remains, request owner approval in Work Graph and stop. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
 }
 
 export function assertTicketRouteSupported(
@@ -239,6 +239,11 @@ export function assertTicketRouteSupported(
   if (route.workKind === "documentation") {
     throw new Error(
       `Documentation ticket ${ticketId} is excluded until the writing skill and review gate are ready`,
+    );
+  }
+  if (route.protectedMutation) {
+    throw new Error(
+      `Protected external mutation ticket ${ticketId} is excluded until a scoped permission boundary is ready`,
     );
   }
 }
@@ -330,6 +335,9 @@ export function selectModel(
       models.map(({ slug }) => slug),
     ),
   );
+  if (override !== undefined && !route.preferredModels.includes(override)) {
+    throw new Error(`Model override ${override} is outside the approved route policy`);
+  }
   const selected = override ?? route.preferredModels.find((model) => offered.has(model));
   if (selected === undefined || !offered.has(selected)) {
     const modelDescription =
@@ -339,6 +347,24 @@ export function selectModel(
     throw new Error(
       `No ready authenticated Codex provider offers ${modelDescription}`,
     );
+  }
+  return selected;
+}
+
+export function selectReasoningEffort(
+  route: TicketRoute,
+  override?: string,
+): ReasoningEffort {
+  return ReasoningEffortSchema.parse(override ?? route.reasoningEffort);
+}
+
+export function selectRuntimeMode(
+  route: TicketRoute,
+  override?: string,
+): RuntimeMode {
+  const selected = RuntimeModeSchema.parse(override ?? route.runtimeMode);
+  if (selected !== route.runtimeMode) {
+    throw new Error(`Runtime override ${selected} is outside the approved route policy`);
   }
   return selected;
 }
@@ -388,6 +414,7 @@ async function main(): Promise<void> {
   const baseBranch = requiredEnvironment("T3_WORK_GRAPH_BASE_BRANCH");
   const origin = requiredEnvironment("T3_WORK_GRAPH_ORIGIN");
   const projectRoot = requiredEnvironment("T3_WORK_GRAPH_PROJECT_ROOT");
+  const workGraphCli = requiredEnvironment("T3_WORK_GRAPH_CLI");
 
   const client = T3Client.create({
     accessToken,
@@ -417,7 +444,10 @@ async function main(): Promise<void> {
       provider,
       model,
       "reasoningEffort",
-      environmentOverride("T3_WORK_GRAPH_EFFORT") ?? route.reasoningEffort,
+      selectReasoningEffort(
+        route,
+        environmentOverride("T3_WORK_GRAPH_EFFORT"),
+      ),
     );
     const serviceTier = validatedOption(
       provider,
@@ -425,8 +455,9 @@ async function main(): Promise<void> {
       "serviceTier",
       environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier,
     );
-    const runtimeMode = RuntimeModeSchema.parse(
-      environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE") ?? route.runtimeMode,
+    const runtimeMode = selectRuntimeMode(
+      route,
+      environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE"),
     );
     const modelSelection = schemas.orchestrationModel.ModelSelection.parse({
       instanceId: provider.instanceId,
@@ -436,7 +467,7 @@ async function main(): Promise<void> {
         { id: "serviceTier", value: serviceTier },
       ],
     });
-    const prompt = buildWorkerPrompt(selection.ticket.id);
+    const prompt = buildWorkerPrompt(selection.ticket.id, workGraphCli);
 
     const id = threadId(randomUUID());
     const createdAt = new Date().toISOString();
