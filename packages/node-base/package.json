@@ -5,7 +5,8 @@
   "description": "Node.js platform extensions shared across applications and tooling",
   "type": "module",
   "exports": {
-    "./env": "./src/env.ts"
+    "./env": "./src/env.ts",
+    "./fs": "./src/fs.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
