@@ -88,6 +88,12 @@ function getEmptyReconciliationDescription(hasIncome: boolean): string {
   return "Income is saved, but there are not yet two usable balance-sheet dates around an income period. Add complete account balances at matching period ends.";
 }
 
+function expenditureDescription(kind: "manual" | "reconciled"): string {
+  return kind === "manual"
+    ? "Selected manual baseline. Excludes debt principal."
+    : "Median of the latest 12 periods, annualised. Excludes debt principal.";
+}
+
 export function PortfolioGoal({
   showIncomeTools = true,
 }: Readonly<{ showIncomeTools?: boolean }>) {
@@ -184,8 +190,7 @@ export function PortfolioGoal({
               {optionalCurrency(representativeAnnualExpenditure, baseCurrency)}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Median of the latest 12 periods, annualised. Excludes debt
-              principal.
+              {expenditureDescription(financialIndependence.spendingBasis.kind)}
             </p>
             {representativeAnnualCurrentExpenditure != null &&
               representativeAnnualCurrentExpenditure !==

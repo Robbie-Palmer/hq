@@ -1254,7 +1254,8 @@ function comparisonSpendingLabel(
   scenario: JobMoveScenario,
   spendingKind: "manual" | "reconciled" | undefined,
 ): string {
-  if (scenario.annualSpendingOverride != null) return "Overridden spending";
+  if (scenario.annualSpendingOverride != null)
+    return "Scenario spending override";
   return spendingKind === "manual" ? "Manual spending" : "Reconciled spending";
 }
 

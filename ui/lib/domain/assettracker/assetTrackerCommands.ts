@@ -106,6 +106,7 @@ export type AssetTrackerCommandErrorCode =
   | "INVALID_FUTURE_CASH_FLOW"
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
   | "INVALID_FORECAST_ASSUMPTION"
+  | "INVALID_SPENDING_BASELINE"
   | "INVALID_RECURRING_FLOW_CONVERSION"
   | "HOUSEHOLD_MEMBER_NOT_FOUND"
   | "JOB_MOVE_SCENARIO_NOT_FOUND"
@@ -2005,6 +2006,12 @@ export function applySaveSpendingBaseline(
   createdAt = new Date().toISOString(),
 ): AssetTrackerData {
   const parsed = SaveSpendingBaselineInputSchema.parse(input);
+  if (parsed.effectiveDate > createdAt.slice(0, 10)) {
+    throw new AssetTrackerCommandError(
+      "INVALID_SPENDING_BASELINE",
+      "The spending baseline effective date cannot be later than its save date",
+    );
+  }
   assertOwnershipMembers(data.household, parsed.ownership);
   const baselines = data.spendingBaselines ?? [];
   const versions = baselines.filter(

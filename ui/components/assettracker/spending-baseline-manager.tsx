@@ -1,6 +1,6 @@
 "use client";
 
-import { type SubmitEvent, useMemo, useState } from "react";
+import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ import {
   type Currency,
   equalSharedOwnership,
   formatAssetTrackerError,
+  type Ownership,
   personalOwnership,
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
@@ -43,6 +44,18 @@ function initialBaselineAmount(
 ): string {
   if (baseline == null) return "";
   return String(baseline[field] / 12);
+}
+
+function ownerValue(ownership: Ownership | undefined): string {
+  return ownership?.kind === "personal" ? ownership.memberId : HOUSEHOLD_OWNER;
+}
+
+function hydrateIfClean(
+  dirtyFields: ReadonlySet<string>,
+  field: string,
+  hydrate: () => void,
+) {
+  if (!dirtyFields.has(field)) hydrate();
 }
 
 function baselineSaveLabel(
@@ -143,10 +156,11 @@ function useSpendingBaselineModel() {
   const [effectiveDate, setEffectiveDate] = useState(
     active?.effectiveDate ?? tracker.valuationDate ?? todayIsoDate(),
   );
-  const [owner, setOwner] = useState(HOUSEHOLD_OWNER);
+  const [owner, setOwner] = useState(() => ownerValue(active?.ownership));
   const [sourceNotes, setSourceNotes] = useState(active?.sourceNotes ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dirtyFields = useRef(new Set<string>());
   const baselines = useMemo(
     () =>
       tracker.spendingBaselines.toSorted(
@@ -154,13 +168,60 @@ function useSpendingBaselineModel() {
       ),
     [tracker.spendingBaselines],
   );
-  const ownership = () =>
-    owner === HOUSEHOLD_OWNER
-      ? equalSharedOwnership(tracker.household.members)
-      : personalOwnership(owner);
+  function ownership(): Ownership {
+    if (owner !== HOUSEHOLD_OWNER) return personalOwnership(owner);
+    if (active?.ownership.kind === "shared") return active.ownership;
+    return equalSharedOwnership(tracker.household.members);
+  }
+
+  useEffect(() => {
+    if (tracker.localDataStatus !== "ready") return;
+    hydrateIfClean(dirtyFields.current, "essential", () =>
+      setEssential(initialBaselineAmount(active, "annualEssentialSpending")),
+    );
+    hydrateIfClean(dirtyFields.current, "discretionary", () =>
+      setDiscretionary(
+        initialBaselineAmount(active, "annualDiscretionarySpending"),
+      ),
+    );
+    hydrateIfClean(dirtyFields.current, "debt", () =>
+      setDebt(initialBaselineAmount(active, "annualDebtCashFlow")),
+    );
+    hydrateIfClean(dirtyFields.current, "currency", () =>
+      setCurrency(active?.currency ?? tracker.baseCurrency),
+    );
+    hydrateIfClean(dirtyFields.current, "effectiveDate", () =>
+      setEffectiveDate(
+        active?.effectiveDate ?? tracker.valuationDate ?? todayIsoDate(),
+      ),
+    );
+    hydrateIfClean(dirtyFields.current, "owner", () =>
+      setOwner(ownerValue(active?.ownership)),
+    );
+    hydrateIfClean(dirtyFields.current, "sourceNotes", () =>
+      setSourceNotes(active?.sourceNotes ?? ""),
+    );
+  }, [
+    active,
+    tracker.baseCurrency,
+    tracker.localDataStatus,
+    tracker.valuationDate,
+  ]);
+
+  function edit(
+    field: string,
+    setValue: (value: string) => void,
+    value: string,
+  ) {
+    dirtyFields.current.add(field);
+    setValue(value);
+  }
 
   function changePeriod(next: "monthly" | "annual") {
     if (next === period) return;
+    dirtyFields.current.add("essential");
+    dirtyFields.current.add("discretionary");
+    dirtyFields.current.add("debt");
     const multiplier = next === "annual" ? 12 : 1 / 12;
     const convert = (value: string) =>
       value.trim() === "" ? "" : String(Number(value) * multiplier);
@@ -193,6 +254,7 @@ function useSpendingBaselineModel() {
         source: { kind: "manual" },
         sourceNotes: sourceNotes.trim() || undefined,
       });
+      dirtyFields.current.clear();
     } catch (error_) {
       setError(formatAssetTrackerError(error_));
     } finally {
@@ -209,10 +271,21 @@ function useSpendingBaselineModel() {
     if (first == null || last == null || ordinary == null || current == null) {
       return;
     }
-    const retainedEssential = Math.min(
-      financialIndependence.spendingBasis.annualEssentialSpending ?? 0,
-      ordinary,
-    );
+    if (essential.trim() === "") {
+      setError(
+        "Enter and confirm essential spending before saving reconciled history.",
+      );
+      return;
+    }
+    const enteredEssential = numberValue(essential);
+    const retainedEssential =
+      enteredEssential * (period === "monthly" ? 12 : 1);
+    if (!Number.isFinite(retainedEssential) || retainedEssential > ordinary) {
+      setError(
+        "Essential spending must be zero or more and cannot exceed reconciled ordinary spending.",
+      );
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -228,8 +301,10 @@ function useSpendingBaselineModel() {
           periodStartDate: first.startDate,
           periodEndDate: last.endDate,
         },
-        sourceNotes: "Median of the latest usable balance-sheet periods",
+        sourceNotes:
+          "Reconciled ordinary total; essential split confirmed manually",
       });
+      dirtyFields.current.clear();
     } catch (error_) {
       setError(formatAssetTrackerError(error_));
     } finally {
@@ -252,13 +327,19 @@ function useSpendingBaselineModel() {
     saving,
     error,
     changePeriod,
-    setEssential,
-    setDiscretionary,
-    setDebt,
-    setCurrency,
-    setEffectiveDate,
-    setOwner,
-    setSourceNotes,
+    setEssential: (value: string) => edit("essential", setEssential, value),
+    setDiscretionary: (value: string) =>
+      edit("discretionary", setDiscretionary, value),
+    setDebt: (value: string) => edit("debt", setDebt, value),
+    setCurrency: (value: Currency) => {
+      dirtyFields.current.add("currency");
+      setCurrency(value);
+    },
+    setEffectiveDate: (value: string) =>
+      edit("effectiveDate", setEffectiveDate, value),
+    setOwner: (value: string) => edit("owner", setOwner, value),
+    setSourceNotes: (value: string) =>
+      edit("sourceNotes", setSourceNotes, value),
     save,
     adoptReconciledHistory,
   };
@@ -363,17 +444,15 @@ function BaselineComparisonGrid({
 function ReconciledHistoryPrompt({
   model,
 }: Readonly<{ model: SpendingBaselineModel }>) {
-  if (
-    model.active == null ||
-    model.financialIndependence.reconciledAnnualExpenditure == null
-  ) {
+  if (model.financialIndependence.reconciledAnnualExpenditure == null) {
     return null;
   }
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-md border border-dashed p-3">
       <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-        Usable history is now available. Saving it creates a new version and
-        keeps the previous baseline in version history.
+        History provides the ordinary total, but not its essential split.
+        Confirm essential spending in the form, then save a reconciled version.
+        Any previous baseline stays in version history.
       </p>
       <Button
         type="button"

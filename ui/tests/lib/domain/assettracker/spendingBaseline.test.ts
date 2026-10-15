@@ -235,6 +235,26 @@ describe("explicit spending baselines", () => {
     expect(result.representativeAnnualCurrentExpenditure).toBe(42_000);
   });
 
+  it("rejects a baseline that would supersede the current version before it applies", () => {
+    expect(() =>
+      applySaveSpendingBaseline(
+        currentBalanceHousehold(),
+        {
+          effectiveDate: "2026-04-02",
+          annualEssentialSpending: 24_000,
+          annualDiscretionarySpending: 12_000,
+          annualDebtCashFlow: 6_000,
+          currency: "GBP",
+          ownership: householdOwnership,
+          source: { kind: "manual" },
+        },
+        "2026-04-01T12:00:00Z",
+      ),
+    ).toThrow(
+      "The spending baseline effective date cannot be later than its save date",
+    );
+  });
+
   it("round-trips every baseline version through backup and restore", () => {
     const data = applySaveSpendingBaseline(
       currentBalanceHousehold(),

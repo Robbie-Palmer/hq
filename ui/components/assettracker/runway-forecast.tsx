@@ -308,6 +308,15 @@ export function RunwayForecast() {
     spendingMode === "essential" && essentialOnlyRunwayForecast.length > 0
       ? essentialOnlyRunwayForecast
       : financialIndependence.runwayForecast;
+  let spendingDescription = "reconciled long-term spending";
+  if (
+    spendingMode === "essential" &&
+    spendingBasis.annualEssentialSpending != null
+  ) {
+    spendingDescription = `${formatCurrency(Math.round(spendingBasis.annualEssentialSpending), baseCurrency)}/yr essentials-only spending`;
+  } else if (representativeAnnualExpenditure != null) {
+    spendingDescription = `${formatCurrency(Math.round(representativeAnnualExpenditure), baseCurrency)}/yr long-term spending`;
+  }
   const [horizonYears, setHorizonYears] = useState(5);
   const [selectedDate, setSelectedDate] = useState(
     () =>
@@ -371,12 +380,8 @@ export function RunwayForecast() {
           </div>
           <p className="text-xs text-muted-foreground">
             Uses today&apos;s money, expected account returns, active expected
-            flows, and{" "}
-            {representativeAnnualExpenditure == null
-              ? "reconciled long-term spending"
-              : `${formatCurrency(Math.round(representativeAnnualExpenditure), baseCurrency)}/yr long-term spending`}
-            . Active commitments and selected decisions are deducted on their
-            expected dates.
+            flows, and {spendingDescription}. Active commitments and selected
+            decisions are deducted on their expected dates.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
