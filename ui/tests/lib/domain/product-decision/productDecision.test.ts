@@ -76,13 +76,13 @@ describe("ProductDecisionFrontmatterSchema", () => {
     ).toBe(false);
   });
 
-  it("requires at least one affected project", () => {
+  it("allows no additional affected projects because ownership comes from the directory", () => {
     expect(
       ProductDecisionFrontmatterSchema.safeParse({
         ...acceptedDecision,
         affected_projects: [],
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("keeps evaluation and ambiguous ADR links out of frontmatter", () => {
@@ -109,18 +109,18 @@ describe("ProductDecisionFrontmatterSchema", () => {
     ).toBe(true);
   });
 
-  it("validates supersession references as PDR slugs", () => {
+  it("requires project-qualified supersession references", () => {
     expect(
       ProductDecisionFrontmatterSchema.safeParse({
         ...acceptedDecision,
         supersedes: "001-original-choice",
       }).success,
-    ).toBe(true);
+    ).toBe(false);
     expect(
       ProductDecisionFrontmatterSchema.safeParse({
         ...acceptedDecision,
         supersedes: "personal-knowledge-graph:001-original-choice",
       }).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 });

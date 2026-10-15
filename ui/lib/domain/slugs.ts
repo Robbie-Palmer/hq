@@ -17,6 +17,11 @@ export const ProductDecisionSlugSchema = z
   .regex(/^\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/);
 export type ProductDecisionSlug = z.infer<typeof ProductDecisionSlugSchema>;
 
+export const ProductDecisionRefSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/);
+export type ProductDecisionRef = z.infer<typeof ProductDecisionRefSchema>;
+
 export const ProjectSlugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 export type ProjectSlug = z.infer<typeof ProjectSlugSchema>;
 

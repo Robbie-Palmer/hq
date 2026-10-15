@@ -2,11 +2,13 @@ import { z } from "zod";
 import {
   ADRRefSchema,
   IdeaSlugSchema,
+  type ProductDecisionRef,
+  ProductDecisionRefSchema,
   ProductDecisionSlugSchema,
   ProjectSlugSchema,
 } from "../slugs";
 
-export type { ProductDecisionSlug } from "../slugs";
+export type { ProductDecisionRef, ProductDecisionSlug } from "../slugs";
 
 const DateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -38,10 +40,10 @@ export const ProductDecisionFrontmatterSchema = z
     status: ProductDecisionAuthoredStatusSchema,
     decision_date: DateSchema.optional(),
     deprecated_date: DateSchema.optional(),
-    supersedes: ProductDecisionSlugSchema.optional(),
+    supersedes: ProductDecisionRefSchema.optional(),
     evidence: z.array(ProductDecisionEvidenceLinkSchema).default([]),
     ideas: z.array(IdeaSlugSchema).default([]),
-    affected_projects: z.array(ProjectSlugSchema).min(1),
+    affected_projects: z.array(ProjectSlugSchema).default([]),
     informed_by_adrs: z.array(ADRRefSchema).default([]),
   })
   .strict()
@@ -106,6 +108,8 @@ export type ProductDecisionFrontmatter = z.infer<
 >;
 
 export const ProductDecisionSchema = z.object({
+  pdrRef: ProductDecisionRefSchema,
+  projectSlug: ProjectSlugSchema,
   slug: ProductDecisionSlugSchema,
   title: z.string().regex(/^PDR \d{3}: .+/),
   date: DateSchema,
@@ -113,7 +117,7 @@ export const ProductDecisionSchema = z.object({
   authoredStatus: ProductDecisionAuthoredStatusSchema,
   decisionDate: DateSchema.optional(),
   deprecatedDate: DateSchema.optional(),
-  supersedes: ProductDecisionSlugSchema.optional(),
+  supersedes: ProductDecisionRefSchema.optional(),
   content: z.string().min(1),
   readingTime: z.string().min(1),
 });
@@ -121,12 +125,18 @@ export const ProductDecisionSchema = z.object({
 export type ProductDecision = z.infer<typeof ProductDecisionSchema>;
 
 export const ProductDecisionRelationsSchema = z.object({
+  project: ProjectSlugSchema,
   evidence: z.array(ProductDecisionEvidenceLinkSchema).default([]),
   ideas: z.array(IdeaSlugSchema).default([]),
-  affectedProjects: z.array(ProjectSlugSchema).min(1),
+  affectedProjects: z.array(ProjectSlugSchema).default([]),
   informedByADRs: z.array(ADRRefSchema).default([]),
 });
 
 export type ProductDecisionRelations = z.infer<
   typeof ProductDecisionRelationsSchema
 >;
+
+export function productDecisionPath(ref: ProductDecisionRef): string {
+  const [project, slug] = ProductDecisionRefSchema.parse(ref).split(":");
+  return `/projects/${project}/pdrs/${slug}`;
+}

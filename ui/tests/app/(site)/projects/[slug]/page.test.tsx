@@ -24,13 +24,19 @@ vi.mock("@/components/projects/project-tabs", () => ({
   ProjectTabs: ({
     overview,
     adrs,
+    pdrs,
+    pitch,
   }: {
     overview: React.ReactNode;
     adrs: React.ReactNode;
+    pdrs: React.ReactNode;
+    pitch: React.ReactNode;
   }) => (
     <div>
       <div data-testid="overview">{overview}</div>
       <div data-testid="adrs">{adrs}</div>
+      <div data-testid="pdrs">{pdrs}</div>
+      <div data-testid="pitch">{pitch}</div>
     </div>
   ),
 }));
@@ -181,6 +187,36 @@ describe("project page", () => {
     expect(screen.getByTestId("registered-components")).toHaveTextContent(
       "DesignEmbed,Mermaid",
     );
+  });
+
+  it("shows owned PDRs even when a project has no ADRs", async () => {
+    const slug = "personal-engineering-platform";
+    (getProject as Mock).mockReturnValue({ ...fixture, slug, adrs: [] });
+    render(await ProjectPage({ params: Promise.resolve({ slug }) }));
+    expect(
+      screen.getByRole("link", {
+        name: /Publish project operational evidence/,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `/projects/${slug}/pdrs/001-project-operational-evidence`,
+    );
+  });
+
+  it("shows the overview directly when there are no additional sections", async () => {
+    (getProject as Mock).mockReturnValue({ ...fixture, adrs: [] });
+    render(await ProjectPage({ params: Promise.resolve({ slug: "homelab" }) }));
+    expect(screen.getByText(/# Home Lab\s+Hello/)).toBeInTheDocument();
+    expect(screen.queryByTestId("overview")).not.toBeInTheDocument();
+  });
+
+  it("passes a project's pitch through to its tabs", async () => {
+    (getProject as Mock).mockReturnValue({
+      ...fixture,
+      pitch: { title: "Pitch", content: "Content" },
+    });
+    render(await ProjectPage({ params: Promise.resolve({ slug: "homelab" }) }));
+    expect(screen.getByText("pitch-content")).toBeInTheDocument();
   });
 
   it("shows initiatives as relationships outside the breadcrumb", async () => {

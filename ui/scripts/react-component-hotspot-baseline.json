@@ -102,7 +102,7 @@
   {
     "component": "ProjectPage",
     "maximums": {
-      "lines": 217,
+      "lines": 175,
       "renderComplexity": 10
     },
     "path": "app/(site)/projects/[slug]/page.tsx",
@@ -845,14 +845,6 @@
       "lines": 226
     },
     "path": "components/projects/project-list.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "ProjectTabs",
-    "maximums": {
-      "lines": 91
-    },
-    "path": "components/projects/project-tabs.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {

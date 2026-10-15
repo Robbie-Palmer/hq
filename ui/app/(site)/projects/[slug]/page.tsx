@@ -1,24 +1,16 @@
 import { ExternalLink, FileText, Github, Globe, Rss } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Suspense } from "react";
 import { IdeaBadges } from "@/components/ideas/idea-badges";
-import { Markdown } from "@/components/markdown";
-import { Mermaid } from "@/components/mermaid";
-import { ADRList } from "@/components/projects/adr-list";
-import { DesignEmbed } from "@/components/projects/design-embed";
-import { EmbeddedPitchDeckContent } from "@/components/projects/pitch-deck/embedded-pitch-deck-content";
-import { LazyProjectPitchDeck } from "@/components/projects/pitch-deck/lazy-project-pitch-deck";
 import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
+import { ProjectContent } from "@/components/projects/project-content";
 import {
   InitiativeProjectNavigation,
   ProjectInitiativeContext,
 } from "@/components/projects/project-initiative-context";
 import { ProjectRoleBadge } from "@/components/projects/project-role-badge";
 import { ProjectStatusBadge } from "@/components/projects/project-status-badge";
-import { ProjectTabs } from "@/components/projects/project-tabs";
-import { ProjectTabsSkeleton } from "@/components/projects/project-tabs-skeleton";
 import { ProjectTechStack } from "@/components/projects/project-tech-stack";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,8 +22,6 @@ import {
   getProject,
   type ProjectWithADRs,
 } from "@/lib/api/projects";
-
-const projectComponents = { DesignEmbed, Mermaid };
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -240,49 +230,7 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
           <PlatformManifest manifest={project.platformManifest} />
         )}
 
-        {/* Content Tabs */}
-        {project.pitch || project.adrs.length > 0 ? (
-          <Suspense fallback={<ProjectTabsSkeleton />}>
-            <ProjectTabs
-              projectSlug={project.slug}
-              adrCount={project.adrs.length}
-              pitch={
-                project.pitch ? (
-                  <LazyProjectPitchDeck
-                    projectSlug={project.slug}
-                    title={project.pitch.title}
-                  >
-                    <EmbeddedPitchDeckContent source={project.pitch.content} />
-                  </LazyProjectPitchDeck>
-                ) : undefined
-              }
-              overview={
-                <Markdown
-                  source={project.content}
-                  components={projectComponents}
-                />
-              }
-              adrs={
-                <ADRList
-                  projectSlug={project.slug}
-                  adrs={project.adrs}
-                  description={
-                    <div className="prose dark:prose-invert max-w-none">
-                      <p className="text-lg text-muted-foreground m-0">
-                        Architecture Decision Records (ADRs) document the
-                        important architectural choices made during the
-                        development of this project, along with the context and
-                        consequences of those decisions.
-                      </p>
-                    </div>
-                  }
-                />
-              }
-            />
-          </Suspense>
-        ) : (
-          <Markdown source={project.content} components={projectComponents} />
-        )}
+        <ProjectContent project={project} />
 
         <InitiativeProjectNavigation
           initiatives={initiatives}

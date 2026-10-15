@@ -5,24 +5,26 @@ import {
   getIdeasForProductDecision,
   getProjectsForProductDecision,
 } from "@/lib/repository/graph/queries";
-import type { ProductDecisionSlug } from "../slugs";
+import type { ProductDecisionRef } from "../slugs";
 
 export function getAllProductDecisions(repository: DomainRepository) {
-  return Array.from(repository.productDecisions.values()).sort((left, right) =>
-    right.slug.localeCompare(left.slug),
+  return Array.from(repository.productDecisions.values()).sort(
+    (left, right) =>
+      right.date.localeCompare(left.date) ||
+      right.pdrRef.localeCompare(left.pdrRef),
   );
 }
 
 export function getProductDecision(
   repository: DomainRepository,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ) {
   return repository.productDecisions.get(slug) ?? null;
 }
 
 export function getProductDecisionBacklinks(
   repository: DomainRepository,
-  slug: ProductDecisionSlug,
+  slug: ProductDecisionRef,
 ) {
   return {
     projects: Array.from(getProjectsForProductDecision(repository.graph, slug))

@@ -1,0 +1,176 @@
+---
+title: "PDR 001: Publish project operational evidence with its limits"
+date: "2026-10-09"
+status: "Accepted"
+decision_date: "2026-10-14"
+affected_projects: ["personal-knowledge-graph"]
+informed_by_adrs:
+  - "personal-knowledge-graph:015-ssg"
+  - "personal-knowledge-graph:040-posthog-analytics"
+---
+
+## Context
+
+Readers need evidence of what a project costs, whether it works, and whether it
+receives useful work. Owners need to explain bills, identify unused services,
+and decide where to spend attention. The Personal Engineering Platform owns
+these shared measurement rules. The Personal Knowledge Graph publishes the
+approved evidence alongside project narratives.
+
+## Decision
+
+Publish comparable operational measures with their provenance and limitations.
+Keep authored explanations in MDX and changing observations outside git. This
+record defines the product contract before storage and ingestion are selected.
+It does not claim that collection or project views already exist.
+
+Every figure names its scope, unit, source, method version, observation period,
+coverage, and last successful collection and publication. Repository inventories
+also name the exact commit SHA. Use complete UTC days for trailing windows and
+compare only periods with the same scope and method. HTML and Markdown twins
+must expose the same limitations. Evidence failures leave the narrative readable.
+
+### Economics
+
+| Measure                   | Definition                                                                                                                                                                                                                                                                                                                                                                               |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Current monthly run rate  | Recurring commitments normalised to a month, plus variable charges from the last 30 complete days multiplied by 365.25 / 12 / 30. Annual commitments contribute one twelfth. Label the result estimated; exclude one-off charges and usage already included in a commitment. Identify expiring credits. Incomplete usage produces a partial estimate without extrapolating missing days. |
+| Cumulative operating cost | Actual charges attributed to service periods since the stated tracking start, including one-off operating charges. Accrue prepayments over their service periods. Separate direct and allocated amounts; keep estimates provisional. Do not call incomplete history lifetime cost.                                                                                                       |
+| Cost composition          | Amounts by provider and purpose for the selected period, split by direct or allocated and actual or estimated basis. Breakdowns reconcile to the known subtotal. Percentages use that subtotal and disclose missing sources.                                                                                                                                                             |
+
+Retain billed currencies. A converted view names the reporting currency, rate
+source, rate date, and method. Never add unlike currencies. Amounts include
+reported tax and reflect discounts and credits; unknown tax coverage remains
+explicit. Preserve corrections and their reasons. Zero charges establish only a
+covered period, not free future operation. Price lists and budgets are not bills.
+
+Attribute dedicated services directly. Allocate the remaining shared pool using
+consumption from the same period across all consumers, including private
+projects. Missing usage must not inflate other projects' shares. Without usable
+consumption, the owner may approve fixed shares with a rationale and effective
+dates. Otherwise retain an unallocated platform residual. Never allocate by
+commits or source lines.
+
+Record the pool, period, rule, inputs, and rounding residual. Shares plus
+residual reconcile to the pool. An allocation of an actual bill remains an
+allocation. Portfolio totals count each charge once, using consumer shares plus
+residual rather than also adding the gross platform bill. Publish the method
+without exposing private consumers or account details.
+
+### Repository and delivery
+
+| Measure                | Definition                                                                                                                                                                                                                                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Language mix           | Each language's share of included source bytes at a named revision, with the byte denominator and inclusion rules. Imported GitHub results are repository-wide language bytes.                                                                                                                    |
+| Source lines of code   | Physical nonblank, noncomment lines by language at an exact SHA. Separate production code, tests, and authored tooling or configuration. Documentation is outside the source-code total. Record the counter, version, paths, and classification rules.                                            |
+| Last meaningful update | Integration time of the latest qualifying default-branch change in the project's scope, linked to evidence and classified as product, knowledge, or maintenance work. Show latest production delivery separately. Incomplete history is labelled latest observed update since its coverage start. |
+| Release cadence        | Published releases over 90 complete days, excluding drafts and prereleases. Show count and median interval; the interval is unavailable with fewer than two events.                                                                                                                               |
+| Delivery cadence       | Successful production deployments introducing a changed project revision over 90 complete days, with count and median interval. Exclude previews, retries, empty deployments, and rollbacks. Record rollbacks as recovery events.                                                                 |
+
+[GitHub language statistics](https://docs.github.com/en/rest/repos/repos#list-repository-languages)
+measure bytes, not source lines. A repository-wide result cannot describe one
+monorepo project. Results without reliable revision binding may appear as dated
+repository observations, but cannot replace a pinned inventory.
+
+Exclude vendored dependencies, caches, generated clients and code, build output,
+bundles, minified files, coverage reports, lockfiles, snapshots, copied assets,
+and binary or data fixtures. Count authored generator inputs where they are
+source code. Assistant-written code maintained as source is authored code;
+generated output is reproducible from another source. Record exceptions and
+unclassified files. Use dated project-to-path mappings. Shared packages own
+their inventories; consumers do not add copies to their totals.
+
+Qualifying activity changes behaviour, fixes, maintained tests, operating
+configuration, or substantive documentation and decisions. Reviewed dependency
+and security updates count as maintenance, including bot proposals. Comments,
+review chatter, timestamp updates, formatting-only changes, and generated-only
+churn do not qualify. Push or update timestamps alone are insufficient.
+Shared-infrastructure work belongs to its owner unless evidence demonstrates a
+consumer change. Keep classifications and corrections auditable.
+
+### Usage, reliability, and activity
+
+| Measure               | Definition                                                                                                                                                                                                                                                                                                                                                                       |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Observed usage        | Separate project-page views from product use. Name a useful production event before counting it. Privately report event counts and distinct observed active identities over 7 and 28 complete days, with identity and deduplication rules. Exclude known bots, owner tests, previews, and synthetic monitoring. Identities are not necessarily people; disclose collection gaps. |
+| Observed availability | Successful scheduled production probes divided by completed probes over 30 complete days. Also show completed divided by expected probes as coverage. Completed timeouts fail; missing probes are unknown. Name monitored services and workflows.                                                                                                                                |
+| Request failure rate  | Production server failures and timeouts divided by eligible requests over 30 complete days, where instrumented. Declare routes, error classification, sampling, and exclusions. Preserve denominators when combining services; never average percentages.                                                                                                                        |
+| Activity pulse        | Qualifying integrated changes and distinct active UTC days over 28 complete days, plus days since latest changed production delivery. Count each merged PR once, or a direct default-branch commit without a PR once. Separate maintenance from product or knowledge work. Delivery is not applicable without a production deployment.                                           |
+
+Activity is not a health score, productivity ranking, or proof of value. These
+measures do not authorise spending, reprioritisation, or ticket completion.
+
+### Privacy
+
+Collection and publication permissions are separate. The owner approves projects,
+metrics, sources, and dimensions before publication.
+
+| Class       | Policy                                                                                                                                                                                                                   |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Public      | Approved cost aggregates and methods, inventories and public revisions, delivery history, activity summaries, and reliability aggregates. Provenance links must themselves be safe and public.                           |
+| Private     | Invoices, account and resource identifiers, raw usage events, user identifiers and payloads, private repository details, logs, traces, and sensitive allocation inputs. Exclude these from public responses and git.     |
+| Uncollected | Unconnected or deliberately uninstrumented sources, labelled explicitly. Never infer values from other projects. Labour, personal financial records, session replay contents, and user content are outside this dataset. |
+
+Public usage is limited to non-overlapping UTC calendar weeks, Monday to Monday,
+and project-level counts. Publish a week only with at least ten observed active
+identities; otherwise show "withheld for privacy", including for zero. Exclude
+public rolling windows, cohort splits, and overlapping totals that could reveal
+withheld counts by subtraction. Review revisions for the same risk. Keep a
+series private if its context can still identify users; the threshold alone
+does not guarantee anonymity.
+
+Private and withheld values must be absent from HTML, Markdown, chart data, and
+public APIs. Reliability aggregates must not reveal private paths, error text,
+or individual activity. Credentials never belong in evidence. This policy does
+not authorise copying existing analytics payloads or changing their collection
+policy.
+
+### Coverage and freshness
+
+Complete means the declared sources and period are covered. Zero requires an
+observed absence of qualifying charges or events and permission to publish it.
+Partial figures show the known subtotal or sample and identify gaps; charts
+leave gaps empty. Estimates name assumptions. A zero-denominator rate is
+unavailable. Distinct identity counts cannot be added across periods or projects
+without deduplication.
+
+Unavailable, uncollected, private, withheld, and not applicable have no numeric
+value. A failed collector is unavailable; a disabled one is uncollected. After a
+refresh deadline, retain the last successful value with a stale label and its
+age. Failures and backfills cannot advance an observation's event time.
+Allocation, estimation, coverage, freshness, and disclosure are separate properties.
+
+### Cadence and retention
+
+| Evidence                                 | Refresh contract                                                                                                                                                  | Retention                                                                                                                                       |
+| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository, activity, releases, delivery | Reconcile daily and publish within 24 hours of collection. Recount source only when its owned revision changes.                                                   | Daily aggregates for 24 months; monthly aggregates, published inventories, revision and method references for the project's published lifetime. |
+| Usage and reliability                    | Collect daily. Publish reliability within 24 hours and closed usage weeks within 48 hours of week end, after privacy review.                                      | Private daily aggregates for 24 months; safe published weekly or monthly aggregates for the project's published lifetime.                       |
+| Costs                                    | Collect daily where supported, otherwise on the declared billing schedule. Reconcile final bills within seven days of expected issue and publish within 24 hours. | Normalised monthly amounts, allocation and conversion methods, coverage, and corrections for the project's published lifetime.                  |
+
+Record separate collection and publication deadlines; overdue work is stale.
+Retain necessary private raw inputs for at most 90 days after collection.
+Provider archives and accounting records have separate policies. Review private
+aggregates annually. Privacy deletion overrides analytical retention: withdraw
+or correct affected outputs and unsafe historical versions. Public copies may
+persist elsewhere, so review must precede publication.
+
+### Exclusions and consequences
+
+Exclude labour, opportunity cost, unallocated personal subscriptions, hardware
+purchase and depreciation, revenue, profit, and valuation. This is operating
+cost, not total economic cost. Adding those categories requires another product
+decision with a method and privacy policy.
+
+Later architecture must preserve provenance, corrections, access boundaries,
+and safe aggregates. This record chooses no storage, collector, dashboard,
+alert threshold, or rendering strategy. Projects show gaps until evidence
+exists. Real-time billing and complete historical backfill are not promised.
+
+## Evaluation
+
+Before publishing views, reconcile a dedicated service and a shared bill and
+reproduce a monorepo inventory at its SHA. Exercise a partial period, a corrected
+charge, generated-only churn, a collection outage, and usage below the privacy
+threshold. Readers must be able to identify scope, period, method, and gaps.
+Review usefulness and disclosure after two reconciled billing periods.

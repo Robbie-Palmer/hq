@@ -2,6 +2,13 @@ import { describe, expect, it } from "vitest";
 import sitemap from "@/app/sitemap";
 
 describe("sitemap", () => {
+  it("publishes product decisions only under their owner", () => {
+    const urls = sitemap().map((entry) => entry.url);
+    expect(urls).toContain(
+      "https://robbiepalmer.me/projects/personal-engineering-platform/pdrs/001-project-operational-evidence",
+    );
+    expect(urls.some((url) => url.includes("/product-decisions/"))).toBe(false);
+  });
   it("includes the satellite swarm project space", () => {
     expect(sitemap().map((entry) => entry.url)).toContain(
       "https://robbiepalmer.me/satellite-swarm",
