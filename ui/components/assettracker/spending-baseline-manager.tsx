@@ -437,7 +437,7 @@ function StatusNotice({ model }: Readonly<{ model: SpendingBaselineModel }>) {
   );
 }
 
-function BaselineSummary({
+function BaselineSummaryAmounts({
   model,
 }: Readonly<{ model: SpendingBaselineModel }>) {
   const ordinary = selectedOrdinarySpending(model);
@@ -446,65 +446,81 @@ function BaselineSummary({
   const difference =
     ordinary != null && history != null ? ordinary - history : null;
   return (
-    <div className="space-y-4 rounded-md bg-muted/40 p-4">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-xs text-muted-foreground">Ordinary spending</p>
-          <p className="mt-1 text-2xl font-semibold">
-            {ordinary == null
-              ? "Unavailable"
-              : `${formatCurrency(Math.round(ordinary), model.baseCurrency)}/yr`}
+    <div className="grid gap-3 sm:grid-cols-2">
+      <div>
+        <p className="text-xs text-muted-foreground">Ordinary spending</p>
+        <p className="mt-1 text-2xl font-semibold">
+          {ordinary == null
+            ? "Unavailable"
+            : `${formatCurrency(Math.round(ordinary), model.baseCurrency)}/yr`}
+        </p>
+        {ordinary != null && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCurrency(Math.round(ordinary / 12), model.baseCurrency)}
+            /month
           </p>
-          {ordinary != null && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatCurrency(Math.round(ordinary / 12), model.baseCurrency)}
-              /month
-            </p>
-          )}
-        </div>
-        <div>
-          <p className="text-xs text-muted-foreground">Debt cash flow</p>
-          <p className="mt-1 text-lg font-semibold">
-            {debt == null
-              ? "Unavailable"
-              : `${formatCurrency(Math.round(debt), model.baseCurrency)}/yr`}
-          </p>
-          {difference != null && difference !== 0 && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatCurrency(
-                Math.round(Math.abs(difference)),
-                model.baseCurrency,
-              )}
-              /yr {difference > 0 ? "above" : "below"} reconciled history
-            </p>
-          )}
-        </div>
+        )}
       </div>
+      <div>
+        <p className="text-xs text-muted-foreground">Debt cash flow</p>
+        <p className="mt-1 text-lg font-semibold">
+          {debt == null
+            ? "Unavailable"
+            : `${formatCurrency(Math.round(debt), model.baseCurrency)}/yr`}
+        </p>
+        {difference != null && difference !== 0 && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCurrency(
+              Math.round(Math.abs(difference)),
+              model.baseCurrency,
+            )}
+            /yr {difference > 0 ? "above" : "below"} reconciled history
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BaselineSummaryActions({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  return (
+    <div className="grid gap-2 sm:flex sm:flex-wrap">
+      <Button
+        className="w-full sm:w-auto"
+        onClick={() => model.setMode("manual")}
+      >
+        Edit amounts
+      </Button>
+      {model.historyAvailable && (
+        <Button
+          className="w-full sm:w-auto"
+          variant="outline"
+          onClick={() => model.setMode("history")}
+        >
+          {model.active?.source.kind === "reconciled"
+            ? "Refresh from history"
+            : "Use history"}
+        </Button>
+      )}
+      <Button className="w-full sm:w-auto" variant="ghost" asChild>
+        <a href="#fi-results">View FI results</a>
+      </Button>
+    </div>
+  );
+}
+
+function BaselineSummary({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  return (
+    <div className="space-y-4 rounded-md bg-muted/40 p-4">
+      <BaselineSummaryAmounts model={model} />
       <p className="text-sm text-muted-foreground">
         This sets your FI target, runway, and portfolio projection below.
       </p>
-      <div className="grid gap-2 sm:flex sm:flex-wrap">
-        <Button
-          className="w-full sm:w-auto"
-          onClick={() => model.setMode("manual")}
-        >
-          Edit amounts
-        </Button>
-        {model.historyAvailable && (
-          <Button
-            className="w-full sm:w-auto"
-            variant="outline"
-            onClick={() => model.setMode("history")}
-          >
-            {model.active?.source.kind === "reconciled"
-              ? "Refresh from history"
-              : "Use history"}
-          </Button>
-        )}
-        <Button className="w-full sm:w-auto" variant="ghost" asChild>
-          <a href="#fi-results">View FI results</a>
-        </Button>
-      </div>
+      <BaselineSummaryActions model={model} />
     </div>
   );
 }
@@ -734,17 +750,92 @@ function MoreBaselineDetails({
   );
 }
 
+function ManualAmountFields({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <PeriodField model={model} />
+      <BaselineInputField
+        id="spending-baseline-essential"
+        label={`Essential per ${model.period === "monthly" ? "month" : "year"}`}
+        ariaLabel="Essential spending"
+        type="number"
+        value={model.essential}
+        onChange={model.setEssential}
+      />
+      <BaselineInputField
+        id="spending-baseline-discretionary"
+        label={`Discretionary per ${model.period === "monthly" ? "month" : "year"}`}
+        ariaLabel="Discretionary spending"
+        type="number"
+        value={model.discretionary}
+        onChange={model.setDiscretionary}
+      />
+      <BaselineInputField
+        id="spending-baseline-debt"
+        label={`Debt cash flow per ${model.period === "monthly" ? "month" : "year"}`}
+        ariaLabel="Debt cash flow"
+        type="number"
+        value={model.debt}
+        onChange={model.setDebt}
+      />
+    </div>
+  );
+}
+
+function ManualSpendingPreview({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  const amounts = [model.essential, model.discretionary].map(numberValue);
+  const [essentialAmount = Number.NaN, discretionaryAmount = Number.NaN] =
+    amounts;
+  if (![essentialAmount, discretionaryAmount].every(Number.isFinite))
+    return null;
+  const multiplier = model.period === "monthly" ? 12 : 1;
+  return (
+    <div className="rounded-md bg-muted/40 p-3">
+      <p className="text-xs text-muted-foreground">Forecast spending</p>
+      <p className="mt-1 font-semibold">
+        {formatCurrency(
+          Math.round((essentialAmount + discretionaryAmount) * multiplier),
+          model.currency,
+        )}
+        /yr
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Saving this updates the FI target, runway, and projection.
+      </p>
+    </div>
+  );
+}
+
+function ManualFormActions({
+  model,
+}: Readonly<{ model: SpendingBaselineModel }>) {
+  const label =
+    model.savingAction === "manual"
+      ? "Saving…"
+      : model.active == null
+        ? "Use this budget"
+        : "Save changes";
+  return (
+    <div className="grid gap-2 sm:flex sm:flex-wrap">
+      <Button
+        className="w-full sm:w-auto"
+        type="submit"
+        disabled={model.saving}
+      >
+        {label}
+      </Button>
+      <FlowSwitcher model={model} />
+    </div>
+  );
+}
+
 function ManualBaselineForm({
   model,
 }: Readonly<{ model: SpendingBaselineModel }>) {
-  const [essentialAmount = Number.NaN, discretionaryAmount = Number.NaN] = [
-    model.essential,
-    model.discretionary,
-  ].map(numberValue);
-  const preview = [essentialAmount, discretionaryAmount].every(Number.isFinite)
-    ? (essentialAmount + discretionaryAmount) *
-      (model.period === "monthly" ? 12 : 1)
-    : null;
   return (
     <form className="space-y-4 rounded-md border p-4" onSubmit={model.save}>
       <div>
@@ -753,64 +844,15 @@ function ManualBaselineForm({
           Use the amounts you expect the household to keep spending.
         </p>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        <PeriodField model={model} />
-        <BaselineInputField
-          id="spending-baseline-essential"
-          label={`Essential per ${model.period === "monthly" ? "month" : "year"}`}
-          ariaLabel="Essential spending"
-          type="number"
-          value={model.essential}
-          onChange={model.setEssential}
-        />
-        <BaselineInputField
-          id="spending-baseline-discretionary"
-          label={`Discretionary per ${model.period === "monthly" ? "month" : "year"}`}
-          ariaLabel="Discretionary spending"
-          type="number"
-          value={model.discretionary}
-          onChange={model.setDiscretionary}
-        />
-        <BaselineInputField
-          id="spending-baseline-debt"
-          label={`Debt cash flow per ${model.period === "monthly" ? "month" : "year"}`}
-          ariaLabel="Debt cash flow"
-          type="number"
-          value={model.debt}
-          onChange={model.setDebt}
-        />
-      </div>
-      {preview != null && (
-        <div className="rounded-md bg-muted/40 p-3">
-          <p className="text-xs text-muted-foreground">Forecast spending</p>
-          <p className="mt-1 font-semibold">
-            {formatCurrency(Math.round(preview), model.currency)}/yr
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Saving this updates the FI target, runway, and projection.
-          </p>
-        </div>
-      )}
+      <ManualAmountFields model={model} />
+      <ManualSpendingPreview model={model} />
       <MoreBaselineDetails model={model} />
       <p className="text-xs text-muted-foreground">
         Debt cash flow covers principal and other debt repayments. Interest and
         fees belong in ordinary spending.
       </p>
       <ErrorMessage model={model} />
-      <div className="grid gap-2 sm:flex sm:flex-wrap">
-        <Button
-          className="w-full sm:w-auto"
-          type="submit"
-          disabled={model.saving}
-        >
-          {model.savingAction === "manual"
-            ? "Saving…"
-            : model.active == null
-              ? "Use this budget"
-              : "Save changes"}
-        </Button>
-        <FlowSwitcher model={model} />
-      </div>
+      <ManualFormActions model={model} />
     </form>
   );
 }
