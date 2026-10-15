@@ -95,7 +95,7 @@ const protectedMutationSignals = [
   /\b(?:database|schema) migration\b/iu,
   /\b(?:delete production|destructive operation)\b/iu,
   /\b(?:terraform|kubectl) apply\b/iu,
-  /\b(?:charge|execute|process|refund|send|submit)\b.{0,40}\b(?:billing|payment)\b/iu,
+  /\b(?:charge|execute|process|refund|send|submit)\b.{0,40}\b(?:billing|payments?)\b/iu,
 ];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
@@ -154,10 +154,6 @@ function codexModelPolicy(complexity: Complexity): {
 } {
   switch (complexity) {
     case "critical":
-      return {
-        models: ["gpt-5.6-sol"],
-        effort: "high",
-      };
     case "complex":
     case "standard":
       return {

@@ -130,19 +130,24 @@ describe("Work Graph ticket routing", () => {
   });
 
   it("does not mistake a billing domain model for an external mutation", () => {
-    expect(
-      deriveTicketRoute(
-        ticket({
-          title: "Model project costs, usage, time, allocation, and provenance",
-          context: [
-            {
-              kind: "acceptance_criteria",
-              content: "Represent billing periods, payment provenance, and allocated cost.",
-            },
-          ],
-        }),
-      ),
-    ).toMatchObject({ runtimeMode: "full-access" });
+    const selection = ticket({
+      title: "Model project costs, usage, time, allocation, and provenance",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Represent billing periods, payment provenance, and allocated cost.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: false,
+      runtimeMode: "full-access",
+    });
+    expect(() =>
+      assertTicketRouteSupported(selection.ticket.id, route),
+    ).not.toThrow();
   });
 
   it("rejects protected mutations instead of entering a prompt-heavy sandbox", () => {
@@ -164,6 +169,16 @@ describe("Work Graph ticket routing", () => {
       runtimeMode: "full-access",
       serviceTier: "priority",
     });
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
+  });
+
+  it("rejects plural payment mutations before a full-access launch", () => {
+    const selection = ticket({ title: "Refund payments" });
+    const route = deriveTicketRoute(selection);
+
+    expect(route.protectedMutation).toBe(true);
     expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
       "excluded until a scoped permission boundary is ready",
     );
