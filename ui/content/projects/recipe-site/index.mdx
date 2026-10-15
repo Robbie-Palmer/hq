@@ -358,9 +358,8 @@ includes:
 * **Shared household pantry and shopping-list state** so members work from the same stock picture on every
   device
 
-The earlier weekly meal planner was removed when the shopping journey was simplified. Shopping lists now use
-canonical account or household state on the server. A browser cache keeps edits responsive and recovers unsaved
-changes after a failed request.
+The earlier weekly meal planner was removed when the shopping journey was simplified. Shopping lists now follow
+a person or household across devices, so everyone cooks from the same up-to-date list.
 
 ## Capture, Accounts & Collaboration
 
@@ -405,8 +404,8 @@ and discovery to a redesigned planner, synchronized shopping, pantry and freezer
 portions, leftovers, and repeat cooking. A person should get clear value from every stage even if none of their
 friends has joined yet.
 
-Include retailer hand-off in the journey. Now that the shopping list has a canonical server record, integrate one
-retailer or grocery intermediary deeply enough to validate ingredient-to-product
+Include retailer hand-off in the journey. Now that the shopping list follows a person or household across
+devices, integrate one retailer or grocery intermediary deeply enough to validate ingredient-to-product
 matching, quantities, substitutions, availability, and basket transfer. Prefer providers with broad coverage or
 stable partner interfaces before maintaining many retailer-specific adapters. Corrections made during product
 matching can improve the ingredient ontology and future lists.
@@ -1118,21 +1117,8 @@ content site:
 The static shell still keeps delivery simple and public pages fast. Dynamic infrastructure was introduced only
 where ownership, identity, long-running work, or shared state required it.
 
-Active timers and unit preferences remain deliberately local. Shopping lists do not. Neon stores the canonical
-list for an account or household, while the browser keeps a scoped cache for responsive interaction and failure
-recovery.
-
-### Shopping-list continuity and conflicts
-
-Each shopping list has a monotonic server revision. A write includes the revision it read, and the API rejects a
-stale write. The client then fetches the current snapshot and rebases its pending changes. Recipes merge by slug,
-and free-form items merge by ID. A local check, uncheck, or keyed edit wins when both clients changed the same
-value, while unrelated remote changes remain in the result.
-
-The browser cache records the list ID and confirmed revision. On reconnect, the client restores cached edits only
-when they belong to the current list. Browser-only lists written before server persistence have no list ID; the
-client imports those contents once and saves the merged snapshot. It ignores cache data scoped to another list,
-which prevents one account or an archived shopping trip from leaking into another.
+Active timers and unit preferences remain tied to one device. Shopping lists follow a person or household across
+devices, keeping the kitchen journey connected for everyone involved.
 
 ## Social Cooking Graph
 
