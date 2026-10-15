@@ -561,6 +561,50 @@ describe("temporal platform layers", () => {
         technology: "oasdiff",
       }),
     );
+
+    const governedRecipe = resolveEffectiveProjectStack(
+      repository,
+      "recipe-site",
+      "2026-10-15T12:00:00Z",
+    );
+    expect(governedRecipe.policies).toContainEqual(
+      expect.objectContaining({
+        slot: "api-governance.contract-lifecycle",
+        value:
+          "Runtime-derived, committed, validated, compatibility-gated, indexed, versioned, and published as immutable OCI artifacts",
+      }),
+    );
+  });
+
+  it("keeps event envelopes separate from asynchronous transport semantics", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    expect(
+      manifest.layers.find((layer) => layer.slug === "event-contracts"),
+    ).toBeDefined();
+    expect(manifest.selections).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "event.contract-format",
+          technology: "asyncapi",
+        }),
+        expect.objectContaining({
+          slot: "event.envelope-format",
+          technology: "cloudevents",
+        }),
+        expect.objectContaining({
+          slot: "event.schema-selection",
+          kind: "policy",
+        }),
+        expect.objectContaining({
+          slot: "event.transport-semantics",
+          kind: "policy",
+        }),
+      ]),
+    );
   });
 
   it("resolves the PostgreSQL access, connection, and recovery controls", () => {
