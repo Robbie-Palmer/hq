@@ -59,7 +59,7 @@ const EqualShareRuleSchema = AllocationRuleBaseSchema.extend({
 const WeightSchema = z
   .object({
     consumerId: IdentifierSchema,
-    weight: z.number().finite().positive(),
+    weight: z.number().positive(),
   })
   .strict();
 
@@ -132,7 +132,7 @@ export type ProjectLifecyclePeriod = z.infer<
 
 const UsageEvidenceSchema = z
   .object({
-    quantity: z.number().finite().nonnegative().nullable(),
+    quantity: z.number().nonnegative().nullable(),
     metricObservationId: IdentifierSchema.nullable(),
   })
   .strict()
@@ -166,7 +166,7 @@ export type SharedCostConsumer = z.infer<typeof SharedCostConsumerSchema>;
 
 const UsageTotalSchema = z
   .object({
-    quantity: z.number().finite().nonnegative(),
+    quantity: z.number().nonnegative(),
     metricObservationId: IdentifierSchema,
   })
   .strict();
@@ -390,7 +390,8 @@ function sharesForRequest(
     }
     case "usage": {
       const incomplete = request.consumers.some(
-        ({ usage }) => usage === undefined || usage.quantity === null,
+        ({ usage }) =>
+          usage?.quantity === undefined || usage?.quantity === null,
       );
       if (incomplete && request.usageTotal === undefined) return [];
 
@@ -428,7 +429,7 @@ function allocateUnits(
 ): readonly UnitAllocation[] {
   const totalUnits = Math.round(amount * amountPrecision);
   if (!Number.isSafeInteger(totalUnits)) {
-    throw new Error("The shared cost amount exceeds supported precision");
+    throw new TypeError("The shared cost amount exceeds supported precision");
   }
   const allocatedFraction = shares.reduce(
     (total, { fraction }) => total + fraction,
