@@ -977,16 +977,27 @@ function ComparisonDetails({
 function ComparisonHeader({
   horizonYears,
   setHorizonYears,
+  spendingLabel,
   transitionDate,
 }: Readonly<{
   horizonYears: number;
   setHorizonYears(value: number): void;
+  spendingLabel: string;
   transitionDate: string;
 }>) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h4 className="text-sm font-medium">Baseline comparison</h4>
+        <div className="flex flex-wrap items-center gap-2">
+          <h4 className="text-sm font-medium">Baseline comparison</h4>
+          <Badge
+            variant={
+              spendingLabel.startsWith("Manual") ? "secondary" : "outline"
+            }
+          >
+            {spendingLabel}
+          </Badge>
+        </div>
         <p className="text-xs text-muted-foreground">
           The selected horizon starts when current income stops on{" "}
           {format(parseISO(transitionDate), "d MMM yyyy")}. Both paths use the
@@ -1231,8 +1242,21 @@ function useComparisonModel(scenario: JobMoveScenario) {
     setAlternativeDate,
     setHorizonYears,
     setPrimaryDate,
+    spendingLabel: comparisonSpendingLabel(
+      scenario,
+      tracker.financialIndependence?.spendingBasis.kind,
+    ),
     tracker,
   };
+}
+
+function comparisonSpendingLabel(
+  scenario: JobMoveScenario,
+  spendingKind: "manual" | "reconciled" | undefined,
+): string {
+  if (scenario.annualSpendingOverride != null)
+    return "Scenario spending override";
+  return spendingKind === "manual" ? "Manual spending" : "Reconciled spending";
 }
 
 function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
@@ -1253,6 +1277,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
       <ComparisonHeader
         horizonYears={horizonYears}
         setHorizonYears={model.setHorizonYears}
+        spendingLabel={model.spendingLabel}
         transitionDate={primaryDate}
       />
       {scenario.employmentStatus === "unemployed" && (

@@ -38,6 +38,7 @@ export * from "./runwayForecast";
 export * from "./salaryCalculation";
 export * from "./salaryHistory";
 export * from "./salaryHistoryImport";
+export * from "./spendingBaseline";
 export * from "./taxPosition";
 export * from "./transfer";
 export * from "./valuation";

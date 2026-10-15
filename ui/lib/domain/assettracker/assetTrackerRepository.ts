@@ -32,6 +32,7 @@ import type { PropertyComparableSearchDefinition } from "./propertyComparables";
 import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
 import { compareAcceptedAt, type SalaryHistoryRecord } from "./salaryHistory";
+import type { SpendingBaseline } from "./spendingBaseline";
 import type { Transfer } from "./transfer";
 import type {
   ExchangeRateObservation,
@@ -53,6 +54,7 @@ export interface AssetTrackerRepository {
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
+  spendingBaselines: SpendingBaseline[];
   emergencyFundPlans: EmergencyFundPlan[];
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
@@ -547,6 +549,36 @@ function validateEmergencyFundPlans(
   }
 }
 
+function validateSpendingBaselines(data: AssetTrackerData): void {
+  const ids = new Set<string>();
+  const activeSeries = new Set<string>();
+  const baselines = data.spendingBaselines ?? [];
+  for (const baseline of baselines) {
+    if (ids.has(baseline.id)) {
+      throw new AssetTrackerDataError(
+        `Duplicate spending baseline ID "${baseline.id}"`,
+      );
+    }
+    ids.add(baseline.id);
+    if (baseline.status === "active") {
+      if (activeSeries.has(baseline.seriesId)) {
+        throw new AssetTrackerDataError(
+          `Spending baseline series "${baseline.seriesId}" has more than one active version`,
+        );
+      }
+      activeSeries.add(baseline.seriesId);
+    }
+    if (
+      baseline.supersedesId != null &&
+      !baselines.some(({ id }) => id === baseline.supersedesId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Spending baseline "${baseline.id}" supersedes unknown version "${baseline.supersedesId}"`,
+      );
+    }
+  }
+}
+
 function indexInstruments(data: AssetTrackerData): Map<string, Instrument> {
   const instruments = new Map(
     (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
@@ -727,6 +759,7 @@ function validateReferences(
   validatePlannedExpenditureReferences(data, accounts);
   validateFutureCashFlowReferences(data, accounts);
   validateForecastAssumptionSets(data, accounts);
+  validateSpendingBaselines(data);
   validateEmergencyFundPlans(data, accounts);
   validateValuationReferences(data, accounts);
   validatePropertyComparableSearchReferences(data, accounts);
@@ -815,6 +848,9 @@ export function buildRepository(
     }),
     forecastAssumptionSets: [...data.forecastAssumptionSets].sort(
       (a, b) => a.name.localeCompare(b.name) || b.version - a.version,
+    ),
+    spendingBaselines: [...(data.spendingBaselines ?? [])].sort(
+      (a, b) => b.version - a.version,
     ),
     emergencyFundPlans: [...(data.emergencyFundPlans ?? [])].sort(
       (a, b) => b.version - a.version,

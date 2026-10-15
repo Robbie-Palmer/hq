@@ -29,6 +29,7 @@ import { PropertyComparableSearchDefinitionSchema } from "./propertyComparables"
 import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
 import { SalaryHistoryRecordSchema } from "./salaryHistory";
+import { SpendingBaselineSchema } from "./spendingBaseline";
 import { TaxPositionDataSchema } from "./taxPosition";
 import { TransferSchema } from "./transfer";
 import {
@@ -97,6 +98,7 @@ export const AssetTrackerDataSchema = z
     planningCases: z.array(PlanningCaseSchema).default([]),
     futureCashFlows: z.array(FutureCashFlowSchema).default([]),
     forecastAssumptionSets: z.array(ForecastAssumptionSetSchema).default([]),
+    spendingBaselines: z.array(SpendingBaselineSchema).optional(),
     emergencyFundPlans: z.array(EmergencyFundPlanSchema).optional(),
     mortgageScenarios: z.array(MortgageScenarioSchema).optional(),
     decisionRecords: z.array(FinancialDecisionRecordSchema).optional(),

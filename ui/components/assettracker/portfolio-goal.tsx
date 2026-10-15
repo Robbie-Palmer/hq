@@ -1,7 +1,7 @@
 "use client";
 
 import { format, parseISO } from "date-fns";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ import { IncomeExpenditureChart } from "./income-expenditure-chart";
 import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
 import { PortfolioFiProjectionChart } from "./portfolio-fi-projection-chart";
 import { RunwayForecast } from "./runway-forecast";
+import { SpendingBaselineManager } from "./spending-baseline-manager";
 
 function signedCurrency(value: number, currency: Currency): string {
   if (value === 0) return formatCurrency(0, currency);
@@ -85,6 +86,49 @@ function getEmptyReconciliationDescription(hasIncome: boolean): string {
     return "Add period income history to derive expenditure and an FI target. Account balances and signed deposits or withdrawals provide the rest of the reconciliation.";
   }
   return "Income is saved, but there are not yet two usable balance-sheet dates around an income period. Add complete account balances at matching period ends.";
+}
+
+function PortfolioGoalHeader() {
+  return (
+    <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="space-y-1.5">
+        <CardTitle>Financial independence</CardTitle>
+        <CardDescription>
+          Based on balances, income, and capital flows.
+        </CardDescription>
+      </div>
+      <IncomeHistoryImportDrawer />
+    </CardHeader>
+  );
+}
+
+function PortfolioGoalFrame({
+  children,
+  showIncomeTools,
+}: Readonly<{ children: ReactNode; showIncomeTools: boolean }>) {
+  if (!showIncomeTools) {
+    return (
+      <Card className="min-w-0 border-0 shadow-none">
+        <CardContent className="flex min-w-0 flex-col gap-5 px-0">
+          {children}
+        </CardContent>
+      </Card>
+    );
+  }
+  return (
+    <Card className="min-w-0">
+      <PortfolioGoalHeader />
+      <CardContent className="flex min-w-0 flex-col gap-5 px-4 sm:px-6">
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function expenditureDescription(kind: "manual" | "reconciled"): string {
+  return kind === "manual"
+    ? "Selected manual baseline. Excludes debt principal."
+    : "Median of the latest 12 periods, annualised. Excludes debt principal.";
 }
 
 export function PortfolioGoal({
@@ -160,318 +204,292 @@ export function PortfolioGoal({
   }
 
   return (
-    <Card className="min-w-0">
-      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="space-y-1.5">
-          <CardTitle>Financial independence</CardTitle>
-          <CardDescription>
-            Derived from income, complete account balances, and signed capital
-            flows. Capital sources keep personal saving, debt principal, and
-            external contributions distinct.
-          </CardDescription>
+    <PortfolioGoalFrame showIncomeTools={showIncomeTools}>
+      <SpendingBaselineManager />
+      <div
+        id="fi-results"
+        className="grid scroll-mt-4 gap-3 sm:grid-cols-2 lg:grid-cols-3"
+      >
+        <div className="rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">
+            Representative annual expenditure
+          </p>
+          <p className="mt-1 text-xl font-semibold">
+            {optionalCurrency(representativeAnnualExpenditure, baseCurrency)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {expenditureDescription(financialIndependence.spendingBasis.kind)}
+          </p>
+          {representativeAnnualCurrentExpenditure != null &&
+            representativeAnnualCurrentExpenditure !==
+              representativeAnnualExpenditure && (
+              <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
+                {formatCurrency(
+                  Math.round(representativeAnnualCurrentExpenditure),
+                  baseCurrency,
+                )}
+                /yr current spending, including debt principal
+              </p>
+            )}
         </div>
-        {showIncomeTools && <IncomeHistoryImportDrawer />}
-      </CardHeader>
-      <CardContent className="flex min-w-0 flex-col gap-5 px-4 sm:px-6">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">
-              Representative annual expenditure
-            </p>
-            <p className="mt-1 text-xl font-semibold">
-              {optionalCurrency(representativeAnnualExpenditure, baseCurrency)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Median of the latest 12 periods, annualised. Excludes debt
-              principal.
-            </p>
-            {representativeAnnualCurrentExpenditure != null &&
-              representativeAnnualCurrentExpenditure !==
-                representativeAnnualExpenditure && (
-                <p className="mt-2 border-t pt-2 text-xs text-muted-foreground">
-                  {formatCurrency(
-                    Math.round(representativeAnnualCurrentExpenditure),
-                    baseCurrency,
-                  )}
-                  /yr current spending, including debt principal
-                </p>
-              )}
+        <div className="rounded-md border p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">FI target</p>
+            <label
+              htmlFor="withdrawal-rate"
+              className="flex items-center gap-1 text-xs text-muted-foreground"
+            >
+              <span>Withdrawal</span>
+              <Input
+                id="withdrawal-rate"
+                aria-label="Withdrawal rate"
+                type="number"
+                inputMode="decimal"
+                min="0.1"
+                max="100"
+                step="any"
+                className="h-7 w-16 text-right"
+                value={withdrawalRateDraft}
+                onChange={(event) => {
+                  setWithdrawalRateDraft(event.target.value);
+                  setError(null);
+                }}
+                onBlur={(event) => handleWithdrawalRate(event.target.value)}
+              />
+              <span>%</span>
+            </label>
           </div>
-          <div className="rounded-md border p-3">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-muted-foreground">FI target</p>
-              <label
-                htmlFor="withdrawal-rate"
-                className="flex items-center gap-1 text-xs text-muted-foreground"
-              >
-                <span>Withdrawal</span>
-                <Input
-                  id="withdrawal-rate"
-                  aria-label="Withdrawal rate"
-                  type="number"
-                  inputMode="decimal"
-                  min="0.1"
-                  max="100"
-                  step="any"
-                  className="h-7 w-16 text-right"
-                  value={withdrawalRateDraft}
-                  onChange={(event) => {
-                    setWithdrawalRateDraft(event.target.value);
-                    setError(null);
-                  }}
-                  onBlur={(event) => handleWithdrawalRate(event.target.value)}
-                />
-                <span>%</span>
-              </label>
-            </div>
-            <p className="mt-1 text-xl font-semibold">
-              {optionalCurrency(target, baseCurrency)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Post-mortgage spending ÷ withdrawal rate
-            </p>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">FI progress</p>
-            <p className="mt-1 text-xl font-semibold">{percentage(progress)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatCurrency(currentNetWorth, baseCurrency)} total net worth,
-              including all pension assets and home equity
-            </p>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">
-              {currentCompensation == null
-                ? "Savings rate"
-                : "All-in savings rate"}
-            </p>
-            <p className="mt-1 text-xl font-semibold">
-              {percentage(savingsRate, 1)}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {takeHomeSavingsRate != null &&
-                `${percentage(takeHomeSavingsRate, 1)} from take-home pay. `}
-              {getAnnualSavingsDescription(
-                representativeAnnualSavings,
-                currentCompensation,
-                baseCurrency,
-              )}
-            </p>
-          </div>
-          <div className="rounded-md border p-3">
-            <p className="text-xs text-muted-foreground">Projected FI</p>
-            <p className="mt-1 text-xl font-semibold">{yearsToFiLabel}</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {projectedFiDescription}
-            </p>
-          </div>
+          <p className="mt-1 text-xl font-semibold">
+            {optionalCurrency(target, baseCurrency)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Post-mortgage spending ÷ withdrawal rate
+          </p>
         </div>
+        <div className="rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">FI progress</p>
+          <p className="mt-1 text-xl font-semibold">{percentage(progress)}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatCurrency(currentNetWorth, baseCurrency)} total net worth,
+            including all pension assets and home equity
+          </p>
+        </div>
+        <div className="rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">
+            {currentCompensation == null
+              ? "Savings rate"
+              : "All-in savings rate"}
+          </p>
+          <p className="mt-1 text-xl font-semibold">
+            {percentage(savingsRate, 1)}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {takeHomeSavingsRate != null &&
+              `${percentage(takeHomeSavingsRate, 1)} from take-home pay. `}
+            {getAnnualSavingsDescription(
+              representativeAnnualSavings,
+              currentCompensation,
+              baseCurrency,
+            )}
+          </p>
+        </div>
+        <div className="rounded-md border p-3">
+          <p className="text-xs text-muted-foreground">Projected FI</p>
+          <p className="mt-1 text-xl font-semibold">{yearsToFiLabel}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {projectedFiDescription}
+          </p>
+        </div>
+      </div>
 
-        {mortgageCashFlow != null && (
-          <div className="rounded-md border p-4">
-            <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
-              <div>
-                <h3 className="text-sm font-medium">Mortgage cash flow</h3>
-                <p className="text-xs text-muted-foreground">
-                  Next 12 scheduled payments, then the requirement after payoff
-                  in {format(parseISO(mortgageCashFlow.payoffDate), "MMM yyyy")}
-                  .
-                </p>
-              </div>
+      {mortgageCashFlow != null && (
+        <div className="rounded-md border p-4">
+          <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-start">
+            <div>
+              <h3 className="text-sm font-medium">Mortgage cash flow</h3>
               <p className="text-xs text-muted-foreground">
-                Principal builds home equity. Interest and fees are spending.
+                Next 12 scheduled payments, then the requirement after payoff in{" "}
+                {format(parseISO(mortgageCashFlow.payoffDate), "MMM yyyy")}.
               </p>
             </div>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Cash needed while mortgaged
-                </p>
-                <p className="font-semibold">
-                  {optionalCurrency(annualCashFlowWhileMortgage, baseCurrency)}
-                  /yr
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Mortgage payments
-                </p>
-                <p className="font-semibold">
-                  {formatCurrency(
-                    Math.round(mortgageCashFlow.annualRequiredCashFlow),
-                    baseCurrency,
-                  )}
-                  /yr
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Of which principal
-                </p>
-                <p className="font-semibold">
-                  {formatCurrency(
-                    Math.round(mortgageCashFlow.annualPrincipal),
-                    baseCurrency,
-                  )}
-                  /yr
-                </p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">
-                  Spending after payoff
-                </p>
-                <p className="font-semibold">
-                  {optionalCurrency(
-                    annualExpenditureAfterMortgage,
-                    baseCurrency,
-                  )}
-                  /yr
-                </p>
-              </div>
+            <p className="text-xs text-muted-foreground">
+              Principal builds home equity. Interest and fees are spending.
+            </p>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Cash needed while mortgaged
+              </p>
+              <p className="font-semibold">
+                {optionalCurrency(annualCashFlowWhileMortgage, baseCurrency)}
+                /yr
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Mortgage payments</p>
+              <p className="font-semibold">
+                {formatCurrency(
+                  Math.round(mortgageCashFlow.annualRequiredCashFlow),
+                  baseCurrency,
+                )}
+                /yr
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Of which principal
+              </p>
+              <p className="font-semibold">
+                {formatCurrency(
+                  Math.round(mortgageCashFlow.annualPrincipal),
+                  baseCurrency,
+                )}
+                /yr
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">
+                Spending after payoff
+              </p>
+              <p className="font-semibold">
+                {optionalCurrency(annualExpenditureAfterMortgage, baseCurrency)}
+                /yr
+              </p>
             </div>
           </div>
-        )}
+        </div>
+      )}
 
-        {progress != null && (
-          <progress
-            value={progress}
-            max={1}
-            aria-label="Financial independence progress"
-            className="h-2 w-full overflow-hidden rounded-full bg-muted [appearance:none] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-primary"
-          />
-        )}
+      {progress != null && (
+        <progress
+          value={progress}
+          max={1}
+          aria-label="Financial independence progress"
+          className="h-2 w-full overflow-hidden rounded-full bg-muted [appearance:none] [&::-moz-progress-bar]:rounded-full [&::-moz-progress-bar]:bg-primary [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-bar]:bg-muted [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-primary"
+        />
+      )}
 
-        <FinancialRunwayChart runway={runway} currency={baseCurrency} />
+      <FinancialRunwayChart runway={runway} currency={baseCurrency} />
 
-        <EmergencyFundPlanner />
+      <EmergencyFundPlanner />
 
-        <RunwayForecast />
+      <RunwayForecast />
 
-        {showIncomeTools && (
-          <IncomeExpenditureChart
-            incomeHistory={incomeHistory}
-            periods={periods}
+      {showIncomeTools && (
+        <IncomeExpenditureChart
+          incomeHistory={incomeHistory}
+          periods={periods}
+          currency={baseCurrency}
+        />
+      )}
+
+      {target != null &&
+        representativeAnnualSavings != null &&
+        expectedRealReturn != null && (
+          <PortfolioFiProjectionChart
+            projection={projection}
+            target={target}
+            annualSavings={representativeAnnualSavings}
+            expectedRealReturn={expectedRealReturn}
             currency={baseCurrency}
           />
         )}
 
-        {target != null &&
-          representativeAnnualSavings != null &&
-          expectedRealReturn != null && (
-            <PortfolioFiProjectionChart
-              projection={projection}
-              target={target}
-              annualSavings={representativeAnnualSavings}
-              expectedRealReturn={expectedRealReturn}
-              currency={baseCurrency}
-            />
-          )}
-
-        {periods.length > 0 ? (
-          <div className="min-w-0 space-y-2">
-            <div>
-              <h3 className="text-sm font-medium">Period reconciliation</h3>
-              <p className="text-xs text-muted-foreground">
-                Opening net worth + income − long-term spending + external
-                capital + valuation gain = closing net worth. Current spending
-                adds debt principal back. When no classified capital exists,
-                reconciliation falls back to the total net-worth change.
-              </p>
-            </div>
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full min-w-[1180px] text-sm">
-                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Period</th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Opening
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">Income</th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Retained from income
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      External capital
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Debt principal
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Valuation gain
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Long-term spending
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Current spending
-                    </th>
-                    <th className="px-3 py-2 text-right font-medium">
-                      Closing
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {periods.map((period) => (
-                    <tr key={period.endDate} className="border-t">
-                      <td className="whitespace-nowrap px-3 py-2">
-                        {period.startDate} – {period.endDate}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.openingNetWorth, baseCurrency)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.income, baseCurrency)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        <span className="block">
-                          {signedCurrency(
-                            period.personalCapitalFlow,
-                            baseCurrency,
-                          )}
-                        </span>
-                        {period.retainedIncomeSource === "balance-change" && (
-                          <span className="block text-[11px] text-muted-foreground">
-                            Estimated from balances
-                          </span>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(
-                          period.externalCapitalFlow,
-                          baseCurrency,
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(period.debtPrincipalFlow, baseCurrency)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {signedCurrency(period.valuationGain, baseCurrency)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.expenditure, baseCurrency)}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(
-                          period.currentExpenditure,
-                          baseCurrency,
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap px-3 py-2 text-right">
-                        {formatCurrency(period.closingNetWorth, baseCurrency)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {periods.length > 0 ? (
+        <div className="min-w-0 space-y-2">
+          <div>
+            <h3 className="text-sm font-medium">Period reconciliation</h3>
+            <p className="text-xs text-muted-foreground">
+              Opening net worth + income − long-term spending + external capital
+              + valuation gain = closing net worth. Current spending adds debt
+              principal back. When no classified capital exists, reconciliation
+              falls back to the total net-worth change.
+            </p>
           </div>
-        ) : (
-          <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            {emptyReconciliationDescription}
-          </p>
-        )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </CardContent>
-    </Card>
+          <div className="overflow-x-auto rounded-md border">
+            <table className="w-full min-w-[1180px] text-sm">
+              <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 font-medium">Period</th>
+                  <th className="px-3 py-2 text-right font-medium">Opening</th>
+                  <th className="px-3 py-2 text-right font-medium">Income</th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Retained from income
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    External capital
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Debt principal
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Valuation gain
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Long-term spending
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">
+                    Current spending
+                  </th>
+                  <th className="px-3 py-2 text-right font-medium">Closing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {periods.map((period) => (
+                  <tr key={period.endDate} className="border-t">
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {period.startDate} – {period.endDate}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {formatCurrency(period.openingNetWorth, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {formatCurrency(period.income, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      <span className="block">
+                        {signedCurrency(
+                          period.personalCapitalFlow,
+                          baseCurrency,
+                        )}
+                      </span>
+                      {period.retainedIncomeSource === "balance-change" && (
+                        <span className="block text-[11px] text-muted-foreground">
+                          Estimated from balances
+                        </span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {signedCurrency(period.externalCapitalFlow, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {signedCurrency(period.debtPrincipalFlow, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {signedCurrency(period.valuationGain, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {formatCurrency(period.expenditure, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {formatCurrency(period.currentExpenditure, baseCurrency)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">
+                      {formatCurrency(period.closingNetWorth, baseCurrency)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+          {emptyReconciliationDescription}
+        </p>
+      )}
+      {error && <p className="text-sm text-destructive">{error}</p>}
+    </PortfolioGoalFrame>
   );
 }

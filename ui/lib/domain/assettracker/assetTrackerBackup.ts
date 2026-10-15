@@ -76,6 +76,7 @@ function dataCollections(data: AssetTrackerData): readonly unknown[][] {
     data.planningCases,
     data.futureCashFlows,
     data.forecastAssumptionSets,
+    data.spendingBaselines ?? [],
     data.emergencyFundPlans ?? [],
     data.mortgageScenarios ?? [],
     data.decisionRecords ?? [],
