@@ -62,16 +62,18 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
 }
 
 describe("Work Graph ticket routing", () => {
-  it("stops a worker at the one-ticket owner-review gate", () => {
+  it("settles the review loop before the one-ticket owner-review gate", () => {
     const prompt = buildWorkerPrompt("ticket-1", "/opt/bin/work-graph");
 
     expect(prompt).toContain("/opt/bin/work-graph");
     expect(prompt).toContain("claim and execute only ticket ticket-1");
     expect(prompt).toContain("never claim another ticket");
     expect(prompt).toContain("open a draft pull request");
-    expect(prompt).toContain("request owner review in Work Graph and stop");
-    expect(prompt).toContain("Do not mark the pull request ready, merge it, release the ticket");
-    expect(prompt).toContain("instead of rerunning it");
+    expect(prompt).toContain("Complete the pull request review loop at your discretion");
+    expect(prompt).toContain("once per unchanged head");
+    expect(prompt).toContain("then mark it ready for review");
+    expect(prompt).toContain("request owner approval in Work Graph and stop");
+    expect(prompt).toContain("Do not merge the pull request, release the ticket");
     expect(prompt).toContain("do not run mise trust again");
   });
 
