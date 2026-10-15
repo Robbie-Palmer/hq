@@ -10,6 +10,7 @@ import {
   selectCodexProvider,
   selectModel,
   selectReasoningEffort,
+  selectRuntimeMode,
 } from "./launch-work-graph-agent.js";
 
 function ticket(
@@ -144,25 +145,28 @@ describe("Work Graph ticket routing", () => {
     ).toMatchObject({ runtimeMode: "full-access" });
   });
 
-  it("sandboxes a concrete protected mutation without approving every read", () => {
-    expect(
-      deriveTicketRoute(
-        ticket({
-          title: "Rotate the production credential",
-          expedited: true,
-          expediteReason: "Credential expires today",
-          context: [
-            {
-              kind: "acceptance_criteria",
-              content: "Rotate the credential and deploy to production.",
-            },
-          ],
-        }),
-      ),
-    ).toMatchObject({
-      runtimeMode: "auto-accept-edits",
+  it("rejects protected mutations instead of entering a prompt-heavy sandbox", () => {
+    const selection = ticket({
+      title: "Rotate the production credential",
+      expedited: true,
+      expediteReason: "Credential expires today",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Rotate the credential and deploy to production.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: true,
+      runtimeMode: "full-access",
       serviceTier: "priority",
     });
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
   });
 
   it.each([
@@ -314,5 +318,14 @@ describe("Work Graph ticket routing", () => {
 
     expect(selectReasoningEffort(route, "high")).toBe("high");
     expect(() => selectReasoningEffort(route, "xhigh")).toThrow();
+  });
+
+  it("rejects prompt-heavy runtime overrides", () => {
+    const route = deriveTicketRoute(ticket());
+
+    expect(selectRuntimeMode(route)).toBe("full-access");
+    expect(() => selectRuntimeMode(route, "auto-accept-edits")).toThrow(
+      "outside the approved route policy",
+    );
   });
 });

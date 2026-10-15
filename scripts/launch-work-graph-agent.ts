@@ -77,6 +77,7 @@ export interface TicketRoute {
   preferredModels: readonly string[];
   reasoningEffort: ReasoningEffort;
   runtimeMode: RuntimeMode;
+  protectedMutation: boolean;
   serviceTier: string;
   reasons: readonly string[];
 }
@@ -224,7 +225,8 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
     workKind,
     preferredModels: policy.models,
     reasoningEffort: policy.effort,
-    runtimeMode: protectedMutation ? "auto-accept-edits" : "full-access",
+    runtimeMode: "full-access",
+    protectedMutation,
     serviceTier: selection.ticket.expedited ? "priority" : "default",
     reasons: reasons.length === 0 ? ["bounded ticket context"] : reasons,
   };
@@ -241,6 +243,11 @@ export function assertTicketRouteSupported(
   if (route.workKind === "documentation") {
     throw new Error(
       `Documentation ticket ${ticketId} is excluded until the writing skill and review gate are ready`,
+    );
+  }
+  if (route.protectedMutation) {
+    throw new Error(
+      `Protected external mutation ticket ${ticketId} is excluded until a scoped permission boundary is ready`,
     );
   }
 }
@@ -355,6 +362,17 @@ export function selectReasoningEffort(
   return ReasoningEffortSchema.parse(override ?? route.reasoningEffort);
 }
 
+export function selectRuntimeMode(
+  route: TicketRoute,
+  override?: string,
+): RuntimeMode {
+  const selected = RuntimeModeSchema.parse(override ?? route.runtimeMode);
+  if (selected !== route.runtimeMode) {
+    throw new Error(`Runtime override ${selected} is outside the approved route policy`);
+  }
+  return selected;
+}
+
 function optionValues(
   provider: RoutingProvider,
   model: string,
@@ -441,8 +459,9 @@ async function main(): Promise<void> {
       "serviceTier",
       environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier,
     );
-    const runtimeMode = RuntimeModeSchema.parse(
-      environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE") ?? route.runtimeMode,
+    const runtimeMode = selectRuntimeMode(
+      route,
+      environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE"),
     );
     const modelSelection = schemas.orchestrationModel.ModelSelection.parse({
       instanceId: provider.instanceId,
