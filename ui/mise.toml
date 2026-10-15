@@ -20,14 +20,14 @@ run = "pnpm dev:qr"
 [tasks.build]
 description = "Build Next.js application for production"
 depends = ["//ui:install", "//cpp/autonomic-satellite-swarm:browser:build"]
-run = "pnpm build"
+run = "pnpm exec tsx ../scripts/shared-task-cache.ts run --task ui-build --cwd ui --output ui/out --env NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH --env NODE_ENV -- pnpm build"
 sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "../packages/wedding-planner-domain/src/**/*", "*.ts", "*.tsx", "*.json"]
 outputs = ["out/**/*"]
 
 [tasks.test]
 description = "Run all tests"
 depends = ["//ui:install"]
-run = "pnpm test"
+run = "pnpm exec tsx ../scripts/shared-task-cache.ts run --task ui-test --cwd ui --env NODE_ENV -- pnpm test"
 
 [tasks."test:coverage"]
 description = "Run UI unit tests with LCOV coverage"

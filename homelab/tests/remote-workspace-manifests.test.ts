@@ -565,6 +565,10 @@ test("the observability collector attributes quota, backup, and Kubernetes state
     temporaryDirectory,
     "agent-coordinator-health.json",
   );
+  const sharedTaskCacheMetricsPath = join(
+    temporaryDirectory,
+    "shared-task-cache-metrics.json",
+  );
   const outputPath = join(temporaryDirectory, "statsd.txt");
 
   try {
@@ -609,6 +613,7 @@ printf '%s\\n' \\
         "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
         "AGENT_COORDINATOR_ENABLED=1",
         `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
+        `SHARED_TASK_CACHE_METRICS_FILE=${sharedTaskCacheMetricsPath}`,
         "",
       ].join("\n"),
     );
@@ -629,6 +634,21 @@ printf '%s\\n' \\
         needsAttentionCount: 2,
         admission: { open: false },
         reconciledAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      })}\n`,
+    );
+    writeFileSync(
+      sharedTaskCacheMetricsPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        hits: 7,
+        misses: 2,
+        runs: 2,
+        failures: 1,
+        corruptions: 1,
+        waits: 3,
+        bytesRestored: 4096,
+        bytesPublished: 2048,
+        bytesReclaimed: 1024,
       })}\n`,
     );
 
@@ -687,6 +707,18 @@ printf '%s\\n' \\
     assert.match(
       metrics,
       /^remote_development\.operator\.agent_coordinator_needs_attention:2\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_hits:7\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_corruptions:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_bytes_restored:4096\|g$/m,
     );
     assert.match(
       metrics,
@@ -1218,6 +1250,19 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "env",
   ]);
   assert.ok(Array.isArray(operatorEnvironment));
+  for (const [name, value] of [
+    ["SHARED_TASK_CACHE_DIR", "/data/cache/shared-task-cache"],
+    ["SHARED_TASK_CACHE_MAX_BYTES", "12884901888"],
+    ["SHARED_TASK_CACHE_MAX_AGE_SECONDS", "1209600"],
+  ]) {
+    assert.deepEqual(
+      operatorEnvironment.find(
+        (entry) =>
+          typeof entry === "object" && entry !== null && entry.name === name,
+      ),
+      { name, value },
+    );
+  }
   for (const name of [
     "CF_ACCESS_CLIENT_ID",
     "CF_ACCESS_CLIENT_SECRET",
@@ -1443,6 +1488,29 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "volumes",
   ]);
   assert.ok(Array.isArray(operatorVolumes));
+  const operatorVolumeMounts = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "volumeMounts",
+  ]);
+  assert.ok(Array.isArray(operatorVolumeMounts));
+  assert.deepEqual(
+    operatorVolumeMounts.find(
+      (candidate: unknown) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        (candidate as Record<string, unknown>).mountPath ===
+          "/data/cache/shared-task-cache",
+    ),
+    {
+      mountPath: "/data/cache/shared-task-cache",
+      name: "cache",
+      subPath: "shared-task-cache",
+    },
+  );
   const dockerDataVolume = operatorVolumes.find(
     (candidate: unknown) =>
       typeof candidate === "object" &&
@@ -1642,6 +1710,11 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(
     hostDefinition.includes(
       "install -d -m 2770 -o t3code -g t3code ${cacheDataPath}",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      "install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache",
     ),
   );
   assert.ok(!hostDefinition.includes("pilotDataPath"));
