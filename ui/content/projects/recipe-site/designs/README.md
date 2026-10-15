@@ -7,12 +7,12 @@ intended look and behaviour of the full product. Keep them in version control
 alongside the PRD (`../index.mdx`) and ADRs
 (`../adrs/`).
 
-The mid-fi pass covers 17 surfaces across desktop + mobile: recipe list,
+The mid-fi pass covers 18 surfaces across desktop + mobile: recipe list,
 recipe read/cook, scan/import, kitchen (pantry + freezer), shopping & meal plan,
 share, cookbooks, profile, diet, a shared-household system (setup, settings,
 pantry, plan, leftovers, activity), recipe lineage/provenance, cook log,
 logged-out home + discover feed, onboarding, recommendations inbox,
-notifications, and a settings hub.
+notifications, a settings hub, and the planning/shopping navigation model.
 
 ## What's here
 
@@ -25,6 +25,8 @@ notifications, and a settings hub.
   (it loads React + Babel from a CDN and compiles the `.jsx` in place) to view
   every screen. It references the files above by relative path.
 - `.design-canvas.state.json`, canvas section metadata.
+- `navigation-information-architecture.md`, the reviewed route map, responsive
+  navigation decision, state rules, and prototype walkthrough results.
 
 The wireframes pass and the reference screenshots that were uploaded into the
 design tool are intentionally not vendored. Only the mid-fi pass is kept.

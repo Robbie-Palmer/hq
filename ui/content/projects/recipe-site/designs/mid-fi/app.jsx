@@ -10,9 +10,9 @@ function App() {
       <DCSection id="intro" title="Robbie's Recipes — mid-fi" subtitle="every page in two viewports: desktop (1280) and mobile (notes-app feel). Click any artboard ⤢ to focus.">
         <DCArtboard id="readme" label="read me" width={520} height={460}>
           <div style={{ padding: 28, height: '100%', background: '#FAF3E2', fontFamily: 'Kalam', boxSizing: 'border-box' }}>
-            <div style={{ fontFamily: 'Caveat', fontSize: 40, lineHeight: 1, color: '#1F1A14' }}>mid-fi pass · v4.</div>
+            <div style={{ fontFamily: 'Caveat', fontSize: 40, lineHeight: 1, color: '#1F1A14' }}>mid-fi pass · v5.</div>
             <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5, color: '#4D4337' }}>
-              v4 adds the <b>shared household</b> layer — pantry, freezer, plan + shopping become collaborative; recipes & cookbooks pick up a 4th visibility (household). Open the <b>Tweaks</b> panel (top-right) to flip household size, diet model, activity density and opt-out style live.
+              v5 separates <b>Plan</b> and <b>Shop</b> in the route and navigation model, with desktop and mobile prototypes. The shared-household layer still makes pantry, freezer, planning and shopping collaborative. Open the <b>Tweaks</b> panel (top-right) to change household size, diet model, activity density and opt-out style live.
             </div>
             <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono', fontSize: 11, lineHeight: 1.7, color: '#4D4337' }}>
               1 · list<br />
@@ -53,6 +53,12 @@ function App() {
         <DCArtboard id="shopping" label="desktop · plan + list (3 views)" width={W} height={H}><MidShopping /></DCArtboard>
         <DCArtboard id="shopping-mobile-plan" label="mobile · meal planner" width={MW} height={MH}><MobileShoppingPlan /></DCArtboard>
         <DCArtboard id="shopping-mobile" label="mobile · just-the-list (notes app)" width={MW} height={MH}><MidShoppingMobile /></DCArtboard>
+      </DCSection>
+
+      <DCSection id="navigation-ia" title="5a · Planning and shopping navigation" subtitle="reviewed route map and interactive prototypes. Plan and Shop are independent destinations; mobile keeps both in a compact bottom bar with labelled More for less frequent destinations.">
+        <DCArtboard id="navigation-map" label="decision · routes + responsive pattern + walkthrough checks" width={1100} height={720}><NavigationArchitectureMap /></DCArtboard>
+        <DCArtboard id="navigation-desktop" label="desktop · six destinations + account utilities" width={W} height={H}><NavigationDesktopPrototype /></DCArtboard>
+        <DCArtboard id="navigation-mobile" label="mobile · four destinations + More" width={MW} height={MH}><NavigationMobilePrototype /></DCArtboard>
       </DCSection>
 
       <DCSection id="share" title="6 · Share" subtitle="desktop is link + previews + send-to. Mobile is the native share-sheet feel — OG card, social icons, recent contacts.">
