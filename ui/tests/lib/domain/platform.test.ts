@@ -1046,6 +1046,73 @@ describe("temporal platform layers", () => {
     }
   });
 
+  it("rejects duplicate configuration names and unknown owners", () => {
+    const manifest = loadDomainRepository().platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const duplicateConfiguration = structuredClone(manifest);
+    const duplicateConfigurationSelection =
+      duplicateConfiguration.selections.find(
+        (selection) =>
+          selection.id ===
+          "identity-authentication-library-better-auth-2026-09-29",
+      );
+    expect(
+      duplicateConfigurationSelection?.configurationRequirements,
+    ).toBeDefined();
+    if (!duplicateConfigurationSelection?.configurationRequirements) return;
+    const [duplicateRequirement] =
+      duplicateConfigurationSelection.configurationRequirements;
+    expect(duplicateRequirement).toBeDefined();
+    if (!duplicateRequirement) return;
+    duplicateConfigurationSelection.configurationRequirements.push(
+      duplicateRequirement,
+    );
+    const duplicateConfigurationResult = PlatformManifestSchema.safeParse(
+      duplicateConfiguration,
+    );
+    expect(duplicateConfigurationResult.success).toBe(false);
+    if (!duplicateConfigurationResult.success) {
+      expect(duplicateConfigurationResult.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "repeats configuration requirement 'BETTER_AUTH_URL'",
+            ),
+          }),
+        ]),
+      );
+    }
+
+    const unknownOwner = structuredClone(manifest);
+    const unknownOwnerSelection = unknownOwner.selections.find(
+      (selection) =>
+        selection.id ===
+        "identity-authentication-library-better-auth-2026-09-29",
+    );
+    expect(unknownOwnerSelection?.configurationRequirements).toBeDefined();
+    if (!unknownOwnerSelection?.configurationRequirements) return;
+    const [unknownOwnerRequirement] =
+      unknownOwnerSelection.configurationRequirements;
+    expect(unknownOwnerRequirement).toBeDefined();
+    if (!unknownOwnerRequirement) return;
+    unknownOwnerRequirement.owner = "identity.unknown-owner";
+    const unknownOwnerResult = PlatformManifestSchema.safeParse(unknownOwner);
+    expect(unknownOwnerResult.success).toBe(false);
+    if (!unknownOwnerResult.success) {
+      expect(unknownOwnerResult.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "assigns configuration 'BETTER_AUTH_URL' to unknown owner slot 'identity.unknown-owner'",
+            ),
+          }),
+        ]),
+      );
+    }
+  });
+
   it("promotes TanStack Query only for web apps that activate client-side server state", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;
