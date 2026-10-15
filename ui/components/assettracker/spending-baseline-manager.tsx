@@ -40,6 +40,13 @@ function inputAmount(value: number): string {
   return String(Math.round((value + Number.EPSILON) * 100) / 100);
 }
 
+function periodInputAmount(
+  annualAmount: number,
+  period: "monthly" | "annual",
+): string {
+  return inputAmount(period === "monthly" ? annualAmount / 12 : annualAmount);
+}
+
 function initialBaselineAmount(
   baseline: SpendingBaseline | undefined,
   field:
@@ -216,6 +223,40 @@ function useSpendingBaselineModel() {
     setPeriod(next);
   }
 
+  function showHistory() {
+    const ordinary = tracker.financialIndependence.reconciledAnnualExpenditure;
+    const previous = baselines.find(
+      (baseline) => baseline.source.kind === "reconciled",
+    );
+    const annualEssential =
+      previous?.annualEssentialSpending ?? active?.annualEssentialSpending;
+    const nextEssential =
+      ordinary != null && annualEssential != null && annualEssential <= ordinary
+        ? periodInputAmount(annualEssential, period)
+        : "";
+    dirtyFields.current.add("essential");
+    setEssential(nextEssential);
+    setError(null);
+    setNotice(null);
+    setMode("history");
+  }
+
+  function showManual() {
+    if (active != null) {
+      dirtyFields.current.add("essential");
+      dirtyFields.current.add("discretionary");
+      dirtyFields.current.add("debt");
+      setEssential(periodInputAmount(active.annualEssentialSpending, period));
+      setDiscretionary(
+        periodInputAmount(active.annualDiscretionarySpending, period),
+      );
+      setDebt(periodInputAmount(active.annualDebtCashFlow, period));
+    }
+    setError(null);
+    setNotice(null);
+    setMode("manual");
+  }
+
   async function save(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const values = [essential, discretionary, debt].map(numberValue);
@@ -331,7 +372,8 @@ function useSpendingBaselineModel() {
     notice,
     historyAvailable,
     mode,
-    setMode,
+    showHistory,
+    showManual,
     changePeriod,
     setEssential: (value: string) => edit("essential", setEssential, value),
     setDiscretionary: (value: string) =>
@@ -491,17 +533,14 @@ function BaselineSummaryActions({
 }: Readonly<{ model: SpendingBaselineModel }>) {
   return (
     <div className="grid gap-2 sm:flex sm:flex-wrap">
-      <Button
-        className="w-full sm:w-auto"
-        onClick={() => model.setMode("manual")}
-      >
+      <Button className="w-full sm:w-auto" onClick={model.showManual}>
         Edit amounts
       </Button>
       {model.historyAvailable && (
         <Button
           className="w-full sm:w-auto"
           variant="outline"
-          onClick={() => model.setMode("history")}
+          onClick={model.showHistory}
         >
           {model.active?.source.kind === "reconciled"
             ? "Refresh from history"
@@ -586,6 +625,7 @@ function BaselineInputField({
   className = "",
   placeholder,
   ariaLabel,
+  max,
 }: Readonly<{
   id: string;
   label: string;
@@ -595,6 +635,7 @@ function BaselineInputField({
   className?: string;
   placeholder?: string;
   ariaLabel?: string;
+  max?: number;
 }>) {
   return (
     <label
@@ -607,6 +648,7 @@ function BaselineInputField({
         aria-label={ariaLabel ?? label}
         type={type}
         min={type === "number" ? "0" : undefined}
+        max={max}
         step={type === "number" ? "any" : undefined}
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -649,9 +691,7 @@ function FlowSwitcher({ model }: Readonly<{ model: SpendingBaselineModel }>) {
       className="w-full sm:w-auto"
       type="button"
       variant="ghost"
-      onClick={() =>
-        model.setMode(model.mode === "history" ? "manual" : "history")
-      }
+      onClick={model.mode === "history" ? model.showManual : model.showHistory}
     >
       {model.mode === "history"
         ? "Enter my own amounts"
@@ -673,6 +713,8 @@ function HistoryFlow({ model }: Readonly<{ model: SpendingBaselineModel }>) {
   const ordinary = model.financialIndependence.reconciledAnnualExpenditure;
   const debt = reconciledDebtCashFlow(model);
   if (ordinary == null) return null;
+  const maximumEssential =
+    model.period === "monthly" ? ordinary / 12 : ordinary;
   return (
     <div className="space-y-4 rounded-md border p-4">
       <div>
@@ -697,10 +739,14 @@ function HistoryFlow({ model }: Readonly<{ model: SpendingBaselineModel }>) {
           type="number"
           value={model.essential}
           onChange={model.setEssential}
+          max={maximumEssential}
         />
       </div>
       <p className="text-xs text-muted-foreground">
-        The remaining ordinary spending will be discretionary.
+        Enter up to{" "}
+        {formatCurrency(Math.round(maximumEssential), model.baseCurrency)} per{" "}
+        {model.period === "monthly" ? "month" : "year"}. The rest becomes
+        discretionary.
       </p>
       <ErrorMessage model={model} />
       <div className="grid gap-2 sm:flex sm:flex-wrap">

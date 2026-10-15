@@ -624,14 +624,14 @@ describe("SpendingBaselineManager", () => {
     const user = userEvent.setup();
     const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
     const baseline = {
-      id: "household-spending-v1",
+      id: "household-spending-v2",
       seriesId: "household-spending",
-      version: 1,
+      version: 2,
       status: "active" as const,
-      effectiveDate: "2026-01-01",
-      annualEssentialSpending: 24_000,
-      annualDiscretionarySpending: 12_000,
-      annualDebtCashFlow: 6_000,
+      effectiveDate: "2026-04-01",
+      annualEssentialSpending: 42_000,
+      annualDiscretionarySpending: 5_398,
+      annualDebtCashFlow: 0,
       currency: "GBP" as const,
       ownership: {
         kind: "shared" as const,
@@ -641,12 +641,27 @@ describe("SpendingBaselineManager", () => {
         ],
       },
       source: { kind: "manual" as const },
-      sourceNotes: "Household budget",
+      sourceNotes: "Updated household budget",
+      createdAt: "2026-04-01T12:00:00Z",
+    };
+    const previousReconciled = {
+      ...baseline,
+      id: "household-spending-v1",
+      version: 1,
+      status: "superseded" as const,
+      effectiveDate: "2026-01-01",
+      annualEssentialSpending: 12_000,
+      source: {
+        kind: "reconciled" as const,
+        periodStartDate: "2026-01-01",
+        periodEndDate: "2026-03-31",
+      },
+      sourceNotes: "Earlier reconciled history",
       createdAt: "2026-01-01T12:00:00Z",
     };
     mockAssetTracker({
       saveSpendingBaseline,
-      spendingBaselines: [baseline],
+      spendingBaselines: [baseline, previousReconciled],
       financialIndependence: {
         ...EMPTY_FI,
         periods: [
@@ -669,20 +684,20 @@ describe("SpendingBaselineManager", () => {
             annualizedCurrentExpenditure: 27_393.19,
           },
         ],
-        reconciledAnnualExpenditure: 39_000,
-        reconciledAnnualCurrentExpenditure: 42_000,
-        representativeAnnualExpenditure: 36_000,
-        representativeAnnualCurrentExpenditure: 42_000,
+        reconciledAnnualExpenditure: 17_398,
+        reconciledAnnualCurrentExpenditure: 17_398,
+        representativeAnnualExpenditure: 47_398,
+        representativeAnnualCurrentExpenditure: 47_398,
         spendingBasis: {
           kind: "manual",
           baselineId: baseline.id,
-          version: 1,
+          version: 2,
           effectiveDate: baseline.effectiveDate,
           currency: "GBP",
-          annualEssentialSpending: 24_000,
-          annualDiscretionarySpending: 12_000,
-          annualDebtCashFlow: 6_000,
-          sourceNotes: "Household budget",
+          annualEssentialSpending: 42_000,
+          annualDiscretionarySpending: 5_398,
+          annualDebtCashFlow: 0,
+          sourceNotes: "Updated household budget",
         },
       },
     });
@@ -693,14 +708,15 @@ describe("SpendingBaselineManager", () => {
     expect(
       screen.getByRole("heading", { name: "Start from history" }),
     ).toBeVisible();
-    expect(screen.getByText("£39,000/yr")).toBeVisible();
+    expect(screen.getAllByText("£17,398/yr")[0]).toBeVisible();
+    expect(screen.getByLabelText("Essential spending")).toHaveValue(1000);
     await user.click(screen.getByRole("button", { name: "Use history" }));
 
     expect(saveSpendingBaseline).toHaveBeenCalledWith(
       expect.objectContaining({
-        annualEssentialSpending: 24_000,
-        annualDiscretionarySpending: 15_000,
-        annualDebtCashFlow: 3_000,
+        annualEssentialSpending: 12_000,
+        annualDiscretionarySpending: 5_398,
+        annualDebtCashFlow: 0,
         source: {
           kind: "reconciled",
           periodStartDate: "2026-01-01",
