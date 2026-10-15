@@ -30,6 +30,7 @@ import { shoppingListQuery } from "@/lib/query/shopping-list-queries";
 import {
   confirmShoppingListRevision,
   getShoppingListCacheIdentity,
+  getShoppingListCacheMetadata,
   getShoppingListSnapshot,
   installShoppingListSnapshot,
   resetShoppingTripCompletion,
@@ -136,7 +137,9 @@ function recoverCachedShoppingList(
   serverList: StoredShoppingList,
 ): ShoppingListContents {
   const cached = shoppingListContents();
-  const { listId } = getShoppingListCacheIdentity();
+  const { listId, revision } = getShoppingListCacheIdentity();
+  const { confirmedSnapshot, hasUnsavedChanges } =
+    getShoppingListCacheMetadata();
   if (listId !== undefined && listId !== serverList.id) {
     return serverList.snapshot;
   }
@@ -147,8 +150,18 @@ function recoverCachedShoppingList(
   ) {
     return serverList.snapshot;
   }
+  if (listId === undefined) {
+    return mergeLocalShoppingListChanges(
+      EMPTY_SHOPPING_LIST,
+      cached,
+      serverList.snapshot,
+    );
+  }
+  if (revision === serverList.revision && !hasUnsavedChanges) {
+    return serverList.snapshot;
+  }
   return mergeLocalShoppingListChanges(
-    EMPTY_SHOPPING_LIST,
+    confirmedSnapshot ?? cached,
     cached,
     serverList.snapshot,
   );
@@ -196,8 +209,12 @@ function useShoppingListSync(
         next,
         serverList.id,
         "install",
-        !shouldRecoverCache,
+        true,
         serverList.revision,
+        {
+          confirmedSnapshot: serverList.snapshot,
+          hasUnsavedChanges: shouldRecoverCache,
+        },
       );
       pendingCacheRecovery.current = shouldRecoverCache
         ? serverList.id
@@ -249,6 +266,10 @@ function useShoppingListSync(
       hasRebasedChanges ? "local" : "install",
       true,
       serverList.revision,
+      {
+        confirmedSnapshot: serverList.snapshot,
+        hasUnsavedChanges: hasRebasedChanges,
+      },
     );
     setInstalledId(serverList.id);
   }, [installedId, queryClient, serverList, userId]);
@@ -301,7 +322,11 @@ function useShoppingListSync(
             savedRevision.current = updated.revision;
             savedList.current = updated;
             pendingCacheRecovery.current = undefined;
-            confirmShoppingListRevision(updated.id, updated.revision);
+            confirmShoppingListRevision(
+              updated.id,
+              updated.revision,
+              updated.snapshot,
+            );
             queryClient.setQueryData<StoredShoppingList>(
               recipeQueryKeys.shoppingList(userId),
               updated,
@@ -413,6 +438,7 @@ export function useStartNewShoppingList() {
     },
     onError: async (_error, { current, previous }) => {
       let recoveredRevision = current.revision;
+      let recoveredSnapshot = current.snapshot;
       try {
         const latest = await queryClient.fetchQuery({
           ...shoppingListQuery(userId),
@@ -420,6 +446,7 @@ export function useStartNewShoppingList() {
         });
         if (latest.id !== current.id) return;
         recoveredRevision = latest.revision;
+        recoveredSnapshot = latest.snapshot;
       } catch {
         // If reconciliation is also offline, restoring the browser copy is the
         // only non-destructive option. A later edit can retry persistence.
@@ -430,6 +457,11 @@ export function useStartNewShoppingList() {
         "install",
         true,
         recoveredRevision,
+        {
+          confirmedSnapshot: recoveredSnapshot,
+          hasUnsavedChanges:
+            JSON.stringify(previous) !== JSON.stringify(recoveredSnapshot),
+        },
       );
     },
   });

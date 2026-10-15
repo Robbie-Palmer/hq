@@ -51,6 +51,8 @@ let state: ShoppingListState = EMPTY_STATE;
 let hydrated = false;
 let activeListId: string | undefined;
 let activeRevision: string | undefined;
+let confirmedSnapshot: ShoppingListState | undefined;
+let hasUnsavedChanges = false;
 let completedTripRecordedFallback = false;
 const listeners = new Set<(source: ShoppingListChangeSource) => void>();
 
@@ -152,6 +154,10 @@ function hydrate(): void {
         typeof parsed.listId === "string" ? parsed.listId : undefined;
       activeRevision =
         typeof parsed.revision === "string" ? parsed.revision : undefined;
+      confirmedSnapshot = isRecord(parsed.confirmedSnapshot)
+        ? parseState(JSON.stringify(parsed.confirmedSnapshot))
+        : undefined;
+      hasUnsavedChanges = parsed.hasUnsavedChanges === true;
     }
   } catch {
     // localStorage unavailable (SSR, private browsing, etc.)
@@ -166,6 +172,8 @@ function persist(): void {
         ...state,
         listId: activeListId,
         revision: activeRevision,
+        confirmedSnapshot,
+        hasUnsavedChanges,
       }),
     );
   } catch {
@@ -179,6 +187,7 @@ function emit(source: ShoppingListChangeSource): void {
 
 function setState(next: ShoppingListState): void {
   state = next;
+  hasUnsavedChanges = true;
   persist();
   emit("local");
 }
@@ -201,6 +210,10 @@ function handleStorage(event: StorageEvent): void {
     state = parseState(event.newValue);
     activeRevision =
       typeof incoming.revision === "string" ? incoming.revision : undefined;
+    confirmedSnapshot = isRecord(incoming.confirmedSnapshot)
+      ? parseState(JSON.stringify(incoming.confirmedSnapshot))
+      : undefined;
+    hasUnsavedChanges = incoming.hasUnsavedChanges === true;
   } catch {
     return;
   }
@@ -237,6 +250,14 @@ export function getShoppingListCacheIdentity(): {
   return { listId: activeListId, revision: activeRevision };
 }
 
+export function getShoppingListCacheMetadata(): {
+  confirmedSnapshot?: ShoppingListState;
+  hasUnsavedChanges: boolean;
+} {
+  hydrate();
+  return { confirmedSnapshot, hasUnsavedChanges };
+}
+
 export function getServerShoppingListSnapshot(): ShoppingListState {
   return EMPTY_STATE;
 }
@@ -247,11 +268,26 @@ export function installShoppingListSnapshot(
   source: Extract<ShoppingListChangeSource, "install" | "local"> = "install",
   persistSnapshot = true,
   revision?: string,
+  cacheMetadata?: {
+    confirmedSnapshot: ShoppingListState;
+    hasUnsavedChanges: boolean;
+  },
 ): void {
   hydrated = true;
   activeListId = listId;
   activeRevision = revision;
   state = parseState(JSON.stringify(next));
+  if (cacheMetadata) {
+    confirmedSnapshot = parseState(
+      JSON.stringify(cacheMetadata.confirmedSnapshot),
+    );
+    hasUnsavedChanges = cacheMetadata.hasUnsavedChanges;
+  } else if (source === "local") {
+    hasUnsavedChanges = true;
+  } else if (persistSnapshot) {
+    confirmedSnapshot = state;
+    hasUnsavedChanges = false;
+  }
   if (persistSnapshot) persist();
   emit(source);
 }
@@ -259,9 +295,12 @@ export function installShoppingListSnapshot(
 export function confirmShoppingListRevision(
   listId: string,
   revision: string,
+  snapshot: ShoppingListState,
 ): void {
   if (activeListId !== listId) return;
   activeRevision = revision;
+  confirmedSnapshot = parseState(JSON.stringify(snapshot));
+  hasUnsavedChanges = false;
   persist();
 }
 
@@ -371,6 +410,8 @@ export function __resetShoppingListForTests(): void {
   hydrated = false;
   activeListId = undefined;
   activeRevision = undefined;
+  confirmedSnapshot = undefined;
+  hasUnsavedChanges = false;
   completedTripRecordedFallback = false;
   listeners.clear();
 }

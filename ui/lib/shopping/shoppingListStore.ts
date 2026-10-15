@@ -7,6 +7,7 @@ export {
   type ExtraItem,
   getServerShoppingListSnapshot,
   getShoppingListCacheIdentity,
+  getShoppingListCacheMetadata,
   getShoppingListSnapshot,
   installShoppingListSnapshot,
   isRecipeSelected,

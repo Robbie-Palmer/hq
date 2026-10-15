@@ -607,6 +607,58 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     );
   });
 
+  it("keeps a remote removal while recovering an unsaved local edit", async () => {
+    const removedRecipe = { slug: "removed-remotely" };
+    const localRecipe = { slug: "added-locally" };
+    const confirmed = {
+      ...emptySnapshot,
+      recipes: [removedRecipe],
+    };
+    localStorage.setItem(
+      "recipe-shopping-list:v1",
+      JSON.stringify({
+        ...confirmed,
+        recipes: [removedRecipe, localRecipe],
+        listId: storedList.id,
+        revision: "1",
+        confirmedSnapshot: confirmed,
+        hasUnsavedChanges: true,
+      }),
+    );
+    const remoteList = {
+      ...storedList,
+      revision: "2",
+      snapshot: emptySnapshot,
+    };
+    mocks.getCurrentShoppingList.mockResolvedValue(remoteList);
+    mocks.saveCurrentShoppingList.mockResolvedValue({
+      ...remoteList,
+      revision: "3",
+      snapshot: {
+        ...emptySnapshot,
+        recipes: [localRecipe],
+      },
+    });
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List recovered</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List recovered")).toBeInTheDocument();
+    expect(getShoppingListSnapshot().recipes).toEqual([localRecipe]);
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          remoteList.revision,
+          expect.objectContaining({ recipes: [localRecipe] }),
+        ),
+      { timeout: 5_000 },
+    );
+  });
+
   it("clears immediately, then archives the loaded list", async () => {
     let finishStarting: ((list: StoredShoppingList) => void) | undefined;
     mocks.startNewShoppingList.mockImplementation(
