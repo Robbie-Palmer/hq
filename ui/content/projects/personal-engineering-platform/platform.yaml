@@ -26,7 +26,7 @@ catalog:
       relations:
         - type: "part_of"
           target: "system:personal-engineering-platform/platform"
-      decision_refs: ["personal-engineering-platform:001-project-operational-evidence"]
+      decision_refs: ["personal-engineering-platform:032-monorepo-project-package-layout"]
     - id: "system:recipe-site/application"
       kind: "system"
       name: "Recipe Site application"
