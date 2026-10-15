@@ -46,6 +46,7 @@ const RuntimeModeSchema = z.enum([
   "auto",
   "full-access",
 ]);
+const ReasoningEffortSchema = z.enum(["low", "medium", "high"]);
 const WorkGraphTicketSchema = z.looseObject({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -66,6 +67,7 @@ const WorkGraphSelectionSchema = z.object({
 
 type WorkGraphSelection = z.infer<typeof WorkGraphSelectionSchema>;
 type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
+type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
 type Complexity = "routine" | "standard" | "complex" | "critical";
 type WorkKind = "implementation" | "documentation";
 
@@ -73,7 +75,7 @@ export interface TicketRoute {
   complexity: Complexity;
   workKind: WorkKind;
   preferredModels: readonly string[];
-  reasoningEffort: string;
+  reasoningEffort: ReasoningEffort;
   runtimeMode: RuntimeMode;
   serviceTier: string;
   reasons: readonly string[];
@@ -92,7 +94,7 @@ const protectedMutationSignals = [
   /\b(?:database|schema) migration\b/iu,
   /\b(?:delete production|destructive operation)\b/iu,
   /\b(?:terraform|kubectl) apply\b/iu,
-  /\b(?:payment|billing)\b/iu,
+  /\b(?:charge|execute|process|refund|send|submit)\b.{0,40}\b(?:billing|payment)\b/iu,
 ];
 const routineSignal =
   /\b(?:typo|copy edit|broken link|link fix|rename|small prose|single page)\b/iu;
@@ -147,13 +149,13 @@ function complexityForScore(score: number): Complexity {
 
 function codexModelPolicy(complexity: Complexity): {
   models: readonly string[];
-  effort: string;
+  effort: ReasoningEffort;
 } {
   switch (complexity) {
     case "critical":
       return {
         models: ["gpt-5.6-sol"],
-        effort: "xhigh",
+        effort: "high",
       };
     case "complex":
     case "standard":
@@ -228,8 +230,8 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
   };
 }
 
-export function buildWorkerPrompt(ticketId: string): string {
-  return `Using the Work Graph CLI, claim and execute ticket ${ticketId}. Follow its context and the repository instructions through the SDLC. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
+export function buildWorkerPrompt(ticketId: string, workGraphCli: string): string {
+  return `This is a one-ticket, human-gated pilot. Using ${workGraphCli}, claim and execute only ticket ${ticketId}; never claim another ticket. Follow its context and the repository instructions. Implement the ticket, run scoped mise validation, push the branch, and open a draft pull request. Do not retain unrelated formatter changes. Do not mark the pull request ready, merge it, release the ticket, rerun remote CI or deployment jobs, or continue to another ticket. When the draft and its initial checks are ready, request owner review in Work Graph and stop. If a remote check fails, record and report the failure for the owner instead of rerunning it. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
 }
 
 export function assertTicketRouteSupported(
@@ -330,6 +332,9 @@ export function selectModel(
       models.map(({ slug }) => slug),
     ),
   );
+  if (override !== undefined && !route.preferredModels.includes(override)) {
+    throw new Error(`Model override ${override} is outside the approved route policy`);
+  }
   const selected = override ?? route.preferredModels.find((model) => offered.has(model));
   if (selected === undefined || !offered.has(selected)) {
     const modelDescription =
@@ -341,6 +346,13 @@ export function selectModel(
     );
   }
   return selected;
+}
+
+export function selectReasoningEffort(
+  route: TicketRoute,
+  override?: string,
+): ReasoningEffort {
+  return ReasoningEffortSchema.parse(override ?? route.reasoningEffort);
 }
 
 function optionValues(
@@ -388,6 +400,7 @@ async function main(): Promise<void> {
   const baseBranch = requiredEnvironment("T3_WORK_GRAPH_BASE_BRANCH");
   const origin = requiredEnvironment("T3_WORK_GRAPH_ORIGIN");
   const projectRoot = requiredEnvironment("T3_WORK_GRAPH_PROJECT_ROOT");
+  const workGraphCli = requiredEnvironment("T3_WORK_GRAPH_CLI");
 
   const client = T3Client.create({
     accessToken,
@@ -417,7 +430,10 @@ async function main(): Promise<void> {
       provider,
       model,
       "reasoningEffort",
-      environmentOverride("T3_WORK_GRAPH_EFFORT") ?? route.reasoningEffort,
+      selectReasoningEffort(
+        route,
+        environmentOverride("T3_WORK_GRAPH_EFFORT"),
+      ),
     );
     const serviceTier = validatedOption(
       provider,
@@ -436,7 +452,7 @@ async function main(): Promise<void> {
         { id: "serviceTier", value: serviceTier },
       ],
     });
-    const prompt = buildWorkerPrompt(selection.ticket.id);
+    const prompt = buildWorkerPrompt(selection.ticket.id, workGraphCli);
 
     const id = threadId(randomUUID());
     const createdAt = new Date().toISOString();

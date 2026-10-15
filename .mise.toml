@@ -70,7 +70,7 @@ MISE_EXPERIMENTAL = "1"
 
 # Root-level tasks for repo-wide tooling
 [tasks."work-graph:launch-agent"]
-description = "Create a T3 Code thread that claims and executes the next Work Graph ticket"
+description = "Create a T3 Code thread for one explicitly selected Work Graph ticket"
 depends = ["//:install"]
 run = """
 #!/usr/bin/env bash
@@ -89,10 +89,16 @@ fi
 export T3_WORK_GRAPH_BASE_BRANCH="${base_branch:-main}"
 t3_home="${T3CODE_HOME:-$HOME/.t3}"
 export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
-ready="$(work-graph ready --limit 1)"
-ticket_id="$(jq -er '.items[0].id' <<<"$ready")"
-ticket="$(jq -cer '.items[0]' <<<"$ready")"
+ticket_id="${T3_WORK_GRAPH_TICKET_ID:?Set T3_WORK_GRAPH_TICKET_ID to the one approved ticket}"
+ticket="$(work-graph show "$ticket_id")"
+jq -e '
+  .id == $ticket_id and
+  .lifecycle == "open" and
+  .stage == "ready" and
+  .currentLease == null
+' --arg ticket_id "$ticket_id" >/dev/null <<<"$ticket"
 context="$(work-graph context show "$ticket_id")"
+export T3_WORK_GRAPH_CLI="$(command -v work-graph)"
 export T3_WORK_GRAPH_SELECTION="$(jq -cn \
   --argjson ticket "$ticket" \
   --argjson context "$context" \
