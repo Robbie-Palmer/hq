@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   assertTicketRouteSupported,
+  buildProviderTurnAttempts,
   buildWorkerPrompt,
   classifyDocumentationTicketIds,
   deriveTicketRoute,
@@ -61,6 +62,34 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
     ],
     slashCommands: [],
     skills: [],
+  };
+}
+
+function providerWithOptions(
+  instanceId: string,
+  reasoningEfforts: string[],
+  serviceTiers: string[],
+) {
+  const current = provider(instanceId);
+  return {
+    ...current,
+    models: current.models.map((model) => ({
+      ...model,
+      capabilities: {
+        optionDescriptors: [
+          {
+            type: "select",
+            id: "reasoningEffort",
+            options: reasoningEfforts.map((id) => ({ id })),
+          },
+          {
+            type: "select",
+            id: "serviceTier",
+            options: serviceTiers.map((id) => ({ id })),
+          },
+        ],
+      },
+    })),
   };
 }
 
@@ -304,6 +333,33 @@ describe("Work Graph ticket routing", () => {
         "codex_2",
       ).map(({ instanceId }) => instanceId),
     ).toEqual(["codex_2"]);
+  });
+
+  it("skips an option-incompatible fallback without blocking a valid provider", () => {
+    const attempts = buildProviderTurnAttempts({
+      effort: "high",
+      model: "gpt-5.6-sol",
+      providers: [
+        providerWithOptions("codex", ["high"], ["priority"]),
+        providerWithOptions("codex_2", ["medium"], ["default"]),
+      ],
+      serviceTier: "priority",
+    });
+
+    expect(attempts.map(({ provider: current }) => current.instanceId)).toEqual([
+      "codex",
+    ]);
+  });
+
+  it("keeps the explicit option error when no provider is compatible", () => {
+    expect(() =>
+      buildProviderTurnAttempts({
+        effort: "high",
+        model: "gpt-5.6-sol",
+        providers: [providerWithOptions("codex_2", ["medium"], ["default"])],
+        serviceTier: "priority",
+      }),
+    ).toThrow("codex_2/gpt-5.6-sol does not support reasoningEffort=high");
   });
 
   it("does not fall through an unavailable explicit profile", () => {

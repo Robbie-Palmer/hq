@@ -528,6 +528,38 @@ function validatedOption(
   return value;
 }
 
+export function buildProviderTurnAttempts(input: {
+  effort: ReasoningEffort;
+  model: string;
+  providers: readonly RoutingProvider[];
+  serviceTier: ServiceTier;
+}): ProviderTurnAttempt[] {
+  const compatible = input.providers.filter(
+    (provider) =>
+      optionValues(provider, input.model, "reasoningEffort").has(input.effort) &&
+      optionValues(provider, input.model, "serviceTier").has(input.serviceTier),
+  );
+  if (compatible.length === 0) {
+    const [selected] = input.providers;
+    if (selected === undefined) {
+      throw new Error("Provider attempt preparation received no candidates");
+    }
+    validatedOption(selected, input.model, "reasoningEffort", input.effort);
+    validatedOption(selected, input.model, "serviceTier", input.serviceTier);
+  }
+  return compatible.map((provider) => ({
+    provider,
+    modelSelection: schemas.orchestrationModel.ModelSelection.parse({
+      instanceId: provider.instanceId,
+      model: input.model,
+      options: [
+        { id: "reasoningEffort", value: input.effort },
+        { id: "serviceTier", value: input.serviceTier },
+      ],
+    }),
+  }));
+}
+
 async function main(): Promise<void> {
   if (process.env.T3_WORK_GRAPH_CLASSIFY_ONLY === "true") {
     const documentationTicketIds = classifyDocumentationTicketIds(
@@ -582,33 +614,12 @@ async function main(): Promise<void> {
       route,
       environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE"),
     );
-    const attempts = providerCandidates.map((provider) => ({
-      provider,
-      modelSelection: schemas.orchestrationModel.ModelSelection.parse({
-        instanceId: provider.instanceId,
-        model,
-        options: [
-          {
-            id: "reasoningEffort",
-            value: validatedOption(
-              provider,
-              model,
-              "reasoningEffort",
-              effort,
-            ),
-          },
-          {
-            id: "serviceTier",
-            value: validatedOption(
-              provider,
-              model,
-              "serviceTier",
-              serviceTier,
-            ),
-          },
-        ],
-      }),
-    }));
+    const attempts = buildProviderTurnAttempts({
+      effort,
+      model,
+      providers: providerCandidates,
+      serviceTier,
+    });
     const prompt = buildWorkerPrompt(selection.ticket.id, workGraphCli);
 
     const id = threadId(randomUUID());
