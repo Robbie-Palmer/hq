@@ -5,6 +5,12 @@ import {
   schemas,
   T3Client,
   threadId,
+  type ModelSelection,
+  type OrchestrationThreadShell,
+  type StartTurnInput,
+  type ThreadId,
+  type TurnHandle,
+  type TurnOutcome,
 } from "@wyrd-company/t3code-client";
 import { z } from "zod";
 
@@ -229,7 +235,7 @@ export function deriveTicketRoute(selection: WorkGraphSelection): TicketRoute {
 }
 
 export function buildWorkerPrompt(ticketId: string, workGraphCli: string): string {
-  return `This is a one-ticket, human-gated pilot. Using ${workGraphCli}, claim and execute only ticket ${ticketId}; never claim another ticket. Follow its context and the repository instructions. Implement the ticket, run scoped mise validation, push the branch, and open a draft pull request. Do not retain unrelated formatter changes. Complete the pull request review loop at your discretion: monitor current-head CI, SonarQube, and review feedback; fix true issues; rerun relevant local checks; push coherent fixes; and settle review threads. You may rerun a failed remote workflow once per unchanged head when the evidence indicates a flaky or infrastructure failure. If that rerun fails, or the failure is ambiguous, request owner attention instead of retrying again. Keep the pull request in draft until required checks pass and review findings are settled, then mark it ready for review. Do not merge the pull request, release the ticket, or continue to another ticket. Once the pull request is ready with green CI and SonarQube and no true review finding remains, request owner approval in Work Graph and stop. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
+  return `This is a one-ticket, human-gated pilot. Using ${workGraphCli}, claim and execute only ticket ${ticketId}; never claim another ticket. The exact Work Graph CLI path above is already installed and usable. Invoke it directly; do not resolve it through PATH or reinstall it. Follow the ticket context and the repository instructions. Implement the ticket, run scoped mise validation, push the branch, and open a draft pull request. Do not retain unrelated formatter changes. Complete the pull request review loop at your discretion: monitor current-head CI, SonarQube, and review feedback; fix true issues; rerun relevant local checks; push coherent fixes; and settle review threads. You may rerun a failed remote workflow once per unchanged head when the evidence indicates a flaky or infrastructure failure. If that rerun fails, or the failure is ambiguous, request owner attention instead of retrying again. Keep the pull request in draft until required checks pass and review findings are settled, then mark it ready for review. Do not merge the pull request, release the ticket, or continue to another ticket. Once the pull request is ready with green CI and SonarQube and no true review finding remains, request owner approval in Work Graph and stop. T3 has already run the worktree setup and trusted the repository's mise configuration, so do not run mise trust again. If the ticket is no longer claimable, stop and report that here.`;
 }
 
 export function assertTicketRouteSupported(
@@ -302,6 +308,24 @@ export function selectCodexProvider(
   model: string,
   override?: string,
 ): RoutingProvider {
+  const [selected] = selectCodexProviders(
+    providers,
+    ticketId,
+    model,
+    override,
+  );
+  if (selected === undefined) {
+    throw new Error("Codex provider selection produced no result");
+  }
+  return selected;
+}
+
+export function selectCodexProviders(
+  providers: readonly RoutingProvider[],
+  ticketId: string,
+  model: string,
+  override?: string,
+): RoutingProvider[] {
   const eligible = eligibleCodexProviders(providers).filter((provider) =>
     provider.models.some(({ slug }) => slug === model),
   );
@@ -312,16 +336,124 @@ export function selectCodexProvider(
         `Codex provider ${override} is not ready, authenticated, and compatible with ${model}`,
       );
     }
-    return selected;
+    return [selected];
   }
   if (eligible.length === 0) {
     throw new Error(`No ready authenticated Codex provider offers ${model}`);
   }
-  const selected = eligible.at(stableIndex(ticketId, eligible.length));
-  if (selected === undefined) {
-    throw new Error("Codex provider selection produced no result");
+  const start = stableIndex(ticketId, eligible.length);
+  return [...eligible.slice(start), ...eligible.slice(0, start)];
+}
+
+interface RecoveryThreadsClient {
+  get(threadId: ThreadId): Promise<OrchestrationThreadShell | undefined>;
+  startTurn(input: StartTurnInput): Promise<TurnHandle>;
+  stopSession(threadId: ThreadId): Promise<void>;
+}
+
+export interface ProviderTurnAttempt {
+  provider: RoutingProvider;
+  modelSelection: ModelSelection;
+}
+
+export interface RecoveredTurn {
+  attemptedProviders: string[];
+  provider: RoutingProvider;
+  turn: TurnHandle;
+}
+
+const recoverableProviderFailure =
+  /\b(?:capacity|quota|rate limit|usage limit|usage cap)\b/iu;
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+async function observeStartup(
+  turn: TurnHandle,
+  observationMs: number,
+): Promise<TurnOutcome | undefined> {
+  const observed = await Promise.race([
+    turn.completion.then(
+      (outcome) => ({ kind: "outcome" as const, outcome }),
+      (error: unknown) => ({ kind: "error" as const, error }),
+    ),
+    delay(observationMs).then(() => ({ kind: "running" as const })),
+  ]);
+  if (observed.kind === "error") throw observed.error;
+  return observed.kind === "outcome" ? observed.outcome : undefined;
+}
+
+async function stopFailedProviderSession(
+  threads: RecoveryThreadsClient,
+  thread: ThreadId,
+  timeoutMs: number,
+): Promise<void> {
+  await threads.stopSession(thread);
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() <= deadline) {
+    const shell = await threads.get(thread);
+    if (shell?.session === null || shell?.session?.status === "stopped") return;
+    await delay(100); // NOSONAR: Polling must wait for each session state before checking again.
   }
-  return selected;
+  throw new Error(`T3 provider session for ${thread} did not stop cleanly`);
+}
+
+export async function startTurnWithProviderRecovery(input: {
+  attempts: readonly ProviderTurnAttempt[];
+  buildTurnInput: (
+    attempt: ProviderTurnAttempt,
+    attemptIndex: number,
+  ) => StartTurnInput;
+  startupObservationMs?: number;
+  stopTimeoutMs?: number;
+  threadId: ThreadId;
+  threads: RecoveryThreadsClient;
+}): Promise<RecoveredTurn> {
+  const attemptedProviders: string[] = [];
+  for (const [attemptIndex, attempt] of input.attempts.entries()) {
+    attemptedProviders.push(attempt.provider.instanceId);
+    const turn = await input.threads.startTurn(
+      input.buildTurnInput(attempt, attemptIndex),
+    );
+    let outcome: TurnOutcome | undefined;
+    let observationError: unknown;
+    try {
+      outcome = await observeStartup(
+        turn,
+        input.startupObservationMs ?? 8_000,
+      );
+    } catch (error) {
+      observationError = error;
+    }
+    if (observationError !== undefined) {
+      await stopFailedProviderSession(
+        input.threads,
+        input.threadId,
+        input.stopTimeoutMs ?? 5_000,
+      );
+      throw observationError;
+    }
+    if (outcome === undefined || outcome.state === "completed") {
+      return { attemptedProviders, provider: attempt.provider, turn };
+    }
+
+    await stopFailedProviderSession( // NOSONAR: A fallback must not start until the previous writer stops.
+      input.threads,
+      input.threadId,
+      input.stopTimeoutMs ?? 5_000,
+    );
+    const failure = outcome.error ?? `provider turn ${outcome.state}`;
+    if (!recoverableProviderFailure.test(failure)) {
+      throw new Error(
+        `Codex provider ${attempt.provider.instanceId} failed during startup: ${failure}`,
+      );
+    }
+  }
+
+  throw new Error(
+    `All approved Codex providers failed during startup: ${attemptedProviders.join(", ")}`,
+  );
 }
 
 export function selectModel(
@@ -396,6 +528,38 @@ function validatedOption(
   return value;
 }
 
+export function buildProviderTurnAttempts(input: {
+  effort: ReasoningEffort;
+  model: string;
+  providers: readonly RoutingProvider[];
+  serviceTier: ServiceTier;
+}): ProviderTurnAttempt[] {
+  const compatible = input.providers.filter(
+    (provider) =>
+      optionValues(provider, input.model, "reasoningEffort").has(input.effort) &&
+      optionValues(provider, input.model, "serviceTier").has(input.serviceTier),
+  );
+  if (compatible.length === 0) {
+    const [selected] = input.providers;
+    if (selected === undefined) {
+      throw new Error("Provider attempt preparation received no candidates");
+    }
+    validatedOption(selected, input.model, "reasoningEffort", input.effort);
+    validatedOption(selected, input.model, "serviceTier", input.serviceTier);
+  }
+  return compatible.map((provider) => ({
+    provider,
+    modelSelection: schemas.orchestrationModel.ModelSelection.parse({
+      instanceId: provider.instanceId,
+      model: input.model,
+      options: [
+        { id: "reasoningEffort", value: input.effort },
+        { id: "serviceTier", value: input.serviceTier },
+      ],
+    }),
+  }));
+}
+
 async function main(): Promise<void> {
   if (process.env.T3_WORK_GRAPH_CLASSIFY_ONLY === "true") {
     const documentationTicketIds = classifyDocumentationTicketIds(
@@ -434,70 +598,72 @@ async function main(): Promise<void> {
       route,
       environmentOverride("T3_WORK_GRAPH_MODEL"),
     );
-    const provider = selectCodexProvider(
+    const providerCandidates = selectCodexProviders(
       providers,
       selection.ticket.id,
       model,
       environmentOverride("T3_WORK_GRAPH_PROVIDER"),
     );
-    const effort = validatedOption(
-      provider,
-      model,
-      "reasoningEffort",
-      selectReasoningEffort(
-        route,
-        environmentOverride("T3_WORK_GRAPH_EFFORT"),
-      ),
+    const effort = selectReasoningEffort(
+      route,
+      environmentOverride("T3_WORK_GRAPH_EFFORT"),
     );
-    const serviceTier = validatedOption(
-      provider,
-      model,
-      "serviceTier",
-      environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier,
-    );
+    const serviceTier =
+      environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier;
     const runtimeMode = selectRuntimeMode(
       route,
       environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE"),
     );
-    const modelSelection = schemas.orchestrationModel.ModelSelection.parse({
-      instanceId: provider.instanceId,
+    const attempts = buildProviderTurnAttempts({
+      effort,
       model,
-      options: [
-        { id: "reasoningEffort", value: effort },
-        { id: "serviceTier", value: serviceTier },
-      ],
+      providers: providerCandidates,
+      serviceTier,
     });
     const prompt = buildWorkerPrompt(selection.ticket.id, workGraphCli);
 
     const id = threadId(randomUUID());
     const createdAt = new Date().toISOString();
-    const turn = await client.threads.startTurn({
+    const recovered = await startTurnWithProviderRecovery({
+      attempts,
       threadId: id,
-      text: prompt,
-      modelSelection,
-      runtimeMode,
-      interactionMode: "default",
-      bootstrap: {
-        createThread: {
-          projectId: project.id,
-          title: `Work Graph: ${selection.ticket.title}`,
-          modelSelection,
-          runtimeMode,
-          interactionMode: "default",
-          branch: null,
-          worktreePath: null,
-          createdAt,
-        },
-        prepareWorktree: {
-          projectCwd: project.workspaceRoot,
-          baseBranch,
-          branch: `work-graph/${id}`,
-          startFromOrigin: true,
-          requireWorktree: true,
-        },
-        runSetupScript: true,
-      },
+      threads: client.threads,
+      buildTurnInput: (attempt, attemptIndex) => ({
+        threadId: id,
+        text:
+          attemptIndex === 0
+            ? prompt
+            : `The previous approved provider failed before work began, and its session was stopped. Retry this exact instruction on the fallback provider:\n\n${prompt}`,
+        modelSelection: attempt.modelSelection,
+        runtimeMode,
+        interactionMode: "default",
+        ...(attemptIndex === 0
+          ? {
+              bootstrap: {
+                createThread: {
+                  projectId: project.id,
+                  title: `Work Graph: ${selection.ticket.title}`,
+                  modelSelection: attempt.modelSelection,
+                  runtimeMode,
+                  interactionMode: "default" as const,
+                  branch: null,
+                  worktreePath: null,
+                  createdAt,
+                },
+                prepareWorktree: {
+                  projectCwd: project.workspaceRoot,
+                  baseBranch,
+                  branch: `work-graph/${id}`,
+                  startFromOrigin: true,
+                  requireWorktree: true,
+                },
+                runSetupScript: true,
+              },
+            }
+          : {}),
+      }),
     });
+    const { provider, turn } = recovered;
     const descriptor = await client.server.environment();
     const url = new URL(`/${descriptor.environmentId}/${id}`, origin);
 
@@ -510,6 +676,7 @@ async function main(): Promise<void> {
           },
           route: {
             provider: provider.instanceId,
+            attemptedProviders: recovered.attemptedProviders,
             model,
             reasoningEffort: effort,
             serviceTier,

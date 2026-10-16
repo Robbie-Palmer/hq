@@ -2,15 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   assertTicketRouteSupported,
+  buildProviderTurnAttempts,
   buildWorkerPrompt,
   classifyDocumentationTicketIds,
   deriveTicketRoute,
   isDocumentationOnlyTicket,
   refreshRoutingProviders,
   selectCodexProvider,
+  selectCodexProviders,
   selectModel,
   selectReasoningEffort,
   selectRuntimeMode,
+  startTurnWithProviderRecovery,
 } from "./launch-work-graph-agent.js";
 
 function ticket(
@@ -62,6 +65,34 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
   };
 }
 
+function providerWithOptions(
+  instanceId: string,
+  reasoningEfforts: string[],
+  serviceTiers: string[],
+) {
+  const current = provider(instanceId);
+  return {
+    ...current,
+    models: current.models.map((model) => ({
+      ...model,
+      capabilities: {
+        optionDescriptors: [
+          {
+            type: "select",
+            id: "reasoningEffort",
+            options: reasoningEfforts.map((id) => ({ id })),
+          },
+          {
+            type: "select",
+            id: "serviceTier",
+            options: serviceTiers.map((id) => ({ id })),
+          },
+        ],
+      },
+    })),
+  };
+}
+
 describe("Work Graph ticket routing", () => {
   it("settles the review loop before the one-ticket owner-review gate", () => {
     const prompt = buildWorkerPrompt("ticket-1", "/opt/bin/work-graph");
@@ -69,6 +100,8 @@ describe("Work Graph ticket routing", () => {
     expect(prompt).toContain("/opt/bin/work-graph");
     expect(prompt).toContain("claim and execute only ticket ticket-1");
     expect(prompt).toContain("never claim another ticket");
+    expect(prompt).toContain("already installed and usable");
+    expect(prompt).toContain("do not resolve it through PATH or reinstall it");
     expect(prompt).toContain("open a draft pull request");
     expect(prompt).toContain("Complete the pull request review loop at your discretion");
     expect(prompt).toContain("once per unchanged head");
@@ -277,6 +310,58 @@ describe("Work Graph ticket routing", () => {
     expect(other.instanceId).not.toBe(first.instanceId);
   });
 
+  it("orders every approved profile behind the deterministic first choice", () => {
+    const providers = [provider("codex"), provider("codex_2")];
+    const selected = selectCodexProviders(
+      providers,
+      "ticket-a",
+      "gpt-5.6-sol",
+    );
+
+    expect(selected.map(({ instanceId }) => instanceId)).toEqual([
+      selectCodexProvider(providers, "ticket-a", "gpt-5.6-sol").instanceId,
+      selectCodexProvider(providers, "ticket-b", "gpt-5.6-sol").instanceId,
+    ]);
+  });
+
+  it("does not add fallback profiles when an explicit profile is selected", () => {
+    expect(
+      selectCodexProviders(
+        [provider("codex"), provider("codex_2")],
+        "ticket-a",
+        "gpt-5.6-sol",
+        "codex_2",
+      ).map(({ instanceId }) => instanceId),
+    ).toEqual(["codex_2"]);
+  });
+
+  it("skips an option-incompatible fallback without blocking a valid provider", () => {
+    const attempts = buildProviderTurnAttempts({
+      effort: "high",
+      model: "gpt-5.6-sol",
+      providers: [
+        providerWithOptions("codex", ["high"], ["priority"]),
+        providerWithOptions("codex_2", ["medium"], ["default"]),
+      ],
+      serviceTier: "priority",
+    });
+
+    expect(attempts.map(({ provider: current }) => current.instanceId)).toEqual([
+      "codex",
+    ]);
+  });
+
+  it("keeps the explicit option error when no provider is compatible", () => {
+    expect(() =>
+      buildProviderTurnAttempts({
+        effort: "high",
+        model: "gpt-5.6-sol",
+        providers: [providerWithOptions("codex_2", ["medium"], ["default"])],
+        serviceTier: "priority",
+      }),
+    ).toThrow("codex_2/gpt-5.6-sol does not support reasoningEffort=high");
+  });
+
   it("does not fall through an unavailable explicit profile", () => {
     expect(() =>
       selectCodexProvider(
@@ -286,6 +371,160 @@ describe("Work Graph ticket routing", () => {
         "codex_2",
       ),
     ).toThrow("not ready, authenticated, and compatible");
+  });
+
+  it("stops a capacity-limited provider before retrying the same thread", async () => {
+    const calls: string[] = [];
+    const failedTurn = {
+      completion: Promise.resolve({
+        state: "error",
+        error: "Codex usage limit reached.",
+      }),
+    };
+    const runningTurn = { completion: new Promise(() => undefined) };
+    const startTurn = vi.fn((input: { modelSelection: { instanceId: string } }) => {
+      calls.push(`start:${input.modelSelection.instanceId}`);
+      return Promise.resolve(
+        input.modelSelection.instanceId === "codex_2"
+          ? failedTurn
+          : runningTurn,
+      );
+    });
+    const stopSession = vi.fn(() => {
+      calls.push("stop");
+      return Promise.resolve();
+    });
+    const get = vi.fn(() => {
+      calls.push("get");
+      return Promise.resolve({ session: { status: "stopped" } });
+    });
+    const providers = [provider("codex_2"), provider("codex")];
+
+    const recovered = await startTurnWithProviderRecovery({
+      attempts: providers.map((current) => ({
+        provider: current,
+        modelSelection: {
+          instanceId: current.instanceId,
+          model: "gpt-5.6-sol",
+          options: [],
+        },
+      })),
+      buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+      startupObservationMs: 1,
+      stopTimeoutMs: 100,
+      threadId: "thread-1",
+      threads: { get, startTurn, stopSession },
+    } as Parameters<typeof startTurnWithProviderRecovery>[0]);
+
+    expect(recovered.provider.instanceId).toBe("codex");
+    expect(recovered.attemptedProviders).toEqual(["codex_2", "codex"]);
+    expect(calls).toEqual(["start:codex_2", "stop", "get", "start:codex"]);
+  });
+
+  it("stops but does not reroute a non-capacity startup failure", async () => {
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Repository setup failed.",
+        }),
+      }),
+    );
+    const stopSession = vi.fn(() => Promise.resolve());
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: [provider("codex_2"), provider("codex")].map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() =>
+            Promise.resolve({ session: { status: "stopped" } }),
+          ),
+          startTurn,
+          stopSession,
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow("Repository setup failed");
+    expect(stopSession).toHaveBeenCalledOnce();
+    expect(startTurn).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up when startup observation itself fails", async () => {
+    const stopSession = vi.fn(() => Promise.resolve());
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: [provider("codex")].map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() => Promise.resolve({ session: null })),
+          startTurn: vi.fn(() =>
+            Promise.resolve({
+              completion: Promise.reject(new Error("watch disconnected")),
+            }),
+          ),
+          stopSession,
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow("watch disconnected");
+    expect(stopSession).toHaveBeenCalledOnce();
+  });
+
+  it("reports every provider when all approved profiles hit capacity", async () => {
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Provider capacity exhausted.",
+        }),
+      }),
+    );
+    const providers = [provider("codex_2"), provider("codex")];
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: providers.map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() => Promise.resolve({ session: null })),
+          startTurn,
+          stopSession: vi.fn(() => Promise.resolve()),
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow(
+      "All approved Codex providers failed during startup: codex_2, codex",
+    );
+    expect(startTurn).toHaveBeenCalledTimes(2);
   });
 
   it("keeps an offered policy model eligible when the catalog marks it legacy", () => {
