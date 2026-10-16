@@ -326,18 +326,21 @@ describe("Work Graph ticket routing", () => {
       }),
     };
     const runningTurn = { completion: new Promise(() => undefined) };
-    const startTurn = vi.fn(async (input: { modelSelection: { instanceId: string } }) => {
+    const startTurn = vi.fn((input: { modelSelection: { instanceId: string } }) => {
       calls.push(`start:${input.modelSelection.instanceId}`);
-      return input.modelSelection.instanceId === "codex_2"
-        ? failedTurn
-        : runningTurn;
+      return Promise.resolve(
+        input.modelSelection.instanceId === "codex_2"
+          ? failedTurn
+          : runningTurn,
+      );
     });
-    const stopSession = vi.fn(async () => {
+    const stopSession = vi.fn(() => {
       calls.push("stop");
+      return Promise.resolve();
     });
-    const get = vi.fn(async () => {
+    const get = vi.fn(() => {
       calls.push("get");
-      return { session: { status: "stopped" } };
+      return Promise.resolve({ session: { status: "stopped" } });
     });
     const providers = [provider("codex_2"), provider("codex")];
 
@@ -363,13 +366,15 @@ describe("Work Graph ticket routing", () => {
   });
 
   it("stops but does not reroute a non-capacity startup failure", async () => {
-    const startTurn = vi.fn(async () => ({
-      completion: Promise.resolve({
-        state: "error",
-        error: "Repository setup failed.",
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Repository setup failed.",
+        }),
       }),
-    }));
-    const stopSession = vi.fn(async () => undefined);
+    );
+    const stopSession = vi.fn(() => Promise.resolve());
 
     await expect(
       startTurnWithProviderRecovery({
@@ -386,7 +391,9 @@ describe("Work Graph ticket routing", () => {
         stopTimeoutMs: 100,
         threadId: "thread-1",
         threads: {
-          get: vi.fn(async () => ({ session: { status: "stopped" } })),
+          get: vi.fn(() =>
+            Promise.resolve({ session: { status: "stopped" } }),
+          ),
           startTurn,
           stopSession,
         },
@@ -397,7 +404,7 @@ describe("Work Graph ticket routing", () => {
   });
 
   it("cleans up when startup observation itself fails", async () => {
-    const stopSession = vi.fn(async () => undefined);
+    const stopSession = vi.fn(() => Promise.resolve());
 
     await expect(
       startTurnWithProviderRecovery({
@@ -414,10 +421,12 @@ describe("Work Graph ticket routing", () => {
         stopTimeoutMs: 100,
         threadId: "thread-1",
         threads: {
-          get: vi.fn(async () => ({ session: null })),
-          startTurn: vi.fn(async () => ({
-            completion: Promise.reject(new Error("watch disconnected")),
-          })),
+          get: vi.fn(() => Promise.resolve({ session: null })),
+          startTurn: vi.fn(() =>
+            Promise.resolve({
+              completion: Promise.reject(new Error("watch disconnected")),
+            }),
+          ),
           stopSession,
         },
       } as Parameters<typeof startTurnWithProviderRecovery>[0]),
@@ -426,12 +435,14 @@ describe("Work Graph ticket routing", () => {
   });
 
   it("reports every provider when all approved profiles hit capacity", async () => {
-    const startTurn = vi.fn(async () => ({
-      completion: Promise.resolve({
-        state: "error",
-        error: "Provider capacity exhausted.",
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Provider capacity exhausted.",
+        }),
       }),
-    }));
+    );
     const providers = [provider("codex_2"), provider("codex")];
 
     await expect(
@@ -449,9 +460,9 @@ describe("Work Graph ticket routing", () => {
         stopTimeoutMs: 100,
         threadId: "thread-1",
         threads: {
-          get: vi.fn(async () => ({ session: null })),
+          get: vi.fn(() => Promise.resolve({ session: null })),
           startTurn,
-          stopSession: vi.fn(async () => undefined),
+          stopSession: vi.fn(() => Promise.resolve()),
         },
       } as Parameters<typeof startTurnWithProviderRecovery>[0]),
     ).rejects.toThrow(

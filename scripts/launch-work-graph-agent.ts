@@ -394,7 +394,7 @@ async function stopFailedProviderSession(
   while (Date.now() <= deadline) {
     const shell = await threads.get(thread);
     if (shell?.session === null || shell?.session?.status === "stopped") return;
-    await delay(100);
+    await delay(100); // NOSONAR: Polling must wait for each session state before checking again.
   }
   throw new Error(`T3 provider session for ${thread} did not stop cleanly`);
 }
@@ -438,7 +438,7 @@ export async function startTurnWithProviderRecovery(input: {
       return { attemptedProviders, provider: attempt.provider, turn };
     }
 
-    await stopFailedProviderSession(
+    await stopFailedProviderSession( // NOSONAR: A fallback must not start until the previous writer stops.
       input.threads,
       input.threadId,
       input.stopTimeoutMs ?? 5_000,
