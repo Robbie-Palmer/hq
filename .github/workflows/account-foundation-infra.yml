@@ -1,0 +1,65 @@
+name: Account Foundation Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/account-foundation/**"
+      - ".github/workflows/account-foundation-infra.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-foundation-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-account-foundation
+    defaults:
+      run:
+        working-directory: infra/account-foundation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Remove stale Terraform plan
+        run: rm -f .planfile
+
+      - name: Terraform plan with write credentials
+        run: mise run //infra/account-foundation:plan
+        env:
+          DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG: prd_account_foundation
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          ACCOUNT_FOUNDATION_GITHUB_TOKEN: ${{ secrets.ACCOUNT_FOUNDATION_GITHUB_TOKEN }}
+
+      - name: Add Terraform plan to summary
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
+        with:
+          token: ${{ github.token }}
+          planfile: .planfile
+          working-directory: ./infra/account-foundation
+          skip-comment: true
+
+      - name: Terraform apply
+        if: ${{ success() && hashFiles('infra/account-foundation/.planfile') != '' }}
+        run: mise run //infra/account-foundation:apply
+        env:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          ACCOUNT_FOUNDATION_GITHUB_TOKEN: ${{ secrets.ACCOUNT_FOUNDATION_GITHUB_TOKEN }}
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile

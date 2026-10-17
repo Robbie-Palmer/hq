@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:?Pass seed, plan, or apply as the credential mode}"
+shift
+
+project="${DOPPLER_PROJECT:-personal-site}"
+case "$mode" in
+  seed)
+    config="${DOPPLER_ACCOUNT_FOUNDATION_SEED_CONFIG:-prd_account_foundation_seed}"
+    ;;
+  plan)
+    config="${DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG:-prd_account_foundation_plan}"
+    ;;
+  apply)
+    config="${DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG:-prd_account_foundation}"
+    ;;
+  *)
+    echo "Unknown account-foundation credential mode: $mode" >&2
+    exit 1
+    ;;
+esac
+
+if [[ "${CI:-}" != "true" && "${DOPPLER_ACCOUNT_FOUNDATION_ENV_WRAPPED:-}" != "$mode" ]]; then
+  if command -v doppler >/dev/null 2>&1; then
+    export DOPPLER_ACCOUNT_FOUNDATION_ENV_WRAPPED="$mode"
+    exec doppler run \
+      --project "$project" \
+      --config "$config" \
+      --preserve-env=CI,DOPPLER_PROJECT,DOPPLER_ACCOUNT_FOUNDATION_SEED_CONFIG,DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG,DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG,DOPPLER_ACCOUNT_FOUNDATION_ENV_WRAPPED \
+      -- bash "$0" "$mode" "$@"
+  else
+    echo "Cannot run account-foundation Terraform locally: doppler is required." >&2
+    echo "Install and authenticate the Doppler CLI, then retry." >&2
+    exit 1
+  fi
+fi
+
+set_if_unset() {
+  local name="$1"
+  local value="${2:-}"
+  if [[ -z "${!name:-}" && -n "$value" ]]; then
+    export "$name=$value"
+  fi
+}
+
+set_if_unset TF_TOKEN_app_terraform_io "${TF_API_TOKEN:-}"
+set_if_unset TFE_TOKEN "${TF_API_TOKEN:-}"
+set_if_unset GITHUB_TOKEN "${ACCOUNT_FOUNDATION_GITHUB_TOKEN:-}"
+
+if [[ "$mode" == "plan" || "$mode" == "apply" ]]; then
+  for required_name in TF_TOKEN_app_terraform_io TFE_TOKEN DOPPLER_TOKEN GITHUB_TOKEN; do
+    if [[ -z "${!required_name:-}" ]]; then
+      echo "Cannot run account-foundation $mode: $required_name is missing." >&2
+      exit 1
+    fi
+  done
+fi
+
+exec "$@"

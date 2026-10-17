@@ -1,0 +1,55 @@
+name: Account Foundation Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/account-foundation/**"
+      - ".github/workflows/account-foundation-infra-ci.yml"
+
+permissions: {}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    environment:
+      name: production-account-foundation-plan
+    defaults:
+      run:
+        working-directory: infra/account-foundation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check Terraform formatting
+        run: mise run //infra/account-foundation:format:check
+
+      - name: Validate Terraform without credentials
+        run: mise run //infra/account-foundation:validate
+
+      - name: Lint Terraform
+        run: mise run //infra/account-foundation:lint:tflint
+
+      - name: Terraform plan with scoped credentials
+        run: mise run //infra/account-foundation:plan
+        env:
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          ACCOUNT_FOUNDATION_GITHUB_TOKEN: ${{ secrets.ACCOUNT_FOUNDATION_GITHUB_TOKEN }}
+
+      - name: Add Terraform plan to PR comment
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
+        with:
+          token: ${{ github.token }}
+          planfile: .planfile
+          working-directory: ./infra/account-foundation
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile
