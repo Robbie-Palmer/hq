@@ -157,13 +157,15 @@ export class GitHubDeliveryConsumer {
             ),
           );
         const evaluatedAt = receipt.ingestedAt;
-        for (const target of targets) {
-          await repository.evaluateCompletionCandidateIfConfigured({
-            id: evaluationId(delivery.deliveryId, target.workItemId),
-            workItemId: target.workItemId,
-            evaluatedAt,
-          });
-        }
+        await Promise.all(
+          targets.map((target) =>
+            repository.evaluateCompletionCandidateIfConfigured({
+              id: evaluationId(delivery.deliveryId, target.workItemId),
+              workItemId: target.workItemId,
+              evaluatedAt,
+            }),
+          ),
+        );
       }
       return disposition;
     } catch (error) {
