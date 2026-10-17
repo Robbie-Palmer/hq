@@ -33,11 +33,7 @@ export interface GitHubReconciliationDependencies {
   readonly now?: () => Date;
 }
 
-export class GitHubReconciliationError extends Error {
-  constructor(message: string) {
-    super(message);
-  }
-}
+export class GitHubReconciliationError extends Error {}
 
 function record(value: unknown, name: string): JsonRecord {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -109,7 +105,7 @@ function canonicalJson(value: unknown): string {
   const source = value as JsonRecord;
   return `{${Object.keys(source)
     .filter((key) => source[key] !== undefined)
-    .sort()
+    .sort((left, right) => left.localeCompare(right))
     .map((key) => `${JSON.stringify(key)}:${canonicalJson(source[key])}`)
     .join(",")}}`;
 }
@@ -160,7 +156,7 @@ async function reconciliationDelivery(input: {
 function nextLink(header: string | null): string | null {
   if (!header) return null;
   for (const part of header.split(",")) {
-    const match = part.match(/^\s*<([^>]+)>;\s*rel="([^"]+)"\s*$/);
+    const match = /^\s*<([^>]+)>;\s*rel="([^"]+)"\s*$/.exec(part);
     if (match?.[2] === "next") return match[1] ?? null;
   }
   return null;
@@ -283,9 +279,11 @@ export class GitHubReconciler {
     };
     let deliveries = 0;
     for (const target of targets) {
-      const targetDeliveries = await this.fetchTarget(target);
+      // Targets stay serial to bound GitHub API traffic for scheduled runs.
+      const targetDeliveries = await this.fetchTarget(target); // NOSONAR
       for (const delivery of targetDeliveries) {
-        const disposition = await this.consumer.consume(delivery);
+        // The consumer owns one database connection and must remain serial.
+        const disposition = await this.consumer.consume(delivery); // NOSONAR
         counts[disposition] += 1;
         deliveries += 1;
       }
@@ -401,7 +399,7 @@ export class GitHubReconciler {
     const payloads: ReconciliationPayload[] = [];
     const runIds = new Set<number>();
     for (const commit of commits) {
-      const workflowPages = await this.requestPages(
+      const workflowPages = await this.requestPages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
         `/repos/${encodedRepository}/actions/runs?head_sha=${encodeURIComponent(commit)}&status=completed&per_page=100`,
         token,
         (value) => array(record(value, "workflow runs").workflow_runs, "workflow runs"),
@@ -430,7 +428,7 @@ export class GitHubReconciler {
     const payloads: ReconciliationPayload[] = [];
     const deploymentIds = new Set<number>();
     for (const commit of commits) {
-      const deployments = await this.requestPages(
+      const deployments = await this.requestPages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
         `/repos/${encodedRepository}/deployments?sha=${encodeURIComponent(commit)}&per_page=100`,
         token,
         (value) => array(value, "deployments"),
@@ -440,7 +438,7 @@ export class GitHubReconciler {
         const deploymentId = positiveInteger(deployment.id, "deployment ID");
         if (deploymentIds.has(deploymentId)) continue;
         deploymentIds.add(deploymentId);
-        const statuses = await this.requestPages(
+        const statuses = await this.requestPages( // NOSONAR -- Each deployment is expanded with bounded traffic.
           `/repos/${encodedRepository}/deployments/${deploymentId}/statuses?per_page=100`,
           token,
           (response) => array(response, "deployment statuses"),
@@ -512,7 +510,8 @@ export class GitHubReconciler {
     const results: unknown[] = [];
     let next: string | null = assertGitHubApiUrl(path);
     for (let page = 0; next !== null && page < MAX_PAGES; page += 1) {
-      const response = await this.fetcher(next, {
+      // Each response supplies the next page URL, so pagination is sequential.
+      const response = await this.fetcher(next, { // NOSONAR
         headers: {
           accept: "application/vnd.github+json",
           authorization: `Bearer ${token}`,
@@ -526,7 +525,8 @@ export class GitHubReconciler {
           `GitHub API request failed with HTTP ${response.status}.`,
         );
       }
-      results.push(...items((await response.json()) as unknown));
+      const body = await response.json(); // NOSONAR -- Read before following the next page.
+      results.push(...items(body as unknown));
       const candidate = nextLink(response.headers.get("link"));
       next = candidate === null ? null : assertGitHubApiUrl(candidate);
     }
