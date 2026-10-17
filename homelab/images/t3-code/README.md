@@ -20,6 +20,12 @@ volume at `/data`; t3 state and provider authentication live under
 `/data/home`, while repositories and worktrees live under `/data/workspaces`.
 Neither the image nor its build context contains credentials.
 
+The pinned T3 Code 0.0.44 server includes OTLP/HTTP trace, metric, and log
+exporters. The remote-development overlay enables them and points them at the
+host Collector; the image does not contain a PostHog token. OTLP export does
+not disable the rotating local trace at
+`/data/home/.t3/userdata/logs/server.trace.ndjson`.
+
 The deployment enables the OpenCode and Grok providers in T3's persisted
 settings and adds a `codex2` instance backed by a separate `auth.json`. It
 defaults new Codex threads and every Codex provider catalog to GPT-5.6-Sol with

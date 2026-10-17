@@ -96,6 +96,7 @@ test -z "$(
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
 systemctl is-active --quiet netdata.service
+systemctl is-active --quiet opentelemetry-collector.service
 systemctl is-active --quiet remote-development-kubernetes-api-proxy.service
 coordinator_enabled=false
 if systemctl is-enabled --quiet remote-development-agent-coordinator.service; then
@@ -125,10 +126,16 @@ systemctl is-enabled --quiet remote-development-healthcheck-heartbeat.timer
 systemctl is-active --quiet remote-development-healthcheck-heartbeat.timer
 test "$(stat --format=%a /var/lib/remote-development-observability/netdata.env)" = 600
 test "$(stat --format=%a /var/lib/remote-development-observability/healthchecks.env)" = 600
+test "$(stat --format=%a /var/lib/remote-development-observability/posthog.env)" = 600
 grep -q '^NETDATA_SLACK_WEBHOOK_URL=https://hooks\.slack\.com/services/' \
   /var/lib/remote-development-observability/netdata.env
 grep -q '^HEALTHCHECKS_PING_URL=https://hc-ping\.com/' \
   /var/lib/remote-development-observability/healthchecks.env
+grep -q '^POSTHOG_PROJECT_TOKEN=phc_' \
+  /var/lib/remote-development-observability/posthog.env
+curl --fail --silent --show-error http://127.0.0.1:13133/ >/dev/null
+ss --no-header --listening --tcp '( sport = :4318 )' \
+  | awk '$4 == "10.42.0.1:4318" { found = 1 } END { if (!found) exit 1 }'
 if [ -r /var/lib/remote-development-backup/status.json ]; then
   remote-development-workspace-backup-status \
     | jq --exit-status \
@@ -217,9 +224,10 @@ curl --fail --silent --show-error http://127.0.0.1:19999/api/v1/charts \
       and .charts["remote_development.operator_services"] != null
       and .charts["remote_development.operator_kubernetes_state"] != null
       and .charts["remote_development.operator_pressure"] != null
+      and .charts["remote_development.operator_telemetry_pipeline"] != null
     ' >/dev/null
 systemctl start remote-development-healthcheck-heartbeat.service
-echo "private Netdata, kube-state-metrics, workspace metrics, and external heartbeat are healthy"
+echo "private Netdata, T3 telemetry, kube-state-metrics, workspace metrics, and external heartbeat are healthy"
 echo "host, zram, disk headroom, project quotas, Tailscale, and independent K3s server are healthy"
 
 check_workspace() {
