@@ -21,6 +21,36 @@ const NAV_PAGE_COPY = {
   settings: ['settings.', 'Household, diet, units, agents, security, and account.'],
 };
 
+function NavigationPlanPreview({ mobile = false, go }) {
+  const visibleDays = mobile ? PLANNED_WEEK.slice(0, 3) : PLANNED_WEEK.slice(0, 5);
+  return (
+    <div style={{ marginTop: mobile ? 14 : 22 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span className="mf-tag include" style={{ fontSize: mobile ? 8 : 10 }}>7 meals</span>
+        <span className="mf-tag" style={{ fontSize: mobile ? 8 : 10 }}>5 cooks</span>
+        <span className="mf-tag" style={{ fontSize: mobile ? 8 : 10 }}>2 leftovers</span>
+        {!mobile && <button className="mf-btn terra sm" style={{ marginLeft: 'auto' }}>＋ Add meal</button>}
+      </div>
+      <div className="mf-card" style={{ padding: mobile ? 8 : 10, maxWidth: 720 }}>
+        {visibleDays.map((day) => <div key={day.key} style={{ display: 'grid', gridTemplateColumns: mobile ? '42px 1fr' : '70px 1fr', gap: 8, padding: mobile ? '6px 3px' : '8px 5px', borderBottom: '1px solid var(--line)' }}>
+          <div>
+            <div className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: mobile ? 7 : 8 }}>{day.day.toUpperCase()}</div>
+            <div className="mf-display" style={{ fontSize: mobile ? 19 : 23, lineHeight: 1 }}>{day.date}</div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr' : `repeat(${Math.min(2, day.meals.length)}, minmax(0, 1fr))`, gap: 5 }}>
+            {day.meals.map((meal, index) => <PlannedMealCard key={`${meal.slot}-${index}`} meal={meal} compact />)}
+          </div>
+        </div>)}
+        <div style={{ display: 'flex', gap: 6, padding: '8px 4px 2px' }}>
+          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>＋ Sat · open</button>
+          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>＋ Sun · open</button>
+        </div>
+      </div>
+      <button className="mf-btn" style={{ marginTop: 10 }} onClick={() => go('shopping')}>Review Shop · 12 →</button>
+    </div>
+  );
+}
+
 function NavDestinationContent({ active, go }) {
   const [title, description] = NAV_PAGE_COPY[active] || NAV_PAGE_COPY.recipes;
   return (
@@ -32,15 +62,7 @@ function NavDestinationContent({ active, go }) {
       <p className="mf-body" style={{ color: 'var(--ink-2)', maxWidth: 620, margin: 0 }}>{description}</p>
 
       {active === 'planning' && (
-        <div className="mf-card" style={{ marginTop: 24, padding: 18, maxWidth: 650 }}>
-          <div className="mf-mono" style={{ color: 'var(--terracotta)' }}>SMALLEST USEFUL START</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8 }}>
-            <button className="mf-btn terra">＋ Plan one meal</button>
-            <span style={{ color: 'var(--ink-3)', fontSize: 13 }}>No week setup required</span>
-          </div>
-          <hr className="mf-rule" style={{ margin: '16px 0' }} />
-          <button className="mf-btn" onClick={() => go('shopping')}>Review shopping list →</button>
-        </div>
+        <NavigationPlanPreview go={go} />
       )}
 
       {active === 'shopping' && (
@@ -229,12 +251,7 @@ function NavigationMobilePrototype() {
             )}
 
             {active === 'planning' && (
-              <div className="mf-card" style={{ marginTop: 18, padding: 16 }}>
-                <div className="mf-display" style={{ fontSize: 26 }}>Start with one meal.</div>
-                <div style={{ color: 'var(--ink-3)', fontSize: 12, margin: '4px 0 12px' }}>Pick a recipe and a day. The rest of the week stays empty.</div>
-                <button className="mf-btn terra">＋ Plan one meal</button>
-                <button className="mf-btn" style={{ marginTop: 9 }} onClick={() => go('shopping')}>Review shopping list →</button>
-              </div>
+              <NavigationPlanPreview mobile go={go} />
             )}
 
             {!['shopping', 'planning'].includes(active) && (

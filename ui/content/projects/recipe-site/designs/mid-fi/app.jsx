@@ -12,12 +12,12 @@ function App() {
           <div style={{ padding: 28, height: '100%', background: '#FAF3E2', fontFamily: 'Kalam', boxSizing: 'border-box' }}>
             <div style={{ fontFamily: 'Caveat', fontSize: 40, lineHeight: 1, color: '#1F1A14' }}>mid-fi pass · v5.</div>
             <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5, color: '#4D4337' }}>
-              v5 separates <b>Plan</b> and <b>Shop</b> in the route and navigation model, with desktop and mobile prototypes. The shared-household layer still makes pantry, freezer, planning and shopping collaborative. Open the <b>Tweaks</b> panel (top-right) to change household size, diet model, activity density and opt-out style live.
+              v5 separates <b>Plan</b> and <b>Shop</b> in the route and navigation model. The populated Plan uses a compact weekly agenda, so meals are prominent and empty slots do not take over the screen. Desktop and mobile now share the same labels, active states and hand-off to Shop. Open the <b>Tweaks</b> panel (top-right) to change household size, diet model, activity density and opt-out style live.
             </div>
             <div style={{ marginTop: 12, fontFamily: 'JetBrains Mono', fontSize: 11, lineHeight: 1.7, color: '#4D4337' }}>
               1 · list<br />
               2 · recipe (read ⇄ cook)<br />
-              3 · scan · 4 · kitchen · 5 · shopping<br />
+              3 · scan · 4 · kitchen · 5 · plan + shop<br />
               6 · share · 7 · cookbooks · 8 · profile · 9 · diet<br />
               <b>10 · household ←</b> new in this pass
             </div>
@@ -49,10 +49,11 @@ function App() {
         <DCArtboard id="kitchen-mobile" label="mobile · kitchen" width={MW} height={MH}><MobileKitchen /></DCArtboard>
       </DCSection>
 
-      <DCSection id="shopping" title="5 · Shopping mode" subtitle="meal plan a week (desktop) or just tick recipes; mobile has both the planner and the notes-app list.">
-        <DCArtboard id="shopping" label="desktop · plan + list (3 views)" width={W} height={H}><MidShopping /></DCArtboard>
-        <DCArtboard id="shopping-mobile-plan" label="mobile · meal planner" width={MW} height={MH}><MobileShoppingPlan /></DCArtboard>
-        <DCArtboard id="shopping-mobile" label="mobile · just-the-list (notes app)" width={MW} height={MH}><MidShoppingMobile /></DCArtboard>
+      <DCSection id="shopping" title="5 · Plan and shop" subtitle="independent, populated destinations. Plan is a dense weekly agenda instead of a mostly empty calendar; Shop stays a fast, notes-like checklist.">
+        <DCArtboard id="planning" label="desktop · populated weekly agenda" width={W} height={H}><MealPlanAgendaDesktop /></DCArtboard>
+        <DCArtboard id="shopping" label="desktop · active shopping list" width={W} height={H}><ShoppingListDesktop /></DCArtboard>
+        <DCArtboard id="shopping-mobile-plan" label="mobile · populated weekly agenda" width={MW} height={MH}><MealPlanAgendaMobile /></DCArtboard>
+        <DCArtboard id="shopping-mobile" label="mobile · active shopping list" width={MW} height={MH}><MidShoppingMobile /></DCArtboard>
       </DCSection>
 
       <DCSection id="navigation-ia" title="5a · Planning and shopping navigation" subtitle="Plan and Shop are independent destinations; mobile keeps both in a compact bottom bar with labelled More for less frequent destinations.">

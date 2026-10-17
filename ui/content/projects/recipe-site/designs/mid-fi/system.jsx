@@ -64,12 +64,14 @@ function FoodGlyph({ kind = 'pasta', size = 50 }) {
 
 // Top nav used on every page
 function Nav({ active = 'recipes' }) {
-  const items = [['recipes','Recipes'], ['discover','Discover'], ['cookbooks','Cookbooks'], ['shop','Shopping'], ['kitchen','Kitchen'], ['scan','Scan']];
+  const items = [['recipes','Recipes'], ['discover','Discover'], ['planning','Plan'], ['shop','Shop'], ['kitchen','Kitchen'], ['log','Log']];
   return (
     <nav className="mf-nav">
       <div className="mf-logo">Robbie's <em style={{ fontStyle: 'italic', color: 'var(--terracotta)' }}>recipes</em></div>
       <div style={{ display: 'flex', gap: 18, marginLeft: 16 }}>
-        {items.map(([k,l]) => <a key={k} href="#" className={active === k ? 'active' : ''}>{l}</a>)}
+        {items.map(([k,l]) => <a key={k} href="#" className={(active === k || (active === 'shopping' && k === 'shop')) ? 'active' : ''}>
+          {l}{k === 'shop' && <span style={{ marginLeft: 5, minWidth: 17, height: 17, padding: '0 4px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 99, background: 'var(--terracotta)', color: 'white', font: '9px JetBrains Mono' }}>12</span>}
+        </a>)}
       </div>
       <div className="mf-nav-spacer"></div>
       <div className="mf-search" style={{ minWidth: 240 }}>

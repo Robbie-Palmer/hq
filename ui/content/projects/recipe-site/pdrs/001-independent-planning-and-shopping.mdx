@@ -28,6 +28,13 @@ action is useful. Adding a planned meal may add its missing ingredients to the
 list, but it does not make Shopping part of the planning flow. Recipe pages,
 Kitchen, and notifications may link directly to either destination.
 
+A populated Plan uses a compact weekly agenda rather than a fixed
+day-by-meal grid. Days with meals show their recipes, meal labels, servings,
+and leftover relationships. Empty days collapse to small "add meal" actions,
+and unscheduled recipes stay in a nearby tray until someone places them. This
+keeps the plan scannable without turning blank breakfast and lunch slots into
+most of the interface.
+
 Desktop navigation shows Recipes, Discover, Plan, Shop, Kitchen, and Log.
 Mobile navigation keeps Recipes, Plan, Shop, and Kitchen one tap away and puts
 Discover, Cooking log, Profile, and Settings in a labelled More sheet.
@@ -43,16 +50,23 @@ Planning and Shopping own their URLs, empty and loading states, analytics, and
 active navigation states. Browser Back returns to the previous destination.
 The Shop badge counts unticked list items. Notification counts remain separate.
 
+The agenda optimises for reviewing and changing meals that exist. It gives up
+the uniform geometry of a calendar grid, so moving a meal between days needs an
+explicit action instead of drag-and-drop between cells. Empty-state planning
+still begins with one meal and grows into the same agenda.
+
 The mobile More sheet adds one tap to less frequent destinations. It avoids a
 scrolling tab bar, keeps labels readable, and leaves both household tasks in the
 primary navigation.
 
 ## Evaluation
 
-The desktop and mobile mid-fidelity prototypes cover four checks:
+The desktop and mobile mid-fidelity prototypes cover six checks:
 
 * Open Shopping directly and see the list without a planning prompt.
 * Plan one meal without setting up a week.
+* Scan a populated week without reading past empty meal slots.
+* Add or move a meal from the agenda without switching to a separate daily view.
 * Return to Recipes in one action and use Browser Back to resume.
 * Find each less frequent destination by its full label in More.
 

@@ -7,7 +7,7 @@ intended look and behaviour of the full product. Keep them in version control
 alongside the PRD (`../index.mdx`), PDRs (`../pdrs/`), and ADRs (`../adrs/`).
 
 The mid-fi pass covers 18 surfaces across desktop + mobile: recipe list,
-recipe read/cook, scan/import, kitchen (pantry + freezer), shopping & meal plan,
+recipe read/cook, scan/import, kitchen (pantry + freezer), planning and shopping,
 share, cookbooks, profile, diet, a shared-household system (setup, settings,
 pantry, plan, leftovers, activity), recipe lineage/provenance, cook log,
 logged-out home + discover feed, onboarding, recommendations inbox,
