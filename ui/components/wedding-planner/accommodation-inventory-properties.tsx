@@ -28,6 +28,16 @@ import {
   EditorSelect as Select,
 } from "./editor-controls";
 
+function bookingPayerChoices(
+  property: AccommodationProperty,
+  guests: Guest[],
+  households: { id: string; name: string }[],
+) {
+  if (property.booking.payer.kind === "guest") return guests;
+  if (property.booking.payer.kind === "household") return households;
+  return [];
+}
+
 function propertyBookingFields({
   property,
   guests,
@@ -39,12 +49,7 @@ function propertyBookingFields({
   households: { id: string; name: string }[];
   change: (change: (property: AccommodationProperty) => void) => void;
 }>) {
-  const payerChoices =
-    property.booking.payer.kind === "guest"
-      ? guests
-      : property.booking.payer.kind === "household"
-        ? households
-        : [];
+  const payerChoices = bookingPayerChoices(property, guests, households);
   return (
     <details className="relation inventory-booking">
       <summary>Booking, payment and cancellation</summary>

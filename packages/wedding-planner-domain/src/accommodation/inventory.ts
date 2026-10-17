@@ -589,22 +589,20 @@ function guestNeedIssues(
         assignment_ids: [assignment.id],
         guest_ids: [guest.id],
       });
-    const occupants = [
-      ...new Set(
-        confirmed
-          .filter(
-            (candidate) =>
-              candidate.room_id === assignment.room_id &&
-              assignmentsOverlap(candidate, assignment),
-          )
-          .flatMap((candidate) => subjectGuestIds(plan, candidate.subject)),
-      ),
-    ];
+    const occupants = new Set(
+      confirmed
+        .filter(
+          (candidate) =>
+            candidate.room_id === assignment.room_id &&
+            assignmentsOverlap(candidate, assignment),
+        )
+        .flatMap((candidate) => subjectGuestIds(plan, candidate.subject)),
+    );
     const missingShares = stay.must_share_with.filter(
-      (id) => !occupants.includes(id),
+      (id) => !occupants.has(id),
     );
     const forbiddenShares = stay.must_not_share_with.filter((id) =>
-      occupants.includes(id),
+      occupants.has(id),
     );
     if (missingShares.length || forbiddenShares.length)
       issues.push({

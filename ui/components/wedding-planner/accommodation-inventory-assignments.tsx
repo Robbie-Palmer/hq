@@ -24,6 +24,23 @@ import {
   EditorToggle as Toggle,
 } from "./editor-controls";
 
+function assignmentBedChangeHandler(
+  update: AccommodationUpdate,
+  assignmentId: string,
+  bedId: string,
+) {
+  return (checked: boolean) =>
+    update((draft) => {
+      const item = inventoryOf(draft).assignments.find(
+        (candidate) => candidate.id === assignmentId,
+      );
+      if (!item) return;
+      item.bed_ids = checked
+        ? [...new Set([...item.bed_ids, bedId])]
+        : item.bed_ids.filter((id) => id !== bedId);
+    });
+}
+
 export function AssignmentEditor({
   state,
   update,
@@ -302,17 +319,11 @@ function assignmentEditorView({
                       key={bed.id}
                       title={bed.name}
                       checked={assignment.bed_ids.includes(bed.id)}
-                      onChange={(checked) =>
-                        update((draft) => {
-                          const item = inventoryOf(draft).assignments.find(
-                            (candidate) => candidate.id === assignment.id,
-                          );
-                          if (!item) return;
-                          item.bed_ids = checked
-                            ? [...new Set([...item.bed_ids, bed.id])]
-                            : item.bed_ids.filter((id) => id !== bed.id);
-                        })
-                      }
+                      onChange={assignmentBedChangeHandler(
+                        update,
+                        assignment.id,
+                        bed.id,
+                      )}
                     />
                   ))}
                 </div>
