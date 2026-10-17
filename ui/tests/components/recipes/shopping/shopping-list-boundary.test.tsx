@@ -181,6 +181,50 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     ).toBe("1");
   });
 
+  it("saves a converted device-only plan when the server list is empty", async () => {
+    localStorage.setItem(
+      "recipe-shopping-list:v1",
+      JSON.stringify({
+        recipes: [],
+        checked: [],
+        extras: [],
+        plan: [{ day: "mon", slot: "dinner", slug: "risotto" }],
+        listId: storedList.id,
+        revision: storedList.revision,
+      }),
+    );
+    __resetShoppingListForTests();
+    mocks.saveCurrentShoppingList.mockImplementation(
+      (_listId, _revision, snapshot) =>
+        Promise.resolve({ ...storedList, revision: "1", snapshot }),
+    );
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>Plan ready</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("Plan ready")).toBeInTheDocument();
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          storedList.revision,
+          expect.objectContaining({
+            plan: [
+              expect.objectContaining({
+                id: "legacy-mon-dinner-risotto",
+                recipeSlug: "risotto",
+                status: "committed",
+              }),
+            ],
+          }),
+        ),
+      { timeout: 5_000 },
+    );
+  });
+
   it("keeps a recipe-page addition and its servings when the shopping route mounts", async () => {
     const updatedList = {
       ...storedList,

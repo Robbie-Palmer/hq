@@ -147,13 +147,17 @@ function recoverCachedShoppingList(
   const { listId, revision } = getShoppingListCacheIdentity();
   const { confirmedSnapshot, hasUnsavedChanges } =
     getShoppingListCacheMetadata();
+  const hasLocalOnlyPlan =
+    JSON.stringify(cached.plan) !==
+    JSON.stringify(confirmedSnapshot?.plan ?? []);
   if (listId !== undefined && listId !== serverList.id) {
     return serverList.snapshot;
   }
   if (
     cached.recipes.length === 0 &&
     cached.checked.length === 0 &&
-    cached.extras.length === 0
+    cached.extras.length === 0 &&
+    cached.plan.length === 0
   ) {
     return serverList.snapshot;
   }
@@ -164,14 +168,16 @@ function recoverCachedShoppingList(
       serverList.snapshot,
     );
   }
-  if (revision === serverList.revision && !hasUnsavedChanges) {
+  if (
+    revision === serverList.revision &&
+    !hasUnsavedChanges &&
+    !hasLocalOnlyPlan
+  ) {
     return serverList.snapshot;
   }
-  return mergeLocalShoppingListChanges(
-    confirmedSnapshot ?? cached,
-    cached,
-    serverList.snapshot,
-  );
+  const baseline =
+    confirmedSnapshot ?? (hasLocalOnlyPlan ? { ...cached, plan: [] } : cached);
+  return mergeLocalShoppingListChanges(baseline, cached, serverList.snapshot);
 }
 
 const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);

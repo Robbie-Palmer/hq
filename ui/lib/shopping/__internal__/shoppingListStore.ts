@@ -358,13 +358,15 @@ export function removePlannedMeal(id: string): void {
   setState({ ...state, plan: state.plan.filter((meal) => meal.id !== id) });
 }
 
-export function addCommittedMealsToShoppingList(): number {
+export function addCommittedMealsToShoppingList(fromDate: string): number {
   const servingsBySlug = new Map<string, number>();
   for (const meal of state.plan) {
     if (
       meal.status !== "committed" ||
       meal.kind !== "recipe" ||
-      !meal.recipeSlug
+      !meal.recipeSlug ||
+      !meal.date ||
+      meal.date < fromDate
     ) {
       continue;
     }
@@ -377,17 +379,12 @@ export function addCommittedMealsToShoppingList(): number {
   const recipes = [...state.recipes];
   for (const [slug, servings] of servingsBySlug) {
     const index = recipes.findIndex((recipe) => recipe.slug === slug);
-    if (index >= 0) {
-      const current = recipes[index];
-      if (current) recipes[index] = { ...current, servings };
-    } else {
+    if (index < 0) {
       recipes.push({ slug, servings });
       added += 1;
     }
   }
-  if (added > 0 || JSON.stringify(recipes) !== JSON.stringify(state.recipes)) {
-    setState({ ...state, recipes });
-  }
+  if (added > 0) setState({ ...state, recipes });
   return added;
 }
 

@@ -1,8 +1,12 @@
 "use client";
 
 import type { ShoppingRecipe } from "@/lib/api/shopping";
-import type { MealPlanEntry } from "@/lib/domain/meal-plan";
+import { MEAL_TYPES, type MealPlanEntry } from "@/lib/domain/meal-plan";
 import { MealPlanEntryCard } from "./meal-plan-entry-card";
+
+const MEAL_TYPE_ORDER = new Map<string, number>(
+  MEAL_TYPES.map(({ id }, index) => [id, index]),
+);
 
 function dateLabel(date: string): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -38,8 +42,11 @@ export function MealPlanAgenda({
       (meal): meal is MealPlanEntry & { date: string } =>
         meal.status === "committed" && Boolean(meal.date),
     )
-    .sort((a, b) =>
-      `${a.date}:${a.mealType}`.localeCompare(`${b.date}:${b.mealType}`),
+    .sort(
+      (a, b) =>
+        a.date.localeCompare(b.date) ||
+        (MEAL_TYPE_ORDER.get(a.mealType ?? "") ?? MEAL_TYPES.length) -
+          (MEAL_TYPE_ORDER.get(b.mealType ?? "") ?? MEAL_TYPES.length),
     );
   const byDate = groupByDate(committed);
   if (committed.length === 0) {

@@ -195,6 +195,97 @@ describe("MealPlanningView", () => {
     );
   });
 
+  it("orders meals by date and meal sequence", () => {
+    const date = localDate();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "dinner",
+          kind: "eating_out",
+          status: "committed",
+          date,
+          mealType: "dinner",
+          note: "Dinner plans",
+        },
+        {
+          id: "breakfast",
+          kind: "eating_out",
+          status: "committed",
+          date,
+          mealType: "breakfast",
+          note: "Breakfast plans",
+        },
+        {
+          id: "lunch",
+          kind: "eating_out",
+          status: "committed",
+          date,
+          mealType: "lunch",
+          note: "Lunch plans",
+        },
+      ],
+    });
+
+    render(<MealPlanningView recipes={recipes} />);
+
+    expect(
+      screen
+        .getAllByRole("heading", { level: 3 })
+        .map(({ textContent }) => textContent?.trim()),
+    ).toEqual(["Breakfast plans", "Lunch plans", "Dinner plans"]);
+  });
+
+  it("offers shopping generation only for meals dated today or later", async () => {
+    const user = userEvent.setup();
+    const date = localDate();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "past",
+          kind: "recipe",
+          status: "committed",
+          date: addDays(date, -1),
+          mealType: "dinner",
+          recipeSlug: "risotto",
+          servings: 2,
+        },
+        {
+          id: "current",
+          kind: "recipe",
+          status: "committed",
+          date,
+          mealType: "dinner",
+          recipeSlug: "soup",
+          servings: 4,
+        },
+      ],
+    });
+
+    render(<MealPlanningView recipes={recipes} />);
+
+    expect(
+      screen.getByText(
+        (_content, element) =>
+          element?.tagName === "P" &&
+          element.textContent.startsWith(
+            "Add ingredients from 1 planned meal.",
+          ),
+      ),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    );
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "soup", servings: 4 },
+    ]);
+  });
+
   it("records an abandoned plan after the form is changed", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<MealPlanningView recipes={recipes} />);

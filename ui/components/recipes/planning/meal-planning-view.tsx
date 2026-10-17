@@ -6,7 +6,7 @@ import { ShoppingListBoundary } from "@/components/recipes/shopping/shopping-lis
 import { useShoppingList } from "@/hooks/use-shopping-list";
 import { captureRecipeEvent } from "@/lib/analytics/recipe-product";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
-import type { MealPlanEntry } from "@/lib/domain/meal-plan";
+import { localISODate, type MealPlanEntry } from "@/lib/domain/meal-plan";
 import { savePlannedMeal } from "@/lib/shopping/shoppingListStore";
 import { MealPlanForm } from "./meal-plan-form";
 import {
@@ -36,9 +36,14 @@ function usePlanController(plan: MealPlanEntry[], recipes: ShoppingRecipe[]) {
   const startedAt = useRef(Date.now());
   const dirty = useRef(false);
   const saved = useRef(false);
+  const today = localISODate(new Date());
   const candidates = plan.filter((meal) => meal.status === "candidate");
   const committed = plan.filter(
-    (meal) => meal.status === "committed" && meal.kind === "recipe",
+    (meal) =>
+      meal.status === "committed" &&
+      meal.kind === "recipe" &&
+      meal.date !== undefined &&
+      meal.date >= today,
   );
   useEffect(() => {
     const slug = new URLSearchParams(globalThis.location.search).get("recipe");

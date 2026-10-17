@@ -201,12 +201,23 @@ describe("shoppingListStore", () => {
     vi.useRealTimers();
   });
 
-  it("adds only committed recipe meals to shopping", () => {
+  it("adds only current committed recipe meals without replacing chosen servings", () => {
+    addRecipe("risotto");
+    setRecipeServings("risotto", 8);
     savePlannedMeal({
       id: "candidate",
       kind: "recipe",
       status: "candidate",
       recipeSlug: "soup",
+    });
+    savePlannedMeal({
+      id: "past-stew",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-17",
+      mealType: "dinner",
+      recipeSlug: "stew",
+      servings: 6,
     });
     savePlannedMeal({
       id: "risotto-1",
@@ -227,6 +238,15 @@ describe("shoppingListStore", () => {
       servings: 3,
     });
     savePlannedMeal({
+      id: "soup",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-19",
+      mealType: "lunch",
+      recipeSlug: "soup",
+      servings: 4,
+    });
+    savePlannedMeal({
       id: "meal-out",
       kind: "eating_out",
       status: "committed",
@@ -234,12 +254,13 @@ describe("shoppingListStore", () => {
       mealType: "dinner",
     });
 
-    expect(addCommittedMealsToShoppingList()).toBe(1);
+    expect(addCommittedMealsToShoppingList("2026-10-18")).toBe(1);
     expect(getShoppingListSnapshot().recipes).toEqual([
-      { slug: "risotto", servings: 5 },
+      { slug: "risotto", servings: 8 },
+      { slug: "soup", servings: 4 },
     ]);
     removePlannedMeal("risotto-1");
-    expect(getShoppingListSnapshot().plan).toHaveLength(3);
+    expect(getShoppingListSnapshot().plan).toHaveLength(5);
   });
 
   it("syncs state from a cross-tab storage event", () => {

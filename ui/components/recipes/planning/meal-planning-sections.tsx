@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { captureRecipeEvent } from "@/lib/analytics/recipe-product";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
-import type { MealPlanEntry } from "@/lib/domain/meal-plan";
+import { localISODate, type MealPlanEntry } from "@/lib/domain/meal-plan";
 import {
   addCommittedMealsToShoppingList,
   removePlannedMeal,
@@ -139,7 +139,7 @@ export function ShoppingPlanAction({
   const [generated, setGenerated] = useState<number | null>(null);
   if (mealCount === 0) return null;
   const generate = () => {
-    const count = addCommittedMealsToShoppingList();
+    const count = addCommittedMealsToShoppingList(localISODate(new Date()));
     setGenerated(count);
     captureRecipeEvent("meal_plan_shopping_generated", {
       added_recipe_count: count,
