@@ -1,13 +1,21 @@
 import { createPrivateKey, sign } from "node:crypto";
+import {
+  GITHUB_API_URL,
+  GITHUB_API_VERSION,
+  GithubClient,
+  type GithubPageItems,
+} from "github-client";
+import { bytesToHex, sha256Bytes, sha256Hex } from "ts-base/crypto";
+import { canonicalJson } from "ts-base/json";
+import { base64UrlEncode } from "ts-base/strings";
 import type {
   GitHubDeliveryConsumer,
   GitHubReconciliationTarget,
 } from "work-graph-db";
 import type { GitHubDelivery } from "work-graph-domain";
 
-const GITHUB_API_ORIGIN = "https://api.github.com";
-const GITHUB_API_VERSION = "2022-11-28";
 const MAX_PAGES = 10;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 type JsonRecord = Record<string, unknown>;
 type Disposition = Awaited<ReturnType<GitHubDeliveryConsumer["consume"]>>;
@@ -63,10 +71,7 @@ function positiveInteger(value: unknown, name: string): number {
   return value;
 }
 
-function base64Url(value: string | Uint8Array): string {
-  return Buffer.from(value).toString("base64url");
-}
-
+/** Accept GitHub's downloaded RSA key as well as converted PKCS#8 keys. */
 export function createGitHubAppJwt(
   appId: string,
   privateKey: string,
@@ -76,14 +81,14 @@ export function createGitHubAppJwt(
     throw new GitHubReconciliationError("GitHub App ID is invalid.");
   }
   const issuedAt = Math.floor(now.getTime() / 1_000) - 60;
-  const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = base64Url(
+  const header = base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = base64UrlEncode(
     JSON.stringify({ iat: issuedAt, exp: issuedAt + 600, iss: appId }),
   );
   const unsigned = `${header}.${claims}`;
   let signature: string;
   try {
-    signature = base64Url(
+    signature = base64UrlEncode(
       sign(
         "RSA-SHA256",
         Buffer.from(unsigned),
@@ -96,37 +101,11 @@ export function createGitHubAppJwt(
   return `${unsigned}.${signature}`;
 }
 
-function canonicalJson(value: unknown): string {
-  if (value === undefined) return "null";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => canonicalJson(item)).join(",")}]`;
-  }
-  const source = value as JsonRecord;
-  return `{${Object.keys(source)
-    .filter((key) => source[key] !== undefined)
-    .sort((left, right) => left.localeCompare(right))
-    .map((key) => `${JSON.stringify(key)}:${canonicalJson(source[key])}`)
-    .join(",")}}`;
-}
-
-async function sha256(value: string): Promise<Uint8Array> {
-  return new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
-  );
-}
-
-function hex(bytes: Uint8Array): string {
-  return [...bytes]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 function uuidFromDigest(digest: Uint8Array): string {
   const bytes = digest.slice(0, 16);
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
-  const value = hex(bytes);
+  const value = bytesToHex(bytes);
   return `${value.slice(0, 8)}-${value.slice(8, 12)}-${value.slice(12, 16)}-${value.slice(16, 20)}-${value.slice(20)}`;
 }
 
@@ -138,28 +117,19 @@ async function reconciliationDelivery(input: {
   readonly repository: string;
 }): Promise<GitHubDelivery> {
   const payloadJson = canonicalJson(input.payload);
-  const payloadDigest = await sha256(payloadJson);
-  const identityDigest = await sha256(
-    canonicalJson({ event: input.event, payload: input.payload }),
-  );
+  const [payloadDigest, identityDigest] = await Promise.all([
+    sha256Hex(payloadJson),
+    sha256Bytes(canonicalJson({ event: input.event, payload: input.payload })),
+  ]);
   return {
     deliveryId: uuidFromDigest(identityDigest),
     event: input.event,
     installationId: input.installationId,
     payload: input.payload,
-    payloadDigest: hex(payloadDigest),
+    payloadDigest,
     receivedAt: input.receivedAt,
     repository: input.repository,
   };
-}
-
-function nextLink(header: string | null): string | null {
-  if (!header) return null;
-  for (const part of header.split(",")) {
-    const match = /^\s*<([^>]+)>;\s*rel="([^"]+)"\s*$/.exec(part);
-    if (match?.[2] === "next") return match[1] ?? null;
-  }
-  return null;
 }
 
 function repositoryPath(repository: string): string {
@@ -167,14 +137,6 @@ function repositoryPath(repository: string): string {
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
-}
-
-function assertGitHubApiUrl(value: string): string {
-  const url = new URL(value, GITHUB_API_ORIGIN);
-  if (url.origin !== GITHUB_API_ORIGIN) {
-    throw new GitHubReconciliationError("GitHub pagination left api.github.com.");
-  }
-  return url.toString();
 }
 
 function pullRequestPayload(
@@ -245,7 +207,7 @@ function deploymentPayload(
     deployment_status: {
       id: positiveInteger(status.id, "deployment status ID"),
       state: text(status.state, "deployment status state"),
-      environment: status.environment,
+      environment: status.environment ?? deployment.environment,
       created_at: text(status.created_at, "deployment status creation time"),
       url: text(status.url, "deployment status URL"),
     },
@@ -334,10 +296,15 @@ export class GitHubReconciler {
       );
     }
     const token = await this.installationToken(installationId, jwt);
+    const client = new GithubClient(token, {
+      userAgent: "work-graph-observer",
+      fetch: this.fetcher,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
     const pullRequest = record(
-      await this.request(
+      await client.request(
+        "GET",
         `/repos/${encodedRepository}/pulls/${target.number}`,
-        token,
       ),
       "pull request",
     );
@@ -366,14 +333,14 @@ export class GitHubReconciler {
         repository,
         installationId,
         commits,
-        token,
+        client,
       )),
       ...(await this.fetchDeploymentPayloads(
         encodedRepository,
         repository,
         installationId,
         commits,
-        token,
+        client,
       )),
     );
     return Promise.all(
@@ -394,15 +361,16 @@ export class GitHubReconciler {
     repository: string,
     installationId: number,
     commits: ReadonlySet<string>,
-    token: string,
+    client: GithubClient,
   ): Promise<readonly ReconciliationPayload[]> {
     const payloads: ReconciliationPayload[] = [];
     const runIds = new Set<number>();
     for (const commit of commits) {
-      const workflowPages = await this.requestPages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
-        `/repos/${encodedRepository}/actions/runs?head_sha=${encodeURIComponent(commit)}&status=completed&per_page=100`,
-        token,
+      const workflowPages = await this.responsePages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
+        client,
+        `/repos/${encodedRepository}/actions/runs`,
         (value) => array(record(value, "workflow runs").workflow_runs, "workflow runs"),
+        { head_sha: commit, status: "completed" },
       );
       for (const value of workflowPages) {
         const run = record(value, "workflow run");
@@ -423,25 +391,24 @@ export class GitHubReconciler {
     repository: string,
     installationId: number,
     commits: ReadonlySet<string>,
-    token: string,
+    client: GithubClient,
   ): Promise<readonly ReconciliationPayload[]> {
     const payloads: ReconciliationPayload[] = [];
     const deploymentIds = new Set<number>();
     for (const commit of commits) {
-      const deployments = await this.requestPages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
-        `/repos/${encodedRepository}/deployments?sha=${encodeURIComponent(commit)}&per_page=100`,
-        token,
-        (value) => array(value, "deployments"),
+      const deployments = await this.arrayPages( // NOSONAR -- Bound commit requests avoid GitHub API bursts.
+        client,
+        `/repos/${encodedRepository}/deployments`,
+        { sha: commit },
       );
       for (const value of deployments) {
         const deployment = record(value, "deployment");
         const deploymentId = positiveInteger(deployment.id, "deployment ID");
         if (deploymentIds.has(deploymentId)) continue;
         deploymentIds.add(deploymentId);
-        const statuses = await this.requestPages( // NOSONAR -- Each deployment is expanded with bounded traffic.
-          `/repos/${encodedRepository}/deployments/${deploymentId}/statuses?per_page=100`,
-          token,
-          (response) => array(response, "deployment statuses"),
+        const statuses = await this.arrayPages( // NOSONAR -- Each deployment is expanded with bounded traffic.
+          client,
+          `/repos/${encodedRepository}/deployments/${deploymentId}/statuses`,
         );
         for (const statusValue of statuses) {
           payloads.push({
@@ -483,7 +450,7 @@ export class GitHubReconciler {
     token: string,
     init: RequestInit = {},
   ): Promise<unknown> {
-    const response = await this.fetcher(assertGitHubApiUrl(path), {
+    const response = await this.fetcher(new URL(path, GITHUB_API_URL), {
       ...init,
       headers: {
         accept: "application/vnd.github+json",
@@ -492,7 +459,7 @@ export class GitHubReconciler {
         "x-github-api-version": GITHUB_API_VERSION,
         ...init.headers,
       },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
     if (!response.ok) {
       throw new GitHubReconciliationError(
@@ -502,39 +469,39 @@ export class GitHubReconciler {
     return response.json() as Promise<unknown>;
   }
 
-  private async requestPages(
+  private async arrayPages(
+    client: GithubClient,
     path: string,
-    token: string,
-    items: (value: unknown) => readonly unknown[],
+    query?: Record<string, string | number>,
   ): Promise<readonly unknown[]> {
-    const results: unknown[] = [];
-    let next: string | null = assertGitHubApiUrl(path);
-    for (let page = 0; next !== null && page < MAX_PAGES; page += 1) {
-      // Each response supplies the next page URL, so pagination is sequential.
-      const response = await this.fetcher(next, { // NOSONAR
-        headers: {
-          accept: "application/vnd.github+json",
-          authorization: `Bearer ${token}`,
-          "user-agent": "work-graph-observer",
-          "x-github-api-version": GITHUB_API_VERSION,
-        },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!response.ok) {
-        throw new GitHubReconciliationError(
-          `GitHub API request failed with HTTP ${response.status}.`,
-        );
-      }
-      const body = await response.json(); // NOSONAR -- Read before following the next page.
-      results.push(...items(body as unknown));
-      const candidate = nextLink(response.headers.get("link"));
-      next = candidate === null ? null : assertGitHubApiUrl(candidate);
-    }
-    if (next !== null) {
+    const result = await client.paginateByPageNumber<unknown>(path, {
+      maxPages: MAX_PAGES,
+      query,
+    });
+    if (!result.complete) {
       throw new GitHubReconciliationError(
         `GitHub pagination exceeded ${MAX_PAGES} pages.`,
       );
     }
-    return results;
+    return result.items;
+  }
+
+  private async responsePages<TResponse>(
+    client: GithubClient,
+    path: string,
+    pageItems: GithubPageItems<TResponse, unknown>,
+    query?: Record<string, string | number>,
+  ): Promise<readonly unknown[]> {
+    const result = await client.paginateResponseByPageNumber(
+      path,
+      pageItems,
+      { maxPages: MAX_PAGES, query },
+    );
+    if (!result.complete) {
+      throw new GitHubReconciliationError(
+        `GitHub pagination exceeded ${MAX_PAGES} pages.`,
+      );
+    }
+    return result.items;
   }
 }
