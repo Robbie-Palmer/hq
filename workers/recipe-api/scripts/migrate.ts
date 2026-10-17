@@ -25,7 +25,7 @@ function logMigrationError(error: unknown): void {
     seen.add(current);
 
     if (typeof current !== "object") {
-      console.error(String(current));
+      console.error(current);
       return;
     }
 
