@@ -125,4 +125,10 @@ if CI=true bash "$script_dir/doppler-terraform-env" invalid true 2>/dev/null; th
   exit 1
 fi
 
+if missing_credential_output="$(CI=true bash "$script_dir/doppler-terraform-env" plan true 2>&1)"; then
+  echo "Expected missing plan credentials to fail." >&2
+  exit 1
+fi
+[[ "$missing_credential_output" == *"TF_TOKEN_app_terraform_io is missing"* ]]
+
 echo "Account-foundation bootstrap boundary tests passed."

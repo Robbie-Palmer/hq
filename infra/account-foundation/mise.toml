@@ -5,8 +5,6 @@ run = "bash scripts/doppler-terraform-env seed bash scripts/bootstrap-workspace.
 [tasks.init]
 description = "Initialize account-foundation Terraform"
 run = "bash scripts/doppler-terraform-env plan terraform init -input=false"
-sources = ["*.tf", "**/*.tf"]
-outputs = [".terraform/**/*"]
 
 [tasks.format]
 description = "Format account-foundation Terraform files (optionally pass files as args)"
