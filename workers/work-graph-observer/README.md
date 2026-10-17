@@ -74,8 +74,16 @@ account with `Workers Scripts:Edit`, `Queues:Edit`, and `Hyperdrive:Read`; it
 has no zone permissions. The API Worker deploy continues to use its separate
 credential.
 
-The App ID and private key stay out of the ingress Worker. A later
-reconciliation Worker can read them from the same Doppler config.
+The App ID and private key are installed as Worker secrets for scheduled
+reconciliation. They are used only to mint short-lived installation tokens and
+are never logged or returned by the webhook route.
+
+The Worker reconciles every six hours, at 17 minutes past the hour. It loads
+each open ticket's linked implementation PR, then fetches the PR, completed
+workflow runs, deployments, and deployment statuses for the exact head and
+merge commits. These facts pass through the same receipt, normalization,
+correlation, projection, and completion-candidate path as webhook deliveries.
+Deterministic synthetic delivery IDs make repeated runs idempotent.
 
 Use GitHub's recent deliveries page to redeliver one event after activation.
 Expect `202` with the same `deliveryId`. Bad signatures return `401`, invalid
@@ -130,3 +138,7 @@ updated the Worker and its queue consumer successfully.
 Inspect the primary queue and DLQ before retrying an incident. A repeated
 delivery ID is expected and becomes the database idempotency key in the
 consumer. Never edit a payload or invent a replacement delivery ID.
+
+See the [GitHub evidence recovery runbook](../../docs/runbooks/work-graph-github-evidence.md)
+for redelivery, DLQ handling, reconciliation verification, rotation, and the
+production pilot.
