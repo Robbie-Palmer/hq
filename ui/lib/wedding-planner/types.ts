@@ -1,6 +1,7 @@
 export type { PairDecision, SharingLevel } from "./values";
 
 import type {
+  CollaborativePlaylist,
   GuestDirectoryMetadata,
   WeddingGuest,
 } from "wedding-planner-domain";
@@ -24,6 +25,7 @@ export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {
   couples?: import("wedding-planner-domain").Couple[];
   hosts?: string[];
   guest_directory?: GuestDirectoryMetadata;
+  playlist?: CollaborativePlaylist;
   reviewed_non_couples: string[][];
   [key: string]: unknown;
 };

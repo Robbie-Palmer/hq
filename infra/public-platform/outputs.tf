@@ -13,6 +13,11 @@ output "pages_project_domains" {
   value       = cloudflare_pages_project.personal_site.domains
 }
 
+output "wedding_playlists_kv_namespace_id" {
+  description = "KV namespace used by the production wedding playlist API"
+  value       = cloudflare_workers_kv_namespace.wedding_playlists.id
+}
+
 output "preview_access_service_token_client_id" {
   description = "Client ID for coding-agent access to protected Pages previews"
   value       = cloudflare_zero_trust_access_service_token.preview_qa_agents.client_id

@@ -11,6 +11,7 @@
     "observability": "workspace:*",
     "recipe-domain": "workspace:*",
     "ts-base": "workspace:*",
+    "wedding-planner-domain": "workspace:*",
     "zod": "^4.2.1"
   },
   "scripts": {
