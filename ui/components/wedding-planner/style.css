@@ -1240,3 +1240,143 @@
 .room-map-guests strong {
   color: var(--ink);
 }
+
+.inventory-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(19rem, 0.8fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.inventory-main,
+.inventory-side,
+.inventory-rooms,
+.inventory-beds,
+.inventory-assignment-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.inventory-assignment-card {
+  border-bottom: 1px solid var(--border);
+}
+
+.inventory-side {
+  position: sticky;
+  top: 1rem;
+}
+
+.inventory-property-heading,
+.inventory-section-heading,
+.inventory-room-heading,
+.inventory-assignment,
+.inventory-itinerary-export {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.inventory-property-heading > div {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.inventory-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.inventory-booking {
+  margin-top: 1.25rem;
+}
+
+.inventory-rooms {
+  margin: 1.5rem 0;
+}
+
+.inventory-section-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.inventory-room {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--muted) 28%, transparent);
+}
+
+.inventory-bed {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(7rem, 0.7fr) 5rem auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.inventory-assignment {
+  padding-block: 0.75rem;
+}
+
+.inventory-assignment-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(8rem, 1fr));
+  gap: 0.5rem;
+  padding-bottom: 0.75rem;
+}
+
+.inventory-multi-select {
+  min-height: 7rem;
+}
+
+.inventory-assignment > div:first-child {
+  display: grid;
+  margin-right: auto;
+}
+
+.inventory-assignment small {
+  color: var(--muted-foreground);
+}
+
+.inventory-summary {
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 1rem;
+}
+
+.inventory-issue {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+  margin: 0.65rem 0;
+  color: var(--destructive);
+}
+
+.inventory-itinerary-export {
+  margin-top: 1rem;
+}
+
+@media (max-width: 980px) {
+  .inventory-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-side {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .inventory-fields,
+  .inventory-bed,
+  .inventory-assignment-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .inventory-property-heading,
+  .inventory-assignment,
+  .inventory-itinerary-export {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

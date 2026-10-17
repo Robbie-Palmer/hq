@@ -9,6 +9,10 @@ import {
   RoomBillingModeSchema,
   ShareModeSchema,
 } from "../values";
+import {
+  accommodationInventorySchema,
+  stayRequirementsSchema,
+} from "./inventory";
 
 const ids = z.array(z.string());
 const money = z.string().refine((value) => {
@@ -42,6 +46,7 @@ export const accommodationPreferencesSchema = z.object({
   charge_cap_exempt: z.boolean().default(false),
   free_stay_reasons: z.array(FreeStayReasonSchema).default([]),
   include_partner_in_free_stay: z.boolean().default(true),
+  stay: stayRequirementsSchema.nullable().default(null),
 });
 export type AccommodationPreferences = z.infer<
   typeof accommodationPreferencesSchema
@@ -74,5 +79,6 @@ export const accommodationPlanSchema = z.object({
   max_cottage_spend_gbp: money.default(""),
   default_outside_cost_gbp: money.default(""),
   optimization_mode: OptimizationModeSchema.default("priority_first"),
+  inventory: accommodationInventorySchema.prefault({}),
 });
 export type AccommodationPlan = z.infer<typeof accommodationPlanSchema>;
