@@ -136,6 +136,26 @@ description = "Test the monorepo layout validator with coverage"
 depends = ["//:install"]
 run = "pnpm --filter ui exec vitest run --root .. scripts/check-monorepo-layout.test.ts --coverage --coverage.include=scripts/check-monorepo-layout.ts"
 
+[tasks."shared-cache:test"]
+description = "Test revision-safe shared task caching"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:test:coverage"]
+description = "Test shared task caching with coverage"
+depends = ["//:install"]
+run = "pnpm exec c8 --all --include=scripts/shared-task-cache.ts --reporter=json --reporter=text --check-coverage --lines=80 --functions=80 --statements=80 --branches=80 pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:status"]
+description = "Report shared task cache use and reuse counters"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts status"
+
+[tasks."shared-cache:prune"]
+description = "Remove expired shared task cache entries and enforce its byte allocation"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts prune"
+
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
 depends = ["//:install"]
