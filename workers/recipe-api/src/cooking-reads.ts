@@ -1,5 +1,6 @@
 import {
   and,
+  asc,
   count,
   countDistinct,
   desc,
@@ -9,10 +10,12 @@ import {
   lt,
   lte,
   or,
+  sql,
 } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import { z } from "zod";
+import { resolvePantryScope } from "./pantry";
 
 export type CookingLogCursor = Readonly<{
   completedAt: string;
@@ -60,44 +63,83 @@ export function decodeCookingLogCursor(
 }
 
 export async function cookingInsightsResponse(db: Db, userId: string) {
-  const [summaries, recent, completedDistinctRows] = await Promise.all([
-    db
-      .select({
-        cookModeStarts: count(),
-        mealsCooked: count(schema.cookingSession.completedAt),
-      })
-      .from(schema.cookingSession)
-      .where(eq(schema.cookingSession.userId, userId)),
-    db
-      .select({
-        id: schema.cookingSession.id,
-        recipeSlug: schema.cookingSession.recipeSlug,
-        recipeTitle: schema.cookingSession.recipeTitle,
-        servings: schema.cookingSession.servings,
-        startedAt: schema.cookingSession.startedAt,
-        completedAt: schema.cookingSession.completedAt,
-      })
-      .from(schema.cookingSession)
-      .where(
-        and(
-          eq(schema.cookingSession.userId, userId),
-          isNotNull(schema.cookingSession.completedAt),
+  const scope = await resolvePantryScope(db, userId);
+  const leftoverScope =
+    scope.type === "household"
+      ? eq(schema.leftoverBatch.organizationId, scope.householdId)
+      : eq(schema.leftoverBatch.userId, userId);
+  const [summaries, recentRows, completedDistinctRows, leftoverSuggestions] =
+    await Promise.all([
+      db
+        .select({
+          cookModeStarts: count(),
+          mealsCooked: count(schema.cookingSession.completedAt),
+        })
+        .from(schema.cookingSession)
+        .where(eq(schema.cookingSession.userId, userId)),
+      db
+        .select({
+          id: schema.cookingSession.id,
+          recipeSlug: schema.cookingSession.recipeSlug,
+          recipeTitle: schema.cookingSession.recipeTitle,
+          recipeVersion: schema.cookingSession.recipeVersion,
+          servings: schema.cookingSession.servings,
+          leftoverPortions: schema.leftoverBatch.portionsRemaining,
+          leftoverStorage: schema.leftoverBatch.storage,
+          leftoverUseBy: schema.leftoverBatch.useBy,
+          repeatOfSessionId: schema.cookingSession.repeatOfSessionId,
+          startedAt: schema.cookingSession.startedAt,
+          completedAt: schema.cookingSession.completedAt,
+        })
+        .from(schema.cookingSession)
+        .leftJoin(
+          schema.leftoverBatch,
+          eq(schema.leftoverBatch.cookingSessionId, schema.cookingSession.id),
+        )
+        .where(
+          and(
+            eq(schema.cookingSession.userId, userId),
+            isNotNull(schema.cookingSession.completedAt),
+          ),
+        )
+        .orderBy(desc(schema.cookingSession.completedAt))
+        .limit(20),
+      db
+        .select({
+          count: countDistinct(schema.cookingSession.recipeSlug),
+        })
+        .from(schema.cookingSession)
+        .where(
+          and(
+            eq(schema.cookingSession.userId, userId),
+            isNotNull(schema.cookingSession.completedAt),
+          ),
         ),
-      )
-      .orderBy(desc(schema.cookingSession.completedAt))
-      .limit(20),
-    db
-      .select({
-        count: countDistinct(schema.cookingSession.recipeSlug),
-      })
-      .from(schema.cookingSession)
-      .where(
-        and(
-          eq(schema.cookingSession.userId, userId),
-          isNotNull(schema.cookingSession.completedAt),
-        ),
-      ),
-  ]);
+      db
+        .select({
+          id: schema.leftoverBatch.id,
+          cookingSessionId: schema.leftoverBatch.cookingSessionId,
+          recipeSlug: schema.leftoverBatch.recipeSlug,
+          recipeTitle: schema.leftoverBatch.recipeTitle,
+          recipeVersion: schema.leftoverBatch.recipeVersion,
+          portionsRemaining: schema.leftoverBatch.portionsRemaining,
+          storage: schema.leftoverBatch.storage,
+          useBy: schema.leftoverBatch.useBy,
+          createdAt: schema.leftoverBatch.createdAt,
+        })
+        .from(schema.leftoverBatch)
+        .where(
+          and(
+            leftoverScope,
+            sql`${schema.leftoverBatch.portionsRemaining} > 0`,
+          ),
+        )
+        .orderBy(
+          sql`${schema.leftoverBatch.useBy} asc nulls last`,
+          asc(schema.leftoverBatch.createdAt),
+        )
+        .limit(20),
+    ]);
   const summary = summaries[0];
 
   // count(column) excludes NULL; distinct recipes need their own completed-only
@@ -108,7 +150,18 @@ export async function cookingInsightsResponse(db: Db, userId: string) {
     cookModeStarts: summary?.cookModeStarts ?? 0,
     mealsCooked: summary?.mealsCooked ?? 0,
     distinctRecipesCooked: completedDistinct?.count ?? 0,
-    recent,
+    recent: recentRows.map((row) => ({
+      ...row,
+      leftoverPortions: row.leftoverPortions ?? 0,
+    })),
+    leftoverScope:
+      scope.type === "household"
+        ? {
+            type: "household" as const,
+            household: { id: scope.householdId, name: scope.householdName },
+          }
+        : { type: "personal" as const },
+    leftoverSuggestions,
   };
 }
 

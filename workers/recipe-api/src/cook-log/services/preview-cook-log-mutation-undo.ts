@@ -22,9 +22,7 @@ function rowMatches(
     row.recipeSlug === value.recipeSlug &&
     row.recipeTitle === value.recipeTitle &&
     row.servings === value.servings &&
-    row.completedAt?.toISOString() === value.cookedAt &&
-    row.diners.length === value.diners.length &&
-    row.diners.every((diner, index) => diner === value.diners[index])
+    row.completedAt?.toISOString() === value.cookedAt
   );
 }
 

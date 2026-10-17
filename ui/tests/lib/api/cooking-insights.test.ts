@@ -8,6 +8,15 @@ import {
   recordCookingSession,
 } from "@/lib/api/cooking-insights";
 
+function cookingOutcome() {
+  return {
+    leftoverPortions: 1,
+    leftoverStorage: "fridge" as const,
+    leftoverUseBy: null,
+    audience: "personal" as const,
+  };
+}
+
 describe("cooking insights API", () => {
   beforeEach(() => {
     localStorage.clear();
@@ -40,6 +49,7 @@ describe("cooking insights API", () => {
       id: "2f64837b-3f3e-4c18-ae39-35df6808dc6c",
       recipeSlug: "weeknight-pasta",
       recipeTitle: "Weeknight pasta",
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: 2,
       startedAt: "2026-07-28T17:30:00.000Z",
       completedAt: null,
@@ -51,6 +61,7 @@ describe("cooking insights API", () => {
       sessionId: cookingSession.id,
       recipeSlug: cookingSession.recipeSlug,
       recipeTitle: cookingSession.recipeTitle,
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: cookingSession.servings,
       event: "started" as const,
     };
@@ -84,8 +95,10 @@ describe("cooking insights API", () => {
       sessionId: "2f64837b-3f3e-4c18-ae39-35df6808dc6c",
       recipeSlug: "weeknight-pasta",
       recipeTitle: "Weeknight pasta",
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: 2,
       event: "completed" as const,
+      outcome: cookingOutcome(),
     };
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
@@ -131,15 +144,19 @@ describe("cooking insights API", () => {
       sessionId: "72f99e71-a5cb-472a-adb4-2761a25a5651",
       recipeSlug: "first-user-recipe",
       recipeTitle: "First user's recipe",
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: 2,
       event: "completed" as const,
+      outcome: cookingOutcome(),
     };
     const secondUserCompletion = {
       sessionId: "a86555ab-a4c2-4692-93ed-b7678dc23b27",
       recipeSlug: "second-user-recipe",
       recipeTitle: "Second user's recipe",
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: 4,
       event: "completed" as const,
+      outcome: cookingOutcome(),
     };
     queueCookingCompletion("cook-1", firstUserCompletion);
     queueCookingCompletion("cook-2", secondUserCompletion);
@@ -179,8 +196,10 @@ describe("cooking insights API", () => {
       sessionId: "cc191c61-2439-46f4-9001-7509f600ea1c",
       recipeSlug: "stale-recipe",
       recipeTitle: "Stale recipe",
+      recipeVersion: "2026-07-28T17:00:00.000Z",
       servings: 2,
       event: "completed" as const,
+      outcome: cookingOutcome(),
     };
     queueCookingCompletion("cook-1", completion);
     vi.spyOn(globalThis, "fetch").mockResolvedValue(

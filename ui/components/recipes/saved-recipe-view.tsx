@@ -129,7 +129,7 @@ export function SavedRecipeView() {
             </span>
           </div>
         </div>
-        <RecipeContent recipe={recipe} />
+        <RecipeContent recipe={recipe} recipeVersion={result.data.updatedAt} />
       </div>
     </>
   );

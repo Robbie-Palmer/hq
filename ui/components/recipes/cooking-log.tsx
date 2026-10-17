@@ -1,10 +1,18 @@
 "use client";
 
-import { ChefHat, Flame, UtensilsCrossed } from "lucide-react";
+import {
+  ChefHat,
+  Flame,
+  Refrigerator,
+  Repeat2,
+  UtensilsCrossed,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   type CookingInsights,
+  type CookingSession,
   getCookingInsights,
+  type LeftoverSuggestion,
 } from "@/lib/api/cooking-insights";
 import { authClient } from "@/lib/auth-client";
 
@@ -39,6 +47,106 @@ function Metric({
       </div>
       <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">{detail}</p>
     </div>
+  );
+}
+
+function RecentCookingItem({ session }: Readonly<{ session: CookingSession }>) {
+  const servingSummary =
+    session.leftoverPortions > 0
+      ? `${session.servings - session.leftoverPortions} eaten · ${session.leftoverPortions} left in ${session.leftoverStorage}`
+      : `Served ${session.servings}`;
+  return (
+    <li className="flex flex-col gap-1 py-4 first:pt-2 sm:flex-row sm:items-center sm:gap-4">
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--paper-warm)] text-[var(--terracotta-deep)]">
+        <UtensilsCrossed aria-hidden="true" className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="rt-body truncate font-semibold text-[var(--ink)]">
+          {session.recipeTitle}
+        </p>
+        <p className="rt-mono mt-1 text-[var(--ink-3)]">{servingSummary}</p>
+      </div>
+      {session.repeatOfSessionId && (
+        <span className="rt-mono inline-flex items-center gap-1 text-[var(--sage)]">
+          <Repeat2 aria-hidden="true" className="size-3.5" /> repeat
+        </span>
+      )}
+      <time
+        dateTime={session.completedAt ?? undefined}
+        className="rt-mono text-[var(--ink-3)]"
+      >
+        {completedLabel(session.completedAt ?? session.startedAt)}
+      </time>
+    </li>
+  );
+}
+
+function RecentCooking({ sessions }: Readonly<{ sessions: CookingSession[] }>) {
+  return (
+    <section className="mt-8 rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-5 shadow-[var(--paper-shadow)] sm:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="rt-display text-3xl">Recently cooked</h2>
+        <span className="rt-mono text-[var(--ink-3)]">
+          What · when · how many
+        </span>
+      </div>
+      {sessions.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="rt-display text-3xl text-[var(--ink-2)]">
+            Nothing cooked yet.
+          </p>
+          <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">
+            Choose a recipe, start cooking, and tap Finish on the last step.
+          </p>
+        </div>
+      ) : (
+        <ol className="mt-4 divide-y divide-dashed divide-[var(--line)]">
+          {sessions.map((session) => (
+            <RecentCookingItem key={session.id} session={session} />
+          ))}
+        </ol>
+      )}
+    </section>
+  );
+}
+
+function LeftoverSuggestions({
+  insights,
+}: Readonly<{ insights: CookingInsights }>) {
+  const suggestions: LeftoverSuggestion[] = insights.leftoverSuggestions ?? [];
+  if (suggestions.length === 0) return null;
+  const scopeLabel =
+    insights.leftoverScope?.type === "household"
+      ? `${insights.leftoverScope.household.name} leftovers`
+      : "Your leftovers";
+  return (
+    <section className="mt-8 rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-5 shadow-[var(--paper-shadow)] sm:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h2 className="rt-display text-3xl">Eat these next</h2>
+        <span className="rt-mono text-[var(--ink-3)]">{scopeLabel}</span>
+      </div>
+      <ol className="mt-4 divide-y divide-dashed divide-[var(--line)]">
+        {suggestions.map((leftover) => (
+          <li
+            key={leftover.id}
+            className="flex items-center gap-4 py-4 first:pt-2"
+          >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--paper-warm)] text-[var(--sage)]">
+              <Refrigerator aria-hidden="true" className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="rt-body truncate font-semibold text-[var(--ink)]">
+                {leftover.recipeTitle}
+              </p>
+              <p className="rt-mono mt-1 text-[var(--ink-3)]">
+                {leftover.portionsRemaining} {leftover.storage}
+                {leftover.useBy ? ` · use by ${leftover.useBy}` : ""}
+              </p>
+            </div>
+          </li>
+        ))}
+      </ol>
+    </section>
   );
 }
 
@@ -153,55 +261,8 @@ export function CookingLog() {
             />
           </section>
 
-          <section className="mt-8 rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-5 shadow-[var(--paper-shadow)] sm:p-6">
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="rt-display text-3xl">Recently cooked</h2>
-              <span className="rt-mono text-[var(--ink-3)]">
-                What · when · how many
-              </span>
-            </div>
-
-            {insights.recent.length === 0 ? (
-              <div className="py-12 text-center">
-                <p className="rt-display text-3xl text-[var(--ink-2)]">
-                  Nothing cooked yet.
-                </p>
-                <p className="rt-body mt-2 text-sm text-[var(--ink-3)]">
-                  Choose a recipe, start cooking, and tap Finish on the last
-                  step.
-                </p>
-              </div>
-            ) : (
-              <ol className="mt-4 divide-y divide-dashed divide-[var(--line)]">
-                {insights.recent.map((cookingSession) => (
-                  <li
-                    key={cookingSession.id}
-                    className="flex flex-col gap-1 py-4 first:pt-2 sm:flex-row sm:items-center sm:gap-4"
-                  >
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--paper-warm)] text-[var(--terracotta-deep)]">
-                      <UtensilsCrossed aria-hidden="true" className="size-4" />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="rt-body truncate font-semibold text-[var(--ink)]">
-                        {cookingSession.recipeTitle}
-                      </p>
-                      <p className="rt-mono mt-1 text-[var(--ink-3)]">
-                        Served {cookingSession.servings}
-                      </p>
-                    </div>
-                    <time
-                      dateTime={cookingSession.completedAt ?? undefined}
-                      className="rt-mono text-[var(--ink-3)]"
-                    >
-                      {completedLabel(
-                        cookingSession.completedAt ?? cookingSession.startedAt,
-                      )}
-                    </time>
-                  </li>
-                ))}
-              </ol>
-            )}
-          </section>
+          <RecentCooking sessions={insights.recent} />
+          <LeftoverSuggestions insights={insights} />
         </>
       )}
     </div>

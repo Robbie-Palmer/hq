@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { requiredEnv } from "node-base/env";
 import { createAuth } from "../src/auth";
 import { createDb, schema } from "recipe-db";
@@ -30,6 +30,17 @@ function previewRecipeBody(
     instructions,
   });
   return JSON.stringify({ version: 1, source: cookBody, recipe });
+}
+
+function dateFromToday(days: number): string {
+  const date = new Date();
+  date.setUTCHours(12, 0, 0, 0);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function timeFromNow(hours: number): Date {
+  return new Date(Date.now() + hours * 60 * 60 * 1_000);
 }
 
 const databaseURL = requiredEnv("DATABASE_URL");
@@ -370,6 +381,89 @@ try {
       });
   }
 
+  // A small, legible cooking history for the household-owner scenario. It
+  // includes a cook with a tracked leftover, a repeat made from frozen, and
+  // a cook completed without optional leftover tracking. Dates stay close to the
+  // seed run so the "Eat these next" ordering remains useful in every preview.
+  const FIRST_CURRY_SESSION_ID = "44444444-4444-4444-8444-444444444444";
+  const REPEATED_CURRY_SESSION_ID = "55555555-5555-4555-8555-555555555555";
+  const OPTIONAL_OUTCOME_SESSION_ID = "66666666-6666-4666-8666-666666666666";
+  const cookingSessions: Array<typeof schema.cookingSession.$inferInsert> = [
+    {
+      id: FIRST_CURRY_SESSION_ID,
+      userId: householdOwnerUserId,
+      recipeSlug: "preview-household-veggie-curry",
+      recipeTitle: "Preview Household Veggie Curry",
+      recipeVersion: "2026-07-15",
+      servings: 2,
+      startedAt: timeFromNow(-74),
+      completedAt: timeFromNow(-73),
+    },
+    {
+      id: REPEATED_CURRY_SESSION_ID,
+      userId: householdOwnerUserId,
+      recipeSlug: "preview-household-veggie-curry",
+      recipeTitle: "Preview Household Veggie Curry",
+      recipeVersion: "2026-07-15",
+      servings: 2,
+      repeatOfSessionId: FIRST_CURRY_SESSION_ID,
+      startedAt: timeFromNow(-27),
+      completedAt: timeFromNow(-26),
+    },
+    {
+      id: OPTIONAL_OUTCOME_SESSION_ID,
+      userId: householdOwnerUserId,
+      recipeSlug: "preview-public-household-flatbread",
+      recipeTitle: "Preview Household Flatbread",
+      recipeVersion: "2026-07-15",
+      servings: 2,
+      repeatOfSessionId: null,
+      startedAt: timeFromNow(-7),
+      completedAt: timeFromNow(-6),
+    },
+  ];
+  await db
+    .insert(schema.cookingSession)
+    .values(cookingSessions)
+    .onConflictDoUpdate({
+      target: schema.cookingSession.id,
+      set: {
+        userId: sql`excluded.user_id`,
+        recipeSlug: sql`excluded.recipe_slug`,
+        recipeTitle: sql`excluded.recipe_title`,
+        recipeVersion: sql`excluded.recipe_version`,
+        servings: sql`excluded.servings`,
+        repeatOfSessionId: sql`excluded.repeat_of_session_id`,
+        startedAt: sql`excluded.started_at`,
+        completedAt: sql`excluded.completed_at`,
+      },
+    });
+
+  await db
+    .insert(schema.leftoverBatch)
+    .values({
+      id: "77777777-7777-4777-8777-777777777777",
+      cookingSessionId: FIRST_CURRY_SESSION_ID,
+      userId: null,
+      organizationId: HOUSEHOLD_ID,
+      recipeSlug: "preview-household-veggie-curry",
+      recipeTitle: "Preview Household Veggie Curry",
+      recipeVersion: "2026-07-15",
+      portionsRemaining: 1,
+      storage: "fridge",
+      useBy: dateFromToday(1),
+    })
+    .onConflictDoUpdate({
+      target: schema.leftoverBatch.id,
+      set: {
+        organizationId: HOUSEHOLD_ID,
+        portionsRemaining: 1,
+        storage: "fridge",
+        useBy: dateFromToday(1),
+        updatedAt: new Date(),
+      },
+    });
+
   // A dietary profile for the household owner so diet features (presets,
   // excluded groups/ingredients, warn vs hide) have representative data. "warn"
   // plus an excluded ingredient present in the household curry surfaces a diet
@@ -395,7 +489,7 @@ try {
     .onConflictDoNothing();
 
   console.log(
-    `Seeded ${previewScenarios.length} preview scenarios with household, pantry, equipment, diet, and cross-household follow fixtures.`,
+    `Seeded ${previewScenarios.length} preview scenarios with household, pantry, equipment, diet, cooking-history, and cross-household follow fixtures.`,
   );
 } finally {
   await client.end({ timeout: 5 });

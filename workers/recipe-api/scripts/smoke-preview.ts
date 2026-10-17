@@ -106,6 +106,7 @@ const event = {
   sessionId,
   recipeSlug: "weeknight-pasta",
   recipeTitle: "Weeknight pasta",
+  recipeVersion: "preview-v1",
   servings: 2,
 };
 
@@ -134,7 +135,20 @@ await expectJson(
   {
     method: "POST",
     headers,
-    body: JSON.stringify({ ...event, event: "completed" }),
+    body: JSON.stringify({
+      sessionId: event.sessionId,
+      recipeSlug: event.recipeSlug,
+      recipeTitle: event.recipeTitle,
+      recipeVersion: event.recipeVersion,
+      servings: event.servings,
+      event: "completed",
+      outcome: {
+        leftoverPortions: 1,
+        leftoverStorage: "fridge",
+        leftoverUseBy: null,
+        audience: "personal",
+      },
+    }),
   },
   200,
 );
