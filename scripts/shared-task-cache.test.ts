@@ -75,6 +75,7 @@ function createFixture(): Fixture {
       ...process.env,
       CACHE_TEST_ENV: "one",
       CACHE_TEST_COUNTER: counter,
+      npm_config_user_agent: "pnpm/12.8.1 node/v24.0.0",
       SHARED_TASK_CACHE_DIR: cache,
       SHARED_TASK_CACHE_MAX_BYTES: "1048576",
       SHARED_TASK_CACHE_MAX_AGE_SECONDS: "3600",
@@ -129,8 +130,10 @@ describe("shared task cache", () => {
     successful(run(fixture));
     fixture.environment.CACHE_TEST_ENV = "two";
     successful(run(fixture));
+    fixture.environment.npm_config_user_agent = "pnpm/12.8.2 node/v24.0.0";
+    successful(run(fixture));
 
-    expect(readFileSync(fixture.counter, "utf8")).toBe("3");
+    expect(readFileSync(fixture.counter, "utf8")).toBe("4");
     expect(readFileSync(join(fixture.root, "output/result.txt"), "utf8")).toBe("dirty-revision\n");
   });
 

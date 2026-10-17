@@ -109,7 +109,8 @@ function usage(message?: string): never {
 }
 
 function runGit(root: string, args: string[], encoding: BufferEncoding | "buffer" = "utf8"): string | Buffer {
-  const result = spawnSync("git", args, {
+  // This unprivileged CLI uses the same developer tool PATH that launched pnpm.
+  const result = spawnSync("git", args, { // NOSONAR -- Resolving another Git binary would use the same PATH.
     cwd: root,
     encoding: encoding === "buffer" ? undefined : encoding,
     maxBuffer: 256 * 1024 * 1024,
@@ -191,8 +192,8 @@ function parseRunOptions(args: string[], root: string): RunOptions {
     cwd: normalizeRelativePath(parsed.cwd, root, "--cwd"),
     outputs: [
       ...new Set(parsed.outputs.map((output) => normalizeRelativePath(output, root, "--output"))),
-    ].sort(),
-    environmentNames: [...new Set(parsed.environmentNames)].sort(),
+    ].sort(compareStrings),
+    environmentNames: [...new Set(parsed.environmentNames)].sort(compareStrings),
     command,
   };
 }
@@ -233,7 +234,7 @@ function hashPath(path: string): { digest: string; bytes: number } {
   if (!metadata.isDirectory()) throw new Error(`Unsupported artifact type: ${path}`);
   hash.update("directory\0");
   let bytes = 0;
-  for (const name of readdirSync(path).sort()) {
+  for (const name of readdirSync(path).sort(compareStrings)) {
     const child = hashPath(join(path, name));
     hash.update(name);
     hash.update("\0");
@@ -247,11 +248,18 @@ function hashValue(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function compareStrings(left: string, right: string): number {
+  const alphabetical = left.localeCompare(right, "en");
+  if (alphabetical !== 0) return alphabetical;
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
 function dirtyDigest(root: string): string {
   const hash = createHash("sha256");
   hash.update(runGit(root, ["diff", "--binary", "HEAD", "--"], "buffer"));
   const untrackedOutput = runGit(root, ["ls-files", "--others", "--exclude-standard", "-z"], "buffer") as Buffer;
-  const untracked = untrackedOutput.toString().split("\0").filter(Boolean).sort();
+  const untracked = untrackedOutput.toString().split("\0").filter(Boolean).sort(compareStrings);
   for (const path of untracked) {
     const record = hashPath(join(root, path));
     hash.update(path);
@@ -261,9 +269,9 @@ function dirtyDigest(root: string): string {
   return hash.digest("hex");
 }
 
-function commandVersion(command: string): string {
-  const result = spawnSync(command, ["--version"], { encoding: "utf8" });
-  return result.status === 0 ? result.stdout.trim() : "unavailable";
+function pnpmVersion(): string {
+  const userAgent = process.env.npm_config_user_agent ?? "";
+  return /(?:^|\s)pnpm\/([^\s]+)/.exec(userAgent)?.[1] ?? "unavailable";
 }
 
 function cacheIdentity(root: string, options: RunOptions): CacheIdentity {
@@ -285,7 +293,7 @@ function cacheIdentity(root: string, options: RunOptions): CacheIdentity {
     platform: platform(),
     architecture: arch(),
     node: process.version,
-    pnpm: commandVersion("pnpm"),
+    pnpm: pnpmVersion(),
     lockfile,
   };
   return {
@@ -387,7 +395,8 @@ async function acquireLock(path: string): Promise<{ release: () => void; waited:
       if (Date.now() - startedAt > LOCK_WAIT_MILLISECONDS) {
         throw new Error(`Timed out waiting for cache lock ${path}`);
       }
-      await delay(LOCK_POLL_MILLISECONDS);
+      // A contender must finish one polling delay before it checks the lock again.
+      await delay(LOCK_POLL_MILLISECONDS); // NOSONAR -- Parallel waits would spin or race.
     }
   }
 }
@@ -436,8 +445,7 @@ function validateEntry(entryPath: string, identity: CacheIdentity, options: RunO
   try {
     const manifest = readManifest(entryPath);
     if (
-      !manifest ||
-      manifest.schemaVersion !== CACHE_SCHEMA_VERSION ||
+      manifest?.schemaVersion !== CACHE_SCHEMA_VERSION ||
       manifest.key !== identity.key ||
       manifest.revision !== identity.revision ||
       manifest.dirtyDigest !== identity.dirtyDigest ||
@@ -734,7 +742,9 @@ async function main(): Promise<void> {
   usage(subcommand ? `Unknown subcommand: ${subcommand}` : undefined);
 }
 
-main().catch((error: unknown) => {
+try {
+  await main();
+} catch (error: unknown) {
   appendFileSync(2, `shared-task-cache: ${error instanceof Error ? error.message : String(error)}\n`);
   process.exitCode = 1;
-});
+}
