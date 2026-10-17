@@ -29,7 +29,7 @@ function NavigationPlanPreview({ mobile = false, go }) {
         <span className="mf-tag include" style={{ fontSize: mobile ? 8 : 10 }}>7 meals</span>
         <span className="mf-tag" style={{ fontSize: mobile ? 8 : 10 }}>5 cooks</span>
         <span className="mf-tag" style={{ fontSize: mobile ? 8 : 10 }}>2 leftovers</span>
-        {!mobile && <button className="mf-btn terra sm" style={{ marginLeft: 'auto' }}>＋ Add meal</button>}
+        {!mobile && <button className="mf-btn terra sm" style={{ marginLeft: 'auto' }}>Plan a meal</button>}
       </div>
       <div className="mf-card" style={{ padding: mobile ? 8 : 10, maxWidth: 720 }}>
         {visibleDays.map((day) => <div key={day.key} style={{ display: 'grid', gridTemplateColumns: mobile ? '42px 1fr' : '70px 1fr', gap: 8, padding: mobile ? '6px 3px' : '8px 5px', borderBottom: '1px solid var(--line)' }}>
@@ -42,8 +42,8 @@ function NavigationPlanPreview({ mobile = false, go }) {
           </div>
         </div>)}
         <div style={{ display: 'flex', gap: 6, padding: '8px 4px 2px' }}>
-          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>＋ Sat · open</button>
-          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>＋ Sun · open</button>
+          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>Plan Sat</button>
+          <button className="mf-btn ghost sm" style={{ flex: 1, borderStyle: 'dashed' }}>Plan Sun</button>
         </div>
       </div>
       <button className="mf-btn" style={{ marginTop: 10 }} onClick={() => go('shopping')}>Review Shop · 12 →</button>
