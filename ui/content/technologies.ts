@@ -1267,6 +1267,22 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "tool",
   },
   {
+    name: "CloudEvents",
+    added: "2026-10-15",
+    description:
+      "Vendor-neutral event envelope with standard context attributes and transport bindings",
+    website: "https://cloudevents.io",
+    type: "tool",
+  },
+  {
+    name: "AsyncAPI",
+    added: "2026-10-15",
+    description:
+      "Machine-readable contracts for message-driven APIs, channels, operations, messages, and protocol bindings",
+    website: "https://www.asyncapi.com",
+    type: "tool",
+  },
+  {
     name: "Spectral",
     added: "2026-07-31",
     description:

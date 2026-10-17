@@ -53,10 +53,31 @@ describe("agent markdown generation", () => {
     }
   });
 
-  it("indexes product decisions before the first record is published", () => {
+  it("publishes project-owned decisions and their discovery links", () => {
     const index = read("product-decisions.md");
+    const decisionPath =
+      "projects/personal-engineering-platform/pdrs/001-project-operational-evidence";
     expect(index).toContain("# Product decisions");
-    expect(index).toContain("No product decisions have been published yet");
+    expect(index).toContain(`${decisionPath}.md`);
+    expect(fs.existsSync(path.join(OUT_DIR, `${decisionPath}.html`))).toBe(
+      true,
+    );
+    const decision = read(`${decisionPath}.md`);
+    expect(decision).toContain("PDR 001: Publish project operational evidence");
+    expect(decision).toContain("Personal Engineering Platform");
+    expect(decision).toContain("### Coverage and freshness");
+    expect(read("projects/personal-engineering-platform.md")).toContain(
+      `${decisionPath}.md`,
+    );
+    expect(read("llms.txt")).toContain(`${decisionPath}.md`);
+    expect(
+      fs.existsSync(
+        path.join(
+          OUT_DIR,
+          "product-decisions/001-project-operational-evidence.md",
+        ),
+      ),
+    ).toBe(false);
     expect(read("llms.txt")).toContain("## Product Decision Records");
     expect(read("llms.txt")).toContain(
       "https://robbiepalmer.me/product-decisions.md",

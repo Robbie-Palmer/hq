@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { addDays, format, parseISO } from "date-fns";
 import type { ReactNode } from "react";
@@ -29,6 +35,7 @@ import {
   plannedExpenditureSourceId,
   RunwayChartTooltip,
 } from "@/components/assettracker/runway-forecast";
+import { SpendingBaselineManager } from "@/components/assettracker/spending-baseline-manager";
 import { UpcomingFlows } from "@/components/assettracker/upcoming-flows";
 import {
   buildFlowSankeyData as buildFlowSankeyDataAdapter,
@@ -196,8 +203,20 @@ const EMPTY_MONTHLY_BREAKDOWN = {
 };
 const EMPTY_FI: PortfolioFinancialIndependence = {
   periods: [],
+  reconciledAnnualExpenditure: null,
+  reconciledAnnualCurrentExpenditure: null,
   representativeAnnualExpenditure: null,
   representativeAnnualCurrentExpenditure: null,
+  spendingBasis: {
+    kind: "reconciled",
+    baselineId: null,
+    version: null,
+    effectiveDate: null,
+    currency: "GBP",
+    annualEssentialSpending: null,
+    annualDiscretionarySpending: null,
+    annualDebtCashFlow: null,
+  },
   mortgageCashFlow: null,
   annualCashFlowWhileMortgage: null,
   annualExpenditureAfterMortgage: null,
@@ -213,6 +232,7 @@ const EMPTY_FI: PortfolioFinancialIndependence = {
     total: { balance: 0, months: null },
   },
   runwayForecast: [],
+  essentialOnlyRunwayForecast: [],
   target: null,
   progress: null,
   expectedRealReturn: null,
@@ -263,6 +283,7 @@ function mockAssetTracker(
     planningCases: [],
     futureCashFlows: [],
     forecastAssumptionSets: [],
+    spendingBaselines: [],
     emergencyFundPlans: [],
     emergencyFundFacts: {
       essentialMonthlyExpenditure: null,
@@ -290,6 +311,13 @@ function mockAssetTracker(
     })),
     incomeHistory: [],
     financialIndependence: EMPTY_FI,
+    household: {
+      members: [
+        { id: "alex", displayName: "Alex" },
+        { id: "sam", displayName: "Sam" },
+      ],
+      activeScope: { kind: "household" },
+    },
     housingPlanningPosition: null,
     portfolioReturn: null,
     positionSummary: null,
@@ -301,6 +329,8 @@ function mockAssetTracker(
     netWorthTargetIsReal: false,
     withdrawalRate: 0.04,
     hasLocalChanges: false,
+    localDataStatus: "ready" as const,
+    localDataError: null,
     createAccount: vi.fn(),
     recordBalance: vi.fn(),
     recordTransfer: vi.fn(),
@@ -316,6 +346,7 @@ function mockAssetTracker(
     deleteFutureCashFlow: vi.fn(),
     createForecastAssumptionSet: vi.fn(),
     addForecastAssumption: vi.fn(),
+    saveSpendingBaseline: vi.fn(),
     versionForecastAssumptionSet: vi.fn(),
     deleteForecastAssumption: vi.fn(),
     addPlannedExpenditure: vi.fn(),
@@ -464,6 +495,280 @@ describe("AssetTrackerDashboard", () => {
     expect(
       screen.getByRole("link", { name: "Import history" }),
     ).toHaveAttribute("href", "/assettracker/imports");
+  });
+});
+
+describe("SpendingBaselineManager", () => {
+  it("saves monthly spending as an annual manual baseline", async () => {
+    const user = userEvent.setup();
+    const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
+    mockAssetTracker({
+      saveSpendingBaseline,
+      valuationDate: "2025-12-31",
+    });
+
+    render(<SpendingBaselineManager />);
+
+    await user.type(screen.getByLabelText("Essential spending"), "2000");
+    await user.type(screen.getByLabelText("Discretionary spending"), "1000");
+    await user.type(screen.getByLabelText("Debt cash flow"), "500");
+    await user.type(
+      screen.getByPlaceholderText(
+        "Budget, statement, estimate, or other source",
+      ),
+      "Household budget",
+    );
+    await user.click(screen.getByRole("button", { name: "Use this budget" }));
+
+    expect(saveSpendingBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annualEssentialSpending: 24_000,
+        annualDiscretionarySpending: 12_000,
+        annualDebtCashFlow: 6_000,
+        currency: "GBP",
+        effectiveDate: "2025-12-31",
+        ownership: {
+          kind: "shared",
+          shares: [
+            { memberId: "alex", share: 0.5 },
+            { memberId: "sam", share: 0.5 },
+          ],
+        },
+        source: { kind: "manual" },
+        sourceNotes: "Household budget",
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Your FI results now use £36,000/yr",
+    );
+    expect(
+      screen.getByRole("link", { name: "View updated results" }),
+    ).toHaveAttribute("href", "#fi-results");
+  });
+
+  it("accepts annual entry without multiplying the amounts", async () => {
+    const user = userEvent.setup();
+    const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
+    mockAssetTracker({ saveSpendingBaseline });
+    render(<SpendingBaselineManager />);
+
+    await user.click(
+      screen.getByRole("combobox", { name: "Spending amount period" }),
+    );
+    await user.click(screen.getByRole("option", { name: "Annual" }));
+    await user.type(screen.getByLabelText("Essential spending"), "24000");
+    await user.type(screen.getByLabelText("Discretionary spending"), "12000");
+    await user.type(screen.getByLabelText("Debt cash flow"), "6000");
+    await user.click(screen.getByRole("button", { name: "Use this budget" }));
+
+    expect(saveSpendingBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annualEssentialSpending: 24_000,
+        annualDiscretionarySpending: 12_000,
+        annualDebtCashFlow: 6_000,
+      }),
+    );
+  });
+
+  it("creates a first reconciled baseline after confirming essentials", async () => {
+    const user = userEvent.setup();
+    const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
+    mockAssetTracker({
+      saveSpendingBaseline,
+      financialIndependence: {
+        ...EMPTY_FI,
+        periods: [
+          {
+            startDate: "2026-01-01",
+            endDate: "2026-03-31",
+            openingNetWorth: 100_000,
+            closingNetWorth: 106_000,
+            income: 12_000,
+            netCapitalFlow: 6_000,
+            personalCapitalFlow: 6_000,
+            debtPrincipalFlow: 750,
+            externalCapitalFlow: 0,
+            retainedIncomeSource: "recorded-flows",
+            valuationGain: 0,
+            expenditure: 6_000,
+            currentExpenditure: 6_750,
+            days: 90,
+            annualizedExpenditure: 24_349.5,
+            annualizedCurrentExpenditure: 27_393.19,
+          },
+        ],
+        reconciledAnnualExpenditure: 39_000,
+        reconciledAnnualCurrentExpenditure: 42_000,
+      },
+    });
+
+    render(<SpendingBaselineManager />);
+    await user.type(screen.getByLabelText("Essential spending"), "2000");
+    await user.click(screen.getByRole("button", { name: "Use history" }));
+
+    expect(saveSpendingBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annualEssentialSpending: 24_000,
+        annualDiscretionarySpending: 15_000,
+        annualDebtCashFlow: 3_000,
+        source: {
+          kind: "reconciled",
+          periodStartDate: "2026-01-01",
+          periodEndDate: "2026-03-31",
+        },
+      }),
+    );
+  });
+
+  it("compares history and saves a reconciled version", async () => {
+    const user = userEvent.setup();
+    const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
+    const baseline = {
+      id: "household-spending-v2",
+      seriesId: "household-spending",
+      version: 2,
+      status: "active" as const,
+      effectiveDate: "2026-04-01",
+      annualEssentialSpending: 42_000,
+      annualDiscretionarySpending: 5_398,
+      annualDebtCashFlow: 0,
+      currency: "GBP" as const,
+      ownership: {
+        kind: "shared" as const,
+        shares: [
+          { memberId: "alex", share: 0.5 },
+          { memberId: "sam", share: 0.5 },
+        ],
+      },
+      source: { kind: "manual" as const },
+      sourceNotes: "Updated household budget",
+      createdAt: "2026-04-01T12:00:00Z",
+    };
+    const previousReconciled = {
+      ...baseline,
+      id: "household-spending-v1",
+      version: 1,
+      status: "superseded" as const,
+      effectiveDate: "2026-01-01",
+      annualEssentialSpending: 12_000,
+      source: {
+        kind: "reconciled" as const,
+        periodStartDate: "2026-01-01",
+        periodEndDate: "2026-03-31",
+      },
+      sourceNotes: "Earlier reconciled history",
+      createdAt: "2026-01-01T12:00:00Z",
+    };
+    mockAssetTracker({
+      saveSpendingBaseline,
+      spendingBaselines: [baseline, previousReconciled],
+      financialIndependence: {
+        ...EMPTY_FI,
+        periods: [
+          {
+            startDate: "2026-01-01",
+            endDate: "2026-03-31",
+            openingNetWorth: 100_000,
+            closingNetWorth: 106_000,
+            income: 12_000,
+            netCapitalFlow: 6_000,
+            personalCapitalFlow: 6_000,
+            debtPrincipalFlow: 750,
+            externalCapitalFlow: 0,
+            retainedIncomeSource: "recorded-flows",
+            valuationGain: 0,
+            expenditure: 6_000,
+            currentExpenditure: 6_750,
+            days: 90,
+            annualizedExpenditure: 24_349.5,
+            annualizedCurrentExpenditure: 27_393.19,
+          },
+        ],
+        reconciledAnnualExpenditure: 17_398,
+        reconciledAnnualCurrentExpenditure: 17_398,
+        representativeAnnualExpenditure: 47_398,
+        representativeAnnualCurrentExpenditure: 47_398,
+        spendingBasis: {
+          kind: "manual",
+          baselineId: baseline.id,
+          version: 2,
+          effectiveDate: baseline.effectiveDate,
+          currency: "GBP",
+          annualEssentialSpending: 42_000,
+          annualDiscretionarySpending: 5_398,
+          annualDebtCashFlow: 0,
+          sourceNotes: "Updated household budget",
+        },
+      },
+    });
+
+    render(<SpendingBaselineManager />);
+    expect(screen.getAllByText("Manual")[0]).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Use history" }));
+    expect(
+      screen.getByRole("heading", { name: "Start from history" }),
+    ).toBeVisible();
+    expect(screen.getAllByText("£17,398/yr")[0]).toBeVisible();
+    expect(screen.getByLabelText("Essential spending")).toHaveValue(1000);
+    await user.click(screen.getByRole("button", { name: "Use history" }));
+
+    expect(saveSpendingBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        annualEssentialSpending: 12_000,
+        annualDiscretionarySpending: 5_398,
+        annualDebtCashFlow: 0,
+        source: {
+          kind: "reconciled",
+          periodStartDate: "2026-01-01",
+          periodEndDate: "2026-03-31",
+        },
+      }),
+    );
+  });
+
+  it("hydrates stored amounts and preserves personal ownership", async () => {
+    const user = userEvent.setup();
+    const saveSpendingBaseline = vi.fn().mockResolvedValue(undefined);
+    mockAssetTracker({ localDataStatus: "loading", saveSpendingBaseline });
+    const view = render(<SpendingBaselineManager />);
+    await user.type(screen.getByLabelText("Essential spending"), "1500");
+    const storedBaseline = {
+      id: "household-spending-v1",
+      seriesId: "household-spending",
+      version: 1,
+      status: "active" as const,
+      effectiveDate: "2026-06-30",
+      annualEssentialSpending: 24_000,
+      annualDiscretionarySpending: 5_398,
+      annualDebtCashFlow: 6_000,
+      currency: "GBP" as const,
+      ownership: { kind: "personal" as const, memberId: "alex" },
+      source: { kind: "manual" as const },
+      createdAt: "2026-07-01T12:00:00Z",
+    };
+
+    mockAssetTracker({
+      localDataStatus: "ready",
+      saveSpendingBaseline,
+      spendingBaselines: [storedBaseline],
+    });
+    view.rerender(<SpendingBaselineManager />);
+
+    await waitFor(() =>
+      expect(screen.getByLabelText("Essential spending")).toHaveValue(1500),
+    );
+    expect(screen.getByLabelText("Discretionary spending")).toHaveValue(449.83);
+    expect(screen.getByLabelText("Debt cash flow")).toHaveValue(500);
+    expect(
+      screen.getByRole("combobox", { name: "Spending baseline owner" }),
+    ).toHaveTextContent("Alex");
+
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
+    expect(saveSpendingBaseline).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownership: { kind: "personal", memberId: "alex" },
+      }),
+    );
   });
 });
 

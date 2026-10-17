@@ -2,6 +2,31 @@ schema_version: 1
 project: "personal-engineering-platform"
 catalog:
   records:
+    - id: "system:personal-engineering-platform/platform"
+      kind: "system"
+      name: "Personal Engineering Platform"
+      project: "project:personal-engineering-platform"
+      source_paths:
+        - ".mise.toml"
+        - "scripts/check-monorepo-layout.ts"
+        - "packages/browser-base"
+        - "packages/node-base"
+        - "packages/project-economics-domain"
+        - "packages/ts-base"
+        - "ui/content/projects/personal-engineering-platform"
+      relations:
+        - type: "part_of"
+          target: "project:personal-engineering-platform"
+      decision_refs: ["personal-engineering-platform:032-monorepo-project-package-layout"]
+    - id: "component:personal-engineering-platform/project-economics-domain"
+      kind: "component"
+      name: "Project economics domain"
+      project: "project:personal-engineering-platform"
+      source_paths: ["packages/project-economics-domain"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-engineering-platform/platform"
+      decision_refs: ["personal-engineering-platform:032-monorepo-project-package-layout"]
     - id: "system:recipe-site/application"
       kind: "system"
       name: "Recipe Site application"
@@ -148,13 +173,16 @@ layers:
     description: "Defaults for network APIs and server-side application code."
   - slug: "identity"
     title: "Identity"
-    description: "Defaults for application user authentication and sign-in providers."
+    description: "Defaults for human and agent authentication, browser sessions, and application authorization."
   - slug: "api-governance"
     title: "API governance"
-    description: "Contract correctness and compatibility controls for OpenAPI services."
+    description: "Contract correctness, compatibility, lifecycle, and publication controls."
     activated_by:
       slot: "backend-api.contract-format"
       technology: "OpenAPI"
+  - slug: "event-contracts"
+    title: "Event contracts"
+    description: "Portable event envelopes and transport-specific asynchronous API contracts."
   - slug: "infrastructure"
     title: "Infrastructure"
     description: "Defaults for provisioning and infrastructure management."
@@ -370,10 +398,25 @@ slots:
     description: "The application-owned library that manages user identities, sessions, and sign-in flows."
     rationale: "Self-hosted libraries and managed identity services differ in runtime ownership, portability, session storage, and usage-based cost."
   - slug: "identity.login-provider"
-    title: "User login provider"
+    title: "Human login provider"
     description: "An external identity provider offered for application sign-in."
     rationale: "OIDC providers and first-party login methods differ in audience reach, recovery policy, credential setup, and phishing resistance."
     cardinality: "many"
+  - slug: "identity.delegated-agent-authentication"
+    title: "Delegated agent authentication"
+    description: "The credential and proof protocol that identifies an agent acting with a user's delegated authority."
+    rationale: "Agent-specific credentials, OAuth clients, shared service tokens, and borrowed user sessions provide different attribution, scoping, and revocation boundaries."
+    opinionated: false
+  - slug: "identity.session-transport"
+    title: "Browser session transport"
+    description: "The browser mechanism that carries an authenticated application session."
+    rationale: "First-party cookies, cross-site cookies, browser storage, and bearer tokens have different origin, CSRF, expiry, and script-access risks."
+    kind: "policy"
+  - slug: "identity.authorization-policy"
+    title: "Application authorization policy"
+    description: "The server-side policy that decides which resources and actions an authenticated principal may access."
+    rationale: "Authentication libraries establish identity, but product-owned resource rules, RBAC, and policy engines make separate authorization trade-offs."
+    kind: "policy"
   - slug: "api-governance.contract-linter"
     title: "API contract linter"
     description: "Static correctness, security, and repository-policy checks for API contracts."
@@ -382,6 +425,29 @@ slots:
     title: "API compatibility check"
     description: "Detection of breaking changes between a proposed API contract and its published baseline."
     rationale: "oasdiff, Optic, and custom schema comparisons differ in OpenAPI coverage, policy controls, and CI integration."
+  - slug: "api-governance.contract-lifecycle"
+    title: "API contract lifecycle"
+    description: "Generation, examples, tests, versioning, deprecation, indexing, and publication of API contracts."
+    rationale: "A valid contract can still drift from runtime behavior or leave consumers without stable fixtures, compatibility evidence, and immutable releases."
+    kind: "policy"
+  - slug: "event.contract-format"
+    title: "Asynchronous API contract format"
+    description: "The machine-readable description of channels, operations, messages, and protocol bindings."
+    rationale: "AsyncAPI, broker-specific declarations, and prose differ in portability, generation, and validation support."
+  - slug: "event.envelope-format"
+    title: "Event envelope format"
+    description: "The transport-neutral metadata envelope around a domain event payload."
+    rationale: "CloudEvents and application-specific envelopes differ in interoperability, transport bindings, and tooling support."
+  - slug: "event.schema-selection"
+    title: "Event payload schema selection"
+    description: "The boundary for choosing JSON Schema, Avro, or Protocol Buffers for an asynchronous API."
+    rationale: "Payload formats trade human readability, registry compatibility, binary size, and generated cross-language bindings."
+    kind: "policy"
+  - slug: "event.transport-semantics"
+    title: "Event transport semantics"
+    description: "The delivery and failure behavior that an asynchronous API contract must retain."
+    rationale: "An event envelope does not describe channel topology, keys, ordering, offsets, retries, dead letters, or delivery guarantees."
+    kind: "policy"
   - slug: "infrastructure.provisioner"
     title: "Infrastructure provisioner"
     description: "Declarative provisioning for managed infrastructure."
@@ -642,6 +708,7 @@ policies:
     slot: "security.preview-access"
     mode: "preferred"
     effective_from: "2026-09-29T00:00:00Z"
+    effective_until: "2026-10-15T00:00:00Z"
     decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
     prerequisites:
       - slot: "delivery.preview-environment"
@@ -650,7 +717,26 @@ policies:
     slot: "security.service-auth"
     mode: "preferred"
     effective_from: "2026-09-29T00:00:00Z"
+    effective_until: "2026-10-15T00:00:00Z"
     decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
+  - id: "base-preview-access-2026-10-15"
+    layer: "base"
+    slot: "security.preview-access"
+    mode: "preferred"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - slot: "delivery.preview-environment"
+      - requirement: "provider-registration"
+  - id: "base-service-auth-2026-10-15"
+    layer: "base"
+    slot: "security.service-auth"
+    mode: "preferred"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - slot: "secrets.runtime-store"
+      - requirement: "credential-rotation"
   - id: "base-code-quality-2026-09-15"
     layer: "base"
     slot: "quality.code-analysis"
@@ -829,6 +915,7 @@ policies:
     slot: "identity.authentication-library"
     mode: "preferred"
     effective_from: "2026-09-29T00:00:00Z"
+    effective_until: "2026-10-15T00:00:00Z"
     decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
     prerequisites:
       - slot: "backend-api.runtime"
@@ -838,10 +925,59 @@ policies:
     slot: "identity.login-provider"
     mode: "preferred"
     effective_from: "2026-09-29T00:00:00Z"
+    effective_until: "2026-10-15T00:00:00Z"
     decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
     prerequisites:
       - slot: "identity.authentication-library"
         technology: "better-auth"
+  - id: "identity-authentication-library-2026-10-15"
+    layer: "identity"
+    slot: "identity.authentication-library"
+    mode: "preferred"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - slot: "project.primary-language"
+        technology: "typescript"
+      - requirement: "javascript-typescript-server-component"
+      - slot: "backend-api.runtime"
+      - slot: "database.relational-engine"
+      - slot: "secrets.runtime-store"
+      - requirement: "durable-session-store"
+      - slot: "identity.authorization-policy"
+  - id: "identity-session-transport-2026-10-15"
+    layer: "identity"
+    slot: "identity.session-transport"
+    mode: "preferred"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - slot: "identity.authentication-library"
+        technology: "better-auth"
+      - slot: "backend-api.runtime"
+      - requirement: "same-origin-auth-routes"
+      - requirement: "secure-http-only-cookie"
+  - id: "identity-login-provider-2026-10-15"
+    layer: "identity"
+    slot: "identity.login-provider"
+    mode: "preferred"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - slot: "identity.authentication-library"
+        technology: "better-auth"
+      - slot: "identity.session-transport"
+      - slot: "secrets.runtime-store"
+      - requirement: "environment-specific-redirect-uri"
+      - requirement: "provider-registration"
+  - id: "identity-authorization-policy-2026-10-15"
+    layer: "identity"
+    slot: "identity.authorization-policy"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    prerequisites:
+      - requirement: "server-side-authorization"
   - id: "api-governance-contract-linter-2026-09-29"
     layer: "api-governance"
     slot: "api-governance.contract-linter"
@@ -860,6 +996,36 @@ policies:
     prerequisites:
       - slot: "backend-api.contract-format"
         technology: "openapi"
+  - id: "api-governance-contract-lifecycle-2026-10-15"
+    layer: "api-governance"
+    slot: "api-governance.contract-lifecycle"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+  - id: "event-contract-format-2026-10-15"
+    layer: "event-contracts"
+    slot: "event.contract-format"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+  - id: "event-envelope-format-2026-10-15"
+    layer: "event-contracts"
+    slot: "event.envelope-format"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+  - id: "event-schema-selection-2026-10-15"
+    layer: "event-contracts"
+    slot: "event.schema-selection"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+  - id: "event-transport-semantics-2026-10-15"
+    layer: "event-contracts"
+    slot: "event.transport-semantics"
+    mode: "required"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
   - id: "infrastructure-provisioner-2026-09-12"
     layer: "infrastructure"
     slot: "infrastructure.provisioner"
@@ -1298,6 +1464,15 @@ selections:
     decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
     origin_projects: ["recipe-site"]
     evidence_adrs: ["recipe-site:013-cloudflare-access-preview-gates"]
+    configuration_requirements:
+      - name: "CF_ACCESS_CLIENT_ID"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "CF_ACCESS_CLIENT_SECRET"
+        owner: "secrets.runtime-store"
+        sensitive: true
+    manual_setup:
+      - "Enable the Pages preview access policy, configure the account identity provider and human allowlist, then import the generated Access application before Terraform manages it."
   - id: "security-service-auth-cloudflare-access-2026-09-29"
     slot: "security.service-auth"
     technology: "Cloudflare Access"
@@ -1306,6 +1481,15 @@ selections:
     decision: "personal-engineering-platform:019-cloudflare-access-boundaries"
     origin_projects: ["work-graph"]
     evidence_adrs: ["work-graph:004-cloudflare-access-service-auth"]
+    configuration_requirements:
+      - name: "CF_ACCESS_CLIENT_ID"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "CF_ACCESS_CLIENT_SECRET"
+        owner: "secrets.runtime-store"
+        sensitive: true
+    manual_setup:
+      - "Place each newly issued one-time service-token secret directly into its owning runtime secret store before the provider value is lost."
   - id: "identity-authentication-library-better-auth-2026-09-29"
     slot: "identity.authentication-library"
     technology: "Better Auth"
@@ -1314,6 +1498,13 @@ selections:
     decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
     origin_projects: ["recipe-site"]
     evidence_adrs: ["recipe-site:003-better-auth"]
+    configuration_requirements:
+      - name: "BETTER_AUTH_URL"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "BETTER_AUTH_SECRET"
+        owner: "secrets.runtime-store"
+        sensitive: true
   - id: "identity-login-provider-google-oauth-2026-09-29"
     slot: "identity.login-provider"
     technology: "Google OAuth"
@@ -1322,6 +1513,58 @@ selections:
     decision: "personal-engineering-platform:020-better-auth-and-google-oidc"
     origin_projects: ["recipe-site"]
     evidence_adrs: ["recipe-site:007-google-oidc-login"]
+    configuration_requirements:
+      - name: "GOOGLE_CLIENT_ID"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "GOOGLE_CLIENT_SECRET"
+        owner: "secrets.runtime-store"
+        sensitive: true
+    manual_setup:
+      - "Create the OAuth consent screen and Web application client in Google Cloud Console for each stable environment, then register that environment's exact callback URI."
+  - id: "identity-login-provider-github-oauth-2026-10-15"
+    slot: "identity.login-provider"
+    technology: "GitHub"
+    status: "Proposed"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:003-better-auth"]
+    configuration_requirements:
+      - name: "GITHUB_CLIENT_ID"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "GITHUB_CLIENT_SECRET"
+        owner: "secrets.runtime-store"
+        sensitive: true
+    manual_setup:
+      - "Register a GitHub OAuth application for each stable environment and enter its exact callback URL; GitHub-targeted configs must map repository-safe secret names to these runtime names."
+  - id: "identity-delegated-agent-authentication-better-auth-2026-10-15"
+    slot: "identity.delegated-agent-authentication"
+    technology: "Better Auth"
+    status: "Proposed"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:019-agent-auth"]
+  - id: "identity-session-transport-same-origin-cookie-2026-10-15"
+    slot: "identity.session-transport"
+    kind: "policy"
+    value: "Same-origin Secure HttpOnly first-party cookie session"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:007-google-oidc-login"]
+  - id: "identity-authorization-policy-server-side-resource-rules-2026-10-15"
+    slot: "identity.authorization-policy"
+    kind: "policy"
+    value: "Project-owned server-side resource and action policy"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:034-identity-and-access-capability-contracts"
+    origin_projects: ["recipe-site"]
+    evidence_adrs: ["recipe-site:005-authorization-model"]
   - id: "quality-code-analysis-sonarqube-2026-09-15"
     slot: "quality.code-analysis"
     technology: "SonarQube"
@@ -1564,6 +1807,49 @@ selections:
     evidence_adrs:
       - "recipe-site:023-spectral"
       - "work-graph:003-rest-api-and-cli-first"
+  - id: "api-governance-contract-lifecycle-policy-2026-10-15"
+    slot: "api-governance.contract-lifecycle"
+    kind: "policy"
+    value: "Runtime-derived, committed, validated, compatibility-gated, indexed, versioned, and published as immutable OCI artifacts"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:033-api-and-event-contract-standard"]
+  - id: "event-contract-format-asyncapi-2026-10-15"
+    slot: "event.contract-format"
+    technology: "AsyncAPI"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:033-api-and-event-contract-standard"]
+  - id: "event-envelope-format-cloudevents-2026-10-15"
+    slot: "event.envelope-format"
+    technology: "CloudEvents"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:033-api-and-event-contract-standard"]
+  - id: "event-schema-selection-policy-2026-10-15"
+    slot: "event.schema-selection"
+    kind: "policy"
+    value: "JSON Schema by default; Avro for governed Kafka evolution; Protocol Buffers for established binary or RPC ecosystems"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:033-api-and-event-contract-standard"]
+  - id: "event-transport-semantics-policy-2026-10-15"
+    slot: "event.transport-semantics"
+    kind: "policy"
+    value: "Contracts retain topology, routing or keys, ordering, groups and offsets, delivery, retry, and dead-letter behavior"
+    status: "Accepted"
+    effective_from: "2026-10-15T00:00:00Z"
+    decision: "personal-engineering-platform:033-api-and-event-contract-standard"
+    origin_projects: ["personal-engineering-platform"]
+    evidence_adrs: ["personal-engineering-platform:033-api-and-event-contract-standard"]
   - id: "infrastructure-provisioner-terraform-2026-09-12"
     slot: "infrastructure.provisioner"
     technology: "Terraform"

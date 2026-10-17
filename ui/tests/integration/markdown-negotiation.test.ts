@@ -65,6 +65,26 @@ describe("Markdown content negotiation middleware", () => {
     expect(body).toContain("# Building Philosophy");
   });
 
+  it.each([
+    ["text/markdown", "text/markdown"],
+    [BROWSER_ACCEPT, "text/html"],
+  ])(
+    "serves project-owned PDRs with Accept %s",
+    async (accept, contentType) => {
+      const response = await fetch(
+        `${BASE_URL}/projects/personal-engineering-platform/pdrs/001-project-operational-evidence`,
+        { headers: { Accept: accept, "User-Agent": BROWSER_UA } },
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain(contentType);
+      const body = await response.text();
+      expect(body).toContain(
+        "Publish project operational evidence with its limits",
+      );
+      expect(body).toContain("Personal Engineering Platform");
+    },
+  );
+
   it("serves markdown to agent-like user agents not requesting HTML", async () => {
     const response = await fetch(`${BASE_URL}/experience`, {
       headers: { Accept: "*/*", "User-Agent": "curl/8.5.0" },

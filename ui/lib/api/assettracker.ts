@@ -44,6 +44,7 @@ import {
   applySaveJobMoveScenario,
   applySaveMortgageScenario,
   applySaveSalaryRecord,
+  applySaveSpendingBaseline,
   applySaveTaxSetup,
   applySetAccountLiquidity,
   applySetAccountOwnership,
@@ -87,6 +88,7 @@ import {
   type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
+  type SaveSpendingBaselineInput,
   type SaveTaxSetupInput,
   type SetAccountLiquidityInput,
   type SetAccountOwnershipInput,
@@ -191,6 +193,9 @@ export interface AssetTrackerApi {
   ): Promise<AssetTrackerData>;
   saveEmergencyFundPlan(
     input: SaveEmergencyFundPlanInput,
+  ): Promise<AssetTrackerData>;
+  saveSpendingBaseline(
+    input: SaveSpendingBaselineInput,
   ): Promise<AssetTrackerData>;
   saveJobMoveScenario(
     input: SaveJobMoveScenarioInput,
@@ -582,6 +587,13 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
             input,
             new Date().toISOString(),
           ),
+        ),
+      );
+    },
+    saveSpendingBaseline(input) {
+      return promiseFromSync(() =>
+        write(
+          applySaveSpendingBaseline(current(), input, new Date().toISOString()),
         ),
       );
     },

@@ -2,13 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   assertTicketRouteSupported,
+  buildProviderTurnAttempts,
   buildWorkerPrompt,
   classifyDocumentationTicketIds,
   deriveTicketRoute,
   isDocumentationOnlyTicket,
   refreshRoutingProviders,
   selectCodexProvider,
+  selectCodexProviders,
   selectModel,
+  selectReasoningEffort,
+  selectRuntimeMode,
+  startTurnWithProviderRecovery,
 } from "./launch-work-graph-agent.js";
 
 function ticket(
@@ -60,14 +65,50 @@ function provider(instanceId: string, status: "ready" | "error" = "ready") {
   };
 }
 
-describe("Work Graph ticket routing", () => {
-  it("leaves autonomy policy to Work Graph and repository instructions", () => {
-    const prompt = buildWorkerPrompt("ticket-1");
+function providerWithOptions(
+  instanceId: string,
+  reasoningEfforts: string[],
+  serviceTiers: string[],
+) {
+  const current = provider(instanceId);
+  return {
+    ...current,
+    models: current.models.map((model) => ({
+      ...model,
+      capabilities: {
+        optionDescriptors: [
+          {
+            type: "select",
+            id: "reasoningEffort",
+            options: reasoningEfforts.map((id) => ({ id })),
+          },
+          {
+            type: "select",
+            id: "serviceTier",
+            options: serviceTiers.map((id) => ({ id })),
+          },
+        ],
+      },
+    })),
+  };
+}
 
-    expect(prompt).toContain("claim and execute ticket ticket-1");
-    expect(prompt).toContain("Follow its context and the repository instructions");
+describe("Work Graph ticket routing", () => {
+  it("settles the review loop before the one-ticket owner-review gate", () => {
+    const prompt = buildWorkerPrompt("ticket-1", "/opt/bin/work-graph");
+
+    expect(prompt).toContain("/opt/bin/work-graph");
+    expect(prompt).toContain("claim and execute only ticket ticket-1");
+    expect(prompt).toContain("never claim another ticket");
+    expect(prompt).toContain("already installed and usable");
+    expect(prompt).toContain("do not resolve it through PATH or reinstall it");
+    expect(prompt).toContain("open a draft pull request");
+    expect(prompt).toContain("Complete the pull request review loop at your discretion");
+    expect(prompt).toContain("once per unchanged head");
+    expect(prompt).toContain("then mark it ready for review");
+    expect(prompt).toContain("request owner approval in Work Graph and stop");
+    expect(prompt).toContain("Do not merge the pull request, release the ticket");
     expect(prompt).toContain("do not run mise trust again");
-    expect(prompt).not.toMatch(/safe|authori[sz]ed|ask|approval/iu);
   });
 
   it("uses a routine route and human-on-the-loop runtime for a bounded edit", () => {
@@ -98,7 +139,7 @@ describe("Work Graph ticket routing", () => {
     });
   });
 
-  it("raises Sol reasoning without selecting Astra for architecture work", () => {
+  it("caps critical architecture work at high reasoning", () => {
     expect(
       deriveTicketRoute(
         ticket({
@@ -116,30 +157,64 @@ describe("Work Graph ticket routing", () => {
     ).toMatchObject({
       complexity: "critical",
       preferredModels: ["gpt-5.6-sol"],
-      reasoningEffort: "xhigh",
+      reasoningEffort: "high",
       runtimeMode: "full-access",
     });
   });
 
-  it("sandboxes a concrete protected mutation without approving every read", () => {
-    expect(
-      deriveTicketRoute(
-        ticket({
-          title: "Rotate the production credential",
-          expedited: true,
-          expediteReason: "Credential expires today",
-          context: [
-            {
-              kind: "acceptance_criteria",
-              content: "Rotate the credential and deploy to production.",
-            },
-          ],
-        }),
-      ),
-    ).toMatchObject({
-      runtimeMode: "auto-accept-edits",
+  it("does not mistake a billing domain model for an external mutation", () => {
+    const selection = ticket({
+      title: "Model project costs, usage, time, allocation, and provenance",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Represent billing periods, payment provenance, and allocated cost.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: false,
+      runtimeMode: "full-access",
+    });
+    expect(() =>
+      assertTicketRouteSupported(selection.ticket.id, route),
+    ).not.toThrow();
+  });
+
+  it("rejects protected mutations instead of entering a prompt-heavy sandbox", () => {
+    const selection = ticket({
+      title: "Rotate the production credential",
+      expedited: true,
+      expediteReason: "Credential expires today",
+      context: [
+        {
+          kind: "acceptance_criteria",
+          content: "Rotate the credential and deploy to production.",
+        },
+      ],
+    });
+    const route = deriveTicketRoute(selection);
+
+    expect(route).toMatchObject({
+      protectedMutation: true,
+      runtimeMode: "full-access",
       serviceTier: "priority",
     });
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
+  });
+
+  it("rejects plural payment mutations before a full-access launch", () => {
+    const selection = ticket({ title: "Refund payments" });
+    const route = deriveTicketRoute(selection);
+
+    expect(route.protectedMutation).toBe(true);
+    expect(() => assertTicketRouteSupported(selection.ticket.id, route)).toThrow(
+      "excluded until a scoped permission boundary is ready",
+    );
   });
 
   it.each([
@@ -235,6 +310,58 @@ describe("Work Graph ticket routing", () => {
     expect(other.instanceId).not.toBe(first.instanceId);
   });
 
+  it("orders every approved profile behind the deterministic first choice", () => {
+    const providers = [provider("codex"), provider("codex_2")];
+    const selected = selectCodexProviders(
+      providers,
+      "ticket-a",
+      "gpt-5.6-sol",
+    );
+
+    expect(selected.map(({ instanceId }) => instanceId)).toEqual([
+      selectCodexProvider(providers, "ticket-a", "gpt-5.6-sol").instanceId,
+      selectCodexProvider(providers, "ticket-b", "gpt-5.6-sol").instanceId,
+    ]);
+  });
+
+  it("does not add fallback profiles when an explicit profile is selected", () => {
+    expect(
+      selectCodexProviders(
+        [provider("codex"), provider("codex_2")],
+        "ticket-a",
+        "gpt-5.6-sol",
+        "codex_2",
+      ).map(({ instanceId }) => instanceId),
+    ).toEqual(["codex_2"]);
+  });
+
+  it("skips an option-incompatible fallback without blocking a valid provider", () => {
+    const attempts = buildProviderTurnAttempts({
+      effort: "high",
+      model: "gpt-5.6-sol",
+      providers: [
+        providerWithOptions("codex", ["high"], ["priority"]),
+        providerWithOptions("codex_2", ["medium"], ["default"]),
+      ],
+      serviceTier: "priority",
+    });
+
+    expect(attempts.map(({ provider: current }) => current.instanceId)).toEqual([
+      "codex",
+    ]);
+  });
+
+  it("keeps the explicit option error when no provider is compatible", () => {
+    expect(() =>
+      buildProviderTurnAttempts({
+        effort: "high",
+        model: "gpt-5.6-sol",
+        providers: [providerWithOptions("codex_2", ["medium"], ["default"])],
+        serviceTier: "priority",
+      }),
+    ).toThrow("codex_2/gpt-5.6-sol does not support reasoningEffort=high");
+  });
+
   it("does not fall through an unavailable explicit profile", () => {
     expect(() =>
       selectCodexProvider(
@@ -244,6 +371,160 @@ describe("Work Graph ticket routing", () => {
         "codex_2",
       ),
     ).toThrow("not ready, authenticated, and compatible");
+  });
+
+  it("stops a capacity-limited provider before retrying the same thread", async () => {
+    const calls: string[] = [];
+    const failedTurn = {
+      completion: Promise.resolve({
+        state: "error",
+        error: "Codex usage limit reached.",
+      }),
+    };
+    const runningTurn = { completion: new Promise(() => undefined) };
+    const startTurn = vi.fn((input: { modelSelection: { instanceId: string } }) => {
+      calls.push(`start:${input.modelSelection.instanceId}`);
+      return Promise.resolve(
+        input.modelSelection.instanceId === "codex_2"
+          ? failedTurn
+          : runningTurn,
+      );
+    });
+    const stopSession = vi.fn(() => {
+      calls.push("stop");
+      return Promise.resolve();
+    });
+    const get = vi.fn(() => {
+      calls.push("get");
+      return Promise.resolve({ session: { status: "stopped" } });
+    });
+    const providers = [provider("codex_2"), provider("codex")];
+
+    const recovered = await startTurnWithProviderRecovery({
+      attempts: providers.map((current) => ({
+        provider: current,
+        modelSelection: {
+          instanceId: current.instanceId,
+          model: "gpt-5.6-sol",
+          options: [],
+        },
+      })),
+      buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+      startupObservationMs: 1,
+      stopTimeoutMs: 100,
+      threadId: "thread-1",
+      threads: { get, startTurn, stopSession },
+    } as Parameters<typeof startTurnWithProviderRecovery>[0]);
+
+    expect(recovered.provider.instanceId).toBe("codex");
+    expect(recovered.attemptedProviders).toEqual(["codex_2", "codex"]);
+    expect(calls).toEqual(["start:codex_2", "stop", "get", "start:codex"]);
+  });
+
+  it("stops but does not reroute a non-capacity startup failure", async () => {
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Repository setup failed.",
+        }),
+      }),
+    );
+    const stopSession = vi.fn(() => Promise.resolve());
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: [provider("codex_2"), provider("codex")].map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() =>
+            Promise.resolve({ session: { status: "stopped" } }),
+          ),
+          startTurn,
+          stopSession,
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow("Repository setup failed");
+    expect(stopSession).toHaveBeenCalledOnce();
+    expect(startTurn).toHaveBeenCalledOnce();
+  });
+
+  it("cleans up when startup observation itself fails", async () => {
+    const stopSession = vi.fn(() => Promise.resolve());
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: [provider("codex")].map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() => Promise.resolve({ session: null })),
+          startTurn: vi.fn(() =>
+            Promise.resolve({
+              completion: Promise.reject(new Error("watch disconnected")),
+            }),
+          ),
+          stopSession,
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow("watch disconnected");
+    expect(stopSession).toHaveBeenCalledOnce();
+  });
+
+  it("reports every provider when all approved profiles hit capacity", async () => {
+    const startTurn = vi.fn(() =>
+      Promise.resolve({
+        completion: Promise.resolve({
+          state: "error",
+          error: "Provider capacity exhausted.",
+        }),
+      }),
+    );
+    const providers = [provider("codex_2"), provider("codex")];
+
+    await expect(
+      startTurnWithProviderRecovery({
+        attempts: providers.map((current) => ({
+          provider: current,
+          modelSelection: {
+            instanceId: current.instanceId,
+            model: "gpt-5.6-sol",
+            options: [],
+          },
+        })),
+        buildTurnInput: ({ modelSelection }) => ({ modelSelection }),
+        startupObservationMs: 1,
+        stopTimeoutMs: 100,
+        threadId: "thread-1",
+        threads: {
+          get: vi.fn(() => Promise.resolve({ session: null })),
+          startTurn,
+          stopSession: vi.fn(() => Promise.resolve()),
+        },
+      } as Parameters<typeof startTurnWithProviderRecovery>[0]),
+    ).rejects.toThrow(
+      "All approved Codex providers failed during startup: codex_2, codex",
+    );
+    expect(startTurn).toHaveBeenCalledTimes(2);
   });
 
   it("keeps an offered policy model eligible when the catalog marks it legacy", () => {
@@ -267,5 +548,38 @@ describe("Work Graph ticket routing", () => {
         deriveTicketRoute(ticket()),
       ),
     ).toThrow("No ready authenticated Codex provider offers the selected policy model");
+  });
+
+  it("rejects a model override outside the approved route", () => {
+    const current = provider("codex");
+    current.models.push({
+      ...current.models[0],
+      slug: "gpt-6-astra",
+      name: "GPT-6 Astra",
+    });
+
+    expect(() =>
+      selectModel(
+        [current],
+        deriveTicketRoute(ticket()),
+        "gpt-6-astra",
+      ),
+    ).toThrow("outside the approved route policy");
+  });
+
+  it("rejects reasoning overrides above high", () => {
+    const route = deriveTicketRoute(ticket());
+
+    expect(selectReasoningEffort(route, "high")).toBe("high");
+    expect(() => selectReasoningEffort(route, "xhigh")).toThrow();
+  });
+
+  it("rejects prompt-heavy runtime overrides", () => {
+    const route = deriveTicketRoute(ticket());
+
+    expect(selectRuntimeMode(route)).toBe("full-access");
+    expect(() => selectRuntimeMode(route, "auto-accept-edits")).toThrow(
+      "outside the approved route policy",
+    );
   });
 });

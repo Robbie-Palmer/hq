@@ -756,6 +756,20 @@ Canonical source content.`;
   });
 
   describe("loadProductDecisions", () => {
+    function mockPdrFiles(
+      files: string[],
+      projects = ["personal-knowledge-graph"],
+    ) {
+      vi.mocked(fs.existsSync).mockImplementation(
+        (p) => !p.toString().endsWith("product-decisions"),
+      );
+      vi.mocked(fs.readdirSync).mockImplementation(((p: string) => {
+        if (p.endsWith("projects"))
+          return projects.map((name) => mockDirent(name));
+        if (p.endsWith("pdrs")) return files;
+        return [];
+      }) as unknown as typeof fs.readdirSync);
+    }
     const acceptedPdr = `---
 title: "PDR 001: Publish agent-readable pages"
 date: "2026-09-20"
@@ -772,19 +786,26 @@ informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"]
 Publish one plain-Markdown twin for every major page.`;
 
     it("loads valid PDR MDX as a domain entity with typed relations", () => {
-      vi.mocked(fs.readdirSync).mockReturnValue([
-        "001-agent-readable-pages.mdx",
-      ] as unknown as ReaddirResult);
+      mockPdrFiles(["001-agent-readable-pages.mdx"]);
       vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
 
       const result = loadProductDecisions();
 
-      expect(result.entities.get("001-agent-readable-pages")).toMatchObject({
+      expect(
+        result.entities.get(
+          "personal-knowledge-graph:001-agent-readable-pages",
+        ),
+      ).toMatchObject({
         status: "Accepted",
         decisionDate: "2026-09-21",
         content: expect.stringContaining("plain-Markdown twin"),
       });
-      expect(result.relations.get("001-agent-readable-pages")).toEqual({
+      expect(
+        result.relations.get(
+          "personal-knowledge-graph:001-agent-readable-pages",
+        ),
+      ).toEqual({
+        project: "personal-knowledge-graph",
         evidence: [{ title: "Reader study", url: "https://example.com/study" }],
         ideas: ["context-engineering"],
         affectedProjects: ["personal-knowledge-graph"],
@@ -792,11 +813,35 @@ Publish one plain-Markdown twin for every major page.`;
       });
     });
 
-    it("rejects duplicate repository-wide PDR sequence numbers", () => {
+    it("keeps identical local slugs distinct across projects", () => {
+      mockPdrFiles(["001-agent-readable-pages.mdx"], ["site", "platform"]);
+      vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
+      const result = loadProductDecisions();
+      expect([...result.entities.keys()]).toEqual([
+        "site:001-agent-readable-pages",
+        "platform:001-agent-readable-pages",
+      ]);
+      expect(
+        result.entities.get("platform:001-agent-readable-pages")?.projectSlug,
+      ).toBe("platform");
+    });
+
+    it("rejects standalone PDR files", () => {
       vi.mocked(fs.readdirSync).mockReturnValue([
-        "001-first-choice.mdx",
-        "001-second-choice.mdx",
+        "001-global.mdx",
       ] as unknown as ReaddirResult);
+      expect(() => loadProductDecisions()).toThrow(
+        "must belong to a project's pdrs directory",
+      );
+    });
+
+    it("returns no decisions when projects are absent", () => {
+      vi.mocked(fs.existsSync).mockReturnValue(false);
+      expect(loadProductDecisions().entities.size).toBe(0);
+    });
+
+    it("rejects duplicate project-local PDR sequence numbers", () => {
+      mockPdrFiles(["001-first-choice.mdx", "001-second-choice.mdx"]);
       vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
 
       expect(() => loadProductDecisions()).toThrow(
@@ -805,9 +850,7 @@ Publish one plain-Markdown twin for every major page.`;
     });
 
     it("rejects a title whose PDR number differs from its filename", () => {
-      vi.mocked(fs.readdirSync).mockReturnValue([
-        "002-agent-readable-pages.mdx",
-      ] as unknown as ReaddirResult);
+      mockPdrFiles(["002-agent-readable-pages.mdx"]);
       vi.mocked(fs.readFileSync).mockReturnValue(acceptedPdr);
 
       expect(() => loadProductDecisions()).toThrow(
@@ -816,10 +859,7 @@ Publish one plain-Markdown twin for every major page.`;
     });
 
     it("derives Superseded without rewriting the earlier record", () => {
-      vi.mocked(fs.readdirSync).mockReturnValue([
-        "001-original-choice.mdx",
-        "002-replacement-choice.mdx",
-      ] as unknown as ReaddirResult);
+      mockPdrFiles(["001-original-choice.mdx", "002-replacement-choice.mdx"]);
       vi.mocked(fs.readFileSync).mockImplementation((filePath) => {
         const replacement = filePath.toString().includes("002-");
         return acceptedPdr
@@ -827,18 +867,20 @@ Publish one plain-Markdown twin for every major page.`;
           .replace(
             'informed_by_adrs: ["personal-knowledge-graph:033-content-graph-indexes"]',
             replacement
-              ? 'supersedes: "001-original-choice"\ninformed_by_adrs: []'
+              ? 'supersedes: "personal-knowledge-graph:001-original-choice"\ninformed_by_adrs: []'
               : "informed_by_adrs: []",
           );
       });
 
       const result = loadProductDecisions();
-      expect(result.entities.get("001-original-choice")?.status).toBe(
-        "Superseded",
-      );
-      expect(result.entities.get("001-original-choice")?.authoredStatus).toBe(
-        "Accepted",
-      );
+      expect(
+        result.entities.get("personal-knowledge-graph:001-original-choice")
+          ?.status,
+      ).toBe("Superseded");
+      expect(
+        result.entities.get("personal-knowledge-graph:001-original-choice")
+          ?.authoredStatus,
+      ).toBe("Accepted");
     });
   });
 
@@ -1055,6 +1097,8 @@ Content`;
       it("rejects invalid product-decision references", () => {
         const decision = ProductDecisionSchema.parse({
           slug: "001-reader-contract",
+          pdrRef: "site:001-reader-contract",
+          projectSlug: "site",
           title: "PDR 001: Reader contract",
           date: "2026-01-01",
           status: "Accepted",
@@ -1064,6 +1108,7 @@ Content`;
           readingTime: "1 min read",
         });
         const relations = ProductDecisionRelationsSchema.parse({
+          project: "site",
           affectedProjects: ["missing-project"],
           ideas: ["missing-idea"],
           informedByADRs: ["site:999-missing"],
@@ -1079,8 +1124,8 @@ Content`;
           projectRelations: new Map(),
           adrRelations: new Map(),
           roleRelations: new Map(),
-          productDecisions: new Map([[decision.slug, decision]]),
-          productDecisionRelations: new Map([[decision.slug, relations]]),
+          productDecisions: new Map([[decision.pdrRef, decision]]),
+          productDecisionRelations: new Map([[decision.pdrRef, relations]]),
         });
 
         expect(errors).toEqual(
@@ -1115,12 +1160,14 @@ Content`;
         ) =>
           ProductDecisionSchema.parse({
             slug,
+            pdrRef: `site:${slug}`,
+            projectSlug: "site",
             title: `PDR ${slug.slice(0, 3)}: ${slug.slice(4)}`,
             date: "2026-01-01",
             status: "Accepted",
             authoredStatus: "Accepted",
             decisionDate: "2026-01-02",
-            supersedes,
+            supersedes: supersedes ? `site:${supersedes}` : undefined,
             content: "Decision body.",
             readingTime: "1 min read",
           });
@@ -1141,7 +1188,7 @@ Content`;
           adrRelations: new Map(),
           roleRelations: new Map(),
           productDecisions: new Map(
-            records.map((record) => [record.slug, record]),
+            records.map((record) => [record.pdrRef, record]),
           ),
         });
 
@@ -1150,12 +1197,12 @@ Content`;
             expect.objectContaining({
               type: "invalid_reference",
               field: "supersedes",
-              value: "001-original",
+              value: "site:001-original",
             }),
             expect.objectContaining({
               type: "missing_reference",
               field: "supersedes",
-              value: "999-unknown",
+              value: "site:999-unknown",
             }),
           ]),
         );

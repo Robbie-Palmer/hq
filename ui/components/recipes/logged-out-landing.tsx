@@ -32,7 +32,7 @@ const steps = [
     number: "03",
     title: "Cook as a household",
     description:
-      "Share the practical bits—your kitchen, meal plan and shopping list—with the people you cook with.",
+      "Share your kitchen and shopping list with the people you cook with.",
     icon: House,
   },
 ] as const;

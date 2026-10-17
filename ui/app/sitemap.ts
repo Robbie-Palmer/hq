@@ -6,6 +6,7 @@ import { getAllProductDecisions } from "@/lib/api/product-decisions";
 import { getAllProjects } from "@/lib/api/projects";
 import { siteConfig } from "@/lib/config/site-config";
 import { getAllTechnologySlugs, loadDomainRepository } from "@/lib/domain";
+import { productDecisionPath } from "@/lib/domain/product-decision";
 
 export const dynamic = "force-static";
 
@@ -67,7 +68,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
   const productDecisionPages = productDecisions.map((decision) => ({
-    url: `${siteConfig.url}/product-decisions/${decision.slug}`,
+    url: `${siteConfig.url}${productDecisionPath(decision.pdrRef)}`,
     lastModified:
       decision.deprecatedDate ?? decision.decisionDate ?? decision.date,
     priority: 0.8,

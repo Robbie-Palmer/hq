@@ -108,10 +108,12 @@ import {
   type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
   type SaveSalaryRecordInput,
+  type SaveSpendingBaselineInput,
   type SaveTaxSetupInput,
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   type SetMortgageTermsInput,
+  type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
   suggestedAnnualEmploymentIncomePence,
@@ -136,6 +138,7 @@ interface AssetTrackerContextValue {
   planningCases: PlanningCase[];
   futureCashFlows: FutureCashFlow[];
   forecastAssumptionSets: ForecastAssumptionSet[];
+  spendingBaselines: SpendingBaseline[];
   emergencyFundPlans: EmergencyFundPlan[];
   emergencyFundFacts: EmergencyFundDerivedFacts;
   emergencyFundAnalysis: EmergencyFundAnalysis | null;
@@ -243,6 +246,7 @@ interface AssetTrackerContextValue {
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
   saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
+  saveSpendingBaseline(input: SaveSpendingBaselineInput): Promise<void>;
   saveJobMoveScenario(input: SaveJobMoveScenarioInput): Promise<void>;
   duplicateJobMoveScenario(id: string): Promise<void>;
   deleteJobMoveScenario(id: string): Promise<void>;
@@ -518,6 +522,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       planningCases: repository.planningCases,
       futureCashFlows: repository.futureCashFlows,
       forecastAssumptionSets: repository.forecastAssumptionSets,
+      spendingBaselines: repository.spendingBaselines,
       emergencyFundPlans: emergencyFund.plans,
       emergencyFundFacts: emergencyFund.facts,
       emergencyFundAnalysis,
@@ -691,6 +696,8 @@ export function AssetTrackerProvider({
         mutate((api) => api.saveMortgageScenario(input)),
       saveEmergencyFundPlan: (input) =>
         mutate((api) => api.saveEmergencyFundPlan(input)),
+      saveSpendingBaseline: (input) =>
+        mutate((api) => api.saveSpendingBaseline(input)),
       saveJobMoveScenario: (input) =>
         mutate((api) => api.saveJobMoveScenario(input)),
       duplicateJobMoveScenario: (id) =>

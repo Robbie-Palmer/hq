@@ -10,96 +10,101 @@ interface ProjectTabsProps {
   overview: React.ReactNode;
   adrs: React.ReactNode;
   adrCount: number;
+  pdrs?: React.ReactNode;
+  pdrCount?: number;
 }
 
-export function ProjectTabs({
-  projectSlug,
+interface ProjectTab {
+  value: string;
+  label: string;
+  content: React.ReactNode;
+  count?: number;
+}
+
+function projectTabs({
   pitch,
   overview,
   adrs,
   adrCount,
-}: Readonly<ProjectTabsProps>) {
+  pdrs,
+  pdrCount = 0,
+}: ProjectTabsProps): ProjectTab[] {
+  const tabs: ProjectTab[] = [
+    { value: "overview", label: "Overview", content: overview },
+  ];
+  if (pitch)
+    tabs.unshift({ value: "pitch", label: "Pitch deck", content: pitch });
+  if (adrCount > 0)
+    tabs.push({
+      value: "adrs",
+      label: "Architecture Decisions",
+      content: adrs,
+      count: adrCount,
+    });
+  if (pdrCount > 0)
+    tabs.push({
+      value: "pdrs",
+      label: "Product decisions",
+      content: pdrs,
+      count: pdrCount,
+    });
+  return tabs;
+}
+
+export function ProjectTabs(props: Readonly<ProjectTabsProps>) {
   const router = useRouter();
   const searchParams = useSearchParams();
-
+  const tabs = projectTabs(props);
   const requestedTab = searchParams.get("tab");
-  const availableTabs = new Set([
-    ...(pitch ? ["pitch"] : []),
-    "overview",
-    ...(adrCount > 0 ? ["adrs"] : []),
-  ]);
-  const defaultTab = pitch ? "pitch" : "overview";
   const currentTab =
-    requestedTab && availableTabs.has(requestedTab) ? requestedTab : defaultTab;
-
+    tabs.find((tab) => tab.value === requestedTab)?.value ?? tabs[0]?.value;
   const onTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set("tab", value);
-    // Use replace to avoid filling history stack with tab changes,
-    // scroll: false to maintain scroll position when switching tabs
     router.replace(
-      `/projects/${encodeURIComponent(projectSlug)}?${params.toString()}`,
+      `/projects/${encodeURIComponent(props.projectSlug)}?${params.toString()}`,
       { scroll: false },
     );
   };
-
   return (
     <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="w-full justify-start h-auto p-1 bg-muted rounded-md flex-wrap sm:inline-flex sm:w-auto sm:flex-nowrap">
-        {pitch && (
-          <TabsTrigger
-            value="pitch"
-            className="flex-1 sm:flex-none sm:w-[150px]"
-          >
-            Pitch deck
-          </TabsTrigger>
-        )}
-        <TabsTrigger
-          value="overview"
-          className="flex-1 sm:flex-none sm:w-[150px]"
-        >
-          Overview
-        </TabsTrigger>
-        {adrCount > 0 && (
-          <TabsTrigger
-            value="adrs"
-            className="flex-1 sm:flex-none sm:w-[250px]"
-          >
-            Architecture Decisions
-            <Badge
-              variant="secondary"
-              className="ml-2 bg-muted-foreground/10 text-xs"
-            >
-              {adrCount}
-            </Badge>
-          </TabsTrigger>
-        )}
+      <TabsList className="w-full max-w-full justify-start h-auto p-1 bg-muted rounded-md flex-wrap sm:inline-flex sm:w-auto">
+        {tabs.map((tab) => (
+          <ProjectTabTrigger key={tab.value} tab={tab} />
+        ))}
       </TabsList>
-
-      {pitch && (
+      {tabs.map((tab) => (
         <TabsContent
-          value="pitch"
+          key={tab.value}
+          value={tab.value}
           className="animate-in fade-in-50 duration-500 mt-4"
         >
-          {pitch}
+          {tab.content}
         </TabsContent>
-      )}
-
-      <TabsContent
-        value="overview"
-        className="animate-in fade-in-50 duration-500 mt-4"
-      >
-        {overview}
-      </TabsContent>
-
-      {adrCount > 0 && (
-        <TabsContent
-          value="adrs"
-          className="animate-in fade-in-50 duration-500 mt-4"
-        >
-          {adrs}
-        </TabsContent>
-      )}
+      ))}
     </Tabs>
+  );
+}
+
+function ProjectTabTrigger({ tab }: Readonly<{ tab: ProjectTab }>) {
+  return (
+    <TabsTrigger
+      value={tab.value}
+      className={
+        tab.count === undefined
+          ? "flex-1 sm:flex-none sm:w-[150px]"
+          : "flex-1 sm:flex-none sm:w-[250px]"
+      }
+    >
+      {tab.label}
+      {tab.count !== undefined && (
+        <Badge
+          variant="secondary"
+          className="ml-2 bg-muted-foreground/10 text-xs"
+        >
+          {tab.count}
+        </Badge>
+      )}
+    </TabsTrigger>
   );
 }

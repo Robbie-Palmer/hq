@@ -5,7 +5,7 @@ import {
   ADRRefSchema,
   ADRSlugSchema,
   IdeaSlugSchema,
-  ProductDecisionSlugSchema,
+  ProductDecisionRefSchema,
   ProjectSlugSchema,
   TechnologySlugSchema,
 } from "../slugs";
@@ -77,7 +77,7 @@ export const ADRRelationsSchema = z.object({
   project: ProjectSlugSchema,
   technologies: z.array(TechnologySlugSchema).default([]),
   ideas: z.array(IdeaSlugSchema).default([]),
-  implementsProductDecisions: z.array(ProductDecisionSlugSchema).default([]),
+  implementsProductDecisions: z.array(ProductDecisionRefSchema).default([]),
 });
 
 type ParsedADRRelations = z.infer<typeof ADRRelationsSchema>;

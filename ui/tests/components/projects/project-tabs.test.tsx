@@ -5,15 +5,17 @@ import { ProjectTabs } from "@/components/projects/project-tabs";
 import { ProjectsPageTabs } from "@/components/projects/projects-page-tabs";
 
 const replaceMock = vi.fn();
+let query = "";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: replaceMock }),
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => new URLSearchParams(query),
 }));
 
 describe("ProjectTabs", () => {
   beforeEach(() => {
     replaceMock.mockReset();
+    query = "";
   });
 
   it("uses the canonical project URL when selecting the ADR tab", async () => {
@@ -52,6 +54,42 @@ describe("ProjectTabs", () => {
       "active",
     );
     expect(screen.getByText("Pitch content")).toBeVisible();
+  });
+
+  it("links the product decision tab to its owning project", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectTabs
+        projectSlug="platform"
+        adrCount={0}
+        adrs={null}
+        overview={<p>Overview</p>}
+        pdrCount={1}
+        pdrs={<p>Product policy</p>}
+      />,
+    );
+    await user.click(screen.getByRole("tab", { name: /Product decisions/ }));
+    expect(replaceMock).toHaveBeenCalledWith("/projects/platform?tab=pdrs", {
+      scroll: false,
+    });
+  });
+
+  it.each([
+    ["tab=pdrs", "Product policy"],
+    ["tab=missing", "Overview content"],
+  ])("restores an available tab or falls back for %s", (params, visible) => {
+    query = params;
+    render(
+      <ProjectTabs
+        projectSlug="platform"
+        adrCount={0}
+        adrs={null}
+        overview={<p>Overview content</p>}
+        pdrCount={1}
+        pdrs={<p>Product policy</p>}
+      />,
+    );
+    expect(screen.getByText(visible)).toBeVisible();
   });
 
   it("uses the canonical projects URL when selecting the philosophy tab", async () => {

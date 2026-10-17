@@ -102,7 +102,7 @@
   {
     "component": "ProjectPage",
     "maximums": {
-      "lines": 217,
+      "lines": 175,
       "renderComplexity": 10
     },
     "path": "app/(site)/projects/[slug]/page.tsx",
@@ -848,14 +848,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "ProjectTabs",
-    "maximums": {
-      "lines": 91
-    },
-    "path": "components/projects/project-tabs.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "ProjectTechStack",
     "maximums": {
       "lines": 103
@@ -1408,14 +1400,6 @@
       "lines": 123
     },
     "path": "components/recipes/shopping/share-shopping-list.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "ShoppingListBoundary",
-    "maximums": {
-      "lines": 195
-    },
-    "path": "components/recipes/shopping/shopping-list-boundary.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {

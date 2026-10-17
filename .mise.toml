@@ -28,6 +28,7 @@ config_roots = [
     "packages/recipe-db",
     "packages/observability",
     "packages/openrouter-client",
+    "packages/project-economics-domain",
     "packages/recipe-domain",
     "packages/recipe-parsing",
     "packages/ts-base",
@@ -69,7 +70,7 @@ MISE_EXPERIMENTAL = "1"
 
 # Root-level tasks for repo-wide tooling
 [tasks."work-graph:launch-agent"]
-description = "Create a T3 Code thread that claims and executes the next Work Graph ticket"
+description = "Create a T3 Code thread for one explicitly selected Work Graph ticket"
 depends = ["//:install"]
 run = """
 #!/usr/bin/env bash
@@ -88,10 +89,16 @@ fi
 export T3_WORK_GRAPH_BASE_BRANCH="${base_branch:-main}"
 t3_home="${T3CODE_HOME:-$HOME/.t3}"
 export T3_WORK_GRAPH_ORIGIN="$(jq -er '.origin' "$t3_home/userdata/server-runtime.json")"
-ready="$(work-graph ready --limit 1)"
-ticket_id="$(jq -er '.items[0].id' <<<"$ready")"
-ticket="$(jq -cer '.items[0]' <<<"$ready")"
+ticket_id="${T3_WORK_GRAPH_TICKET_ID:?Set T3_WORK_GRAPH_TICKET_ID to the one approved ticket}"
+ticket="$(work-graph show "$ticket_id")"
+jq -e '
+  .id == $ticket_id and
+  .lifecycle == "open" and
+  .stage == "ready" and
+  .currentLease == null
+' --arg ticket_id "$ticket_id" >/dev/null <<<"$ticket"
 context="$(work-graph context show "$ticket_id")"
+export T3_WORK_GRAPH_CLI="$(command -v work-graph)"
 export T3_WORK_GRAPH_SELECTION="$(jq -cn \
   --argjson ticket "$ticket" \
   --argjson context "$context" \
@@ -112,7 +119,22 @@ run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:layout:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+
+[tasks."layout:check"]
+description = "Validate the monorepo project and package layout contract"
+depends = ["//:layout:test"]
+run = "pnpm exec tsx scripts/check-monorepo-layout.ts"
+
+[tasks."layout:test"]
+description = "Test the monorepo layout validator"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/check-monorepo-layout.test.ts"
+
+[tasks."layout:test:coverage"]
+description = "Test the monorepo layout validator with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root .. scripts/check-monorepo-layout.test.ts --coverage --coverage.include=scripts/check-monorepo-layout.ts"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
@@ -423,6 +445,7 @@ depends = [
     "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
     "//packages/observability:test:coverage",
+    "//packages/project-economics-domain:test:coverage",
     "//packages/recipe-domain:test:coverage",
     "//packages/recipe-parsing:test:coverage",
     "//packages/ts-base:test:coverage",

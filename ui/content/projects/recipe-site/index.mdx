@@ -5,7 +5,7 @@ date: "2026-02-14"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
-updated: "2026-09-30"
+updated: "2026-10-15"
 platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
@@ -27,6 +27,10 @@ platform_layers:
         decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
       - slot: "security.preview-access"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:013-cloudflare-access-preview-gates"
+      - slot: "security.preview-access"
+        adopted: "2026-10-15T00:00:00Z"
         decision: "recipe-site:013-cloudflare-access-preview-gates"
   - layer: "web-app"
     adopted: "2026-09-12T00:00:00Z"
@@ -63,10 +67,24 @@ platform_layers:
     slots:
       - slot: "identity.authentication-library"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:003-better-auth"
+      - slot: "identity.authentication-library"
+        adopted: "2026-10-15T00:00:00Z"
         decision: "recipe-site:003-better-auth"
       - slot: "identity.login-provider"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
         decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.login-provider"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.session-transport"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.authorization-policy"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:005-authorization-model"
   - layer: "api-governance"
     adopted: "2026-09-29T00:00:00Z"
     tracking: true
@@ -350,16 +368,16 @@ includes:
 * **Ingredient checklists and equipment lists** alongside the instructions
 * **Cooking sessions and insights** recording starts, completed meals, recently cooked recipes, and variety
 
-## Shopping, Planning & Kitchen
+## Shopping & Kitchen
 
-* **Weekly meal planning** across breakfast, lunch, and dinner slots
 * **Aggregated shopping lists** that merge recipe quantities, support free-form extras, sort into aisles, and
   subtract ingredients already in stock
 * **Pantry, fridge, and fresh-stock tracking** with recipe matching based on ingredients on hand
-* **Shared household pantry state** so members work from the same stock picture
+* **Shared household pantry and shopping-list state** so members work from the same stock picture on every
+  device
 
-The meal plan and shopping list currently persist in the browser and synchronize across tabs, not across
-devices or household members. That boundary is now more important than adding another planner view.
+The earlier weekly meal planner was removed when the shopping journey was simplified. Shopping lists now follow
+a person or household across devices, so everyone cooks from the same up-to-date list.
 
 ## Capture, Accounts & Collaboration
 
@@ -384,10 +402,10 @@ Discovery also stops at public recency and the explicit follow graph. The system
 similar demonstrated tastes, explain an affinity-based recommendation, suggest an emerging community, or
 deliberately trade familiarity for exploration.
 
-The personal loop is also incomplete. Plans and shopping are not yet account-backed, shopping stops before a
-retailer basket, pantry updates are manual, leftovers are not represented, and nutrition is not derived from
-recipes or completed cooks. Closing those gaps is prerequisite work for the social graph because it both makes
-the product worth returning to and produces higher-quality outcome data.
+The personal loop is also incomplete. Meal planning is absent, shopping stops before a retailer basket, pantry
+updates are manual, leftovers are not represented, and nutrition is not derived from recipes or completed
+cooks. Closing those gaps is prerequisite work for the social graph because it both makes the product worth
+returning to and produces higher-quality outcome data.
 
 # Roadmap
 
@@ -400,12 +418,12 @@ journey.
 ### Complete the Personal Food Lifecycle
 
 Make the single-player journey exceptional before expecting social features to retain anyone. Connect capture
-and discovery to server-backed plans, synchronized shopping, pantry and freezer state, cooking sessions,
+and discovery to a redesigned planner, synchronized shopping, pantry and freezer state, cooking sessions,
 portions, leftovers, and repeat cooking. A person should get clear value from every stage even if none of their
 friends has joined yet.
 
-Include retailer hand-off in the journey. Once the canonical shopping list
-is server-backed, integrate one retailer or grocery intermediary deeply enough to validate ingredient-to-product
+Include retailer hand-off in the journey. Now that the shopping list follows a person or household across
+devices, integrate one retailer or grocery intermediary deeply enough to validate ingredient-to-product
 matching, quantities, substitutions, availability, and basket transfer. Prefer providers with broad coverage or
 stable partner interfaces before maintaining many retailer-specific adapters. Corrections made during product
 matching can improve the ingredient ontology and future lists.
@@ -420,9 +438,9 @@ not solve it if every result requires full human reconstruction.
 ### Close the Social Cooking Loop
 
 Define a small, durable event model connecting recommendations, saves, plans, shopping, cooking sessions,
-adaptations, repeats, and lightweight outcomes. Move meal plans and shopping lists from browser-only storage to
-account or household state so those events describe one continuous journey rather than unrelated activity in
-different clients.
+adaptations, repeats, and lightweight outcomes. Any redesigned meal planner should use the same account or
+household ownership model as shopping so those events describe one continuous journey rather than unrelated
+activity in different clients.
 
 Give each event an explicit audience, personal, household, connections, or public, and derive public aggregates
 without conflating them with household coordination. A recommendation should be traceable from sender to outcome
@@ -1117,9 +1135,8 @@ content site:
 The static shell still keeps delivery simple and public pages fast. Dynamic infrastructure was introduced only
 where ownership, identity, long-running work, or shared state required it.
 
-Some state remains deliberately local: active timers, unit preferences, meal plans, and shopping lists persist
-in the browser. That was an effective first pass, but cross-device and household continuity now make the planner
-and shopping store the most important boundary to move server-side.
+Active timers and unit preferences remain tied to one device. Shopping lists follow a person or household across
+devices, keeping the kitchen journey connected for everyone involved.
 
 ## Social Cooking Graph
 

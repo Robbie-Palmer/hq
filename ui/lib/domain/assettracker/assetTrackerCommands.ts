@@ -72,6 +72,11 @@ import {
   validateRecurringFlowDefinition,
 } from "./recurringFlow";
 import {
+  type SaveSpendingBaselineInput,
+  SaveSpendingBaselineInputSchema,
+  SPENDING_BASELINE_SERIES_ID,
+} from "./spendingBaseline";
+import {
   defaultTaxProfile,
   EMPTY_TAX_POSITION,
   TaxPositionDataSchema,
@@ -101,6 +106,7 @@ export type AssetTrackerCommandErrorCode =
   | "INVALID_FUTURE_CASH_FLOW"
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
   | "INVALID_FORECAST_ASSUMPTION"
+  | "INVALID_SPENDING_BASELINE"
   | "INVALID_RECURRING_FLOW_CONVERSION"
   | "HOUSEHOLD_MEMBER_NOT_FOUND"
   | "JOB_MOVE_SCENARIO_NOT_FOUND"
@@ -1990,6 +1996,48 @@ export function applySaveEmergencyFundPlan(
           : candidate,
       ),
       plan,
+    ],
+  };
+}
+
+export function applySaveSpendingBaseline(
+  data: AssetTrackerData,
+  input: SaveSpendingBaselineInput,
+  createdAt = new Date().toISOString(),
+): AssetTrackerData {
+  const parsed = SaveSpendingBaselineInputSchema.parse(input);
+  if (parsed.effectiveDate > createdAt.slice(0, 10)) {
+    throw new AssetTrackerCommandError(
+      "INVALID_SPENDING_BASELINE",
+      "The spending baseline effective date cannot be later than its save date",
+    );
+  }
+  assertOwnershipMembers(data.household, parsed.ownership);
+  const baselines = data.spendingBaselines ?? [];
+  const versions = baselines.filter(
+    ({ seriesId }) => seriesId === SPENDING_BASELINE_SERIES_ID,
+  );
+  const active = versions.find(({ status }) => status === "active");
+  const version = Math.max(0, ...versions.map((record) => record.version)) + 1;
+  const next = {
+    ...parsed,
+    id: `${SPENDING_BASELINE_SERIES_ID}-v${version}`,
+    seriesId: SPENDING_BASELINE_SERIES_ID,
+    version,
+    status: "active" as const,
+    createdAt,
+    ...(active == null ? {} : { supersedesId: active.id }),
+  };
+  return {
+    ...data,
+    spendingBaselines: [
+      ...baselines.map((baseline) =>
+        baseline.seriesId === SPENDING_BASELINE_SERIES_ID &&
+        baseline.status === "active"
+          ? { ...baseline, status: "superseded" as const }
+          : baseline,
+      ),
+      next,
     ],
   };
 }
