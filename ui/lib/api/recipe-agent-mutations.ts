@@ -25,7 +25,6 @@ export type AgentCookLogMutationHistoryItem = {
     recipeSlug: string;
     recipeTitle: string;
     servings: number;
-    diners: string[];
     cookedAt: string;
   } | null;
   afterValue: AgentCookLogMutationHistoryItem["beforeValue"];
@@ -73,7 +72,6 @@ const cookLogValueSchema = z
     recipeSlug: z.string(),
     recipeTitle: z.string(),
     servings: z.number().int().positive(),
-    diners: z.array(z.string()),
     cookedAt: z.iso.datetime({ offset: true }),
   })
   .strict();

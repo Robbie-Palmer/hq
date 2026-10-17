@@ -6697,46 +6697,142 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "sessionId": {
-                    "type": "string",
-                    "maxLength": 36,
-                    "format": "uuid"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sessionId": {
+                        "type": "string",
+                        "maxLength": 36,
+                        "format": "uuid"
+                      },
+                      "recipeSlug": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                      },
+                      "recipeTitle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "servings": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000,
+                        "format": "int32"
+                      },
+                      "event": {
+                        "type": "string",
+                        "enum": [
+                          "started"
+                        ]
+                      },
+                      "recipeVersion": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      }
+                    },
+                    "required": [
+                      "sessionId",
+                      "recipeSlug",
+                      "recipeTitle",
+                      "servings",
+                      "event",
+                      "recipeVersion"
+                    ],
+                    "additionalProperties": false
                   },
-                  "recipeSlug": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120,
-                    "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
-                  },
-                  "recipeTitle": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 120
-                  },
-                  "servings": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 1000,
-                    "format": "int32"
-                  },
-                  "event": {
-                    "type": "string",
-                    "enum": [
-                      "started",
-                      "completed"
-                    ]
+                  {
+                    "type": "object",
+                    "properties": {
+                      "sessionId": {
+                        "type": "string",
+                        "maxLength": 36,
+                        "format": "uuid"
+                      },
+                      "recipeSlug": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120,
+                        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+                      },
+                      "recipeTitle": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 120
+                      },
+                      "servings": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000,
+                        "format": "int32"
+                      },
+                      "event": {
+                        "type": "string",
+                        "enum": [
+                          "completed"
+                        ]
+                      },
+                      "recipeVersion": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "outcome": {
+                        "type": "object",
+                        "nullable": true,
+                        "properties": {
+                          "leftoverPortions": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "format": "int32"
+                          },
+                          "leftoverStorage": {
+                            "type": "string",
+                            "enum": [
+                              "fridge",
+                              "freezer"
+                            ]
+                          },
+                          "leftoverUseBy": {
+                            "type": "string",
+                            "nullable": true,
+                            "maxLength": 10,
+                            "format": "date"
+                          },
+                          "audience": {
+                            "type": "string",
+                            "enum": [
+                              "personal",
+                              "household"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "leftoverPortions",
+                          "leftoverStorage",
+                          "leftoverUseBy",
+                          "audience"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "required": [
+                      "sessionId",
+                      "recipeSlug",
+                      "recipeTitle",
+                      "servings",
+                      "event",
+                      "recipeVersion",
+                      "outcome"
+                    ],
+                    "additionalProperties": false
                   }
-                },
-                "required": [
-                  "sessionId",
-                  "recipeSlug",
-                  "recipeTitle",
-                  "servings",
-                  "event"
-                ],
-                "additionalProperties": false
+                ]
               }
             }
           }

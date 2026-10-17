@@ -25,7 +25,7 @@ export const previewScenarios = [
     id: "household-owner",
     name: "Household owner",
     description:
-      "Owns a shared household with recipes that match and miss its kitchen equipment.",
+      "Owns a shared household with cooking history, leftovers, and recipes that match and miss its kitchen equipment.",
     email: "household-owner@preview.invalid",
     role: "user",
   },

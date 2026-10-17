@@ -39,7 +39,10 @@ import {
   withDb,
 } from "recipe-db";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
-import { CookLogMutationConflictError } from "recipe-domain/cook-log";
+import {
+  CookingOutcomeSchema,
+  CookLogMutationConflictError,
+} from "recipe-domain/cook-log";
 import {
   importJobPrefix,
   RECIPE_IMPORT_MAX_IMAGE_BYTES,
@@ -74,7 +77,11 @@ import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipm
 import { z } from "zod";
 import { recipeAgentConfiguration } from "./agent-auth";
 import { recipeImportQuotaReason } from "./agent-recipe-imports";
-import { createAuth, isPreviewAuthEnabled } from "./auth";
+import {
+  createAuth,
+  isLocalPreviewAuthEnabled,
+  isPreviewAuthEnabled,
+} from "./auth";
 import {
   type AuthoredTermOwner,
   canonicalEquipmentTerm,
@@ -92,6 +99,10 @@ import { listCookLogMutationHistory } from "./cook-log/services/list-cook-log-mu
 import { previewCookLogMutationUndo } from "./cook-log/services/preview-cook-log-mutation-undo";
 import { undoCookLogMutation } from "./cook-log/services/undo-cook-log-mutation";
 import { cookingInsightsResponse } from "./cooking-reads";
+import {
+  CookingSessionConflictError,
+  recordCookingSession,
+} from "./cooking-sessions";
 import { hasPostgresErrorCode } from "./db/errors";
 import {
   decodeFeedCursor,
@@ -427,20 +438,52 @@ const recipeBoxBodySchema = z
     ),
   }));
 
-const cookingSessionBodySchema = z
-  .object({
-    sessionId: z.uuid().max(36),
-    recipeSlug: recipeSlugSchema,
-    recipeTitle: z.string().trim().min(1).max(120),
-    servings: z
-      .number()
-      .int()
-      .min(1)
-      .max(1_000)
-      .openapi({ format: "int32" }),
-    event: z.enum(["started", "completed"]),
-  })
-  .strict();
+const cookingSessionBaseSchema = z.object({
+  sessionId: z.uuid().max(36),
+  recipeSlug: recipeSlugSchema,
+  recipeTitle: z.string().trim().min(1).max(120),
+  servings: z
+    .number()
+    .int()
+    .min(1)
+    .max(1_000)
+    .openapi({ format: "int32" }),
+});
+
+const cookingOutcomeBodySchema = CookingOutcomeSchema.safeExtend({
+  leftoverPortions: CookingOutcomeSchema.shape.leftoverPortions.openapi({
+    format: "int32",
+  }),
+  leftoverUseBy: z.iso.date().max(10).nullable(),
+});
+
+const cookingSessionBodySchema = z.discriminatedUnion("event", [
+  cookingSessionBaseSchema
+    .extend({
+      event: z.literal("started"),
+      recipeVersion: z.string().trim().min(1).max(200),
+    })
+    .strict(),
+  cookingSessionBaseSchema
+    .extend({
+      event: z.literal("completed"),
+      recipeVersion: z.string().trim().min(1).max(200),
+      outcome: cookingOutcomeBodySchema.nullable(),
+    })
+    .strict(),
+]).superRefine((event, context) => {
+  if (
+    event.event === "completed" &&
+    event.outcome &&
+    event.outcome.leftoverPortions > event.servings
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["outcome", "leftoverPortions"],
+      message: "Leftover portions cannot exceed the recipe yield",
+    });
+  }
+});
 
 const recommendRecipeBodySchema = z
   .object({
@@ -1536,6 +1579,9 @@ function equipmentSlugParam(c: Context<AppEnv>): string | Response {
 function hasAuthConfiguration(env: Bindings): boolean {
   if (!env.BETTER_AUTH_URL || !env.BETTER_AUTH_SECRET) return false;
   if (env.DEPLOYMENT_ENV === "preview") {
+    if (isLocalPreviewAuthEnabled(env)) {
+      return Boolean(env.PREVIEW_AUTH_PASSWORD);
+    }
     return Boolean(
       env.PREVIEW_AUTH_PASSWORD &&
         env.CF_ACCESS_TEAM_DOMAIN &&
@@ -3533,7 +3579,10 @@ async function requireHouseholdMemberResponse(
 }
 
 async function hasPreviewAccess(request: Request, env: Bindings) {
-  return isPreviewAuthEnabled(env) && verifyCloudflareAccess(request, env);
+  if (!isPreviewAuthEnabled(env)) return false;
+  return (
+    isLocalPreviewAuthEnabled(env) || verifyCloudflareAccess(request, env)
+  );
 }
 
 registerRoute("get", "/api/auth/preview/scenarios", async (c) => {
@@ -4076,59 +4125,22 @@ registerRoute("post", "/api/profile/cooking-sessions", async (c) => {
     "mutation",
     "POST /api/profile/cooking-sessions mutation failed",
     async ({ db, session }) => {
-      const completedAt =
-        body.data.event === "completed" ? new Date() : undefined;
-      const [created] = await db
-        .insert(schema.cookingSession)
-        .values({
-          id: body.data.sessionId,
-          userId: session.user.id,
-          recipeSlug: body.data.recipeSlug,
-          recipeTitle: body.data.recipeTitle,
-          servings: body.data.servings,
-          completedAt,
-        })
-        .onConflictDoNothing()
-        .returning({ id: schema.cookingSession.id });
-
-      if (!created && completedAt) {
-        await db
-          .update(schema.cookingSession)
-          .set({
-            completedAt,
-            version: sql`${schema.cookingSession.version} + 1`,
-          })
-          .where(
-            and(
-              eq(schema.cookingSession.id, body.data.sessionId),
-              eq(schema.cookingSession.userId, session.user.id),
-              isNull(schema.cookingSession.completedAt),
-            ),
-          );
+      try {
+        const result = await recordCookingSession(
+          db,
+          session.user.id,
+          body.data,
+        );
+        return c.json(
+          { cookingSession: result.session },
+          result.created ? 201 : 200,
+        );
+      } catch (error) {
+        if (error instanceof CookingSessionConflictError) {
+          return c.json({ error: error.message }, 409);
+        }
+        throw error;
       }
-
-      const [cookingSession] = await db
-        .select({
-          id: schema.cookingSession.id,
-          recipeSlug: schema.cookingSession.recipeSlug,
-          recipeTitle: schema.cookingSession.recipeTitle,
-          servings: schema.cookingSession.servings,
-          startedAt: schema.cookingSession.startedAt,
-          completedAt: schema.cookingSession.completedAt,
-        })
-        .from(schema.cookingSession)
-        .where(
-          and(
-            eq(schema.cookingSession.id, body.data.sessionId),
-            eq(schema.cookingSession.userId, session.user.id),
-          ),
-        )
-        .limit(1);
-
-      if (!cookingSession) {
-        return c.json({ error: "Cooking session ID is already in use" }, 409);
-      }
-      return c.json({ cookingSession }, created ? 201 : 200);
     },
   );
 });

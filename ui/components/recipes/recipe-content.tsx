@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { CookingOutcome } from "recipe-domain/cook-log";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import {
   CookMode,
@@ -220,10 +221,12 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeContent({
   recipe,
+  recipeVersion = recipe.date,
   timersEnabled = true,
   shoppingListEnabled = true,
 }: Readonly<{
   recipe: RecipeDetailView;
+  recipeVersion?: string;
   timersEnabled?: boolean;
   shoppingListEnabled?: boolean;
 }>) {
@@ -416,6 +419,7 @@ export function RecipeContent({
       sessionId,
       recipeSlug: recipe.slug,
       recipeTitle: recipe.title,
+      recipeVersion,
       servings: portions,
       event: "started",
     }).catch((error: unknown) => {
@@ -430,42 +434,49 @@ export function RecipeContent({
     portions,
     recipe.slug,
     recipe.title,
+    recipeVersion,
     timersEnabled,
   ]);
 
-  const completeCookMode = useCallback(() => {
-    captureRecipeValue("recipe_cooked", {
-      recipe_slug: recipe.slug,
-      serving_count: portions,
-      step_count: cookSteps.length,
-    });
-    const sessionId = cookingSessionIdRef.current;
-    if (sessionId && (authSession || authSessionPending) && timersEnabled) {
-      const completion = {
-        sessionId,
-        recipeSlug: recipe.slug,
-        recipeTitle: recipe.title,
-        servings: portions,
-        event: "completed" as const,
-      };
-      const request = authSession
-        ? recordCookingCompletionReliably(authSession.user.id, completion)
-        : recordCookingSession(completion);
-      void request.catch((error: unknown) => {
-        console.error("[RecipeContent] Could not record cooked meal", error);
+  const completeCookMode = useCallback(
+    (outcome: CookingOutcome | null) => {
+      captureRecipeValue("recipe_cooked", {
+        recipe_slug: recipe.slug,
+        serving_count: portions,
+        step_count: cookSteps.length,
       });
-    }
-    exitCookMode();
-  }, [
-    authSession,
-    authSessionPending,
-    cookSteps.length,
-    exitCookMode,
-    portions,
-    recipe.slug,
-    recipe.title,
-    timersEnabled,
-  ]);
+      const sessionId = cookingSessionIdRef.current;
+      if (sessionId && (authSession || authSessionPending) && timersEnabled) {
+        const completion = {
+          sessionId,
+          recipeSlug: recipe.slug,
+          recipeTitle: recipe.title,
+          recipeVersion,
+          servings: portions,
+          event: "completed" as const,
+          outcome,
+        };
+        const request = authSession
+          ? recordCookingCompletionReliably(authSession.user.id, completion)
+          : recordCookingSession(completion);
+        void request.catch((error: unknown) => {
+          console.error("[RecipeContent] Could not record cooked meal", error);
+        });
+      }
+      exitCookMode();
+    },
+    [
+      authSession,
+      authSessionPending,
+      cookSteps.length,
+      exitCookMode,
+      portions,
+      recipe.slug,
+      recipe.title,
+      recipeVersion,
+      timersEnabled,
+    ],
+  );
 
   const changeCookStep = useCallback((step: number) => {
     globalThis.history.replaceState(null, "", buildCookUrl(true, step));

@@ -14,7 +14,9 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CookingOutcome } from "recipe-domain/cook-log";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
+import { CookingOutcomeDialog } from "@/components/recipes/cooking-outcome-dialog";
 import { Button } from "@/components/ui/button";
 import { useCookMode } from "@/contexts/cook-mode-context";
 import { useCookingTimer } from "@/hooks/use-cooking-timers";
@@ -128,12 +130,13 @@ export function CookMode({
   step: number;
   onStepChange: (step: number) => void;
   onExit: () => void;
-  onComplete: () => void;
+  onComplete: (outcome: CookingOutcome | null) => void;
 }>) {
   const { setCookModeOpen, setActiveStep } = useCookMode();
   const clampedStep = Math.min(Math.max(step, 0), steps.length - 1);
   const current = steps[clampedStep];
   const [showIngredients, setShowIngredients] = useState(false);
+  const [showOutcome, setShowOutcome] = useState(false);
   const containerRef = useRef<HTMLDialogElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   const completionReportedRef = useRef(false);
@@ -528,6 +531,15 @@ export function CookMode({
                 <ChevronLeft className="size-5" />
                 Prev
               </Button>
+              {isLastStep && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowOutcome(true)}
+                  className="h-12 flex-1 text-base md:max-w-44"
+                >
+                  Track leftovers
+                </Button>
+              )}
               <Button
                 onClick={() => {
                   if (!isLastStep) {
@@ -536,7 +548,7 @@ export function CookMode({
                   }
                   if (completionReportedRef.current) return;
                   completionReportedRef.current = true;
-                  onComplete();
+                  onComplete(null);
                 }}
                 className="h-12 flex-1 bg-[var(--terracotta)] text-base text-white hover:bg-[var(--terracotta-deep)] md:max-w-44"
               >
@@ -574,6 +586,19 @@ export function CookMode({
             {ingredientPanel}
           </div>
         </div>
+      )}
+
+      {showOutcome && (
+        <CookingOutcomeDialog
+          recipeTitle={recipeTitle}
+          servings={servings}
+          onBack={() => setShowOutcome(false)}
+          onSave={(outcome) => {
+            if (completionReportedRef.current) return;
+            completionReportedRef.current = true;
+            onComplete(outcome);
+          }}
+        />
       )}
     </dialog>
   );

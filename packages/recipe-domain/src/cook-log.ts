@@ -1,7 +1,29 @@
 import { z } from "zod";
 
 export const MAX_COOK_LOG_MUTATION_EVENTS = 50;
-export const MAX_COOK_LOG_DINERS = 20;
+
+export const COOKING_AUDIENCES = ["personal", "household"] as const;
+export const LEFTOVER_STORAGE_LOCATIONS = ["fridge", "freezer"] as const;
+
+export const CookingAudienceSchema = z.enum(COOKING_AUDIENCES);
+export const LeftoverStorageLocationSchema = z.enum(
+  LEFTOVER_STORAGE_LOCATIONS,
+);
+
+export const CookingOutcomeSchema = z
+  .object({
+    leftoverPortions: z.number().int().min(1).max(1_000),
+    leftoverStorage: LeftoverStorageLocationSchema,
+    leftoverUseBy: z.iso.date().nullable(),
+    audience: CookingAudienceSchema,
+  })
+  .strict();
+
+export type CookingOutcome = z.infer<typeof CookingOutcomeSchema>;
+export type CookingAudience = z.infer<typeof CookingAudienceSchema>;
+export type LeftoverStorageLocation = z.infer<
+  typeof LeftoverStorageLocationSchema
+>;
 
 export const CookLogMutationEventSchema = z
   .object({
@@ -14,7 +36,6 @@ export const CookLogMutationEventSchema = z
       .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
     recipeTitle: z.string().trim().min(1).max(120),
     servings: z.number().int().min(1).max(1_000),
-    diners: z.array(z.string().trim().min(1).max(120)).max(MAX_COOK_LOG_DINERS),
     cookedAt: z.iso.datetime({ offset: true }),
   })
   .strict();

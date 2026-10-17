@@ -1,6 +1,12 @@
 "use client";
 
-import { ChefHat, Flame, UtensilsCrossed } from "lucide-react";
+import {
+  ChefHat,
+  Flame,
+  Refrigerator,
+  Repeat2,
+  UtensilsCrossed,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   type CookingInsights,
@@ -186,9 +192,17 @@ export function CookingLog() {
                         {cookingSession.recipeTitle}
                       </p>
                       <p className="rt-mono mt-1 text-[var(--ink-3)]">
-                        Served {cookingSession.servings}
+                        {cookingSession.leftoverPortions > 0
+                          ? `${cookingSession.servings - cookingSession.leftoverPortions} eaten · ${cookingSession.leftoverPortions} left in ${cookingSession.leftoverStorage}`
+                          : `Served ${cookingSession.servings}`}
                       </p>
                     </div>
+                    {cookingSession.repeatOfSessionId && (
+                      <span className="rt-mono inline-flex items-center gap-1 text-[var(--sage)]">
+                        <Repeat2 aria-hidden="true" className="size-3.5" />
+                        repeat
+                      </span>
+                    )}
                     <time
                       dateTime={cookingSession.completedAt ?? undefined}
                       className="rt-mono text-[var(--ink-3)]"
@@ -202,6 +216,40 @@ export function CookingLog() {
               </ol>
             )}
           </section>
+
+          {(insights.leftoverSuggestions ?? []).length > 0 && (
+            <section className="mt-8 rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-5 shadow-[var(--paper-shadow)] sm:p-6">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <h2 className="rt-display text-3xl">Eat these next</h2>
+                <span className="rt-mono text-[var(--ink-3)]">
+                  {insights.leftoverScope?.type === "household"
+                    ? `${insights.leftoverScope.household.name} leftovers`
+                    : "Your leftovers"}
+                </span>
+              </div>
+              <ol className="mt-4 divide-y divide-dashed divide-[var(--line)]">
+                {insights.leftoverSuggestions.map((leftover) => (
+                  <li
+                    key={leftover.id}
+                    className="flex items-center gap-4 py-4 first:pt-2"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--paper-warm)] text-[var(--sage)]">
+                      <Refrigerator aria-hidden="true" className="size-4" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="rt-body truncate font-semibold text-[var(--ink)]">
+                        {leftover.recipeTitle}
+                      </p>
+                      <p className="rt-mono mt-1 text-[var(--ink-3)]">
+                        {leftover.portionsRemaining} {leftover.storage}
+                        {leftover.useBy ? ` · use by ${leftover.useBy}` : ""}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
         </>
       )}
     </div>

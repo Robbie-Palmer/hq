@@ -109,7 +109,6 @@ export async function insertCookLogSessions(
       recipeSlug: event.recipeSlug,
       recipeTitle: event.recipeTitle,
       servings: event.servings,
-      diners: event.diners,
       startedAt: new Date(event.cookedAt),
       completedAt: new Date(event.cookedAt),
       version: 1n,

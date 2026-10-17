@@ -630,7 +630,6 @@ describe("recipe Agent Auth capabilities", () => {
       recipeSlug: "tomato-soup",
       recipeTitle: "Tomato Soup",
       servings: 2,
-      diners: ["Alex"],
       cookedAt: "2026-09-27T18:30:00.000Z",
     };
 
@@ -1186,6 +1185,7 @@ describe("recipe Agent Auth capabilities", () => {
     const completedAt = new Date("2026-08-20T18:30:00.000Z");
     const result = await executeRecipeAgentCapability(
       queryDb(
+        [],
         [{ cookModeStarts: 4, mealsCooked: 3 }],
         [
           {
@@ -1198,6 +1198,7 @@ describe("recipe Agent Auth capabilities", () => {
           },
         ],
         [{ count: 2 }],
+        [],
       ),
       "cooking_insights.read",
       {},

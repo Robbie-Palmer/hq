@@ -24,7 +24,10 @@ import {
   type AuthoredTermProvenance,
   type AuthoredTermSourceContext,
 } from "recipe-domain/authored-term";
-import type { CookLogMutationValue } from "recipe-domain/cook-log";
+import {
+  type CookLogMutationValue,
+  LEFTOVER_STORAGE_LOCATIONS,
+} from "recipe-domain/cook-log";
 import {
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
@@ -1162,6 +1165,11 @@ export const userRecipeBoxItem = pgTable(
  * Recipe details are snapshots rather than foreign keys so a user's history
  * survives recipe edits and deletions, and works for built-in recipes too.
  */
+export const leftoverStorageLocationEnum = pgEnum(
+  "leftover_storage_location",
+  LEFTOVER_STORAGE_LOCATIONS,
+);
+
 export const cookingSession = pgTable(
   "cooking_session",
   {
@@ -1171,8 +1179,12 @@ export const cookingSession = pgTable(
       .references(() => user.id, { onDelete: "cascade" }),
     recipeSlug: text().notNull(),
     recipeTitle: text().notNull(),
+    recipeVersion: text(),
     servings: integer().notNull(),
-    diners: text().array().notNull().default(sql`'{}'::text[]`),
+    repeatOfSessionId: uuid().references(
+      (): AnyPgColumn => cookingSession.id,
+      { onDelete: "set null" },
+    ),
     startedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     completedAt: timestamp({ withTimezone: true }),
     version: bigint({ mode: "bigint" }).notNull().default(sql`1`),
@@ -1194,6 +1206,48 @@ export const cookingSession = pgTable(
       table.userId,
       table.recipeSlug,
       table.completedAt.desc(),
+    ),
+  ],
+);
+
+/** Portions left after a completed cook, owned by one person or household. */
+export const leftoverBatch = pgTable(
+  "leftover_batch",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    cookingSessionId: uuid()
+      .notNull()
+      .unique()
+      .references(() => cookingSession.id, { onDelete: "cascade" }),
+    userId: text().references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text().references(() => organization.id, {
+      onDelete: "cascade",
+    }),
+    recipeSlug: text().notNull(),
+    recipeTitle: text().notNull(),
+    recipeVersion: text().notNull(),
+    portionsRemaining: integer().notNull(),
+    storage: leftoverStorageLocationEnum().notNull(),
+    useBy: date(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp({ withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (table) => [
+    check(
+      "leftover_batch_owner_check",
+      sql`num_nonnulls(${table.userId}, ${table.organizationId}) = 1`,
+    ),
+    check(
+      "leftover_batch_portions_check",
+      sql`${table.portionsRemaining} > 0`,
+    ),
+    index("leftover_batch_user_use_by_idx").on(table.userId, table.useBy),
+    index("leftover_batch_household_use_by_idx").on(
+      table.organizationId,
+      table.useBy,
     ),
   ],
 );

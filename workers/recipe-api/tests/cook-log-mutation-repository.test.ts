@@ -45,7 +45,6 @@ const value = {
   recipeSlug: "tomato-soup",
   recipeTitle: "Tomato Soup",
   servings: 2,
-  diners: ["Alex", "Sam"],
   cookedAt: "2026-09-27T18:30:00.000Z",
 };
 
@@ -156,7 +155,6 @@ describe("cook-log mutation repository", () => {
       expect.objectContaining({
         id: value.sessionId,
         userId: "user-1",
-        diners: ["Alex", "Sam"],
         createdByChangeSetId: "change-set-1",
       }),
     ]);

@@ -173,7 +173,9 @@ const dbMock = vi.hoisted(() => {
     userId: string;
     recipeSlug: string;
     recipeTitle: string;
+    recipeVersion?: string | null;
     servings: number;
+    repeatOfSessionId?: string | null;
     startedAt: Date;
     completedAt: Date | null;
   };
@@ -302,6 +304,20 @@ const dbMock = vi.hoisted(() => {
     }[],
     recipes: [] as RecipeRow[],
     cookingSessions: [] as CookingSessionRow[],
+    leftoverBatches: [] as Array<{
+      id: string;
+      cookingSessionId: string;
+      userId: string | null;
+      organizationId: string | null;
+      recipeSlug: string;
+      recipeTitle: string;
+      recipeVersion: string;
+      portionsRemaining: number;
+      storage: "fridge" | "freezer";
+      useBy: string | null;
+      createdAt: Date;
+      updatedAt: Date;
+    }>,
     dietProfiles: [] as DietProfileRow[],
     dietPresets: [] as DietPresetRow[],
     ingredientGroups: [] as IngredientGroupRow[],
@@ -426,6 +442,32 @@ const dbMock = vi.hoisted(() => {
     profile.updatedAt,
   ];
 
+  function boundParam(
+    query: string,
+    params: unknown[],
+    column: string,
+  ): unknown {
+    const match = query.match(new RegExp(`"${column}" = \\$(\\d+)`));
+    return match?.[1] ? params[Number(match[1]) - 1] : undefined;
+  }
+
+  function insertedParam(
+    query: string,
+    params: unknown[],
+    column: string,
+  ): unknown {
+    const match = query.match(
+      /^insert into "[^"]+" \(([^)]+)\) values \(([^)]+)\)/,
+    );
+    if (!match?.[1] || !match[2]) return undefined;
+    const columns = match[1].split(", ").map((value) => value.replaceAll('"', ""));
+    const values = match[2].split(", ");
+    const index = columns.indexOf(column);
+    if (index < 0) return undefined;
+    const placeholder = values[index]?.match(/^\$(\d+)$/);
+    return placeholder?.[1] ? params[Number(placeholder[1]) - 1] : undefined;
+  }
+
   function reset() {
     state.users = [];
     state.userEmails = [];
@@ -441,6 +483,7 @@ const dbMock = vi.hoisted(() => {
     state.notificationRecipeRecommendationEvents = [];
     state.recipes = [];
     state.cookingSessions = [];
+    state.leftoverBatches = [];
     state.dietProfiles = [];
     state.dietPresets = [];
     state.ingredientGroups = [];
@@ -1098,13 +1141,19 @@ const dbMock = vi.hoisted(() => {
   ): QueryRows | undefined {
     if (query.startsWith('insert into "cooking_session"')) {
       const session: CookingSessionRow = {
-        id: params[0] as string,
-        userId: params[1] as string,
-        recipeSlug: params[2] as string,
-        recipeTitle: params[3] as string,
-        servings: params[4] as number,
+        id: insertedParam(query, params, "id") as string,
+        userId: insertedParam(query, params, "user_id") as string,
+        recipeSlug: insertedParam(query, params, "recipe_slug") as string,
+        recipeTitle: insertedParam(query, params, "recipe_title") as string,
+        recipeVersion:
+          (insertedParam(query, params, "recipe_version") as string) ?? null,
+        servings: insertedParam(query, params, "servings") as number,
+        repeatOfSessionId:
+          (insertedParam(query, params, "repeat_of_session_id") as string) ??
+          null,
         startedAt: date,
-        completedAt: (params[5] as Date | undefined) ?? null,
+        completedAt:
+          (insertedParam(query, params, "completed_at") as Date) ?? null,
       };
       if (
         state.cookingSessions.some((candidate) => candidate.id === session.id)
@@ -1116,6 +1165,49 @@ const dbMock = vi.hoisted(() => {
     }
 
     return undefined;
+  }
+
+  function insertLeftoverRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('insert into "leftover_batch"')) return undefined;
+    const sequence = state.leftoverBatches.length + 1;
+    state.leftoverBatches.push({
+      id: `88888888-8888-4888-8888-${String(sequence).padStart(12, "0")}`,
+      cookingSessionId: insertedParam(
+        query,
+        params,
+        "cooking_session_id",
+      ) as string,
+      userId:
+        (insertedParam(query, params, "user_id") as string | undefined) ??
+        null,
+      organizationId:
+        (insertedParam(
+          query,
+          params,
+          "organization_id",
+        ) as string | undefined) ?? null,
+      recipeSlug: insertedParam(query, params, "recipe_slug") as string,
+      recipeTitle: insertedParam(query, params, "recipe_title") as string,
+      recipeVersion: insertedParam(query, params, "recipe_version") as string,
+      portionsRemaining: insertedParam(
+        query,
+        params,
+        "portions_remaining",
+      ) as number,
+      storage: insertedParam(
+        query,
+        params,
+        "storage",
+      ) as "fridge" | "freezer",
+      useBy:
+        (insertedParam(query, params, "use_by") as string | undefined) ?? null,
+      createdAt: date,
+      updatedAt: date,
+    });
+    return [];
   }
 
   function insertDietSelectionRows(
@@ -1383,17 +1475,31 @@ const dbMock = vi.hoisted(() => {
     if (organizationRows) return organizationRows;
 
     if (query.startsWith('update "cooking_session"')) {
-      const completedAt = params[0] as Date;
-      const sessionId = params[1] as string;
-      const userId = params[2] as string;
       const session = state.cookingSessions.find(
         (candidate) =>
-          candidate.id === sessionId &&
-          candidate.userId === userId &&
+          params.includes(candidate.id) &&
+          params.includes(candidate.userId) &&
           candidate.completedAt === null,
       );
-      if (session) session.completedAt = completedAt;
-      return [];
+      if (!session) return [];
+      session.recipeSlug =
+        (boundParam(query, params, "recipe_slug") as string) ??
+        session.recipeSlug;
+      session.recipeTitle =
+        (boundParam(query, params, "recipe_title") as string) ??
+        session.recipeTitle;
+      session.recipeVersion =
+        (boundParam(query, params, "recipe_version") as string) ?? null;
+      session.servings =
+        (boundParam(query, params, "servings") as number) ?? session.servings;
+      session.repeatOfSessionId =
+        (boundParam(query, params, "repeat_of_session_id") as string) ?? null;
+      session.completedAt = boundParam(
+        query,
+        params,
+        "completed_at",
+      ) as Date;
+      return query.includes("returning") ? [[session.id]] : [];
     }
 
     return undefined;
@@ -2561,58 +2667,149 @@ const dbMock = vi.hoisted(() => {
     return undefined;
   }
 
+  function previousCookingSessionRows(params: unknown[]): QueryRows {
+    const previous = state.cookingSessions
+      .filter(
+        (session) =>
+          params.includes(session.userId) &&
+          params.includes(session.recipeSlug) &&
+          !params.includes(session.id) &&
+          session.completedAt,
+      )
+      .sort(
+        (first, second) =>
+          second.completedAt!.getTime() - first.completedAt!.getTime(),
+      )[0];
+    return previous ? [[previous.id]] : [];
+  }
+
+  function selectedCookingSessions(
+    query: string,
+    params: unknown[],
+    sessions: CookingSessionRow[],
+  ): CookingSessionRow[] {
+    if (query.includes('"cooking_session"."id" =')) {
+      return sessions.filter((session) => session.id === params[0]);
+    }
+    return sessions
+      .filter((session) => session.completedAt)
+      .sort(
+        (first, second) =>
+          second.completedAt!.getTime() - first.completedAt!.getTime(),
+      )
+      .slice(0, 20);
+  }
+
+  function cookingSessionsWithLeftovers(
+    sessions: CookingSessionRow[],
+  ): QueryRows {
+    return sessions.map((session) => {
+      const leftover = state.leftoverBatches.find(
+        (candidate) => candidate.cookingSessionId === session.id,
+      );
+      return [
+        session.id,
+        session.recipeSlug,
+        session.recipeTitle,
+        session.recipeVersion ?? null,
+        session.servings,
+        leftover?.portionsRemaining ?? null,
+        leftover?.storage ?? null,
+        leftover?.useBy ?? null,
+        session.repeatOfSessionId ?? null,
+        session.startedAt,
+        session.completedAt,
+      ];
+    });
+  }
+
   function selectCookingSessionRows(
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
-    if (query.includes('from "cooking_session"')) {
-      const userId = query.includes('"cooking_session"."id" =')
-        ? (params[1] as string)
-        : (params[0] as string);
-      const sessions = state.cookingSessions.filter(
-        (session) => session.userId === userId,
-      );
+    if (!query.includes('from "cooking_session"')) return undefined;
+    if (
+      query.startsWith('select "id" from "cooking_session"') &&
+      query.includes('"cooking_session"."id" <>')
+    ) {
+      return previousCookingSessionRows(params);
+    }
 
-      if (query.includes("count(distinct")) {
-        return [
-          [
-            new Set(
-              sessions
-                .filter((session) => session.completedAt)
-                .map((session) => session.recipeSlug),
-            ).size,
-          ],
-        ];
-      }
-      if (query.includes("count(*)")) {
-        return [
-          [
-            sessions.length,
-            sessions.filter((session) => session.completedAt).length,
-          ],
-        ];
-      }
+    const selectingById = query.includes('"cooking_session"."id" =');
+    const userId = selectingById
+      ? (params[1] as string)
+      : (params[0] as string);
+    const sessions = state.cookingSessions.filter(
+      (session) => session.userId === userId,
+    );
+    if (query.includes("count(distinct")) {
+      return [
+        [
+          new Set(
+            sessions
+              .filter((session) => session.completedAt)
+              .map((session) => session.recipeSlug),
+          ).size,
+        ],
+      ];
+    }
+    if (query.includes("count(*)")) {
+      return [
+        [
+          sessions.length,
+          sessions.filter((session) => session.completedAt).length,
+        ],
+      ];
+    }
 
-      const selected = query.includes('"cooking_session"."id" =')
-        ? sessions.filter((session) => session.id === params[0])
-        : sessions
-            .filter((session) => session.completedAt)
-            .sort(
-              (first, second) =>
-                second.completedAt!.getTime() - first.completedAt!.getTime(),
-            )
-            .slice(0, 20);
+    const selected = selectedCookingSessions(query, params, sessions);
+    if (query.includes('left join "leftover_batch"')) {
+      return cookingSessionsWithLeftovers(selected);
+    }
+    if (query.includes('"recipe_version"')) {
       return selected.map((session) => [
         session.id,
         session.recipeSlug,
         session.recipeTitle,
+        session.recipeVersion ?? null,
         session.servings,
+        session.repeatOfSessionId ?? null,
         session.startedAt,
         session.completedAt,
       ]);
     }
+    return selected.map((session) => [
+      session.id,
+      session.recipeSlug,
+      session.recipeTitle,
+      session.servings,
+      session.startedAt,
+      session.completedAt,
+    ]);
+  }
 
-    return undefined;
+  function selectLeftoverRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.includes('from "leftover_batch"')) return undefined;
+    return state.leftoverBatches
+      .filter(
+        (leftover) =>
+          params.includes(leftover.userId) ||
+          params.includes(leftover.organizationId),
+      )
+      .map((leftover) => [
+        leftover.id,
+        leftover.cookingSessionId,
+        leftover.recipeSlug,
+        leftover.recipeTitle,
+        leftover.recipeVersion,
+        leftover.portionsRemaining,
+        leftover.storage,
+        leftover.useBy,
+        leftover.createdAt,
+      ]);
   }
 
   function selectRecipeBoxRows(
@@ -2657,6 +2854,7 @@ const dbMock = vi.hoisted(() => {
     authoredTermRows,
     insertRecipeBoxStateRows,
     insertCookingSessionRows,
+    insertLeftoverRows,
     insertDietSelectionRows,
     updateInvitationRows,
     updateNotificationRows,
@@ -2690,6 +2888,7 @@ const dbMock = vi.hoisted(() => {
     selectIngredientRows,
     selectDietRows,
     selectCookingSessionRows,
+    selectLeftoverRows,
     selectRecipeBoxRows,
   ];
 
@@ -5091,6 +5290,7 @@ describe("profile cooking insights", () => {
     sessionId: "018f2b16-43b4-7e7a-8d4b-9f3559865353",
     recipeSlug: "lentil-soup",
     recipeTitle: "Lentil soup",
+    recipeVersion: "2026-10-15T12:00:00.000Z",
     servings: 4,
   };
 
@@ -5103,7 +5303,24 @@ describe("profile cooking insights", () => {
           "content-type": "application/json",
           origin: "http://localhost:3000",
         },
-        body: JSON.stringify({ ...cookingEvent, event }),
+        body: JSON.stringify(
+          event === "started"
+            ? { ...cookingEvent, event }
+            : {
+                sessionId: cookingEvent.sessionId,
+                recipeSlug: cookingEvent.recipeSlug,
+                recipeTitle: cookingEvent.recipeTitle,
+                recipeVersion: cookingEvent.recipeVersion,
+                servings: cookingEvent.servings,
+                event,
+                outcome: {
+                  leftoverPortions: 2,
+                  leftoverStorage: "freezer",
+                  leftoverUseBy: "2026-10-29",
+                  audience: "personal",
+                },
+              },
+        ),
       },
       env,
     );
@@ -5132,6 +5349,8 @@ describe("profile cooking insights", () => {
       mealsCooked: 0,
       distinctRecipesCooked: 0,
       recent: [],
+      leftoverScope: { type: "personal" },
+      leftoverSuggestions: [],
     });
 
     const started = await postCookingEvent("started");
@@ -5168,9 +5387,52 @@ describe("profile cooking insights", () => {
           recipeSlug: cookingEvent.recipeSlug,
           recipeTitle: cookingEvent.recipeTitle,
           servings: cookingEvent.servings,
+          leftoverPortions: 2,
+          leftoverStorage: "freezer",
           completedAt: expect.any(String),
         },
       ],
+      leftoverSuggestions: [
+        expect.objectContaining({
+          recipeSlug: cookingEvent.recipeSlug,
+          portionsRemaining: 2,
+          storage: "freezer",
+        }),
+      ],
+    });
+  });
+
+  it("accepts a completion with no optional outcome", async () => {
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+
+    const completed = await app.request(
+      "/api/profile/cooking-sessions",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          ...cookingEvent,
+          event: "completed",
+          outcome: null,
+        }),
+      },
+      env,
+    );
+
+    expect(completed.status).toBe(201);
+    expect(await completed.json()).toMatchObject({
+      cookingSession: {
+        id: cookingEvent.sessionId,
+        recipeVersion: cookingEvent.recipeVersion,
+        repeatOfSessionId: null,
+      },
     });
   });
 
@@ -8517,6 +8779,26 @@ describe("preview authentication", () => {
       { ...previewEnv, CF_ACCESS_AUD: "" },
     );
     expect(res.status).toBe(503);
+  });
+
+  it("allows seeded preview scenarios on a loopback development URL", async () => {
+    const res = await app.request(
+      "/api/auth/preview/scenarios",
+      {},
+      {
+        ...previewEnv,
+        BETTER_AUTH_URL: "http://localhost:3001",
+        CF_ACCESS_TEAM_DOMAIN: undefined,
+        CF_ACCESS_AUD: undefined,
+      },
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "household-owner" }),
+      ]),
+    );
   });
 
   it("requires a valid Cloudflare Access assertion", async () => {
