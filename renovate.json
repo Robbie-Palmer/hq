@@ -67,6 +67,22 @@
       ],
       "datasourceTemplate": "deb",
       "versioningTemplate": "deb"
+    },
+    {
+      "customType": "regex",
+      "description": "Keep t3-code image references aligned with the bundled T3 release",
+      "managerFilePatterns": [
+        "/^homelab/images/t3-code/README\\.md$/",
+        "/^homelab/k3s/base/t3-code/deployment\\.yaml$/",
+        "/^homelab/mise\\.toml$/",
+        "/^homelab/scripts/(?:check-t3-image|load-remote-development-image)$/"
+      ],
+      "matchStrings": [
+        "(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)-agent-tools-[0-9]+"
+      ],
+      "depNameTemplate": "t3",
+      "datasourceTemplate": "npm",
+      "versioningTemplate": "semver"
     }
   ],
   "lockFileMaintenance": {
@@ -427,6 +443,16 @@
         "homelab/images/t3-code/**"
       ],
       "minimumReleaseAge": "3 days",
+      "dependencyDashboardApproval": false,
+      "automerge": true
+    },
+    {
+      "description": "Update the T3 package and deployable image references together after one day",
+      "matchPackageNames": [
+        "t3"
+      ],
+      "groupName": "t3-code runtime",
+      "minimumReleaseAge": "1 day",
       "dependencyDashboardApproval": false,
       "automerge": true
     }

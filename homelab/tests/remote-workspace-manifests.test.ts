@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { parseAllDocuments } from "yaml";
 
 interface KubernetesResource {
@@ -479,6 +480,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     );
 
     const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.equal(settings.continueThreadsAfterServerUpdate, true);
     assert.deepEqual(settings.defaultModelSelection, {
       instanceId: "codex",
       model: "gpt-5.6-sol",
@@ -508,6 +510,106 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     assert.equal(sol?.default_reasoning_level, "high");
     assert.equal(sol?.priority, 0);
     assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-idle-check-"));
+  const scriptPath = fileURLToPath(
+    new URL("../scripts/check-t3-idle.mjs", import.meta.url),
+  );
+  const check = (databasePath: string) =>
+    spawnSync(process.execPath, [scriptPath], {
+      encoding: "utf8",
+      env: { ...process.env, T3_STATE_DATABASE: databasePath },
+      timeout: 5000,
+    });
+
+  try {
+    const legacyPath = join(temporaryDirectory, "state.sqlite");
+    const legacy = new DatabaseSync(legacyPath);
+    legacy.exec(`
+      CREATE TABLE projection_threads (
+        thread_id TEXT PRIMARY KEY,
+        pending_approval_count INTEGER NOT NULL DEFAULT 0,
+        pending_user_input_count INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE projection_thread_sessions (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        active_turn_id TEXT
+      );
+      CREATE TABLE provider_session_runtime (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL
+      );
+      INSERT INTO projection_threads VALUES ('legacy-thread', 0, 0);
+      INSERT INTO projection_thread_sessions VALUES ('legacy-thread', 'stopped', NULL);
+      INSERT INTO provider_session_runtime VALUES ('legacy-thread', 'stopped');
+    `);
+    legacy.close();
+    assert.equal(check(legacyPath).status, 0);
+
+    const legacyBusy = new DatabaseSync(legacyPath);
+    legacyBusy.exec(
+      "UPDATE projection_thread_sessions SET status = 'running' WHERE thread_id = 'legacy-thread'",
+    );
+    legacyBusy.close();
+    const legacyResult = check(legacyPath);
+    assert.equal(legacyResult.status, 20);
+    assert.match(legacyResult.stderr, /legacy-thread/);
+
+    const v2Path = join(temporaryDirectory, "statev2.sqlite");
+    const v2 = new DatabaseSync(v2Path);
+    v2.exec(`
+      CREATE TABLE orchestration_v2_projection_runs (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_runtime_requests (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_provider_threads (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_subagents (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_turn_items (
+        thread_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_nodes (
+        thread_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      INSERT INTO orchestration_v2_projection_provider_threads
+        VALUES (
+          'v2-thread',
+          'idle',
+          '{"pendingBackgroundTasks":[{"taskId":"build","kind":"command"}]}'
+        );
+    `);
+    v2.close();
+    const v2Result = check(v2Path);
+    assert.equal(v2Result.status, 20);
+    assert.match(v2Result.stderr, /pendingBackgroundTasks|provider thread idle/);
+
+    const v2Idle = new DatabaseSync(v2Path);
+    v2Idle.exec(`
+      UPDATE orchestration_v2_projection_provider_threads
+      SET payload_json = '{"pendingBackgroundTasks":[]}'
+    `);
+    v2Idle.close();
+    assert.equal(check(v2Path).status, 0);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -752,7 +854,9 @@ test("the T3 Code collector is host-bound and default-deny before PostHog export
   assert.deepEqual(documents[0]?.errors, []);
   const collector = documents[0]?.toJS() as Record<string, unknown>;
 
-  assert.equal(imagePackage.dependencies.t3, "0.0.44");
+  const t3Version = imagePackage.dependencies.t3;
+  assert.ok(typeof t3Version === "string");
+  assert.match(t3Version, /^\d+\.\d+\.\d+$/);
   assert.equal(
     valueAt(collector, ["receivers", "otlp/t3code", "protocols", "http", "endpoint"]),
     "10.42.0.1:4318",
@@ -1193,6 +1297,40 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "Deployment",
     "t3-code",
     "t3-code",
+  );
+  const imageManifest = JSON.parse(
+    readFileSync(new URL("../images/t3-code/package.json", import.meta.url), "utf8"),
+  ) as { dependencies: { t3: string } };
+  const expectedT3Image = new RegExp(
+    `^ghcr\\.io/robbie-palmer/t3-code:${imageManifest.dependencies.t3.replaceAll(".", "\\.")}-agent-tools-\\d+$`,
+  );
+  const t3ContainerImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "image",
+  ]);
+  const t3InitImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "initContainers",
+    0,
+    "image",
+  ]);
+  assert.equal(typeof t3ContainerImage, "string");
+  assert.match(String(t3ContainerImage), expectedT3Image);
+  assert.equal(t3InitImage, t3ContainerImage);
+  assert.equal(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "terminationGracePeriodSeconds",
+    ]),
+    120,
   );
   const operatorNamespace = resource(resources, "Namespace", "t3-code");
   assert.equal(

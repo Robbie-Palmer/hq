@@ -4,8 +4,9 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.0.38-agent-tools-17`. Increment that release suffix for every
-image change.
+release tag `0.1.0-agent-tools-18`. Its leading version matches the bundled T3
+release, which lets Renovate update the image references in the same pull
+request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its
 registry digest adds another immutability check.
 
@@ -20,14 +21,15 @@ volume at `/data`; t3 state and provider authentication live under
 `/data/home`, while repositories and worktrees live under `/data/workspaces`.
 Neither the image nor its build context contains credentials.
 
-The pinned T3 Code 0.0.44 server includes OTLP/HTTP trace, metric, and log
-exporters. The remote-development overlay enables them and points them at the
-host Collector; the image does not contain a PostHog token. OTLP export does
-not disable the rotating local trace at
+The pinned T3 Code server includes OTLP/HTTP trace, metric, and log exporters.
+The remote-development overlay enables them and points them at the host
+Collector; the image does not contain a PostHog token. OTLP export does not
+disable the rotating local trace at
 `/data/home/.t3/userdata/logs/server.trace.ndjson`.
 
 The deployment enables the OpenCode and Grok providers in T3's persisted
-settings and adds a `codex2` instance backed by a separate `auth.json`. It
+settings, enables thread continuation after a server restart, and adds a
+`codex2` instance backed by a separate `auth.json`. It
 defaults new Codex threads and every Codex provider catalog to GPT-5.6-Sol with
 high reasoning while keeping the other cached models available. The
 remote-development overlay declares OpenRouter's GLM 5.3 Flash
@@ -97,6 +99,9 @@ test it. Renovate's native mise manager updates these tool declarations and
 their associated lockfiles. Renovate auto-merges all image dependency updates
 after the pull-request image build and runtime checks pass, including major
 updates.
-After publishing, deploy the new reference with the context-guarded task. A
-rollback restores the previous image reference from Git and reapplies the
-overlay; neither operation replaces the persistent volume.
+After publishing, run `mise run //homelab:t3-image-deploy-remote`. The task
+waits until T3 has no active turns, queued runs, pending requests, subagents,
+or background commands. It then applies the context-guarded overlay and waits
+for the replacement pod. An unknown T3 database schema stops the deployment.
+A rollback restores the previous image reference from Git and reruns the same
+task; neither operation replaces the persistent volume.
