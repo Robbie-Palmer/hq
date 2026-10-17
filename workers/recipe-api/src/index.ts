@@ -40,8 +40,9 @@ import {
 } from "recipe-db";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import {
-  CookingOutcomeSchema,
+  COOKING_AUDIENCES,
   CookLogMutationConflictError,
+  LEFTOVER_STORAGE_LOCATIONS,
 } from "recipe-domain/cook-log";
 import {
   importJobPrefix,
@@ -450,12 +451,21 @@ const cookingSessionBaseSchema = z.object({
     .openapi({ format: "int32" }),
 });
 
-const cookingOutcomeBodySchema = CookingOutcomeSchema.safeExtend({
-  leftoverPortions: CookingOutcomeSchema.shape.leftoverPortions.openapi({
-    format: "int32",
-  }),
-  leftoverUseBy: z.iso.date().max(10).nullable(),
-});
+// Keep OpenAPI annotations on this package's extended Zod instance. The
+// integration runner can load recipe-domain through a separate Zod instance.
+const cookingOutcomeBodySchema = z
+  .object({
+    leftoverPortions: z
+      .number()
+      .int()
+      .min(1)
+      .max(1_000)
+      .openapi({ format: "int32" }),
+    leftoverStorage: z.enum(LEFTOVER_STORAGE_LOCATIONS),
+    leftoverUseBy: z.iso.date().max(10).nullable(),
+    audience: z.enum(COOKING_AUDIENCES),
+  })
+  .strict();
 
 const cookingSessionBodySchema = cookingSessionBaseSchema
   .extend({
