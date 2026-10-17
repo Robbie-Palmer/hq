@@ -87,6 +87,7 @@ export const OperationalRequirementSchema = z.enum([
   "project-owned-slack-credentials",
   "git-repository",
   "external-blob-remote",
+  "javascript-typescript-server-component",
   "durable-session-store",
   "same-origin-auth-routes",
   "secure-http-only-cookie",

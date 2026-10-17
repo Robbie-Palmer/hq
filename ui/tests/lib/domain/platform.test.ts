@@ -892,6 +892,8 @@ describe("temporal platform layers", () => {
     expect(authPolicy).toMatchObject({
       mode: "preferred",
       prerequisites: [
+        { slot: "project.primary-language", technology: "typescript" },
+        { requirement: "javascript-typescript-server-component" },
         { slot: "backend-api.runtime" },
         { slot: "database.relational-engine" },
         { slot: "secrets.runtime-store" },
@@ -1003,6 +1005,45 @@ describe("temporal platform layers", () => {
       recipe.technologies.some(
         (use) => use.slot === "identity.delegated-agent-authentication",
       ),
+    ).toBe(false);
+  });
+
+  it("withholds Better Auth from a non-TypeScript-primary project", () => {
+    const repository = loadDomainRepository();
+    const overrideRef = "recipe-site:003-better-auth";
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      slot: "project.primary-language",
+      kind: "technology",
+      technology: "python",
+      adopted: "2026-10-15T00:00:00Z",
+    });
+
+    const stack = resolveEffectiveProjectStack(
+      {
+        ...repository,
+        platform: { ...repository.platform, adrOverrides },
+      },
+      "recipe-site",
+      "2026-10-15T12:00:00Z",
+    );
+
+    expect(stack.technologies).toContainEqual(
+      expect.objectContaining({
+        slot: "project.primary-language",
+        technology: "python",
+      }),
+    );
+    expect(
+      stack.technologies.some(
+        (use) => use.slot === "identity.authentication-library",
+      ),
+    ).toBe(false);
+    expect(
+      stack.technologies.some((use) => use.slot === "identity.login-provider"),
+    ).toBe(false);
+    expect(
+      stack.policies.some((use) => use.slot === "identity.session-transport"),
     ).toBe(false);
   });
 

@@ -29,16 +29,27 @@ callers. Secret delivery supports all of them without replacing any of those job
 
 Model these jobs as separate platform slots:
 
-| Job                            | Slot                                           | Platform position                                                                                                              |
-| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| User authentication library    | `identity.authentication-library`              | Prefer Better Auth when the application has a server runtime, durable relational session storage, and runtime secret delivery. |
-| Human login provider           | `identity.login-provider`                      | Prefer Google OIDC. Keep the slot multi-valued so a project can add another provider without replacing its session library.    |
-| Delegated agent authentication | `identity.delegated-agent-authentication`      | Record Better Auth Agent Auth as proposed. It has one adopter and remains a draft protocol, so the platform sets no default.   |
-| Browser session transport      | `identity.session-transport`                   | Prefer a same-origin, first-party, `Secure`, `HttpOnly` cookie session.                                                        |
-| Application authorization      | `identity.authorization-policy`                | Require a project-owned, server-side resource and action policy for projects that adopt the identity layer.                    |
-| Preview protection             | `security.preview-access`                      | Prefer Cloudflare Access for Cloudflare-managed preview hostnames.                                                             |
-| Service authentication         | `security.service-auth`                        | Prefer Cloudflare Access service tokens for non-public services on Cloudflare-managed hostnames.                               |
-| Runtime and CI secret delivery | `secrets.runtime-store` and `secrets.ci-store` | Keep credentials in the store that owns the consuming workload or delivery job.                                                |
+| Job                            | Slot                                           | Platform position                                                                                                                           |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| User authentication library    | `identity.authentication-library`              | Prefer Better Auth when the application has a TypeScript server component, durable relational session storage, and runtime secret delivery. |
+| Human login provider           | `identity.login-provider`                      | Prefer Google OIDC. Keep the slot multi-valued so a project can add another provider without replacing its session library.                 |
+| Delegated agent authentication | `identity.delegated-agent-authentication`      | Record Better Auth Agent Auth as proposed. It has one adopter and remains a draft protocol, so the platform sets no default.                |
+| Browser session transport      | `identity.session-transport`                   | Prefer a same-origin, first-party, `Secure`, `HttpOnly` cookie session.                                                                     |
+| Application authorization      | `identity.authorization-policy`                | Require a project-owned, server-side resource and action policy for projects that adopt the identity layer.                                 |
+| Preview protection             | `security.preview-access`                      | Prefer Cloudflare Access for Cloudflare-managed preview hostnames.                                                                          |
+| Service authentication         | `security.service-auth`                        | Prefer Cloudflare Access service tokens for non-public services on Cloudflare-managed hostnames.                                            |
+| Runtime and CI secret delivery | `secrets.runtime-store` and `secrets.ci-store` | Keep credentials in the store that owns the consuming workload or delivery job.                                                             |
+
+Better Auth describes itself as an
+[authentication framework for TypeScript](https://www.better-auth.com/docs/introduction)
+and exposes a JavaScript `Request` and `Response` handler. A backend written only
+in Python, Go, Java, Rust, or another language cannot embed it. The policy records
+that component requirement directly. It also uses the accepted TypeScript
+primary-language selection as a conservative default gate because the manifest does
+not yet model implementation languages per component. A project with another
+primary language must record an explicit exception for a separate TypeScript
+authentication service or choose a managed or language-native authentication
+system.
 
 The platform keeps the accepted selections from ADRs 019 and 020. This record adds
 the missing policy jobs and operating contract. GitHub OAuth remains a proposed
