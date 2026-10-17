@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { todayIsoDate } from "@/lib/assettracker";
 import type {
@@ -29,7 +29,7 @@ function useObservationForm(decisionId: string, checkpointId: string) {
     realityImpact: "",
   });
   const [saving, setSaving] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const v = form.values;
     const divergenceSources = [
@@ -130,7 +130,7 @@ function useInterpretationForm(decision: TrackedFinancialDecisionRecord) {
   };
   const form = useFormState(initial);
   const [saving, setSaving] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const v = form.values;
     setSaving(true);
@@ -269,7 +269,7 @@ function useCreateDecisionForm() {
   const { baseCurrency, createDecisionRecord } = useAssetTracker();
   const form = useFormState(createInitialValues());
   const [saving, setSaving] = useState(false);
-  async function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     try {
