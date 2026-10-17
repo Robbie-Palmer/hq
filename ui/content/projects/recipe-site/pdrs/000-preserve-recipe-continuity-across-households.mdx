@@ -86,14 +86,15 @@ permanent outcome.
 Recipe Site will not use one `owner` field to represent every relationship.
 
 * Authorship records who created a revision.
-* Custody identifies the person or household whose branch has that revision as its current head.
+* Custody identifies the person or household that maintains a branch and controls its head.
 * Access states which current or retained revisions a person may read or change.
 * Governance controls audience, archival, deletion, and reconciliation into a household branch.
 
-Household administrators govern the household branch. Ordinary household members may edit recipe
-content unless a later product decision introduces more restrictive household roles. Creating a
-recipe does not give its creator permanent control after they deliberately contribute it to a
-household.
+The household owner defined by ADR 005 acts as the household administrator and governs the household
+branch unless a later product decision introduces a separate role. Ordinary household members may
+edit recipe content unless a later product decision introduces more restrictive household roles.
+Creating a recipe does not give its creator permanent control after they deliberately contribute it
+to a household.
 
 ## Boundaries
 

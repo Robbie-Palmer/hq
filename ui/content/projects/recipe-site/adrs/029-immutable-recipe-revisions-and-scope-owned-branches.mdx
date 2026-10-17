@@ -71,10 +71,11 @@ on the new branch.
 A personal branch has a user custody scope. Only that user may edit or govern it unless a later
 sharing decision adds direct collaborators.
 
-A household branch has a household custody scope. Active members may edit its content. Household
-administrators control its audience, archival, deletion, and acceptance of a reconciliation into
-the household head. Every appended revision records the user who made it, regardless of branch
-custody.
+A household branch has a household custody scope. Active members may edit its content. Until a
+separate household-administrator role is accepted, `household administrator` means the household
+owner defined by ADR 005. That role controls the branch's audience, archival, deletion, and
+acceptance of a reconciliation into the household head. Every appended revision records the user
+who made it, regardless of branch custody.
 
 Reading a personal branch through household visibility does not make it household-owned. Contributing
 or moving a recipe into the household is an explicit branch operation. Existing household-visible
@@ -133,6 +134,12 @@ Contributing a personal branch to a household creates a household branch in the 
 chosen revision. A later contribution to another household does the same. Each branch has its own
 audience and head. Access to one does not imply access to its siblings.
 
+Branch access also does not imply access to every ancestor in the lineage graph. A reader may read
+an ancestor snapshot only when they can read the revision's originating branch, the revision was
+explicitly selected as the fork or contribution base for a branch they can read, or they hold a
+retained entitlement to that revision. Other parent edges appear only as opaque earlier-history
+markers; they reveal neither the snapshot nor private scope and actor metadata.
+
 Do not infer equivalence from title, source URL, content hash, or shared lineage. A content hash may
 detect identical snapshots, but only an explicit branch or reconciliation operation changes a
 canonical head.
@@ -147,6 +154,11 @@ When two branches have a common revision, derive the merge base from the revisio
 base, source head, and target head. Recipe Site may automatically combine changes only when their
 structured fields do not conflict. Ingredient, equipment, instruction, quantity, timing, serving,
 and provenance conflicts require an explicit reviewed result.
+
+The service may traverse opaque parent edges to locate a common ancestor, but it returns a
+three-way comparison only when the reviewer may read the base and both heads. Otherwise the UI shows
+only that earlier history exists. The branches remain separate unless an authorized user explicitly
+contributes a readable revision as a new comparison boundary.
 
 Accepting a reconciliation appends one target-branch revision with the prior target head and source
 head as parents. It records the accepting actor and preserves the authors of both histories.
@@ -256,4 +268,5 @@ Move this ADR to Accepted when a schema and API spike proves all of the followin
 8. Existing `parentRecipeId` data migrates without claiming an exact source revision that cannot be
    proved.
 9. Authorization and deletion tests cover active members, former members, sibling households,
-   retained entitlements, archived branches, and exceptional content removal.
+   retained entitlements, archived branches, exceptional content removal, and inaccessible
+   ancestor or merge-base revisions across custody scopes.
