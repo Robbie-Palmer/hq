@@ -4,8 +4,7 @@ Vendored design artifacts for the Recipe Site, exported from
 [Claude Design](https://claude.ai/design) (project id
 `019dd0cd-1a77-717c-b0ec-a6e1c969092f`). These **prototypes** document the
 intended look and behaviour of the full product. Keep them in version control
-alongside the PRD (`../index.mdx`) and ADRs
-(`../adrs/`).
+alongside the PRD (`../index.mdx`), PDRs (`../pdrs/`), and ADRs (`../adrs/`).
 
 The mid-fi pass covers 18 surfaces across desktop + mobile: recipe list,
 recipe read/cook, scan/import, kitchen (pantry + freezer), shopping & meal plan,
@@ -25,8 +24,6 @@ notifications, a settings hub, and the planning/shopping navigation model.
   (it loads React + Babel from a CDN and compiles the `.jsx` in place) to view
   every screen. It references the files above by relative path.
 - `.design-canvas.state.json`, canvas section metadata.
-- `navigation-information-architecture.md`, the reviewed route map, responsive
-  navigation decision, state rules, and prototype walkthrough results.
 
 The wireframes pass and the reference screenshots that were uploaded into the
 design tool are intentionally not vendored. Only the mid-fi pass is kept.

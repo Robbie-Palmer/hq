@@ -1,0 +1,60 @@
+---
+title: "PDR 001: Keep planning and shopping independent"
+date: "2026-10-15"
+status: "Accepted"
+decision_date: "2026-10-15"
+---
+
+## Context
+
+Planning answers what a household intends to cook. Shopping answers what it
+needs to buy now. The two activities share data, but people often start one
+without the other. A shopper may open an existing list in a shop, while a cook
+may plan one meal without preparing a full week or generating shopping items.
+
+Treating Shopping as a step inside Planning makes the list harder to reach and
+implies that every list starts with a meal plan. Treating Planning as a view of
+Shopping creates the opposite problem.
+
+## Decision
+
+Plan and Shop are separate top-level destinations with stable routes:
+`/recipes/planning` and `/recipes/shopping`. Neither route redirects to the
+other when its data is empty. Planning starts with the smallest useful action,
+"Plan one meal." Shopping opens the active household list.
+
+The destinations share household state and link to each other when the next
+action is useful. Adding a planned meal may add its missing ingredients to the
+list, but it does not make Shopping part of the planning flow. Recipe pages,
+Kitchen, and notifications may link directly to either destination.
+
+Desktop navigation shows Recipes, Discover, Plan, Shop, Kitchen, and Log.
+Mobile navigation keeps Recipes, Plan, Shop, and Kitchen one tap away and puts
+Discover, Cooking log, Profile, and Settings in a labelled More sheet.
+Notifications remain in the header. The short labels are "Plan" and "Shop";
+page headings use "Meal plan" and "Shopping list."
+
+Protected deep links keep their requested destination through sign-in. Route
+changes use browser history, while opening or closing a menu does not.
+
+## Consequences
+
+Planning and Shopping own their URLs, empty and loading states, analytics, and
+active navigation states. Browser Back returns to the previous destination.
+The Shop badge counts unticked list items. Notification counts remain separate.
+
+The mobile More sheet adds one tap to less frequent destinations. It avoids a
+scrolling tab bar, keeps labels readable, and leaves both household tasks in the
+primary navigation.
+
+## Evaluation
+
+The desktop and mobile mid-fidelity prototypes cover four checks:
+
+* Open Shopping directly and see the list without a planning prompt.
+* Plan one meal without setting up a week.
+* Return to Recipes in one action and use Browser Back to resume.
+* Find each less frequent destination by its full label in More.
+
+Revisit the mobile grouping if observed navigation shows that Discover or
+Cooking log is used more often than one of the four primary destinations.

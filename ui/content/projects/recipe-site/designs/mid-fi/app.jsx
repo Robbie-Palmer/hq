@@ -55,8 +55,7 @@ function App() {
         <DCArtboard id="shopping-mobile" label="mobile · just-the-list (notes app)" width={MW} height={MH}><MidShoppingMobile /></DCArtboard>
       </DCSection>
 
-      <DCSection id="navigation-ia" title="5a · Planning and shopping navigation" subtitle="reviewed route map and interactive prototypes. Plan and Shop are independent destinations; mobile keeps both in a compact bottom bar with labelled More for less frequent destinations.">
-        <DCArtboard id="navigation-map" label="decision · routes + responsive pattern + walkthrough checks" width={1100} height={720}><NavigationArchitectureMap /></DCArtboard>
+      <DCSection id="navigation-ia" title="5a · Planning and shopping navigation" subtitle="Plan and Shop are independent destinations; mobile keeps both in a compact bottom bar with labelled More for less frequent destinations.">
         <DCArtboard id="navigation-desktop" label="desktop · six destinations + account utilities" width={W} height={H}><NavigationDesktopPrototype /></DCArtboard>
         <DCArtboard id="navigation-mobile" label="mobile · four destinations + More" width={MW} height={MH}><NavigationMobilePrototype /></DCArtboard>
       </DCSection>
