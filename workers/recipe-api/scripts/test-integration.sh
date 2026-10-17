@@ -3,6 +3,8 @@ set -euo pipefail
 
 container_id=""
 container_name=""
+migration_recovery_database=""
+migration_recovery_url=""
 
 cleanup() {
   container_ref="${container_id:-$container_name}"
@@ -77,6 +79,35 @@ else
     exit 1
   fi
   export DATABASE_URL="postgresql://postgres:${db_password}@127.0.0.1:${published_port}/recipes_integration"
+
+  # Mirror production drift where the enum exists but migration 0028 is not
+  # recorded, then prove the full history can reconcile and complete.
+  migration_recovery_database="recipes_migration_recovery"
+  docker exec "$container_id" createdb \
+    --username postgres \
+    --owner postgres \
+    "$migration_recovery_database"
+  docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --set ON_ERROR_STOP=1 \
+    --command "CREATE TYPE public.leftover_storage_location AS ENUM ('fridge', 'freezer')" \
+    >/dev/null
+  migration_recovery_url="postgresql://postgres:${db_password}@127.0.0.1:${published_port}/${migration_recovery_database}"
+fi
+
+if [[ -n "$migration_recovery_url" ]]; then
+  DATABASE_URL="$migration_recovery_url" pnpm db:migrate
+  recovery_migration_count=$(docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --tuples-only \
+    --no-align \
+    --command 'select count(*) from drizzle.__drizzle_migrations')
+  if [[ "$recovery_migration_count" != "29" ]]; then
+    echo "Expected the recovery database to apply all 29 migrations." >&2
+    exit 1
+  fi
 fi
 
 pnpm db:migrate
