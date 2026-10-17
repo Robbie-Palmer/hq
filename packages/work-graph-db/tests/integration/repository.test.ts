@@ -904,6 +904,30 @@ describe("GitHub delivery consumption", () => {
     return row?.disposition;
   }
 
+  it("lists each open implementation PR once for scheduled reconciliation", async () => {
+    await linkImplementation();
+    await repository.createWorkItem({ id: "second-work", title: "Also ship" });
+    await repository.putWorkItemPullRequest({
+      workItemId: "second-work",
+      repository: githubRepository,
+      number: 7,
+      role: "implementation",
+    });
+    await expect(repository.listGitHubReconciliationTargets()).resolves.toEqual([
+      { repository: githubRepository, number: 7 },
+    ]);
+
+    await repository.cancelWorkItem("github-work");
+    expect(await repository.listGitHubReconciliationTargets()).toEqual([
+      { repository: githubRepository, number: 7 },
+    ]);
+    await repository.cancelWorkItem("second-work");
+    expect(await repository.listGitHubReconciliationTargets()).toEqual([]);
+    await expect(repository.listGitHubReconciliationTargets(0)).rejects.toMatchObject({
+      code: "invalid_scheduling_scope",
+    });
+  });
+
   it("correlates head CI, merge, and deployment when deployment arrives first without changing lifecycle authority", async () => {
     await linkImplementation();
     await repository.createWorkItem({ id: "dependent", title: "Wait for release" });

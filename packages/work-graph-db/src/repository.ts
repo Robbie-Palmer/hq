@@ -179,6 +179,11 @@ export interface ListWorkItemDeliveryEvidenceInput {
   readonly limit?: number;
 }
 
+export interface GitHubReconciliationTarget {
+  readonly repository: string;
+  readonly number: number;
+}
+
 export interface ListKnowledgeScopesInput {
   readonly kind?: KnowledgeScope["kind"];
   readonly includeArchived?: boolean;
@@ -2250,6 +2255,32 @@ export class WorkGraphRepository {
       current: currentObservationId !== null,
       projectedAt: projectedAt?.toISOString() ?? null,
     }));
+  }
+
+  async listGitHubReconciliationTargets(
+    limit = 100,
+  ): Promise<readonly GitHubReconciliationTarget[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw new WorkGraphError(
+        "invalid_scheduling_scope",
+        "GitHub reconciliation target limit must be between 1 and 100.",
+      );
+    }
+    return this.db
+      .selectDistinct({
+        repository: workItemPullRequest.repository,
+        number: workItemPullRequest.number,
+      })
+      .from(workItemPullRequest)
+      .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
+      .where(
+        and(
+          eq(workItemPullRequest.role, "implementation"),
+          eq(workItem.lifecycle, "open"),
+        ),
+      )
+      .orderBy(workItemPullRequest.repository, workItemPullRequest.number)
+      .limit(limit);
   }
 
   private async listCurrentDeliveryEvidenceInTransaction(

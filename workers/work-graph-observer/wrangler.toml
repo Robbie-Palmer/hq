@@ -8,6 +8,9 @@ preview_urls = false
 [observability]
 enabled = true
 
+[triggers]
+crons = ["17 */6 * * *"]
+
 [[queues.producers]]
 binding = "DELIVERIES"
 queue = "work-graph-github-deliveries"

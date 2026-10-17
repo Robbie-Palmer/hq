@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   consume: vi.fn(),
   closeDb: vi.fn(),
   createDb: vi.fn(() => ({})),
+  targets: vi.fn(),
 }));
 vi.mock("work-graph-db", () => ({
   closeDb: mocks.closeDb,
@@ -12,8 +13,14 @@ vi.mock("work-graph-db", () => ({
   GitHubDeliveryConsumer: class {
     consume = mocks.consume;
   },
+  WorkGraphRepository: class {
+    listGitHubReconciliationTargets = mocks.targets;
+  },
 }));
-import worker, { type ObserverBindings } from "../src/index";
+import worker, {
+  runScheduledReconciliation,
+  type ObserverBindings,
+} from "../src/index";
 
 describe("queue acknowledgments", () => {
   afterEach(() => vi.resetAllMocks());
@@ -48,5 +55,26 @@ describe("queue acknowledgments", () => {
     expect(mocks.closeDb).toHaveBeenCalledOnce();
     log.mockRestore();
     error.mockRestore();
+  });
+
+  it("runs bounded scheduled reconciliation and closes the database", async () => {
+    mocks.targets.mockResolvedValueOnce([]);
+    await expect(
+      runScheduledReconciliation({
+        HYPERDRIVE: { connectionString: "postgres://test" },
+        GITHUB_ALLOWED_INSTALLATION_IDS: "[42]",
+        GITHUB_ALLOWED_REPOSITORIES: '["example/site"]',
+        GITHUB_APP_ID: "123",
+        GITHUB_APP_PRIVATE_KEY: "unused-without-targets",
+      } as ObserverBindings),
+    ).resolves.toEqual({
+      targets: 0,
+      deliveries: 0,
+      processed: 0,
+      ignored: 0,
+      unmatched: 0,
+    });
+    expect(mocks.targets).toHaveBeenCalledOnce();
+    expect(mocks.closeDb).toHaveBeenCalledOnce();
   });
 });

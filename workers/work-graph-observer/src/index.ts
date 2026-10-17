@@ -1,5 +1,15 @@
-import { closeDb, createDb, GitHubDeliveryConsumer } from "work-graph-db";
+import {
+  closeDb,
+  createDb,
+  GitHubDeliveryConsumer,
+  WorkGraphRepository,
+} from "work-graph-db";
 import type { GitHubDelivery } from "work-graph-domain";
+import {
+  GitHubReconciler,
+  type GitHubReconciliationDependencies,
+  type GitHubReconciliationSummary,
+} from "./reconciliation";
 export type { GitHubDelivery } from "work-graph-domain";
 
 const encoder = new TextEncoder();
@@ -18,6 +28,8 @@ export interface ObserverBindings {
   readonly DELIVERIES: Queue<GitHubDelivery>;
   readonly GITHUB_ALLOWED_INSTALLATION_IDS: string;
   readonly GITHUB_ALLOWED_REPOSITORIES: string;
+  readonly GITHUB_APP_ID: string;
+  readonly GITHUB_APP_PRIVATE_KEY: string;
   readonly GITHUB_WEBHOOK_SECRET: string;
 }
 
@@ -260,6 +272,38 @@ export async function handleWebhook(
   return Response.json({ accepted: true, deliveryId }, { status: 202 });
 }
 
+export async function runScheduledReconciliation(
+  env: ObserverBindings,
+  dependencies: GitHubReconciliationDependencies = {},
+): Promise<GitHubReconciliationSummary> {
+  const allowedInstallationIds = parseInstallationAllowlist(
+    env.GITHUB_ALLOWED_INSTALLATION_IDS,
+  );
+  const allowedRepositories = parseStringAllowlist(
+    env.GITHUB_ALLOWED_REPOSITORIES,
+  );
+  if (!allowedInstallationIds || !allowedRepositories) {
+    throw new Error("Observer policy is unavailable for reconciliation.");
+  }
+  const db = createDb(env.HYPERDRIVE.connectionString, { maxConnections: 1 });
+  try {
+    const targets =
+      await new WorkGraphRepository(db).listGitHubReconciliationTargets();
+    return new GitHubReconciler(
+      {
+        appId: env.GITHUB_APP_ID,
+        privateKey: env.GITHUB_APP_PRIVATE_KEY,
+        allowedInstallationIds,
+        allowedRepositories,
+      },
+      new GitHubDeliveryConsumer(db),
+      dependencies,
+    ).reconcile(targets);
+  } finally {
+    await closeDb(db);
+  }
+}
+
 export default {
   fetch: handleWebhook,
   async queue(batch, env) {
@@ -279,5 +323,11 @@ export default {
     } finally {
       await closeDb(db);
     }
+  },
+  async scheduled(_controller, env) {
+    const summary = await runScheduledReconciliation(env);
+    console.log(
+      JSON.stringify({ operation: "github-reconciliation", ...summary }),
+    );
   },
 } satisfies ExportedHandler<ObserverBindings, GitHubDelivery>;
