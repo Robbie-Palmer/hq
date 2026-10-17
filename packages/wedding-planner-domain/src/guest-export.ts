@@ -6,24 +6,6 @@ import {
 } from "./guest-directory";
 
 export const guestExportPresets = {
-  joy: [
-    "title",
-    "first_name",
-    "last_name",
-    "suffix",
-    "email",
-    "phone",
-    "name_on_envelope",
-    "invitation_party",
-    "address_line_1",
-    "address_line_2",
-    "city",
-    "region",
-    "postal_code",
-    "country",
-    "tags",
-    "plus_one_allowance",
-  ],
   caterer: ["name", "attendance", "dietary_needs", "allergies"],
   venue: [
     "name",
@@ -47,24 +29,24 @@ export type GuestExportOptions = {
 const labels: Record<string, string> = {
   id: "Guest ID",
   name: "Name",
-  title: "Title (Optional)",
+  title: "Title",
   first_name: "First Name",
   last_name: "Last Name",
-  suffix: "Suffix (Optional)",
-  email: "Email (Optional)",
-  phone: "Phone Number (Optional)",
-  name_on_envelope: "Name on Envelope (Optional)",
+  suffix: "Suffix",
+  email: "Email",
+  phone: "Phone",
+  invitation_addressee: "Invitation Addressee",
   household: "Household",
-  invitation_party: "Party (Optional)",
-  address_line_1: "Address Line 1 (Optional)",
-  address_line_2: "Address Line 2 (Optional)",
-  city: "City (Optional)",
-  region: "State/Region (Optional)",
-  postal_code: "Postal Code (Optional)",
-  country: "Country (Optional)",
+  invitation_party: "Invitation Party",
+  address_line_1: "Address Line 1",
+  address_line_2: "Address Line 2",
+  city: "City",
+  region: "Region",
+  postal_code: "Postal Code",
+  country: "Country",
   plus_one_allowance: "Plus Ones",
   attendance: "Attendance",
-  tags: "Tags (Optional)",
+  relationship_groups: "Relationship Groups",
   wedding_roles: "Wedding Roles",
   dietary_needs: "Dietary Needs",
   allergies: "Allergies",
@@ -125,7 +107,7 @@ function accessFieldFor(field: string): string {
     ].includes(field)
   )
     return "household_id";
-  if (field === "invitation_party" || field === "name_on_envelope")
+  if (field === "invitation_party" || field === "invitation_addressee")
     return "invitation_party_id";
   if (field === "event_response") return "event_responses";
   return field;
@@ -167,7 +149,7 @@ function exportValue(
         (party) => party.id === guest.invitation_party_id,
       )?.name ?? ""
     );
-  if (field === "name_on_envelope")
+  if (field === "invitation_addressee")
     return (
       directory.guest_directory.invitation_parties.find(
         (party) => party.id === guest.invitation_party_id,

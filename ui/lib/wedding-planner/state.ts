@@ -18,46 +18,59 @@ import {
 
 const idList = z.array(z.string());
 const money = z.union([z.string(), z.number()]).transform(String);
-const guestSchema = z.looseObject({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  source_party: z.string().default(""),
-  tags: z
-    .union([z.array(z.string()), z.string()])
-    .transform((value) =>
-      Array.isArray(value)
-        ? value
-        : value
-            .split(/[;,]/)
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-    )
-    .default([]),
-  overnight: OvernightStatusSchema,
-  attendance: OvernightStatusSchema.optional(),
-  prefer_table_with: idList.optional(),
-  avoid_table_with: idList.optional(),
-  fixed_bed_group_id: z.string().default(""),
-  requires_own_bed: z.boolean().default(false),
-  safe_for_our_booking: z.boolean().default(false),
-  may_share_bed_with: idList.default([]),
-  avoid_bed_with: idList.default([]),
-  can_share_room: z.boolean().default(false),
-  room_share_mode: ShareModeSchema.default("none"),
-  may_share_room_with: idList.default([]),
-  can_share_cottage: z.boolean().default(true),
-  cottage_share_mode: ShareModeSchema.default("any"),
-  may_share_cottage_with: idList.default([]),
-  avoid_room_with: idList.default([]),
-  avoid_cottage_with: idList.default([]),
-  priority: z.number().int().min(0).default(3),
-  fixed_room_id: z.string().default(""),
-  preferred_property_ids: idList.default([]),
-  outside_cost_gbp: z.string().default(""),
-  charge_cap_exempt: z.boolean().default(false),
-  free_stay_reasons: z.array(FreeStayReasonSchema).default([]),
-  include_partner_in_free_stay: z.boolean().default(true),
-});
+const guestSchema = z.preprocess(
+  migrateLegacyGuestTags,
+  z.looseObject({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    source_party: z.string().default(""),
+    relationship_groups: z
+      .union([z.array(z.string()), z.string()])
+      .transform((value) =>
+        Array.isArray(value)
+          ? value
+          : value
+              .split(/[;,]/)
+              .map((group) => group.trim())
+              .filter(Boolean),
+      )
+      .default([]),
+    overnight: OvernightStatusSchema,
+    attendance: OvernightStatusSchema.optional(),
+    prefer_table_with: idList.optional(),
+    avoid_table_with: idList.optional(),
+    fixed_bed_group_id: z.string().default(""),
+    requires_own_bed: z.boolean().default(false),
+    safe_for_our_booking: z.boolean().default(false),
+    may_share_bed_with: idList.default([]),
+    avoid_bed_with: idList.default([]),
+    can_share_room: z.boolean().default(false),
+    room_share_mode: ShareModeSchema.default("none"),
+    may_share_room_with: idList.default([]),
+    can_share_cottage: z.boolean().default(true),
+    cottage_share_mode: ShareModeSchema.default("any"),
+    may_share_cottage_with: idList.default([]),
+    avoid_room_with: idList.default([]),
+    avoid_cottage_with: idList.default([]),
+    priority: z.number().int().min(0).default(3),
+    fixed_room_id: z.string().default(""),
+    preferred_property_ids: idList.default([]),
+    outside_cost_gbp: z.string().default(""),
+    charge_cap_exempt: z.boolean().default(false),
+    free_stay_reasons: z.array(FreeStayReasonSchema).default([]),
+    include_partner_in_free_stay: z.boolean().default(true),
+  }),
+);
+
+function migrateLegacyGuestTags(value: unknown): unknown {
+  if (!value || typeof value !== "object" || !("tags" in value)) return value;
+  const { tags, ...guest } = value;
+  return {
+    ...guest,
+    relationship_groups:
+      "relationship_groups" in guest ? guest.relationship_groups : tags,
+  };
+}
 
 const cottageChoice = z.object({
   availability: PropertyAvailabilitySchema,

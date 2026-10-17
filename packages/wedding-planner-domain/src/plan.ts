@@ -134,8 +134,43 @@ function migrateLegacyWeddingParty(value: unknown): unknown {
   };
 }
 
+function migrateLegacyGuestTags(value: unknown): unknown {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("guests" in value) ||
+    !Array.isArray(value.guests)
+  )
+    return value;
+  return {
+    ...value,
+    guests: value.guests.map((guest: unknown) => {
+      if (!guest || typeof guest !== "object" || !("tags" in guest))
+        return guest;
+      const legacyTags = Array.isArray(guest.tags)
+        ? guest.tags.filter((tag): tag is string => typeof tag === "string")
+        : typeof guest.tags === "string"
+          ? guest.tags
+              .split(/[;,]/)
+              .map((tag) => tag.trim())
+              .filter(Boolean)
+          : [];
+      const { tags: _tags, ...guestWithoutTags } = guest;
+      return {
+        ...guestWithoutTags,
+        relationship_groups:
+          "relationship_groups" in guest
+            ? guest.relationship_groups
+            : legacyTags,
+      };
+    }),
+  };
+}
+
 export function parseWeddingPlan(value: unknown): WeddingPlan {
-  const checked = weddingPlanSchema.safeParse(migrateLegacyWeddingParty(value));
+  const checked = weddingPlanSchema.safeParse(
+    migrateLegacyWeddingParty(migrateLegacyGuestTags(value)),
+  );
   if (!checked.success) {
     const issue = checked.error.issues[0];
     throw new Error(

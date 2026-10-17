@@ -2,51 +2,51 @@ import { z } from "zod";
 import {
   CustomFieldValueSchema,
   FieldAccessSchema,
-  GuestAccessRoleSchema,
+  GuestChangeActorSchema,
   type CustomFieldValue,
   type FieldAccess,
   type GuestAccessRole,
+  type GuestChangeActor,
 } from "./core/guest-profile";
 import { type WeddingGuest, weddingGuestSchema } from "./core/guests";
 
-const managerRoles: GuestAccessRole[] = ["couple", "trusted_planner"];
+const ownerRoles: GuestAccessRole[] = ["couple"];
 const allRoles: GuestAccessRole[] = [
-  ...managerRoles,
+  ...ownerRoles,
   "guest",
   "export_recipient",
 ];
-const ownerEditableRoles: GuestAccessRole[] = [...managerRoles, "guest"];
+const selfEditableRoles: GuestAccessRole[] = [...ownerRoles, "guest"];
 
 export const builtInGuestFieldAccess = {
   id: { view: allRoles, edit: [] },
-  name: { view: allRoles, edit: ownerEditableRoles },
-  title: { view: allRoles, edit: ownerEditableRoles },
-  first_name: { view: allRoles, edit: ownerEditableRoles },
-  last_name: { view: allRoles, edit: ownerEditableRoles },
-  suffix: { view: allRoles, edit: ownerEditableRoles },
-  email: { view: allRoles, edit: ownerEditableRoles },
-  phone: { view: allRoles, edit: ownerEditableRoles },
-  source_party: { view: allRoles, edit: managerRoles },
-  tags: { view: allRoles, edit: managerRoles },
-  attendance: { view: allRoles, edit: ownerEditableRoles },
-  wedding_roles: { view: allRoles, edit: managerRoles },
-  household_id: { view: allRoles, edit: managerRoles },
-  invitation_party_id: { view: allRoles, edit: managerRoles },
-  plus_one_of_guest_id: { view: allRoles, edit: managerRoles },
-  plus_one_allowance: { view: allRoles, edit: managerRoles },
-  is_child: { view: allRoles, edit: managerRoles },
-  relationship_groups: { view: managerRoles, edit: managerRoles },
-  dietary_needs: { view: allRoles, edit: ownerEditableRoles },
-  allergies: { view: allRoles, edit: ownerEditableRoles },
-  accessibility_needs: { view: allRoles, edit: ownerEditableRoles },
-  transport: { view: allRoles, edit: ownerEditableRoles },
-  accommodation_details: { view: allRoles, edit: ownerEditableRoles },
-  seating_constraints: { view: managerRoles, edit: ownerEditableRoles },
-  event_responses: { view: allRoles, edit: ownerEditableRoles },
-  custom_fields: { view: managerRoles, edit: managerRoles },
-  private_notes: { view: managerRoles, edit: managerRoles },
-  source_records: { view: managerRoles, edit: [] },
-  field_provenance: { view: managerRoles, edit: [] },
+  name: { view: allRoles, edit: selfEditableRoles },
+  title: { view: allRoles, edit: selfEditableRoles },
+  first_name: { view: allRoles, edit: selfEditableRoles },
+  last_name: { view: allRoles, edit: selfEditableRoles },
+  suffix: { view: allRoles, edit: selfEditableRoles },
+  email: { view: allRoles, edit: selfEditableRoles },
+  phone: { view: allRoles, edit: selfEditableRoles },
+  source_party: { view: allRoles, edit: ownerRoles },
+  attendance: { view: allRoles, edit: selfEditableRoles },
+  wedding_roles: { view: allRoles, edit: ownerRoles },
+  household_id: { view: allRoles, edit: ownerRoles },
+  invitation_party_id: { view: allRoles, edit: ownerRoles },
+  plus_one_of_guest_id: { view: allRoles, edit: ownerRoles },
+  plus_one_allowance: { view: allRoles, edit: ownerRoles },
+  is_child: { view: allRoles, edit: ownerRoles },
+  relationship_groups: { view: ownerRoles, edit: ownerRoles },
+  dietary_needs: { view: allRoles, edit: selfEditableRoles },
+  allergies: { view: allRoles, edit: selfEditableRoles },
+  accessibility_needs: { view: allRoles, edit: selfEditableRoles },
+  transport: { view: allRoles, edit: selfEditableRoles },
+  accommodation_details: { view: allRoles, edit: selfEditableRoles },
+  seating_constraints: { view: ownerRoles, edit: selfEditableRoles },
+  event_responses: { view: allRoles, edit: selfEditableRoles },
+  custom_fields: { view: ownerRoles, edit: ownerRoles },
+  private_notes: { view: ownerRoles, edit: ownerRoles },
+  source_records: { view: ownerRoles, edit: [] },
+  field_provenance: { view: ownerRoles, edit: [] },
 } satisfies Record<keyof WeddingGuest, FieldAccess>;
 
 export const householdSchema = z.object({
@@ -114,7 +114,7 @@ export const guestHistoryEntrySchema = z.object({
   id: z.string().trim().min(1),
   guest_id: z.string().trim().min(1),
   changed_at: z.iso.datetime({ offset: true }),
-  actor_role: GuestAccessRoleSchema,
+  actor_type: GuestChangeActorSchema,
   actor_id: z.string().trim().min(1).nullable().default(null),
   kind: z.enum(["create", "update", "import"]),
   changes: z.array(guestChangeSchema).min(1),
@@ -323,6 +323,7 @@ export function updateGuest(
   changedAt: string,
   provenance = "manual",
 ): WeddingGuest {
+  const actorType = changeActorType(actor);
   const draft = structuredClone(directory);
   const index = draft.guests.findIndex((guest) => guest.id === guestId);
   const current = draft.guests[index];
@@ -353,7 +354,7 @@ export function updateGuest(
     id: historyId(guestId, changedAt, draft.guest_directory.history.length),
     guest_id: guestId,
     changed_at: changedAt,
-    actor_role: actor.role,
+    actor_type: actorType,
     actor_id: actor.id ?? null,
     kind: "update",
     changes,
@@ -373,6 +374,7 @@ export function updateGuestCustomField(
   changedAt: string,
   provenance = "manual",
 ): WeddingGuest {
+  const actorType = changeActorType(actor);
   const field = `custom_fields.${fieldId}`;
   if (!canEditGuestField(directory, guestId, field, actor))
     throw new Error(`${actor.role} cannot edit ${field}`);
@@ -389,7 +391,7 @@ export function updateGuestCustomField(
     id: historyId(guestId, changedAt, draft.guest_directory.history.length),
     guest_id: guestId,
     changed_at: changedAt,
-    actor_role: actor.role,
+    actor_type: actorType,
     actor_id: actor.id ?? null,
     kind: "update",
     changes: [{ field, before: current, after: value, provenance }],
@@ -398,6 +400,12 @@ export function updateGuestCustomField(
   directory.guests = draft.guests;
   directory.guest_directory = draft.guest_directory;
   return updated;
+}
+
+function changeActorType(actor: GuestActor): GuestChangeActor {
+  if (actor.role === "export_recipient")
+    throw new Error("Export recipients cannot change guest data");
+  return actor.role;
 }
 
 export function visibleGuest(

@@ -7,5 +7,4 @@ export * from "./projections";
 export * from "./seating-suggestions";
 export * from "./core/guest-profile";
 export * from "./guest-directory";
-export * from "./joy-import";
 export * from "./guest-export";

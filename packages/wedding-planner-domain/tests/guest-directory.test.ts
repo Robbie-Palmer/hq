@@ -1,17 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
-  applyJoyImport,
   canEditGuestField,
   exportGuestCsv,
-  parseCsv,
   parseWeddingPlan,
-  previewJoyCsv,
   updateGuest,
   updateGuestCustomField,
   visibleGuest,
-  type JoyImportDecision,
   type WeddingPlan,
 } from "../src";
+import {
+  applyJoyImport,
+  exportJoyCsv,
+  parseCsv,
+  previewJoyCsv,
+  type JoyImportDecision,
+  type JoyImportMapping,
+} from "../src/integrations/joy";
 
 const timestamp = "2026-10-17T10:00:00.000Z";
 
@@ -24,7 +28,7 @@ function plan(): WeddingPlan {
         name: "Alex Smith",
         email: "alex@example.com",
         source_party: "Smith household",
-        tags: "Family, Evening guest",
+        relationship_groups: ["Family"],
         household_id: "smith-home",
         invitation_party_id: "smith-party",
         dietary_needs: ["Vegetarian"],
@@ -54,8 +58,8 @@ function plan(): WeddingPlan {
           type: "choice",
           choices: ["Vegetarian", "Chicken"],
           access: {
-            view: ["couple", "trusted_planner", "guest", "export_recipient"],
-            edit: ["couple", "trusted_planner", "guest"],
+            view: ["couple", "guest", "export_recipient"],
+            edit: ["couple", "guest"],
           },
         },
       ],
@@ -70,7 +74,7 @@ describe("guest directory model", () => {
   it("keeps individual details while grouping guests into households and invitations", () => {
     const wedding = plan();
     expect(wedding.guests[0]).toMatchObject({
-      tags: ["Family", "Evening guest"],
+      relationship_groups: ["Family"],
       household_id: "smith-home",
       invitation_party_id: "smith-party",
       dietary_needs: ["Vegetarian"],
@@ -88,6 +92,15 @@ describe("guest directory model", () => {
         ],
       }),
     ).toThrow("household does not exist");
+  });
+
+  it("migrates legacy tags into relationship groups without retaining tags", () => {
+    const wedding = parseWeddingPlan({
+      ...plan(),
+      guests: [{ id: "legacy", name: "Legacy Guest", tags: "Family; Work" }],
+    });
+    expect(wedding.guests[0]?.relationship_groups).toEqual(["Family", "Work"]);
+    expect(wedding.guests[0]).not.toHaveProperty("tags");
   });
 
   it("validates typed custom fields and relationship references", () => {
@@ -146,7 +159,7 @@ describe("guest directory model", () => {
     expect(wedding.guest_directory.history).toEqual([
       expect.objectContaining({
         guest_id: "alex",
-        actor_role: "guest",
+        actor_type: "guest",
         actor_id: "alex-account",
         changes: [
           expect.objectContaining({
@@ -195,6 +208,18 @@ describe("guest directory model", () => {
 });
 
 describe("Joy CSV imports", () => {
+  const mapping = {
+    tags: {
+      Family: { kind: "relationship_group", relationship_group: "Family" },
+      Friends: { kind: "relationship_group", relationship_group: "Friends" },
+      friends: { kind: "relationship_group", relationship_group: "Friends" },
+      college: {
+        kind: "relationship_group",
+        relationship_group: "College friends",
+      },
+    },
+  } satisfies JoyImportMapping;
+
   it("previews duplicates and requires a decision for every row", () => {
     const wedding = plan();
     const preview = previewJoyCsv(
@@ -205,6 +230,7 @@ describe("Joy CSV imports", () => {
         "joy-2,Jamie Doe,jamie@example.com,Doe household,,Friends",
       ].join("\n"),
       { id: "import-1", source_name: "joy.csv", imported_at: timestamp },
+      mapping,
     );
     expect(preview.rows[0]?.duplicate_candidates).toEqual([
       expect.objectContaining({ guest_id: "alex" }),
@@ -228,11 +254,16 @@ describe("Joy CSV imports", () => {
       'joy-1,Alex Smith,new@example.com,Smith household,"Vegan, Nut free",Family',
       "joy-2,Jamie Doe,jamie@example.com,Doe household,,Friends",
     ].join("\n");
-    const preview = previewJoyCsv(wedding, csv, {
-      id: "import-1",
-      source_name: "joy.csv",
-      imported_at: timestamp,
-    });
+    const preview = previewJoyCsv(
+      wedding,
+      csv,
+      {
+        id: "import-1",
+        source_name: "joy.csv",
+        imported_at: timestamp,
+      },
+      mapping,
+    );
     const decisions: JoyImportDecision[] = [
       {
         row_number: 2,
@@ -241,7 +272,6 @@ describe("Joy CSV imports", () => {
         fields: {
           email: "keep_existing",
           dietary_needs: "use_import",
-          tags: "keep_existing",
         },
       },
       { row_number: 3, action: "create", guest_id: "jamie" },
@@ -267,11 +297,16 @@ describe("Joy CSV imports", () => {
       skipped: 0,
     });
 
-    const repeat = previewJoyCsv(wedding, csv, {
-      id: "import-2",
-      source_name: "joy.csv",
-      imported_at: "2026-10-18T10:00:00.000Z",
-    });
+    const repeat = previewJoyCsv(
+      wedding,
+      csv,
+      {
+        id: "import-2",
+        source_name: "joy.csv",
+        imported_at: "2026-10-18T10:00:00.000Z",
+      },
+      mapping,
+    );
     expect(repeat.rows[0]?.duplicate_candidates[0]).toMatchObject({
       guest_id: "alex",
       reasons: expect.arrayContaining(["same Joy guest ID"]),
@@ -310,11 +345,16 @@ describe("Joy CSV imports", () => {
       ].join(","),
       "Dr,Jamie,Doe,,jamie@example.com,+353123,The Doe Family,Doe household,1 Main Street,,Dublin,Leinster,D01,Ireland,friends|college,1",
     ].join("\n");
-    const preview = previewJoyCsv(wedding, csv, {
-      id: "joy-template",
-      source_name: "joy-template.csv",
-      imported_at: timestamp,
-    });
+    const preview = previewJoyCsv(
+      wedding,
+      csv,
+      {
+        id: "joy-template",
+        source_name: "joy-template.csv",
+        imported_at: timestamp,
+      },
+      mapping,
+    );
     expect(preview.errors).toEqual([]);
     expect(preview.ignored_headers).toEqual([]);
     expect(preview.rows[0]?.incoming).toMatchObject({
@@ -323,7 +363,8 @@ describe("Joy CSV imports", () => {
       first_name: "Jamie",
       last_name: "Doe",
       plus_one_allowance: 1,
-      tags: ["friends", "college"],
+      joy_tags: ["friends", "college"],
+      relationship_groups: ["Friends", "College friends"],
     });
     applyJoyImport(wedding, preview, [
       { row_number: 2, action: "create", guest_id: "jamie-template" },
@@ -343,6 +384,89 @@ describe("Joy CSV imports", () => {
     expect(wedding.guest_directory.invitation_parties.at(-1)?.addressee).toBe(
       "The Doe Family",
     );
+  });
+
+  it("translates Joy fields while merging into domain concepts", () => {
+    const wedding = plan();
+    const preview = previewJoyCsv(
+      wedding,
+      [
+        "Full Name,Email,Phone,Party,Name on Envelope,Address Line 1,Address Line 2,City,State/Region,Postal Code,Country,Tags,Plus Ones,RSVP,Child,Allergies,Accessibility Needs",
+        "Alex Smith,alex@example.com,+353123,Alex household,Alex and guest,1 Main Street,Apt 2,Dublin,Leinster,D01,Ireland,VIP,2,accepted,true,Nuts,Step-free access",
+      ].join("\n"),
+      { id: "rich-merge", source_name: "joy.csv", imported_at: timestamp },
+      {
+        tags: {
+          VIP: { kind: "wedding_role", wedding_role: "wedding_party" },
+        },
+      },
+    );
+    expect(preview.rows[0]?.issues).toEqual([]);
+    const fields = Object.fromEntries(
+      Object.keys(preview.rows[0]?.differing_fields ?? {}).map((field) => [
+        field,
+        "use_import" as const,
+      ]),
+    );
+    applyJoyImport(wedding, preview, [
+      { row_number: 2, action: "merge", guest_id: "alex", fields },
+    ]);
+
+    expect(wedding.guests[0]).toMatchObject({
+      phone: "+353123",
+      source_party: "Alex household",
+      attendance: "yes",
+      is_child: true,
+      plus_one_allowance: 2,
+      wedding_roles: ["wedding_party"],
+      allergies: ["Nuts"],
+      accessibility_needs: ["Step-free access"],
+    });
+    expect(wedding.guest_directory.invitation_parties.at(-1)).toMatchObject({
+      name: "Alex household",
+      addressee: "Alex and guest",
+    });
+    expect(wedding.guest_directory.households[0]).toMatchObject({
+      address_lines: ["1 Main Street", "Apt 2"],
+      city: "Dublin",
+      region: "Leinster",
+      postal_code: "D01",
+      country: "Ireland",
+    });
+  });
+
+  it("requires an adapter decision for every Joy tag", () => {
+    const wedding = plan();
+    const source = {
+      id: "unmapped-tag",
+      source_name: "joy.csv",
+      imported_at: timestamp,
+    };
+    const unmapped = previewJoyCsv(
+      wedding,
+      "Full Name,Tags\nJamie Doe,neighbour",
+      source,
+    );
+    expect(unmapped.rows[0]).toMatchObject({
+      unmapped_tags: ["neighbour"],
+      issues: [expect.stringContaining("explicit mapping or ignore decision")],
+    });
+    expect(() =>
+      applyJoyImport(wedding, unmapped, [
+        { row_number: 2, action: "create", guest_id: "jamie" },
+      ]),
+    ).toThrow("must be skipped");
+
+    const ignored = previewJoyCsv(
+      wedding,
+      unmapped.headers.join(",") + "\nJamie Doe,neighbour",
+      source,
+      {
+        tags: { neighbour: { kind: "ignore" } },
+      },
+    );
+    expect(ignored.rows[0]?.issues).toEqual([]);
+    expect(ignored.rows[0]?.incoming).not.toHaveProperty("relationship_groups");
   });
 });
 
@@ -364,17 +488,31 @@ describe("privacy-safe guest exports", () => {
     ).toContain("Name,Meal\r\nAlex Smith,Vegetarian");
   });
 
-  it("exports a Joy-compatible template without private data", () => {
+  it("exports through the Joy adapter without private data", () => {
     const wedding = plan();
-    const csv = exportGuestCsv(wedding, {
-      preset: "joy",
+    const csv = exportJoyCsv(wedding, {
       guest_ids: ["alex"],
+      mapping: {
+        relationship_groups: {
+          Family: "family",
+        },
+        wedding_roles: {},
+      },
     });
     expect(csv.split("\r\n")[0]).toContain(
       "Title (Optional),First Name,Last Name,Suffix (Optional),Email (Optional)",
     );
     expect(csv).toContain("Alex,Smith");
     expect(csv).not.toContain("Ask about speech");
+  });
+
+  it("does not guess how domain concepts map to Joy tags", () => {
+    expect(() =>
+      exportJoyCsv(plan(), {
+        guest_ids: ["alex"],
+        mapping: { relationship_groups: {}, wedding_roles: {} },
+      }),
+    ).toThrow("mapping or ignore decision for relationship group: Family");
   });
 
   it("rejects private fields even when a recipient selects them", () => {

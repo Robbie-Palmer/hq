@@ -1,9 +1,13 @@
-import { type WeddingGuest, weddingGuestSchema } from "./core/guests";
+import {
+  type WeddingGuest,
+  type WeddingRole,
+  weddingGuestSchema,
+} from "../../core/guests";
 import {
   historyId,
   type GuestDirectory,
   validateGuestDirectory,
-} from "./guest-directory";
+} from "../../guest-directory";
 
 type ImportableGuestField =
   | "name"
@@ -14,9 +18,10 @@ type ImportableGuestField =
   | "email"
   | "phone"
   | "plus_one_allowance"
-  | "tags"
   | "attendance"
   | "is_child"
+  | "relationship_groups"
+  | "wedding_roles"
   | "dietary_needs"
   | "allergies"
   | "accessibility_needs";
@@ -32,6 +37,16 @@ type IncomingGuest = Partial<Pick<WeddingGuest, ImportableGuestField>> & {
   region: string;
   postal_code: string;
   country: string;
+  joy_tags: string[];
+};
+
+export type JoyTagMapping =
+  | { kind: "relationship_group"; relationship_group: string }
+  | { kind: "wedding_role"; wedding_role: WeddingRole }
+  | { kind: "ignore" };
+
+export type JoyImportMapping = {
+  tags: Record<string, JoyTagMapping>;
 };
 
 export type JoyImportSource = {
@@ -48,6 +63,7 @@ export type JoyDuplicateCandidate = {
 export type JoyImportRow = {
   row_number: number;
   incoming: IncomingGuest;
+  unmapped_tags: string[];
   issues: string[];
   duplicate_candidates: JoyDuplicateCandidate[];
   differing_fields: Record<string, { existing: unknown; incoming: unknown }>;
@@ -99,7 +115,7 @@ const headerAliases: Record<string, keyof IncomingGuest> = {
   "postal code": "postal_code",
   postcode: "postal_code",
   country: "country",
-  tags: "tags",
+  tags: "joy_tags",
   "plus ones": "plus_one_allowance",
   rsvp: "attendance",
   attendance: "attendance",
@@ -115,6 +131,7 @@ export function previewJoyCsv(
   directory: GuestDirectory,
   csv: string,
   source: JoyImportSource,
+  mapping: JoyImportMapping = { tags: {} },
 ): JoyImportPreview {
   const records = parseCsv(csv);
   const headers = records[0]?.map((header) => header.trim()) ?? [];
@@ -130,8 +147,11 @@ export function previewJoyCsv(
 
   const rows = records.slice(1).flatMap((values, index) => {
     if (values.every((value) => value.trim() === "")) return [];
-    const incoming = toIncomingGuest(values, mappedHeaders);
-    const issues = validateIncomingGuest(incoming);
+    const incoming = toIncomingGuest(values, mappedHeaders, mapping);
+    const unmappedTags = incoming.joy_tags.filter(
+      (tag) => mapping.tags[tag] === undefined,
+    );
+    const issues = validateIncomingGuest(incoming, unmappedTags);
     const duplicateCandidates = findDuplicateCandidates(directory, incoming);
     const oneCandidate =
       duplicateCandidates.length === 1
@@ -143,6 +163,7 @@ export function previewJoyCsv(
       {
         row_number: index + 2,
         incoming,
+        unmapped_tags: unmappedTags,
         issues,
         duplicate_candidates: duplicateCandidates,
         differing_fields: oneCandidate
@@ -255,6 +276,7 @@ function createGuest(
     region: _region,
     postal_code: _postalCode,
     country: _country,
+    joy_tags: _joyTags,
     ...fields
   } = row.incoming;
   const guest = weddingGuestSchema.parse({
@@ -277,8 +299,8 @@ function createGuest(
     ),
     guest_id: guestId,
     changed_at: preview.source.imported_at,
-    actor_role: "trusted_planner",
-    actor_id: "joy-import",
+    actor_type: "integration",
+    actor_id: "joy-csv",
     kind: "create",
     changes: Object.entries(fields).map(([field, after]) => ({
       field,
@@ -346,8 +368,8 @@ function mergeGuest(
       ),
       guest_id: updated.id,
       changed_at: preview.source.imported_at,
-      actor_role: "trusted_planner",
-      actor_id: "joy-import",
+      actor_type: "integration",
+      actor_id: "joy-csv",
       kind: "import",
       changes,
     });
@@ -361,7 +383,12 @@ function differingFields(
   const differences: Record<string, { existing: unknown; incoming: unknown }> =
     {};
   for (const [field, value] of Object.entries(incoming)) {
-    if (field === "external_id" || value === undefined || value === "")
+    if (
+      field === "external_id" ||
+      field === "joy_tags" ||
+      value === undefined ||
+      value === ""
+    )
       continue;
     const targetField = importTargetField(field);
     const current = currentImportedValue(directory, guest, targetField);
@@ -490,6 +517,7 @@ function findDuplicateCandidates(
 function toIncomingGuest(
   values: string[],
   fields: (keyof IncomingGuest | undefined)[],
+  mapping: JoyImportMapping,
 ): IncomingGuest {
   const raw = Object.fromEntries(
     fields.flatMap((field, index) =>
@@ -498,6 +526,8 @@ function toIncomingGuest(
   ) as Record<keyof IncomingGuest, string>;
   const name =
     raw.name || [raw.first_name, raw.last_name].filter(Boolean).join(" ");
+  const joyTags = raw.joy_tags ? listValue(raw.joy_tags) : [];
+  const translatedTags = translateJoyTags(joyTags, mapping);
   const incoming: IncomingGuest = {
     name,
     external_id: raw.external_id || null,
@@ -509,7 +539,12 @@ function toIncomingGuest(
     region: raw.region ?? "",
     postal_code: raw.postal_code ?? "",
     country: raw.country ?? "",
+    joy_tags: joyTags,
   };
+  if (translatedTags.relationshipGroups.length > 0)
+    incoming.relationship_groups = translatedTags.relationshipGroups;
+  if (translatedTags.weddingRoles.length > 0)
+    incoming.wedding_roles = translatedTags.weddingRoles;
   Object.assign(
     incoming,
     nonEmptyStrings(raw, [
@@ -541,7 +576,6 @@ function assignConvertedFields(
   const converters: Partial<
     Record<keyof IncomingGuest, (value: string) => unknown>
   > = {
-    tags: listValue,
     plus_one_allowance: integerValue,
     attendance: attendanceValue,
     is_child: booleanValue,
@@ -555,12 +589,34 @@ function assignConvertedFields(
   }
 }
 
-function validateIncomingGuest(incoming: IncomingGuest): string[] {
+function validateIncomingGuest(
+  incoming: IncomingGuest,
+  unmappedTags: readonly string[],
+): string[] {
   const issues: string[] = [];
   if (!incoming.name) issues.push("Name is required");
   if (incoming.email && !/^\S+@\S+\.\S+$/.test(incoming.email))
     issues.push("Email address is invalid");
+  if (unmappedTags.length > 0)
+    issues.push(
+      `Joy tags need an explicit mapping or ignore decision: ${unmappedTags.join(", ")}`,
+    );
   return issues;
+}
+
+function translateJoyTags(tags: readonly string[], mapping: JoyImportMapping) {
+  const relationshipGroups = new Set<string>();
+  const weddingRoles = new Set<WeddingRole>();
+  for (const tag of tags) {
+    const target = mapping.tags[tag];
+    if (target?.kind === "relationship_group")
+      relationshipGroups.add(target.relationship_group);
+    if (target?.kind === "wedding_role") weddingRoles.add(target.wedding_role);
+  }
+  return {
+    relationshipGroups: [...relationshipGroups],
+    weddingRoles: [...weddingRoles],
+  };
 }
 
 function invitationPartyId(

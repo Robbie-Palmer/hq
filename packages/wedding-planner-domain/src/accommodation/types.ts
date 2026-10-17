@@ -16,7 +16,7 @@ export type { PairDecision, SharingLevel } from "../values";
 
 export type Guest = Pick<
   WeddingGuest,
-  "id" | "name" | "source_party" | "tags"
+  "id" | "name" | "source_party" | "relationship_groups"
 > & {
   partner_id?: string;
   overnight: OvernightStatus;

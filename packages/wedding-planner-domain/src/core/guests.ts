@@ -52,26 +52,11 @@ export function weddingRolesLabel(roles: readonly WeddingRole[]): string {
   return roles.map((role) => weddingRoleLabels[role]).join(" · ");
 }
 
-const tagsSchema = z
-  .union([z.array(z.string().trim().min(1)), z.string()])
-  .transform((value) =>
-    Array.isArray(value)
-      ? value
-      : value
-          .split(/[;,]/)
-          .map((tag) => tag.trim())
-          .filter(Boolean),
-  )
-  .refine((tags) => new Set(tags).size === tags.length, {
-    message: "Guest tags must be unique",
-  });
-
 export const weddingGuestSchema = z
   .object({
     id: z.string().min(1),
     name: z.string().min(1),
     source_party: z.string().default(""),
-    tags: tagsSchema.default([]),
     attendance: AttendanceSchema.default("unknown"),
     wedding_roles: weddingRolesSchema.default([]),
   })

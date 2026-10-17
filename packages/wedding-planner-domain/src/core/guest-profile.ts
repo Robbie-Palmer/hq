@@ -8,11 +8,17 @@ const uniqueStrings = z
 
 export const GuestAccessRoleSchema = z.enum([
   "couple",
-  "trusted_planner",
   "guest",
   "export_recipient",
 ]);
 export type GuestAccessRole = z.infer<typeof GuestAccessRoleSchema>;
+
+export const GuestChangeActorSchema = z.enum([
+  "couple",
+  "guest",
+  "integration",
+]);
+export type GuestChangeActor = z.infer<typeof GuestChangeActorSchema>;
 
 export const FieldAccessSchema = z.object({
   view: z.array(GuestAccessRoleSchema),

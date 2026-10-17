@@ -22,7 +22,7 @@ function guest(id: string, changes: Partial<Guest> = {}): Guest {
     id,
     name: id,
     source_party: "",
-    tags: [],
+    relationship_groups: [],
     overnight: "yes",
     fixed_bed_group_id: "",
     requires_own_bed: false,
@@ -243,6 +243,22 @@ describe("wedding planner accommodation", () => {
     expect(() => parseState({})).toThrow(
       "not a compatible wedding planner plan",
     );
+  });
+
+  it("migrates saved guest tags into relationship groups", () => {
+    const state = plan(linenCouple());
+    const firstGuest = state.guests[0];
+    if (!firstGuest) throw new Error("Expected a guest fixture");
+    const { relationship_groups: _groups, ...legacyGuest } = firstGuest;
+    const parsed = parseState({
+      ...state,
+      guests: [
+        { ...legacyGuest, tags: "Family; Work" },
+        ...state.guests.slice(1),
+      ],
+    });
+    expect(parsed.guests[0]?.relationship_groups).toEqual(["Family", "Work"]);
+    expect(parsed.guests[0]).not.toHaveProperty("tags");
   });
 
   it("rejects unsupported saved choices before building a plan", () => {
