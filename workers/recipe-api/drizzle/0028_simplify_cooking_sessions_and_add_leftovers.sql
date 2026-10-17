@@ -1,4 +1,30 @@
-CREATE TYPE "public"."leftover_storage_location" AS ENUM('fridge', 'freezer');--> statement-breakpoint
+DO $$
+DECLARE
+	existing_kind text;
+	existing_values text[];
+BEGIN
+	-- Reconcile an unjournaled enum left by an interrupted deployment, but
+	-- reject any existing type that does not match the application contract.
+	SELECT
+		t.typtype::text,
+		array_agg(e.enumlabel::text ORDER BY e.enumsortorder)
+			FILTER (WHERE e.enumlabel IS NOT NULL)
+	INTO existing_kind, existing_values
+	FROM pg_type t
+	JOIN pg_namespace n ON n.oid = t.typnamespace
+	LEFT JOIN pg_enum e ON e.enumtypid = t.oid
+	WHERE n.nspname = 'public'
+		AND t.typname = 'leftover_storage_location'
+	GROUP BY t.typtype;
+
+	IF existing_kind IS NULL THEN
+		CREATE TYPE "public"."leftover_storage_location" AS ENUM('fridge', 'freezer');
+	ELSIF existing_kind <> 'e'
+		OR existing_values IS DISTINCT FROM ARRAY['fridge', 'freezer']::text[] THEN
+		RAISE EXCEPTION 'Existing type public.leftover_storage_location is incompatible';
+	END IF;
+END
+$$;--> statement-breakpoint
 CREATE TABLE "leftover_batch" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"cooking_session_id" uuid NOT NULL,
