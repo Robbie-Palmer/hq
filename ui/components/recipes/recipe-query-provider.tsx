@@ -63,7 +63,7 @@ export function RecipeAccountCacheBoundary() {
   return null;
 }
 
-export function OfflineRecipeCacheBoundary() {
+function useOfflineRecipeCache(): void {
   const { data: session, isPending } = authClient.useSession();
   const queryClient = useQueryClient();
   const userId = session?.user.id;
@@ -132,7 +132,10 @@ export function OfflineRecipeCacheBoundary() {
       unsubscribe();
     };
   }, [isPending, queryClient, userId]);
+}
 
+export function OfflineRecipeCacheBoundary() {
+  useOfflineRecipeCache();
   return null;
 }
 

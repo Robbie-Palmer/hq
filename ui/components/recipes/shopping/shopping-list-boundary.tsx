@@ -377,17 +377,15 @@ function useShoppingListSync(
   return { installedId, saveFailed };
 }
 
-export function ShoppingListBoundary({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  const { data: session } = authClient.useSession();
-  const userId = session?.user.id ?? "pending";
+function useOfflineShoppingListRestore(
+  userId: string,
+  enabled: boolean,
+): boolean {
   const queryClient = useQueryClient();
   const [restoredUserId, setRestoredUserId] = useState<string>();
-
   useEffect(() => {
     let disposed = false;
-    if (!session) {
+    if (!enabled) {
       setRestoredUserId(undefined);
       return;
     }
@@ -415,11 +413,20 @@ export function ShoppingListBoundary({
     return () => {
       disposed = true;
     };
-  }, [queryClient, session, userId]);
+  }, [enabled, queryClient, userId]);
+  return restoredUserId === userId;
+}
+
+export function ShoppingListBoundary({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  const { data: session } = authClient.useSession();
+  const userId = session?.user.id ?? "pending";
+  const restored = useOfflineShoppingListRestore(userId, Boolean(session));
 
   const current = useQuery({
     ...shoppingListQuery(userId),
-    enabled: Boolean(session) && restoredUserId === userId,
+    enabled: Boolean(session) && restored,
   });
   const { installedId, saveFailed } = useShoppingListSync(userId, current.data);
 
