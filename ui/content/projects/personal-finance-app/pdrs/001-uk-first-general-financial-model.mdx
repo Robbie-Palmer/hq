@@ -1,0 +1,52 @@
+---
+title: "PDR 001: Launch UK-first on a general financial model"
+date: "2026-01-11"
+status: "Accepted"
+decision_date: "2026-01-11"
+---
+
+## Context
+
+The first user has UK tax obligations, assets denominated in several currencies,
+and finances shared across people and accounts. Many consumer products assume one
+person, one currency, and US tax rules. A product built around those assumptions
+would fail the first use case and make later expansion costly.
+
+Trying to launch with complete support for several countries would create a
+different problem. Tax rules and financial products need local depth, and the
+project does not yet have users who justify that work outside the UK.
+
+## Decision
+
+Launch with GBP defaults and first-class UK tax modelling. Model people,
+households, businesses, accounts, ownership, transfers, and currencies as general
+domain concepts rather than UK-only shortcuts.
+
+Multi-entity and multi-currency tracking are part of the initial product shape.
+Additional tax jurisdictions are not. The project will add another jurisdiction
+only when a validated user cohort needs it and the product can represent its rules
+accurately.
+
+## Consequences
+
+The first release can solve the founder's real tax and currency problems while
+testing a domain model that also fits partners and shared households. UK depth is
+a deliberate entry point, not a claim that international support already exists.
+
+The model and interface must keep a simple single-person, single-currency case
+easy to use. General ownership and currency concepts add design work even before
+the product expands beyond the UK.
+
+## Alternatives considered
+
+### Model only the founder's current accounts
+
+This would shorten the first implementation. It was rejected because shared
+property, partner ownership, and foreign-denominated assets are part of the first
+user's existing financial picture.
+
+### Support several tax jurisdictions at launch
+
+This would make the international direction visible sooner. It was rejected
+because the project should focus its effort on countries where real user demand
+exists instead of building shallow tax coverage in anticipation of it.
