@@ -1,42 +1,12 @@
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { requiredEnv } from "node-base/env";
 import { closeDbClient, createDb } from "recipe-db";
-
-const errorFields = [
-  "name",
-  "message",
-  "code",
-  "detail",
-  "hint",
-  "schema",
-  "table",
-  "column",
-  "constraint",
-  "routine",
-] as const;
+import { safeMigrationErrorChain } from "./migration-error";
 
 function logMigrationError(error: unknown): void {
   console.error("Database migration failed.");
-
-  const seen = new Set<unknown>();
-  let current: unknown = error;
-
-  while (current && !seen.has(current)) {
-    seen.add(current);
-
-    if (typeof current !== "object") {
-      console.error(current);
-      return;
-    }
-
-    const record = current as Record<string, unknown>;
-    const details = Object.fromEntries(
-      errorFields.flatMap((field) =>
-        typeof record[field] === "string" ? [[field, record[field]]] : [],
-      ),
-    );
+  for (const details of safeMigrationErrorChain(error)) {
     console.error(details);
-    current = record.cause;
   }
 }
 
