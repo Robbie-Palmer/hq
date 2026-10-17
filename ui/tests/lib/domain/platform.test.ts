@@ -862,6 +862,298 @@ describe("temporal platform layers", () => {
     }
   });
 
+  it("keeps identity, sessions, authorization, and non-human credentials as separate jobs", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    expect(
+      manifest.slots
+        .filter((slot) =>
+          [
+            "identity.authentication-library",
+            "identity.login-provider",
+            "identity.delegated-agent-authentication",
+            "identity.session-transport",
+            "identity.authorization-policy",
+            "security.preview-access",
+            "security.service-auth",
+            "secrets.runtime-store",
+            "secrets.ci-store",
+          ].includes(slot.slug),
+        )
+        .map((slot) => slot.slug),
+    ).toHaveLength(9);
+
+    const authPolicy = manifest.policies.find(
+      (policy) => policy.id === "identity-authentication-library-2026-10-15",
+    );
+    expect(authPolicy).toMatchObject({
+      mode: "preferred",
+      prerequisites: [
+        { slot: "project.primary-language", technology: "typescript" },
+        { requirement: "javascript-typescript-server-component" },
+        { slot: "backend-api.runtime" },
+        { slot: "database.relational-engine" },
+        { slot: "secrets.runtime-store" },
+        { requirement: "durable-session-store" },
+        { slot: "identity.authorization-policy" },
+      ],
+    });
+
+    const providerPolicy = manifest.policies.find(
+      (policy) => policy.id === "identity-login-provider-2026-10-15",
+    );
+    expect(providerPolicy).toMatchObject({
+      mode: "preferred",
+      prerequisites: [
+        {
+          slot: "identity.authentication-library",
+          technology: "better-auth",
+        },
+        { slot: "identity.session-transport" },
+        { slot: "secrets.runtime-store" },
+        { requirement: "environment-specific-redirect-uri" },
+        { requirement: "provider-registration" },
+      ],
+    });
+
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id ===
+          "identity-authentication-library-better-auth-2026-09-29",
+      )?.configurationRequirements,
+    ).toEqual([
+      {
+        name: "BETTER_AUTH_URL",
+        owner: "secrets.runtime-store",
+        sensitive: false,
+      },
+      {
+        name: "BETTER_AUTH_SECRET",
+        owner: "secrets.runtime-store",
+        sensitive: true,
+      },
+    ]);
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id === "identity-login-provider-google-oauth-2026-09-29",
+      ),
+    ).toMatchObject({
+      configurationRequirements: [
+        {
+          name: "GOOGLE_CLIENT_ID",
+          owner: "secrets.runtime-store",
+          sensitive: false,
+        },
+        {
+          name: "GOOGLE_CLIENT_SECRET",
+          owner: "secrets.runtime-store",
+          sensitive: true,
+        },
+      ],
+      manualSetup: [expect.stringContaining("Google Cloud Console")],
+    });
+
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id === "identity-login-provider-github-oauth-2026-10-15",
+      )?.status,
+    ).toBe("Proposed");
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id ===
+          "identity-delegated-agent-authentication-better-auth-2026-10-15",
+      )?.status,
+    ).toBe("Proposed");
+
+    const recipe = resolveEffectiveProjectStack(
+      repository,
+      "recipe-site",
+      "2026-10-15T12:00:00Z",
+    );
+    expect(recipe.technologies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "identity.authentication-library",
+          technology: "better-auth",
+        }),
+        expect.objectContaining({
+          slot: "identity.login-provider",
+          technology: "google-oauth",
+        }),
+      ]),
+    );
+    expect(recipe.policies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "identity.session-transport",
+          value: "Same-origin Secure HttpOnly first-party cookie session",
+        }),
+        expect.objectContaining({
+          slot: "identity.authorization-policy",
+          value: "Project-owned server-side resource and action policy",
+        }),
+      ]),
+    );
+    expect(
+      recipe.technologies.some(
+        (use) => use.slot === "identity.delegated-agent-authentication",
+      ),
+    ).toBe(false);
+  });
+
+  it("withholds Better Auth from a non-TypeScript-primary project", () => {
+    const repository = loadDomainRepository();
+    const overrideRef = "recipe-site:003-better-auth";
+    const adrOverrides = new Map(repository.platform.adrOverrides);
+    adrOverrides.set(overrideRef, {
+      slot: "project.primary-language",
+      kind: "technology",
+      technology: "python",
+      adopted: "2026-10-15T00:00:00Z",
+    });
+
+    const stack = resolveEffectiveProjectStack(
+      {
+        ...repository,
+        platform: { ...repository.platform, adrOverrides },
+      },
+      "recipe-site",
+      "2026-10-15T12:00:00Z",
+    );
+
+    expect(stack.technologies).toContainEqual(
+      expect.objectContaining({
+        slot: "project.primary-language",
+        technology: "python",
+      }),
+    );
+    expect(
+      stack.technologies.some(
+        (use) => use.slot === "identity.authentication-library",
+      ),
+    ).toBe(false);
+    expect(
+      stack.technologies.some((use) => use.slot === "identity.login-provider"),
+    ).toBe(false);
+    expect(
+      stack.policies.some((use) => use.slot === "identity.session-transport"),
+    ).toBe(false);
+  });
+
+  it("rejects incomplete and incompatible identity contracts", () => {
+    const manifest = loadDomainRepository().platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const incomplete = structuredClone(manifest);
+    incomplete.selections = incomplete.selections.filter(
+      (selection) =>
+        selection.id !==
+        "identity-session-transport-same-origin-cookie-2026-10-15",
+    );
+    expect(PlatformManifestSchema.safeParse(incomplete).success).toBe(false);
+
+    const incompatible = structuredClone(manifest);
+    const providerPolicy = incompatible.policies.find(
+      (policy) => policy.id === "identity-login-provider-2026-10-15",
+    );
+    expect(providerPolicy).toBeDefined();
+    if (!providerPolicy) return;
+    providerPolicy.prerequisites = [
+      {
+        slot: "identity.authentication-library",
+        technology: "google-oauth",
+      },
+    ];
+    const result = PlatformManifestSchema.safeParse(incompatible);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "technology not selected by prerequisite",
+            ),
+          }),
+        ]),
+      );
+    }
+  });
+
+  it("rejects duplicate configuration names and unknown owners", () => {
+    const manifest = loadDomainRepository().platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const duplicateConfiguration = structuredClone(manifest);
+    const duplicateConfigurationSelection =
+      duplicateConfiguration.selections.find(
+        (selection) =>
+          selection.id ===
+          "identity-authentication-library-better-auth-2026-09-29",
+      );
+    expect(
+      duplicateConfigurationSelection?.configurationRequirements,
+    ).toBeDefined();
+    if (!duplicateConfigurationSelection?.configurationRequirements) return;
+    const [duplicateRequirement] =
+      duplicateConfigurationSelection.configurationRequirements;
+    expect(duplicateRequirement).toBeDefined();
+    if (!duplicateRequirement) return;
+    duplicateConfigurationSelection.configurationRequirements.push(
+      duplicateRequirement,
+    );
+    const duplicateConfigurationResult = PlatformManifestSchema.safeParse(
+      duplicateConfiguration,
+    );
+    expect(duplicateConfigurationResult.success).toBe(false);
+    if (!duplicateConfigurationResult.success) {
+      expect(duplicateConfigurationResult.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "repeats configuration requirement 'BETTER_AUTH_URL'",
+            ),
+          }),
+        ]),
+      );
+    }
+
+    const unknownOwner = structuredClone(manifest);
+    const unknownOwnerSelection = unknownOwner.selections.find(
+      (selection) =>
+        selection.id ===
+        "identity-authentication-library-better-auth-2026-09-29",
+    );
+    expect(unknownOwnerSelection?.configurationRequirements).toBeDefined();
+    if (!unknownOwnerSelection?.configurationRequirements) return;
+    const [unknownOwnerRequirement] =
+      unknownOwnerSelection.configurationRequirements;
+    expect(unknownOwnerRequirement).toBeDefined();
+    if (!unknownOwnerRequirement) return;
+    unknownOwnerRequirement.owner = "identity.unknown-owner";
+    const unknownOwnerResult = PlatformManifestSchema.safeParse(unknownOwner);
+    expect(unknownOwnerResult.success).toBe(false);
+    if (!unknownOwnerResult.success) {
+      expect(unknownOwnerResult.error.issues).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            message: expect.stringContaining(
+              "assigns configuration 'BETTER_AUTH_URL' to unknown owner slot 'identity.unknown-owner'",
+            ),
+          }),
+        ]),
+      );
+    }
+  });
+
   it("promotes TanStack Query only for web apps that activate client-side server state", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;

@@ -1122,6 +1122,8 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
               value: selection.value,
               originProjects: selection.origin_projects ?? [],
               evidenceADRs: selection.evidence_adrs ?? [],
+              configurationRequirements: selection.configuration_requirements,
+              manualSetup: selection.manual_setup,
               effectiveFrom: selection.effective_from,
               effectiveUntil: selection.effective_until,
             }
@@ -1131,6 +1133,8 @@ export function loadPlatformManifest(): PlatformManifest | undefined {
               technology: normalizeSlug(String(selection.technology)),
               originProjects: selection.origin_projects ?? [],
               evidenceADRs: selection.evidence_adrs ?? [],
+              configurationRequirements: selection.configuration_requirements,
+              manualSetup: selection.manual_setup,
               effectiveFrom: selection.effective_from,
               effectiveUntil: selection.effective_until,
             },
