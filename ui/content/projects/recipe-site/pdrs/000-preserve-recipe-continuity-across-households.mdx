@@ -1,0 +1,150 @@
+---
+title: "PDR 000: Preserve recipe continuity across households"
+date: "2026-10-17"
+status: "Accepted"
+decision_date: "2026-10-17"
+informed_by_adrs:
+  - "recipe-site:005-authorization-model"
+  - "recipe-site:022-realtime-household-collaboration"
+---
+
+## Context
+
+A recipe can be personal, maintained by a household, carried into another household, and changed
+again years later. Treating its current household as its permanent owner would make a membership
+change destroy useful access or erase the relationship between later versions. Keeping one person
+as the permanent owner has the opposite problem. The household would depend on that person for a
+recipe that several members maintain together.
+
+Routine household collaboration should still produce one shared recipe. A copy for every editor
+would fill the recipe box with minor variations and leave nobody sure which version to cook. Real
+divergence is different. A former member may continue changing the last version they could access,
+bring it to another household, and decide later whether to reconcile it with its source.
+
+Recipe content is unusually suitable for retained access. A person who learned or cooked a recipe
+already possesses its useful information, and family recipes often remain meaningful after a
+household changes. This does not make every kind of household data retainable. Pantry state,
+activity, membership details, private notes, plans, and future recipe changes have different privacy
+expectations.
+
+## Decision
+
+Recipe Site will preserve recipe continuity across household membership changes through
+scope-owned versions with explicit lineage.
+
+### One shared version while people collaborate
+
+A recipe maintained by a household has one canonical household version. Household members edit
+that version rather than receiving a copy for each change. The household controls its lifecycle and
+audience. Individual revisions retain their authorship, so group custody does not erase who added or
+changed the recipe.
+
+A personal recipe remains distinct from a household recipe. Sharing a personal recipe for reading
+does not give the household custody or edit rights. Moving or contributing it to a household is an
+explicit action that creates a household-maintained version with lineage back to the contributed
+revision.
+
+### Departure preserves the last authorized recipe content
+
+When somebody leaves or is removed from a household, they keep access to the exact recipe revisions
+they were entitled to retain at departure. They do not receive later household revisions, household
+activity, member information, comments, or other household state.
+
+The retained revision begins as a snapshot, not another active recipe in the former household's
+library. If the person edits it, Recipe Site creates or advances a personal branch from that exact
+revision. The household branch continues independently.
+
+This retained access policy applies to recipe content and the provenance needed to understand it.
+Other household resources require their own retention decisions and do not inherit this policy.
+
+### Recipes may move through several households
+
+A person may contribute their personal branch to a new household. That household receives its own
+canonical branch at the contributed revision. The original household branch, the personal branch,
+and the new household branch remain members of one lineage without becoming one mutable object.
+
+Leaving the new household repeats the same rule. The person retains the last authorized revision
+and may continue privately. No household gains access to another household's later changes merely
+because the branches share ancestry.
+
+### Reconciliation is optional
+
+When a person rejoins a previous household, Recipe Site shows the relationship between their
+retained or edited branch and the current household branch. The person and household may:
+
+* keep both as separate recipes with shared lineage;
+* compare the changes since their common revision;
+* propose selected changes to either branch; or
+* create a reconciled revision after reviewing a three-way comparison.
+
+Rejoining never silently overwrites either branch or assumes that divergence was temporary. A
+reconciliation records its source revisions and contributors. Choosing not to reconcile is a valid,
+permanent outcome.
+
+### Authorship, custody, access, and governance stay separate
+
+Recipe Site will not use one `owner` field to represent every relationship.
+
+* Authorship records who created a revision.
+* Custody identifies the person or household whose branch has that revision as its current head.
+* Access states which current or retained revisions a person may read or change.
+* Governance controls audience, archival, deletion, and reconciliation into a household branch.
+
+Household administrators govern the household branch. Ordinary household members may edit recipe
+content unless a later product decision introduces more restrictive household roles. Creating a
+recipe does not give its creator permanent control after they deliberately contribute it to a
+household.
+
+## Boundaries
+
+This decision does not promise simultaneous character-level editing or unrestricted offline writes.
+It defines the product behavior that revision history, optimistic concurrency, realtime delivery,
+and any later conflict-resolution technology must preserve.
+
+Deleting an account, removing unlawful material, or honoring a source-specific restriction may
+require exceptional removal. Those processes must record why the ordinary continuity promise could
+not be kept. A household administrator cannot use routine membership removal to erase a former
+member's retained recipe revision.
+
+## Consequences
+
+People can leave a household without losing recipes they helped use and maintain. A household also
+keeps its shared recipes when an author leaves. Later versions can travel through several personal
+and household contexts while preserving exact ancestry and attribution.
+
+The product must explain branches, custody, and reconciliation without presenting a source-control
+interface. Search and recipe boxes must group related versions without hiding meaningful
+differences. Retained access also creates a durable privacy obligation, so only explicitly approved
+resource types may use it.
+
+## Evaluation
+
+This decision is working when a member can leave, keep and edit the last recipe version they could
+access, contribute that version elsewhere, and later return without losing either line of work.
+Users must be able to tell which version belongs to which scope, where it came from, and whether a
+merge is available. Tests must also prove that former members cannot read changes made after their
+departure.
+
+## Alternatives
+
+### Revoke all access at departure
+
+This matches strict workspace access but makes family recipes disappear when relationships or living
+arrangements change. It also encourages manual exports with no lineage. Rejected for recipe content.
+
+### Keep the creator as permanent owner
+
+This preserves one authority but makes a shared household recipe dependent on a person who may no
+longer participate. It also confuses attribution with lifecycle control. Rejected for
+household-maintained recipes.
+
+### Create a copy for every collaborator
+
+This gives each person control but produces many minor variants during normal collaboration.
+Rejected. Branches appear at deliberate custody or membership boundaries, not for routine edits.
+
+### Force branches to reconcile when membership resumes
+
+This assumes every difference is an unfinished collaboration. Two households may have intentionally
+developed different recipes. Rejected in favor of an explicit choice to compare, merge, or remain
+separate.

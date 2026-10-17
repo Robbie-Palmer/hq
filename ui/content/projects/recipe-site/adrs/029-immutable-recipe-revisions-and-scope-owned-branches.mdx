@@ -1,0 +1,259 @@
+---
+title: "ADR 029: Immutable Recipe Revisions and Scope-Owned Branches"
+date: "2026-10-17"
+status: "Proposed"
+implements_product_decisions:
+  - "recipe-site:000-preserve-recipe-continuity-across-households"
+---
+
+# Summary
+
+Represent each recipe family as an immutable revision graph with separate personal or household
+branch heads. Store authorship on revisions, custody and audience on branches, active access through
+scope membership, and retained access to an exact revision when household membership ends.
+
+Ordinary edits append a revision using optimistic concurrency. Forks reuse an existing revision as a
+new branch head, and reconciliations append a revision with both compared heads as parents. Postgres
+remains canonical and the `recipe-api` remains the authorization boundary. CRDTs and realtime
+transport may improve editing later but do not replace this model.
+
+# Context
+
+[ADR 005](/projects/recipe-site/adrs/005-authorization-model) intentionally gives household members
+read-only access to another user's shared recipe. That policy fits user-owned rows but cannot
+represent one recipe maintained by a household. Expanding `userId` to mean creator, custodian,
+administrator, and current editor would make departure and deletion behavior depend on whichever
+meaning a code path happened to use.
+
+[ADR 022](/projects/recipe-site/adrs/022-realtime-household-collaboration) separates realtime
+delivery from canonical storage and authorization. It also reserves CRDT evaluation for arbitrary
+concurrent or offline editing. Neither WebSockets nor CRDT convergence decides what a former member
+may retain, whether a later edit belongs to a household, or how two intentional recipe variants
+relate.
+
+The current recipe table stores mutable content, a user owner, visibility, and an optional
+`parentRecipeId`. The parent records a broad relationship but not the exact source revision. Once a
+parent changes, it cannot support a reproducible comparison or prove which version somebody cooked,
+forked, or retained.
+
+PDR 000 requires one household-maintained version during active collaboration, continuity when a
+member leaves, portability into another household, and an explicit choice between reconciliation
+and permanent divergence.
+
+# Decision
+
+## Separate lineage, branch, and revision
+
+Add three distinct domain records.
+
+`recipe_lineage` identifies a related family of recipes. It contains no mutable recipe content and
+does not grant access by itself.
+
+`recipe_branch` is the addressable recipe that appears in a personal or household recipe box. It
+belongs to exactly one custody scope, points to one current head revision, and carries current
+audience, archival, and lifecycle state. A custody scope is either one user or one household.
+
+`recipe_revision` is an immutable complete snapshot of normalized recipe content and provenance. It
+records the actor, creation time, content hash, and the branch on which the revision originated.
+Store complete snapshots rather than replaying deltas for ordinary reads. Diffs remain derived data.
+
+`recipe_revision_parent` records the graph edges. A root has no parent, an ordinary edit has one,
+and a reconciliation has two. Parents must already exist and belong to the same lineage before a
+revision can be appended. Because an existing revision never gains a new parent, this append rule
+keeps the graph acyclic without a mutable cycle-breaking process.
+
+A fork or contribution creates another branch whose head points to the exact existing revision. It
+does not duplicate the snapshot or append an empty revision. Its first edit appends a child revision
+on the new branch.
+
+## Keep custody separate from attribution
+
+A personal branch has a user custody scope. Only that user may edit or govern it unless a later
+sharing decision adds direct collaborators.
+
+A household branch has a household custody scope. Active members may edit its content. Household
+administrators control its audience, archival, deletion, and acceptance of a reconciliation into
+the household head. Every appended revision records the user who made it, regardless of branch
+custody.
+
+Reading a personal branch through household visibility does not make it household-owned. Contributing
+or moving a recipe into the household is an explicit branch operation. Existing household-visible
+recipes remain user-owned during migration so this ADR does not silently widen edit access.
+
+## Append revisions with compare-and-swap
+
+Every edit command names the branch and the head revision the editor read. The transaction locks the
+branch, rechecks authorization, and appends a revision only if that expected head remains current.
+It then advances the head in the same transaction.
+
+A stale editor receives both the expected and current heads. The client may reload, compare, or
+start a reviewed reconciliation. It must not overwrite the current head. Restore also appends a new
+revision whose content matches the selected historical revision, so it does not rewrite history.
+
+Cooking sessions, recommendations, published evidence, and derived adaptations reference an exact
+revision. Branch and lineage identifiers may support aggregation, but they do not replace that
+evidence link.
+
+## Record membership periods
+
+Treat household membership as a sequence of periods rather than one timeless boolean. Each accepted
+join creates a new membership-period identifier. Leaving or removal closes that period. Rejoining
+creates another period instead of reopening the old one.
+
+All household recipe mutations carry the active membership-period identifier as authorization
+context. The API checks current membership and the expected branch head at commit time. A queued or
+offline command from a closed period cannot enter the household history after removal. The user may
+preserve its content on a personal branch and propose it after receiving access again.
+
+All membership changes that affect retained recipe access go through one application service. On
+departure, that service closes the membership period and records the authorized recipe heads before
+current household access ends. The Better Auth membership record and domain membership period live
+in the same Postgres transaction where its integration permits. If Better Auth cannot participate in
+that transaction, use a durable, idempotent departure workflow that denies new household mutations
+first and cannot complete without recording the retained heads.
+
+## Grant retained access to exact revisions
+
+Add a retained recipe entitlement keyed by user, branch, exact revision, and membership period. The
+entitlement reads that immutable snapshot and the minimum provenance needed to understand it. It
+does not grant the branch's current head, later revisions, household activity, membership data, or
+other household resources.
+
+Do not eagerly duplicate recipe content when a member leaves. If the user edits a retained revision,
+create or select a personal branch in the same lineage at that revision and append the edit there.
+The entitlement remains as the evidence for where access and divergence began.
+
+Routine household removal cannot revoke a retained recipe entitlement. Account deletion, legal
+removal, and source restrictions use a separate audited process. Authorization tests must cover each
+exception rather than treating branch deletion or membership removal as a cascading shortcut.
+
+## Preserve lineage across custody scopes
+
+Contributing a personal branch to a household creates a household branch in the same lineage at a
+chosen revision. A later contribution to another household does the same. Each branch has its own
+audience and head. Access to one does not imply access to its siblings.
+
+Do not infer equivalence from title, source URL, content hash, or shared lineage. A content hash may
+detect identical snapshots, but only an explicit branch or reconciliation operation changes a
+canonical head.
+
+Branch deletion normally archives the branch and keeps revisions that remain referenced by lineage,
+evidence, entitlements, or another branch. Physical deletion requires a reference and retention
+check. Removing one custody scope never cascades across the lineage.
+
+## Reconcile with a three-way comparison
+
+When two branches have a common revision, derive the merge base from the revision graph and compare
+base, source head, and target head. Recipe Site may automatically combine changes only when their
+structured fields do not conflict. Ingredient, equipment, instruction, quantity, timing, serving,
+and provenance conflicts require an explicit reviewed result.
+
+Accepting a reconciliation appends one target-branch revision with the prior target head and source
+head as parents. It records the accepting actor and preserves the authors of both histories.
+Rejecting or abandoning a reconciliation changes neither branch. The branches may remain separate
+indefinitely while still sharing lineage.
+
+Stable identifiers for structured recipe elements should be introduced where they improve diff and
+merge quality. A merge must still work at a coarser field or section level when an imported or legacy
+recipe lacks those identifiers. The architecture does not depend on automatic conflict-free merging.
+
+## Keep realtime and CRDT concerns subordinate
+
+Realtime publication may broadcast a newly committed branch head and revision after the Postgres
+transaction. Clients recover from missed messages by reading the canonical head, following the
+pattern in ADR 022.
+
+A later CRDT editor may coordinate simultaneous changes within one authorized editing session. Its
+committed checkpoint must still become an immutable recipe revision with a branch, actor,
+membership period, and parents. A CRDT replica from a closed membership period has no authority to
+advance a household head merely because its operations converge.
+
+## Migrate without inventing provenance
+
+Each current recipe becomes a branch with a new lineage and root revision. Preserve its existing
+user custody and visibility. Household-visible recipes do not become household branches until a user
+explicitly contributes them.
+
+For an existing `parentRecipeId`, preserve the known derived relationship. If the exact parent
+revision at creation cannot be recovered, mark the base as unknown rather than linking it to the
+parent's current revision. All new forks must name an exact source revision.
+
+# Alternatives
+
+## Add household editors to user-owned recipes
+
+This is the smallest permission change. It still leaves lifecycle control with one person and has no
+honest answer when the owner leaves, deletes the recipe, or contributes it elsewhere. Rejected as
+the canonical model. Direct collaboration on personal branches can be considered separately later.
+
+## Copy the whole recipe on every custody change
+
+Independent rows avoid a graph model, but duplicate snapshots, lose exact ancestry, and make later
+comparison depend on guesswork. Rejected. Branch heads can share immutable revisions until their
+content diverges.
+
+## Keep one canonical recipe across all households
+
+This would concentrate activity and avoid forks. It would also let one household's choices affect
+another and flatten legitimate family variants. Rejected because shared ancestry does not imply one
+current truth.
+
+## Store only change events or deltas
+
+An event stream can reconstruct every version and reduce repeated fields. It makes ordinary recipe
+reads, retention, deletion, and schema migration depend on replay and compaction. Rejected for the
+initial model. Immutable snapshots with derived diffs provide the required history more directly.
+
+## Use a CRDT document as the canonical recipe
+
+This could merge disconnected edits but does not define custody, retained access, membership
+revocation, or intentional divergence. Structured recipe invariants and relational evidence would
+still need a projection and authorization model. Rejected as the canonical persistence model. A
+later editor may use CRDTs within the boundaries above.
+
+## Model several permanent co-owners
+
+Co-owner ACLs help direct collaboration but become unstable when people leave several households.
+They also do not identify which group maintains the current branch or which revision a former member
+may retain. Rejected in favor of scope custody plus revision entitlements.
+
+# Consequences
+
+Recipe history, restore, forking, household collaboration, departure, and later reconciliation use
+one model. Exact revision references make cooking evidence and provenance reproducible. A person can
+carry a recipe through several households without granting those households access to one another.
+
+The database gains a graph, branch lifecycle, membership-period ledger, retained entitlements, and
+more complex deletion rules. Complete snapshots use more storage than mutable rows or deltas.
+Postgres storage is acceptable for recipe-sized documents, but snapshot size and revision frequency
+must be measured before adding autosave-level revisions.
+
+Authorization becomes revision-aware. A branch listing cannot assume that access to one lineage or
+one historical snapshot grants access to every head. Search, notifications, exports, and background
+jobs must use the same policy service as direct reads.
+
+The UI must make custody and divergence understandable without exposing source-control terminology.
+Lineage grouping must not collapse branches that users chose to keep separate.
+
+# Acceptance criteria
+
+Move this ADR to Accepted when a schema and API spike proves all of the following:
+
+1. Existing recipes migrate to immutable root revisions without changing their URLs, content, owner,
+   or visibility.
+2. Two household members can edit one household branch, with stale writes rejected and every
+   revision attributed.
+3. Departure records the exact authorized head, closes the membership period, preserves that
+   revision for the former member, and prevents access to every later household revision.
+4. A former member can continue on a personal branch and contribute a chosen revision to another
+   household without exposing either household's private history.
+5. Rejoining shows the common base and allows the branches to remain separate or produce a reviewed
+   two-parent reconciliation revision.
+6. Cooking sessions and social evidence continue to reference the exact revision used through
+   restore, fork, archival, reconciliation, membership removal, and account deletion.
+7. Commands from a closed membership period cannot advance a household head, including after an
+   offline retry.
+8. Existing `parentRecipeId` data migrates without claiming an exact source revision that cannot be
+   proved.
+9. Authorization and deletion tests cover active members, former members, sibling households,
+   retained entitlements, archived branches, and exceptional content removal.
