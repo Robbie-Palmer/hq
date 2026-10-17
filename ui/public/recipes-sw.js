@@ -1,7 +1,7 @@
 /* Robbie's Recipes service worker. Keep cache version changes explicit so an
  * update never mixes incompatible application shells or private data. */
-const SHELL_CACHE = "recipe-shell-v5";
-const ASSET_CACHE = "recipe-assets-v5";
+const SHELL_CACHE = "recipe-shell-v6";
+const ASSET_CACHE = "recipe-assets-v6";
 const IMAGE_CACHE = "recipe-images-v2";
 const SESSION_CACHE = "recipe-session-v1";
 const SESSION_CACHE_KEY = "/recipes/__offline-session";
@@ -27,6 +27,7 @@ const APP_SHELL_PATHS = new Set([
 const REQUIRED_SHELL_PATHS = [
   "/recipes",
   "/recipes/saved",
+  "/recipes/shopping",
   "/recipes/offline",
 ];
 let inFlightSessionRequest;
@@ -300,6 +301,9 @@ function offlineShellPath(pathname) {
   const normalizedPathname = pathname.slice(0, pathEnd);
   if (normalizedPathname === "/recipes") return "/recipes";
   if (normalizedPathname === "/recipes/saved") return "/recipes/saved";
+  if (normalizedPathname === "/recipes/shopping") {
+    return "/recipes/shopping";
+  }
   if (APP_SHELL_PATHS.has(normalizedPathname)) return "/recipes/offline";
   if (/^\/recipes\/[^/]+$/.test(normalizedPathname)) {
     return "/recipes/saved";

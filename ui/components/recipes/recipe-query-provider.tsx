@@ -10,6 +10,7 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PantryRealtimeBoundary } from "@/components/recipes/pantry-realtime-boundary";
 import type { RecipeBootstrap } from "@/lib/api/recipe-bootstrap";
 import { authClient } from "@/lib/auth-client";
+import { setCookingTimerOwner } from "@/lib/cooking/timerStore";
 import {
   loadOfflineRecipeSnapshot,
   saveOfflineRecipeSnapshot,
@@ -19,6 +20,7 @@ import {
   createRecipeQueryClient,
 } from "@/lib/query/recipe-query-client";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
+import { setShoppingListOwner } from "@/lib/shopping/shoppingListStore";
 
 const RecipeQueryDevtools =
   process.env.NODE_ENV === "development"
@@ -69,7 +71,10 @@ export function OfflineRecipeCacheBoundary() {
   activeAccount.current = { isPending, userId };
 
   useEffect(() => {
-    if (isPending || !userId) return;
+    if (isPending) return;
+    setCookingTimerOwner(userId);
+    setShoppingListOwner(userId);
+    if (!userId) return;
     let disposed = false;
     let restoring = false;
     const queryKey = recipeQueryKeys.bootstrap(userId);

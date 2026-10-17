@@ -37,7 +37,8 @@ export type ShoppingListState = {
 
 export type ShoppingListChangeSource = "install" | "local" | "storage";
 
-const STORAGE_KEY = "recipe-shopping-list:v1";
+const LEGACY_STORAGE_KEY = "recipe-shopping-list:v1";
+const STORAGE_KEY_PREFIX = "recipe-shopping-list:v2:";
 const COMPLETED_TRIP_STORAGE_KEY = "recipe-shopping-trip-completed:v1";
 const COMPLETED_TRIP_LOCK_NAME = "recipe-shopping-trip-completion";
 
@@ -49,8 +50,10 @@ const EMPTY_STATE: ShoppingListState = {
 
 let state: ShoppingListState = EMPTY_STATE;
 let hydrated = false;
+let activeUserId: string | undefined;
 let activeListId: string | undefined;
 let activeRevision: string | undefined;
+let activeResourceId: string | undefined;
 let confirmedSnapshot: ShoppingListState | undefined;
 let hasUnsavedChanges = false;
 let completedTripRecordedFallback = false;
@@ -142,22 +145,37 @@ function parseState(raw: string | null): ShoppingListState {
   }
 }
 
+function storageKey(userId: string): string {
+  return `${STORAGE_KEY_PREFIX}${encodeURIComponent(userId)}`;
+}
+
+function restoreCacheMetadata(parsed: Record<string, unknown>): void {
+  activeListId = typeof parsed.listId === "string" ? parsed.listId : undefined;
+  activeRevision =
+    typeof parsed.revision === "string" ? parsed.revision : undefined;
+  activeResourceId =
+    typeof parsed.resourceId === "string" ? parsed.resourceId : undefined;
+  confirmedSnapshot = isRecord(parsed.confirmedSnapshot)
+    ? parseState(JSON.stringify(parsed.confirmedSnapshot))
+    : undefined;
+  hasUnsavedChanges = parsed.hasUnsavedChanges === true;
+}
+
 function hydrate(): void {
   if (hydrated) return;
   hydrated = true;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!activeUserId) return;
+    const raw = localStorage.getItem(storageKey(activeUserId));
     state = parseState(raw);
     const parsed: unknown = raw ? JSON.parse(raw) : undefined;
     if (isRecord(parsed)) {
-      activeListId =
-        typeof parsed.listId === "string" ? parsed.listId : undefined;
-      activeRevision =
-        typeof parsed.revision === "string" ? parsed.revision : undefined;
-      confirmedSnapshot = isRecord(parsed.confirmedSnapshot)
-        ? parseState(JSON.stringify(parsed.confirmedSnapshot))
-        : undefined;
-      hasUnsavedChanges = parsed.hasUnsavedChanges === true;
+      if (parsed.version !== 2 || parsed.userId !== activeUserId) {
+        localStorage.removeItem(storageKey(activeUserId));
+        state = EMPTY_STATE;
+        return;
+      }
+      restoreCacheMetadata(parsed);
     }
   } catch {
     // localStorage unavailable (SSR, private browsing, etc.)
@@ -166,12 +184,16 @@ function hydrate(): void {
 
 function persist(): void {
   try {
+    if (!activeUserId) return;
     localStorage.setItem(
-      STORAGE_KEY,
+      storageKey(activeUserId),
       JSON.stringify({
+        version: 2,
+        userId: activeUserId,
         ...state,
         listId: activeListId,
         revision: activeRevision,
+        resourceId: activeResourceId,
         confirmedSnapshot,
         hasUnsavedChanges,
       }),
@@ -199,11 +221,28 @@ function setState(next: ShoppingListState): void {
 let storageListenerHooked = false;
 
 function handleStorage(event: StorageEvent): void {
-  if (event.key !== STORAGE_KEY || !activeListId || !event.newValue) return;
+  if (
+    !activeUserId ||
+    event.key !== storageKey(activeUserId) ||
+    !activeListId ||
+    !event.newValue
+  ) {
+    return;
+  }
   try {
     const incoming: unknown = JSON.parse(event.newValue);
-    if (!isRecord(incoming)) return;
+    if (
+      !isRecord(incoming) ||
+      incoming.version !== 2 ||
+      incoming.userId !== activeUserId
+    ) {
+      return;
+    }
     if (incoming.listId !== activeListId) {
+      emit("storage");
+      return;
+    }
+    if (incoming.resourceId !== activeResourceId) {
       emit("storage");
       return;
     }
@@ -242,12 +281,38 @@ export function getShoppingListSnapshot(): ShoppingListState {
   return state;
 }
 
+export function setShoppingListOwner(userId: string | undefined): void {
+  if (activeUserId === userId && hydrated) return;
+  activeUserId = userId;
+  state = EMPTY_STATE;
+  hydrated = false;
+  activeListId = undefined;
+  activeRevision = undefined;
+  activeResourceId = undefined;
+  confirmedSnapshot = undefined;
+  hasUnsavedChanges = false;
+  if (userId) {
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // An unscoped legacy record must never be restored into this account.
+    }
+    hydrate();
+  }
+  emit("install");
+}
+
 export function getShoppingListCacheIdentity(): {
   listId?: string;
   revision?: string;
+  resourceId?: string;
 } {
   hydrate();
-  return { listId: activeListId, revision: activeRevision };
+  return {
+    listId: activeListId,
+    revision: activeRevision,
+    resourceId: activeResourceId,
+  };
 }
 
 export function getShoppingListCacheMetadata(): {
@@ -272,10 +337,12 @@ export function installShoppingListSnapshot(
     confirmedSnapshot: ShoppingListState;
     hasUnsavedChanges: boolean;
   },
+  resourceId?: string,
 ): void {
   hydrated = true;
   activeListId = listId;
   activeRevision = revision;
+  activeResourceId = resourceId;
   state = parseState(JSON.stringify(next));
   if (cacheMetadata) {
     confirmedSnapshot = parseState(
@@ -400,6 +467,28 @@ export function clearList(): void {
   resetShoppingTripCompletion();
 }
 
+export function clearShoppingListStorage(): void {
+  try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(STORAGE_KEY_PREFIX)) localStorage.removeItem(key);
+    }
+    localStorage.removeItem(COMPLETED_TRIP_STORAGE_KEY);
+  } catch {
+    // Reset the live copy even when browser storage is restricted.
+  }
+  state = EMPTY_STATE;
+  hydrated = true;
+  activeListId = undefined;
+  activeRevision = undefined;
+  activeResourceId = undefined;
+  confirmedSnapshot = undefined;
+  hasUnsavedChanges = false;
+  completedTripRecordedFallback = false;
+  emit("install");
+}
+
 /** Reset module state between tests (mirrors the cooking-timer store). */
 export function __resetShoppingListForTests(): void {
   if (storageListenerHooked) {
@@ -408,8 +497,10 @@ export function __resetShoppingListForTests(): void {
   }
   state = EMPTY_STATE;
   hydrated = false;
+  activeUserId = "test-user";
   activeListId = undefined;
   activeRevision = undefined;
+  activeResourceId = undefined;
   confirmedSnapshot = undefined;
   hasUnsavedChanges = false;
   completedTripRecordedFallback = false;

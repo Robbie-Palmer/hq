@@ -3,16 +3,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const pwaMocks = vi.hoisted(() => ({
   clearOfflineRecipeSnapshots: vi.fn(),
+  cacheStatus: {
+    oldestSavedAt: null as number | null,
+    quotaExceeded: false,
+  },
+}));
+const authMocks = vi.hoisted(() => ({
+  session: {
+    data: null as { user: { id: string } } | null,
+    isPending: false,
+  },
 }));
 
 vi.mock("@/lib/auth-client", () => ({
   authClient: {
-    useSession: () => ({ data: null, isPending: false }),
+    useSession: () => authMocks.session,
   },
 }));
 
 vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
   clearOfflineRecipeSnapshots: pwaMocks.clearOfflineRecipeSnapshots,
+  getOfflineCacheStatus: () => pwaMocks.cacheStatus,
+  getServerOfflineCacheStatus: () => ({
+    oldestSavedAt: null,
+    quotaExceeded: false,
+  }),
+  subscribeOfflineCacheStatus: () => () => undefined,
 }));
 
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -24,7 +40,13 @@ import { createRecipeQueryClient } from "@/lib/query/recipe-query-client";
 
 describe("RecipePwa", () => {
   beforeEach(() => {
+    localStorage.clear();
     pwaMocks.clearOfflineRecipeSnapshots.mockResolvedValue(undefined);
+    pwaMocks.cacheStatus = {
+      oldestSavedAt: null,
+      quotaExceeded: false,
+    };
+    authMocks.session = { data: null, isPending: false };
     Object.defineProperty(navigator, "onLine", {
       configurable: true,
       value: true,
@@ -63,7 +85,29 @@ describe("RecipePwa", () => {
     });
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Offline. Saved recipes are read-only until you reconnect.",
+      "Offline. Saved data is read-only until you reconnect.",
+    );
+  });
+
+  it("shows when the oldest restored snapshot was saved", async () => {
+    const now = Date.now();
+    pwaMocks.cacheStatus = {
+      oldestSavedAt: now - 5 * 60_000,
+      quotaExceeded: false,
+    };
+    vi.mocked(fetch).mockRejectedValue(new TypeError("offline"));
+    renderPwa();
+
+    await act(async () => {
+      Object.defineProperty(navigator, "onLine", {
+        configurable: true,
+        value: false,
+      });
+      window.dispatchEvent(new Event("offline"));
+    });
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Offline. Showing saved data from 5 minutes ago.",
     );
   });
 
@@ -120,10 +164,34 @@ describe("RecipePwa", () => {
   it("clears private caches directly when no service worker is available", async () => {
     const deleteCache = vi.fn().mockResolvedValue(true);
     vi.stubGlobal("caches", { delete: deleteCache });
+    localStorage.setItem("cooking-timers:v2:user-1", "protected");
+    localStorage.setItem("recipe-shopping-list:v2:user-1", "protected");
 
     await clearOfflineRecipeData();
 
     expect(deleteCache).toHaveBeenCalledWith("recipe-session-v1");
     expect(deleteCache).toHaveBeenCalledWith("recipe-images-v2");
+    expect(localStorage.getItem("cooking-timers:v2:user-1")).toBeNull();
+    expect(localStorage.getItem("recipe-shopping-list:v2:user-1")).toBeNull();
+  });
+
+  it("evicts protected browser data when an authenticated account disappears", async () => {
+    authMocks.session = {
+      data: { user: { id: "user-1" } },
+      isPending: false,
+    };
+    const view = renderPwa();
+    await act(async () => undefined);
+
+    authMocks.session = { data: null, isPending: false };
+    view.rerender(
+      <QueryClientProvider client={createRecipeQueryClient()}>
+        <RecipePwa />
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(pwaMocks.clearOfflineRecipeSnapshots).toHaveBeenCalled();
+    });
   });
 });

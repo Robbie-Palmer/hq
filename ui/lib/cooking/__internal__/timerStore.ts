@@ -46,7 +46,8 @@ export type StartTimerInput = {
 /** A custom timer with no parsed-recipe origin; recipe context is optional. */
 export type CustomTimerInput = Omit<StartTimerInput, "id">;
 
-const STORAGE_KEY = "cooking-timers:v1";
+const LEGACY_STORAGE_KEY = "cooking-timers:v1";
+const STORAGE_KEY_PREFIX = "cooking-timers:v2:";
 const WAKE_LOCK_KEY = "cooking-timers";
 const TICK_MS = 250;
 
@@ -54,6 +55,7 @@ const EMPTY_TIMERS: readonly CookingTimer[] = [];
 
 let timers: readonly CookingTimer[] = EMPTY_TIMERS;
 let hydrated = false;
+let activeUserId: string | undefined;
 const listeners = new Set<() => void>();
 let tickHandle: ReturnType<typeof setInterval> | null = null;
 let globalListenersHooked = false;
@@ -88,20 +90,35 @@ function isStoredTimer(value: unknown): value is CookingTimer {
   );
 }
 
+function storageKey(userId: string): string {
+  return `${STORAGE_KEY_PREFIX}${encodeURIComponent(userId)}`;
+}
+
 function loadStored(): readonly CookingTimer[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!activeUserId) return EMPTY_TIMERS;
+    const raw = localStorage.getItem(storageKey(activeUserId));
     if (!raw) return EMPTY_TIMERS;
     const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return EMPTY_TIMERS;
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      (parsed as { version?: unknown }).version !== 2 ||
+      (parsed as { userId?: unknown }).userId !== activeUserId ||
+      !Array.isArray((parsed as { timers?: unknown }).timers)
+    ) {
+      return EMPTY_TIMERS;
+    }
     const now = Date.now();
-    const restored = parsed.filter(isStoredTimer).map((t): CookingTimer => {
-      if (t.state !== "running" || t.endTimeMs === null) return t;
-      const remaining = remainingFrom(t.endTimeMs, now);
-      return remaining > 0
-        ? { ...t, remainingSeconds: remaining }
-        : { ...t, state: "completed", remainingSeconds: 0, endTimeMs: null };
-    });
+    const restored = (parsed as { timers: unknown[] }).timers
+      .filter(isStoredTimer)
+      .map((t): CookingTimer => {
+        if (t.state !== "running" || t.endTimeMs === null) return t;
+        const remaining = remainingFrom(t.endTimeMs, now);
+        return remaining > 0
+          ? { ...t, remainingSeconds: remaining }
+          : { ...t, state: "completed", remainingSeconds: 0, endTimeMs: null };
+      });
     return restored.length > 0 ? restored : EMPTY_TIMERS;
   } catch {
     return EMPTY_TIMERS;
@@ -110,10 +127,15 @@ function loadStored(): readonly CookingTimer[] {
 
 function persist(): void {
   try {
+    if (!activeUserId) return;
+    const key = storageKey(activeUserId);
     if (timers.length === 0) {
-      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(key);
     } else {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(timers));
+      localStorage.setItem(
+        key,
+        JSON.stringify({ version: 2, userId: activeUserId, timers }),
+      );
     }
   } catch {
     // localStorage unavailable
@@ -181,7 +203,7 @@ function hookGlobalListeners(): void {
   globalListenersHooked = true;
   // Cross-tab sync: another tab mutated the timers.
   globalThis.addEventListener("storage", (event) => {
-    if (event.key !== STORAGE_KEY) return;
+    if (!activeUserId || event.key !== storageKey(activeUserId)) return;
     timers = loadStored();
     syncSideEffects();
     emit();
@@ -196,11 +218,29 @@ function hookGlobalListeners(): void {
 }
 
 export function getTimersSnapshot(): readonly CookingTimer[] {
-  if (!hydrated && globalThis.window !== undefined) {
+  if (!hydrated && activeUserId && globalThis.window !== undefined) {
     hydrated = true;
     timers = loadStored();
   }
   return timers;
+}
+
+export function setCookingTimerOwner(userId: string | undefined): void {
+  if (activeUserId === userId && hydrated) return;
+  activeUserId = userId;
+  timers = EMPTY_TIMERS;
+  hydrated = false;
+  if (userId && globalThis.window !== undefined) {
+    try {
+      localStorage.removeItem(LEGACY_STORAGE_KEY);
+    } catch {
+      // An unscoped legacy record must never be restored into this account.
+    }
+    hydrated = true;
+    timers = loadStored();
+  }
+  syncSideEffects();
+  emit();
 }
 
 export function getServerTimersSnapshot(): readonly CookingTimer[] {
@@ -321,6 +361,22 @@ export function dismissTimer(id: string): void {
   commit(timers.filter((t) => t.id !== id));
 }
 
+export function clearCookingTimerStorage(): void {
+  try {
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
+    for (let index = localStorage.length - 1; index >= 0; index -= 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(STORAGE_KEY_PREFIX)) localStorage.removeItem(key);
+    }
+  } catch {
+    // The in-memory copy still needs to disappear when storage is restricted.
+  }
+  timers = EMPTY_TIMERS;
+  hydrated = true;
+  syncSideEffects();
+  emit();
+}
+
 /** Test-only: reset module state (optionally keeping localStorage). */
 export function __resetTimerStoreForTests(): void {
   if (tickHandle !== null) {
@@ -330,6 +386,7 @@ export function __resetTimerStoreForTests(): void {
   releaseWakeLock(WAKE_LOCK_KEY);
   timers = EMPTY_TIMERS;
   hydrated = false;
+  activeUserId = "test-user";
   // Deliberately NOT resetting globalListenersHooked: the storage /
   // visibilitychange listeners are attached to the persistent jsdom globals
   // and read live module state, so they keep working after a reset. Clearing

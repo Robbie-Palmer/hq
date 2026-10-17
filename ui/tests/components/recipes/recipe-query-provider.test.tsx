@@ -144,8 +144,14 @@ describe("RecipeAccountCacheBoundary", () => {
       unreadNotificationCount: 0,
     } as unknown as RecipeBootstrap;
     offlineMocks.load.mockResolvedValue({
-      version: 1,
-      userId: "user-1",
+      version: 2,
+      key: "recipes:user-1",
+      kind: "recipes",
+      scope: {
+        userId: "user-1",
+        householdId: null,
+        resourceId: null,
+      },
       savedAt: 123,
       bootstrap,
     });
