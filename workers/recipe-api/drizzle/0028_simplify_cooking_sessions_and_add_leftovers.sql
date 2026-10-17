@@ -48,7 +48,7 @@ BEGIN
 	IF NOT EXISTS (
 		SELECT 1 FROM pg_constraint
 		WHERE conrelid = 'public.leftover_batch'::regclass
-			AND conname = 'leftover_batch_pkey'
+			AND contype = 'p'
 	) THEN
 		ALTER TABLE "leftover_batch" ADD CONSTRAINT "leftover_batch_pkey" PRIMARY KEY ("id");
 	END IF;

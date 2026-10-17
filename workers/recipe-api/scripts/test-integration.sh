@@ -110,6 +110,15 @@ if [[ -n "$migration_recovery_url" ]]; then
     exit 1
   fi
 
+  # A compatible primary key may have a different generated name. Replaying
+  # the migration must recognize it by type instead of adding a second key.
+  docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --set ON_ERROR_STOP=1 \
+    --command 'alter table public.leftover_batch rename constraint leftover_batch_pkey to existing_leftover_batch_pkey' \
+    >/dev/null
+
   docker exec "$container_id" psql \
     --username postgres \
     --dbname "$migration_recovery_database" \
