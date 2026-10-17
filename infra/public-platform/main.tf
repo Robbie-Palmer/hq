@@ -303,7 +303,7 @@ resource "cloudflare_ruleset" "map_tiles_cache" {
 
 resource "cloudflare_ruleset" "auth_rate_limit" {
   zone_id     = data.cloudflare_zone.domain.id
-  name        = "API endpoint rate limiting"
+  name        = "Auth endpoint rate limiting"
   description = "Per-IP rate limiting for auth and wedding-playlist writes. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
   kind        = "zone"
   phase       = "http_ratelimit"
