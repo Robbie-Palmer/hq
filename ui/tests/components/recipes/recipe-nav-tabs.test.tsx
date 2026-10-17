@@ -36,6 +36,14 @@ describe("RecipeNavTabs", () => {
         .map((link) => link.textContent),
     ).toEqual(["Recipes", "Discover", "Plan", "Shop", "Kitchen", "Log"]);
     expect(
+      within(navigation).getByRole("link", { name: "Shopping" }),
+    ).toHaveTextContent("Shop");
+    expect(
+      within(
+        screen.getByRole("navigation", { name: "Primary recipe sections" }),
+      ).getByRole("link", { name: "Shopping" }),
+    ).toHaveTextContent("Shop");
+    expect(
       within(navigation).getByRole("link", {
         name: "Kitchen",
         current: "page",
@@ -53,7 +61,7 @@ describe("RecipeNavTabs", () => {
     });
     expect(
       within(navigation).getByRole("link", {
-        name: /Shop.*2 recipes selected/,
+        name: /Shopping.*2 recipes selected/,
       }),
     ).toHaveAttribute("href", "/recipes/shopping");
   });

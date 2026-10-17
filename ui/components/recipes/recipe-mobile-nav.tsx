@@ -142,6 +142,11 @@ export function RecipeMobileNav({
           <a
             key={href}
             href={href}
+            aria-label={
+              href === "/recipes/shopping"
+                ? `Shopping${count > 0 ? `, ${count} ${count === 1 ? "recipe" : "recipes"} selected` : ""}`
+                : undefined
+            }
             aria-current={active ? "page" : undefined}
             className="relative flex min-w-0 flex-col items-center gap-0.5 px-1 py-1 rt-mono text-[0.65rem] text-[var(--ink-3)] aria-[current=page]:text-[var(--terracotta-deep)]"
           >

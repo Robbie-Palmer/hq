@@ -215,7 +215,7 @@ test.describe("deployed recipe PWA offline navigation", () => {
       { name: "Discover", path: "/recipes/discover" },
       { name: "Kitchen", path: "/recipes/kitchen" },
       { name: "Log", path: "/recipes/log" },
-      { name: "Shop", path: "/recipes/shopping" },
+      { name: "Shopping", path: "/recipes/shopping" },
     ];
 
     for (const destination of destinations) {

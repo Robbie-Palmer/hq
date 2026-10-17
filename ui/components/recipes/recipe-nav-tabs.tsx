@@ -93,6 +93,11 @@ export function RecipeNavTabs() {
             <a
               key={href}
               href={href}
+              aria-label={
+                href === "/recipes/shopping"
+                  ? `Shopping${count > 0 ? `, ${count} ${count === 1 ? "recipe" : "recipes"} selected` : ""}`
+                  : undefined
+              }
               aria-current={active ? "page" : undefined}
               className="rt-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap py-1 text-base lg:text-lg"
               data-active={active || undefined}

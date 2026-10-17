@@ -74,7 +74,7 @@ test("keeps planning and shopping as independent durable destinations", async ({
 
     await first.page.reload();
     await expect(first.page.getByText(recipeTitle ?? "")).toBeVisible();
-    await first.page.getByRole("link", { name: "Shop" }).click();
+    await first.page.getByRole("link", { name: "Shopping" }).click();
     await first.page.goBack();
     await expect(first.page).toHaveURL(
       `${previewSiteURL.origin}/recipes/planning`,
