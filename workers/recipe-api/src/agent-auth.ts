@@ -1,29 +1,29 @@
 import type { AgentSession, Capability } from "@better-auth/agent-auth";
 import {
+  type AgentAuthAuditRecord,
+  type AgentExecutionAuditEvent,
+  type AgentExecutionRateLimits,
   createAgentAuthAuditHandler,
   createAgentAuthConfiguration,
   createAgentAuthPlugin,
   createAgentExecutionHandler,
-  type AgentAuthAuditRecord,
-  type AgentExecutionAuditEvent,
-  type AgentExecutionRateLimits,
 } from "agent-auth";
 import { APIError } from "better-auth";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import {
+  CookLogMutationEventSchema,
+  MAX_COOK_LOG_MUTATION_EVENTS,
+} from "recipe-domain/cook-log";
+import {
   RECIPE_IMPORT_MAX_IMAGES,
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
 import {
-  CookLogMutationEventSchema,
-  MAX_COOK_LOG_MUTATION_EVENTS,
-} from "recipe-domain/cook-log";
-import {
-  MAX_PANTRY_ITEMS,
   MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
+  MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
   PANTRY_LOCATIONS,
   PantryLocationSchema,
@@ -43,12 +43,12 @@ import {
   cookingLogResponse,
   decodeCookingLogCursor,
 } from "./cooking-reads";
+import { enforceRateLimit } from "./http/rate-limit";
 import { readPantry } from "./pantry";
 import { previewPantryMutationUndo } from "./pantry/services/preview-pantry-mutation-undo";
 import { reconcilePantry } from "./pantry/services/reconcile-pantry";
 import { readableRecipeFilter } from "./recipe-access";
 import { inspectRecipeDataset } from "./recipe-dataset";
-import { enforceRateLimit } from "./http/rate-limit";
 
 const READ_GRANT_TTL_SECONDS = 30 * 24 * 60 * 60;
 const MAX_COOK_LOG_RANGE_MS = 90 * 24 * 60 * 60 * 1_000;
@@ -462,7 +462,7 @@ const recipeDatasetInspectionSchema = {
 const shoppingListSnapshotSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["recipes", "checked", "extras"],
+  required: ["recipes", "checked", "extras", "plan"],
   properties: {
     recipes: {
       type: "array",
@@ -493,6 +493,30 @@ const shoppingListSnapshotSchema = {
           id: { type: "string", minLength: 1, maxLength: 200 },
           text: { type: "string", minLength: 1, maxLength: 500 },
           checked: { type: "boolean" },
+        },
+      },
+    },
+    plan: {
+      type: "array",
+      maxItems: 500,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["id", "kind", "status"],
+        properties: {
+          id: { type: "string", minLength: 1, maxLength: 200 },
+          kind: {
+            enum: ["recipe", "leftovers", "eating_out", "decide_later"],
+          },
+          status: { enum: ["candidate", "committed"] },
+          date: { type: "string", format: "date" },
+          mealType: {
+            enum: ["breakfast", "lunch", "dinner", "snack"],
+          },
+          recipeSlug: { type: "string", minLength: 1, maxLength: 200 },
+          servings: { type: "integer", minimum: 1, maximum: 1_000 },
+          note: { type: "string", maxLength: 500 },
+          sourceMealId: { type: "string", minLength: 1, maxLength: 200 },
         },
       },
     },
@@ -1129,7 +1153,10 @@ async function readShoppingList(
           resourceId,
           scope,
           revision: shoppingList.revision.toString(),
-          snapshot: shoppingList.snapshot,
+          snapshot: {
+            ...shoppingList.snapshot,
+            plan: shoppingList.snapshot.plan ?? [],
+          },
           createdAt: shoppingList.createdAt.toISOString(),
           updatedAt: shoppingList.updatedAt.toISOString(),
         }

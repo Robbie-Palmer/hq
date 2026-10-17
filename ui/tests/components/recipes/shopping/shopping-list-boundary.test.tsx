@@ -19,6 +19,7 @@ import {
   addExtra,
   addRecipe,
   getShoppingListSnapshot,
+  savePlannedMeal,
   toggleChecked,
 } from "@/lib/shopping/shoppingListStore";
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
@@ -53,7 +54,7 @@ vi.mock("@/lib/api/shopping-lists", async (importOriginal) => ({
   startNewShoppingList: mocks.startNewShoppingList,
 }));
 
-const emptySnapshot = { recipes: [], checked: [], extras: [] };
+const emptySnapshot = { recipes: [], checked: [], extras: [], plan: [] };
 const storedList = {
   id: "00000000-0000-4000-8000-000000000080",
   resourceId: "user-1",
@@ -673,7 +674,15 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       </ShoppingListBoundary>,
     );
     await screen.findByRole("button", { name: "Start new" });
-    act(() => addExtra("Milk"));
+    act(() => {
+      addExtra("Milk");
+      savePlannedMeal({
+        id: "meal-1",
+        kind: "recipe",
+        status: "candidate",
+        recipeSlug: "risotto",
+      });
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Start new" }));
 
@@ -681,6 +690,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       recipes: [],
       checked: [],
       extras: [],
+      plan: [expect.objectContaining({ id: "meal-1" })],
     });
     expect(
       JSON.parse(localStorage.getItem("recipe-shopping-list:v1") ?? "{}"),
@@ -696,6 +706,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         storedList.revision,
         expect.objectContaining({
           extras: [expect.objectContaining({ text: "Milk" })],
+          plan: [expect.objectContaining({ id: "meal-1" })],
         }),
       ),
     );
@@ -705,6 +716,10 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       finishStarting?.({
         ...storedList,
         id: "00000000-0000-4000-8000-000000000081",
+        snapshot: {
+          ...emptySnapshot,
+          plan: getShoppingListSnapshot().plan,
+        },
       }),
     );
     await waitFor(() =>
@@ -712,6 +727,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         recipes: [],
         checked: [],
         extras: [],
+        plan: [expect.objectContaining({ id: "meal-1" })],
       }),
     );
   });
@@ -854,7 +870,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     const nextList = {
       ...storedList,
       id: "00000000-0000-4000-8000-000000000081",
-      snapshot: { recipes, checked, extras },
+      snapshot: { recipes, checked, extras, plan: [] },
     };
     act(() => {
       queryClient.setQueryData(

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
+import { RecipeDestinationAnalytics } from "@/components/recipes/recipe-destination-analytics";
 import { RecipePicker } from "@/components/recipes/shopping/recipe-picker";
 import { ShareShoppingList } from "@/components/recipes/shopping/share-shopping-list";
 import { ShoppingList } from "@/components/recipes/shopping/shopping-list";
@@ -30,6 +31,7 @@ export function ShoppingView({
 }>) {
   return (
     <ShoppingListBoundary>
+      <RecipeDestinationAnalytics destination="shopping" />
       <ShoppingViewContent
         ingredientCatalog={ingredientCatalog}
         recipes={recipes}

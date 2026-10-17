@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addCommittedMealsToShoppingList,
   addExtra,
   addRecipe,
   clearChecked,
@@ -9,7 +10,9 @@ import {
   installShoppingListSnapshot,
   markShoppingTripCompleted,
   removeExtra,
+  removePlannedMeal,
   removeRecipe,
+  savePlannedMeal,
   setRecipeServings,
   subscribeShoppingList,
   toggleChecked,
@@ -145,16 +148,98 @@ describe("shoppingListStore", () => {
     await expect(markShoppingTripCompleted()).resolves.toBe(true);
   });
 
-  it("clearList wipes everything", () => {
+  it("starts a new shopping list without erasing the meal plan", () => {
     addRecipe("a");
     addExtra("foil");
     toggleChecked("garlic");
+    savePlannedMeal({
+      id: "meal-1",
+      kind: "recipe",
+      status: "candidate",
+      recipeSlug: "risotto",
+    });
     clearList();
     expect(getShoppingListSnapshot()).toEqual({
       recipes: [],
       checked: [],
       extras: [],
+      plan: [
+        {
+          id: "meal-1",
+          kind: "recipe",
+          status: "candidate",
+          recipeSlug: "risotto",
+        },
+      ],
     });
+  });
+
+  it("migrates the old weekly slots without losing planned recipes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-17T12:00:00Z"));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        recipes: [],
+        checked: [],
+        extras: [],
+        plan: [{ day: "mon", slot: "dinner", slug: "risotto" }],
+      }),
+    );
+    __resetShoppingListForTests();
+
+    expect(getShoppingListSnapshot().plan).toEqual([
+      {
+        id: "legacy-mon-dinner-risotto",
+        kind: "recipe",
+        status: "committed",
+        date: "2026-10-19",
+        mealType: "dinner",
+        recipeSlug: "risotto",
+      },
+    ]);
+    vi.useRealTimers();
+  });
+
+  it("adds only committed recipe meals to shopping", () => {
+    savePlannedMeal({
+      id: "candidate",
+      kind: "recipe",
+      status: "candidate",
+      recipeSlug: "soup",
+    });
+    savePlannedMeal({
+      id: "risotto-1",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-18",
+      mealType: "dinner",
+      recipeSlug: "risotto",
+      servings: 2,
+    });
+    savePlannedMeal({
+      id: "risotto-2",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-20",
+      mealType: "dinner",
+      recipeSlug: "risotto",
+      servings: 3,
+    });
+    savePlannedMeal({
+      id: "meal-out",
+      kind: "eating_out",
+      status: "committed",
+      date: "2026-10-19",
+      mealType: "dinner",
+    });
+
+    expect(addCommittedMealsToShoppingList()).toBe(1);
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "risotto", servings: 5 },
+    ]);
+    removePlannedMeal("risotto-1");
+    expect(getShoppingListSnapshot().plan).toHaveLength(3);
   });
 
   it("syncs state from a cross-tab storage event", () => {

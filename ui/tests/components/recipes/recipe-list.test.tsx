@@ -137,7 +137,7 @@ const emptyShoppingList: StoredShoppingList = {
   resourceId: "user-1",
   revision: "0",
   scope: { type: "personal" },
-  snapshot: { recipes: [], checked: [], extras: [] },
+  snapshot: { recipes: [], checked: [], extras: [], plan: [] },
   createdAt: "2026-09-28T08:00:00.000Z",
   updatedAt: "2026-09-28T08:00:00.000Z",
 };

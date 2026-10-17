@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  CalendarPlus,
   Check,
   Clock,
   Download,
@@ -13,6 +14,7 @@ import {
   Timer,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CookingOutcome } from "recipe-domain/cook-log";
@@ -568,11 +570,26 @@ export function RecipeContent({
           (shoppingListEnabled && Boolean(authSession))) && (
           <div className="mb-4 flex flex-wrap gap-2">
             {shoppingListEnabled && authSession && (
-              <RecipeShoppingListButton
-                recipeSlug={recipe.slug}
-                servings={portions}
-                userId={authSession.user.id}
-              />
+              <>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="w-full border-[var(--line-strong)] text-[var(--ink-2)] hover:border-[var(--terracotta)] hover:text-[var(--terracotta)] sm:w-auto"
+                >
+                  <Link
+                    href={`/recipes/planning?recipe=${encodeURIComponent(recipe.slug)}`}
+                  >
+                    <CalendarPlus className="size-5" />
+                    Plan meal
+                  </Link>
+                </Button>
+                <RecipeShoppingListButton
+                  recipeSlug={recipe.slug}
+                  servings={portions}
+                  userId={authSession.user.id}
+                />
+              </>
             )}
             {cookSteps.length > 0 && (
               <Button

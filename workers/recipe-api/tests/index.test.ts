@@ -5513,6 +5513,17 @@ describe("shopping list flows", () => {
     recipes: [{ slug: "tomato-soup", servings: 2 }],
     checked: ["tomato"],
     extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+    plan: [
+      {
+        id: "meal-tomato-soup",
+        kind: "recipe" as const,
+        status: "committed" as const,
+        date: "2026-10-19",
+        mealType: "dinner" as const,
+        recipeSlug: "tomato-soup",
+        servings: 2,
+      },
+    ],
   };
 
   beforeEach(() => {
@@ -5645,7 +5656,7 @@ describe("shopping list flows", () => {
     const next = (await resetResponse.json()) as { id: string };
     expect(next).toMatchObject({
       revision: "0",
-      snapshot: { recipes: [], checked: [], extras: [] },
+      snapshot: { recipes: [], checked: [], extras: [], plan: snapshot.plan },
     });
     expect(next.id).not.toBe(initial.id);
     expect(dbMock.state.shoppingLists).toEqual([

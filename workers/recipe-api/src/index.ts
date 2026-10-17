@@ -38,6 +38,7 @@ import {
   schema,
   withDb,
 } from "recipe-db";
+import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import {
   COOKING_AUDIENCES,
@@ -53,22 +54,21 @@ import {
   sourceImageKey,
 } from "recipe-domain/import-storage";
 import {
-  MAX_PANTRY_ITEMS,
   MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
+  MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
   PantryItemLimitError,
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
-import { UnitSchema } from "recipe-domain/unit";
-import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
 import {
   isRecipeAppRouteSlug,
   LOWERCASE_KEBAB_CASE_PATTERN,
   normalizeSlug,
   RECIPE_SLUG_MAX_LENGTH,
 } from "recipe-domain/slugs";
+import { UnitSchema } from "recipe-domain/unit";
 import { RecipeVisibilitySchema } from "recipe-domain/visibility";
 import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
 import { equipmentDisplayName } from "recipe-parsing/equipment-canonicalization";
@@ -829,6 +829,64 @@ const shoppingListSnapshotSchema = z
           .strict(),
       )
       .max(500),
+    plan: z
+      .array(
+        z
+          .object({
+            id: z.string().trim().min(1).max(200),
+            kind: z.enum([
+              "recipe",
+              "leftovers",
+              "eating_out",
+              "decide_later",
+            ]),
+            status: z.enum(["candidate", "committed"]),
+            date: z.iso.date().max(10).optional(),
+            mealType: z
+              .enum(["breakfast", "lunch", "dinner", "snack"])
+              .optional(),
+            recipeSlug: z.string().trim().min(1).max(200).optional(),
+            servings: z
+              .number()
+              .int()
+              .min(1)
+              .max(1_000)
+              .openapi({ format: "int32" })
+              .optional(),
+            note: z.string().trim().max(500).optional(),
+            sourceMealId: z.string().trim().min(1).max(200).optional(),
+          })
+          .strict()
+          .superRefine((meal, context) => {
+            if (meal.kind === "recipe" && !meal.recipeSlug) {
+              context.addIssue({
+                code: "custom",
+                message: "Recipe meals require a recipe slug",
+                path: ["recipeSlug"],
+              });
+            }
+            if (
+              meal.status === "committed" &&
+              (!meal.date || !meal.mealType)
+            ) {
+              context.addIssue({
+                code: "custom",
+                message: "Committed meals require a date and meal type",
+              });
+            }
+            if (
+              meal.status === "candidate" &&
+              (meal.date || meal.mealType || meal.kind !== "recipe")
+            ) {
+              context.addIssue({
+                code: "custom",
+                message: "Candidates must be unscheduled recipes",
+              });
+            }
+          }),
+      )
+      .max(500)
+      .default([]),
   })
   .strict()
   .openapi("ShoppingListSnapshot");
@@ -1894,6 +1952,7 @@ const EMPTY_SHOPPING_LIST: ShoppingListSnapshot = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
 
 function shoppingListScopeFilter(scope: PantryScope): SQL {
@@ -1920,7 +1979,7 @@ function shoppingListResponse(
             },
           }
         : { type: "personal" },
-    snapshot: list.snapshot,
+    snapshot: { ...list.snapshot, plan: list.snapshot.plan ?? [] },
     createdAt: list.createdAt.toISOString(),
     updatedAt: list.updatedAt.toISOString(),
   };
@@ -4273,7 +4332,10 @@ registerRoute("post", "/shopping-lists", async (c) => {
             updatedAt: new Date(),
           })
           .where(eq(schema.shoppingList.id, current.id));
-        const next = await createShoppingList(tx, scope);
+        const next = await createShoppingList(tx, scope, {
+          ...EMPTY_SHOPPING_LIST,
+          plan: body.data.snapshot.plan,
+        });
         return shoppingListResponse(next, scope);
       });
       if (!response) {
