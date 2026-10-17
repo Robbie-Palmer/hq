@@ -1,6 +1,5 @@
 import { z } from "zod";
 import {
-  CustomFieldValueSchema,
   FieldAccessSchema,
   GuestChangeActorSchema,
   type CustomFieldValue,
@@ -449,4 +448,4 @@ function sameValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export { CustomFieldValueSchema };
+export { CustomFieldValueSchema } from "./core/guest-profile";

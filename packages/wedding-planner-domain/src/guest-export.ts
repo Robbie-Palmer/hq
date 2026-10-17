@@ -124,7 +124,6 @@ function fieldLabel(directory: GuestDirectory, field: string): string {
   return labels[field] ?? field;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Each branch projects one supported virtual export field.
 function exportValue(
   directory: GuestDirectory,
   guest: WeddingGuest,
@@ -164,23 +163,36 @@ function exportValue(
       "postal_code",
       "country",
     ].includes(field)
-  ) {
-    const household = directory.guest_directory.households.find(
-      (item) => item.id === guest.household_id,
-    );
-    if (!household) return "";
-    if (field === "address_line_1") return household.address_lines[0] ?? "";
-    if (field === "address_line_2") return household.address_lines[1] ?? "";
-    return household[field as "city" | "region" | "postal_code" | "country"];
-  }
-  if (field === "event_response") {
-    if (!options.event_id)
-      throw new Error("event_id is required when exporting event_response");
-    return guest.event_responses[options.event_id]?.response ?? "unknown";
-  }
+  )
+    return householdAddressValue(directory, guest, field);
+  if (field === "event_response")
+    return eventResponseValue(guest, options.event_id);
   if (!(field in guest))
     throw new Error(`Unknown guest export field: ${field}`);
   return printable(guest[field as keyof WeddingGuest]);
+}
+
+function householdAddressValue(
+  directory: GuestDirectory,
+  guest: WeddingGuest,
+  field: string,
+): string {
+  const household = directory.guest_directory.households.find(
+    (item) => item.id === guest.household_id,
+  );
+  if (!household) return "";
+  if (field === "address_line_1") return household.address_lines[0] ?? "";
+  if (field === "address_line_2") return household.address_lines[1] ?? "";
+  return household[field as "city" | "region" | "postal_code" | "country"];
+}
+
+function eventResponseValue(
+  guest: WeddingGuest,
+  eventId: string | undefined,
+): string {
+  if (!eventId)
+    throw new Error("event_id is required when exporting event_response");
+  return guest.event_responses[eventId]?.response ?? "unknown";
 }
 
 function printable(value: unknown): string {
@@ -191,7 +203,11 @@ function printable(value: unknown): string {
       .filter(([, item]) => item !== "" && item !== null && item !== false)
       .map(([key, item]) => `${key}: ${printable(item)}`)
       .join("; ");
-  return String(value);
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint")
+    return value.toString();
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return "";
 }
 
 function csvValue(value: string): string {

@@ -37,7 +37,7 @@ export type CustomFieldType = z.infer<typeof CustomFieldTypeSchema>;
 
 export const CustomFieldValueSchema = z.union([
   z.string(),
-  z.number().finite(),
+  z.number(),
   z.boolean(),
   z.null(),
 ]);

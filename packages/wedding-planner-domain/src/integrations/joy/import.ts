@@ -9,6 +9,8 @@ import {
   validateGuestDirectory,
 } from "../../guest-directory";
 
+const noJoyImportMapping: JoyImportMapping = { tags: {} };
+
 type ImportableGuestField =
   | "name"
   | "title"
@@ -131,7 +133,7 @@ export function previewJoyCsv(
   directory: GuestDirectory,
   csv: string,
   source: JoyImportSource,
-  mapping: JoyImportMapping = { tags: {} },
+  mapping: JoyImportMapping = noJoyImportMapping,
 ): JoyImportPreview {
   const records = parseCsv(csv);
   const headers = records[0]?.map((header) => header.trim()) ?? [];
@@ -595,7 +597,7 @@ function validateIncomingGuest(
 ): string[] {
   const issues: string[] = [];
   if (!incoming.name) issues.push("Name is required");
-  if (incoming.email && !/^\S+@\S+\.\S+$/.test(incoming.email))
+  if (incoming.email && !isEmailAddress(incoming.email))
     issues.push("Email address is invalid");
   if (unmappedTags.length > 0)
     issues.push(
@@ -617,6 +619,18 @@ function translateJoyTags(tags: readonly string[], mapping: JoyImportMapping) {
     relationshipGroups: [...relationshipGroups],
     weddingRoles: [...weddingRoles],
   };
+}
+
+function isEmailAddress(value: string): boolean {
+  const at = value.indexOf("@");
+  const dot = value.indexOf(".", at + 2);
+  return (
+    at > 0 &&
+    at === value.lastIndexOf("@") &&
+    dot > at + 1 &&
+    dot < value.length - 1 &&
+    !/\s/u.test(value)
+  );
 }
 
 function invitationPartyId(
@@ -777,12 +791,10 @@ function sourceRecordFor(preview: JoyImportPreview, row: JoyImportRow) {
 }
 
 function normalizeHeader(header: string): string {
-  return header
-    .trim()
-    .toLowerCase()
-    .replace(/\s*\(optional\)\s*$/, "")
-    .replace(/[/_-]+/g, " ")
-    .replace(/\s+/g, " ");
+  let normalized = header.trim().toLowerCase();
+  if (normalized.endsWith("(optional)"))
+    normalized = normalized.slice(0, -"(optional)".length).trimEnd();
+  return normalized.replace(/[/_-]+/g, " ").replace(/\s+/g, " ");
 }
 
 function normalizePhone(phone: string): string {
@@ -832,36 +844,46 @@ function slug(value: string): string {
 
 function fingerprint(value: string): string {
   let hash = 0x811c9dc5;
-  for (let index = 0; index < value.length; index += 1) {
-    hash ^= value.charCodeAt(index);
+  for (const character of value) {
+    hash ^= character.codePointAt(0) ?? 0;
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: CSV quoting and line endings form one state machine.
 export function parseCsv(csv: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let value = "";
   let quoted = false;
   for (let index = 0; index < csv.length; index += 1) {
-    const character = csv.charAt(index);
+    const character = csv[index] ?? "";
     if (character === '"') {
-      if (quoted && csv[index + 1] === '"') {
-        value += '"';
-        index += 1;
-      } else quoted = !quoted;
-    } else if (character === "," && !quoted) {
+      const quote = readQuote(csv, index, quoted);
+      value += quote.value;
+      index += quote.advance;
+      quoted = quote.quoted;
+      continue;
+    }
+    if (quoted) {
+      value += character;
+      continue;
+    }
+    if (character === ",") {
       row.push(value);
       value = "";
-    } else if ((character === "\n" || character === "\r") && !quoted) {
-      if (character === "\r" && csv[index + 1] === "\n") index += 1;
+      continue;
+    }
+    const lineBreakLength = lineBreakLengthAt(csv, index);
+    if (lineBreakLength > 0) {
+      index += lineBreakLength - 1;
       row.push(value);
       rows.push(row);
       row = [];
       value = "";
-    } else value += character;
+      continue;
+    }
+    value += character;
   }
   if (quoted) throw new Error("The CSV file has an unterminated quoted value");
   if (value || row.length > 0) {
@@ -869,4 +891,17 @@ export function parseCsv(csv: string): string[][] {
     rows.push(row);
   }
   return rows;
+}
+
+function readQuote(csv: string, index: number, quoted: boolean) {
+  if (quoted && csv[index + 1] === '"')
+    return { advance: 1, quoted, value: '"' };
+  return { advance: 0, quoted: !quoted, value: "" };
+}
+
+function lineBreakLengthAt(csv: string, index: number): number {
+  const character = csv[index];
+  if (character === "\n") return 1;
+  if (character !== "\r") return 0;
+  return csv[index + 1] === "\n" ? 2 : 1;
 }

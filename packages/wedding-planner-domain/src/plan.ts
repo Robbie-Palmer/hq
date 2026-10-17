@@ -147,14 +147,16 @@ function migrateLegacyGuestTags(value: unknown): unknown {
     guests: value.guests.map((guest: unknown) => {
       if (!guest || typeof guest !== "object" || !("tags" in guest))
         return guest;
-      const legacyTags = Array.isArray(guest.tags)
-        ? guest.tags.filter((tag): tag is string => typeof tag === "string")
-        : typeof guest.tags === "string"
-          ? guest.tags
-              .split(/[;,]/)
-              .map((tag) => tag.trim())
-              .filter(Boolean)
-          : [];
+      let legacyTags: string[] = [];
+      if (Array.isArray(guest.tags))
+        legacyTags = guest.tags.filter(
+          (tag): tag is string => typeof tag === "string",
+        );
+      else if (typeof guest.tags === "string")
+        legacyTags = guest.tags
+          .split(/[;,]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean);
       const { tags: _tags, ...guestWithoutTags } = guest;
       return {
         ...guestWithoutTags,
