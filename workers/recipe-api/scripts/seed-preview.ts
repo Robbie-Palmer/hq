@@ -1,4 +1,4 @@
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { requiredEnv } from "node-base/env";
 import { createAuth } from "../src/auth";
 import { createDb, schema } from "recipe-db";
@@ -422,15 +422,22 @@ try {
       completedAt: timeFromNow(-6),
     },
   ];
-  for (const cookingSession of cookingSessions) {
-    await db
-      .insert(schema.cookingSession)
-      .values(cookingSession)
-      .onConflictDoUpdate({
-        target: schema.cookingSession.id,
-        set: cookingSession,
-      });
-  }
+  await db
+    .insert(schema.cookingSession)
+    .values(cookingSessions)
+    .onConflictDoUpdate({
+      target: schema.cookingSession.id,
+      set: {
+        userId: sql`excluded.user_id`,
+        recipeSlug: sql`excluded.recipe_slug`,
+        recipeTitle: sql`excluded.recipe_title`,
+        recipeVersion: sql`excluded.recipe_version`,
+        servings: sql`excluded.servings`,
+        repeatOfSessionId: sql`excluded.repeat_of_session_id`,
+        startedAt: sql`excluded.started_at`,
+        completedAt: sql`excluded.completed_at`,
+      },
+    });
 
   await db
     .insert(schema.leftoverBatch)

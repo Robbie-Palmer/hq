@@ -190,11 +190,11 @@ export function CookingOutcomeDialog({
 
   return (
     <div className="absolute inset-0 z-20 flex items-end justify-center bg-black/45 p-0 sm:items-center sm:p-6">
-      <section
-        role="dialog"
+      <dialog
+        open
         aria-modal="true"
         aria-labelledby="cooking-outcome-title"
-        className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl bg-[var(--paper)] p-5 shadow-2xl sm:rounded-2xl sm:p-7"
+        className="relative inset-auto m-0 max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-t-2xl border-0 bg-[var(--paper)] p-5 text-[var(--ink)] shadow-2xl sm:rounded-2xl sm:p-7"
       >
         <OutcomeDialogHeader recipeTitle={recipeTitle} servings={servings} />
 
@@ -222,7 +222,7 @@ export function CookingOutcomeDialog({
             })
           }
         />
-      </section>
+      </dialog>
     </div>
   );
 }

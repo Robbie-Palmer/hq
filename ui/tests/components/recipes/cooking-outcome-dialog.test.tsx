@@ -14,6 +14,7 @@ describe("CookingOutcomeDialog", () => {
       />,
     );
 
+    expect(screen.getByRole("dialog").tagName).toBe("DIALOG");
     expect(
       screen.getByText("3 portions eaten · 1 saved for later"),
     ).toBeTruthy();
