@@ -1,4 +1,6 @@
+export type { MealPlanEntry } from "@/lib/domain/meal-plan";
 export {
+  addCommittedMealsToShoppingList,
   addExtra,
   addRecipe,
   clearChecked,
@@ -13,11 +15,13 @@ export {
   isRecipeSelected,
   markShoppingTripCompleted,
   removeExtra,
+  removePlannedMeal,
   removeRecipe,
   resetShoppingTripCompletion,
   type SelectedRecipeEntry,
   type ShoppingListChangeSource,
   type ShoppingListState,
+  savePlannedMeal,
   setRecipeServings,
   subscribeShoppingList,
   toggleChecked,

@@ -102,7 +102,7 @@ export default function RecipesLayout({
 
             <DietProvider>
               <EquipmentReadinessProvider>
-                <main className="relative z-0 flex-1 flex flex-col">
+                <main className="relative z-0 flex-1 flex flex-col pb-20 md:pb-0">
                   {children}
                 </main>
               </EquipmentReadinessProvider>

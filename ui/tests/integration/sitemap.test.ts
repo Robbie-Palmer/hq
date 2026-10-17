@@ -35,6 +35,7 @@ const NOINDEX_PAGES = new Set([
   "recipes/notifications",
   "recipes/offline",
   "recipes/onboarding",
+  "recipes/planning",
   "recipes/profile",
   "recipes/saved",
   "recipes/settings",

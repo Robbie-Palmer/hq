@@ -1,0 +1,174 @@
+"use client";
+
+import { CalendarDays, Lightbulb, ShoppingBasket } from "lucide-react";
+import Link from "next/link";
+import { useState } from "react";
+import { captureRecipeEvent } from "@/lib/analytics/recipe-product";
+import type { ShoppingRecipe } from "@/lib/api/shopping";
+import { localISODate, type MealPlanEntry } from "@/lib/domain/meal-plan";
+import {
+  addCommittedMealsToShoppingList,
+  removePlannedMeal,
+} from "@/lib/shopping/shoppingListStore";
+import { MealPlanAgenda } from "./meal-plan-agenda";
+import { MealPlanEntryCard } from "./meal-plan-entry-card";
+import { MealPlanWeek } from "./meal-plan-week";
+
+export function PlanningHeader({ onAdd }: Readonly<{ onAdd: () => void }>) {
+  return (
+    <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <p className="rt-mono text-[var(--terracotta)]">Plan</p>
+        <h1 className="rt-display mt-2 text-5xl md:text-6xl">Meal plan.</h1>
+        <p className="rt-body mt-2 text-[var(--ink-2)]">
+          Plan one meal now. A full week is optional.
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="rounded-md bg-[var(--terracotta)] px-4 py-2 font-medium text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        Plan one meal
+      </button>
+    </header>
+  );
+}
+
+export function CandidateMeals({
+  candidates,
+  recipes,
+  onEdit,
+  onSave,
+}: Readonly<{
+  candidates: MealPlanEntry[];
+  recipes: ReadonlyMap<string, ShoppingRecipe>;
+  onEdit: (meal: Partial<MealPlanEntry>) => void;
+  onSave: (meal: MealPlanEntry) => void;
+}>) {
+  if (candidates.length === 0) return null;
+  return (
+    <section aria-labelledby="meal-ideas-heading" className="mb-8">
+      <div className="mb-3 flex items-center gap-2">
+        <Lightbulb className="size-4 text-[var(--terracotta)]" />
+        <h2 id="meal-ideas-heading" className="rt-display text-3xl">
+          Meal ideas.
+        </h2>
+      </div>
+      <p className="rt-body mb-3 text-sm text-[var(--ink-3)]">
+        Ideas stay unscheduled and do not add anything to the shopping list.
+      </p>
+      <div className="grid gap-2 md:grid-cols-2">
+        {candidates.map((meal) => (
+          <MealPlanEntryCard
+            key={meal.id}
+            meal={meal}
+            recipes={recipes}
+            onEdit={onEdit}
+            onRemove={removePlannedMeal}
+            onSave={onSave}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function PlannedMeals({
+  meals,
+  recipes,
+  view,
+  onEdit,
+  onSave,
+  onView,
+}: Readonly<{
+  meals: MealPlanEntry[];
+  recipes: ReadonlyMap<string, ShoppingRecipe>;
+  view: "agenda" | "week";
+  onEdit: (meal: Partial<MealPlanEntry>) => void;
+  onSave: (meal: MealPlanEntry) => void;
+  onView: (view: "agenda" | "week") => void;
+}>) {
+  const shared = {
+    meals,
+    recipes,
+    onEdit,
+    onRemove: removePlannedMeal,
+    onSave,
+  };
+  return (
+    <section aria-labelledby="planned-meals-heading">
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-[var(--line)] pb-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="size-4 text-[var(--terracotta)]" />
+          <h2 id="planned-meals-heading" className="rt-display text-3xl">
+            Planned meals.
+          </h2>
+        </div>
+        <div className="flex rounded-md border border-[var(--line)] p-1">
+          {(["agenda", "week"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={view === option}
+              onClick={() => onView(option)}
+              className="rounded px-3 py-1 rt-mono capitalize text-[var(--ink-3)] aria-pressed:bg-[var(--paper-warm)] aria-pressed:text-[var(--ink)]"
+            >
+              {option}
+            </button>
+          ))}
+        </div>
+      </div>
+      {view === "agenda" ? (
+        <MealPlanAgenda {...shared} />
+      ) : (
+        <MealPlanWeek
+          {...shared}
+          onPlanDate={(date) =>
+            onEdit({ kind: "recipe", status: "committed", date })
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+export function ShoppingPlanAction({
+  mealCount,
+}: Readonly<{ mealCount: number }>) {
+  const [generated, setGenerated] = useState<number | null>(null);
+  if (mealCount === 0) return null;
+  const generate = () => {
+    const count = addCommittedMealsToShoppingList(localISODate(new Date()));
+    setGenerated(count);
+    captureRecipeEvent("meal_plan_shopping_generated", {
+      added_recipe_count: count,
+      committed_meal_count: mealCount,
+    });
+  };
+  return (
+    <aside className="mt-8 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
+      <ShoppingBasket className="size-5 text-[var(--terracotta)]" />
+      <p className="rt-body min-w-0 flex-1 text-sm text-[var(--ink-2)]">
+        Add ingredients from {mealCount} planned{" "}
+        {mealCount === 1 ? "meal" : "meals"}. Meal ideas, leftovers, and meals
+        out are excluded.
+      </p>
+      <button
+        type="button"
+        onClick={generate}
+        className="rounded-md border border-[var(--terracotta)] px-3 py-2 rt-mono text-[var(--terracotta)]"
+      >
+        Add to shopping list
+      </button>
+      {generated !== null && (
+        <Link
+          href="/recipes/shopping"
+          className="rt-mono text-[var(--terracotta)] underline"
+        >
+          {generated > 0 ? `${generated} added. Open Shop` : "Open Shop"}
+        </Link>
+      )}
+    </aside>
+  );
+}

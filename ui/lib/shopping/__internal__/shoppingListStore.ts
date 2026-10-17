@@ -13,6 +13,7 @@
 
 import { isRecord } from "ts-base/records";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
+import { type MealPlanEntry, parseMealPlan } from "@/lib/domain/meal-plan";
 
 export type SelectedRecipeEntry = {
   slug: string;
@@ -33,6 +34,8 @@ export type ShoppingListState = {
   checked: string[];
   /** Freeform extras (milk, bread…). */
   extras: ExtraItem[];
+  /** Meal candidates and dated commitments shared by the household. */
+  plan: MealPlanEntry[];
 };
 
 export type ShoppingListChangeSource = "install" | "local" | "storage";
@@ -45,6 +48,7 @@ const EMPTY_STATE: ShoppingListState = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
 
 let state: ShoppingListState = EMPTY_STATE;
@@ -136,7 +140,9 @@ function parseState(raw: string | null): ShoppingListState {
         })
       : [];
 
-    return { recipes, checked, extras };
+    const plan = parseMealPlan(parsed.plan);
+
+    return { recipes, checked, extras, plan };
   } catch {
     return EMPTY_STATE;
   }
@@ -341,6 +347,47 @@ export function setRecipeServings(slug: string, servings: number): void {
   });
 }
 
+export function savePlannedMeal(meal: MealPlanEntry): void {
+  const plan = state.plan.some(({ id }) => id === meal.id)
+    ? state.plan.map((current) => (current.id === meal.id ? meal : current))
+    : [...state.plan, meal];
+  setState({ ...state, plan });
+}
+
+export function removePlannedMeal(id: string): void {
+  setState({ ...state, plan: state.plan.filter((meal) => meal.id !== id) });
+}
+
+export function addCommittedMealsToShoppingList(fromDate: string): number {
+  const servingsBySlug = new Map<string, number>();
+  for (const meal of state.plan) {
+    if (
+      meal.status !== "committed" ||
+      meal.kind !== "recipe" ||
+      !meal.recipeSlug ||
+      !meal.date ||
+      meal.date < fromDate
+    ) {
+      continue;
+    }
+    servingsBySlug.set(
+      meal.recipeSlug,
+      (servingsBySlug.get(meal.recipeSlug) ?? 0) + (meal.servings ?? 1),
+    );
+  }
+  let added = 0;
+  const recipes = [...state.recipes];
+  for (const [slug, servings] of servingsBySlug) {
+    const index = recipes.findIndex((recipe) => recipe.slug === slug);
+    if (index < 0) {
+      recipes.push({ slug, servings });
+      added += 1;
+    }
+  }
+  if (added > 0) setState({ ...state, recipes });
+  return added;
+}
+
 export function toggleChecked(key: string): void {
   const wasChecked = state.checked.includes(key);
   const checked = wasChecked
@@ -396,7 +443,7 @@ export function removeExtra(id: string): void {
 }
 
 export function clearList(): void {
-  setState({ ...EMPTY_STATE });
+  setState({ ...EMPTY_STATE, plan: state.plan });
   resetShoppingTripCompletion();
 }
 
