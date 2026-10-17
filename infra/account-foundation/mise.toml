@@ -1,0 +1,77 @@
+[tasks.bootstrap]
+description = "Create or verify the manually seeded account-foundation HCP workspace"
+run = "bash scripts/doppler-terraform-env seed bash scripts/bootstrap-workspace.sh"
+
+[tasks.init]
+description = "Initialize account-foundation Terraform"
+run = "bash scripts/doppler-terraform-env plan terraform init -input=false"
+sources = ["*.tf", "**/*.tf"]
+outputs = [".terraform/**/*"]
+
+[tasks.format]
+description = "Format account-foundation Terraform files (optionally pass files as args)"
+run = """
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  terraform fmt -recursive .
+else
+  terraform fmt "$@"
+fi
+"""
+
+[tasks."format:check"]
+description = "Check account-foundation Terraform formatting"
+run = "terraform fmt -check -recursive ."
+
+[tasks.validate]
+description = "Validate account-foundation Terraform without remote state or credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks."lint:tflint"]
+description = "Lint account-foundation Terraform"
+run = """
+#!/usr/bin/env bash
+# Lints the whole root; ignores file args appended by lint-staged.
+tflint --format compact
+"""
+
+[tasks.lint]
+description = "Run account-foundation Terraform static checks"
+depends = ["validate", "lint:tflint"]
+
+[tasks.precommit-lint]
+description = "Validate account-foundation Terraform without its remote backend"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks.test]
+description = "Test the account-foundation bootstrap and credential boundary scripts"
+run = "bash scripts/bootstrap-workspace.test.sh"
+
+[tasks."credentials:sync"]
+description = "Sync account-foundation plan and apply values from Doppler to protected GitHub environments"
+run = "../../scripts/sync-doppler-github-envs.sh production-account-foundation-plan production-account-foundation"
+
+[tasks.plan]
+description = "Plan account-foundation infrastructure with plan-only credentials"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env plan terraform plan -input=false -out .planfile"
+outputs = [".planfile"]
+
+[tasks.apply]
+description = "Apply a reviewed account-foundation Terraform plan with write credentials"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env apply terraform apply -input=false .planfile"
+
+[tasks.check]
+description = "Check and plan account-foundation infrastructure"
+depends = ["format:check", "lint", "test", "plan"]
