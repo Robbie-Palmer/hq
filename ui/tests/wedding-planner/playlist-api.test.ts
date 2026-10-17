@@ -14,19 +14,39 @@ const GUEST_TWO = "c5947a26-e5d8-48af-96cf-98ad9a44e724";
 
 class MemoryBucket implements PlaylistBucket {
   values = new Map<string, string>();
+  etags = new Map<string, string>();
+  version = 0;
 
   async get(key: string) {
     const value = this.values.get(key);
     if (value === undefined) return null;
     return {
+      etag: this.etags.get(key) ?? "missing-etag",
       async json<T>() {
         return JSON.parse(value) as T;
       },
     };
   }
 
-  async put(key: string, value: string): Promise<void> {
+  async put(
+    key: string,
+    value: string,
+    options?: {
+      onlyIf?: { etagDoesNotMatch?: string; etagMatches?: string };
+    },
+  ) {
+    const currentEtag = this.etags.get(key);
+    if (
+      options?.onlyIf?.etagMatches !== undefined &&
+      options.onlyIf.etagMatches !== currentEtag
+    )
+      return null;
+    if (options?.onlyIf?.etagDoesNotMatch === "*" && currentEtag !== undefined)
+      return null;
+    const etag = String(++this.version);
     this.values.set(key, value);
+    this.etags.set(key, etag);
+    return { etag };
   }
 
   async list({ prefix }: { cursor?: string; prefix: string }) {
@@ -358,7 +378,7 @@ describe("wedding playlist API", () => {
           get: async () => {
             throw new Error("R2 unavailable");
           },
-          put: async () => {},
+          put: async () => ({ etag: "unused" }),
           list: async () => ({ objects: [], truncated: false }),
         },
       },
@@ -425,5 +445,44 @@ describe("wedding playlist API", () => {
     ).toHaveLength(1);
     expect(pages).toBe(2);
     expect((await call(request("GET", "missing"), "missing")).status).toBe(404);
+  });
+
+  it("atomically limits concurrent playlist creation without sharing auth quota", async () => {
+    const bucket = new MemoryBucket();
+    const playlist = createCollaborativePlaylist("Alex and Sam");
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        onRequest({
+          request: request("POST", "", playlist),
+          env: { WEDDING_PLAYLISTS: bucket },
+          params: {},
+        }),
+      ),
+    );
+
+    expect(responses.filter(({ status }) => status === 201)).toHaveLength(5);
+    expect(responses.filter(({ status }) => status === 429)).toHaveLength(7);
+    expect(
+      [...bucket.values.keys()].filter((key) => key.startsWith("rate:")),
+    ).toHaveLength(1);
+  });
+
+  it("fails closed when concurrent rate-limit writes cannot settle", async () => {
+    const response = await onRequest({
+      request: request("POST", "", createCollaborativePlaylist("Alex and Sam")),
+      env: {
+        WEDDING_PLAYLISTS: {
+          get: async () => null,
+          put: async () => null,
+          list: async () => ({ objects: [], truncated: false }),
+        },
+      },
+      params: {},
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Too many concurrent requests. Try again shortly.",
+    });
   });
 });

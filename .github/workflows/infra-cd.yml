@@ -68,3 +68,10 @@ jobs:
           POSTHOG_API_KEY: ${{ secrets.POSTHOG_API_KEY }}
           TF_VAR_posthog_project_id: ${{ vars.POSTHOG_PROJECT_ID }}
           TF_VAR_slack_webhook_url: ${{ secrets.CLOUDFLARE_SLACK_WEBHOOK_URL }}
+
+  deploy-ui:
+    needs: terraform
+    permissions:
+      contents: read
+    # GitHub requires ./ syntax for reusable workflows in the same repository.
+    uses: ./.github/workflows/ui-cd.yml # zizmor: ignore[self-repository]

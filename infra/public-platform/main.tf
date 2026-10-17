@@ -306,7 +306,7 @@ resource "cloudflare_ruleset" "map_tiles_cache" {
 resource "cloudflare_ruleset" "auth_rate_limit" {
   zone_id     = data.cloudflare_zone.domain.id
   name        = "Auth endpoint rate limiting"
-  description = "Per-IP rate limiting for auth and wedding-playlist writes. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
+  description = "Per-IP rate limiting for /api/auth/* — returns 429 on abuse. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
   kind        = "zone"
   phase       = "http_ratelimit"
 
@@ -319,8 +319,8 @@ resource "cloudflare_ruleset" "auth_rate_limit" {
 
   rules {
     ref         = "auth_ip_rate_limit"
-    description = "Limit auth and wedding playlist writes per IP"
-    expression  = "(http.host eq \"${var.domain_name}\" and (starts_with(http.request.uri.path, \"/api/auth/\") or (http.request.method eq \"POST\" and (http.request.uri.path eq \"/api/wedding-playlists\" or (starts_with(http.request.uri.path, \"/api/wedding-playlists/\") and (ends_with(http.request.uri.path, \"/suggestions\") or ends_with(http.request.uri.path, \"/votes\")))))))"
+    description = "Limit auth requests per IP"
+    expression  = "(http.host eq \"${var.domain_name}\" and starts_with(http.request.uri.path, \"/api/auth/\"))"
     # Blocking in the http_ratelimit phase responds with HTTP 429.
     action = "block"
 
