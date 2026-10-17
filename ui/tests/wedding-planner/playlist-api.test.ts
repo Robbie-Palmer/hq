@@ -366,4 +366,64 @@ describe("wedding playlist API", () => {
     });
     expect(failed.status).toBe(500);
   });
+
+  it("reads paginated R2 events and ignores objects removed between list and get", async () => {
+    const bucket = new MemoryBucket();
+    const call = (incoming: Request, path?: string) =>
+      onRequest({
+        request: incoming,
+        env: { WEDDING_PLAYLISTS: bucket },
+        params: { path },
+      });
+    const playlist = createCollaborativePlaylist("Alex and Sam");
+    const created = (await (
+      await call(request("POST", "", playlist))
+    ).json()) as {
+      guest_token: string;
+      id: string;
+    };
+    await call(
+      request(
+        "POST",
+        `${created.id}/suggestions`,
+        {
+          artist: "Artist",
+          contributor: { name: "Guest" },
+          moment_id: "reception",
+          title: "Song",
+        },
+        created.guest_token,
+      ),
+      `${created.id}/suggestions`,
+    );
+    const eventKey = [...bucket.values.keys()].find((key) =>
+      key.includes(":events:"),
+    );
+    expect(eventKey).toBeDefined();
+    let pages = 0;
+    bucket.list = async ({ cursor, prefix }) => {
+      pages += 1;
+      return cursor
+        ? { objects: [], truncated: false }
+        : {
+            cursor: "next",
+            objects: [
+              { key: eventKey ?? "" },
+              { key: `${prefix}removed-object` },
+            ],
+            truncated: true,
+          };
+    };
+
+    const response = await call(
+      request("GET", created.id, undefined, created.guest_token),
+      created.id,
+    );
+    expect(response.status).toBe(200);
+    expect(
+      ((await response.json()) as { songs: unknown[] }).songs,
+    ).toHaveLength(1);
+    expect(pages).toBe(2);
+    expect((await call(request("GET", "missing"), "missing")).status).toBe(404);
+  });
 });
