@@ -506,6 +506,68 @@ describe("privacy-safe guest exports", () => {
     expect(csv).not.toContain("Ask about speech");
   });
 
+  it("exports explicit domain fields without vendor terminology", () => {
+    const wedding = plan();
+    Object.assign(wedding.guest_directory.households[0] ?? {}, {
+      name: "Smith, household",
+      address_lines: ["1 Main Street", "Apt 2"],
+      city: "Dublin",
+      region: "Leinster",
+      postal_code: "D01",
+      country: "Ireland",
+    });
+    Object.assign(wedding.guest_directory.invitation_parties[0] ?? {}, {
+      addressee: "Alex and Sam Smith",
+    });
+    const csv = exportGuestCsv(wedding, {
+      actor: { role: "couple" },
+      guest_ids: ["alex"],
+      event_id: "ceremony",
+      fields: [
+        "first_name",
+        "last_name",
+        "household",
+        "invitation_party",
+        "invitation_addressee",
+        "address_line_1",
+        "address_line_2",
+        "city",
+        "region",
+        "postal_code",
+        "country",
+        "event_response",
+        "transport",
+      ],
+    });
+    expect(csv).toContain(
+      "First Name,Last Name,Household,Invitation Party,Invitation Addressee",
+    );
+    expect(csv).toContain(
+      'Alex,Smith,"Smith, household",Smith household,Alex and Sam Smith,1 Main Street,Apt 2,Dublin,Leinster,D01,Ireland,attending',
+    );
+    expect(csv).not.toContain("Name on Envelope");
+  });
+
+  it("rejects incomplete and ambiguous domain export requests", () => {
+    const wedding = plan();
+    expect(() => exportGuestCsv(wedding, { fields: [] })).toThrow(
+      "Select at least one export field",
+    );
+    expect(() => exportGuestCsv(wedding, { fields: ["name", "name"] })).toThrow(
+      "Export fields must be unique",
+    );
+    expect(() =>
+      exportGuestCsv(wedding, { fields: ["name"], guest_ids: ["missing"] }),
+    ).toThrow("Guest missing does not exist");
+    expect(() =>
+      exportGuestCsv(wedding, {
+        actor: { role: "couple" },
+        fields: ["event_response"],
+        guest_ids: ["alex"],
+      }),
+    ).toThrow("event_id is required");
+  });
+
   it("does not guess how domain concepts map to Joy tags", () => {
     expect(() =>
       exportJoyCsv(plan(), {
