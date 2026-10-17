@@ -98,6 +98,67 @@ vi.mock("@/components/wedding-planner/table-room-canvas", () => ({
 }));
 
 describe("accommodation editor", () => {
+  it("models accommodation inventory and assigns guests to rooms and beds", async () => {
+    const state = sampleState();
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      load: vi.fn().mockResolvedValue(state),
+      save,
+      calculateRooms,
+      calculateTables: (draft) => solveTables(buildTableInput(draft)),
+    };
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: "Accommodation" }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "New accommodation name" }),
+      { target: { value: "Guest House" } },
+    );
+    fireEvent.change(screen.getByLabelText("New accommodation check-in"), {
+      target: { value: "2027-06-04" },
+    });
+    fireEvent.change(screen.getByLabelText("New accommodation check-out"), {
+      target: { value: "2027-06-06" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add accommodation" }));
+    expect(screen.getByText("Guest House")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add room" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add bed" }));
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: "Assignment guest or household",
+      }),
+      { target: { value: "guest:casey" } },
+    );
+    const roomSelect = screen.getByRole("combobox", {
+      name: "Assignment room",
+    });
+    const roomOption = within(roomSelect)
+      .getAllByRole("option")
+      .find((option) => option.getAttribute("value"));
+    fireEvent.change(roomSelect, {
+      target: { value: roomOption?.getAttribute("value") },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add assignment" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Bed 1" }));
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const saved = save.mock.lastCall![0];
+    expect(saved.inventory?.properties[0]).toMatchObject({
+      name: "Guest House",
+      kind: "hotel",
+      check_in_on: "2027-06-04",
+      check_out_on: "2027-06-06",
+    });
+    expect(saved.inventory?.rooms[0]?.beds).toHaveLength(1);
+    expect(saved.inventory?.assignments[0]).toMatchObject({
+      subject: { kind: "guest", id: "casey" },
+      locked: false,
+    });
+    expect(saved.inventory?.assignments[0]?.bed_ids).toEqual([
+      saved.inventory?.rooms[0]?.beds[0]?.id,
+    ]);
+  });
+
   it("reviews sharing suggestions and preserves manual seating decisions", async () => {
     const state = sampleState();
     state.guests.find(

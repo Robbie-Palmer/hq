@@ -84,6 +84,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
           "max_cottage_spend_gbp",
           "default_outside_cost_gbp",
           "optimization_mode",
+          "inventory",
         ].includes(key),
     ),
   );

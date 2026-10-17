@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { accommodationPlanSchema } from "./accommodation/preferences";
+import { validateAccommodationInventory } from "./accommodation/inventory";
 import {
   coupleSchema,
   validateCouples,
@@ -71,6 +72,7 @@ function validateReferences(plan: WeddingPlan): void {
   }
   for (const paid of Object.values(plan.accommodation.cottage_paid_by_us_gbp))
     parseMoneyToMinorUnits(paid, "Already paid");
+  validateAccommodationInventory(plan);
 }
 
 function validateDismissedSuggestions(

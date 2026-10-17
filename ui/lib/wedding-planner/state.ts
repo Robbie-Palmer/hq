@@ -1,5 +1,9 @@
 import { accommodationState } from "wedding-planner-domain";
-import { buildInput as domainBuildInput } from "wedding-planner-domain/accommodation";
+import {
+  accommodationInventorySchema,
+  buildInput as domainBuildInput,
+  stayRequirementsSchema,
+} from "wedding-planner-domain/accommodation";
 import { z } from "zod";
 import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import { editorStateToPlan } from "./editor-projection";
@@ -59,6 +63,7 @@ const guestSchema = z.preprocess(
     charge_cap_exempt: z.boolean().default(false),
     free_stay_reasons: z.array(FreeStayReasonSchema).default([]),
     include_partner_in_free_stay: z.boolean().default(true),
+    stay: stayRequirementsSchema.nullable().default(null),
   }),
 );
 
@@ -96,6 +101,7 @@ const stateSchema = z.looseObject({
   max_cottage_spend_gbp: z.string().default(""),
   default_outside_cost_gbp: z.string().default(""),
   optimization_mode: OptimizationModeSchema.default("priority_first"),
+  inventory: accommodationInventorySchema.prefault({}),
 });
 
 function stringList(value: unknown): value is string[] {

@@ -6,3 +6,4 @@ export * from "./input";
 export * from "./calculate";
 export * from "./sharing";
 export * from "./prices";
+export * from "./inventory";
