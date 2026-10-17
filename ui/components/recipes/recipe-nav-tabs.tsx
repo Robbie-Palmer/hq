@@ -45,6 +45,12 @@ const destinations = [
   },
 ] as const;
 
+function shoppingNavigationLabel(count: number): string {
+  if (count === 0) return "Shopping";
+  const recipeLabel = count === 1 ? "recipe" : "recipes";
+  return `Shopping, ${count} ${recipeLabel} selected`;
+}
+
 function getActiveDestinations(pathname: string | null) {
   const onShopping = pathname === "/recipes/shopping";
   const onPlanning = pathname === "/recipes/planning";
@@ -95,7 +101,7 @@ export function RecipeNavTabs() {
               href={href}
               aria-label={
                 href === "/recipes/shopping"
-                  ? `Shopping${count > 0 ? `, ${count} ${count === 1 ? "recipe" : "recipes"} selected` : ""}`
+                  ? shoppingNavigationLabel(count)
                   : undefined
               }
               aria-current={active ? "page" : undefined}

@@ -62,7 +62,7 @@ function PlanSelectors({
   return (
     <>
       <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-        Commitment
+        <span>Commitment</span>
         <select
           value={state.status}
           onChange={(event) =>
@@ -76,7 +76,7 @@ function PlanSelectors({
       </label>
       {state.status === "committed" && (
         <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-          What is happening?
+          <span>What is happening?</span>
           <select
             value={state.kind}
             onChange={(event) => form.setKind(event.target.value as MealKind)}
@@ -106,7 +106,7 @@ function RecipeSelect({
 }>) {
   return (
     <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)] md:col-span-2">
-      Recipe
+      <span>Recipe</span>
       <select
         required
         value={form.state.recipeSlug}
@@ -133,7 +133,7 @@ function ScheduleFields({
   return (
     <>
       <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-        Day
+        <span>Day</span>
         <input
           required
           type="date"
@@ -143,7 +143,7 @@ function ScheduleFields({
         />
       </label>
       <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-        Meal
+        <span>Meal</span>
         <select
           value={form.state.mealType}
           onChange={(event) => form.setMealType(event.target.value as MealType)}
@@ -167,7 +167,7 @@ function DetailFields({
     <>
       {form.state.kind === "recipe" && (
         <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-          Servings
+          <span>Servings</span>
           <input
             required
             min={1}
@@ -180,7 +180,9 @@ function DetailFields({
         </label>
       )}
       <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)] md:col-span-2">
-        Note <span className="sr-only">optional</span>
+        <span>
+          Note <span className="sr-only">optional</span>
+        </span>
         <input
           maxLength={500}
           value={form.state.note}

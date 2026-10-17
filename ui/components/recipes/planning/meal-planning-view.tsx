@@ -16,6 +16,20 @@ import {
   ShoppingPlanAction,
 } from "./meal-planning-sections";
 
+const DEFAULT_MEAL: Partial<MealPlanEntry> = {
+  kind: "recipe",
+  status: "committed",
+};
+
+function mealPlanEvent(
+  previous: MealPlanEntry | undefined,
+  meal: MealPlanEntry,
+) {
+  if (previous?.status === "candidate") return "meal_plan_queue_converted";
+  if (meal.status === "candidate") return "meal_plan_meal_queued";
+  return "meal_plan_meal_committed";
+}
+
 function usePlanController(plan: MealPlanEntry[], recipes: ShoppingRecipe[]) {
   const [view, setView] = useState<"agenda" | "week">("agenda");
   const [editing, setEditing] = useState<Partial<MealPlanEntry> | null>(null);
@@ -40,9 +54,7 @@ function usePlanController(plan: MealPlanEntry[], recipes: ShoppingRecipe[]) {
     },
     [],
   );
-  const start = (
-    initial: Partial<MealPlanEntry> = { kind: "recipe", status: "committed" },
-  ) => {
+  const start = (initial: Partial<MealPlanEntry> = DEFAULT_MEAL) => {
     saved.current = false;
     startedAt.current = Date.now();
     setEditing(initial);
@@ -53,12 +65,7 @@ function usePlanController(plan: MealPlanEntry[], recipes: ShoppingRecipe[]) {
     saved.current = true;
     dirty.current = false;
     setEditing(null);
-    const event =
-      previous?.status === "candidate"
-        ? "meal_plan_queue_converted"
-        : meal.status === "candidate"
-          ? "meal_plan_meal_queued"
-          : "meal_plan_meal_committed";
+    const event = mealPlanEvent(previous, meal);
     captureRecipeEvent(event, {
       elapsed_ms: Date.now() - startedAt.current,
       first_queued_meal: meal.status === "candidate" && candidates.length === 0,

@@ -54,7 +54,7 @@ describe("RecipeNavTabs", () => {
   it("keeps the shopping count with its navigation item", () => {
     mocks.selectedRecipeCount = 2;
 
-    render(<RecipeNavTabs />);
+    const { rerender } = render(<RecipeNavTabs />);
 
     const navigation = screen.getByRole("navigation", {
       name: "Recipe sections",
@@ -62,6 +62,14 @@ describe("RecipeNavTabs", () => {
     expect(
       within(navigation).getByRole("link", {
         name: /Shopping.*2 recipes selected/,
+      }),
+    ).toHaveAttribute("href", "/recipes/shopping");
+
+    mocks.selectedRecipeCount = 1;
+    rerender(<RecipeNavTabs />);
+    expect(
+      within(navigation).getByRole("link", {
+        name: /Shopping.*1 recipe selected/,
       }),
     ).toHaveAttribute("href", "/recipes/shopping");
   });

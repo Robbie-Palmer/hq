@@ -55,6 +55,12 @@ const more = [
   },
 ] as const;
 
+function shoppingNavigationLabel(count: number): string {
+  if (count === 0) return "Shopping";
+  const recipeLabel = count === 1 ? "recipe" : "recipes";
+  return `Shopping, ${count} ${recipeLabel} selected`;
+}
+
 function isActive(pathname: string | null, href: string): boolean {
   if (href === "/recipes") {
     return (
@@ -144,7 +150,7 @@ export function RecipeMobileNav({
             href={href}
             aria-label={
               href === "/recipes/shopping"
-                ? `Shopping${count > 0 ? `, ${count} ${count === 1 ? "recipe" : "recipes"} selected` : ""}`
+                ? shoppingNavigationLabel(count)
                 : undefined
             }
             aria-current={active ? "page" : undefined}

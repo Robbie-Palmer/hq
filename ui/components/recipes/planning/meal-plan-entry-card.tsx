@@ -19,6 +19,13 @@ function entryTitle(
   return meal.note || mealKindLabel(meal.kind);
 }
 
+function entrySubtitle(meal: MealPlanEntry): string {
+  if (meal.status === "candidate") return "Meal idea";
+  const mealLabel = meal.mealType ? mealTypeLabel(meal.mealType) : "Meal";
+  if (!meal.servings) return mealLabel;
+  return `${mealLabel} · ${meal.servings} servings`;
+}
+
 function EntryActions({
   meal,
   title,
@@ -97,9 +104,7 @@ export function MealPlanEntryCard({
         <div className="min-w-0 flex-1">
           <h3 className="rt-display text-xl leading-tight">{title}</h3>
           <p className="rt-mono mt-1 text-[var(--ink-3)]">
-            {meal.status === "candidate"
-              ? "Meal idea"
-              : `${meal.mealType ? mealTypeLabel(meal.mealType) : "Meal"}${meal.servings ? ` · ${meal.servings} servings` : ""}`}
+            {entrySubtitle(meal)}
           </p>
           {meal.note && meal.recipeSlug && (
             <p className="rt-body mt-2 text-sm text-[var(--ink-2)]">
