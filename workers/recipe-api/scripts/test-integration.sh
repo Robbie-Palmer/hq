@@ -109,6 +109,44 @@ if [[ -n "$migration_recovery_url" ]]; then
     echo "Expected the recovery database to apply all 29 migrations." >&2
     exit 1
   fi
+
+  # A compatible primary key may have a different generated name. Replaying
+  # the migration must recognize it by type instead of adding a second key.
+  docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --set ON_ERROR_STOP=1 \
+    --command 'alter table public.leftover_batch rename constraint leftover_batch_pkey to existing_leftover_batch_pkey' \
+    >/dev/null
+
+  docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --set ON_ERROR_STOP=1 \
+    --command 'delete from drizzle.__drizzle_migrations where created_at = 1792232867906' \
+    >/dev/null
+  pending_migration_count=$(docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --tuples-only \
+    --no-align \
+    --command 'select count(*) from drizzle.__drizzle_migrations')
+  if [[ "$pending_migration_count" != "28" ]]; then
+    echo "Expected migration 0028 to be pending in the recovery database." >&2
+    exit 1
+  fi
+
+  DATABASE_URL="$migration_recovery_url" pnpm db:migrate
+  reapplied_migration_count=$(docker exec "$container_id" psql \
+    --username postgres \
+    --dbname "$migration_recovery_database" \
+    --tuples-only \
+    --no-align \
+    --command 'select count(*) from drizzle.__drizzle_migrations')
+  if [[ "$reapplied_migration_count" != "29" ]]; then
+    echo "Expected migration 0028 to reapply over its existing schema." >&2
+    exit 1
+  fi
 fi
 
 pnpm db:migrate
