@@ -6,21 +6,23 @@ import {
 } from "wedding-planner-domain";
 import {
   onRequest,
-  type PlaylistKv,
+  type PlaylistBucket,
 } from "../../../functions/api/wedding-playlists/[[path]]";
 
 const GUEST_ONE = "1ecb2993-9471-4d47-85db-5dbf4d68c1e0";
 const GUEST_TWO = "c5947a26-e5d8-48af-96cf-98ad9a44e724";
 
-class MemoryKv implements PlaylistKv {
+class MemoryBucket implements PlaylistBucket {
   values = new Map<string, string>();
 
-  async get(key: string): Promise<string | null>;
-  async get<T>(key: string, type: "json"): Promise<T | null>;
-  async get<T>(key: string, type?: "json"): Promise<T | string | null> {
+  async get(key: string) {
     const value = this.values.get(key);
     if (value === undefined) return null;
-    return type === "json" ? (JSON.parse(value) as T) : value;
+    return {
+      async json<T>() {
+        return JSON.parse(value) as T;
+      },
+    };
   }
 
   async put(key: string, value: string): Promise<void> {
@@ -29,11 +31,11 @@ class MemoryKv implements PlaylistKv {
 
   async list({ prefix }: { cursor?: string; prefix: string }) {
     return {
-      keys: [...this.values.keys()]
+      objects: [...this.values.keys()]
         .filter((key) => key.startsWith(prefix))
         .sort()
-        .map((name) => ({ name })),
-      list_complete: true,
+        .map((key) => ({ key })),
+      truncated: false,
     };
   }
 }
@@ -58,7 +60,7 @@ function request(
 
 describe("wedding playlist API", () => {
   it("keeps admin data private while accepting deduplicated guest suggestions", async () => {
-    const kv = new MemoryKv();
+    const kv = new MemoryBucket();
     const call = (incoming: Request, path?: string) =>
       onRequest({
         request: incoming,
@@ -212,7 +214,7 @@ describe("wedding playlist API", () => {
   });
 
   it("authorizes couple updates, records votes, and rejects malformed routes", async () => {
-    const kv = new MemoryKv();
+    const kv = new MemoryBucket();
     const call = (incoming: Request, path?: string | string[]) =>
       onRequest({
         request: incoming,
@@ -354,10 +356,10 @@ describe("wedding playlist API", () => {
       env: {
         WEDDING_PLAYLISTS: {
           get: async () => {
-            throw new Error("KV unavailable");
+            throw new Error("R2 unavailable");
           },
           put: async () => {},
-          list: async () => ({ keys: [], list_complete: true }),
+          list: async () => ({ objects: [], truncated: false }),
         },
       },
       params: { path: "missing" },

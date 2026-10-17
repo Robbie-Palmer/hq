@@ -10,23 +10,22 @@ import {
 } from "wedding-planner-domain";
 import { z } from "zod";
 
-export interface PlaylistKv {
-  get(key: string): Promise<string | null>;
-  get<T>(key: string, type: "json"): Promise<T | null>;
-  put(
-    key: string,
-    value: string,
-    options?: { expirationTtl?: number },
-  ): Promise<void>;
+export interface PlaylistObject {
+  json<T>(): Promise<T>;
+}
+
+export interface PlaylistBucket {
+  get(key: string): Promise<PlaylistObject | null>;
+  put(key: string, value: string): Promise<void>;
   list(options: { cursor?: string; prefix: string }): Promise<{
     cursor?: string;
-    keys: { name: string }[];
-    list_complete: boolean;
+    objects: { key: string }[];
+    truncated: boolean;
   }>;
 }
 
 interface Env {
-  WEDDING_PLAYLISTS: PlaylistKv;
+  WEDDING_PLAYLISTS: PlaylistBucket;
 }
 
 interface Context {
@@ -136,7 +135,8 @@ async function readStored(
   env: Env,
   id: string,
 ): Promise<StoredPlaylist | null> {
-  return env.WEDDING_PLAYLISTS.get<StoredPlaylist>(`playlist:${id}`, "json");
+  const object = await env.WEDDING_PLAYLISTS.get(`playlist:${id}`);
+  return object ? object.json<StoredPlaylist>() : null;
 }
 
 async function writeStored(
@@ -161,12 +161,13 @@ async function readGuestEvents(env: Env, id: string): Promise<GuestPlaylistEvent
       ...(cursor ? { cursor } : {}),
     });
     const values = await Promise.all(
-      page.keys.map(({ name }) =>
-        env.WEDDING_PLAYLISTS.get<GuestPlaylistEvent>(name, "json"),
-      ),
+      page.objects.map(async ({ key }) => {
+        const object = await env.WEDDING_PLAYLISTS.get(key);
+        return object ? object.json<GuestPlaylistEvent>() : null;
+      }),
     );
     events.push(...values.filter((value) => value !== null));
-    cursor = page.list_complete ? undefined : page.cursor;
+    cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
   return events.sort(
     (left, right) =>

@@ -31,12 +31,14 @@ API Worker using the same-origin session cookie.
 
 ### `/api/wedding-playlists/*` - Collaborative wedding playlist
 
-Stores the playlist snapshot and append-only guest events in a dedicated KV
-namespace, so concurrent suggestions and votes never overwrite one another.
+Stores the playlist snapshot and append-only guest events in a dedicated,
+strongly consistent R2 bucket, so concurrent suggestions and votes never
+overwrite one another.
 Guest links use an invite token for suggestions and votes. The private planner
 keeps a separate admin token for moderation and syncing. The function hashes
 both tokens before storage, keeps guest identifiers out of guest responses, and
-uses Cloudflare edge rules plus a per-contributor cap for abuse control.
+uses the account's shared Cloudflare edge rule plus a per-contributor cap for
+abuse control.
 
 ### `_middleware.ts` - Markdown Content Negotiation
 
