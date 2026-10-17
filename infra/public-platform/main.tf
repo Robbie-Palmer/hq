@@ -61,17 +61,37 @@ resource "cloudflare_pages_project" "personal_site" {
     production {
       environment_variables = local.pages_production_environment_variables
       secrets               = local.pages_secrets
-      compatibility_date    = "2026-05-28"
-      compatibility_flags   = ["nodejs_compat"]
+      kv_namespaces = {
+        WEDDING_PLAYLISTS = cloudflare_workers_kv_namespace.wedding_playlists.id
+      }
+      compatibility_date  = "2026-05-28"
+      compatibility_flags = ["nodejs_compat"]
     }
 
     preview {
       environment_variables = local.pages_preview_environment_variables
       secrets               = local.pages_secrets
-      compatibility_date    = "2026-05-28"
-      compatibility_flags   = ["nodejs_compat"]
+      kv_namespaces = {
+        WEDDING_PLAYLISTS = cloudflare_workers_kv_namespace.wedding_playlists_preview.id
+      }
+      compatibility_date  = "2026-05-28"
+      compatibility_flags = ["nodejs_compat"]
     }
   }
+}
+
+resource "cloudflare_workers_kv_namespace" "wedding_playlists" {
+  account_id = var.cloudflare_account_id
+  title      = "wedding-playlists"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "cloudflare_workers_kv_namespace" "wedding_playlists_preview" {
+  account_id = var.cloudflare_account_id
+  title      = "wedding-playlists-preview"
 }
 
 resource "cloudflare_pages_domain" "robbiepalmer_me" {

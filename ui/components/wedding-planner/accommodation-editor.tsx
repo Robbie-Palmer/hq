@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Heart,
   House,
+  Music2,
   Search,
   Sparkles,
   Users,
@@ -79,6 +80,7 @@ import {
   EditorToggle as Toggle,
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
+import { PlaylistEditor } from "./playlist-editor";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -143,6 +145,7 @@ const plannerSections = [
   { id: "plan", label: "Rooms & costs", icon: House },
   { id: "result", label: "Room plan", icon: Sparkles },
   { id: "tables", label: "Tables", icon: Users },
+  { id: "music", label: "Music", icon: Music2 },
 ] as const;
 
 type EditorView = (typeof plannerSections)[number]["id"];
@@ -711,7 +714,7 @@ export function AccommodationEditor({
             <Heart size={18} fill="currentColor" />
           </span>
           <span>
-            Wedding planner <small>Rooms &amp; tables</small>
+            Wedding planner <small>Rooms, tables &amp; music</small>
           </span>
         </div>
         <span className="save-status">
@@ -768,6 +771,9 @@ export function AccommodationEditor({
               onUpdate={update}
               onCalculate={calculateTablePlan}
             />
+          )}
+          {view === "music" && state && (
+            <PlaylistEditor playlist={state.playlist} onUpdate={update} />
           )}
           {view === "bed_groups" && state && (
             <>

@@ -12,6 +12,7 @@ import {
   validateGuestDirectory,
 } from "./guest-directory";
 import { seatingPlanSchema } from "./seating/preferences";
+import { collaborativePlaylistSchema } from "./playlist";
 
 const weddingPlanSchema = z.object({
   version: z.literal(2),
@@ -22,6 +23,7 @@ const weddingPlanSchema = z.object({
   hosts: z.array(z.string().min(1)).min(1),
   accommodation: accommodationPlanSchema.prefault({}),
   seating: seatingPlanSchema,
+  playlist: collaborativePlaylistSchema.optional(),
   extensions: z.record(z.string(), z.unknown()).default({}),
 });
 export type WeddingPlan = z.infer<typeof weddingPlanSchema>;

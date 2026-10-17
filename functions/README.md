@@ -29,6 +29,13 @@ the browser can use the same session cookies and CSRF origin checks as auth.
 Proxies notification archive, read-state, and dismissal requests to the recipe
 API Worker using the same-origin session cookie.
 
+### `/api/wedding-playlists/*` - Collaborative wedding playlist
+
+Stores the guest-facing playlist in a dedicated KV namespace. Guest links use
+an invite token for suggestions and votes. The private planner keeps a separate
+admin token for moderation and syncing. The function hashes both tokens before
+storage and applies per-IP and per-contributor limits.
+
 ### `_middleware.ts` - Markdown Content Negotiation
 
 Serves each page's agent-friendly Markdown twin from its canonical URL
