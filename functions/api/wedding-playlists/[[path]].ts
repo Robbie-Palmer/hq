@@ -3,8 +3,10 @@ import {
   collaborativePlaylistSchema,
   createCollaborativePlaylist,
   guestPlaylist,
+  normalizeSongIdentity,
   voteForSong,
   type CollaborativePlaylist,
+  type NewSongSuggestion,
 } from "wedding-planner-domain";
 import { z } from "zod";
 
@@ -14,8 +16,13 @@ export interface PlaylistKv {
   put(
     key: string,
     value: string,
-    options?: { expirationTtl: number },
+    options?: { expirationTtl?: number },
   ): Promise<void>;
+  list(options: { cursor?: string; prefix: string }): Promise<{
+    cursor?: string;
+    keys: { name: string }[];
+    list_complete: boolean;
+  }>;
 }
 
 interface Env {
@@ -32,8 +39,23 @@ interface StoredPlaylist {
   playlist: CollaborativePlaylist;
   guestTokenHash: string;
   adminTokenHash: string;
+  suppressedSongIds?: string[];
   updatedAt: string;
 }
+
+type GuestPlaylistEvent =
+  | {
+      createdAt: string;
+      suggestion: NewSongSuggestion;
+      type: "suggestion";
+    }
+  | {
+      createdAt: string;
+      selected: boolean;
+      songId: string;
+      type: "vote";
+      voterId: string;
+    };
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(120),
@@ -55,16 +77,21 @@ const suggestionSchema = z.object({
   moment_id: z.string().trim().min(1),
   note: z.string().trim().max(500).default(""),
   contributor: z.object({
-    id: z.string().trim().min(8).max(80),
     name: z.string().trim().min(1).max(80),
   }),
 });
 
 const voteSchema = z.object({
   song_id: z.string().trim().min(1),
-  voter_id: z.string().trim().min(8).max(80),
   selected: z.boolean(),
 });
+
+const adminUpdateSchema = z.object({
+  playlist: collaborativePlaylistSchema,
+  removed_song_ids: z.array(z.string().trim().min(1)).max(500).default([]),
+});
+
+const guestIdSchema = z.uuid();
 
 function json(value: unknown, status = 200): Response {
   return Response.json(value, {
@@ -121,9 +148,72 @@ async function writeStored(
   await env.WEDDING_PLAYLISTS.put(`playlist:${id}`, JSON.stringify(stored));
 }
 
+function eventPrefix(id: string): string {
+  return `playlist:${id}:events:`;
+}
+
+async function readGuestEvents(env: Env, id: string): Promise<GuestPlaylistEvent[]> {
+  const events: GuestPlaylistEvent[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.WEDDING_PLAYLISTS.list({
+      prefix: eventPrefix(id),
+      ...(cursor ? { cursor } : {}),
+    });
+    const values = await Promise.all(
+      page.keys.map(({ name }) =>
+        env.WEDDING_PLAYLISTS.get<GuestPlaylistEvent>(name, "json"),
+      ),
+    );
+    events.push(...values.filter((value) => value !== null));
+    cursor = page.list_complete ? undefined : page.cursor;
+  } while (cursor);
+  return events.sort(
+    (left, right) =>
+      left.createdAt.localeCompare(right.createdAt) ||
+      JSON.stringify(left).localeCompare(JSON.stringify(right)),
+  );
+}
+
+async function appendGuestEvent(
+  env: Env,
+  id: string,
+  event: GuestPlaylistEvent,
+): Promise<void> {
+  const key = `${eventPrefix(id)}${event.createdAt}:${randomToken(12)}`;
+  await env.WEDDING_PLAYLISTS.put(key, JSON.stringify(event));
+}
+
+async function materializePlaylist(
+  env: Env,
+  id: string,
+  stored: StoredPlaylist,
+): Promise<CollaborativePlaylist> {
+  const playlist = structuredClone(stored.playlist);
+  const suppressed = new Set(stored.suppressedSongIds ?? []);
+  for (const event of await readGuestEvents(env, id)) {
+    if (event.type === "suggestion") {
+      if (!suppressed.has(event.suggestion.id))
+        addSongSuggestion(playlist, event.suggestion);
+      continue;
+    }
+    try {
+      voteForSong(playlist, event.songId, event.voterId, event.selected);
+    } catch {
+      // Votes for suggestions not yet visible at this edge appear on a later read.
+    }
+  }
+  return playlist;
+}
+
 function suppliedToken(request: Request): string {
   const bearer = request.headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
   return bearer ?? new URL(request.url).searchParams.get("token") ?? "";
+}
+
+function suppliedGuestId(request: Request): string | null {
+  const parsed = guestIdSchema.safeParse(request.headers.get("x-wedding-guest-id"));
+  return parsed.success ? parsed.data : null;
 }
 
 async function authorized(
@@ -134,25 +224,7 @@ async function authorized(
   return supplied.length >= 16 && (await tokenHash(supplied)) === expectedHash;
 }
 
-async function enforceRateLimit(
-  context: Context,
-  scope: string,
-  limit: number,
-): Promise<Response | null> {
-  const ip = context.request.headers.get("cf-connecting-ip") ?? "unknown";
-  const window = Math.floor(Date.now() / 600_000);
-  const key = `rate:${scope}:${ip}:${window}`;
-  const current = Number((await context.env.WEDDING_PLAYLISTS.get(key)) ?? "0");
-  if (current >= limit) return error("Too many requests. Try again later.", 429);
-  await context.env.WEDDING_PLAYLISTS.put(key, String(current + 1), {
-    expirationTtl: 660,
-  });
-  return null;
-}
-
 async function createPlaylist(context: Context): Promise<Response> {
-  const limited = await enforceRateLimit(context, "create", 5);
-  if (limited) return limited;
   const parsed = createSchema.safeParse(await context.request.json());
   if (!parsed.success) return error("The playlist details are invalid.", 400);
   const id = randomToken(12);
@@ -168,20 +240,80 @@ async function createPlaylist(context: Context): Promise<Response> {
     playlist,
     guestTokenHash: await tokenHash(guestToken),
     adminTokenHash: await tokenHash(adminToken),
+    suppressedSongIds: [],
     updatedAt: new Date().toISOString(),
   });
-  return json({ id, guest_token: guestToken, admin_token: adminToken }, 201);
+  return json(
+    {
+      id,
+      guest_token: guestToken,
+      admin_token: adminToken,
+      synced_song_ids: playlist.songs.map(({ id: songId }) => songId),
+    },
+    201,
+  );
 }
 
 async function getPlaylist(
   context: Context,
+  id: string,
   stored: StoredPlaylist,
 ): Promise<Response> {
   const admin = new URL(context.request.url).searchParams.get("admin") === "1";
   const expected = admin ? stored.adminTokenHash : stored.guestTokenHash;
   if (!(await authorized(context.request, expected)))
     return error("This playlist link is invalid or has been replaced.", 403);
-  return json(admin ? stored.playlist : guestPlaylist(stored.playlist));
+  const playlist = await materializePlaylist(context.env, id, stored);
+  if (admin) return json(playlist);
+  const guestId = suppliedGuestId(context.request);
+  if (!guestId) return error("This guest session is invalid.", 400);
+  return json(guestPlaylist(playlist, guestId));
+}
+
+function unique<T>(items: T[]): T[] {
+  return [...new Set(items)];
+}
+
+function mergeAdminPlaylist(
+  current: CollaborativePlaylist,
+  incoming: CollaborativePlaylist,
+  removedSongIds: Set<string>,
+): CollaborativePlaylist {
+  const currentById = new Map(current.songs.map((song) => [song.id, song]));
+  const removedSongs = current.songs.filter(({ id }) => removedSongIds.has(id));
+  const transferredContributorIds = new Set(
+    removedSongs.flatMap((song) => song.contributors.map(({ id }) => id)),
+  );
+  const transferredVoterIds = new Set(
+    removedSongs.flatMap(({ voter_ids }) => voter_ids),
+  );
+  const songs = incoming.songs.map((song) => {
+    const stored = currentById.get(song.id);
+    if (!stored) return song;
+    return {
+      ...song,
+      contributors: [
+        ...new Map(
+          [
+            ...stored.contributors,
+            ...song.contributors.filter(({ id }) =>
+              transferredContributorIds.has(id),
+            ),
+          ].map((item) => [item.id, item]),
+        ).values(),
+      ],
+      voter_ids: unique([
+        ...stored.voter_ids,
+        ...song.voter_ids.filter((id) => transferredVoterIds.has(id)),
+      ]),
+    };
+  });
+  const incomingIds = new Set(songs.map(({ id }) => id));
+  for (const song of current.songs) {
+    if (!incomingIds.has(song.id) && !removedSongIds.has(song.id))
+      songs.push({ ...song, order: songs.length });
+  }
+  return collaborativePlaylistSchema.parse({ ...incoming, songs, sharing: null });
 }
 
 async function replacePlaylist(
@@ -191,11 +323,19 @@ async function replacePlaylist(
 ): Promise<Response> {
   if (!(await authorized(context.request, stored.adminTokenHash)))
     return error("Only the couple can update this playlist.", 403);
-  const parsed = collaborativePlaylistSchema.safeParse(
-    await context.request.json(),
-  );
+  const parsed = adminUpdateSchema.safeParse(await context.request.json());
   if (!parsed.success) return error("The playlist details are invalid.", 400);
-  stored.playlist = { ...parsed.data, sharing: null };
+  const current = await materializePlaylist(context.env, id, stored);
+  const removedSongIds = new Set(parsed.data.removed_song_ids);
+  stored.playlist = mergeAdminPlaylist(
+    current,
+    parsed.data.playlist,
+    removedSongIds,
+  );
+  stored.suppressedSongIds = unique([
+    ...(stored.suppressedSongIds ?? []),
+    ...removedSongIds,
+  ]);
   await writeStored(context.env, id, stored);
   return json(stored.playlist);
 }
@@ -207,28 +347,39 @@ async function suggestSong(
 ): Promise<Response> {
   if (!(await authorized(context.request, stored.guestTokenHash)))
     return error("This playlist link is invalid or has been replaced.", 403);
-  const limited = await enforceRateLimit(context, `suggest:${id}`, 30);
-  if (limited) return limited;
+  const guestId = suppliedGuestId(context.request);
+  if (!guestId) return error("This guest session is invalid.", 400);
   const parsed = suggestionSchema.safeParse(await context.request.json());
   if (!parsed.success) return error("Check the song details and try again.", 400);
-  const selectedMoment = stored.playlist.moments.find(
+  const playlist = await materializePlaylist(context.env, id, stored);
+  const selectedMoment = playlist.moments.find(
     ({ id: momentId }) => momentId === parsed.data.moment_id,
   );
   if (!selectedMoment || selectedMoment.private)
     return error("Choose a moment shown on the guest playlist.", 400);
-  const contributorCount = stored.playlist.songs.filter((song) =>
+  const contributorCount = playlist.songs.filter((song) =>
     song.contributors.some(({ id: contributorId }) =>
-      contributorId === parsed.data.contributor.id,
+      contributorId === guestId,
     ),
   ).length;
   if (contributorCount >= 20)
     return error("This guest has reached the 20-song suggestion limit.", 429);
-  addSongSuggestion(stored.playlist, {
+  const identity = normalizeSongIdentity(parsed.data.title, parsed.data.artist);
+  const suggestion = {
     ...parsed.data,
-    id: randomToken(12),
+    id: identity
+      ? `song-${(await tokenHash(identity)).slice(0, 24)}`
+      : randomToken(12),
+    contributor: { id: guestId, name: parsed.data.contributor.name },
+    created_at: new Date().toISOString(),
+  } satisfies NewSongSuggestion;
+  const song = addSongSuggestion(playlist, suggestion);
+  await appendGuestEvent(context.env, id, {
+    type: "suggestion",
+    suggestion: { ...suggestion, id: song.id },
+    createdAt: suggestion.created_at,
   });
-  await writeStored(context.env, id, stored);
-  return json(guestPlaylist(stored.playlist), 201);
+  return json(guestPlaylist(playlist, guestId), 201);
 }
 
 async function vote(
@@ -238,22 +389,29 @@ async function vote(
 ): Promise<Response> {
   if (!(await authorized(context.request, stored.guestTokenHash)))
     return error("This playlist link is invalid or has been replaced.", 403);
-  const limited = await enforceRateLimit(context, `vote:${id}`, 120);
-  if (limited) return limited;
+  const guestId = suppliedGuestId(context.request);
+  if (!guestId) return error("This guest session is invalid.", 400);
   const parsed = voteSchema.safeParse(await context.request.json());
   if (!parsed.success) return error("The vote is invalid.", 400);
+  const playlist = await materializePlaylist(context.env, id, stored);
   try {
     voteForSong(
-      stored.playlist,
+      playlist,
       parsed.data.song_id,
-      parsed.data.voter_id,
+      guestId,
       parsed.data.selected,
     );
   } catch {
     return error("That song is no longer available.", 404);
   }
-  await writeStored(context.env, id, stored);
-  return json(guestPlaylist(stored.playlist));
+  await appendGuestEvent(context.env, id, {
+    type: "vote",
+    songId: parsed.data.song_id,
+    voterId: guestId,
+    selected: parsed.data.selected,
+    createdAt: new Date().toISOString(),
+  });
+  return json(guestPlaylist(playlist, guestId));
 }
 
 async function routeExistingPlaylist(
@@ -263,7 +421,7 @@ async function routeExistingPlaylist(
   stored: StoredPlaylist,
 ): Promise<Response> {
   if (!action && context.request.method === "GET")
-    return getPlaylist(context, stored);
+    return getPlaylist(context, id, stored);
   if (!action && context.request.method === "PUT")
     return replacePlaylist(context, id, stored);
   if (action === "suggestions" && context.request.method === "POST")

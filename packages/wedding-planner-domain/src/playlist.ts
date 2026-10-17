@@ -43,6 +43,7 @@ export const playlistSharingSchema = z.object({
   id: trimmedText,
   guest_token: trimmedText,
   admin_token: trimmedText,
+  synced_song_ids: z.array(trimmedText).default([]),
 });
 export type PlaylistSharing = z.infer<typeof playlistSharingSchema>;
 
@@ -53,6 +54,23 @@ export const collaborativePlaylistSchema = z.object({
   sharing: playlistSharingSchema.nullable().default(null),
 });
 export type CollaborativePlaylist = z.infer<typeof collaborativePlaylistSchema>;
+
+export const guestSongSuggestionSchema = songSuggestionSchema
+  .omit({ contributors: true, voter_ids: true })
+  .extend({
+    contributors: z.array(z.object({ name: trimmedText })).min(1),
+    vote_count: z.number().int().nonnegative(),
+    voted_by_you: z.boolean(),
+  });
+export type GuestSongSuggestion = z.infer<typeof guestSongSuggestionSchema>;
+
+export const guestPlaylistSchema = collaborativePlaylistSchema
+  .omit({ sharing: true, songs: true })
+  .extend({
+    sharing: z.null(),
+    songs: z.array(guestSongSuggestionSchema),
+  });
+export type GuestPlaylist = z.infer<typeof guestPlaylistSchema>;
 
 export const DEFAULT_PLAYLIST_MOMENTS: PlaylistMoment[] = [
   { id: "reception", name: "Reception", private: false },
@@ -72,15 +90,24 @@ export function createCollaborativePlaylist(
   });
 }
 
-export function normalizeSongIdentity(title: string, artist: string): string {
-  return `${title}\u0000${artist}`
+function normalizeSongPart(value: string): string {
+  return value
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\p{M}/gu, "")
     .toLocaleLowerCase("en")
-    .replace(/\b(feat|featuring|ft)\.?\b.*$/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/[[(]\s*(?:feat|featuring|ft)\.?\s+[^\])]*[\])]/giu, "")
+    .replace(/\s+(?:feat|featuring|ft)\.?\s+.*$/iu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+export function normalizeSongIdentity(title: string, artist: string): string {
+  const normalizedTitle = normalizeSongPart(title);
+  const normalizedArtist = normalizeSongPart(artist);
+  return normalizedTitle && normalizedArtist
+    ? `${normalizedTitle}\u0000${normalizedArtist}`
+    : "";
 }
 
 export function likelyDuplicateSongs(
@@ -89,9 +116,11 @@ export function likelyDuplicateSongs(
   artist: string,
 ): SongSuggestion[] {
   const identity = normalizeSongIdentity(title, artist);
-  return playlist.songs.filter(
-    (song) => normalizeSongIdentity(song.title, song.artist) === identity,
-  );
+  if (!identity) return [];
+  return playlist.songs.filter((song) => {
+    const candidate = normalizeSongIdentity(song.title, song.artist);
+    return candidate.length > 0 && candidate === identity;
+  });
 }
 
 export interface NewSongSuggestion {
@@ -114,6 +143,15 @@ export function addSongSuggestion(
     !playlist.moments.some((moment) => moment.id === input.moment_id)
   )
     throw new Error("Choose a playlist moment that still exists");
+  const existing = playlist.songs.find(({ id }) => id === input.id);
+  if (existing) {
+    if (!existing.contributors.some(({ id }) => id === input.contributor.id))
+      existing.contributors.push(
+        songContributorSchema.parse(input.contributor),
+      );
+    if (input.note && !existing.note) existing.note = input.note.trim();
+    return existing;
+  }
   const duplicate = likelyDuplicateSongs(
     playlist,
     input.title,
@@ -207,7 +245,14 @@ export function moveSong(
   const ordered = [...playlist.songs].sort((a, b) => a.order - b.order);
   const index = ordered.findIndex(({ id }) => id === songId);
   if (index < 0) throw new Error("That song is no longer in the playlist");
-  const destination = index + direction;
+  const status = ordered[index]?.status;
+  let destination = index + direction;
+  while (
+    destination >= 0 &&
+    destination < ordered.length &&
+    ordered[destination]?.status !== status
+  )
+    destination += direction;
   if (destination < 0 || destination >= ordered.length) return;
   const current = ordered[index];
   const next = ordered[destination];
@@ -221,22 +266,29 @@ export function moveSong(
 
 export function guestPlaylist(
   playlist: CollaborativePlaylist,
-): CollaborativePlaylist {
+  voterId = "",
+): GuestPlaylist {
   const privateMoments = new Set(
     playlist.moments.filter((moment) => moment.private).map(({ id }) => id),
   );
-  return {
-    ...structuredClone(playlist),
+  const visibleSongs = playlist.songs.filter(
+    (song) =>
+      song.status !== "rejected" &&
+      song.priority !== "do_not_play" &&
+      !song.private &&
+      !privateMoments.has(song.moment_id),
+  );
+  return guestPlaylistSchema.parse({
+    title: playlist.title,
     sharing: null,
     moments: playlist.moments.filter((moment) => !moment.private),
-    songs: playlist.songs.filter(
-      (song) =>
-        song.status !== "rejected" &&
-        song.priority !== "do_not_play" &&
-        !song.private &&
-        !privateMoments.has(song.moment_id),
-    ),
-  };
+    songs: visibleSongs.map(({ contributors, voter_ids, ...song }) => ({
+      ...song,
+      contributors: contributors.map(({ name }) => ({ name })),
+      vote_count: voter_ids.length,
+      voted_by_you: voterId ? voter_ids.includes(voterId) : false,
+    })),
+  });
 }
 
 function approvedSongs(playlist: CollaborativePlaylist): SongSuggestion[] {
@@ -316,5 +368,6 @@ function uniqueById<T extends { id: string }>(items: T[]): T[] {
 }
 
 function csvValue(value: string): string {
-  return /[",\n\r]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
+  return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }

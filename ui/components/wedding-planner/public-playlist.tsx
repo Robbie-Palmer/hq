@@ -10,10 +10,10 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
-  type CollaborativePlaylist,
-  collaborativePlaylistSchema,
+  type GuestPlaylist,
+  type GuestSongSuggestion,
+  guestPlaylistSchema,
   type PlaylistMoment,
-  type SongSuggestion,
 } from "wedding-planner-domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -75,32 +75,41 @@ async function responseError(response: Response): Promise<string> {
 
 function useGuestPlaylist() {
   const [access, setAccess] = useState<GuestAccess | null>(null);
-  const [playlist, setPlaylist] = useState<CollaborativePlaylist | null>(null);
+  const [playlist, setPlaylist] = useState<GuestPlaylist | null>(null);
   const [guestId, setGuestId] = useState("");
   const [form, setForm] = useState(initialGuestForm);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const load = useCallback(async (guestAccess: GuestAccess) => {
-    setBusy(true);
-    setError("");
-    try {
-      const response = await fetch(`/api/wedding-playlists/${guestAccess.id}`, {
-        headers: { Authorization: `Bearer ${guestAccess.token}` },
-      });
-      if (!response.ok) throw new Error(await responseError(response));
-      const loaded = collaborativePlaylistSchema.parse(await response.json());
-      setPlaylist(loaded);
-      setForm((current) => ({
-        ...current,
-        momentId: current.momentId || loaded.moments[0]?.id || "",
-      }));
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+  const load = useCallback(
+    async (guestAccess: GuestAccess, identity: string) => {
+      setBusy(true);
+      setError("");
+      try {
+        const response = await fetch(
+          `/api/wedding-playlists/${guestAccess.id}`,
+          {
+            headers: {
+              Authorization: `Bearer ${guestAccess.token}`,
+              "X-Wedding-Guest-Id": identity,
+            },
+          },
+        );
+        if (!response.ok) throw new Error(await responseError(response));
+        const loaded = guestPlaylistSchema.parse(await response.json());
+        setPlaylist(loaded);
+        setForm((current) => ({
+          ...current,
+          momentId: current.momentId || loaded.moments[0]?.id || "",
+        }));
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [],
+  );
 
   useEffect(() => {
     const guestAccess = accessFromHash();
@@ -109,7 +118,8 @@ function useGuestPlaylist() {
       return;
     }
     setAccess(guestAccess);
-    setGuestId(guestIdentity(guestAccess.id));
+    const identity = guestIdentity(guestAccess.id);
+    setGuestId(identity);
     setForm((current) => ({
       ...current,
       name:
@@ -117,7 +127,7 @@ function useGuestPlaylist() {
           `wedding-playlist:${guestAccess.id}:guest-name`,
         ) ?? "",
     }));
-    void load(guestAccess);
+    void load(guestAccess, identity);
   }, [load]);
 
   function changeForm(field: keyof GuestForm, value: string): void {
@@ -136,6 +146,7 @@ function useGuestPlaylist() {
           headers: {
             Authorization: `Bearer ${access.token}`,
             "Content-Type": "application/json",
+            "X-Wedding-Guest-Id": guestId,
           },
           body: JSON.stringify({
             title: form.title,
@@ -143,12 +154,12 @@ function useGuestPlaylist() {
             service_url: form.serviceUrl,
             moment_id: form.momentId,
             note: form.note,
-            contributor: { id: guestId, name: form.name },
+            contributor: { name: form.name },
           }),
         },
       );
       if (!response.ok) throw new Error(await responseError(response));
-      setPlaylist(collaborativePlaylistSchema.parse(await response.json()));
+      setPlaylist(guestPlaylistSchema.parse(await response.json()));
       window.localStorage.setItem(
         `wedding-playlist:${access.id}:guest-name`,
         form.name,
@@ -179,16 +190,16 @@ function useGuestPlaylist() {
           headers: {
             Authorization: `Bearer ${access.token}`,
             "Content-Type": "application/json",
+            "X-Wedding-Guest-Id": guestId,
           },
           body: JSON.stringify({
             song_id: songId,
-            voter_id: guestId,
             selected,
           }),
         },
       );
       if (!response.ok) throw new Error(await responseError(response));
-      setPlaylist(collaborativePlaylistSchema.parse(await response.json()));
+      setPlaylist(guestPlaylistSchema.parse(await response.json()));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -202,9 +213,8 @@ function useGuestPlaylist() {
     changeForm,
     error,
     form,
-    guestId,
     playlist,
-    refresh: () => access && load(access),
+    refresh: () => access && guestId && load(access, guestId),
     suggest,
     vote,
   };
@@ -362,7 +372,7 @@ function GuestSongCard({
   busy,
   onVote,
 }: Readonly<{
-  song: SongSuggestion;
+  song: GuestSongSuggestion;
   moment?: PlaylistMoment;
   selected: boolean;
   busy: boolean;
@@ -386,7 +396,7 @@ function GuestSongCard({
         aria-pressed={selected}
         onClick={() => onVote(!selected)}
       >
-        <ThumbsUp size={15} /> {song.voter_ids.length}
+        <ThumbsUp size={15} /> {song.vote_count}
       </Button>
     </article>
   );
@@ -394,18 +404,14 @@ function GuestSongCard({
 
 function GuestSongList({
   playlist,
-  guestId,
   busy,
   onVote,
 }: Readonly<{
-  playlist: CollaborativePlaylist;
-  guestId: string;
+  playlist: GuestPlaylist;
   busy: boolean;
   onVote: (songId: string, selected: boolean) => void;
 }>) {
-  const songs = [...playlist.songs].sort(
-    (a, b) => b.voter_ids.length - a.voter_ids.length,
-  );
+  const songs = [...playlist.songs].sort((a, b) => b.vote_count - a.vote_count);
   return (
     <div className="public-song-list">
       {songs.map((song) => (
@@ -413,7 +419,7 @@ function GuestSongList({
           key={song.id}
           song={song}
           moment={playlist.moments.find(({ id }) => id === song.moment_id)}
-          selected={song.voter_ids.includes(guestId)}
+          selected={song.voted_by_you}
           busy={busy}
           onVote={(selected) => onVote(song.id, selected)}
         />
@@ -424,14 +430,12 @@ function GuestSongList({
 
 function GuestPicks({
   playlist,
-  guestId,
   busy,
   canRefresh,
   onRefresh,
   onVote,
 }: Readonly<{
-  playlist: CollaborativePlaylist;
-  guestId: string;
+  playlist: GuestPlaylist;
   busy: boolean;
   canRefresh: boolean;
   onRefresh: () => void;
@@ -454,12 +458,7 @@ function GuestPicks({
         </Button>
       </div>
       {playlist.songs.length ? (
-        <GuestSongList
-          playlist={playlist}
-          guestId={guestId}
-          busy={busy}
-          onVote={onVote}
-        />
+        <GuestSongList playlist={playlist} busy={busy} onVote={onVote} />
       ) : (
         <p className="public-empty">No suggestions yet. Yours can be first.</p>
       )}
@@ -494,7 +493,6 @@ export function PublicPlaylist() {
             />
             <GuestPicks
               playlist={guest.playlist}
-              guestId={guest.guestId}
               busy={guest.busy}
               canRefresh={Boolean(guest.access)}
               onRefresh={() => void guest.refresh()}

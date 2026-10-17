@@ -303,8 +303,8 @@ resource "cloudflare_ruleset" "map_tiles_cache" {
 
 resource "cloudflare_ruleset" "auth_rate_limit" {
   zone_id     = data.cloudflare_zone.domain.id
-  name        = "Auth endpoint rate limiting"
-  description = "Per-IP rate limiting for /api/auth/* — returns 429 on abuse. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
+  name        = "API endpoint rate limiting"
+  description = "Per-IP rate limiting for auth and wedding-playlist writes. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
   kind        = "zone"
   phase       = "http_ratelimit"
 
@@ -327,6 +327,48 @@ resource "cloudflare_ruleset" "auth_rate_limit" {
       period              = var.auth_rate_limit_period
       requests_per_period = var.auth_rate_limit_requests
       mitigation_timeout  = var.auth_rate_limit_mitigation_timeout
+    }
+  }
+
+  rules {
+    ref         = "wedding_playlist_create_rate_limit"
+    description = "Limit wedding playlist creation per IP"
+    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and http.request.uri.path eq \"/api/wedding-playlists\")"
+    action      = "block"
+
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = 600
+      requests_per_period = 5
+      mitigation_timeout  = 600
+    }
+  }
+
+  rules {
+    ref         = "wedding_playlist_suggestion_rate_limit"
+    description = "Limit wedding playlist suggestions per IP"
+    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and ends_with(http.request.uri.path, \"/suggestions\") and starts_with(http.request.uri.path, \"/api/wedding-playlists/\"))"
+    action      = "block"
+
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = 600
+      requests_per_period = 30
+      mitigation_timeout  = 600
+    }
+  }
+
+  rules {
+    ref         = "wedding_playlist_vote_rate_limit"
+    description = "Limit wedding playlist votes per IP"
+    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and ends_with(http.request.uri.path, \"/votes\") and starts_with(http.request.uri.path, \"/api/wedding-playlists/\"))"
+    action      = "block"
+
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = 600
+      requests_per_period = 120
+      mitigation_timeout  = 600
     }
   }
 }

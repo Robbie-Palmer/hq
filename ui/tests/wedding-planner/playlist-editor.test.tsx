@@ -156,6 +156,7 @@ describe("playlist editor", () => {
       id: "playlist-public-id",
       guest_token: "guest-token-value-1234",
       admin_token: "admin-token-value-1234",
+      synced_song_ids: playlist.songs.map(({ id }) => id),
     };
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -179,6 +180,11 @@ describe("playlist editor", () => {
 
     render(<PlaylistHarness initialPlaylist={playlist} />);
     expect(screen.getByText("1 vote")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create guest link" }));
+    expect(await screen.findByText("Guest link created")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Copy guest link" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
+    expect(await screen.findByText("Guest link copied")).toBeInTheDocument();
 
     const pendingCard = closest(
       screen.getByRole("heading", { name: "Pending song" }),
@@ -226,12 +232,6 @@ describe("playlist editor", () => {
       screen.queryByRole("heading", { name: "Approved song" }),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Create guest link" }));
-    expect(await screen.findByText("Guest link created")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Copy guest link" }));
-    await waitFor(() => expect(writeText).toHaveBeenCalledOnce());
-    expect(await screen.findByText("Guest link copied")).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole("button", { name: "Publish changes" }));
     expect(
       await screen.findByText("Guest playlist updated"),
@@ -241,6 +241,11 @@ describe("playlist editor", () => {
       await screen.findByText("Guest suggestions and votes loaded"),
     ).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    const publishBody = JSON.parse(
+      String(fetchMock.mock.calls[1]?.[1]?.body),
+    ) as { playlist: CollaborativePlaylist; removed_song_ids: string[] };
+    expect(publishBody.removed_song_ids).toEqual(["approved-song"]);
+    expect(publishBody.playlist.sharing).toBeNull();
   });
 
   it("shows remote publishing failures", async () => {

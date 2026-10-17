@@ -25,6 +25,7 @@ import {
   type PlaylistMoment,
   playlistDjBriefCsv,
   playlistDjBriefMarkdown,
+  playlistSharingSchema,
   type SongSuggestion,
 } from "wedding-planner-domain";
 import { Badge } from "@/components/ui/badge";
@@ -148,27 +149,40 @@ function usePlaylistEditor(
           body: JSON.stringify(playlist),
         });
         if (!response.ok) throw new Error("Could not create the guest link");
-        const sharing = (await response.json()) as NonNullable<
-          CollaborativePlaylist["sharing"]
-        >;
+        const sharing = playlistSharingSchema.parse(await response.json());
         onUpdate((draft) => {
           if (draft.playlist) draft.playlist.sharing = sharing;
         });
         setRemoteStatus("Guest link created");
         return;
       }
-      const response = await fetch(
-        `/api/wedding-playlists/${playlist.sharing.id}`,
-        {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${playlist.sharing.admin_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ ...playlist, sharing: null }),
+      const sharing = playlist.sharing;
+      const response = await fetch(`/api/wedding-playlists/${sharing.id}`, {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${sharing.admin_token}`,
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          playlist: { ...playlist, sharing: null },
+          removed_song_ids: sharing.synced_song_ids.filter(
+            (songId) => !playlist.songs.some(({ id }) => id === songId),
+          ),
+        }),
+      });
       if (!response.ok) throw new Error("Could not publish playlist changes");
+      const published = collaborativePlaylistSchema.parse(
+        await response.json(),
+      );
+      onUpdate((draft) => {
+        draft.playlist = {
+          ...published,
+          sharing: {
+            ...sharing,
+            synced_song_ids: published.songs.map(({ id }) => id),
+          },
+        };
+      });
       setRemoteStatus("Guest playlist updated");
     } catch (cause) {
       setRemoteStatus(cause instanceof Error ? cause.message : String(cause));
@@ -179,19 +193,26 @@ function usePlaylistEditor(
 
   async function refresh(): Promise<void> {
     if (!playlist?.sharing) return;
+    const sharing = playlist.sharing;
     setRemoteBusy(true);
     setRemoteStatus("");
     try {
       const response = await fetch(
-        `/api/wedding-playlists/${playlist.sharing.id}?admin=1`,
+        `/api/wedding-playlists/${sharing.id}?admin=1`,
         {
-          headers: { Authorization: `Bearer ${playlist.sharing.admin_token}` },
+          headers: { Authorization: `Bearer ${sharing.admin_token}` },
         },
       );
       if (!response.ok) throw new Error("Could not fetch guest changes");
       const remote = collaborativePlaylistSchema.parse(await response.json());
       onUpdate((draft) => {
-        draft.playlist = { ...remote, sharing: playlist.sharing };
+        draft.playlist = {
+          ...remote,
+          sharing: {
+            ...sharing,
+            synced_song_ids: remote.songs.map(({ id }) => id),
+          },
+        };
       });
       setRemoteStatus("Guest suggestions and votes loaded");
     } catch (cause) {

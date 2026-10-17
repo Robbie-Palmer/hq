@@ -2,11 +2,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addSongSuggestion,
   createCollaborativePlaylist,
+  guestPlaylist as projectGuestPlaylist,
+  voteForSong,
 } from "wedding-planner-domain";
 import { PublicPlaylist } from "@/components/wedding-planner/public-playlist";
 import { fireEvent, render, screen, waitFor, within } from "@/tests/test-utils";
 
-function guestPlaylist() {
+const GUEST_ID = "1ecb2993-9471-4d47-85db-5dbf4d68c1e0";
+
+function playlistSource() {
   const playlist = createCollaborativePlaylist("Alex and Sam's playlist");
   addSongSuggestion(playlist, {
     id: "guest-song",
@@ -34,7 +38,7 @@ afterEach(() => {
 
 describe("public wedding playlist", () => {
   it("loads the guest link, remembers the guest, suggests songs, and votes", async () => {
-    const playlist = guestPlaylist();
+    const playlist = playlistSource();
     const fetchMock = vi.fn(
       async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = String(input);
@@ -45,23 +49,25 @@ describe("public wedding playlist", () => {
             title: "New song",
             artist: "New artist",
             moment_id: "reception",
-            contributor: { id: "saved-guest", name: "Taylor" },
+            contributor: { id: GUEST_ID, name: "Taylor" },
             created_at: "2026-10-17T12:01:00.000Z",
           });
-          return Response.json(changed, { status: 201 });
+          return Response.json(projectGuestPlaylist(changed, GUEST_ID), {
+            status: 201,
+          });
         }
         if (url.endsWith("/votes") && init?.method === "POST") {
           const changed = structuredClone(playlist);
           const [song] = changed.songs;
           if (!song) throw new Error("Expected playlist song");
-          song.voter_ids = ["saved-guest"];
-          return Response.json(changed);
+          voteForSong(changed, song.id, GUEST_ID, true);
+          return Response.json(projectGuestPlaylist(changed, GUEST_ID));
         }
-        return Response.json(playlist);
+        return Response.json(projectGuestPlaylist(playlist, GUEST_ID));
       },
     );
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(crypto, "randomUUID").mockReturnValue("saved-guest");
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(GUEST_ID);
     window.location.hash =
       "#id=playlist-public-id&token=guest-token-value-1234";
 
@@ -104,6 +110,12 @@ describe("public wedding playlist", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init?.headers).get("X-Wedding-Guest-Id")).toBe(
+        GUEST_ID,
+      );
+      expect(String(init?.body ?? "")).not.toContain(GUEST_ID);
+    }
   });
 
   it("explains incomplete and rejected guest links", async () => {
