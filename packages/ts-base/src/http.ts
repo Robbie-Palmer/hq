@@ -30,6 +30,13 @@ const RETRYABLE_HTTP_STATUSES = new Set([408, 409, 429, 500, 502, 503, 504]);
 const defaultRetryableResponse = (response: Response): boolean =>
   response.status === 429 || response.status >= 500;
 
+/** Keeps the native fetch receiver intact without rebinding injected clients. */
+export function receiverSafeFetch(fetchImpl?: typeof fetch): typeof fetch {
+  return fetchImpl
+    ? (input, init) => fetchImpl(input, init)
+    : (input, init) => globalThis.fetch(input, init);
+}
+
 export async function fetchWithRetry(
   input: RequestInfo | URL,
   options: FetchWithRetryOptions = {},
@@ -38,7 +45,7 @@ export async function fetchWithRetry(
   if (!Number.isSafeInteger(attempts) || attempts < 1) {
     throw new RangeError("Fetch attempts must be a positive integer");
   }
-  const fetchImpl = options.fetch ?? fetch;
+  const fetchImpl = receiverSafeFetch(options.fetch);
   const retryable = options.retryable ?? defaultRetryableResponse;
   let lastError: unknown;
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -128,7 +135,7 @@ export class JsonClient {
     this.#headers = headers;
     this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.#retries = options.retries ?? DEFAULT_RETRIES;
-    this.#fetch = options.fetch ?? fetch;
+    this.#fetch = receiverSafeFetch(options.fetch);
     this.#now = options.now ?? Date.now;
     this.#random = options.random ?? webCryptoRandom;
     this.#wait = options.wait ?? defaultWait;

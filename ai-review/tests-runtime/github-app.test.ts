@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import {
+  createGithubInstallationToken,
+  GithubClient,
+} from "github-client";
+import { fetchWithRetry } from "ts-base/http";
+import { beforeAll, describe, expect, it } from "vitest";
 import { createGitHubAppAuth } from "../src/github-app";
 
 function pem(bytes: ArrayBuffer): string {
@@ -11,7 +16,9 @@ function pem(bytes: ArrayBuffer): string {
 }
 
 describe("GitHub App authentication in workerd", () => {
-  it("imports a PKCS#8 key and creates an Octokit App JWT", async () => {
+  let privateKey = "";
+
+  beforeAll(async () => {
     const pair = (await crypto.subtle.generateKey(
       {
         name: "RSASSA-PKCS1-v1_5",
@@ -22,12 +29,15 @@ describe("GitHub App authentication in workerd", () => {
       true,
       ["sign", "verify"],
     )) as CryptoKeyPair;
-    const privateKey = pem(
+    privateKey = pem(
       (await crypto.subtle.exportKey(
         "pkcs8",
         pair.privateKey,
       )) as ArrayBuffer,
     );
+  });
+
+  it("imports a PKCS#8 key and creates an Octokit App JWT", async () => {
     const auth = createGitHubAppAuth({
       appId: "123",
       installationId: "456",
@@ -38,5 +48,35 @@ describe("GitHub App authentication in workerd", () => {
 
     expect(authentication.token.split(".")).toHaveLength(3);
     expect(authentication.appId).toBe("123");
+  });
+
+  it("creates an installation token with workerd's native fetch", async () => {
+    await expect(
+      createGithubInstallationToken({
+        appId: "123",
+        installationId: "456",
+        privateKey,
+      }),
+    ).resolves.toBe("installation-token");
+  });
+
+  it("uses workerd's native fetch through the shared JSON client", async () => {
+    const client = new GithubClient("installation-token", {
+      userAgent: "ai-review-test/1",
+      retries: 1,
+    });
+
+    await expect(
+      client.request("GET", "/repos/acme/widgets"),
+    ).resolves.toEqual({ id: 1, full_name: "acme/widgets" });
+  });
+
+  it("uses workerd's native fetch through the retry helper", async () => {
+    const response = await fetchWithRetry(
+      "https://api.github.com/retry-test",
+      { attempts: 1 },
+    );
+
+    await expect(response.text()).resolves.toBe("ok");
   });
 });
