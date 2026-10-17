@@ -60,6 +60,7 @@ else
 
   for attempt in {1..30}; do
     if docker exec "$container_id" pg_isready \
+      --host 127.0.0.1 \
       --username postgres \
       --dbname recipes_integration >/dev/null 2>&1; then
       break
