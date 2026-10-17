@@ -954,6 +954,41 @@ describe("GitHub delivery consumption", () => {
       .toEqual(before.filter((item) => item.type !== "pull_request.refreshed"));
   });
 
+  it("reevaluates configured completion candidacy after correlated deliveries and replay", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "github-work",
+      policyId: "github-production",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T09:01:00.000Z",
+    });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+    const candidate = await repository.getCompletionCandidate("github-work");
+
+    expect(candidate).toMatchObject({
+      workItemId: "github-work",
+      policyId: "github-production",
+      policyRevision: 1,
+      candidate: true,
+      reasons: [],
+    });
+    await expect(consumer.consume(githubDelivery())).resolves.toBe("processed");
+    expect(await repository.getCompletionCandidate("github-work")).toEqual(candidate);
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "open",
+    });
+  });
+
   it("deduplicates concurrent queue redelivery and equivalent facts with a new delivery ID", async () => {
     await linkImplementation();
     const delivery = githubDelivery();

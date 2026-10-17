@@ -158,6 +158,9 @@ const buildRepository = (): WorkGraphApiRepository => ({
   resolveWorkItemContext: vi.fn(async () => []),
   listWorkItemDeliveryEvidence: vi.fn(async () => []),
   getCompletionCandidate: vi.fn(async () => null),
+  putCompletionPolicyRevision: vi.fn(async (input) => input),
+  assignCompletionPolicy: vi.fn(async () => undefined),
+  evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -950,6 +953,57 @@ describe("Given work items with derived readiness", () => {
         },
       ],
     });
+  });
+
+  it("creates and assigns completion policies before evaluating current evidence", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+    const assignedAt = "2026-10-17T20:01:00.000Z";
+
+    const revision = await app.request(
+      "/api/completion-policies/hq-production/revisions/1",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          requiredCiNames: ["Work Graph Observer CI"],
+          productionEnvironments: ["production-work-graph"],
+          createdAt,
+        }),
+      },
+    );
+    const assignment = await app.request(
+      "/api/work-items/ticket/completion-policy",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          policyId: "hq-production",
+          policyRevision: 1,
+          assignedAt,
+        }),
+      },
+    );
+
+    expect(revision.status).toBe(200);
+    expect(repository.putCompletionPolicyRevision).toHaveBeenCalledWith({
+      policyId: "hq-production",
+      revision: 1,
+      requiredCiNames: ["Work Graph Observer CI"],
+      productionEnvironments: ["production-work-graph"],
+      createdAt,
+    });
+    expect(assignment.status).toBe(200);
+    expect(repository.assignCompletionPolicy).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      policyId: "hq-production",
+      policyRevision: 1,
+      assignedAt,
+    });
+    expect(repository.evaluateCompletionCandidateIfConfigured).toHaveBeenCalledWith(
+      expect.objectContaining({ workItemId: "ticket" }),
+    );
   });
 
   it("refreshes and links pull requests outside claim operations", async () => {

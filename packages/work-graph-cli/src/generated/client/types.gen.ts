@@ -179,6 +179,21 @@ export type CompletionCandidate = {
     evaluatedAt: string;
 };
 
+export type CompletionPolicyRevision = {
+    policyId: string;
+    revision: number;
+    requiredCiNames: Array<string>;
+    productionEnvironments: Array<string>;
+    createdAt: string;
+};
+
+export type WorkItemCompletionPolicy = {
+    workItemId: string;
+    policyId: string;
+    policyRevision: number;
+    assignedAt: string;
+};
+
 export type ResolvedWorkItemContextList = {
     items: Array<ResolvedWorkItemContext>;
 };
@@ -562,6 +577,66 @@ export type CreateAttentionResolutionResponses = {
 };
 
 export type CreateAttentionResolutionResponse = CreateAttentionResolutionResponses[keyof CreateAttentionResolutionResponses];
+
+export type PutCompletionPolicyRevisionData = {
+    body: {
+        requiredCiNames: Array<string>;
+        productionEnvironments: Array<string>;
+        createdAt: string;
+    };
+    path: {
+        policyId: string;
+        revision: number;
+    };
+    query?: never;
+    url: '/api/completion-policies/{policyId}/revisions/{revision}';
+};
+
+export type PutCompletionPolicyRevisionErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type PutCompletionPolicyRevisionError = PutCompletionPolicyRevisionErrors[keyof PutCompletionPolicyRevisionErrors];
+
+export type PutCompletionPolicyRevisionResponses = {
+    /**
+     * Policy revision created or matched
+     */
+    200: CompletionPolicyRevision;
+};
+
+export type PutCompletionPolicyRevisionResponse = PutCompletionPolicyRevisionResponses[keyof PutCompletionPolicyRevisionResponses];
 
 export type GetCriticalPathData = {
     body?: never;
@@ -1930,6 +2005,65 @@ export type GetWorkItemCompletionCandidateResponses = {
 };
 
 export type GetWorkItemCompletionCandidateResponse = GetWorkItemCompletionCandidateResponses[keyof GetWorkItemCompletionCandidateResponses];
+
+export type PutWorkItemCompletionPolicyData = {
+    body: {
+        policyId: string;
+        policyRevision: number;
+        assignedAt: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/completion-policy';
+};
+
+export type PutWorkItemCompletionPolicyErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type PutWorkItemCompletionPolicyError = PutWorkItemCompletionPolicyErrors[keyof PutWorkItemCompletionPolicyErrors];
+
+export type PutWorkItemCompletionPolicyResponses = {
+    /**
+     * Policy assigned
+     */
+    200: WorkItemCompletionPolicy;
+};
+
+export type PutWorkItemCompletionPolicyResponse = PutWorkItemCompletionPolicyResponses[keyof PutWorkItemCompletionPolicyResponses];
 
 export type ListWorkItemContextsData = {
     body?: never;

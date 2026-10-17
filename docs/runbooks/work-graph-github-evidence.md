@@ -96,6 +96,18 @@ repository file.
 
 Use one real `hq` change to verify the full path:
 
+Before the pilot, create an immutable owner policy and assign it to the ticket.
+Assignment evaluates evidence that has already arrived; later webhook and
+reconciliation deliveries reevaluate the same ticket automatically.
+
+```bash
+work-graph completion-policy put --json '{"policyId":"hq-production","revision":1,"requiredCiNames":["Work Graph Observer CI"],"productionEnvironments":["production-work-graph"]}'
+work-graph completion-policy assign <ticket> --policy-id hq-production --policy-revision 1
+```
+
+Use a new revision when requirements change. Reusing a policy ID and revision
+with different contents is rejected.
+
 1. Attach its pull request to the ticket with
    `work-graph pr attach <ticket> <url> --role implementation`.
 2. Confirm the PR observation appears. Merge only after CI succeeds.

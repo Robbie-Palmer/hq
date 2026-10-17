@@ -241,6 +241,21 @@ export const zCompletionCandidateResponse = z.object({
     candidate: zCompletionCandidate.nullable()
 });
 
+export const zCompletionPolicyRevision = z.object({
+    policyId: z.string().min(1).max(200),
+    revision: z.int().gte(1).lte(2147483647),
+    requiredCiNames: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    productionEnvironments: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    createdAt: z.iso.datetime().max(30)
+});
+
+export const zWorkItemCompletionPolicy = z.object({
+    workItemId: z.string().min(1).max(200),
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    assignedAt: z.iso.datetime().max(30)
+});
+
 export const zPullRequestSnapshot = z.object({
     repository: z.string().min(1).max(200),
     number: z.int().gte(1).lte(2147483647),
@@ -546,6 +561,22 @@ export const zCreateAttentionResolutionPath = z.object({
  * Attention request resolved or matching mutation replayed
  */
 export const zCreateAttentionResolutionResponse = zAttentionResolutionResponse;
+
+export const zPutCompletionPolicyRevisionBody = z.object({
+    requiredCiNames: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    productionEnvironments: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    createdAt: z.iso.datetime().max(30)
+});
+
+export const zPutCompletionPolicyRevisionPath = z.object({
+    policyId: z.string().min(1).max(200),
+    revision: z.int().gte(1).lte(2147483647)
+});
+
+/**
+ * Policy revision created or matched
+ */
+export const zPutCompletionPolicyRevisionResponse = zCompletionPolicyRevision;
 
 export const zGetCriticalPathQuery = z.object({
     includeInitiativeIds: z.array(z.string().min(1).max(200)).max(100).register(z.globalRegistry, {
@@ -962,6 +993,21 @@ export const zGetWorkItemCompletionCandidatePath = z.object({
  * Current completion-candidate projection
  */
 export const zGetWorkItemCompletionCandidateResponse = zCompletionCandidateResponse;
+
+export const zPutWorkItemCompletionPolicyBody = z.object({
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    assignedAt: z.iso.datetime().max(30)
+});
+
+export const zPutWorkItemCompletionPolicyPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Policy assigned
+ */
+export const zPutWorkItemCompletionPolicyResponse = zWorkItemCompletionPolicy;
 
 export const zListWorkItemContextsPath = z.object({
     workItemId: z.string().min(1).max(200)
