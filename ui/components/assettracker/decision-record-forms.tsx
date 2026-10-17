@@ -2,20 +2,71 @@
 
 import { type SubmitEvent, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { AssetTrackerStorageError } from "@/lib/api/assettracker";
 import { todayIsoDate } from "@/lib/assettracker";
-import type {
-  Currency,
-  TrackedFinancialDecisionRecord,
+import {
+  type Currency,
+  formatAssetTrackerError,
+  type TrackedFinancialDecisionRecord,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { DecisionTextArea, DecisionTextInput } from "./decision-record-fields";
 
 function useFormState<T extends Record<string, string>>(initial: T) {
   const [values, setValues] = useState(initial);
+  const [error, setError] = useState<string | null>(null);
   function set<K extends keyof T>(key: K, value: T[K]) {
+    setError(null);
     setValues((current) => ({ ...current, [key]: value }));
   }
-  return { values, set, reset: setValues };
+  function reset(values: T) {
+    setError(null);
+    setValues(values);
+  }
+  return { error, setError, values, set, reset };
+}
+
+class FormInputError extends Error {}
+
+function formErrorMessage(cause: unknown) {
+  if (cause instanceof AssetTrackerStorageError) return null;
+  return cause instanceof FormInputError
+    ? cause.message
+    : formatAssetTrackerError(cause);
+}
+
+function finiteAmount(value: string, label: string) {
+  if (value.trim() === "") throw new FormInputError(`${label} is required.`);
+  const amount = Number(value);
+  if (!Number.isFinite(amount)) {
+    throw new FormInputError(`${label} must be a valid number.`);
+  }
+  return amount;
+}
+
+function divergenceSource(
+  kind: "changed-assumption" | "changed-reality",
+  label: string,
+  impact: string,
+) {
+  if (label.trim() === "" && impact.trim() === "") return [];
+  if (label.trim() === "" || impact.trim() === "") {
+    throw new FormInputError(
+      "Each divergence source needs a description and an impact.",
+    );
+  }
+  return [
+    { kind, label: label.trim(), impactAmount: finiteAmount(impact, "Impact") },
+  ];
+}
+
+function FormError({ message }: Readonly<{ message: string | null }>) {
+  if (message == null) return null;
+  return (
+    <p className="text-sm text-destructive" role="alert">
+      {message}
+    </p>
+  );
 }
 
 function useObservationForm(decisionId: string, checkpointId: string) {
@@ -31,36 +82,30 @@ function useObservationForm(decisionId: string, checkpointId: string) {
   const [saving, setSaving] = useState(false);
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
-    const v = form.values;
-    const divergenceSources = [
-      ...(v.assumptionLabel.trim() === "" || v.assumptionImpact === ""
-        ? []
-        : [
-            {
-              kind: "changed-assumption" as const,
-              label: v.assumptionLabel.trim(),
-              impactAmount: Number(v.assumptionImpact),
-            },
-          ]),
-      ...(v.realityLabel.trim() === "" || v.realityImpact === ""
-        ? []
-        : [
-            {
-              kind: "changed-reality" as const,
-              label: v.realityLabel.trim(),
-              impactAmount: Number(v.realityImpact),
-            },
-          ]),
-    ];
+    form.setError(null);
     setSaving(true);
     try {
+      const v = form.values;
       await recordDecisionObservation({
         decisionId,
         checkpointId,
-        actualAmount: Number(v.actual),
-        note: v.note,
-        divergenceSources,
+        actualAmount: finiteAmount(v.actual, "Actual amount"),
+        note: v.note.trim(),
+        divergenceSources: [
+          ...divergenceSource(
+            "changed-assumption",
+            v.assumptionLabel,
+            v.assumptionImpact,
+          ),
+          ...divergenceSource(
+            "changed-reality",
+            v.realityLabel,
+            v.realityImpact,
+          ),
+        ],
       });
+    } catch (cause) {
+      form.setError(formErrorMessage(cause));
     } finally {
       setSaving(false);
     }
@@ -72,7 +117,7 @@ export function ObservationForm({
   decisionId,
   checkpointId,
 }: Readonly<{ decisionId: string; checkpointId: string }>) {
-  const { values, set, saving, submit } = useObservationForm(
+  const { error, values, set, saving, submit } = useObservationForm(
     decisionId,
     checkpointId,
   );
@@ -112,6 +157,7 @@ export function ObservationForm({
           />
         ))}
       </div>
+      <FormError message={error} />
       <Button className="justify-self-start" disabled={saving} type="submit">
         {saving ? "Saving…" : "Record checkpoint"}
       </Button>
@@ -133,21 +179,24 @@ function useInterpretationForm(decision: TrackedFinancialDecisionRecord) {
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     const v = form.values;
+    form.setError(null);
     setSaving(true);
     try {
       await addDecisionInterpretation({
         decisionId: decision.id,
-        reason: v.reason,
-        revisedRationale: v.rationale,
+        reason: v.reason.trim(),
+        revisedRationale: v.rationale.trim(),
         assumptionChanges: [
           {
-            label: v.label,
-            previousValue: v.previousValue,
-            revisedValue: v.revisedValue,
+            label: v.label.trim(),
+            previousValue: v.previousValue.trim(),
+            revisedValue: v.revisedValue.trim(),
           },
         ],
       });
       form.reset(initial);
+    } catch (cause) {
+      form.setError(formErrorMessage(cause));
     } finally {
       setSaving(false);
     }
@@ -158,7 +207,8 @@ function useInterpretationForm(decision: TrackedFinancialDecisionRecord) {
 export function InterpretationForm({
   decision,
 }: Readonly<{ decision: TrackedFinancialDecisionRecord }>) {
-  const { values, set, saving, submit } = useInterpretationForm(decision);
+  const { error, values, set, saving, submit } =
+    useInterpretationForm(decision);
   const fields = [
     ["label", "Assumption"],
     ["previousValue", "Value known then"],
@@ -190,6 +240,7 @@ export function InterpretationForm({
             />
           ))}
         </div>
+        <FormError message={error} />
         <Button className="justify-self-start" disabled={saving} type="submit">
           {saving ? "Saving…" : "Save interpretation"}
         </Button>
@@ -257,7 +308,10 @@ function buildDecisionInput(values: CreateFormValues, baseCurrency: Currency) {
           id: `${slug}-checkpoint-1`,
           label: values.checkpointLabel,
           dueDate: values.checkpointDate,
-          expectedAmount: Number(values.expectedAmount),
+          expectedAmount: finiteAmount(
+            values.expectedAmount,
+            "Expected amount",
+          ),
           currency: baseCurrency,
         },
       ],
@@ -271,10 +325,13 @@ function useCreateDecisionForm() {
   const [saving, setSaving] = useState(false);
   async function submit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
+    form.setError(null);
     setSaving(true);
     try {
       await createDecisionRecord(buildDecisionInput(form.values, baseCurrency));
       form.reset(createInitialValues());
+    } catch (cause) {
+      form.setError(formErrorMessage(cause));
     } finally {
       setSaving(false);
     }
@@ -380,7 +437,8 @@ function DecisionForecastFields({
 }
 
 export function CreateDecisionRecordForm() {
-  const { values, set, baseCurrency, saving, submit } = useCreateDecisionForm();
+  const { error, values, set, baseCurrency, saving, submit } =
+    useCreateDecisionForm();
   return (
     <details className="rounded-lg border p-5">
       <summary className="cursor-pointer font-semibold">
@@ -397,6 +455,7 @@ export function CreateDecisionRecordForm() {
           set={set}
           values={values}
         />
+        <FormError message={error} />
         <Button className="justify-self-start" disabled={saving} type="submit">
           {saving ? "Saving…" : "Freeze decision forecast"}
         </Button>

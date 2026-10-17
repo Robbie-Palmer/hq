@@ -2,7 +2,6 @@
 
 import { formatCurrency } from "@/lib/assettracker";
 import {
-  type Currency,
   reconcileDecisionRecord,
   type TrackedFinancialDecisionRecord,
 } from "@/lib/domain/assettracker";
@@ -72,8 +71,7 @@ function ForecastLineage({
 
 function DivergenceList({
   reconciliation,
-  baseCurrency,
-}: Readonly<{ reconciliation: Reconciliation; baseCurrency: Currency }>) {
+}: Readonly<{ reconciliation: Reconciliation }>) {
   if (reconciliation.largestDivergenceSources.length === 0) return null;
   return (
     <div className="mt-2">
@@ -87,7 +85,11 @@ function DivergenceList({
               ? "Changed assumption"
               : "Changed reality"}
             : {source.label} (
-            {formatCurrency(source.impactAmount, baseCurrency)})
+            {formatCurrency(
+              source.impactAmount,
+              reconciliation.checkpoint.currency,
+            )}
+            )
           </li>
         ))}
       </ul>
@@ -97,17 +99,13 @@ function DivergenceList({
 
 function CheckpointResult({
   reconciliation,
-  baseCurrency,
-}: Readonly<{ reconciliation: Reconciliation; baseCurrency: Currency }>) {
+}: Readonly<{ reconciliation: Reconciliation }>) {
   const { observation } = reconciliation;
   if (observation == null) return null;
   return (
     <div className="mt-3 text-sm">
       <p>{observation.note}</p>
-      <DivergenceList
-        baseCurrency={baseCurrency}
-        reconciliation={reconciliation}
-      />
+      <DivergenceList reconciliation={reconciliation} />
     </div>
   );
 }
@@ -137,11 +135,9 @@ function CheckpointAmounts({
 function CheckpointCard({
   decisionId,
   reconciliation,
-  baseCurrency,
 }: Readonly<{
   decisionId: string;
   reconciliation: Reconciliation;
-  baseCurrency: Currency;
 }>) {
   const { checkpoint, observation } = reconciliation;
   return (
@@ -158,10 +154,7 @@ function CheckpointCard({
       {observation == null ? (
         <ObservationForm checkpointId={checkpoint.id} decisionId={decisionId} />
       ) : (
-        <CheckpointResult
-          baseCurrency={baseCurrency}
-          reconciliation={reconciliation}
-        />
+        <CheckpointResult reconciliation={reconciliation} />
       )}
     </section>
   );
@@ -197,10 +190,8 @@ function DecisionInterpretations({
 
 export function TrackedDecisionCard({
   decision,
-  baseCurrency,
 }: Readonly<{
   decision: TrackedFinancialDecisionRecord;
-  baseCurrency: Currency;
 }>) {
   const reconciliations = reconcileDecisionRecord(decision);
   return (
@@ -212,7 +203,6 @@ export function TrackedDecisionCard({
         {reconciliations.map((reconciliation) => (
           <CheckpointCard
             key={reconciliation.checkpoint.id}
-            baseCurrency={baseCurrency}
             decisionId={decision.id}
             reconciliation={reconciliation}
           />

@@ -184,7 +184,7 @@ describe("DecisionsRoute", () => {
   it("shows frozen lineage and the largest reconciliation sources", async () => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
-      baseCurrency: "GBP",
+      baseCurrency: "EUR",
       createDecisionRecord: vi.fn(),
       recordDecisionObservation: vi.fn(),
       addDecisionInterpretation: vi.fn(),
@@ -227,8 +227,46 @@ describe("DecisionsRoute", () => {
     expect(article).toHaveTextContent("Calculation version portfolio-v1.");
     expect(article).toHaveTextContent("Expected £16,650");
     expect(article).toHaveTextContent("Actual £15,300");
-    expect(article).toHaveTextContent("Changed assumption: Market return");
-    expect(article).toHaveTextContent("Changed reality: Missed contribution");
+    expect(article).toHaveTextContent(
+      "Changed assumption: Market return (-£850)",
+    );
+    expect(article).toHaveTextContent(
+      "Changed reality: Missed contribution (-£500)",
+    );
+  });
+
+  it("shows invalid observation amounts and clears the error on edit", async () => {
+    const recordDecisionObservation = vi.fn().mockResolvedValue(undefined);
+    mockUseAssetTracker.mockReturnValue({
+      accountDetails: [],
+      baseCurrency: "EUR",
+      createDecisionRecord: vi.fn(),
+      recordDecisionObservation,
+      addDecisionInterpretation: vi.fn(),
+      decisionRecords: [trackedDecision()],
+      mortgageScenarios: [],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+    const user = userEvent.setup();
+
+    render(<DecisionsRoute />);
+    await user.click(screen.getByRole("tab", { name: "Recorded" }));
+    await user.type(screen.getByLabelText("Actual amount"), "15,300");
+    await user.type(screen.getByLabelText("What happened"), "On plan");
+    await user.click(screen.getByRole("button", { name: "Record checkpoint" }));
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Actual amount must be a valid number.",
+    );
+    expect(recordDecisionObservation).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText("Actual amount"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Actual amount"), "15300");
+    await user.click(screen.getByRole("button", { name: "Record checkpoint" }));
+
+    expect(recordDecisionObservation).toHaveBeenCalledWith(
+      expect.objectContaining({ actualAmount: 15_300 }),
+    );
   });
 
   it("creates a decision with frozen lineage and a checkpoint", async () => {

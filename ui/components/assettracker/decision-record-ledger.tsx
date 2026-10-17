@@ -98,11 +98,7 @@ export function DecisionRecordLedger() {
         decisionRecords.map((decision) => {
           if (decision.kind === "tracked") {
             return (
-              <TrackedDecisionCard
-                key={decision.id}
-                baseCurrency={baseCurrency}
-                decision={decision}
-              />
+              <TrackedDecisionCard key={decision.id} decision={decision} />
             );
           }
           const scenario = scenarios.get(decision.scenarioId);
