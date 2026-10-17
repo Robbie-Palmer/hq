@@ -9,7 +9,7 @@ export type CookingSessionStart = {
   sessionId: string;
   recipeSlug: string;
   recipeTitle: string;
-  recipeVersion: string;
+  recipeVersion: string | null;
   servings: number;
 };
 
@@ -18,7 +18,7 @@ export type CookingSessionCompletion = {
   sessionId: string;
   recipeSlug: string;
   recipeTitle: string;
-  recipeVersion: string;
+  recipeVersion: string | null;
   servings: number;
   outcome: CookingOutcome | null;
 };
@@ -176,6 +176,11 @@ async function recordCompletedSession(
     if (!scope) {
       throw new CookingSessionConflictError(
         "Leftover ownership could not be resolved",
+      );
+    }
+    if (!event.recipeVersion) {
+      throw new CookingSessionConflictError(
+        "Recipe version is required when tracking leftovers",
       );
     }
     await tx.insert(schema.leftoverBatch).values({

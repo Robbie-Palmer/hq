@@ -5418,9 +5418,11 @@ describe("profile cooking insights", () => {
           origin: "http://localhost:3000",
         },
         body: JSON.stringify({
-          ...cookingEvent,
+          sessionId: cookingEvent.sessionId,
+          recipeSlug: cookingEvent.recipeSlug,
+          recipeTitle: cookingEvent.recipeTitle,
+          servings: cookingEvent.servings,
           event: "completed",
-          outcome: null,
         }),
       },
       env,
@@ -5430,9 +5432,50 @@ describe("profile cooking insights", () => {
     expect(await completed.json()).toMatchObject({
       cookingSession: {
         id: cookingEvent.sessionId,
-        recipeVersion: cookingEvent.recipeVersion,
+        recipeVersion: null,
         repeatOfSessionId: null,
       },
+    });
+  });
+
+  it("requires a recipe version only when recording leftovers", async () => {
+    authzMock.session = sessionFor({
+      id: "owner-user",
+      email: "owner@example.test",
+      name: "Owner",
+    });
+
+    const completed = await app.request(
+      "/api/profile/cooking-sessions",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: "http://localhost:3000",
+        },
+        body: JSON.stringify({
+          sessionId: cookingEvent.sessionId,
+          recipeSlug: cookingEvent.recipeSlug,
+          recipeTitle: cookingEvent.recipeTitle,
+          servings: cookingEvent.servings,
+          event: "completed",
+          outcome: {
+            leftoverPortions: 2,
+            leftoverStorage: "fridge",
+            leftoverUseBy: null,
+            audience: "personal",
+          },
+        }),
+      },
+      env,
+    );
+
+    expect(completed.status).toBe(400);
+    expect(await completed.json()).toMatchObject({
+      error: "Invalid request body",
+      details: expect.arrayContaining([
+        expect.objectContaining({ path: ["recipeVersion"] }),
+      ]),
     });
   });
 

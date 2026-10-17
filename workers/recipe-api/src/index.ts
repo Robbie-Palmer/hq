@@ -457,33 +457,40 @@ const cookingOutcomeBodySchema = CookingOutcomeSchema.safeExtend({
   leftoverUseBy: z.iso.date().max(10).nullable(),
 });
 
-const cookingSessionBodySchema = z.discriminatedUnion("event", [
-  cookingSessionBaseSchema
-    .extend({
-      event: z.literal("started"),
-      recipeVersion: z.string().trim().min(1).max(200),
-    })
-    .strict(),
-  cookingSessionBaseSchema
-    .extend({
-      event: z.literal("completed"),
-      recipeVersion: z.string().trim().min(1).max(200),
-      outcome: cookingOutcomeBodySchema.nullable(),
-    })
-    .strict(),
-]).superRefine((event, context) => {
-  if (
-    event.event === "completed" &&
-    event.outcome &&
-    event.outcome.leftoverPortions > event.servings
-  ) {
-    context.addIssue({
-      code: "custom",
-      path: ["outcome", "leftoverPortions"],
-      message: "Leftover portions cannot exceed the recipe yield",
-    });
-  }
-});
+const cookingSessionBodySchema = cookingSessionBaseSchema
+  .extend({
+    event: z.enum(["started", "completed"]),
+    recipeVersion: z.string().trim().min(1).max(200).optional(),
+    outcome: cookingOutcomeBodySchema.nullable().optional(),
+  })
+  .strict()
+  .superRefine((event, context) => {
+    if (event.event === "started" && event.outcome !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["outcome"],
+        message: "Cooking outcomes are only accepted on completion",
+      });
+    }
+    if (event.outcome && !event.recipeVersion) {
+      context.addIssue({
+        code: "custom",
+        path: ["recipeVersion"],
+        message: "Recipe version is required when tracking leftovers",
+      });
+    }
+    if (
+      event.event === "completed" &&
+      event.outcome &&
+      event.outcome.leftoverPortions > event.servings
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["outcome", "leftoverPortions"],
+        message: "Leftover portions cannot exceed the recipe yield",
+      });
+    }
+  });
 
 const recommendRecipeBodySchema = z
   .object({
@@ -4126,10 +4133,29 @@ registerRoute("post", "/api/profile/cooking-sessions", async (c) => {
     "POST /api/profile/cooking-sessions mutation failed",
     async ({ db, session }) => {
       try {
+        const event =
+          body.data.event === "started"
+            ? {
+                event: "started" as const,
+                sessionId: body.data.sessionId,
+                recipeSlug: body.data.recipeSlug,
+                recipeTitle: body.data.recipeTitle,
+                recipeVersion: body.data.recipeVersion ?? null,
+                servings: body.data.servings,
+              }
+            : {
+                event: "completed" as const,
+                sessionId: body.data.sessionId,
+                recipeSlug: body.data.recipeSlug,
+                recipeTitle: body.data.recipeTitle,
+                recipeVersion: body.data.recipeVersion ?? null,
+                servings: body.data.servings,
+                outcome: body.data.outcome ?? null,
+              };
         const result = await recordCookingSession(
           db,
           session.user.id,
-          body.data,
+          event,
         );
         return c.json(
           { cookingSession: result.session },
