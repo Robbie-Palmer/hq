@@ -11,7 +11,7 @@ import type {
 } from "wedding-planner-domain/seating";
 
 export type Guest = AccommodationGuest &
-  Partial<Pick<WeddingGuest, "attendance" | "wedding_roles">> &
+  Partial<WeddingGuest> &
   Partial<SeatingPreferences>;
 
 export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {

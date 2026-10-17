@@ -14,7 +14,10 @@ import type {
 
 export type { PairDecision, SharingLevel } from "../values";
 
-export type Guest = Omit<WeddingGuest, "attendance" | "wedding_roles"> & {
+export type Guest = Pick<
+  WeddingGuest,
+  "id" | "name" | "source_party" | "relationship_groups"
+> & {
   partner_id?: string;
   overnight: OvernightStatus;
   fixed_bed_group_id: string;

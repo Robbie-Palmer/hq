@@ -550,7 +550,7 @@ export function AccommodationEditor({
         (filter === "free"
           ? isFreeGuest(guest)
           : guest.overnight === filter)) &&
-      `${guest.name} ${guest.source_party} ${guest.tags}`
+      `${guest.name} ${guest.source_party} ${guest.relationship_groups.join(" ")}`
         .toLowerCase()
         .includes(query.toLowerCase()),
   );
@@ -1108,7 +1108,7 @@ export function AccommodationEditor({
                             <CardDescription>
                               {companions.length
                                 ? `Invited with ${companions.map((guest) => guest.name).join(", ")}`
-                                : selected.tags}
+                                : selected.relationship_groups.join(" · ")}
                             </CardDescription>
                           </div>
                           <div className="detail-initial">

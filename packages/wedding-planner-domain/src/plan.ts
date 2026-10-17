@@ -6,11 +6,16 @@ import {
   weddingGuestSchema,
 } from "./core/guests";
 import { parseMoneyToMinorUnits } from "./money";
+import {
+  guestDirectoryMetadataSchema,
+  validateGuestDirectory,
+} from "./guest-directory";
 import { seatingPlanSchema } from "./seating/preferences";
 
 const weddingPlanSchema = z.object({
   version: z.literal(2),
   guests: z.array(weddingGuestSchema),
+  guest_directory: guestDirectoryMetadataSchema.prefault({}),
   couples: z.array(coupleSchema).default([]),
   reviewed_non_couples: z.array(z.tuple([z.string(), z.string()])).default([]),
   hosts: z.array(z.string().min(1)).min(1),
@@ -24,6 +29,7 @@ function validateReferences(plan: WeddingPlan): void {
   const ids = new Set(plan.guests.map((guest) => guest.id));
   if (ids.size !== plan.guests.length)
     throw new Error("Guest IDs must be unique");
+  validateGuestDirectory(plan);
   validateCouples(plan.couples, ids);
   validateDismissedSuggestions(plan, ids);
   if (
@@ -128,8 +134,45 @@ function migrateLegacyWeddingParty(value: unknown): unknown {
   };
 }
 
+function migrateLegacyGuestTags(value: unknown): unknown {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !("guests" in value) ||
+    !Array.isArray(value.guests)
+  )
+    return value;
+  return {
+    ...value,
+    guests: value.guests.map((guest: unknown) => {
+      if (!guest || typeof guest !== "object" || !("tags" in guest))
+        return guest;
+      let legacyTags: string[] = [];
+      if (Array.isArray(guest.tags))
+        legacyTags = guest.tags.filter(
+          (tag): tag is string => typeof tag === "string",
+        );
+      else if (typeof guest.tags === "string")
+        legacyTags = guest.tags
+          .split(/[;,]/)
+          .map((tag) => tag.trim())
+          .filter(Boolean);
+      const { tags: _tags, ...guestWithoutTags } = guest;
+      return {
+        ...guestWithoutTags,
+        relationship_groups:
+          "relationship_groups" in guest
+            ? guest.relationship_groups
+            : legacyTags,
+      };
+    }),
+  };
+}
+
 export function parseWeddingPlan(value: unknown): WeddingPlan {
-  const checked = weddingPlanSchema.safeParse(migrateLegacyWeddingParty(value));
+  const checked = weddingPlanSchema.safeParse(
+    migrateLegacyWeddingParty(migrateLegacyGuestTags(value)),
+  );
   if (!checked.success) {
     const issue = checked.error.issues[0];
     throw new Error(

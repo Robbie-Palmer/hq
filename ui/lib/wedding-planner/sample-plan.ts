@@ -114,7 +114,7 @@ export function createSampleWeddingPlan(): WeddingPlan {
     source_party:
       couples.find((pair) => pair.includes(id))?.[0] ??
       (["oak", "parker"].includes(id) ? "friends-oak-parker" : id),
-    tags: parents.has(id) ? "Family" : "Friends",
+    relationship_groups: [parents.has(id) ? "Family" : "Friends"],
   }));
   return parseWeddingPlan({
     version: 2,
