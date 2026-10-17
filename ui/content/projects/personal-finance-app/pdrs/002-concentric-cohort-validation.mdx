@@ -1,0 +1,56 @@
+---
+title: "PDR 002: Validate through concentric user cohorts"
+date: "2026-01-11"
+status: "Accepted"
+decision_date: "2026-01-11"
+---
+
+## Context
+
+The product begins with a founder solving a personal spreadsheet problem. That
+gives the work a concrete first user but creates a risk of fitting one unusual
+financial setup. Broad acquisition would produce sign-ups before the core
+workflow had proved useful and before the project could support a wide range of
+households.
+
+Visit frequency is also a poor success measure. A useful financial record may
+need an update only a few times each month.
+
+## Decision
+
+Validate the product through expanding cohorts. The founder is the first cohort,
+followed by the founder's partner, invited friends and colleagues, and finally a
+general market. Move to the next cohort when the current one uses the product
+without prompting and exposes needs that the next cohort can test.
+
+Use committed data depth as the main product-fit signal. Relevant evidence
+includes accounts tracked, history accumulated, recurring transfers, linked
+accounts, and multi-entity relationships. Do not treat page views, daily visits,
+or registrations as proof that the product has replaced a spreadsheet.
+
+The founder deleting the source spreadsheet is the first acceptance signal. A
+partner entering their own data and invited users returning to add more of their
+financial picture are the next signals.
+
+## Consequences
+
+Each cohort tests a concrete expansion in the product model and interface before
+public acquisition adds support load. The project can learn from financial data
+that users have chosen to maintain, not from stated interest alone.
+
+Progress will look slower than a launch measured by sign-ups. Cohort evidence can
+also overrepresent people close to the founder, so general-market claims must wait
+for the later cohort.
+
+## Alternatives considered
+
+### Launch publicly after the first usable build
+
+This could gather more feedback sooner. It was rejected because weak retention
+from a broad audience would not explain whether the problem was the core workflow,
+missing household support, or premature acquisition.
+
+### Optimize for daily or weekly active users
+
+This was rejected because the product should reduce financial administration.
+Frequent visits can indicate extra work rather than better outcomes.
