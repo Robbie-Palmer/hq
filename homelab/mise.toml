@@ -276,7 +276,7 @@ docker build \
   --build-context shared-tool-config=../.config/mise \
   --build-context agent-auth-mcp=../packages/agent-auth-mcp \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-17 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.1.0-agent-tools-18 \
   images/t3-code
 '''
 
@@ -290,11 +290,15 @@ run = "bash scripts/build-and-check-t3-image"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.0.38-agent-tools-17"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.0-agent-tools-18"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"
 run = "bash scripts/load-remote-development-image"
+
+[tasks.t3-image-deploy-remote]
+description = "Wait for idle T3 work, deploy the remote image, and verify the rollout"
+run = "bash scripts/deploy-remote-development-t3-image"
 
 [tasks.k3s-render-home]
 description = "Render the home t3-code overlay"
