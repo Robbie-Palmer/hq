@@ -1714,6 +1714,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   assert.ok(
     hostDefinition.includes(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Assert the literal Nix interpolation in the source.
       "install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache",
     ),
   );

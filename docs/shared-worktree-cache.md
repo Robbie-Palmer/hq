@@ -57,9 +57,11 @@ change another agent's executable links and lifecycle output. `.next` also
 stays local because Next mutates it throughout a build. The cache stores the
 finished static export and a successful test marker instead.
 
-The build key hashes `NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH` and `NODE_ENV`. The
-manifest stores only hashes of selected environment values. It never persists
-the values themselves.
+The build key hashes `CF_PAGES_URL`, `NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH`,
+`NEXT_PUBLIC_POSTHOG_HOST`, `NEXT_PUBLIC_POSTHOG_KEY`,
+`NEXT_PUBLIC_PREVIEW_BACKEND`, and `NODE_ENV`. These are the variables read by
+the production UI build. The manifest stores only their hashes. It never
+persists the values themselves.
 
 ## Concurrency and recovery
 
