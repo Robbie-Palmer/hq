@@ -163,6 +163,19 @@ function InventoryView({
   return <AccommodationInventoryEditor state={state} onUpdate={onUpdate} />;
 }
 
+function PlaylistView({
+  view,
+  state,
+  onUpdate,
+}: Readonly<{
+  view: EditorView;
+  state: WeddingPlanDraft | null;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+}>) {
+  if (view !== "music" || !state) return null;
+  return <PlaylistEditor playlist={state.playlist} onUpdate={onUpdate} />;
+}
+
 function PlannerNavigation({
   view,
   onViewChange,
@@ -772,9 +785,7 @@ export function AccommodationEditor({
               onCalculate={calculateTablePlan}
             />
           )}
-          {view === "music" && state && (
-            <PlaylistEditor playlist={state.playlist} onUpdate={update} />
-          )}
+          <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
             <>
               <div className="page-heading">
