@@ -47,18 +47,6 @@ export const MortgageScenarioSchema = z.object({
 });
 export type MortgageScenario = z.infer<typeof MortgageScenarioSchema>;
 
-export const FinancialDecisionRecordSchema = z.object({
-  id: z.string().min(1),
-  kind: z.literal("mortgage"),
-  title: z.string().trim().min(1),
-  scenarioId: z.string().min(1),
-  recordedAt: z.iso.date(),
-  status: z.literal("recorded"),
-});
-export type FinancialDecisionRecord = z.infer<
-  typeof FinancialDecisionRecordSchema
->;
-
 export const SaveMortgageScenarioInputSchema = z.object({
   name: z.string().trim().min(1, "Give the scenario a name"),
   assumptions: MortgageCalculatorAssumptionsSchema,

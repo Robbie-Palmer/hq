@@ -31,6 +31,7 @@ import {
   type AccountSummaryView,
   type AddCashFlowDecisionInput,
   type AddCommitmentInput,
+  type AddDecisionInterpretationInput,
   type AddForecastAssumptionInput,
   type AddPlannedExpenditureInput,
   type AddRecurringFlowInput,
@@ -47,6 +48,7 @@ import {
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
+  type CreateDecisionRecordInput,
   type CreateForecastAssumptionSetInput,
   type CreatePlanningCaseInput,
   type Currency,
@@ -101,6 +103,7 @@ import {
   previewAssetTrackerBackup,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
+  type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RecurringFlow,
   type SalaryHistoryRecord,
@@ -245,6 +248,13 @@ interface AssetTrackerContextValue {
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
+  createDecisionRecord(input: CreateDecisionRecordInput): Promise<void>;
+  recordDecisionObservation(
+    input: RecordDecisionObservationInput,
+  ): Promise<void>;
+  addDecisionInterpretation(
+    input: AddDecisionInterpretationInput,
+  ): Promise<void>;
   saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
   saveSpendingBaseline(input: SaveSpendingBaselineInput): Promise<void>;
   saveJobMoveScenario(input: SaveJobMoveScenarioInput): Promise<void>;
@@ -694,6 +704,12 @@ export function AssetTrackerProvider({
         mutate((api) => api.setWithdrawalRate({ rate })),
       saveMortgageScenario: (input) =>
         mutate((api) => api.saveMortgageScenario(input)),
+      createDecisionRecord: (input) =>
+        mutate((api) => api.createDecisionRecord(input)),
+      recordDecisionObservation: (input) =>
+        mutate((api) => api.recordDecisionObservation(input)),
+      addDecisionInterpretation: (input) =>
+        mutate((api) => api.addDecisionInterpretation(input)),
       saveEmergencyFundPlan: (input) =>
         mutate((api) => api.saveEmergencyFundPlan(input)),
       saveSpendingBaseline: (input) =>

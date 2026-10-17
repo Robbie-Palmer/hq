@@ -740,8 +740,9 @@ export function scopeAssetTrackerData(
   const keptScenarioIds = new Set(
     mortgageScenarios.map((scenario) => scenario.id),
   );
-  const decisionRecords = (data.decisionRecords ?? []).filter((decision) =>
-    keptScenarioIds.has(decision.scenarioId),
+  const decisionRecords = (data.decisionRecords ?? []).filter(
+    (decision) =>
+      decision.kind === "tracked" || keptScenarioIds.has(decision.scenarioId),
   );
   const holdingObservations = (data.holdingObservations ?? []).flatMap(
     (row) => {

@@ -30,6 +30,7 @@ describe("Asset Tracker household backups", () => {
       data.forecastAssumptionSets,
     );
     expect(restored.data.emergencyFundPlans).toEqual(data.emergencyFundPlans);
+    expect(restored.data.decisionRecords).toEqual(data.decisionRecords);
     expect(restored.summary.householdMembers).toBe(2);
     expect(restored.summary.accounts).toBe(data.accounts.length);
     expect(restored.summary.storedRecords).toBeGreaterThan(
