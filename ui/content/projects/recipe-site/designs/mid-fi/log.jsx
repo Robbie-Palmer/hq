@@ -183,26 +183,10 @@ function CLCuisineLegend({ cuisine, total }) {
   );
 }
 
-// ── NAV (IA demo: Scan → "＋", Log added) ───────────────────────
+// Keep the log artboards on the same six-destination shell as every other
+// signed-in desktop screen.
 function LogNav({ active = 'log' }) {
-  const items = [['recipes', 'Recipes'], ['cookbooks', 'Cookbooks'], ['shop', 'Shopping'], ['kitchen', 'Kitchen'], ['log', 'Log']];
-  return (
-    <nav className="mf-nav">
-      <div className="mf-logo">Robbie's <em style={{ fontStyle: 'italic', color: 'var(--terracotta)' }}>recipes</em></div>
-      <div style={{ display: 'flex', gap: 18, marginLeft: 16 }}>
-        {items.map(([k, l]) => <a key={k} href="#" className={active === k ? 'active' : ''}>{l}</a>)}
-      </div>
-      <div className="mf-nav-spacer"></div>
-      <div className="mf-search" style={{ minWidth: 200 }}>
-        <span style={{ color: 'var(--ink-3)' }}>⌕</span>
-        <input placeholder="search 47 recipes…" />
-        <span className="mf-mono" style={{ color: 'var(--ink-4)' }}>⌘K</span>
-      </div>
-      <button className="mf-btn primary" style={{ gap: 4 }} title="Add / scan a recipe — was a nav tab, now an action button so the nav has room for Log">＋ add</button>
-      <DietPill />
-      <div className="mf-avatar">R</div>
-    </nav>
-  );
+  return <Nav active={active} />;
 }
 
 window.CL_LOG = CL_LOG;

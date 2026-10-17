@@ -20,15 +20,19 @@ function Phone({ children, dark }) {
 }
 
 function TabBar({ active = 'recipes' }) {
-  const tabs = [['recipes', '🍝', 'Recipes'], ['discover', '🧭', 'Discover'], ['cookbooks', '📚', 'Books'], ['kitchen', '🧂', 'Kitchen'], ['scan', '📷', 'Scan']];
+  const tabs = [['recipes', '▤', 'Recipes'], ['planning', '□', 'Plan'], ['shop', '✓', 'Shop'], ['kitchen', '⌂', 'Kitchen'], ['more', '•••', 'More']];
+  const normalized = active === 'shopping' ? 'shop' : active;
+  const moreActive = ['discover', 'cookbooks', 'scan', 'profile', 'settings', 'log', null].includes(normalized);
   return (
     <div style={{ padding: '8px 14px 14px', borderTop: '1px solid var(--line)', background: 'var(--card)', display: 'flex', justifyContent: 'space-between', flexShrink: 0 }}>
-      {tabs.map(([k, e, l]) =>
-      <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontFamily: 'Kalam', fontSize: 10, color: active === k ? 'var(--terracotta)' : 'var(--ink-3)', fontWeight: active === k ? 700 : 400, flex: 1 }}>
-          <span style={{ fontSize: 16, filter: active === k ? 'none' : 'grayscale(0.6)' }}>{e}</span>
+      {tabs.map(([k, e, l]) => {
+        const selected = k === 'more' ? moreActive : normalized === k;
+        return <div key={k} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, fontFamily: 'Kalam', fontSize: 10, color: selected ? 'var(--terracotta)' : 'var(--ink-3)', fontWeight: selected ? 700 : 400, flex: 1, position: 'relative' }}>
+          <span style={{ font: k === 'more' ? '700 12px JetBrains Mono' : '18px Caveat' }}>{e}</span>
           <span>{l}</span>
-        </div>
-      )}
+          {k === 'shop' && <span style={{ position: 'absolute', top: -3, left: '57%', minWidth: 14, height: 14, padding: '0 3px', borderRadius: 99, background: 'var(--terracotta)', color: 'white', font: '8px JetBrains Mono', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>12</span>}
+        </div>;
+      })}
     </div>);
 
 }

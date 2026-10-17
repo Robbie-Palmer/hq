@@ -519,5 +519,256 @@ function MidShoppingMobile() {
   );
 }
 
+// ── REDESIGNED PLAN: a dense agenda, not a calendar full of empty cells. ──
+const PLANNED_WEEK = [
+  { key: 'mon', day: 'Mon', date: '27', meals: [
+    { slot: 'dinner', recipe: 0, serves: 6, note: '2 portions become Tue lunch' },
+  ] },
+  { key: 'tue', day: 'Tue', date: '28', meals: [
+    { slot: 'lunch', recipe: 0, leftover: true, note: 'from Mon dinner' },
+    { slot: 'dinner', recipe: 6, serves: 4, note: '45 min · one pot' },
+  ] },
+  { key: 'wed', day: 'Wed', date: '29', meals: [
+    { slot: 'lunch', recipe: 5, serves: 3, note: '30 min · quick' },
+    { slot: 'dinner', recipe: 1, serves: 4, note: '30 min cook' },
+  ] },
+  { key: 'thu', day: 'Thu', date: '30', meals: [
+    { slot: 'lunch', recipe: 1, leftover: true, note: 'from Wed dinner' },
+  ] },
+  { key: 'fri', day: 'Fri', date: '1', meals: [
+    { slot: 'dinner', recipe: 2, serves: 2, note: '30 min · quick' },
+  ] },
+  { key: 'sat', day: 'Sat', date: '2', meals: [] },
+  { key: 'sun', day: 'Sun', date: '3', meals: [] },
+];
+
+function PlannedMealCard({ meal, compact = false }) {
+  const recipe = RECIPES[meal.recipe];
+  const [menu, setMenu] = React.useState(null);
+  return (
+    <div style={{
+      minWidth: 0,
+      padding: compact ? '7px 8px' : '9px 10px',
+      borderRadius: 9,
+      border: meal.leftover ? '1.5px dashed var(--sage)' : '1px solid var(--line-strong)',
+      background: meal.leftover ? 'rgba(143,166,119,.10)' : 'var(--card)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <span style={{ width: compact ? 28 : 34, height: compact ? 28 : 34, borderRadius: 6, background: `linear-gradient(135deg, ${recipe.palette[0]}, ${recipe.palette[1]})`, flexShrink: 0, opacity: meal.leftover ? .62 : 1 }}></span>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <div className="mf-mono" style={{ color: meal.leftover ? 'var(--sage)' : 'var(--terracotta)', fontSize: compact ? 8 : 9 }}>{meal.slot.toUpperCase()}{meal.leftover ? ' · LEFTOVERS' : ''}</div>
+          <div style={{ fontFamily: 'Kalam', fontSize: compact ? 12 : 14, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recipe.title}</div>
+          <div style={{ fontFamily: 'Kalam', fontSize: compact ? 10 : 11, color: 'var(--ink-3)', marginTop: 1 }}>{meal.note}</div>
+        </div>
+        <button onClick={(event) => { event.stopPropagation(); setMenu(menu ? null : 'actions'); }} className="mf-btn ghost sm" style={{ padding: '3px 6px', flexShrink: 0 }}>•••</button>
+      </div>
+      {menu === 'actions' && <div style={{ display: 'flex', gap: 5, marginTop: 7, paddingTop: 7, borderTop: '1px solid var(--line)' }}>
+        <button onClick={(event) => { event.stopPropagation(); setMenu('move'); }} className="mf-btn sm">Move</button>
+        <button onClick={(event) => event.stopPropagation()} className="mf-btn sm">Change</button>
+        <button onClick={(event) => event.stopPropagation()} className="mf-btn ghost sm" style={{ marginLeft: 'auto', color: 'var(--terracotta-deep)' }}>Remove</button>
+      </div>}
+      {menu === 'move' && <div style={{ display: 'flex', gap: 3, marginTop: 7, paddingTop: 7, borderTop: '1px solid var(--line)' }}>
+        <span className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 7, alignSelf: 'center', marginRight: 2 }}>MOVE TO</span>
+        {PLANNED_WEEK.map((day) => <button key={day.key} onClick={(event) => { event.stopPropagation(); setMenu(null); }} className="mf-btn ghost sm" style={{ padding: '2px 5px', fontSize: 9 }}>{day.day}</button>)}
+      </div>}
+    </div>
+  );
+}
+
+function PlanDayRow({ day, selected, onSelect }) {
+  const isOpen = day.meals.length === 0;
+  return (
+    <section onClick={onSelect} style={{
+      display: 'grid', gridTemplateColumns: '74px 1fr auto', gap: 10, alignItems: 'center',
+      padding: '10px 12px', borderRadius: 11, cursor: 'pointer',
+      background: selected ? 'var(--paper-warm)' : 'transparent',
+      border: selected ? '1px solid var(--butter)' : '1px solid transparent',
+    }}>
+      <div>
+        <div className="mf-mono" style={{ color: selected ? 'var(--terracotta)' : 'var(--ink-3)', fontSize: 9 }}>{day.day.toUpperCase()}</div>
+        <div className="mf-display" style={{ fontSize: 28, lineHeight: 1, color: selected ? 'var(--terracotta-deep)' : 'var(--ink)' }}>{day.date}</div>
+      </div>
+      {isOpen ? (
+        <div style={{ border: '1px dashed var(--line-strong)', borderRadius: 8, padding: '9px 12px', fontFamily: 'Kalam', color: 'var(--ink-3)', fontSize: 12 }}>Open day. Plan a meal only if you need one.</div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(2, day.meals.length)}, minmax(0, 1fr))`, gap: 7 }}>
+          {day.meals.map((meal, index) => <PlannedMealCard key={`${meal.slot}-${index}`} meal={meal} compact />)}
+        </div>
+      )}
+      <button className="mf-btn ghost sm" style={{ padding: '5px 8px' }}>Plan meal</button>
+    </section>
+  );
+}
+
+function MealPlanAgendaDesktop() {
+  const [selected, setSelected] = React.useState('mon');
+  const [planningRecipe, setPlanningRecipe] = React.useState(null);
+  const [plannedRecipe, setPlannedRecipe] = React.useState(null);
+  const plannedDays = PLANNED_WEEK.filter((day) => day.meals.length);
+  const openDays = PLANNED_WEEK.filter((day) => !day.meals.length);
+  return (
+    <div className="mf mf-page">
+      <Nav active="planning" />
+      <div style={{ padding: '26px 42px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <div className="mf-mono" style={{ color: 'var(--terracotta)' }}>PLAN · WEEK OF 27 APR</div>
+          <h1 className="mf-display" style={{ fontSize: 48, margin: '4px 0 2px' }}>your week, at a glance.</h1>
+          <div style={{ fontFamily: 'Kalam', color: 'var(--ink-3)', fontSize: 13 }}>7 meals · 5 cooks · 2 leftovers · Sat and Sun are open</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="mf-btn">‹ previous</button>
+          <button className="mf-btn">this week</button>
+          <button className="mf-btn">next ›</button>
+          <button className="mf-btn terra">Open Shop · 12</button>
+        </div>
+      </div>
+
+      <div style={{ padding: '0 42px 28px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 328px', gap: 20 }}>
+        <main className="mf-card" style={{ padding: 12 }}>
+          <div style={{ display: 'flex', gap: 5, padding: '2px 4px 10px' }}>
+            {PLANNED_WEEK.map((day) => {
+              const active = selected === day.key;
+              return <button key={day.key} onClick={() => setSelected(day.key)} style={{ flex: 1, border: active ? '1.5px solid var(--terracotta)' : '1px solid var(--line)', background: active ? 'var(--butter-soft)' : 'transparent', borderRadius: 8, padding: '6px 2px', cursor: 'pointer', color: active ? 'var(--terracotta-deep)' : 'var(--ink-3)' }}>
+                <span className="mf-mono" style={{ display: 'block', fontSize: 8 }}>{day.day.toUpperCase()}</span>
+                <span className="mf-display" style={{ display: 'block', fontSize: 18, lineHeight: 1 }}>{day.date}</span>
+                <span style={{ display: 'flex', justifyContent: 'center', gap: 2, height: 5, marginTop: 3 }}>{day.meals.map((_, index) => <i key={index} style={{ width: 4, height: 4, borderRadius: 9, background: 'var(--terracotta)' }}></i>)}</span>
+              </button>;
+            })}
+          </div>
+          <div className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 9, padding: '2px 12px 5px' }}>PLANNED MEALS · EMPTY SLOTS STAY OUT OF THE WAY</div>
+          {plannedDays.map((day) => <PlanDayRow key={day.key} day={day} selected={selected === day.key} onSelect={() => setSelected(day.key)} />)}
+          <div style={{ display: 'flex', gap: 8, padding: '8px 12px 2px' }}>
+            {openDays.map((day) => <button key={day.key} onClick={() => setSelected(day.key)} className="mf-btn ghost" style={{ flex: 1, borderStyle: 'dashed', color: 'var(--ink-3)' }}>Plan {day.day} {day.date}</button>)}
+          </div>
+        </main>
+
+        <aside style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div className="mf-card" style={{ padding: 16, borderColor: 'var(--butter)' }}>
+            <div className="mf-mono" style={{ color: 'var(--terracotta)' }}>PLAN ANOTHER MEAL</div>
+            <div style={{ fontFamily: 'Kalam', color: 'var(--ink-3)', fontSize: 11, marginTop: 3 }}>Pick a recipe, then choose its day.</div>
+            <input placeholder="search your recipes…" style={{ width: '100%', boxSizing: 'border-box', marginTop: 9, padding: '8px 10px', border: '1px solid var(--line-strong)', borderRadius: 7, fontFamily: 'Kalam', background: 'var(--paper)' }} />
+            <div style={{ display: 'flex', gap: 5, marginTop: 7 }}>
+              {['quick', 'veggie', 'not lately'].map((tag) => <span key={tag} className="mf-tag" style={{ fontSize: 9 }}>{tag}</span>)}
+            </div>
+            {[4, 7, 8].map((index) => <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: index === 4 ? 9 : '9px 0', marginTop: index === 4 ? 12 : 0, borderRadius: index === 4 ? 8 : 0, background: index === 4 ? 'var(--paper-warm)' : 'transparent', border: index === 4 ? '1px dashed var(--line-strong)' : 0, borderBottom: index === 4 ? undefined : '1px solid var(--line)' }}>
+              <span style={{ width: index === 4 ? 34 : 30, height: index === 4 ? 34 : 30, borderRadius: 6, background: `linear-gradient(135deg, ${RECIPES[index].palette[0]}, ${RECIPES[index].palette[1]})` }}></span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {index === 4 && <div className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 8, marginBottom: 3 }}>SAVED IDEA</div>}
+                <div style={{ fontFamily: 'Kalam', fontSize: 12, lineHeight: 1.1 }}>{RECIPES[index].title}</div>
+                {index === 4 && <div className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 8, marginTop: 3 }}>40 MIN · SERVES 4</div>}
+              </div>
+              <button onClick={() => setPlanningRecipe(index)} className={`mf-btn sm ${planningRecipe === index ? 'terra' : ''}`}>{plannedRecipe?.index === index ? `Planned · ${plannedRecipe.day}` : planningRecipe === index ? 'Choose day ↓' : 'Plan'}</button>
+            </div>)}
+            {planningRecipe !== null && <div style={{ marginTop: 9, padding: 9, borderRadius: 8, background: 'var(--butter-soft)', border: '1px solid var(--butter)' }}>
+              <div className="mf-mono" style={{ color: 'var(--terracotta)', fontSize: 8 }}>CHOOSE A DAY FOR {RECIPES[planningRecipe].title.toUpperCase()}</div>
+              <div style={{ display: 'flex', gap: 3, marginTop: 7 }}>
+                {PLANNED_WEEK.map((day) => <button key={day.key} onClick={() => { setPlannedRecipe({ index: planningRecipe, day: day.day }); setPlanningRecipe(null); }} className="mf-btn ghost sm" style={{ flex: 1, padding: '3px 1px', fontSize: 8 }}>{day.day}</button>)}
+              </div>
+            </div>}
+            <button className="mf-btn" style={{ width: '100%', marginTop: 10 }}>Browse all recipes →</button>
+          </div>
+          <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(143,166,119,.10)', border: '1px dashed var(--sage)' }}>
+            <div className="mf-mono" style={{ color: 'var(--sage)', fontSize: 9 }}>SHOPPING IMPACT</div>
+            <div style={{ fontFamily: 'Kalam', fontSize: 13, marginTop: 4 }}>12 things to buy. 5 pantry staples are already excluded.</div>
+            <button className="mf-btn sm" style={{ marginTop: 8 }}>Review Shop →</button>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function ShoppingListDesktop() {
+  const [view, setView] = React.useState('aisle');
+  const [ticked, setTicked] = React.useState({ 'fresh basil': true, 'chorizo': true });
+  const tick = (name) => setTicked((items) => ({ ...items, [name]: !items[name] }));
+  return (
+    <div className="mf mf-page">
+      <Nav active="shop" />
+      <div style={{ padding: '26px 48px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+        <div>
+          <div className="mf-mono" style={{ color: 'var(--terracotta)' }}>SHOP · ACTIVE HOUSEHOLD LIST</div>
+          <h1 className="mf-display" style={{ fontSize: 50, margin: '4px 0 2px' }}>shopping list.</h1>
+          <div style={{ fontFamily: 'Kalam', color: 'var(--ink-3)', fontSize: 13 }}>12 unticked · generated from 7 planned meals · extras stay separate</div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="mf-btn">Edit Plan</button>
+          <button className="mf-btn">📤 share</button>
+          <button className="mf-btn">🖨 print</button>
+        </div>
+      </div>
+      <div style={{ padding: '0 48px 30px', maxWidth: 840, margin: '0 auto' }}>
+        <div className="mf-card" style={{ padding: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div className="mf-mono" style={{ color: 'var(--ink-3)' }}>17 ITEMS · 5 FROM PANTRY · 2 TICKED</div>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {[['aisle','by aisle'],['recipe','by recipe'],['flat','plain list']].map(([key, label]) => <span key={key} onClick={() => setView(key)} className={`mf-tag ${view === key ? 'include' : ''}`} style={{ fontSize: 10, cursor: 'pointer' }}>{label}</span>)}
+            </div>
+          </div>
+          <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(143,166,119,.10)', border: '1px dashed var(--sage)', display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: 'Kalam', fontSize: 13 }}><b>5 pantry items skipped</b></span>
+            {['olive oil', 'salt', 'pepper', 'garlic', 'farfalle'].map((item) => <span key={item} className="mf-tag" style={{ fontSize: 9, textDecoration: 'line-through', color: 'var(--ink-3)' }}>{item}</span>)}
+            <button className="mf-btn sm" style={{ marginLeft: 'auto' }}>Change</button>
+          </div>
+          <ShoppingItems view={view} ticked={ticked} tick={tick} />
+          <div style={{ marginTop: 14, padding: '8px 10px', border: '1.5px dashed var(--line-strong)', borderRadius: 8, textAlign: 'center', fontFamily: 'Caveat', color: 'var(--terracotta)' }}>＋ add an extra, like milk or bread</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MealPlanAgendaMobile() {
+  const [selected, setSelected] = React.useState('mon');
+  return (
+    <Phone>
+      <header style={{ padding: '6px 16px 10px', borderBottom: '1px solid var(--line)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div>
+            <div className="mf-mono" style={{ color: 'var(--terracotta)', fontSize: 8 }}>PLAN · WEEK OF 27 APR</div>
+            <h2 className="mf-display" style={{ fontSize: 30, margin: '2px 0 0', lineHeight: 1 }}>your week.</h2>
+          </div>
+          <button className="mf-btn sm" style={{ marginLeft: 'auto' }}>Shop · 12</button>
+          <MobileAvatar size={26} />
+        </div>
+        <div style={{ display: 'flex', gap: 3, marginTop: 10 }}>
+          {PLANNED_WEEK.map((day) => {
+            const active = selected === day.key;
+            return <button key={day.key} onClick={() => setSelected(day.key)} style={{ flex: 1, minWidth: 0, border: active ? '1px solid var(--terracotta)' : '1px solid var(--line)', borderRadius: 7, background: active ? 'var(--butter-soft)' : 'transparent', padding: '4px 0', color: active ? 'var(--terracotta-deep)' : 'var(--ink-3)' }}>
+              <span className="mf-mono" style={{ display: 'block', fontSize: 7 }}>{day.day.toUpperCase()}</span>
+              <span className="mf-display" style={{ display: 'block', fontSize: 16, lineHeight: 1 }}>{day.date}</span>
+              <span style={{ display: 'flex', justifyContent: 'center', gap: 2, height: 4, marginTop: 2 }}>{day.meals.map((_, index) => <i key={index} style={{ width: 3, height: 3, borderRadius: 9, background: 'var(--terracotta)' }}></i>)}</span>
+            </button>;
+          })}
+        </div>
+      </header>
+      <div style={{ flex: 1, overflow: 'auto', padding: '12px 14px 22px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 7 }}>
+          <div className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 8 }}>NEXT UP · ONLY PLANNED MEALS TAKE SPACE</div>
+          <button className="mf-btn terra sm" style={{ marginLeft: 'auto' }}>Plan meal</button>
+        </div>
+        {PLANNED_WEEK.filter((day) => day.meals.length).map((day) => <section key={day.key} onClick={() => setSelected(day.key)} style={{ padding: '9px 0', borderBottom: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 7, marginBottom: 6 }}>
+            <span className="mf-display" style={{ fontSize: 20, color: selected === day.key ? 'var(--terracotta-deep)' : 'var(--ink)' }}>{day.day} {day.date}</span>
+            <span className="mf-mono" style={{ color: 'var(--ink-3)', fontSize: 7 }}>{day.meals.length} {day.meals.length === 1 ? 'MEAL' : 'MEALS'}</span>
+            <button className="mf-btn ghost sm" style={{ marginLeft: 'auto', padding: '2px 6px' }}>Plan</button>
+          </div>
+          <div style={{ display: 'grid', gap: 5 }}>{day.meals.map((meal, index) => <PlannedMealCard key={`${meal.slot}-${index}`} meal={meal} compact />)}</div>
+        </section>)}
+        <div style={{ display: 'flex', gap: 7, paddingTop: 10 }}>
+          {PLANNED_WEEK.filter((day) => !day.meals.length).map((day) => <button key={day.key} onClick={() => setSelected(day.key)} className="mf-btn ghost" style={{ flex: 1, borderStyle: 'dashed', color: 'var(--ink-3)' }}>Plan {day.day}</button>)}
+        </div>
+        <div style={{ marginTop: 12, padding: 10, borderRadius: 9, background: 'rgba(143,166,119,.10)', border: '1px dashed var(--sage)', fontFamily: 'Kalam', fontSize: 11 }}>
+          12 things to buy. Pantry staples are already skipped. <b style={{ color: 'var(--terracotta)' }}>Review Shop →</b>
+        </div>
+      </div>
+      <TabBar active="planning" />
+    </Phone>
+  );
+}
+
 window.MidShopping = MidShopping;
 window.MidShoppingMobile = MidShoppingMobile;
+window.MealPlanAgendaDesktop = MealPlanAgendaDesktop;
+window.ShoppingListDesktop = ShoppingListDesktop;
+window.MealPlanAgendaMobile = MealPlanAgendaMobile;
