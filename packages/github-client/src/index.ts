@@ -1,6 +1,10 @@
 import { createAppAuth } from "@octokit/auth-app";
 import { request as octokitRequest } from "@octokit/request";
-import { JsonClient, type JsonClientOptions } from "ts-base/http";
+import {
+  JsonClient,
+  receiverSafeFetch,
+  type JsonClientOptions,
+} from "ts-base/http";
 
 export const GITHUB_API_URL = "https://api.github.com";
 export const GITHUB_API_VERSION = "2022-11-28";
@@ -21,7 +25,7 @@ export function createGithubAppAuth(options: GithubAppOptions) {
       "GitHub App private key must be unencrypted PKCS#8 PEM; convert GitHub's PKCS#1 download before deployment",
     );
   }
-  const fetchImpl = options.fetch ?? fetch;
+  const fetchImpl = receiverSafeFetch(options.fetch);
   const timeoutMs = options.timeoutMs ?? DEFAULT_GITHUB_API_TIMEOUT_MS;
   const request = octokitRequest.defaults({
     request: {
