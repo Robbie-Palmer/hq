@@ -6,34 +6,56 @@ import {
 } from "wedding-planner-domain";
 import {
   onRequest,
-  type PlaylistKv,
+  type PlaylistBucket,
 } from "../../../functions/api/wedding-playlists/[[path]]";
 
 const GUEST_ONE = "1ecb2993-9471-4d47-85db-5dbf4d68c1e0";
 const GUEST_TWO = "c5947a26-e5d8-48af-96cf-98ad9a44e724";
 
-class MemoryKv implements PlaylistKv {
+class MemoryBucket implements PlaylistBucket {
   values = new Map<string, string>();
+  etags = new Map<string, string>();
+  version = 0;
 
-  async get(key: string): Promise<string | null>;
-  async get<T>(key: string, type: "json"): Promise<T | null>;
-  async get<T>(key: string, type?: "json"): Promise<T | string | null> {
+  async get(key: string) {
     const value = this.values.get(key);
     if (value === undefined) return null;
-    return type === "json" ? (JSON.parse(value) as T) : value;
+    return {
+      etag: this.etags.get(key) ?? "missing-etag",
+      async json<T>() {
+        return JSON.parse(value) as T;
+      },
+    };
   }
 
-  async put(key: string, value: string): Promise<void> {
+  async put(
+    key: string,
+    value: string,
+    options?: {
+      onlyIf?: { etagDoesNotMatch?: string; etagMatches?: string };
+    },
+  ) {
+    const currentEtag = this.etags.get(key);
+    if (
+      options?.onlyIf?.etagMatches !== undefined &&
+      options.onlyIf.etagMatches !== currentEtag
+    )
+      return null;
+    if (options?.onlyIf?.etagDoesNotMatch === "*" && currentEtag !== undefined)
+      return null;
+    const etag = String(++this.version);
     this.values.set(key, value);
+    this.etags.set(key, etag);
+    return { etag };
   }
 
   async list({ prefix }: { cursor?: string; prefix: string }) {
     return {
-      keys: [...this.values.keys()]
+      objects: [...this.values.keys()]
         .filter((key) => key.startsWith(prefix))
         .sort()
-        .map((name) => ({ name })),
-      list_complete: true,
+        .map((key) => ({ key })),
+      truncated: false,
     };
   }
 }
@@ -58,7 +80,7 @@ function request(
 
 describe("wedding playlist API", () => {
   it("keeps admin data private while accepting deduplicated guest suggestions", async () => {
-    const kv = new MemoryKv();
+    const kv = new MemoryBucket();
     const call = (incoming: Request, path?: string) =>
       onRequest({
         request: incoming,
@@ -212,7 +234,7 @@ describe("wedding playlist API", () => {
   });
 
   it("authorizes couple updates, records votes, and rejects malformed routes", async () => {
-    const kv = new MemoryKv();
+    const kv = new MemoryBucket();
     const call = (incoming: Request, path?: string | string[]) =>
       onRequest({
         request: incoming,
@@ -354,14 +376,113 @@ describe("wedding playlist API", () => {
       env: {
         WEDDING_PLAYLISTS: {
           get: async () => {
-            throw new Error("KV unavailable");
+            throw new Error("R2 unavailable");
           },
-          put: async () => {},
-          list: async () => ({ keys: [], list_complete: true }),
+          put: async () => ({ etag: "unused" }),
+          list: async () => ({ objects: [], truncated: false }),
         },
       },
       params: { path: "missing" },
     });
     expect(failed.status).toBe(500);
+  });
+
+  it("reads paginated R2 events and ignores objects removed between list and get", async () => {
+    const bucket = new MemoryBucket();
+    const call = (incoming: Request, path?: string) =>
+      onRequest({
+        request: incoming,
+        env: { WEDDING_PLAYLISTS: bucket },
+        params: { path },
+      });
+    const playlist = createCollaborativePlaylist("Alex and Sam");
+    const created = (await (
+      await call(request("POST", "", playlist))
+    ).json()) as {
+      guest_token: string;
+      id: string;
+    };
+    await call(
+      request(
+        "POST",
+        `${created.id}/suggestions`,
+        {
+          artist: "Artist",
+          contributor: { name: "Guest" },
+          moment_id: "reception",
+          title: "Song",
+        },
+        created.guest_token,
+      ),
+      `${created.id}/suggestions`,
+    );
+    const eventKey = [...bucket.values.keys()].find((key) =>
+      key.includes(":events:"),
+    );
+    expect(eventKey).toBeDefined();
+    let pages = 0;
+    bucket.list = async ({ cursor, prefix }) => {
+      pages += 1;
+      return cursor
+        ? { objects: [], truncated: false }
+        : {
+            cursor: "next",
+            objects: [
+              { key: eventKey ?? "" },
+              { key: `${prefix}removed-object` },
+            ],
+            truncated: true,
+          };
+    };
+
+    const response = await call(
+      request("GET", created.id, undefined, created.guest_token),
+      created.id,
+    );
+    expect(response.status).toBe(200);
+    expect(
+      ((await response.json()) as { songs: unknown[] }).songs,
+    ).toHaveLength(1);
+    expect(pages).toBe(2);
+    expect((await call(request("GET", "missing"), "missing")).status).toBe(404);
+  });
+
+  it("atomically limits concurrent playlist creation without sharing auth quota", async () => {
+    const bucket = new MemoryBucket();
+    const playlist = createCollaborativePlaylist("Alex and Sam");
+    const responses = await Promise.all(
+      Array.from({ length: 12 }, () =>
+        onRequest({
+          request: request("POST", "", playlist),
+          env: { WEDDING_PLAYLISTS: bucket },
+          params: {},
+        }),
+      ),
+    );
+
+    expect(responses.filter(({ status }) => status === 201)).toHaveLength(5);
+    expect(responses.filter(({ status }) => status === 429)).toHaveLength(7);
+    expect(
+      [...bucket.values.keys()].filter((key) => key.startsWith("rate:")),
+    ).toHaveLength(1);
+  });
+
+  it("fails closed when concurrent rate-limit writes cannot settle", async () => {
+    const response = await onRequest({
+      request: request("POST", "", createCollaborativePlaylist("Alex and Sam")),
+      env: {
+        WEDDING_PLAYLISTS: {
+          get: async () => null,
+          put: async () => null,
+          list: async () => ({ objects: [], truncated: false }),
+        },
+      },
+      params: {},
+    });
+
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({
+      error: "Too many concurrent requests. Try again shortly.",
+    });
   });
 });

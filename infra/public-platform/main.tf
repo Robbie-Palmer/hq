@@ -61,8 +61,8 @@ resource "cloudflare_pages_project" "personal_site" {
     production {
       environment_variables = local.pages_production_environment_variables
       secrets               = local.pages_secrets
-      kv_namespaces = {
-        WEDDING_PLAYLISTS = cloudflare_workers_kv_namespace.wedding_playlists.id
+      r2_buckets = {
+        WEDDING_PLAYLISTS = cloudflare_r2_bucket.wedding_playlists.name
       }
       compatibility_date  = "2026-05-28"
       compatibility_flags = ["nodejs_compat"]
@@ -71,8 +71,8 @@ resource "cloudflare_pages_project" "personal_site" {
     preview {
       environment_variables = local.pages_preview_environment_variables
       secrets               = local.pages_secrets
-      kv_namespaces = {
-        WEDDING_PLAYLISTS = cloudflare_workers_kv_namespace.wedding_playlists_preview.id
+      r2_buckets = {
+        WEDDING_PLAYLISTS = cloudflare_r2_bucket.wedding_playlists_preview.name
       }
       compatibility_date  = "2026-05-28"
       compatibility_flags = ["nodejs_compat"]
@@ -80,18 +80,20 @@ resource "cloudflare_pages_project" "personal_site" {
   }
 }
 
-resource "cloudflare_workers_kv_namespace" "wedding_playlists" {
+resource "cloudflare_r2_bucket" "wedding_playlists" {
   account_id = var.cloudflare_account_id
-  title      = "wedding-playlists"
+  name       = "wedding-playlists"
+  location   = "ENAM"
 
   lifecycle {
     prevent_destroy = true
   }
 }
 
-resource "cloudflare_workers_kv_namespace" "wedding_playlists_preview" {
+resource "cloudflare_r2_bucket" "wedding_playlists_preview" {
   account_id = var.cloudflare_account_id
-  title      = "wedding-playlists-preview"
+  name       = "wedding-playlists-preview"
+  location   = "ENAM"
 }
 
 resource "cloudflare_pages_domain" "robbiepalmer_me" {
@@ -304,7 +306,7 @@ resource "cloudflare_ruleset" "map_tiles_cache" {
 resource "cloudflare_ruleset" "auth_rate_limit" {
   zone_id     = data.cloudflare_zone.domain.id
   name        = "Auth endpoint rate limiting"
-  description = "Per-IP rate limiting for auth and wedding-playlist writes. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
+  description = "Per-IP rate limiting for /api/auth/* — returns 429 on abuse. Counting is per Cloudflare data center (cf.colo.id is a mandatory, always-on characteristic; Cloudflare has no global counter)."
   kind        = "zone"
   phase       = "http_ratelimit"
 
@@ -330,45 +332,4 @@ resource "cloudflare_ruleset" "auth_rate_limit" {
     }
   }
 
-  rules {
-    ref         = "wedding_playlist_create_rate_limit"
-    description = "Limit wedding playlist creation per IP"
-    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and http.request.uri.path eq \"/api/wedding-playlists\")"
-    action      = "block"
-
-    ratelimit {
-      characteristics     = ["ip.src", "cf.colo.id"]
-      period              = 600
-      requests_per_period = 5
-      mitigation_timeout  = 600
-    }
-  }
-
-  rules {
-    ref         = "wedding_playlist_suggestion_rate_limit"
-    description = "Limit wedding playlist suggestions per IP"
-    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and ends_with(http.request.uri.path, \"/suggestions\") and starts_with(http.request.uri.path, \"/api/wedding-playlists/\"))"
-    action      = "block"
-
-    ratelimit {
-      characteristics     = ["ip.src", "cf.colo.id"]
-      period              = 600
-      requests_per_period = 30
-      mitigation_timeout  = 600
-    }
-  }
-
-  rules {
-    ref         = "wedding_playlist_vote_rate_limit"
-    description = "Limit wedding playlist votes per IP"
-    expression  = "(http.host eq \"${var.domain_name}\" and http.request.method eq \"POST\" and ends_with(http.request.uri.path, \"/votes\") and starts_with(http.request.uri.path, \"/api/wedding-playlists/\"))"
-    action      = "block"
-
-    ratelimit {
-      characteristics     = ["ip.src", "cf.colo.id"]
-      period              = 600
-      requests_per_period = 120
-      mitigation_timeout  = 600
-    }
-  }
 }

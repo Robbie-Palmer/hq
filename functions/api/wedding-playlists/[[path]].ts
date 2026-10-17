@@ -10,23 +10,34 @@ import {
 } from "wedding-planner-domain";
 import { z } from "zod";
 
-export interface PlaylistKv {
-  get(key: string): Promise<string | null>;
-  get<T>(key: string, type: "json"): Promise<T | null>;
+export interface PlaylistObject {
+  etag: string;
+  json<T>(): Promise<T>;
+}
+
+interface PlaylistPutOptions {
+  onlyIf?: {
+    etagDoesNotMatch?: string;
+    etagMatches?: string;
+  };
+}
+
+export interface PlaylistBucket {
+  get(key: string): Promise<PlaylistObject | null>;
   put(
     key: string,
     value: string,
-    options?: { expirationTtl?: number },
-  ): Promise<void>;
+    options?: PlaylistPutOptions,
+  ): Promise<{ etag: string } | null>;
   list(options: { cursor?: string; prefix: string }): Promise<{
     cursor?: string;
-    keys: { name: string }[];
-    list_complete: boolean;
+    objects: { key: string }[];
+    truncated: boolean;
   }>;
 }
 
 interface Env {
-  WEDDING_PLAYLISTS: PlaylistKv;
+  WEDDING_PLAYLISTS: PlaylistBucket;
 }
 
 interface Context {
@@ -93,6 +104,9 @@ const adminUpdateSchema = z.object({
 
 const guestIdSchema = z.uuid();
 
+const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
+const RATE_LIMIT_WRITE_ATTEMPTS = 8;
+
 function json(value: unknown, status = 200): Response {
   return Response.json(value, {
     status,
@@ -136,7 +150,8 @@ async function readStored(
   env: Env,
   id: string,
 ): Promise<StoredPlaylist | null> {
-  return env.WEDDING_PLAYLISTS.get<StoredPlaylist>(`playlist:${id}`, "json");
+  const object = await env.WEDDING_PLAYLISTS.get(`playlist:${id}`);
+  return object ? object.json<StoredPlaylist>() : null;
 }
 
 async function writeStored(
@@ -161,12 +176,13 @@ async function readGuestEvents(env: Env, id: string): Promise<GuestPlaylistEvent
       ...(cursor ? { cursor } : {}),
     });
     const values = await Promise.all(
-      page.keys.map(({ name }) =>
-        env.WEDDING_PLAYLISTS.get<GuestPlaylistEvent>(name, "json"),
-      ),
+      page.objects.map(async ({ key }) => {
+        const object = await env.WEDDING_PLAYLISTS.get(key);
+        return object ? object.json<GuestPlaylistEvent>() : null;
+      }),
     );
     events.push(...values.filter((value) => value !== null));
-    cursor = page.list_complete ? undefined : page.cursor;
+    cursor = page.truncated ? page.cursor : undefined;
   } while (cursor);
   return events.sort(
     (left, right) =>
@@ -224,7 +240,43 @@ async function authorized(
   return supplied.length >= 16 && (await tokenHash(supplied)) === expectedHash;
 }
 
+async function enforceRateLimit(
+  context: Context,
+  scope: string,
+  limit: number,
+): Promise<Response | null> {
+  const client = context.request.headers.get("cf-connecting-ip") ?? "unknown";
+  const key = `rate:${scope}:${await tokenHash(client)}`;
+  const windowStart =
+    Math.floor(Date.now() / RATE_LIMIT_WINDOW_MS) * RATE_LIMIT_WINDOW_MS;
+
+  // R2 conditional puts make each increment atomic without storing the raw IP.
+  for (let attempt = 0; attempt < RATE_LIMIT_WRITE_ATTEMPTS; attempt += 1) {
+    const object = await context.env.WEDDING_PLAYLISTS.get(key);
+    const previous = object
+      ? await object.json<{ count: number; windowStart: number }>()
+      : null;
+    const count = previous?.windowStart === windowStart ? previous.count : 0;
+    if (count >= limit) return error("Too many requests. Try again later.", 429);
+
+    const written = await context.env.WEDDING_PLAYLISTS.put(
+      key,
+      JSON.stringify({ count: count + 1, windowStart }),
+      {
+        onlyIf: object
+          ? { etagMatches: object.etag }
+          : { etagDoesNotMatch: "*" },
+      },
+    );
+    if (written) return null;
+  }
+
+  return error("Too many concurrent requests. Try again shortly.", 429);
+}
+
 async function createPlaylist(context: Context): Promise<Response> {
+  const limited = await enforceRateLimit(context, "create", 5);
+  if (limited) return limited;
   const parsed = createSchema.safeParse(await context.request.json());
   if (!parsed.success) return error("The playlist details are invalid.", 400);
   const id = randomToken(12);
@@ -347,6 +399,8 @@ async function suggestSong(
 ): Promise<Response> {
   if (!(await authorized(context.request, stored.guestTokenHash)))
     return error("This playlist link is invalid or has been replaced.", 403);
+  const limited = await enforceRateLimit(context, `suggest:${id}`, 30);
+  if (limited) return limited;
   const guestId = suppliedGuestId(context.request);
   if (!guestId) return error("This guest session is invalid.", 400);
   const parsed = suggestionSchema.safeParse(await context.request.json());
@@ -389,6 +443,8 @@ async function vote(
 ): Promise<Response> {
   if (!(await authorized(context.request, stored.guestTokenHash)))
     return error("This playlist link is invalid or has been replaced.", 403);
+  const limited = await enforceRateLimit(context, `vote:${id}`, 120);
+  if (limited) return limited;
   const guestId = suppliedGuestId(context.request);
   if (!guestId) return error("This guest session is invalid.", 400);
   const parsed = voteSchema.safeParse(await context.request.json());

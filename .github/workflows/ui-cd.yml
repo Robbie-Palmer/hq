@@ -15,10 +15,15 @@ on:
       - "package.json"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: production-site-ui
+  cancel-in-progress: true
 
 jobs:
   deploy:
