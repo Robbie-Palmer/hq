@@ -89,7 +89,7 @@ function pathParts(context: Context): string[] {
 
 function randomToken(bytes = 24): string {
   const data = crypto.getRandomValues(new Uint8Array(bytes));
-  return btoa(String.fromCharCode(...data))
+  return btoa(String.fromCodePoint(...data))
     .replaceAll("+", "-")
     .replaceAll("/", "_")
     .replaceAll("=", "");
@@ -121,7 +121,7 @@ async function writeStored(
   await env.WEDDING_PLAYLISTS.put(`playlist:${id}`, JSON.stringify(stored));
 }
 
-async function suppliedToken(request: Request): Promise<string> {
+function suppliedToken(request: Request): string {
   const bearer = request.headers.get("authorization")?.match(/^Bearer (.+)$/i)?.[1];
   return bearer ?? new URL(request.url).searchParams.get("token") ?? "";
 }
@@ -130,7 +130,7 @@ async function authorized(
   request: Request,
   expectedHash: string,
 ): Promise<boolean> {
-  const supplied = await suppliedToken(request);
+  const supplied = suppliedToken(request);
   return supplied.length >= 16 && (await tokenHash(supplied)) === expectedHash;
 }
 
