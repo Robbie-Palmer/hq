@@ -20,6 +20,14 @@ it("maps observer Doppler keys to non-reserved masked GitHub secrets", async () 
         computed: "[42]",
         computedVisibility: "unmasked",
       },
+      GITHUB_APP_ID: {
+        computed: "123",
+        computedVisibility: "masked",
+      },
+      GITHUB_APP_PRIVATE_KEY: {
+        computed: "fixture-private-key",
+        computedVisibility: "masked",
+      },
       WORK_GRAPH_HYPERDRIVE_ID: {
         computed: "fixture-id",
         computedVisibility: "masked",
@@ -68,6 +76,8 @@ fi
       "WEBHOOK_SECRET",
       "ALLOWED_REPOSITORIES",
       "ALLOWED_INSTALLATION_IDS",
+      "APP_ID",
+      "APP_PRIVATE_KEY",
     ]) {
       expect(calls).toContain(`secret set OBSERVER_${suffix}`);
       expect(calls).not.toContain(`secret set GITHUB_${suffix}`);

@@ -68,6 +68,10 @@ export interface GithubPaginatedResult<T> {
   complete: boolean;
 }
 
+export type GithubPageItems<TResponse, TItem> = (
+  response: TResponse,
+) => readonly TItem[];
+
 function paginationBounds(options: GithubPaginationOptions): {
   perPage: number;
   maxPages: number;
@@ -107,17 +111,31 @@ export class GithubClient extends JsonClient {
     path: string,
     options: GithubPaginationOptions = {},
   ): Promise<GithubPaginatedResult<T>> {
+    return this.paginateResponseByPageNumber<T[], T>(
+      path,
+      (response) => response,
+      options,
+    );
+  }
+
+  /** Paginates endpoints whose collection is nested inside each response. */
+  async paginateResponseByPageNumber<TResponse, TItem>(
+    path: string,
+    pageItems: GithubPageItems<TResponse, TItem>,
+    options: GithubPaginationOptions = {},
+  ): Promise<GithubPaginatedResult<TItem>> {
     const { perPage, maxPages } = paginationBounds(options);
-    const items: T[] = [];
+    const items: TItem[] = [];
     let pages = 0;
     while (pages < maxPages) {
-      const page = await this.request<T[]>("GET", path, {
+      const response = await this.request<TResponse>("GET", path, {
         query: {
           ...options.query,
           per_page: perPage,
           page: pages + 1,
         },
       });
+      const page = pageItems(response);
       if (!Array.isArray(page)) {
         throw new TypeError("GitHub paginated endpoint must return an array");
       }

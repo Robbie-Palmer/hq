@@ -1517,6 +1517,12 @@ importers:
 
   workers/work-graph-observer:
     dependencies:
+      github-client:
+        specifier: workspace:*
+        version: link:../../packages/github-client
+      ts-base:
+        specifier: workspace:*
+        version: link:../../packages/ts-base
       work-graph-db:
         specifier: workspace:*
         version: link:../../packages/work-graph-db
