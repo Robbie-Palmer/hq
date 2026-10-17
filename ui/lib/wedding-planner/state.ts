@@ -22,7 +22,17 @@ const guestSchema = z.looseObject({
   id: z.string().min(1),
   name: z.string().min(1),
   source_party: z.string().default(""),
-  tags: z.string().default(""),
+  tags: z
+    .union([z.array(z.string()), z.string()])
+    .transform((value) =>
+      Array.isArray(value)
+        ? value
+        : value
+            .split(/[;,]/)
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+    )
+    .default([]),
   overnight: OvernightStatusSchema,
   attendance: OvernightStatusSchema.optional(),
   prefer_table_with: idList.optional(),

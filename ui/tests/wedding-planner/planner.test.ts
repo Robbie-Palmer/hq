@@ -22,7 +22,7 @@ function guest(id: string, changes: Partial<Guest> = {}): Guest {
     id,
     name: id,
     source_party: "",
-    tags: "",
+    tags: [],
     overnight: "yes",
     fixed_bed_group_id: "",
     requires_own_bed: false,

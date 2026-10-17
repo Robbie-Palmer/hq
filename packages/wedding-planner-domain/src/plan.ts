@@ -6,11 +6,16 @@ import {
   weddingGuestSchema,
 } from "./core/guests";
 import { parseMoneyToMinorUnits } from "./money";
+import {
+  guestDirectoryMetadataSchema,
+  validateGuestDirectory,
+} from "./guest-directory";
 import { seatingPlanSchema } from "./seating/preferences";
 
 const weddingPlanSchema = z.object({
   version: z.literal(2),
   guests: z.array(weddingGuestSchema),
+  guest_directory: guestDirectoryMetadataSchema.prefault({}),
   couples: z.array(coupleSchema).default([]),
   reviewed_non_couples: z.array(z.tuple([z.string(), z.string()])).default([]),
   hosts: z.array(z.string().min(1)).min(1),
@@ -24,6 +29,7 @@ function validateReferences(plan: WeddingPlan): void {
   const ids = new Set(plan.guests.map((guest) => guest.id));
   if (ids.size !== plan.guests.length)
     throw new Error("Guest IDs must be unique");
+  validateGuestDirectory(plan);
   validateCouples(plan.couples, ids);
   validateDismissedSuggestions(plan, ids);
   if (
