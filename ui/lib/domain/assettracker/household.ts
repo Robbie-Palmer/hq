@@ -8,6 +8,7 @@ import {
   type FutureCashFlow,
   futureCashFlowStageAccountId,
 } from "./futureCashFlow";
+import { retainKnownAssetTrackerChecklistLinks } from "./planningChecklist";
 import type { SpendingBaseline } from "./spendingBaseline";
 
 export const DEFAULT_HOUSEHOLD_MEMBER_ID = "primary";
@@ -744,6 +745,11 @@ export function scopeAssetTrackerData(
     (decision) =>
       decision.kind === "tracked" || keptScenarioIds.has(decision.scenarioId),
   );
+  const planningCases = retainKnownAssetTrackerChecklistLinks(
+    data.planningCases,
+    futureCashFlows,
+    decisionRecords,
+  );
   const holdingObservations = (data.holdingObservations ?? []).flatMap(
     (row) => {
       if (!keptAccountIds.has(row.accountId)) return [];
@@ -787,6 +793,7 @@ export function scopeAssetTrackerData(
     recurringFlows,
     jobMoveScenarios,
     plannedExpenditures,
+    planningCases,
     futureCashFlows,
     forecastAssumptionSets,
     spendingBaselines,

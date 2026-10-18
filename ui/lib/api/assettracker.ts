@@ -8,6 +8,7 @@ import {
   type AddForecastAssumptionInput,
   type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
+  type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
   type AssetTrackerBackup,
   type AssetTrackerData,
@@ -18,6 +19,7 @@ import {
   applyAddForecastAssumption,
   applyAddHouseholdMember,
   applyAddPlannedExpenditure,
+  applyAddPlanningChecklistItem,
   applyAddRecurringFlow,
   applyClearAccountHistory,
   applyClearIncomeHistory,
@@ -60,6 +62,7 @@ import {
   applySetInflation,
   applySetMortgageTerms,
   applySetNetWorthTarget,
+  applySetPlanningChecklistItemStatus,
   applySetWithdrawalRate,
   applyUpdateCashFlowDecision,
   applyVersionForecastAssumptionSet,
@@ -105,6 +108,7 @@ import {
   type SetInflationInput,
   type SetMortgageTermsInput,
   type SetNetWorthTargetInput,
+  type SetPlanningChecklistItemStatusInput,
   type SetWithdrawalRateInput,
   type UpdateCashFlowDecisionInput,
   type VersionForecastAssumptionSetInput,
@@ -144,6 +148,12 @@ export interface AssetTrackerApi {
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<AssetTrackerData>;
+  addPlanningChecklistItem(
+    input: AddPlanningChecklistItemInput,
+  ): Promise<AssetTrackerData>;
+  setPlanningChecklistItemStatus(
+    input: SetPlanningChecklistItemStatusInput,
+  ): Promise<AssetTrackerData>;
   addCommitment(input: AddCommitmentInput): Promise<AssetTrackerData>;
   addCashFlowDecision(
     input: AddCashFlowDecisionInput,
@@ -467,6 +477,28 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     createPlanningCase(input) {
       return promiseFromSync(() =>
         write(applyCreatePlanningCase(current(), input)),
+      );
+    },
+    addPlanningChecklistItem(input) {
+      return promiseFromSync(() =>
+        write(
+          applyAddPlanningChecklistItem(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    setPlanningChecklistItemStatus(input) {
+      return promiseFromSync(() =>
+        write(
+          applySetPlanningChecklistItemStatus(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
       );
     },
     addCommitment(input) {

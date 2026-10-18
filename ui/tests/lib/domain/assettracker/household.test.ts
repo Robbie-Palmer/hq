@@ -378,6 +378,31 @@ describe("browser household ownership", () => {
           ],
         },
       ],
+      planningCases: [
+        {
+          id: "shared-project",
+          name: "Shared project",
+          checklistItems: [
+            {
+              id: "settle-costs",
+              title: "Settle costs",
+              category: "Finance",
+              owner: "Alex",
+              financialLinks: [
+                { kind: "commitment", recordId: "primary-commitment" },
+                { kind: "decision", recordId: "sam-decision" },
+              ],
+              statusHistory: [
+                {
+                  status: "not_started",
+                  changedAt: "2025-01-01T12:00:00Z",
+                  changedBy: "Alex",
+                },
+              ],
+            },
+          ],
+        },
+      ],
       forecastAssumptionSets: [
         {
           id: "shared-income-v1",
@@ -430,6 +455,9 @@ describe("browser household ownership", () => {
       },
     ]);
     expect(scoped.forecastAssumptionSets[0]?.assumptions).toEqual([]);
+    expect(scoped.planningCases[0]?.checklistItems[0]?.financialLinks).toEqual([
+      { kind: "decision", recordId: "sam-decision" },
+    ]);
     expect(() => buildRepository(scoped)).not.toThrow();
   });
 

@@ -1478,7 +1478,9 @@ describe("DecisionScenarioComparison", () => {
     }));
     mockAssetTracker({
       futureCashFlows: [decision],
-      planningCases: [{ id: "home", name: "Home work", labels: [] }],
+      planningCases: [
+        { id: "home", name: "Home work", labels: [], checklistItems: [] },
+      ],
       emergencyFundPlans: [
         {
           id: "reserve-v1",
@@ -1949,7 +1951,14 @@ describe("FutureCashFlowManager", () => {
     const addCashFlowDecision = vi.fn();
     mockAssetTracker({
       accounts: [currentAccount],
-      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      planningCases: [
+        {
+          id: "summer-plans",
+          name: "Summer plans",
+          labels: [],
+          checklistItems: [],
+        },
+      ],
       futureCashFlows: [
         {
           id: "booking",
@@ -2078,7 +2087,14 @@ describe("FutureCashFlowManager", () => {
     const recordActualCashFlow = vi.fn();
     mockAssetTracker({
       accounts: [currentAccount],
-      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      planningCases: [
+        {
+          id: "summer-plans",
+          name: "Summer plans",
+          labels: [],
+          checklistItems: [],
+        },
+      ],
       futureCashFlows: [
         {
           id: "booking",

@@ -45,6 +45,7 @@
     "packages/agent-auth-mcp": {},
     "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
+    "packages/planning-case-domain": {},
     "packages/work-graph-domain": {
       "ignoreBinaries": ["vitest"]
     },

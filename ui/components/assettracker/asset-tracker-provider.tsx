@@ -34,6 +34,7 @@ import {
   type AddDecisionInterpretationInput,
   type AddForecastAssumptionInput,
   type AddPlannedExpenditureInput,
+  type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
   type AssetAllocationDataPoint,
   type AssetTrackerBackup,
@@ -116,6 +117,7 @@ import {
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   type SetMortgageTermsInput,
+  type SetPlanningChecklistItemStatusInput,
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
@@ -218,6 +220,10 @@ interface AssetTrackerContextValue {
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<void>;
+  addPlanningChecklistItem(input: AddPlanningChecklistItemInput): Promise<void>;
+  setPlanningChecklistItemStatus(
+    input: SetPlanningChecklistItemStatusInput,
+  ): Promise<void>;
   addCommitment(input: AddCommitmentInput): Promise<void>;
   addCashFlowDecision(input: AddCashFlowDecisionInput): Promise<void>;
   updateCashFlowDecision(input: UpdateCashFlowDecisionInput): Promise<void>;
@@ -661,6 +667,10 @@ export function AssetTrackerProvider({
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
       createPlanningCase: (input) =>
         mutate((api) => api.createPlanningCase(input)),
+      addPlanningChecklistItem: (input) =>
+        mutate((api) => api.addPlanningChecklistItem(input)),
+      setPlanningChecklistItemStatus: (input) =>
+        mutate((api) => api.setPlanningChecklistItemStatus(input)),
       addCommitment: (input) => mutate((api) => api.addCommitment(input)),
       addCashFlowDecision: (input) =>
         mutate((api) => api.addCashFlowDecision(input)),
