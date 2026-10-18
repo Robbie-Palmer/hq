@@ -315,8 +315,8 @@ if (
 }
 
 const [ownerShoppingList, memberShoppingList] = await Promise.all([
-  expectJson<ShoppingList>("/api/shopping-lists/current", ownerCookie),
-  expectJson<ShoppingList>("/api/shopping-lists/current", memberCookie),
+  expectJson<ShoppingList>("/shopping-lists/current", ownerCookie),
+  expectJson<ShoppingList>("/shopping-lists/current", memberCookie),
 ]);
 const seededMealIds = new Set(
   ownerShoppingList.snapshot.plan.map(({ id }) => id),
