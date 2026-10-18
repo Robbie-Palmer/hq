@@ -25,6 +25,9 @@ const repository: WorkGraphApiRepository = {
   resolveWorkItemContext: unavailable,
   listWorkItemDeliveryEvidence: unavailable,
   getCompletionCandidate: unavailable,
+  putCompletionPolicyRevision: unavailable,
+  assignCompletionPolicy: unavailable,
+  evaluateCompletionCandidateIfConfigured: unavailable,
   listNotes: unavailable,
   listEvents: unavailable,
   listDependencies: unavailable,
@@ -71,6 +74,10 @@ const document = app.getOpenAPI31Document({
     },
   ],
   tags: [
+    {
+      name: "completion-policies",
+      description: "Owner policy for evidence-backed completion candidacy.",
+    },
     {
       name: "knowledge-scopes",
       description:

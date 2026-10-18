@@ -6,6 +6,7 @@ import {
   getTimersSnapshot,
   pauseTimer,
   resumeTimer,
+  setCookingTimerOwner,
   startCustomTimer,
   startTimer,
   subscribeTimers,
@@ -25,6 +26,7 @@ const INPUT = {
   label: "10 minutes",
   durationSeconds: 600,
 };
+const STORAGE_KEY = "cooking-timers:v2:test-user";
 
 describe("timerStore", () => {
   beforeEach(() => {
@@ -104,7 +106,7 @@ describe("timerStore", () => {
     startTimer(INPUT);
     dismissTimer(INPUT.id);
     expect(getTimersSnapshot()).toHaveLength(0);
-    expect(localStorage.getItem("cooking-timers:v1")).toBeNull();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("restarting an existing id replaces the timer", () => {
@@ -147,12 +149,27 @@ describe("timerStore", () => {
   });
 
   it("ignores malformed stored data", () => {
-    localStorage.setItem("cooking-timers:v1", '{"not":"an array"}');
+    localStorage.setItem(STORAGE_KEY, '{"not":"an envelope"}');
     expect(getTimersSnapshot()).toHaveLength(0);
 
     __resetTimerStoreForTests();
-    localStorage.setItem("cooking-timers:v1", '[{"id":42}]');
+    localStorage.setItem(
+      STORAGE_KEY,
+      '{"version":2,"userId":"test-user","timers":[{"id":42}]}',
+    );
     expect(getTimersSnapshot()).toHaveLength(0);
+  });
+
+  it("keeps timer snapshots isolated by user", () => {
+    setCookingTimerOwner("user-1");
+    startTimer(INPUT);
+
+    setCookingTimerOwner("user-2");
+    expect(getTimersSnapshot()).toHaveLength(0);
+    startTimer({ ...INPUT, id: "user-2-timer", label: "User two" });
+
+    setCookingTimerOwner("user-1");
+    expect(getTimersSnapshot().map((timer) => timer.id)).toEqual([INPUT.id]);
   });
 
   it("notifies subscribers on mutations and each ticking second", () => {

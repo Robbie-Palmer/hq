@@ -31,8 +31,10 @@ import {
   type AccountSummaryView,
   type AddCashFlowDecisionInput,
   type AddCommitmentInput,
+  type AddDecisionInterpretationInput,
   type AddForecastAssumptionInput,
   type AddPlannedExpenditureInput,
+  type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
   type AssetAllocationDataPoint,
   type AssetTrackerBackup,
@@ -47,6 +49,7 @@ import {
   buildRepository,
   type ClearAccountHistoryInput,
   type CreateAccountInput,
+  type CreateDecisionRecordInput,
   type CreateForecastAssumptionSetInput,
   type CreatePlanningCaseInput,
   type Currency,
@@ -101,6 +104,7 @@ import {
   previewAssetTrackerBackup,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
+  type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RecurringFlow,
   type SalaryHistoryRecord,
@@ -113,6 +117,7 @@ import {
   type SetAccountLiquidityInput,
   type SetExpectedReturnInput,
   type SetMortgageTermsInput,
+  type SetPlanningChecklistItemStatusInput,
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
@@ -215,6 +220,10 @@ interface AssetTrackerContextValue {
   clearIncomeHistory(): Promise<void>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<void>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<void>;
+  addPlanningChecklistItem(input: AddPlanningChecklistItemInput): Promise<void>;
+  setPlanningChecklistItemStatus(
+    input: SetPlanningChecklistItemStatusInput,
+  ): Promise<void>;
   addCommitment(input: AddCommitmentInput): Promise<void>;
   addCashFlowDecision(input: AddCashFlowDecisionInput): Promise<void>;
   updateCashFlowDecision(input: UpdateCashFlowDecisionInput): Promise<void>;
@@ -245,6 +254,13 @@ interface AssetTrackerContextValue {
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
+  createDecisionRecord(input: CreateDecisionRecordInput): Promise<void>;
+  recordDecisionObservation(
+    input: RecordDecisionObservationInput,
+  ): Promise<void>;
+  addDecisionInterpretation(
+    input: AddDecisionInterpretationInput,
+  ): Promise<void>;
   saveEmergencyFundPlan(input: SaveEmergencyFundPlanInput): Promise<void>;
   saveSpendingBaseline(input: SaveSpendingBaselineInput): Promise<void>;
   saveJobMoveScenario(input: SaveJobMoveScenarioInput): Promise<void>;
@@ -651,6 +667,10 @@ export function AssetTrackerProvider({
       addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
       createPlanningCase: (input) =>
         mutate((api) => api.createPlanningCase(input)),
+      addPlanningChecklistItem: (input) =>
+        mutate((api) => api.addPlanningChecklistItem(input)),
+      setPlanningChecklistItemStatus: (input) =>
+        mutate((api) => api.setPlanningChecklistItemStatus(input)),
       addCommitment: (input) => mutate((api) => api.addCommitment(input)),
       addCashFlowDecision: (input) =>
         mutate((api) => api.addCashFlowDecision(input)),
@@ -694,6 +714,12 @@ export function AssetTrackerProvider({
         mutate((api) => api.setWithdrawalRate({ rate })),
       saveMortgageScenario: (input) =>
         mutate((api) => api.saveMortgageScenario(input)),
+      createDecisionRecord: (input) =>
+        mutate((api) => api.createDecisionRecord(input)),
+      recordDecisionObservation: (input) =>
+        mutate((api) => api.recordDecisionObservation(input)),
+      addDecisionInterpretation: (input) =>
+        mutate((api) => api.addDecisionInterpretation(input)),
       saveEmergencyFundPlan: (input) =>
         mutate((api) => api.saveEmergencyFundPlan(input)),
       saveSpendingBaseline: (input) =>

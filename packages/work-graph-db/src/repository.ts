@@ -179,6 +179,11 @@ export interface ListWorkItemDeliveryEvidenceInput {
   readonly limit?: number;
 }
 
+export interface GitHubReconciliationTarget {
+  readonly repository: string;
+  readonly number: number;
+}
+
 export interface ListKnowledgeScopesInput {
   readonly kind?: KnowledgeScope["kind"];
   readonly includeArchived?: boolean;
@@ -2252,6 +2257,32 @@ export class WorkGraphRepository {
     }));
   }
 
+  async listGitHubReconciliationTargets(
+    limit = 100,
+  ): Promise<readonly GitHubReconciliationTarget[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+      throw new WorkGraphError(
+        "invalid_scheduling_scope",
+        "GitHub reconciliation target limit must be between 1 and 100.",
+      );
+    }
+    return this.db
+      .selectDistinct({
+        repository: workItemPullRequest.repository,
+        number: workItemPullRequest.number,
+      })
+      .from(workItemPullRequest)
+      .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
+      .where(
+        and(
+          eq(workItemPullRequest.role, "implementation"),
+          eq(workItem.lifecycle, "open"),
+        ),
+      )
+      .orderBy(workItemPullRequest.repository, workItemPullRequest.number)
+      .limit(limit);
+  }
+
   private async listCurrentDeliveryEvidenceInTransaction(
     transaction: DbTransaction,
     input: ListCurrentDeliveryEvidenceInput = {},
@@ -2502,6 +2533,20 @@ export class WorkGraphRepository {
         });
       return stored;
     });
+  }
+
+  async evaluateCompletionCandidateIfConfigured(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation | null> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    const [assignment] = await this.db
+      .select({ workItemId: workItemCompletionPolicy.workItemId })
+      .from(workItemCompletionPolicy)
+      .where(eq(workItemCompletionPolicy.workItemId, input.workItemId))
+      .limit(1);
+    return assignment === undefined
+      ? null
+      : this.evaluateCompletionCandidate(input);
   }
 
   async getCompletionCandidate(

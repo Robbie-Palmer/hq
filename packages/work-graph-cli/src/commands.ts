@@ -71,6 +71,9 @@ import {
   zPutWorkItemReferenceHeaders,
   zPutWorkItemSchedulingScopeHeaders,
   zPutWorkItemSchedulingScopePath,
+  zPutCompletionPolicyRevisionBody,
+  zPutCompletionPolicyRevisionPath,
+  zPutWorkItemCompletionPolicyBody,
   zRefreshPullRequestBody,
   zRefreshPullRequestHeaders,
   zRestoreKnowledgeScopeHeaders,
@@ -302,6 +305,45 @@ const createInput = z.object({
     "Project used for ticket ranking",
   ),
   idempotencyKey,
+});
+
+const completionPolicyPutInput = z.object({
+  policyId: positional(
+    zPutCompletionPolicyRevisionPath.shape.policyId,
+    "Policy ID",
+  ),
+  revision: positional(
+    zPutCompletionPolicyRevisionPath.shape.revision,
+    "Policy revision",
+  ),
+  requiredCiNames: described(
+    zPutCompletionPolicyRevisionBody.shape.requiredCiNames,
+    "Required CI names as JSON",
+  ),
+  productionEnvironments: described(
+    zPutCompletionPolicyRevisionBody.shape.productionEnvironments,
+    "Allowed production environments as JSON",
+  ),
+  createdAt: optional(
+    zPutCompletionPolicyRevisionBody.shape.createdAt,
+    "Policy creation timestamp; defaults to now",
+  ),
+});
+
+const completionPolicyAssignInput = z.object({
+  workItemId: positional(z.string().min(1), "Ticket ID"),
+  policyId: described(
+    zPutWorkItemCompletionPolicyBody.shape.policyId,
+    "Policy ID",
+  ),
+  policyRevision: described(
+    zPutWorkItemCompletionPolicyBody.shape.policyRevision,
+    "Policy revision",
+  ),
+  assignedAt: optional(
+    zPutWorkItemCompletionPolicyBody.shape.assignedAt,
+    "Assignment timestamp; defaults to now",
+  ),
 });
 
 const [putTextContextBodySchema, putArchitectureDecisionBodySchema] =
@@ -1156,6 +1198,32 @@ export const workGraphRouter = t.router({
         ? projection
         : renderCriticalPath(projection, query);
     }),
+  completionPolicy: t.router({
+    put: command
+      .meta({ description: "Create an immutable completion-policy revision" })
+      .input(completionPolicyPutInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putCompletionPolicyRevision(
+          input.policyId,
+          input.revision,
+          {
+            requiredCiNames: input.requiredCiNames,
+            productionEnvironments: input.productionEnvironments,
+            createdAt: input.createdAt ?? new Date().toISOString(),
+          },
+        ),
+      ),
+    assign: command
+      .meta({ description: "Assign a completion policy and evaluate current evidence" })
+      .input(completionPolicyAssignInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).putWorkItemCompletionPolicy(input.workItemId, {
+          policyId: input.policyId,
+          policyRevision: input.policyRevision,
+          assignedAt: input.assignedAt ?? new Date().toISOString(),
+        }),
+      ),
+  }),
   metadata: t.router({
     notes: command
       .meta({ description: "List ticket notes" })

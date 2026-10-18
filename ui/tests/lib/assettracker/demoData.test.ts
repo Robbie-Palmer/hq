@@ -375,6 +375,7 @@ describe("Asset Tracker demo-data adapter", () => {
         "Compare committed preparation work with two possible ways to add space.",
       labels: ["home", "2027"],
       targetDate: "2027-09-01",
+      checklistItems: [],
     });
     expect(repository.futureCashFlows).toEqual(
       expect.arrayContaining([
@@ -567,14 +568,24 @@ describe("Asset Tracker demo-data adapter", () => {
         }),
       }),
     );
-    expect(repository.decisionRecords).toContainEqual({
-      id: "five-year-fix-decision",
-      kind: "mortgage",
-      title: "Five-year fix",
-      scenarioId: "five-year-fix",
-      recordedAt: "2024-12-01",
-      status: "recorded",
-    });
+    expect(repository.decisionRecords).toContainEqual(
+      expect.objectContaining({
+        id: "five-year-fix-decision",
+        kind: "tracked",
+        question: "Should we take the five-year fixed mortgage?",
+        decisionDate: "2024-12-01",
+        selectedScenario: {
+          id: "five-year-fix",
+          label: "Five-year fix",
+        },
+        observations: [
+          expect.objectContaining({
+            checkpointId: "five-year-fix-year-one-balance",
+            actualAmount: -204_240,
+          }),
+        ],
+      }),
+    );
   });
 
   it("includes a sourced indexed history for the demo home", () => {

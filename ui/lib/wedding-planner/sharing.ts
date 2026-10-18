@@ -5,6 +5,7 @@ import {
 } from "wedding-planner-domain";
 import {
   type State as AccommodationState,
+  accommodationInventorySchema,
   accommodationPreferencesSchema,
   pairDecision as decision,
   setOwnBed as ownBed,
@@ -32,6 +33,7 @@ function editAccommodation(
     plan.accommodation = {
       ...snapshot,
       nights: snapshot.nights ?? 1,
+      inventory: accommodationInventorySchema.parse(snapshot.inventory ?? {}),
       guests: Object.fromEntries(
         snapshot.guests.map((guest) => [
           guest.id,

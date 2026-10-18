@@ -19,6 +19,8 @@
     "wrangler": "^4.137.0"
   },
   "dependencies": {
+    "github-client": "workspace:*",
+    "ts-base": "workspace:*",
     "work-graph-db": "workspace:*",
     "work-graph-domain": "workspace:*"
   }

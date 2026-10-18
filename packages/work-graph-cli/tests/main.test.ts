@@ -1238,6 +1238,58 @@ describe("Given agent-facing Work Graph commands", () => {
     });
   });
 
+  it("creates and assigns completion policies", async () => {
+    const createdAt = "2026-10-17T20:00:00.000Z";
+    const assignedAt = "2026-10-17T20:01:00.000Z";
+    const test = harness();
+    await test.run([
+      "completion-policy",
+      "put",
+      "--json",
+      JSON.stringify({
+        policyId: "hq-production",
+        revision: 1,
+        requiredCiNames: ["Work Graph Observer CI"],
+        productionEnvironments: ["production-work-graph"],
+        createdAt,
+      }),
+    ]);
+    await test.run([
+      "completion-policy",
+      "assign",
+      "work-graph-ticket",
+      "--policy-id",
+      "hq-production",
+      "--policy-revision",
+      "1",
+      "--assigned-at",
+      assignedAt,
+    ]);
+
+    expect(test.requests[0]).toMatchObject({
+      method: "PUT",
+      body: {
+        requiredCiNames: ["Work Graph Observer CI"],
+        productionEnvironments: ["production-work-graph"],
+        createdAt,
+      },
+    });
+    expect(test.requests[0]?.url.pathname).toBe(
+      "/root/api/completion-policies/hq-production/revisions/1",
+    );
+    expect(test.requests[1]).toMatchObject({
+      method: "PUT",
+      body: {
+        policyId: "hq-production",
+        policyRevision: 1,
+        assignedAt,
+      },
+    });
+    expect(test.requests[1]?.url.pathname).toBe(
+      "/root/api/work-items/work-graph-ticket/completion-policy",
+    );
+  });
+
   it("shows a work item with an encoded path identifier", async () => {
     const candidate = {
       id: UUID,

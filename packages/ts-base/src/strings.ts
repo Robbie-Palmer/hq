@@ -10,6 +10,17 @@ export const compareStrings = (left: string, right: string): number => {
 export const normalizeWhitespace = (value: string): string =>
   value.trim().replaceAll(/\s+/g, " ");
 
+export function base64UrlEncode(value: string | Uint8Array): string {
+  const bytes =
+    typeof value === "string" ? new TextEncoder().encode(value) : value;
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCodePoint(byte);
+  return btoa(binary)
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+}
+
 export function truncateWithEllipsis(
   value: string,
   maxLength: number,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { accommodationPlanSchema } from "./accommodation/preferences";
+import { validateAccommodationInventory } from "./accommodation/inventory";
 import {
   coupleSchema,
   validateCouples,
@@ -11,6 +12,7 @@ import {
   validateGuestDirectory,
 } from "./guest-directory";
 import { seatingPlanSchema } from "./seating/preferences";
+import { collaborativePlaylistSchema } from "./playlist";
 
 const weddingPlanSchema = z.object({
   version: z.literal(2),
@@ -21,6 +23,7 @@ const weddingPlanSchema = z.object({
   hosts: z.array(z.string().min(1)).min(1),
   accommodation: accommodationPlanSchema.prefault({}),
   seating: seatingPlanSchema,
+  playlist: collaborativePlaylistSchema.optional(),
   extensions: z.record(z.string(), z.unknown()).default({}),
 });
 export type WeddingPlan = z.infer<typeof weddingPlanSchema>;
@@ -71,6 +74,7 @@ function validateReferences(plan: WeddingPlan): void {
   }
   for (const paid of Object.values(plan.accommodation.cottage_paid_by_us_gbp))
     parseMoneyToMinorUnits(paid, "Already paid");
+  validateAccommodationInventory(plan);
 }
 
 function validateDismissedSuggestions(

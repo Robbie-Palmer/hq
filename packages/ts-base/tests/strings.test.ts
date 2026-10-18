@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  base64UrlEncode,
   compareStrings,
   isNonBlankString,
   normalizeWhitespace,
@@ -9,6 +10,12 @@ import {
 } from "../src/strings";
 
 describe("string helpers", () => {
+  it("encodes text and bytes as unpadded base64url", () => {
+    expect(base64UrlEncode("hello?")).toBe("aGVsbG8_");
+    expect(base64UrlEncode("✓")).toBe("4pyT");
+    expect(base64UrlEncode(Uint8Array.from([255, 254, 253]))).toBe("__79");
+  });
+
   it.each([
     ["text", true],
     [" text ", true],

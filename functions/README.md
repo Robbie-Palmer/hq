@@ -29,6 +29,17 @@ the browser can use the same session cookies and CSRF origin checks as auth.
 Proxies notification archive, read-state, and dismissal requests to the recipe
 API Worker using the same-origin session cookie.
 
+### `/api/wedding-playlists/*` - Collaborative wedding playlist
+
+Stores the playlist snapshot and append-only guest events in a dedicated,
+strongly consistent R2 bucket, so concurrent suggestions and votes never
+overwrite one another.
+Guest links use an invite token for suggestions and votes. The private planner
+keeps a separate admin token for moderation and syncing. The function hashes
+both tokens before storage, keeps guest identifiers out of guest responses, and
+uses the account's shared Cloudflare edge rule plus a per-contributor cap for
+abuse control.
+
 ### `_middleware.ts` - Markdown Content Negotiation
 
 Serves each page's agent-friendly Markdown twin from its canonical URL

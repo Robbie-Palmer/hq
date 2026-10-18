@@ -119,10 +119,12 @@ describe("recipe service worker", () => {
     worker.stores.set("recipe-assets-v4", new MemoryCache());
     worker.stores.set("recipe-images-v1", new MemoryCache());
     worker.stores.set("recipe-shell-v5", new MemoryCache());
+    worker.stores.set("recipe-assets-v5", new MemoryCache());
+    worker.stores.set("recipe-shell-v6", new MemoryCache());
 
     await worker.activate();
 
-    expect([...worker.stores.keys()]).toEqual(["recipe-shell-v5"]);
+    expect([...worker.stores.keys()]).toEqual(["recipe-shell-v6"]);
   });
 
   it("precaches the recipe shells and WebAssembly needed to render them", async () => {
@@ -133,6 +135,7 @@ describe("recipe service worker", () => {
       if (
         url.pathname === "/recipes" ||
         url.pathname === "/recipes/saved" ||
+        url.pathname === "/recipes/shopping" ||
         url.pathname === "/recipes/offline"
       ) {
         return new Response(
@@ -152,11 +155,12 @@ describe("recipe service worker", () => {
 
     await worker.install();
 
-    const shellKeys = await worker.stores.get("recipe-shell-v5")?.keys();
-    const assetKeys = await worker.stores.get("recipe-assets-v5")?.keys();
+    const shellKeys = await worker.stores.get("recipe-shell-v6")?.keys();
+    const assetKeys = await worker.stores.get("recipe-assets-v6")?.keys();
     expect(shellKeys?.map((key) => new URL(key.url).pathname)).toEqual([
       "/recipes",
       "/recipes/saved",
+      "/recipes/shopping",
       "/recipes/offline",
     ]);
     expect(assetKeys?.map((key) => new URL(key.url).pathname)).toContain(
@@ -188,6 +192,7 @@ describe("recipe service worker", () => {
       if (
         url.pathname === "/recipes" ||
         url.pathname === "/recipes/saved" ||
+        url.pathname === "/recipes/shopping" ||
         url.pathname === "/recipes/offline"
       ) {
         return new Response(`<main>${url.pathname}</main>`, {
@@ -214,6 +219,9 @@ describe("recipe service worker", () => {
     expect(
       await (await worker.request(navigation("/recipes/kitchen/"))).text(),
     ).toContain("/recipes/offline");
+    expect(
+      await (await worker.request(navigation("/recipes/shopping"))).text(),
+    ).toContain("/recipes/shopping");
     expect(
       await (await worker.request(navigation("/recipes/lentil-soup/"))).text(),
     ).toContain("/recipes/saved");
@@ -355,6 +363,7 @@ describe("recipe service worker", () => {
       if (
         url.pathname === "/recipes" ||
         url.pathname === "/recipes/saved" ||
+        url.pathname === "/recipes/shopping" ||
         url.pathname === "/recipes/offline"
       ) {
         if (

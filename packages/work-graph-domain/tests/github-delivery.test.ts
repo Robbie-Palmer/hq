@@ -76,6 +76,7 @@ describe("GitHub observation normalization", () => {
     "in_progress",
     "queued",
     "pending",
+    "waiting",
   ])("normalizes deployment state %s", (state) => {
     const delivery = githubDelivery("deployment_status");
     Object.assign(delivery.payload.deployment_status as object, {

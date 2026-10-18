@@ -11,6 +11,7 @@ import type {
   ShareMode,
   UnknownCostKind,
 } from "../values";
+import type { AccommodationInventory, StayRequirements } from "./inventory";
 
 export type { PairDecision, SharingLevel } from "../values";
 
@@ -40,6 +41,7 @@ export type Guest = Pick<
   charge_cap_exempt: boolean;
   free_stay_reasons: FreeStayReason[];
   include_partner_in_free_stay: boolean;
+  stay?: StayRequirements | null;
 };
 export type State = {
   nights?: number;
@@ -62,6 +64,7 @@ export type State = {
   max_cottage_spend_gbp: string;
   default_outside_cost_gbp: string;
   optimization_mode: OptimizationMode;
+  inventory?: AccommodationInventory;
 };
 export type PropertyPayment = {
   quoted_pence: number;

@@ -27,7 +27,9 @@ import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 const mocks = vi.hoisted(() => ({
   captureRecipeProductActivity: vi.fn(),
   getCurrentShoppingList: vi.fn(),
+  loadOfflineShoppingListSnapshot: vi.fn(),
   saveCurrentShoppingList: vi.fn(),
+  saveOfflineShoppingListSnapshot: vi.fn(),
   startNewShoppingList: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -52,6 +54,11 @@ vi.mock("@/lib/api/shopping-lists", async (importOriginal) => ({
   getCurrentShoppingList: mocks.getCurrentShoppingList,
   saveCurrentShoppingList: mocks.saveCurrentShoppingList,
   startNewShoppingList: mocks.startNewShoppingList,
+}));
+
+vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
+  loadOfflineShoppingListSnapshot: mocks.loadOfflineShoppingListSnapshot,
+  saveOfflineShoppingListSnapshot: mocks.saveOfflineShoppingListSnapshot,
 }));
 
 const emptySnapshot = { recipes: [], checked: [], extras: [], plan: [] };
@@ -79,7 +86,7 @@ async function waitForInstalledList() {
   await waitFor(
     () => {
       const saved = JSON.parse(
-        localStorage.getItem("recipe-shopping-list:v1") ?? "{}",
+        localStorage.getItem("recipe-shopping-list:v2:test-user") ?? "{}",
       ) as { listId?: string };
       expect(saved.listId).toBe(storedList.id);
     },
@@ -126,12 +133,65 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     localStorage.clear();
     statefulChildMounts = 0;
     vi.clearAllMocks();
+    mocks.loadOfflineShoppingListSnapshot.mockResolvedValue(null);
+    mocks.saveOfflineShoppingListSnapshot.mockResolvedValue({
+      status: "saved",
+      savedAt: 1,
+    });
     mocks.getCurrentShoppingList.mockResolvedValue(storedList);
     mocks.saveCurrentShoppingList.mockResolvedValue(storedList);
     mocks.startNewShoppingList.mockResolvedValue({
       ...storedList,
       id: "00000000-0000-4000-8000-000000000081",
     });
+  });
+
+  it("restores the scoped shopping snapshot when the network is unavailable", async () => {
+    const offlineList = {
+      ...storedList,
+      scope: {
+        type: "household" as const,
+        household: { id: "household-1", name: "Home" },
+      },
+      resourceId: "household-1",
+      snapshot: {
+        ...emptySnapshot,
+        extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+      },
+    };
+    mocks.loadOfflineShoppingListSnapshot.mockResolvedValue({
+      version: 2,
+      key: "shopping-list:user-1",
+      kind: "shopping-list",
+      scope: {
+        userId: "user-1",
+        householdId: "household-1",
+        resourceId: "household-1",
+      },
+      savedAt: 123,
+      shoppingList: offlineList,
+    });
+    mocks.getCurrentShoppingList.mockRejectedValue(new Error("offline"));
+
+    const { queryClient } = renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List ready</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List ready")).toBeInTheDocument();
+    expect(getShoppingListSnapshot().extras).toEqual([
+      { id: "extra-milk", text: "Milk", checked: false },
+    ]);
+    expect(
+      queryClient.getQueryState([
+        "recipes",
+        "private",
+        "user-1",
+        "shopping-list",
+      ])?.dataUpdatedAt,
+    ).toBe(123);
+    expect(mocks.saveOfflineShoppingListSnapshot).not.toHaveBeenCalled();
   });
 
   it("migrates an unscoped browser list into the server snapshot", async () => {
@@ -181,10 +241,12 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     ).toBe("1");
   });
 
-  it("saves a converted device-only plan when the server list is empty", async () => {
+  it("saves a converted scoped device-only plan when the server list is empty", async () => {
     localStorage.setItem(
-      "recipe-shopping-list:v1",
+      "recipe-shopping-list:v2:test-user",
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         recipes: [],
         checked: [],
         extras: [],
@@ -438,11 +500,14 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     act(() => {
       globalThis.dispatchEvent(
         new StorageEvent("storage", {
-          key: "recipe-shopping-list:v1",
+          key: "recipe-shopping-list:v2:test-user",
           newValue: JSON.stringify({
+            version: 2,
+            userId: "test-user",
             ...emptySnapshot,
             checked: ["garlic"],
             listId: storedList.id,
+            resourceId: storedList.resourceId,
           }),
         }),
       );
@@ -481,10 +546,13 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     act(() => {
       globalThis.dispatchEvent(
         new StorageEvent("storage", {
-          key: "recipe-shopping-list:v1",
+          key: "recipe-shopping-list:v2:test-user",
           newValue: JSON.stringify({
+            version: 2,
+            userId: "test-user",
             ...remoteList.snapshot,
             listId: storedList.id,
+            resourceId: storedList.resourceId,
           }),
         }),
       );
@@ -554,8 +622,10 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
   it("ignores browser storage owned by another shopping list", async () => {
     localStorage.setItem(
-      "recipe-shopping-list:v1",
+      "recipe-shopping-list:v2:test-user",
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         recipes: [{ slug: "private-recipe" }],
         checked: [],
         extras: [],
@@ -660,8 +730,10 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       recipes: [removedRecipe],
     };
     localStorage.setItem(
-      "recipe-shopping-list:v1",
+      "recipe-shopping-list:v2:test-user",
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         ...confirmed,
         recipes: [removedRecipe, localRecipe],
         listId: storedList.id,
@@ -737,7 +809,9 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       plan: [expect.objectContaining({ id: "meal-1" })],
     });
     expect(
-      JSON.parse(localStorage.getItem("recipe-shopping-list:v1") ?? "{}"),
+      JSON.parse(
+        localStorage.getItem("recipe-shopping-list:v2:test-user") ?? "{}",
+      ),
     ).toEqual(
       expect.objectContaining({
         extras: [expect.objectContaining({ text: "Milk" })],
@@ -794,7 +868,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
     await waitFor(() => {
       const stored = JSON.parse(
-        localStorage.getItem("recipe-shopping-list:v1") ?? "{}",
+        localStorage.getItem("recipe-shopping-list:v2:test-user") ?? "{}",
       ) as { listId?: string };
       expect(stored.listId).toBe(nextListId);
     });
@@ -924,7 +998,9 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     });
     await waitFor(() =>
       expect(
-        JSON.parse(localStorage.getItem("recipe-shopping-list:v1") ?? "{}"),
+        JSON.parse(
+          localStorage.getItem("recipe-shopping-list:v2:test-user") ?? "{}",
+        ),
       ).toEqual(expect.objectContaining({ listId: nextList.id })),
     );
 

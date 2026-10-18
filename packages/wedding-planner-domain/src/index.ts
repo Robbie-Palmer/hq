@@ -8,3 +8,4 @@ export * from "./seating-suggestions";
 export * from "./core/guest-profile";
 export * from "./guest-directory";
 export * from "./guest-export";
+export * from "./playlist";

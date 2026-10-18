@@ -83,6 +83,28 @@ describe("GithubClient", () => {
     ).resolves.toEqual({ items: [1, 2, 1, 2], pages: 2, complete: false });
   });
 
+  it("paginates a collection nested inside the response", async () => {
+    const fetch = vi
+      .fn<typeof globalThis.fetch>()
+      .mockResolvedValueOnce(Response.json({ workflow_runs: [1, 2] }))
+      .mockResolvedValueOnce(Response.json({ workflow_runs: [] }));
+    const client = new GithubClient("installation-token", {
+      userAgent: "test-client/1",
+      fetch,
+    });
+
+    await expect(
+      client.paginateResponseByPageNumber<
+        { workflow_runs: number[] },
+        number
+      >(
+        "/repos/acme/widgets/actions/runs",
+        (response) => response.workflow_runs,
+        { perPage: 2, query: { head_sha: "abc", status: "completed" } },
+      ),
+    ).resolves.toEqual({ items: [1, 2], pages: 2, complete: true });
+  });
+
   it("rejects pagination outside GitHub's bounds", async () => {
     const client = new GithubClient("installation-token", {
       userAgent: "test-client/1",

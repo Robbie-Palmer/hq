@@ -3,10 +3,12 @@
 import {
   ArrowRight,
   BedDouble,
+  Building2,
   Check,
   ChevronRight,
   Heart,
   House,
+  Music2,
   Search,
   Sparkles,
   Users,
@@ -70,6 +72,7 @@ import {
   type ShareMode,
   ShareModeSchema,
 } from "@/lib/wedding-planner/values";
+import { AccommodationInventoryEditor } from "./accommodation-inventory-editor";
 import { DataControls } from "./data-controls";
 import {
   EditorField as Field,
@@ -77,6 +80,7 @@ import {
   EditorToggle as Toggle,
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
+import { PlaylistEditor } from "./playlist-editor";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -137,12 +141,40 @@ const plannerSections = [
   { id: "bed_groups", label: "Bed groups", icon: BedDouble },
   { id: "guests", label: "Guests", icon: Users },
   { id: "sharing", label: "Sharing map", icon: Waypoints },
+  { id: "inventory", label: "Accommodation", icon: Building2 },
   { id: "plan", label: "Rooms & costs", icon: House },
   { id: "result", label: "Room plan", icon: Sparkles },
   { id: "tables", label: "Tables", icon: Users },
+  { id: "music", label: "Music", icon: Music2 },
 ] as const;
 
 type EditorView = (typeof plannerSections)[number]["id"];
+
+function InventoryView({
+  view,
+  state,
+  onUpdate,
+}: Readonly<{
+  view: EditorView;
+  state: WeddingPlanDraft | null;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+}>) {
+  if (view !== "inventory" || !state) return null;
+  return <AccommodationInventoryEditor state={state} onUpdate={onUpdate} />;
+}
+
+function PlaylistView({
+  view,
+  state,
+  onUpdate,
+}: Readonly<{
+  view: EditorView;
+  state: WeddingPlanDraft | null;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+}>) {
+  if (view !== "music" || !state) return null;
+  return <PlaylistEditor playlist={state.playlist} onUpdate={onUpdate} />;
+}
 
 function PlannerNavigation({
   view,
@@ -695,7 +727,7 @@ export function AccommodationEditor({
             <Heart size={18} fill="currentColor" />
           </span>
           <span>
-            Wedding planner <small>Rooms &amp; tables</small>
+            Wedding planner <small>Rooms, tables &amp; music</small>
           </span>
         </div>
         <span className="save-status">
@@ -713,14 +745,6 @@ export function AccommodationEditor({
           {state && (
             <DataControls hasData onImport={importPlan} onExport={exportPlan} />
           )}
-          <div className="sidebar-note">
-            <BedDouble size={19} />
-            <p>
-              <strong>Bridal suite</strong>
-              <br />
-              Reserved for the couple
-            </p>
-          </div>
         </aside>
         <main className="editor-main">
           {!loading && !state && (
@@ -761,6 +785,7 @@ export function AccommodationEditor({
               onCalculate={calculateTablePlan}
             />
           )}
+          <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
             <>
               <div className="page-heading">
@@ -1709,6 +1734,7 @@ export function AccommodationEditor({
               </div>
             </>
           )}
+          <InventoryView view={view} state={state} onUpdate={update} />
           {view === "plan" && state && (
             <>
               <div className="page-heading">

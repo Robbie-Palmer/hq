@@ -14,6 +14,7 @@ import {
   removeRecipe,
   savePlannedMeal,
   setRecipeServings,
+  setShoppingListOwner,
   subscribeShoppingList,
   toggleChecked,
   toggleExtra,
@@ -22,7 +23,7 @@ import {
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 // Mirrors the module's private persistence key.
-const STORAGE_KEY = "recipe-shopping-list:v1";
+const STORAGE_KEY = "recipe-shopping-list:v2:test-user";
 
 describe("shoppingListStore", () => {
   beforeEach(() => {
@@ -87,6 +88,8 @@ describe("shoppingListStore", () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         recipes: [{ slug: "risotto", servings: 2.6 }],
         checked: [],
         extras: [],
@@ -96,6 +99,18 @@ describe("shoppingListStore", () => {
     expect(getShoppingListSnapshot().recipes).toEqual([
       { slug: "risotto", servings: 3 },
     ]);
+  });
+
+  it("keeps shopping snapshots isolated by user", () => {
+    setShoppingListOwner("user-1");
+    addRecipe("risotto");
+
+    setShoppingListOwner("user-2");
+    expect(getShoppingListSnapshot().recipes).toEqual([]);
+    addRecipe("paella");
+
+    setShoppingListOwner("user-1");
+    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "risotto" }]);
   });
 
   it("installs a single shared storage listener regardless of subscriber count", () => {
@@ -180,6 +195,8 @@ describe("shoppingListStore", () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         recipes: [],
         checked: [],
         extras: [],
@@ -276,6 +293,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "x" }, { slug: "y" }],
           checked: [],
           extras: [],
@@ -288,6 +307,7 @@ describe("shoppingListStore", () => {
     expect(getShoppingListCacheIdentity()).toEqual({
       listId: "list-1",
       revision: "4",
+      resourceId: undefined,
     });
     expect(seen).toContainEqual({ count: 2, source: "storage" });
     unsub();
@@ -301,6 +321,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "foreign" }],
           checked: [],
           extras: [],
@@ -322,6 +344,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "other" }],
           checked: [],
           extras: [],
