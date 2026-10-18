@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyAddPlanningChecklistItem,
   applyCreatePlanningCase,
+  applyDeleteFutureCashFlow,
   applySetPlanningChecklistItemStatus,
 } from "@/lib/domain/assettracker/assetTrackerCommands";
 import {
@@ -344,6 +345,17 @@ describe("planning case checklists", () => {
       totalItems: 1,
       progressByCategory: [{ name: "Joinery", completed: 0, total: 1 }],
     });
+
+    const withoutVenue = applyDeleteFutureCashFlow(next, {
+      id: "venue-contract",
+    });
+    expect(
+      withoutVenue.planningCases
+        .find(({ id }) => id === "wedding-operations")
+        ?.checklistItems.find(({ id }) => id === "confirm-venue")
+        ?.financialLinks,
+    ).toEqual([]);
+    expect(() => buildRepository(withoutVenue)).not.toThrow();
   });
 
   it("rejects orphan dependencies and financial links", () => {
@@ -442,6 +454,23 @@ describe("planning case checklists", () => {
         repository.decisionRecords,
       ),
     ).toThrow(/unknown decision/);
+    expect(() =>
+      validateAssetTrackerPlanningCaseChecklist(
+        withLink("reconciliation", "legacy-mortgage-decision"),
+        repository.futureCashFlows,
+        [
+          ...repository.decisionRecords,
+          {
+            id: "legacy-mortgage-decision",
+            kind: "mortgage",
+            title: "Legacy mortgage choice",
+            scenarioId: "legacy-scenario",
+            recordedAt: "2026-08-01",
+            status: "recorded",
+          },
+        ],
+      ),
+    ).toThrow(/unknown reconciliation/);
   });
 
   it("summarizes receipts, reversals, and inactive records without double counting", () => {

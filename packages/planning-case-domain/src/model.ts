@@ -92,7 +92,7 @@ export const PlanningChecklistItemSchema = z
       if (
         previous != null &&
         current != null &&
-        previous.changedAt > current.changedAt
+        Date.parse(previous.changedAt) > Date.parse(current.changedAt)
       ) {
         context.addIssue({
           code: "custom",

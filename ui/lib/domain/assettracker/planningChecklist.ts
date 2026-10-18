@@ -215,6 +215,17 @@ type ChecklistReferenceIndex = {
   reconciliationIds: ReadonlySet<string>;
 };
 
+function financialLinkExists(
+  link: ChecklistFinancialLink,
+  index: ChecklistReferenceIndex,
+): boolean {
+  if (link.kind === "payment_action")
+    return index.paymentActionIds.has(link.recordId);
+  if (link.kind === "reconciliation")
+    return index.reconciliationIds.has(link.recordId);
+  return index.records.get(link.recordId)?.kind === link.kind;
+}
+
 function validateFinancialLink(
   item: PlanningChecklistItem,
   link: ChecklistFinancialLink,
@@ -254,8 +265,29 @@ function checklistReferenceIndex(
         ),
       ),
     ),
-    reconciliationIds: new Set(decisionRecords.map((record) => record.id)),
+    reconciliationIds: new Set(
+      decisionRecords
+        .filter((record) => record.kind === "tracked")
+        .map((record) => record.id),
+    ),
   };
+}
+
+export function retainKnownAssetTrackerChecklistLinks(
+  planningCases: readonly PlanningCase[],
+  records: readonly FutureCashFlow[],
+  decisionRecords: readonly FinancialDecisionRecord[],
+): PlanningCase[] {
+  const index = checklistReferenceIndex(records, decisionRecords);
+  return planningCases.map((planningCase) => ({
+    ...planningCase,
+    checklistItems: planningCase.checklistItems.map((item) => ({
+      ...item,
+      financialLinks: item.financialLinks.filter((link) =>
+        financialLinkExists(link, index),
+      ),
+    })),
+  }));
 }
 
 export function buildPlanningCaseView(

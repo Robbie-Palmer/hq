@@ -113,4 +113,45 @@ describe("planning case model", () => {
       ),
     ).toThrow(/chronological/);
   });
+
+  it("orders status history by instant across offsets and fractional seconds", () => {
+    expect(() =>
+      PlanningChecklistItemSchema.parse(
+        item({
+          status: "complete",
+          statusHistory: [
+            {
+              status: "not_started",
+              changedAt: "2026-08-01T10:00:00+02:00",
+              changedBy: "Alex",
+            },
+            {
+              status: "complete",
+              changedAt: "2026-08-01T09:00:00Z",
+              changedBy: "Sam",
+            },
+          ],
+        }),
+      ),
+    ).not.toThrow();
+    expect(() =>
+      PlanningChecklistItemSchema.parse(
+        item({
+          status: "complete",
+          statusHistory: [
+            {
+              status: "not_started",
+              changedAt: "2026-08-01T09:00:00.500Z",
+              changedBy: "Alex",
+            },
+            {
+              status: "complete",
+              changedAt: "2026-08-01T09:00:00Z",
+              changedBy: "Sam",
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/chronological/);
+  });
 });

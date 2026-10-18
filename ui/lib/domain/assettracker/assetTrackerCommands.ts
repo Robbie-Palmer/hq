@@ -80,7 +80,10 @@ import {
   type SaveMortgageScenarioInput,
   SaveMortgageScenarioInputSchema,
 } from "./mortgageCalculator";
-import { validateAssetTrackerPlanningCaseChecklist } from "./planningChecklist";
+import {
+  retainKnownAssetTrackerChecklistLinks,
+  validateAssetTrackerPlanningCaseChecklist,
+} from "./planningChecklist";
 import {
   flowOccurrenceDates,
   monthlyAmount,
@@ -1323,12 +1326,18 @@ export function applyDeletePlannedExpenditure(
       `No planned expenditure found with ID ${parsed.id}`,
     );
   }
+  const futureCashFlows = data.futureCashFlows.filter(
+    (record) => record.id !== parsed.id,
+  );
   return {
     ...data,
     plannedExpenditures,
-    futureCashFlows: data.futureCashFlows.filter(
-      (record) => record.id !== parsed.id,
+    planningCases: retainKnownAssetTrackerChecklistLinks(
+      data.planningCases,
+      futureCashFlows,
+      data.decisionRecords ?? [],
     ),
+    futureCashFlows,
     ownership: {
       ...data.ownership,
       futureCashFlows: Object.fromEntries(
@@ -1892,9 +1901,17 @@ export function applyDeleteFutureCashFlow(
       `"${dependent.name}" still references this future cash flow`,
     );
   }
+  const futureCashFlows = data.futureCashFlows.filter(
+    ({ id }) => id !== parsed.id,
+  );
   return {
     ...data,
-    futureCashFlows: data.futureCashFlows.filter(({ id }) => id !== parsed.id),
+    planningCases: retainKnownAssetTrackerChecklistLinks(
+      data.planningCases,
+      futureCashFlows,
+      data.decisionRecords ?? [],
+    ),
+    futureCashFlows,
     plannedExpenditures: data.plannedExpenditures.filter(
       ({ id }) => id !== parsed.id,
     ),
