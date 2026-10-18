@@ -26,6 +26,7 @@ const app = createWorkGraphApp({
   putCompletionPolicyRevision: unavailable,
   assignCompletionPolicy: unavailable,
   evaluateCompletionCandidateIfConfigured: unavailable,
+  evaluateCompletionCandidateAndReleaseIfConfigured: unavailable,
   listNotes: unavailable,
   listEvents: unavailable,
   listDependencies: unavailable,

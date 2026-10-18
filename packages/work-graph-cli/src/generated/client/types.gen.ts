@@ -184,6 +184,7 @@ export type CompletionPolicyRevision = {
     revision: number;
     requiredCiNames: Array<string>;
     productionEnvironments: Array<string>;
+    automaticRelease: boolean;
     createdAt: string;
 };
 
@@ -582,6 +583,7 @@ export type PutCompletionPolicyRevisionData = {
     body: {
         requiredCiNames: Array<string>;
         productionEnvironments: Array<string>;
+        automaticRelease?: boolean;
         createdAt: string;
     };
     path: {

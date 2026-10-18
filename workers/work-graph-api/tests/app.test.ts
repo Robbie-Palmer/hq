@@ -161,6 +161,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   putCompletionPolicyRevision: vi.fn(async (input) => input),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
+  evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -969,6 +970,7 @@ describe("Given work items with derived readiness", () => {
         body: JSON.stringify({
           requiredCiNames: ["Work Graph Observer CI"],
           productionEnvironments: ["production-work-graph"],
+          automaticRelease: false,
           createdAt,
         }),
       },
@@ -992,6 +994,7 @@ describe("Given work items with derived readiness", () => {
       revision: 1,
       requiredCiNames: ["Work Graph Observer CI"],
       productionEnvironments: ["production-work-graph"],
+      automaticRelease: false,
       createdAt,
     });
     expect(assignment.status).toBe(200);
@@ -1001,7 +1004,7 @@ describe("Given work items with derived readiness", () => {
       policyRevision: 1,
       assignedAt,
     });
-    expect(repository.evaluateCompletionCandidateIfConfigured).toHaveBeenCalledWith(
+    expect(repository.evaluateCompletionCandidateAndReleaseIfConfigured).toHaveBeenCalledWith(
       expect.objectContaining({ workItemId: "ticket" }),
     );
   });

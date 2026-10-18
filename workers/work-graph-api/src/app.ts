@@ -12,6 +12,7 @@ import {
   type ArchiveKnowledgeScopeInput,
   type AssignCompletionPolicyInput,
   type ClaimWorkItemInput,
+  type CompletionPolicyEvaluationResult,
   type CreateAttentionRequestInput,
   type CreateAttentionRequestResult,
   type CreateNoteInput,
@@ -448,6 +449,7 @@ const completionPolicyRevisionSchema = z
     revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
     requiredCiNames: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
     productionEnvironments: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
+    automaticRelease: z.boolean(),
     createdAt: timestampSchema,
   })
   .openapi("CompletionPolicyRevision");
@@ -458,7 +460,7 @@ const completionPolicyRevisionPathSchema = z.object({
 const putCompletionPolicyRevisionBodySchema = completionPolicyRevisionSchema.omit({
   policyId: true,
   revision: true,
-});
+}).extend({ automaticRelease: z.boolean().default(false) });
 const workItemCompletionPolicySchema = z
   .object({
     workItemId: identifierSchema,
@@ -2233,6 +2235,9 @@ export interface WorkGraphApiRepository {
   evaluateCompletionCandidateIfConfigured(
     input: EvaluateCompletionCandidateInput,
   ): Promise<StoredCompletionCandidateEvaluation | null>;
+  evaluateCompletionCandidateAndReleaseIfConfigured(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<CompletionPolicyEvaluationResult | null>;
   resolveWorkItemContext(
     workItemId: string,
   ): Promise<readonly ResolvedWorkItemContext[]>;
@@ -2910,7 +2915,7 @@ export const createWorkGraphApp = (
     const { workItemId } = context.req.valid("param");
     const assignment = { workItemId, ...context.req.valid("json") };
     await repository.assignCompletionPolicy(assignment);
-    await repository.evaluateCompletionCandidateIfConfigured({
+    await repository.evaluateCompletionCandidateAndReleaseIfConfigured({
       id: assignmentEvaluationId(
         assignment.workItemId,
         assignment.policyId,

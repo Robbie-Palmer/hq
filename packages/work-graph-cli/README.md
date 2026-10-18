@@ -280,8 +280,12 @@ REST collection.
 
 `completion-policy put` creates an immutable policy revision.
 `completion-policy assign` assigns a revision to a ticket and immediately
-evaluates its current evidence. Later GitHub deliveries reevaluate assigned
-tickets without changing their lifecycle.
+evaluates its current evidence. By default, later GitHub deliveries update the
+candidate without changing lifecycle. Pass `--automatic-release` when creating
+a revision to let Work Graph release a matching ticket that has no active
+lease. Every linked `implementation` pull request must have merge, required CI,
+and allowed production deployment evidence. Automatic release also requires
+finished children and no unresolved blocking attention.
 
 `pr refresh` and `pr link` remain available as low-level automation commands.
 `pr refresh` records the latest observed snapshot independently of any ticket
@@ -293,8 +297,9 @@ The `metadata` commands expose the complete stored history needed to resume or
 audit one work item. Notes include their content, dependency results contain
 current incoming and outgoing edges, leases retain every worker and outcome,
 and attention results include resolutions. Decomposition, cancellation, and
-release results come from the immutable event log. Release events include both
-merge and deployment evidence.
+release results come from the immutable event log. Worker release events include
+merge and deployment evidence. Automatic release events record the system
+actor, policy revision, candidate evaluation, and stored evidence identities.
 
 `note` records immutable working history. It uses the ticket's active lease by
 default; pass the current lease ID and fencing epoch together when a script

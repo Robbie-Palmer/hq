@@ -61,6 +61,7 @@ const policy: CompletionPolicyRevision = {
   revision: 3,
   requiredCiNames: ["verify"],
   productionEnvironments: ["production"],
+  automaticRelease: false,
   createdAt: "2026-09-22T09:00:00.000Z",
 };
 

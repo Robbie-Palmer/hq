@@ -1251,6 +1251,7 @@ describe("Given agent-facing Work Graph commands", () => {
         revision: 1,
         requiredCiNames: ["Work Graph Observer CI"],
         productionEnvironments: ["production-work-graph"],
+        automaticRelease: true,
         createdAt,
       }),
     ]);
@@ -1271,6 +1272,7 @@ describe("Given agent-facing Work Graph commands", () => {
       body: {
         requiredCiNames: ["Work Graph Observer CI"],
         productionEnvironments: ["production-work-graph"],
+        automaticRelease: true,
         createdAt,
       },
     });

@@ -198,6 +198,7 @@ export const normalizeCompletionPolicyRevision = (
     requiredCiNames.some((name) => name.length === 0) ||
     productionEnvironments.length === 0 ||
     productionEnvironments.some((environment) => environment.length === 0) ||
+    typeof policy.automaticRelease !== "boolean" ||
     !Number.isFinite(Date.parse(policy.createdAt))
   ) {
     throw new WorkGraphError(
@@ -210,6 +211,7 @@ export const normalizeCompletionPolicyRevision = (
     revision: policy.revision,
     requiredCiNames,
     productionEnvironments,
+    automaticRelease: policy.automaticRelease,
     createdAt: new Date(policy.createdAt).toISOString(),
   };
 };

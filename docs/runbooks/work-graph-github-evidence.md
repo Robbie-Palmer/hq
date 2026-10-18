@@ -97,11 +97,12 @@ repository file.
 Use one real `hq` change to verify the full path:
 
 Before the pilot, create an immutable owner policy and assign it to the ticket.
-Assignment evaluates evidence that has already arrived; later webhook and
-reconciliation deliveries reevaluate the same ticket automatically.
+Assignment evaluates evidence that has already arrived. Later webhook and
+reconciliation deliveries reevaluate the same ticket and may release it when
+the policy opts in.
 
 ```bash
-work-graph completion-policy put --json '{"policyId":"hq-production","revision":1,"requiredCiNames":["Work Graph Observer CI"],"productionEnvironments":["production-work-graph"]}'
+work-graph completion-policy put --json '{"policyId":"hq-production","revision":1,"requiredCiNames":["Work Graph Observer CI"],"productionEnvironments":["production-work-graph"],"automaticRelease":true}'
 work-graph completion-policy assign <ticket> --policy-id hq-production --policy-revision 1
 ```
 
@@ -114,10 +115,11 @@ with different contents is rejected.
 3. Confirm completed CI evidence for the accepted commit and successful
    production deployment evidence for the merge commit. A queued or `waiting`
    deployment may appear first and is not sufficient for completion.
-4. Confirm Work Graph emits a completion candidate only after every configured
-   completion-policy requirement is satisfied.
-5. Verify the production result, then release the ticket with the merged PR and
-   deployment URLs as evidence.
+4. Confirm Work Graph releases the ticket only after every linked implementation
+   pull request and configured policy requirement is satisfied.
+5. Inspect `work-graph metadata releases <ticket>`. The event must contain the
+   policy revision, candidate evaluation ID, and stored evidence IDs.
 
-Webhook evidence never changes ticket lifecycle by itself. A human or agent
-still verifies production and performs the fenced release operation.
+An active worker lease keeps lifecycle control with that worker. Automatic
+evaluation may mark the ticket as a candidate, but it does not end, steal, or
+bypass the lease. Policies without `automaticRelease` also remain candidate-only.

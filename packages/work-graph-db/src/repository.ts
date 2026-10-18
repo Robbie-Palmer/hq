@@ -166,6 +166,18 @@ export interface EvaluateCompletionCandidateInput {
   readonly evaluatedAt: string;
 }
 
+export type AutomaticReleaseOutcome =
+  | "released"
+  | "automatic_release_disabled"
+  | "completion_requirements_not_met"
+  | "active_lease"
+  | "already_terminal";
+
+export interface CompletionPolicyEvaluationResult {
+  readonly evaluation: StoredCompletionCandidateEvaluation;
+  readonly automaticReleaseOutcome: AutomaticReleaseOutcome;
+}
+
 export interface ListCurrentDeliveryEvidenceInput {
   readonly repository?: string;
   readonly commitSha?: string;
@@ -2095,6 +2107,9 @@ export class WorkGraphRepository {
   ): Promise<DeliveryEvidenceObservation> {
     const normalized = normalizeEvidenceObservation(input);
     return this.db.transaction(async (transaction) => {
+      if (options.projectCurrent !== false) {
+        await this.lockEventSequence(transaction);
+      }
       const [delivery] = await transaction
         .select({ provider: externalDelivery.provider })
         .from(externalDelivery)
@@ -2371,7 +2386,12 @@ export class WorkGraphRepository {
   async assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void> {
     requireIdentifier(input.workItemId, "invalid_work_item_id");
     await this.db.transaction(async (transaction) => {
-      await this.requireGraphWorkItem(transaction, input.workItemId);
+      const [item] = await transaction
+        .select({ id: workItem.id })
+        .from(workItem)
+        .where(eq(workItem.id, input.workItemId))
+        .for("update");
+      if (!item) throw workItemNotFound(input.workItemId);
       const assignedAt = new Date(input.assignedAt);
       if (!Number.isFinite(assignedAt.getTime())) {
         throw new WorkGraphError(
@@ -2402,137 +2422,9 @@ export class WorkGraphRepository {
         "A completion candidate evaluation ID must be a UUID.",
       );
     }
-    return this.db.transaction(async (transaction) => {
-      const item = await this.requireGraphWorkItem(transaction, input.workItemId);
-      const [assignedPolicy] = await transaction
-        .select({ policy: completionPolicyRevision })
-        .from(workItemCompletionPolicy)
-        .innerJoin(
-          completionPolicyRevision,
-          and(
-            eq(
-              completionPolicyRevision.policyId,
-              workItemCompletionPolicy.policyId,
-            ),
-            eq(
-              completionPolicyRevision.revision,
-              workItemCompletionPolicy.policyRevision,
-            ),
-          ),
-        )
-        .where(eq(workItemCompletionPolicy.workItemId, item.id))
-        .limit(1);
-      if (!assignedPolicy) {
-        throw new WorkGraphError(
-          "invalid_completion_policy",
-          `Work item ${item.id} has no completion policy.`,
-        );
-      }
-      const implementationPullRequests = (
-        await transaction
-          .select({ pullRequest })
-          .from(workItemPullRequest)
-          .innerJoin(
-            pullRequest,
-            and(
-              eq(pullRequest.repository, workItemPullRequest.repository),
-              eq(pullRequest.number, workItemPullRequest.number),
-            ),
-          )
-          .where(
-            and(
-              eq(workItemPullRequest.workItemId, item.id),
-              eq(workItemPullRequest.role, "implementation"),
-            ),
-          )
-      ).map(({ pullRequest: stored }) => ({
-        ...stored,
-        observedAt: stored.observedAt.toISOString(),
-      }));
-      const evidence = await this.listCurrentDeliveryEvidenceInTransaction(
-        transaction,
-      );
-      const [unfinishedChild] = await transaction
-        .select({ id: workItem.id })
-        .from(workItemHierarchy)
-        .innerJoin(workItem, eq(workItem.id, workItemHierarchy.childWorkItemId))
-        .where(
-          and(
-            eq(workItemHierarchy.parentWorkItemId, item.id),
-            eq(workItem.lifecycle, "open"),
-          ),
-        )
-        .limit(1);
-      const [blockingAttention] = await transaction
-        .select({ id: attentionRequest.id })
-        .from(attentionRequest)
-        .leftJoin(
-          attentionResolution,
-          eq(attentionResolution.attentionRequestId, attentionRequest.id),
-        )
-        .where(
-          and(
-            eq(attentionRequest.workItemId, item.id),
-            eq(attentionRequest.blocking, true),
-            isNull(attentionResolution.id),
-          ),
-        )
-        .limit(1);
-      const evaluated = evaluateDomainCompletionCandidate({
-        workItemId: item.id,
-        policy: {
-          ...assignedPolicy.policy,
-          createdAt: assignedPolicy.policy.createdAt.toISOString(),
-        },
-        implementationPullRequests,
-        evidence,
-        hasUnfinishedChildren: unfinishedChild !== undefined,
-        hasUnresolvedBlockingAttention: blockingAttention !== undefined,
-        evaluatedAt: input.evaluatedAt,
-      });
-      await transaction
-        .insert(completionCandidateEvaluation)
-        .values({
-          id: input.id,
-          ...evaluated,
-          reasons: evaluated.reasons,
-          evidenceObservationIds: [...evaluated.evidenceObservationIds],
-          evaluatedAt: new Date(evaluated.evaluatedAt),
-        })
-        .onConflictDoNothing();
-      const stored = await this.requireCompletionCandidateEvaluation(
-        transaction,
-        input.id,
-      );
-      if (
-        completionCandidateFingerprint(stored) !==
-        completionCandidateFingerprint(evaluated)
-      ) {
-        throw new WorkGraphError(
-          "duplicate_completion_candidate",
-          `Completion candidate evaluation ${input.id} is already used.`,
-        );
-      }
-      await transaction
-        .insert(workItemCompletionCandidate)
-        .values({
-          workItemId: item.id,
-          evaluationId: input.id,
-          projectedAt: new Date(evaluated.evaluatedAt),
-        })
-        .onConflictDoUpdate({
-          target: workItemCompletionCandidate.workItemId,
-          set: {
-            evaluationId: input.id,
-            projectedAt: new Date(evaluated.evaluatedAt),
-          },
-          setWhere: lte(
-            workItemCompletionCandidate.projectedAt,
-            new Date(evaluated.evaluatedAt),
-          ),
-        });
-      return stored;
-    });
+    return this.db.transaction((transaction) =>
+      this.evaluateCompletionCandidateInTransaction(transaction, input),
+    );
   }
 
   async evaluateCompletionCandidateIfConfigured(
@@ -2547,6 +2439,361 @@ export class WorkGraphRepository {
     return assignment === undefined
       ? null
       : this.evaluateCompletionCandidate(input);
+  }
+
+  async evaluateCompletionCandidateAndReleaseIfConfigured(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<CompletionPolicyEvaluationResult | null> {
+    if (!UUID_PATTERN.test(input.id)) {
+      throw new WorkGraphError(
+        "invalid_completion_candidate",
+        "A completion candidate evaluation ID must be a UUID.",
+      );
+    }
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+
+    return this.db.transaction((transaction) =>
+      this.evaluateCompletionCandidateAndReleaseInTransaction(
+        transaction,
+        input,
+      ),
+    );
+  }
+
+  private async evaluateCompletionCandidateAndReleaseInTransaction(
+    transaction: DbTransaction,
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<CompletionPolicyEvaluationResult | null> {
+    // Evidence projection, attention, graph mutations, worker claims, policy
+    // assignment, and lifecycle changes all meet at these locks.
+    await this.lockEventSequence(transaction);
+    await this.lockGraphSnapshot(transaction);
+    const [lockedItem] = await transaction
+      .select({ lifecycle: workItem.lifecycle })
+      .from(workItem)
+      .where(eq(workItem.id, input.workItemId))
+      .for("update");
+    if (!lockedItem) throw workItemNotFound(input.workItemId);
+
+    const policy = await this.automaticReleasePolicy(transaction, input.workItemId);
+    if (!policy) return null;
+    if (lockedItem.lifecycle !== "open") {
+      return this.replayTerminalCompletionEvaluation(transaction, input.id);
+    }
+
+    const evaluation = await this.evaluateCompletionCandidateInTransaction(
+      transaction,
+      input,
+    );
+    if (!policy.automaticRelease) {
+      return {
+        evaluation,
+        automaticReleaseOutcome: "automatic_release_disabled",
+      };
+    }
+    if (!evaluation.candidate) {
+      return {
+        evaluation,
+        automaticReleaseOutcome: "completion_requirements_not_met",
+      };
+    }
+    return this.releaseAutomaticCompletionCandidate(
+      transaction,
+      input.workItemId,
+      evaluation,
+    );
+  }
+
+  private async automaticReleasePolicy(
+    transaction: DbTransaction,
+    workItemId: string,
+  ): Promise<{ readonly automaticRelease: boolean } | null> {
+    const [policy] = await transaction
+      .select({ automaticRelease: completionPolicyRevision.automaticRelease })
+      .from(workItemCompletionPolicy)
+      .innerJoin(
+        completionPolicyRevision,
+        and(
+          eq(
+            completionPolicyRevision.policyId,
+            workItemCompletionPolicy.policyId,
+          ),
+          eq(
+            completionPolicyRevision.revision,
+            workItemCompletionPolicy.policyRevision,
+          ),
+        ),
+      )
+      .where(eq(workItemCompletionPolicy.workItemId, workItemId))
+      .limit(1);
+    return policy ?? null;
+  }
+
+  private async replayTerminalCompletionEvaluation(
+    transaction: DbTransaction,
+    evaluationId: string,
+  ): Promise<CompletionPolicyEvaluationResult | null> {
+    const [existing] = await transaction
+      .select({ id: completionCandidateEvaluation.id })
+      .from(completionCandidateEvaluation)
+      .where(eq(completionCandidateEvaluation.id, evaluationId))
+      .limit(1);
+    if (!existing) return null;
+    return {
+      evaluation: await this.requireCompletionCandidateEvaluation(
+        transaction,
+        evaluationId,
+      ),
+      automaticReleaseOutcome: "already_terminal",
+    };
+  }
+
+  private async releaseAutomaticCompletionCandidate(
+    transaction: DbTransaction,
+    workItemId: string,
+    evaluation: StoredCompletionCandidateEvaluation,
+  ): Promise<CompletionPolicyEvaluationResult> {
+    const releasedAt = await readDatabaseClock(transaction);
+    await this.expireLeasesForAutomaticRelease(
+      transaction,
+      workItemId,
+      releasedAt,
+    );
+    const [currentLease] = await transaction
+      .select({ id: lease.id })
+      .from(lease)
+      .where(and(eq(lease.workItemId, workItemId), isNull(lease.endedAt)))
+      .limit(1);
+    if (currentLease) {
+      return { evaluation, automaticReleaseOutcome: "active_lease" };
+    }
+
+    const evidence = await this.automaticReleaseEvidence(
+      transaction,
+      evaluation.evidenceObservationIds,
+    );
+    const updated = await transaction
+      .update(workItem)
+      .set({ lifecycle: "released" })
+      .where(
+        and(eq(workItem.id, workItemId), eq(workItem.lifecycle, "open")),
+      )
+      .returning({ id: workItem.id });
+    if (updated.length !== 1) {
+      throw new WorkGraphError(
+        "work_item_already_terminal",
+        `Work item ${workItemId} is already terminal.`,
+      );
+    }
+    await this.appendEvent(transaction, {
+      type: "work_item.lifecycle_changed",
+      workItemId,
+      occurredAt: releasedAt,
+      data: {
+        from: "open",
+        to: "released",
+        actor: "completion-policy",
+        policyId: evaluation.policyId,
+        policyRevision: evaluation.policyRevision,
+        completionCandidateEvaluationId: evaluation.id,
+        evidenceObservationIds: [...evaluation.evidenceObservationIds],
+        mergeEvidence: evidence
+          .filter(({ kind }) => kind === "pull_request")
+          .map(({ sourceUrl }) => sourceUrl),
+        deploymentEvidence: evidence
+          .filter(({ kind }) => kind === "deployment")
+          .map(({ sourceUrl }) => sourceUrl),
+      },
+    });
+    return { evaluation, automaticReleaseOutcome: "released" };
+  }
+
+  private async expireLeasesForAutomaticRelease(
+    transaction: DbTransaction,
+    workItemId: string,
+    releasedAt: Date,
+  ): Promise<void> {
+    const expiredLeases = await transaction
+      .update(lease)
+      .set({ endedAt: releasedAt, outcome: "expired" })
+      .where(
+        and(
+          eq(lease.workItemId, workItemId),
+          isNull(lease.endedAt),
+          lte(lease.expiresAt, releasedAt),
+        ),
+      )
+      .returning();
+    for (const expiredLease of expiredLeases) {
+      await this.appendEvent(transaction, {
+        type: "lease.ended",
+        workItemId,
+        occurredAt: releasedAt,
+        data: {
+          leaseId: expiredLease.id,
+          epoch: expiredLease.epoch,
+          workerId: expiredLease.workerId,
+          outcome: expiredLease.outcome,
+        },
+      });
+    }
+  }
+
+  private async automaticReleaseEvidence(
+    transaction: DbTransaction,
+    evidenceObservationIds: readonly string[],
+  ): Promise<
+    readonly {
+      readonly id: string;
+      readonly kind: DeliveryEvidenceKind;
+      readonly sourceUrl: string;
+    }[]
+  > {
+    if (evidenceObservationIds.length === 0) return [];
+    return transaction
+      .select({
+        id: deliveryEvidenceObservation.id,
+        kind: deliveryEvidenceObservation.kind,
+        sourceUrl: deliveryEvidenceObservation.sourceUrl,
+      })
+      .from(deliveryEvidenceObservation)
+      .where(inArray(deliveryEvidenceObservation.id, evidenceObservationIds))
+      .orderBy(deliveryEvidenceObservation.id);
+  }
+
+  private async evaluateCompletionCandidateInTransaction(
+    transaction: DbTransaction,
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation> {
+    const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+    const [assignedPolicy] = await transaction
+      .select({ policy: completionPolicyRevision })
+      .from(workItemCompletionPolicy)
+      .innerJoin(
+        completionPolicyRevision,
+        and(
+          eq(
+            completionPolicyRevision.policyId,
+            workItemCompletionPolicy.policyId,
+          ),
+          eq(
+            completionPolicyRevision.revision,
+            workItemCompletionPolicy.policyRevision,
+          ),
+        ),
+      )
+      .where(eq(workItemCompletionPolicy.workItemId, item.id))
+      .limit(1);
+    if (!assignedPolicy) {
+      throw new WorkGraphError(
+        "invalid_completion_policy",
+        `Work item ${item.id} has no completion policy.`,
+      );
+    }
+    const implementationPullRequests = (
+      await transaction
+        .select({ pullRequest })
+        .from(workItemPullRequest)
+        .innerJoin(
+          pullRequest,
+          and(
+            eq(pullRequest.repository, workItemPullRequest.repository),
+            eq(pullRequest.number, workItemPullRequest.number),
+          ),
+        )
+        .where(
+          and(
+            eq(workItemPullRequest.workItemId, item.id),
+            eq(workItemPullRequest.role, "implementation"),
+          ),
+        )
+    ).map(({ pullRequest: stored }) => ({
+      ...stored,
+      observedAt: stored.observedAt.toISOString(),
+    }));
+    const evidence = await this.listCurrentDeliveryEvidenceInTransaction(
+      transaction,
+    );
+    const [unfinishedChild] = await transaction
+      .select({ id: workItem.id })
+      .from(workItemHierarchy)
+      .innerJoin(workItem, eq(workItem.id, workItemHierarchy.childWorkItemId))
+      .where(
+        and(
+          eq(workItemHierarchy.parentWorkItemId, item.id),
+          eq(workItem.lifecycle, "open"),
+        ),
+      )
+      .limit(1);
+    const [blockingAttention] = await transaction
+      .select({ id: attentionRequest.id })
+      .from(attentionRequest)
+      .leftJoin(
+        attentionResolution,
+        eq(attentionResolution.attentionRequestId, attentionRequest.id),
+      )
+      .where(
+        and(
+          eq(attentionRequest.workItemId, item.id),
+          eq(attentionRequest.blocking, true),
+          isNull(attentionResolution.id),
+        ),
+      )
+      .limit(1);
+    const evaluated = evaluateDomainCompletionCandidate({
+      workItemId: item.id,
+      policy: {
+        ...assignedPolicy.policy,
+        createdAt: assignedPolicy.policy.createdAt.toISOString(),
+      },
+      implementationPullRequests,
+      evidence,
+      hasUnfinishedChildren: unfinishedChild !== undefined,
+      hasUnresolvedBlockingAttention: blockingAttention !== undefined,
+      evaluatedAt: input.evaluatedAt,
+    });
+    await transaction
+      .insert(completionCandidateEvaluation)
+      .values({
+        id: input.id,
+        ...evaluated,
+        reasons: evaluated.reasons,
+        evidenceObservationIds: [...evaluated.evidenceObservationIds],
+        evaluatedAt: new Date(evaluated.evaluatedAt),
+      })
+      .onConflictDoNothing();
+    const stored = await this.requireCompletionCandidateEvaluation(
+      transaction,
+      input.id,
+    );
+    if (
+      completionCandidateFingerprint(stored) !==
+      completionCandidateFingerprint(evaluated)
+    ) {
+      throw new WorkGraphError(
+        "duplicate_completion_candidate",
+        `Completion candidate evaluation ${input.id} is already used.`,
+      );
+    }
+    await transaction
+      .insert(workItemCompletionCandidate)
+      .values({
+        workItemId: item.id,
+        evaluationId: input.id,
+        projectedAt: new Date(evaluated.evaluatedAt),
+      })
+      .onConflictDoUpdate({
+        target: workItemCompletionCandidate.workItemId,
+        set: {
+          evaluationId: input.id,
+          projectedAt: new Date(evaluated.evaluatedAt),
+        },
+        setWhere: lte(
+          workItemCompletionCandidate.projectedAt,
+          new Date(evaluated.evaluatedAt),
+        ),
+      });
+    return stored;
   }
 
   async getCompletionCandidate(
