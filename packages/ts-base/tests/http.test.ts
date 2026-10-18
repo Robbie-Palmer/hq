@@ -3,6 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 import { fetchWithRetry, JsonClient } from "../src/http";
 
 describe("fetchWithRetry", () => {
+  it("calls an injected fetch without rebinding its receiver", async () => {
+    let receiver: unknown = null;
+    const fetch = vi.fn(function (this: unknown) {
+      receiver = this;
+      return Promise.resolve(new Response("ok"));
+    });
+
+    await fetchWithRetry("https://example.com/resource", { fetch });
+
+    expect(receiver).toBeUndefined();
+  });
+
   it("retries transient responses and network failures", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
@@ -34,6 +46,19 @@ describe("fetchWithRetry", () => {
 });
 
 describe("JsonClient", () => {
+  it("calls an injected fetch without rebinding its receiver", async () => {
+    let receiver: unknown = null;
+    const fetch = vi.fn(function (this: unknown) {
+      receiver = this;
+      return Promise.resolve(Response.json({ ok: true }));
+    });
+    const client = new JsonClient("https://example.com", {}, { fetch });
+
+    await client.request("GET", "/resource");
+
+    expect(receiver).toBeUndefined();
+  });
+
   it("retries retryable responses using an injected wait", async () => {
     const fetch = vi
       .fn<typeof globalThis.fetch>()
