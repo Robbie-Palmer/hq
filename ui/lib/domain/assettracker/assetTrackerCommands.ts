@@ -24,10 +24,14 @@ import { CurrencySchema } from "./currency";
 import {
   type AddDecisionInterpretationInput,
   AddDecisionInterpretationInputSchema,
+  type AdoptDecisionForecastInput,
+  AdoptDecisionForecastInputSchema,
   type CreateDecisionRecordInput,
   CreateDecisionRecordInputSchema,
   type RecordDecisionObservationInput,
   RecordDecisionObservationInputSchema,
+  type RevisitAdoptedDecisionInput,
+  RevisitAdoptedDecisionInputSchema,
 } from "./decisionRecord";
 import {
   type EmergencyFundPlanInput,
@@ -2321,6 +2325,101 @@ export function applyCreateDecisionRecord(
         interpretations: [],
       },
     ],
+  };
+}
+
+export function applyAdoptDecisionForecast(
+  data: AssetTrackerData,
+  input: AdoptDecisionForecastInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = AdoptDecisionForecastInputSchema.parse(input);
+  const selectedIds = new Set(parsed.selectedDecisions.map(({ id }) => id));
+  const availableDecisions = new Set(
+    data.futureCashFlows.flatMap((record) =>
+      record.kind === "decision" ? [record.id] : [],
+    ),
+  );
+  for (const id of selectedIds) {
+    if (!availableDecisions.has(id)) {
+      throw new AssetTrackerCommandError(
+        "FUTURE_CASH_FLOW_NOT_FOUND",
+        `No cash-flow decision found with ID ${id}`,
+      );
+    }
+  }
+  const id = uniqueId(
+    new Set((data.decisionRecords ?? []).map((record) => record.id)),
+    normalizeSlug(parsed.title) || "adopted-forecast",
+  );
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((record) =>
+      record.kind === "decision" && selectedIds.has(record.id)
+        ? { ...record, status: "selected" }
+        : record,
+    ),
+    decisionRecords: [
+      ...(data.decisionRecords ?? []),
+      {
+        ...parsed,
+        id,
+        kind: "adopted-forecast",
+        adoptedAt: recordedAt,
+        reviews: [],
+      },
+    ],
+  };
+}
+
+export function applyRevisitAdoptedDecision(
+  data: AssetTrackerData,
+  input: RevisitAdoptedDecisionInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = RevisitAdoptedDecisionInputSchema.parse(input);
+  const forecast = (data.decisionRecords ?? []).find(
+    (record) => record.id === parsed.forecastId,
+  );
+  if (forecast?.kind !== "adopted-forecast") {
+    throw new AssetTrackerCommandError(
+      "DECISION_RECORD_NOT_FOUND",
+      `No adopted forecast found with ID ${parsed.forecastId}`,
+    );
+  }
+  if (!forecast.selectedDecisions.some(({ id }) => id === parsed.decisionId)) {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `Forecast ${forecast.id} does not include decision ${parsed.decisionId}`,
+    );
+  }
+  const reviewId = uniqueId(
+    new Set(forecast.reviews.map(({ id }) => id)),
+    `${parsed.decisionId}-review`,
+  );
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((record) =>
+      record.kind === "decision" && record.id === parsed.decisionId
+        ? { ...record, status: "considering" }
+        : record,
+    ),
+    decisionRecords: (data.decisionRecords ?? []).map((record) =>
+      record.id === forecast.id
+        ? {
+            ...forecast,
+            reviews: [
+              ...forecast.reviews,
+              {
+                id: reviewId,
+                decisionId: parsed.decisionId,
+                requestedAt: recordedAt,
+                reason: parsed.reason,
+              },
+            ],
+          }
+        : record,
+    ),
   };
 }
 

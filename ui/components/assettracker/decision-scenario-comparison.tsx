@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -176,6 +177,8 @@ function useDecisionComparisonModel() {
   const [reserveMonths, setReserveMonths] = useState<number | null>(
     activeReservePlan?.coverageMonths[0] ?? null,
   );
+  const [adopting, setAdopting] = useState(false);
+  const [adoptionError, setAdoptionError] = useState<string | null>(null);
   const selectedDecisions = decisions.filter(({ id }) =>
     selectedIds.includes(id),
   );
@@ -227,9 +230,27 @@ function useDecisionComparisonModel() {
         ? Array.from(new Set([...current, id]))
         : current.filter((candidate) => candidate !== id),
     );
+  const adoptSelection = async () => {
+    setAdoptionError(null);
+    setAdopting(true);
+    try {
+      await tracker.adoptDecisionForecast({
+        decisionIds: selectedIds,
+        horizonMonths: horizonYears * 12,
+        reserveMonths,
+      });
+    } catch {
+      setAdoptionError("The live forecast could not be adopted.");
+    } finally {
+      setAdopting(false);
+    }
+  };
   return {
     ...tracker,
     activeReservePlan,
+    adopting,
+    adoptionError,
+    adoptSelection,
     caseNames,
     comparesAlternatives,
     decisions,
@@ -347,6 +368,22 @@ export function DecisionScenarioComparison() {
         scenarios={model.scenarios}
         decisions={model.decisions}
       />
+      {model.selectedIds.length > 0 && !model.comparesAlternatives && (
+        <div className="flex flex-wrap items-center gap-3 rounded-md border p-3">
+          <Button disabled={model.adopting} onClick={model.adoptSelection}>
+            {model.adopting ? "Adopting…" : "Adopt as live forecast"}
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Freezes the selected choices, source balances, commitments,
+            assumptions, reserve preference, rates, and dated actions.
+          </p>
+        </div>
+      )}
+      {model.adoptionError != null && (
+        <p className="text-sm text-destructive" role="alert">
+          {model.adoptionError}
+        </p>
+      )}
       {model.selectedIds.length === 0 ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Select one or more decisions to compare them with active commitments.

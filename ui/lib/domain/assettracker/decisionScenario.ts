@@ -81,6 +81,9 @@ export type DecisionScenarioPoint = {
 
 export type DecisionScenarioAction = {
   id: string;
+  sourceDecisionId: string;
+  sourceStageId: string;
+  accountId: string;
   date: string;
   cadence: "once" | "monthly";
   kind: "payment" | "receipt" | "saving" | "asset-sale";
@@ -93,6 +96,7 @@ export type DecisionScenarioAction = {
 
 export type DecisionFundingMechanic = {
   id: string;
+  accountId: string;
   decisionName: string;
   stageName: string;
   accountName: string;
@@ -336,6 +340,9 @@ function actions(
     if (item.direction === "receipt") {
       result.push({
         id: item.id,
+        sourceDecisionId: item.futureCashFlowId,
+        sourceStageId: item.stageId,
+        accountId: account.id,
         date: item.date,
         cadence: "once",
         kind: "receipt",
@@ -369,6 +376,9 @@ function actions(
       );
       result.push({
         id: `${item.id}:saving`,
+        sourceDecisionId: item.futureCashFlowId,
+        sourceStageId: item.stageId,
+        accountId: account.id,
         date: input.startDate,
         cadence: "monthly",
         kind: "saving",
@@ -381,6 +391,9 @@ function actions(
     }
     result.push({
       id: item.id,
+      sourceDecisionId: item.futureCashFlowId,
+      sourceStageId: item.stageId,
+      accountId: account.id,
       date: item.date,
       cadence: "once",
       kind: method,
@@ -420,6 +433,7 @@ function fundingMechanics(
       return [
         {
           id: `${record.id}:${stage.id}`,
+          accountId: account.id,
           decisionName: record.name,
           stageName: stage.name ?? "Payment",
           accountName: account.name,
