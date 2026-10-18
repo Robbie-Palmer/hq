@@ -534,7 +534,8 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
       CREATE TABLE projection_threads (
         thread_id TEXT PRIMARY KEY,
         pending_approval_count INTEGER NOT NULL DEFAULT 0,
-        pending_user_input_count INTEGER NOT NULL DEFAULT 0
+        pending_user_input_count INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT
       );
       CREATE TABLE projection_thread_sessions (
         thread_id TEXT PRIMARY KEY,
@@ -545,11 +546,23 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         thread_id TEXT PRIMARY KEY,
         status TEXT NOT NULL
       );
-      INSERT INTO projection_threads VALUES ('legacy-thread', 0, 0);
+      INSERT INTO projection_threads VALUES ('legacy-thread', 0, 0, NULL);
       INSERT INTO projection_thread_sessions VALUES ('legacy-thread', 'stopped', NULL);
       INSERT INTO provider_session_runtime VALUES ('legacy-thread', 'stopped');
     `);
     legacy.close();
+    assert.equal(check(legacyPath).status, 0);
+
+    const deletedLegacy = new DatabaseSync(legacyPath);
+    deletedLegacy.exec(`
+      INSERT INTO projection_threads
+        VALUES ('deleted-legacy-thread', 1, 0, '2026-10-10T03:52:22.029Z');
+      INSERT INTO projection_thread_sessions
+        VALUES ('deleted-legacy-thread', 'stopped', NULL);
+      INSERT INTO provider_session_runtime
+        VALUES ('deleted-legacy-thread', 'stopped');
+    `);
+    deletedLegacy.close();
     assert.equal(check(legacyPath).status, 0);
 
     const legacyBusy = new DatabaseSync(legacyPath);

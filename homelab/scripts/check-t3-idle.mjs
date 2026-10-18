@@ -49,11 +49,14 @@ function legacyActivity() {
         ON sessions.thread_id = threads.thread_id
       LEFT JOIN provider_session_runtime AS runtime
         ON runtime.thread_id = threads.thread_id
-      WHERE sessions.active_turn_id IS NOT NULL
-        OR sessions.status IN ('running', 'starting')
-        OR runtime.status IN ('running', 'starting')
-        OR threads.pending_approval_count > 0
-        OR threads.pending_user_input_count > 0
+      WHERE threads.deleted_at IS NULL
+        AND (
+          sessions.active_turn_id IS NOT NULL
+          OR sessions.status IN ('running', 'starting')
+          OR runtime.status IN ('running', 'starting')
+          OR threads.pending_approval_count > 0
+          OR threads.pending_user_input_count > 0
+        )
       ORDER BY threads.thread_id
     `)
     .all();
