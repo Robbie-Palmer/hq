@@ -138,6 +138,16 @@ function requestResult<T>(request: IDBRequest<T>): Promise<T> {
   });
 }
 
+function transactionDone(transaction: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onabort = transaction.onerror = () =>
+      reject(
+        transaction.error ?? new Error("Offline cache transaction failed"),
+      );
+  });
+}
+
 function recipeSnapshotKey(userId: string): string {
   return `${RECIPE_SNAPSHOT_KIND}:${userId}`;
 }
@@ -232,9 +242,10 @@ async function writeSnapshot(
       const database = await openDatabase();
       try {
         const transaction = database.transaction(SNAPSHOT_STORE, "readwrite");
-        await requestResult(
-          transaction.objectStore(SNAPSHOT_STORE).put(snapshot),
-        );
+        await Promise.all([
+          requestResult(transaction.objectStore(SNAPSHOT_STORE).put(snapshot)),
+          transactionDone(transaction),
+        ]);
       } finally {
         database.close();
       }

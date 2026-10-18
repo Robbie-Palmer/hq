@@ -27,7 +27,10 @@ import {
 import { authClient } from "@/lib/auth-client";
 import { loadOfflineShoppingListSnapshot } from "@/lib/pwa/offline-recipe-cache";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
-import { shoppingListQuery } from "@/lib/query/shopping-list-queries";
+import {
+  restoreOfflineShoppingListQuery,
+  shoppingListQuery,
+} from "@/lib/query/shopping-list-queries";
 import {
   confirmShoppingListRevision,
   getShoppingListCacheIdentity,
@@ -397,10 +400,11 @@ function useOfflineShoppingListRestore(
           queryClient.getQueryData(recipeQueryKeys.shoppingList(userId)) ===
             undefined
         ) {
-          queryClient.setQueryData(
-            recipeQueryKeys.shoppingList(userId),
+          restoreOfflineShoppingListQuery(
+            queryClient,
+            userId,
             snapshot.shoppingList,
-            { updatedAt: snapshot.savedAt },
+            snapshot.savedAt,
           );
         }
       })

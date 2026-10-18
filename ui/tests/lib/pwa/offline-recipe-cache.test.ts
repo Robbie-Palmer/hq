@@ -15,6 +15,39 @@ type MutableRequest<T> = Omit<IDBRequest<T>, "error" | "result"> & {
   result: T;
 };
 
+type FakeTransaction = {
+  error: DOMException | null;
+  onabort: ((event: Event) => void) | null;
+  oncomplete: ((event: Event) => void) | null;
+  onerror: ((event: Event) => void) | null;
+};
+
+function finishFakeTransaction(
+  transaction: FakeTransaction | undefined,
+  quotaExceeded: boolean | undefined,
+  rollback: () => void,
+): void {
+  queueMicrotask(() => {
+    if (!transaction) return;
+    if (quotaExceeded) {
+      rollback();
+      transaction.error = new DOMException(
+        "Storage is full",
+        "QuotaExceededError",
+      );
+      transaction.onabort?.call(
+        transaction as unknown as IDBTransaction,
+        new Event("abort"),
+      );
+      return;
+    }
+    transaction.oncomplete?.call(
+      transaction as unknown as IDBTransaction,
+      new Event("complete"),
+    );
+  });
+}
+
 function successfulRequest<T>(action: () => T): IDBRequest<T> {
   const request = {
     error: null,
@@ -76,7 +109,7 @@ function fakeIndexedDb(
     );
   }
 
-  const objectStore = (name: string) => {
+  const objectStore = (name: string, transaction?: FakeTransaction) => {
     const records = stores.get(name);
     if (!records) throw new Error(`Missing object store ${name}`);
     return {
@@ -93,18 +126,27 @@ function fakeIndexedDb(
           ? failingRequest()
           : successfulRequest(() => records.get(String(key))),
       put: (value: { key: string }) => {
-        if (options.quotaExceeded) {
-          return failingRequest(
-            new DOMException("Storage is full", "QuotaExceededError"),
-          );
-        }
+        const hadPreviousValue = records.has(value.key);
+        const previousValue = records.get(value.key);
         const write = () => {
           records.set(value.key, value);
           return value.key;
         };
-        return options.writeGate
+        const request = options.writeGate
           ? delayedSuccessfulRequest(write, options.writeGate)
           : successfulRequest(write);
+        const finishTransaction = () => {
+          finishFakeTransaction(transaction, options.quotaExceeded, () => {
+            if (hadPreviousValue) records.set(value.key, previousValue);
+            else records.delete(value.key);
+          });
+        };
+        if (options.writeGate) {
+          void options.writeGate.then(finishTransaction);
+        } else {
+          queueMicrotask(finishTransaction);
+        }
+        return request;
       },
     } as unknown as IDBObjectStore;
   };
@@ -121,9 +163,18 @@ function fakeIndexedDb(
     objectStoreNames: {
       contains: (name: string) => stores.has(name),
     },
-    transaction: vi.fn((name: string) => ({
-      objectStore: () => objectStore(name),
-    })),
+    transaction: vi.fn((name: string) => {
+      const transaction: FakeTransaction & {
+        objectStore: () => IDBObjectStore;
+      } = {
+        error: null,
+        onabort: null,
+        oncomplete: null,
+        onerror: null,
+        objectStore: () => objectStore(name, transaction),
+      };
+      return transaction;
+    }),
   } as unknown as IDBDatabase;
   const indexedDb = {
     open: vi.fn(() => {
@@ -301,13 +352,18 @@ describe("offline recipe cache", () => {
     await expect(clearOfflineRecipeSnapshots()).resolves.toBeUndefined();
   });
 
-  it("reports quota exhaustion without rejecting the live query", async () => {
+  it("reports quota exhaustion when the write transaction aborts", async () => {
     harness = fakeIndexedDb({ quotaExceeded: true });
     vi.stubGlobal("indexedDB", harness.indexedDb);
 
     await expect(
       saveOfflineRecipeSnapshot("user-1", bootstrap),
     ).resolves.toEqual({ status: "quota-exceeded" });
+    expect(harness.stores.get("offline-snapshots")).toHaveLength(0);
+    expect(getOfflineCacheStatus()).toEqual({
+      oldestSavedAt: null,
+      quotaExceeded: true,
+    });
   });
 
   it("rejects with an Error when opening IndexedDB fails without one", async () => {
