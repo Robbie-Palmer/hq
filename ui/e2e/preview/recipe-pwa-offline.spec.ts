@@ -337,9 +337,11 @@ test.describe("deployed recipe PWA offline navigation", () => {
     await expect(
       page.getByRole("heading", { name: "Shopping list." }),
     ).toBeVisible();
-    await expect(page.getByRole("status")).toContainText(
-      "Offline. Showing saved data from",
-    );
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "Offline. Showing saved data from",
+      }),
+    ).toBeVisible();
     await expect(
       page.getByText("Your shopping list could not be loaded."),
     ).toHaveCount(0);
