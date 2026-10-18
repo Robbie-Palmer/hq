@@ -143,6 +143,91 @@ const varianceColors: Record<AdoptedForecastVarianceSource["kind"], string> = {
   "revised-assumption": "var(--muted-foreground)",
 };
 
+type BalanceChartDatum = {
+  label: string;
+  checkpointDate: string;
+  expected: number;
+  observed: number;
+};
+
+function BalanceChartPlot({
+  data,
+  currency,
+}: Readonly<{
+  data: readonly BalanceChartDatum[];
+  currency: Currency;
+}>) {
+  return (
+    <div style={{ height: Math.max(190, data.length * 70 + 56) }}>
+      <ChartContainer
+        config={balanceChartConfig}
+        className="aspect-auto h-full w-full"
+        role="img"
+        aria-label="Adopted and observed account balances"
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            accessibilityLayer
+            data={data}
+            layout="vertical"
+            margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
+          >
+            <CartesianGrid horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={(value: number) =>
+                formatCurrencyAxisTick(value, currency)
+              }
+            />
+            <YAxis type="category" dataKey="label" width={96} />
+            <ReferenceLine x={0} className="stroke-muted-foreground" />
+            <ChartTooltip
+              content={<ChartTooltipContent />}
+              formatter={(value) => formatCurrency(value as number, currency)}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar
+              dataKey="expected"
+              fill="var(--color-expected)"
+              radius={3}
+              isAnimationActive={false}
+            />
+            <Bar
+              dataKey="observed"
+              fill="var(--color-observed)"
+              radius={3}
+              isAnimationActive={false}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartContainer>
+    </div>
+  );
+}
+
+function BalanceValues({
+  data,
+  currency,
+}: Readonly<{
+  data: readonly BalanceChartDatum[];
+  currency: Currency;
+}>) {
+  return (
+    <div className="sr-only">
+      <h5>Adopted and observed account balances</h5>
+      <ul>
+        {data.map((row) => (
+          <li key={`${row.label}-${row.checkpointDate}`}>
+            {row.label}, checkpoint {row.checkpointDate}: adopted{" "}
+            {formatCurrency(row.expected, currency)}, observed{" "}
+            {formatCurrency(row.observed, currency)}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function BalanceComparisonChart({
   reconciliation,
   currency,
@@ -172,73 +257,62 @@ function BalanceComparisonChart({
           each checkpoint.
         </p>
       </div>
-      <div style={{ height: Math.max(190, data.length * 70 + 56) }}>
-        <ChartContainer
-          config={balanceChartConfig}
-          className="aspect-auto h-full w-full"
-          role="img"
-          aria-label="Adopted and observed account balances"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              accessibilityLayer
-              data={data}
-              layout="vertical"
-              margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
-            >
-              <CartesianGrid horizontal={false} />
-              <XAxis
-                type="number"
-                tickFormatter={(value: number) =>
-                  formatCurrencyAxisTick(value, currency)
-                }
-              />
-              <YAxis type="category" dataKey="label" width={96} />
-              <ReferenceLine x={0} className="stroke-muted-foreground" />
-              <ChartTooltip
-                content={<ChartTooltipContent />}
-                formatter={(value) => formatCurrency(value as number, currency)}
-              />
-              <ChartLegend content={<ChartLegendContent />} />
-              <Bar
-                dataKey="expected"
-                fill="var(--color-expected)"
-                radius={3}
-                isAnimationActive={false}
-              />
-              <Bar
-                dataKey="observed"
-                fill="var(--color-observed)"
-                radius={3}
-                isAnimationActive={false}
-              />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
-      <div className="sr-only">
-        <table>
-          <caption>Adopted and observed account balances</caption>
-          <thead>
-            <tr>
-              <th>Account</th>
-              <th>Checkpoint</th>
-              <th>Adopted</th>
-              <th>Observed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((row) => (
-              <tr key={`${row.label}-${row.checkpointDate}`}>
-                <th scope="row">{row.label}</th>
-                <td>{row.checkpointDate}</td>
-                <td>{formatCurrency(row.expected, currency)}</td>
-                <td>{formatCurrency(row.observed, currency)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <BalanceChartPlot data={data} currency={currency} />
+      <BalanceValues data={data} currency={currency} />
+    </div>
+  );
+}
+
+type VarianceChartDatum = {
+  id: string;
+  label: string;
+  amount: number;
+  kind: AdoptedForecastVarianceSource["kind"];
+};
+
+function VarianceChartPlot({
+  data,
+  currency,
+}: Readonly<{
+  data: readonly VarianceChartDatum[];
+  currency: Currency;
+}>) {
+  return (
+    <div style={{ height: Math.max(190, data.length * 52 + 48) }}>
+      <ChartContainer
+        config={varianceChartConfig}
+        className="aspect-auto h-full w-full"
+        role="img"
+        aria-label="Monetary variance sources"
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <BarChart
+            accessibilityLayer
+            data={data}
+            layout="vertical"
+            margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
+          >
+            <CartesianGrid horizontal={false} />
+            <XAxis
+              type="number"
+              tickFormatter={(value: number) =>
+                formatCurrencyAxisTick(value, currency)
+              }
+            />
+            <YAxis type="category" dataKey="label" width={112} />
+            <ReferenceLine x={0} className="stroke-muted-foreground" />
+            <ChartTooltip
+              content={<ChartTooltipContent hideIndicator />}
+              formatter={(value) => formatCurrency(value as number, currency)}
+            />
+            <Bar dataKey="amount" radius={3} isAnimationActive={false}>
+              {data.map((row) => (
+                <Cell key={row.id} fill={varianceColors[row.kind]} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartContainer>
     </div>
   );
 }
@@ -272,42 +346,7 @@ function VarianceAttributionChart({
           stay in the notes below.
         </p>
       </div>
-      <div style={{ height: Math.max(190, data.length * 52 + 48) }}>
-        <ChartContainer
-          config={varianceChartConfig}
-          className="aspect-auto h-full w-full"
-          role="img"
-          aria-label="Monetary variance sources"
-        >
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              accessibilityLayer
-              data={data}
-              layout="vertical"
-              margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
-            >
-              <CartesianGrid horizontal={false} />
-              <XAxis
-                type="number"
-                tickFormatter={(value: number) =>
-                  formatCurrencyAxisTick(value, currency)
-                }
-              />
-              <YAxis type="category" dataKey="label" width={112} />
-              <ReferenceLine x={0} className="stroke-muted-foreground" />
-              <ChartTooltip
-                content={<ChartTooltipContent hideIndicator />}
-                formatter={(value) => formatCurrency(value as number, currency)}
-              />
-              <Bar dataKey="amount" radius={3} isAnimationActive={false}>
-                {data.map((row) => (
-                  <Cell key={row.id} fill={varianceColors[row.kind]} />
-                ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartContainer>
-      </div>
+      <VarianceChartPlot data={data} currency={currency} />
     </div>
   );
 }
