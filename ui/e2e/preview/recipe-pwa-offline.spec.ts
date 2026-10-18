@@ -12,6 +12,7 @@ type OfflineReadiness = {
   snapshotDatabaseExists: boolean;
   snapshotStoreExists: boolean;
   snapshotCount: number;
+  recipeSnapshotExists: boolean;
   snapshotReadError: string | null;
 };
 
@@ -68,6 +69,7 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
     );
     let snapshotStoreExists = false;
     let snapshotCount = 0;
+    let recipeSnapshotExists = false;
     let snapshotReadError: string | null = null;
 
     if (snapshotDatabaseExists) {
@@ -90,18 +92,28 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
             return;
           }
           snapshotStoreExists = true;
-          const count = database
+          const snapshots = database
             .transaction(snapshotStoreName)
             .objectStore(snapshotStoreName)
-            .count();
-          count.onerror = () => {
+            .getAll();
+          snapshots.onerror = () => {
             snapshotReadError =
-              count.error?.message ?? "could not count recipe snapshots";
+              snapshots.error?.message ?? "could not read offline snapshots";
             database.close();
             resolve();
           };
-          count.onsuccess = () => {
-            snapshotCount = count.result;
+          snapshots.onsuccess = () => {
+            snapshotCount = snapshots.result.length;
+            recipeSnapshotExists =
+              snapshotStoreName === "recipe-snapshots"
+                ? snapshotCount > 0
+                : snapshots.result.some(
+                    (snapshot: unknown) =>
+                      typeof snapshot === "object" &&
+                      snapshot !== null &&
+                      "kind" in snapshot &&
+                      snapshot.kind === "recipes",
+                  );
             database.close();
             resolve();
           };
@@ -115,6 +127,7 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
       snapshotDatabaseExists,
       snapshotStoreExists,
       snapshotCount,
+      recipeSnapshotExists,
       snapshotReadError,
     };
   });
@@ -128,9 +141,9 @@ function missingOfflinePrerequisites(readiness: OfflineReadiness): string[] {
     missing.push("recipe snapshot database");
   } else if (!readiness.snapshotStoreExists) {
     missing.push("recipe snapshot store");
-  } else if (readiness.snapshotCount !== 1) {
+  } else if (!readiness.recipeSnapshotExists) {
     missing.push(
-      `one recipe snapshot (found ${readiness.snapshotCount.toString()})`,
+      `recipe snapshot (found ${readiness.snapshotCount.toString()} stored snapshots)`,
     );
   }
   if (readiness.snapshotReadError) {
