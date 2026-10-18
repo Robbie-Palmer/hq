@@ -54,8 +54,8 @@ function scenarioData(): AssetTrackerData {
     ],
     plannedExpenditures: [],
     planningCases: [
-      { id: "home", name: "Home work", labels: [] },
-      { id: "travel", name: "Travel", labels: [] },
+      { id: "home", name: "Home work", labels: [], checklistItems: [] },
+      { id: "travel", name: "Travel", labels: [], checklistItems: [] },
     ],
     futureCashFlows: [
       {

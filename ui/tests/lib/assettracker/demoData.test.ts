@@ -375,6 +375,7 @@ describe("Asset Tracker demo-data adapter", () => {
         "Compare committed preparation work with two possible ways to add space.",
       labels: ["home", "2027"],
       targetDate: "2027-09-01",
+      checklistItems: [],
     });
     expect(repository.futureCashFlows).toEqual(
       expect.arrayContaining([

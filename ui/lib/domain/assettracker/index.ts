@@ -30,6 +30,7 @@ export * from "./mortgageInvestment";
 export * from "./noPensionNetTrajectory";
 export * from "./pastedHistory";
 export * from "./plannedExpenditure";
+export * from "./planningChecklist";
 export * from "./portfolioReconciliation";
 export * from "./portfolioValuation";
 export * from "./propertyComparables";

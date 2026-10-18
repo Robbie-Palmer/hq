@@ -26,6 +26,7 @@ import type { IncomeRecord } from "./incomeRecord";
 import type { JobMoveScenario } from "./jobMoveScenario";
 import type { MortgageScenario } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
+import { validateAssetTrackerPlanningCaseChecklist } from "./planningChecklist";
 import type { PropertyComparableSearchDefinition } from "./propertyComparables";
 import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
 import type { RecurringFlow } from "./recurringFlow";
@@ -846,6 +847,21 @@ function validateReferences(
   validatePropertyIndexHistoryReferences(data, accounts);
   validateJobMoveScenarioReferences(data, accounts);
   validateDecisionRecords(data, accounts);
+  for (const planningCase of data.planningCases) {
+    try {
+      validateAssetTrackerPlanningCaseChecklist(
+        planningCase,
+        data.futureCashFlows,
+        data.decisionRecords ?? [],
+      );
+    } catch (error) {
+      throw new AssetTrackerDataError(
+        error instanceof Error
+          ? error.message
+          : `Planning case "${planningCase.name}" has an invalid checklist`,
+      );
+    }
+  }
 }
 
 export function buildRepository(
