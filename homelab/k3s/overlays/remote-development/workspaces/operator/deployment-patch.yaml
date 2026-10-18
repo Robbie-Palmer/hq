@@ -60,6 +60,12 @@ spec:
           env:
             - name: DOCKER_HOST
               value: tcp://127.0.0.1:2375
+            - name: SHARED_TASK_CACHE_DIR
+              value: /data/cache/shared-task-cache
+            - name: SHARED_TASK_CACHE_MAX_BYTES
+              value: "12884901888"
+            - name: SHARED_TASK_CACHE_MAX_AGE_SECONDS
+              value: "1209600"
             - name: T3CODE_OTLP_TRACES_URL
               value: http://10.42.0.1:4318/v1/traces # NOSONAR S5332: host firewall accepts only the K3s pod bridge.
             - name: T3CODE_OTLP_METRICS_URL
@@ -166,6 +172,9 @@ spec:
             - name: cache
               mountPath: /data/home/.arduino15
               subPath: arduino15
+            - name: cache
+              mountPath: /data/cache/shared-task-cache
+              subPath: shared-task-cache
         - name: docker
           image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
           env:

@@ -58,6 +58,7 @@ let
     DATA_MOUNT=${dataMount}
     OPERATOR_PROJECT_ID=${operatorProjectId}
     CACHE_PROJECT_ID=${cacheProjectId}
+    SHARED_TASK_CACHE_METRICS_FILE=${cacheDataPath}/shared-task-cache/metrics.json
     BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
     BACKUP_MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
     KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics
@@ -356,6 +357,7 @@ in
       install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/mise
       install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/pnpm
       install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/arduino15
+      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache
     '';
   };
 

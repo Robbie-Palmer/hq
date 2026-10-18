@@ -667,6 +667,10 @@ test("the observability collector attributes quota, backup, and Kubernetes state
     temporaryDirectory,
     "agent-coordinator-health.json",
   );
+  const sharedTaskCacheMetricsPath = join(
+    temporaryDirectory,
+    "shared-task-cache-metrics.json",
+  );
   const outputPath = join(temporaryDirectory, "statsd.txt");
   const collectorStatePath = join(temporaryDirectory, "collector-state");
 
@@ -728,6 +732,7 @@ printf '%s\\n' \\
         `OTELCOL_STATE_FILE=${collectorStatePath}`,
         "AGENT_COORDINATOR_ENABLED=1",
         `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
+        `SHARED_TASK_CACHE_METRICS_FILE=${sharedTaskCacheMetricsPath}`,
         "",
       ].join("\n"),
     );
@@ -748,6 +753,21 @@ printf '%s\\n' \\
         needsAttentionCount: 2,
         admission: { open: false },
         reconciledAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      })}\n`,
+    );
+    writeFileSync(
+      sharedTaskCacheMetricsPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        hits: 7,
+        misses: 2,
+        runs: 2,
+        failures: 1,
+        corruptions: 1,
+        waits: 3,
+        bytesRestored: 4096,
+        bytesPublished: 2048,
+        bytesReclaimed: 1024,
       })}\n`,
     );
 
@@ -809,6 +829,22 @@ printf '%s\\n' \\
     );
     assert.match(
       metrics,
+      /^remote_development\.operator\.shared_task_cache_hits:7\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_corruptions:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_bytes_restored:4096\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:1\|g$/m,
+    );
+    assert.match(
+      metrics,
       /^remote_development\.operator\.agent_coordinator_admission_open:1\|g$/m,
     );
     assert.match(
@@ -835,6 +871,31 @@ printf '%s\\n' \\
     assert.match(
       metrics,
       /^remote_development\.operator\.crash_loop:2\|g$/m,
+    );
+
+    writeFileSync(sharedTaskCacheMetricsPath, "{not-json}\n");
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/remote-development-observability-metrics",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+        REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG: configPath,
+        STATSD_OUTPUT_FILE: outputPath,
+      },
+    );
+    const invalidCacheMetrics = readFileSync(outputPath, "utf8");
+    assert.match(
+      invalidCacheMetrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:0\|g$/m,
     );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
@@ -1433,6 +1494,9 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
   for (const [name, value] of Object.entries({
     OTEL_RESOURCE_ATTRIBUTES:
       "deployment.environment.name=remote-development,workspace.id=operator",
+    SHARED_TASK_CACHE_DIR: "/data/cache/shared-task-cache",
+    SHARED_TASK_CACHE_MAX_AGE_SECONDS: "1209600",
+    SHARED_TASK_CACHE_MAX_BYTES: "12884901888",
     T3CODE_OTLP_EXPORT_INTERVAL_MS: "10000",
     T3CODE_OTLP_LOGS_URL: "http://10.42.0.1:4318/v1/logs",
     T3CODE_OTLP_METRICS_URL: "http://10.42.0.1:4318/v1/metrics",
@@ -1672,6 +1736,29 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "volumes",
   ]);
   assert.ok(Array.isArray(operatorVolumes));
+  const operatorVolumeMounts = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "volumeMounts",
+  ]);
+  assert.ok(Array.isArray(operatorVolumeMounts));
+  assert.deepEqual(
+    operatorVolumeMounts.find(
+      (candidate: unknown) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        (candidate as Record<string, unknown>).mountPath ===
+          "/data/cache/shared-task-cache",
+    ),
+    {
+      mountPath: "/data/cache/shared-task-cache",
+      name: "cache",
+      subPath: "shared-task-cache",
+    },
+  );
   const dockerDataVolume = operatorVolumes.find(
     (candidate: unknown) =>
       typeof candidate === "object" &&
@@ -1871,6 +1958,12 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(
     hostDefinition.includes(
       "install -d -m 2770 -o t3code -g t3code ${cacheDataPath}",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Assert the literal Nix interpolation in the source.
+      "install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache",
     ),
   );
   assert.ok(!hostDefinition.includes("pilotDataPath"));
