@@ -3,7 +3,7 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   OfflineRecipeCacheBoundary,
@@ -11,7 +11,9 @@ import {
   RecipeQueryProvider,
 } from "@/components/recipes/recipe-query-provider";
 import type { RecipeBootstrap } from "@/lib/api/recipe-bootstrap";
+import type { StoredShoppingList } from "@/lib/api/shopping-lists";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
+import { restoreOfflineShoppingListQuery } from "@/lib/query/shopping-list-queries";
 
 const authMocks = vi.hoisted(() => ({
   session: {
@@ -26,6 +28,7 @@ const authMocks = vi.hoisted(() => ({
 const offlineMocks = vi.hoisted(() => ({
   load: vi.fn(),
   save: vi.fn(),
+  saveShopping: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-client", () => ({
@@ -37,7 +40,18 @@ vi.mock("@/lib/auth-client", () => ({
 vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
   loadOfflineRecipeSnapshot: offlineMocks.load,
   saveOfflineRecipeSnapshot: offlineMocks.save,
+  saveOfflineShoppingListSnapshot: offlineMocks.saveShopping,
 }));
+
+const shoppingList = {
+  id: "list-1",
+  resourceId: "user-1",
+  revision: "1",
+  scope: { type: "personal" as const },
+  snapshot: { recipes: [], checked: [], extras: [] },
+  createdAt: "2026-10-18T00:00:00.000Z",
+  updatedAt: "2026-10-18T00:00:00.000Z",
+} satisfies StoredShoppingList;
 
 describe("RecipeAccountCacheBoundary", () => {
   beforeEach(() => {
@@ -48,6 +62,7 @@ describe("RecipeAccountCacheBoundary", () => {
     };
     offlineMocks.load.mockResolvedValue(null);
     offlineMocks.save.mockResolvedValue(undefined);
+    offlineMocks.saveShopping.mockResolvedValue(undefined);
   });
 
   it("keeps only the current account's private cache", async () => {
@@ -144,8 +159,14 @@ describe("RecipeAccountCacheBoundary", () => {
       unreadNotificationCount: 0,
     } as unknown as RecipeBootstrap;
     offlineMocks.load.mockResolvedValue({
-      version: 1,
-      userId: "user-1",
+      version: 2,
+      key: "recipes:user-1",
+      kind: "recipes",
+      scope: {
+        userId: "user-1",
+        householdId: null,
+        resourceId: null,
+      },
       savedAt: 123,
       bootstrap,
     });
@@ -184,5 +205,75 @@ describe("RecipeAccountCacheBoundary", () => {
     await waitFor(() => {
       expect(offlineMocks.save).toHaveBeenCalledWith("user-1", bootstrap);
     });
+  });
+
+  it("persists shopping-list cache updates for the active account", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OfflineRecipeCacheBoundary />
+      </QueryClientProvider>,
+    );
+    queryClient.setQueryData(
+      recipeQueryKeys.shoppingList("user-1"),
+      shoppingList,
+    );
+
+    await waitFor(() => {
+      expect(offlineMocks.saveShopping).toHaveBeenCalledWith(
+        "user-1",
+        shoppingList,
+      );
+    });
+  });
+
+  it("does not refresh persistence when restoring an offline shopping list", async () => {
+    const queryClient = new QueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <OfflineRecipeCacheBoundary />
+      </QueryClientProvider>,
+    );
+    restoreOfflineShoppingListQuery(queryClient, "user-1", shoppingList, 123);
+
+    await waitFor(() => {
+      expect(
+        queryClient.getQueryState(recipeQueryKeys.shoppingList("user-1"))
+          ?.dataUpdatedAt,
+      ).toBe(123);
+    });
+    expect(offlineMocks.saveShopping).not.toHaveBeenCalled();
+  });
+
+  it("ignores late shopping updates after the active account signs out", async () => {
+    const queryClient = new QueryClient();
+    const view = render(
+      <QueryClientProvider client={queryClient}>
+        <OfflineRecipeCacheBoundary />
+      </QueryClientProvider>,
+    );
+    queryClient.setQueryData(
+      recipeQueryKeys.shoppingList("user-1"),
+      shoppingList,
+    );
+    await waitFor(() => {
+      expect(offlineMocks.saveShopping).toHaveBeenCalledTimes(1);
+    });
+    offlineMocks.saveShopping.mockClear();
+
+    authMocks.session = { data: null, isPending: false };
+    await act(async () => {
+      view.rerender(
+        <QueryClientProvider client={queryClient}>
+          <OfflineRecipeCacheBoundary />
+        </QueryClientProvider>,
+      );
+    });
+    queryClient.setQueryData(recipeQueryKeys.shoppingList("user-1"), {
+      ...shoppingList,
+      revision: "2",
+    });
+
+    expect(offlineMocks.saveShopping).not.toHaveBeenCalled();
   });
 });
