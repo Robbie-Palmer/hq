@@ -270,6 +270,45 @@ type VarianceChartDatum = {
   kind: AdoptedForecastVarianceSource["kind"];
 };
 
+function wrapAxisLabel(label: string, lineLength = 24): string[] {
+  const lines: string[] = [];
+  for (const word of label.split(" ")) {
+    const current = lines.at(-1);
+    if (current == null || `${current} ${word}`.length > lineLength) {
+      lines.push(word);
+    } else {
+      lines[lines.length - 1] = `${current} ${word}`;
+    }
+  }
+  return lines;
+}
+
+function VarianceAxisTick({
+  x = 0,
+  y = 0,
+  payload,
+}: Readonly<{
+  x?: number;
+  y?: number;
+  payload?: { value?: string };
+}>) {
+  const lines = wrapAxisLabel(payload?.value ?? "");
+  const firstLineOffset = -((lines.length - 1) * 0.55);
+  return (
+    <text x={x - 6} y={y} fill="currentColor" fontSize={10} textAnchor="end">
+      {lines.map((line, index) => (
+        <tspan
+          key={`${index}-${line}`}
+          x={x - 6}
+          dy={index === 0 ? `${firstLineOffset}em` : "1.1em"}
+        >
+          {line}
+        </tspan>
+      ))}
+    </text>
+  );
+}
+
 function VarianceChartPlot({
   data,
   currency,
@@ -278,7 +317,7 @@ function VarianceChartPlot({
   currency: Currency;
 }>) {
   return (
-    <div style={{ height: Math.max(190, data.length * 52 + 48) }}>
+    <div style={{ height: Math.max(220, data.length * 72 + 48) }}>
       <ChartContainer
         config={varianceChartConfig}
         className="aspect-auto h-full w-full"
@@ -299,7 +338,12 @@ function VarianceChartPlot({
                 formatCurrencyAxisTick(value, currency)
               }
             />
-            <YAxis type="category" dataKey="label" width={112} />
+            <YAxis
+              type="category"
+              dataKey="label"
+              tick={<VarianceAxisTick />}
+              width={156}
+            />
             <ReferenceLine x={0} className="stroke-muted-foreground" />
             <ChartTooltip
               content={<ChartTooltipContent hideIndicator />}
@@ -330,7 +374,7 @@ function VarianceAttributionChart({
       : [
           {
             id: `${source.kind}-${index}`,
-            label: varianceLabels[source.kind],
+            label: `${varianceLabels[source.kind]}: ${source.label}`,
             amount: source.amount,
             kind: source.kind,
           },

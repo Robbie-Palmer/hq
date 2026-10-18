@@ -258,6 +258,22 @@ describe("decision records", () => {
     const frozen = structuredClone(forecast);
     const observed = AssetTrackerDataSchema.parse({
       ...adopted,
+      settings: {
+        ...adopted.settings,
+        baseCurrency: "USD",
+        valuationMaxAgeDays: 365,
+      },
+      exchangeRateObservations: [
+        {
+          id: "gbp-usd-after-adoption",
+          fromCurrency: "GBP",
+          toCurrency: "USD",
+          rate: 2,
+          validAt: "2026-01-01",
+          acceptedAt: "2026-01-01T12:00:00Z",
+          source: { kind: "manual", id: "test-entry" },
+        },
+      ],
       snapshots: [
         ...adopted.snapshots,
         { accountId: "cash", date: "2026-07-01", balance: 13_400 },
@@ -315,6 +331,12 @@ describe("decision records", () => {
     );
 
     expect(forecast).toEqual(frozen);
+    expect(reconciliation.balances[0]).toMatchObject({
+      currency: "GBP",
+      expectedBalance: 12_000,
+      observedBalance: 13_400,
+      variance: 1_400,
+    });
     expect(reconciliation.actions[0]).toMatchObject({
       actualAmount: 8_500,
       amountVariance: 500,

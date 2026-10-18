@@ -863,13 +863,32 @@ export function reconcileAdoptedDecisionForecast(
   forecast: AdoptedDecisionForecastRecord,
   repository: AssetTrackerRepository,
 ): AdoptedForecastReconciliation {
-  const actions = reconcileAdoptedActions(forecast, repository);
-  const balances = reconcileAdoptedBalances(forecast, repository);
+  const adoptedCurrency = forecast.balanceCheckpoints
+    .flatMap(({ accounts }) => accounts)
+    .at(0)?.currency;
+  const reconciliationRepository =
+    adoptedCurrency == null ||
+    adoptedCurrency === repository.settings.baseCurrency
+      ? repository
+      : {
+          ...repository,
+          settings: {
+            ...repository.settings,
+            baseCurrency: adoptedCurrency,
+          },
+        };
+  const actions = reconcileAdoptedActions(forecast, reconciliationRepository);
+  const balances = reconcileAdoptedBalances(forecast, reconciliationRepository);
   const varianceSources = [
-    ...actionVarianceSources(actions, repository),
-    ...householdCashFlowSources(forecast, repository),
-    ...balanceVarianceSources(forecast, actions, balances, repository),
-    ...assumptionVarianceSources(forecast, repository),
+    ...actionVarianceSources(actions, reconciliationRepository),
+    ...householdCashFlowSources(forecast, reconciliationRepository),
+    ...balanceVarianceSources(
+      forecast,
+      actions,
+      balances,
+      reconciliationRepository,
+    ),
+    ...assumptionVarianceSources(forecast, reconciliationRepository),
   ];
   return { actions, balances, varianceSources };
 }

@@ -1809,12 +1809,14 @@ describe("AdoptedForecastCard", () => {
     );
     expect(charts[1]).toHaveAttribute(
       "data-chart-data",
-      expect.stringContaining('"label":"Changed amount","amount":100'),
+      expect.stringContaining(
+        '"label":"Changed amount: Build cost changed","amount":100',
+      ),
     );
     expect(charts[1]).toHaveAttribute(
       "data-chart-data",
       expect.stringContaining(
-        '"label":"Market or currency movement","amount":-500',
+        '"label":"Market or currency movement: Account value moved","amount":-500',
       ),
     );
 
