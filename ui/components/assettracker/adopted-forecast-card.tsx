@@ -101,6 +101,7 @@ const varianceLabels: Record<AdoptedForecastVarianceSource["kind"], string> = {
   "changed-timing": "Changed timing",
   "household-cash-flow": "Household cash flow",
   "market-or-currency": "Market or currency movement",
+  unexplained: "Unexplained balance change",
   "revised-assumption": "Revised assumption",
 };
 

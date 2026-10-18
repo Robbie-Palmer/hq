@@ -461,6 +461,56 @@ function decisionComparison(
     });
 }
 
+function householdDecisionComparison(
+  repository: ReturnType<typeof buildRepository>,
+) {
+  const valuationDate =
+    getLatestPortfolioValuation(repository)?.date ?? todayIsoDate();
+  const financialIndependence = getPortfolioFinancialIndependence(
+    repository,
+    valuationDate,
+  );
+  const emergencyFund = resolveEmergencyFundViews(
+    repository,
+    financialIndependence.representativeAnnualCurrentExpenditure,
+    valuationDate,
+  );
+  const emergencyFundAnalysis =
+    emergencyFund.activePlan == null
+      ? null
+      : analyseEmergencyFund(
+          repository,
+          emergencyFund.activePlan,
+          valuationDate,
+        );
+  return decisionComparison(
+    repository,
+    financialIndependence,
+    emergencyFundAnalysis,
+    valuationDate,
+  );
+}
+
+export function buildHouseholdAdoptedDecisionForecast(
+  data: AssetTrackerData,
+  input: {
+    decisionIds: readonly string[];
+    horizonMonths: number;
+    reserveMonths: number | null;
+    title?: string;
+  },
+) {
+  const repository = buildRepository(data);
+  const comparison = householdDecisionComparison(repository)(input);
+  return buildAdoptDecisionForecastInput(repository, comparison, {
+    title:
+      input.title ??
+      `${comparison.judgments.map(({ name }) => name).join(" + ")} live forecast`,
+    calculationVersion: "decision-scenario-v1",
+    reserveMonths: input.reserveMonths,
+  });
+}
+
 function jobMoveComparison(
   repository: ReturnType<typeof buildRepository>,
   financialIndependence: PortfolioFinancialIndependence,
@@ -564,14 +614,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
         reserveMonths: number | null;
         title?: string;
       }) => {
-        const comparison = compareDecisions(input);
-        return buildAdoptDecisionForecastInput(repository, comparison, {
-          title:
-            input.title ??
-            `${comparison.judgments.map(({ name }) => name).join(" + ")} live forecast`,
-          calculationVersion: "decision-scenario-v1",
-          reserveMonths: input.reserveMonths,
-        });
+        return buildHouseholdAdoptedDecisionForecast(data, input);
       },
       analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
         analyseEmergencyFund(

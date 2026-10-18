@@ -267,7 +267,7 @@ describe("decision records", () => {
         {
           accountId: "cash",
           date: "2026-05-01",
-          amount: 500,
+          amount: 1_000,
           kind: "personalSaving",
         },
       ],
@@ -327,10 +327,24 @@ describe("decision records", () => {
         "changed-amount",
         "changed-timing",
         "household-cash-flow",
-        "market-or-currency",
+        "unexplained",
         "revised-assumption",
       ]),
     );
+    expect(
+      reconciliation.varianceSources.find(
+        ({ kind }) => kind === "changed-amount",
+      )?.amount,
+    ).toBe(500);
+    expect(
+      reconciliation.varianceSources.find(
+        ({ kind }) => kind === "household-cash-flow",
+      )?.amount,
+    ).toBe(1_000);
+    expect(
+      reconciliation.varianceSources.find(({ kind }) => kind === "unexplained")
+        ?.amount,
+    ).toBe(900);
   });
 
   it("reopens one adopted choice without changing unrelated choices", () => {

@@ -742,7 +742,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
               {
                 accountId: "nationwide-current",
                 accountName: "Nationwide Current",
-                expectedBalance: 3_400,
+                expectedBalance: 3_450,
                 currency: "GBP",
               },
               {

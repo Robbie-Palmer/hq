@@ -285,6 +285,12 @@ describe("Asset Tracker demo-data adapter", () => {
       "vanguard-global-all-cap",
     );
     expect(
+      alexData.decisionRecords?.some(({ kind }) => kind === "adopted-forecast"),
+    ).toBe(false);
+    expect(
+      samData.decisionRecords?.some(({ kind }) => kind === "adopted-forecast"),
+    ).toBe(false);
+    expect(
       alexData.snapshots.find(
         ({ accountId, date }) => accountId === "home" && date === "2024-12-01",
       )?.balance,
@@ -608,6 +614,30 @@ describe("Asset Tracker demo-data adapter", () => {
         "revised-assumption",
       ]),
     );
+
+    const dataWithForeignFlow = getDemoAssetTrackerData();
+    const repositoryWithForeignFlow = buildRepository({
+      ...dataWithForeignFlow,
+      capitalFlows: [
+        ...dataWithForeignFlow.capitalFlows,
+        {
+          accountId: "us-brokerage",
+          date: "2024-12-01",
+          amount: 128,
+          kind: "external" as const,
+        },
+      ],
+    });
+    const foreignFlowReconciliation = reconcileAdoptedDecisionForecast(
+      forecast,
+      repositoryWithForeignFlow,
+    );
+    expect(
+      foreignFlowReconciliation.varianceSources.find(
+        ({ kind, label }) =>
+          kind === "household-cash-flow" && label.includes("US Brokerage"),
+      )?.amount,
+    ).toBe(100);
   });
 
   it("includes a decision-ready mortgage product in the demo household", () => {

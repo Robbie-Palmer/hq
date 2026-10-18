@@ -3,7 +3,10 @@ import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import { CurrencySchema } from "./currency";
 import type { DecisionScenarioComparison } from "./decisionScenario";
 import { settledCashFlowAmount } from "./futureCashFlow";
-import { convertAccountAmountAtDate } from "./portfolioValuation";
+import {
+  convertAccountAmountAtDate,
+  convertMoneyAtDate,
+} from "./portfolioValuation";
 
 export const DecisionLineageKindSchema = z.enum([
   "financial-fact",
@@ -522,6 +525,7 @@ export type AdoptedForecastVarianceSource = {
     | "changed-timing"
     | "household-cash-flow"
     | "market-or-currency"
+    | "unexplained"
     | "revised-assumption";
   label: string;
   amount: number | null;
@@ -635,6 +639,7 @@ function reconcileAdoptedBalances(
 
 function actionVarianceSources(
   actions: readonly AdoptedActionReconciliation[],
+  repository: AssetTrackerRepository,
 ): AdoptedForecastVarianceSource[] {
   return actions.flatMap((action) => {
     const sources: AdoptedForecastVarianceSource[] = [];
@@ -645,7 +650,14 @@ function actionVarianceSources(
       sources.push({
         kind: "changed-amount",
         label: `${action.action.name} differed from the adopted amount`,
-        amount: action.amountVariance,
+        amount: convertMoneyAtDate(
+          repository,
+          {
+            amount: action.amountVariance,
+            currency: action.action.currency,
+          },
+          action.actualDate ?? action.action.date,
+        ),
         decisionId: action.action.sourceDecisionId,
       });
     }
@@ -678,32 +690,147 @@ function householdCashFlowSources(
     ) {
       return [];
     }
+    const amount = convertAccountAmountAtDate(
+      repository,
+      flow.accountId,
+      flow.amount,
+      flow.date,
+    );
     return [
       {
         kind: "household-cash-flow" as const,
         label: `Recorded household cash flow on ${repository.accounts.get(flow.accountId)?.name ?? flow.accountId}`,
-        amount: flow.amount,
+        amount,
         decisionId: null,
       },
     ];
   });
 }
 
-function balanceVarianceSources(
-  balances: readonly AdoptedBalanceReconciliation[],
-): AdoptedForecastVarianceSource[] {
-  return balances.flatMap((balance) =>
-    balance.variance == null || Math.abs(balance.variance) < 0.01
-      ? []
-      : [
+function actionBalanceEffectThrough(
+  action: AdoptedActionReconciliation,
+  balance: AdoptedBalanceReconciliation,
+  repository: AssetTrackerRepository,
+): number | null {
+  if (
+    action.action.accountId !== balance.accountId ||
+    action.action.kind === "saving"
+  ) {
+    return 0;
+  }
+  const direction = action.action.kind === "receipt" ? 1 : -1;
+  const expected =
+    action.action.date > balance.checkpointDate
+      ? 0
+      : convertMoneyAtDate(
+          repository,
           {
-            kind: "market-or-currency" as const,
-            label: `${balance.accountName} moved away from its adopted trajectory`,
-            amount: balance.variance,
-            decisionId: null,
+            amount: action.action.amount,
+            currency: action.action.currency,
           },
-        ],
+          action.action.date,
+        );
+  if (expected == null) return null;
+  if (action.actualAmount == null || action.actualDate == null) {
+    return action.action.date <= balance.checkpointDate ? null : 0;
+  }
+  const actual =
+    balance.observedAt != null && action.actualDate <= balance.observedAt
+      ? convertMoneyAtDate(
+          repository,
+          {
+            amount: action.actualAmount,
+            currency: action.action.currency,
+          },
+          action.actualDate,
+        )
+      : 0;
+  return actual == null ? null : direction * (actual - expected);
+}
+
+function householdCashFlowEffectThrough(
+  forecast: AdoptedDecisionForecastRecord,
+  balance: AdoptedBalanceReconciliation,
+  repository: AssetTrackerRepository,
+): number | null {
+  const sourceDate = forecast.sourceBalances.find(
+    ({ accountId }) => accountId === balance.accountId,
+  )?.date;
+  if (sourceDate == null) return 0;
+  let total = 0;
+  for (const flow of repository.capitalFlows) {
+    if (
+      flow.accountId !== balance.accountId ||
+      flow.date <= sourceDate ||
+      flow.date > balance.checkpointDate
+    ) {
+      continue;
+    }
+    const amount = convertAccountAmountAtDate(
+      repository,
+      flow.accountId,
+      flow.amount,
+      flow.date,
+    );
+    if (amount == null) return null;
+    total += amount;
+  }
+  return total;
+}
+
+function hasMarketOrCurrencyExposure(
+  accountId: string,
+  repository: AssetTrackerRepository,
+): boolean {
+  const account = repository.accounts.get(accountId);
+  return (
+    account != null &&
+    (account.currency !== repository.settings.baseCurrency ||
+      ["stocks", "bonds", "reits", "crypto", "property"].includes(
+        account.assetType,
+      ))
   );
+}
+
+function balanceVarianceSources(
+  forecast: AdoptedDecisionForecastRecord,
+  actions: readonly AdoptedActionReconciliation[],
+  balances: readonly AdoptedBalanceReconciliation[],
+  repository: AssetTrackerRepository,
+): AdoptedForecastVarianceSource[] {
+  return balances.flatMap((balance) => {
+    if (balance.variance == null) return [];
+    const actionEffects = actions
+      .map((action) => actionBalanceEffectThrough(action, balance, repository))
+      .filter((amount) => amount !== 0);
+    const cashFlowEffect = householdCashFlowEffectThrough(
+      forecast,
+      balance,
+      repository,
+    );
+    const reliable =
+      balance.observedAt === balance.checkpointDate &&
+      cashFlowEffect != null &&
+      actionEffects.every((amount) => amount != null);
+    const explained = reliable
+      ? actionEffects.reduce((total, amount) => total + (amount ?? 0), 0) +
+        (cashFlowEffect ?? 0)
+      : 0;
+    const residual = balance.variance - explained;
+    if (Math.abs(residual) < 0.01) return [];
+    const marketOrCurrency =
+      reliable && hasMarketOrCurrencyExposure(balance.accountId, repository);
+    return [
+      {
+        kind: marketOrCurrency ? "market-or-currency" : "unexplained",
+        label: marketOrCurrency
+          ? `${balance.accountName} moved after known cash flows were removed`
+          : `${balance.accountName} has a residual balance difference`,
+        amount: residual,
+        decisionId: null,
+      },
+    ];
+  });
 }
 
 function assumptionVarianceSources(
@@ -739,9 +866,9 @@ export function reconcileAdoptedDecisionForecast(
   const actions = reconcileAdoptedActions(forecast, repository);
   const balances = reconcileAdoptedBalances(forecast, repository);
   const varianceSources = [
-    ...actionVarianceSources(actions),
+    ...actionVarianceSources(actions, repository),
     ...householdCashFlowSources(forecast, repository),
-    ...balanceVarianceSources(balances),
+    ...balanceVarianceSources(forecast, actions, balances, repository),
     ...assumptionVarianceSources(forecast, repository),
   ];
   return { actions, balances, varianceSources };
