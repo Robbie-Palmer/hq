@@ -1901,6 +1901,22 @@ describe("delivery evidence persistence", () => {
 
   it("rechecks stale failure, unfinished children, and unresolved attention before release", async () => {
     await repository.createWorkItem({ id: "guarded", title: "Guarded release" });
+    const attentionLease = await repository.claimWorkItem({
+      workItemId: "guarded",
+      workerId: "worker-a",
+      leaseId: recordId(760),
+      leaseDurationSeconds: 300,
+    });
+    if (!attentionLease) throw new Error("Expected the attention lease.");
+    await repository.createAttentionRequest({
+      id: recordId(761),
+      workItemId: "guarded",
+      leaseId: attentionLease.id,
+      epoch: attentionLease.epoch,
+      kind: "decision",
+      question: "Is the production failure acceptable?",
+      blocking: true,
+    });
     await repository.createWorkItem({
       id: "unfinished-child",
       title: "Unfinished child",
@@ -1975,23 +1991,6 @@ describe("delivery evidence persistence", () => {
       pullRequestNumber: 3,
       providerObservedAt: "2026-09-22T12:00:00.000Z",
     });
-    const attentionLease = await repository.claimWorkItem({
-      workItemId: "guarded",
-      workerId: "worker-a",
-      leaseId: recordId(760),
-      leaseDurationSeconds: 300,
-    });
-    if (!attentionLease) throw new Error("Expected the attention lease.");
-    await repository.createAttentionRequest({
-      id: recordId(761),
-      workItemId: "guarded",
-      leaseId: attentionLease.id,
-      epoch: attentionLease.epoch,
-      kind: "decision",
-      question: "Is the production failure acceptable?",
-      blocking: true,
-    });
-
     const result = await repository.evaluateCompletionCandidateAndReleaseIfConfigured({
       id: recordId(762),
       workItemId: "guarded",
