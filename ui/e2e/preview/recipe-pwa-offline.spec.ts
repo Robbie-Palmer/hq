@@ -80,15 +80,19 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
         };
         request.onsuccess = () => {
           const database = request.result;
-          if (!database.objectStoreNames.contains("recipe-snapshots")) {
+          const snapshotStoreName = [
+            "offline-snapshots",
+            "recipe-snapshots",
+          ].find((name) => database.objectStoreNames.contains(name));
+          if (!snapshotStoreName) {
             database.close();
             resolve();
             return;
           }
           snapshotStoreExists = true;
           const count = database
-            .transaction("recipe-snapshots")
-            .objectStore("recipe-snapshots")
+            .transaction(snapshotStoreName)
+            .objectStore(snapshotStoreName)
             .count();
           count.onerror = () => {
             snapshotReadError =
@@ -176,8 +180,17 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;
-          const transaction = database.transaction(
+          const snapshotStoreName = [
+            "offline-snapshots",
             "recipe-snapshots",
+          ].find((name) => database.objectStoreNames.contains(name));
+          if (!snapshotStoreName) {
+            database.close();
+            reject(new Error("The offline snapshot store does not exist"));
+            return;
+          }
+          const transaction = database.transaction(
+            snapshotStoreName,
             "readwrite",
           );
           transaction.onerror = () => reject(transaction.error);
@@ -185,7 +198,7 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
             database.close();
             resolve();
           };
-          transaction.objectStore("recipe-snapshots").clear();
+          transaction.objectStore(snapshotStoreName).clear();
         };
       }),
   );
