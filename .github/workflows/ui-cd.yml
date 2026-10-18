@@ -16,6 +16,11 @@ on:
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
   workflow_call:
+    secrets:
+      CLOUDFLARE_ACCOUNT_ID:
+        required: true
+      CLOUDFLARE_API_TOKEN:
+        required: true
   workflow_dispatch:
 
 permissions:

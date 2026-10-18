@@ -75,3 +75,6 @@ jobs:
       contents: read
     # GitHub requires ./ syntax for reusable workflows in the same repository.
     uses: ./.github/workflows/ui-cd.yml # zizmor: ignore[self-repository]
+    secrets:
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
