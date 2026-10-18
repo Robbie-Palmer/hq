@@ -319,10 +319,12 @@ test.describe("deployed recipe PWA offline navigation", () => {
     ).toBeVisible();
 
     const readiness = await readOfflineReadiness(page);
-    test.skip(
-      !readiness.scopedSnapshotStore,
-      "The deployed app uses the legacy recipe-only snapshot schema",
-    );
+    if (!readiness.scopedSnapshotStore) {
+      await context.setOffline(true);
+      await page.reload();
+      await expectOfflineDestination(page, "/recipes/shopping");
+      return;
+    }
     await expect
       .poll(
         async () => (await readOfflineReadiness(page)).shoppingSnapshotExists,
