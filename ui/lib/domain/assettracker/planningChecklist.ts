@@ -127,7 +127,7 @@ function addLinkedFutureCashFlow(
 ): void {
   if (context.countedRecordIds.has(link.recordId)) return;
   const record = context.recordsById.get(link.recordId);
-  if (record == null || record.kind !== link.kind) return;
+  if (record?.kind !== link.kind) return;
   context.countedRecordIds.add(link.recordId);
   addFutureCashFlow(context.summaries, record, context.countedActualIds);
 }
@@ -235,7 +235,7 @@ function validateFinancialLink(
     return;
   }
   const record = index.records.get(link.recordId);
-  if (record == null || record.kind !== link.kind)
+  if (record?.kind !== link.kind)
     throw new Error(
       `Checklist item "${item.title}" references unknown ${link.kind} "${link.recordId}"`,
     );
