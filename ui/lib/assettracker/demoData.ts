@@ -386,11 +386,88 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     decisionRecords: [
       {
         id: "five-year-fix-decision",
-        kind: "mortgage",
-        title: "Five-year fix",
-        scenarioId: "five-year-fix",
-        recordedAt: "2024-12-01",
-        status: "recorded",
+        kind: "tracked",
+        question: "Should we take the five-year fixed mortgage?",
+        decisionDate: "2024-12-01",
+        selectedScenario: {
+          id: "five-year-fix",
+          label: "Five-year fix",
+        },
+        rationale:
+          "The payment fits the household budget and the fixed period removes rate uncertainty while we rebuild cash reserves.",
+        action:
+          "Accept the five-year fix and make the scheduled monthly payments.",
+        forecast: {
+          capturedAt: "2024-12-01T12:00:00.000Z",
+          calculationVersion: "mortgage-schedule-v1",
+          lineage: [
+            {
+              id: "five-year-fix-property-fact",
+              kind: "financial-fact",
+              label: "Property and deposit",
+              value: "£298,000 property; £85,200 deposit",
+              source: "Home purchase records",
+              validAt: "2024-12-01",
+            },
+            {
+              id: "five-year-fix-rate",
+              kind: "rate",
+              label: "Mortgage rates",
+              value: "4.25% fixed, then 5.25%",
+              source: "Accepted mortgage offer",
+              validAt: "2024-12-01",
+              version: "offer-2024-12-01",
+            },
+            {
+              id: "five-year-fix-tax-rule",
+              kind: "tax-rule",
+              label: "Purchase tax treatment",
+              value: "Purchase taxes already settled; no forecast cash event",
+              source: "Completion statement",
+              validAt: "2024-12-01",
+              version: "2024-25",
+            },
+            {
+              id: "five-year-fix-assumption",
+              kind: "assumption",
+              label: "Payment behaviour",
+              value: "274-month repayment term; no monthly overpayment",
+              source: "Household decision",
+              validAt: "2024-12-01",
+            },
+          ],
+          checkpoints: [
+            {
+              id: "five-year-fix-year-one-balance",
+              label: "Mortgage balance after the first year",
+              dueDate: "2025-12-01",
+              expectedAmount: -205_090,
+              currency: "GBP",
+            },
+          ],
+        },
+        observations: [
+          {
+            id: "five-year-fix-year-one-observation",
+            checkpointId: "five-year-fix-year-one-balance",
+            observedAt: "2025-12-02T09:00:00.000Z",
+            actualAmount: -204_240,
+            note: "The year-end statement shows a lower balance than forecast.",
+            divergenceSources: [
+              {
+                kind: "changed-reality",
+                label: "One additional principal payment",
+                impactAmount: 1_000,
+              },
+              {
+                kind: "changed-assumption",
+                label: "First payment accrued for fewer days",
+                impactAmount: -150,
+              },
+            ],
+          },
+        ],
+        interpretations: [],
       },
     ],
     household: {

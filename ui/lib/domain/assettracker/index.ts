@@ -11,6 +11,7 @@ export * from "./balanceSnapshot";
 export * from "./capitalFlow";
 export * from "./currency";
 export * from "./currentExchangeRate";
+export * from "./decisionRecord";
 export * from "./decisionScenario";
 export * from "./emergencyFund";
 export * from "./exchangeRateDecimal";

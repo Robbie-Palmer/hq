@@ -11,6 +11,7 @@ import {
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
+import type { FinancialDecisionRecord } from "./decisionRecord";
 import type { EmergencyFundPlan } from "./emergencyFund";
 import type { ForecastAssumptionSet } from "./forecastAssumption";
 import {
@@ -23,10 +24,7 @@ import {
 import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
 import type { JobMoveScenario } from "./jobMoveScenario";
-import type {
-  FinancialDecisionRecord,
-  MortgageScenario,
-} from "./mortgageCalculator";
+import type { MortgageScenario } from "./mortgageCalculator";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 import type { PropertyComparableSearchDefinition } from "./propertyComparables";
 import type { PropertyIndexHistoryDefinition } from "./propertyIndexHistory";
@@ -751,20 +749,42 @@ function validateJobMoveScenarioReferences(
   }
 }
 
-function validateReferences(
-  data: AssetTrackerData,
-  accounts: Map<AccountId, Account>,
+function validateTrackedDecision(
+  decision: Extract<FinancialDecisionRecord, { kind: "tracked" }>,
 ): void {
-  validateCoreReferences(data, accounts);
-  validatePlannedExpenditureReferences(data, accounts);
-  validateFutureCashFlowReferences(data, accounts);
-  validateForecastAssumptionSets(data, accounts);
-  validateSpendingBaselines(data);
-  validateEmergencyFundPlans(data, accounts);
-  validateValuationReferences(data, accounts);
-  validatePropertyComparableSearchReferences(data, accounts);
-  validatePropertyIndexHistoryReferences(data, accounts);
-  validateJobMoveScenarioReferences(data, accounts);
+  const checkpointIds = new Set(
+    decision.forecast.checkpoints.map((checkpoint) => checkpoint.id),
+  );
+  if (checkpointIds.size !== decision.forecast.checkpoints.length) {
+    throw new AssetTrackerDataError(
+      `Decision "${decision.question}" has duplicate checkpoint IDs`,
+    );
+  }
+  const observationIds = new Set<string>();
+  const observedCheckpoints = new Set<string>();
+  for (const observation of decision.observations) {
+    if (!checkpointIds.has(observation.checkpointId)) {
+      throw new AssetTrackerDataError(
+        `Decision "${decision.question}" has an observation for unknown checkpoint "${observation.checkpointId}"`,
+      );
+    }
+    if (
+      observationIds.has(observation.id) ||
+      observedCheckpoints.has(observation.checkpointId)
+    ) {
+      throw new AssetTrackerDataError(
+        `Decision "${decision.question}" has duplicate observations`,
+      );
+    }
+    observationIds.add(observation.id);
+    observedCheckpoints.add(observation.checkpointId);
+  }
+}
+
+function validateDecisionRecords(
+  data: AssetTrackerData,
+  accounts: ReadonlyMap<AccountId, Account>,
+): void {
   const mortgageScenarios = data.mortgageScenarios ?? [];
   const decisionRecords = data.decisionRecords ?? [];
   const scenarios = new Map(
@@ -800,12 +820,32 @@ function validateReferences(
     }
   }
   for (const decision of decisionRecords) {
-    if (!scenarios.has(decision.scenarioId)) {
+    if (decision.kind === "mortgage" && !scenarios.has(decision.scenarioId)) {
       throw new AssetTrackerDataError(
         `Decision "${decision.title}" references unknown mortgage scenario "${decision.scenarioId}"`,
       );
     }
+    if (decision.kind === "tracked") {
+      validateTrackedDecision(decision);
+    }
   }
+}
+
+function validateReferences(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+): void {
+  validateCoreReferences(data, accounts);
+  validatePlannedExpenditureReferences(data, accounts);
+  validateFutureCashFlowReferences(data, accounts);
+  validateForecastAssumptionSets(data, accounts);
+  validateSpendingBaselines(data);
+  validateEmergencyFundPlans(data, accounts);
+  validateValuationReferences(data, accounts);
+  validatePropertyComparableSearchReferences(data, accounts);
+  validatePropertyIndexHistoryReferences(data, accounts);
+  validateJobMoveScenarioReferences(data, accounts);
+  validateDecisionRecords(data, accounts);
 }
 
 export function buildRepository(

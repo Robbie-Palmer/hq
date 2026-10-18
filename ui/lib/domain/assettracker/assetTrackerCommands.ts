@@ -22,6 +22,14 @@ import {
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
 import {
+  type AddDecisionInterpretationInput,
+  AddDecisionInterpretationInputSchema,
+  type CreateDecisionRecordInput,
+  CreateDecisionRecordInputSchema,
+  type RecordDecisionObservationInput,
+  RecordDecisionObservationInputSchema,
+} from "./decisionRecord";
+import {
   type EmergencyFundPlanInput,
   EmergencyFundPlanInputSchema,
   EmergencyFundPlanSchema,
@@ -105,6 +113,9 @@ export type AssetTrackerCommandErrorCode =
   | "FUTURE_CASH_FLOW_NOT_FOUND"
   | "INVALID_FUTURE_CASH_FLOW"
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
+  | "DECISION_RECORD_NOT_FOUND"
+  | "DECISION_CHECKPOINT_NOT_FOUND"
+  | "DECISION_CHECKPOINT_ALREADY_OBSERVED"
   | "INVALID_FORECAST_ASSUMPTION"
   | "INVALID_SPENDING_BASELINE"
   | "INVALID_RECURRING_FLOW_CONVERSION"
@@ -2284,6 +2295,134 @@ export function applySaveMortgageScenario(
               status: "recorded",
             },
           ],
+  };
+}
+
+export function applyCreateDecisionRecord(
+  data: AssetTrackerData,
+  input: CreateDecisionRecordInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = CreateDecisionRecordInputSchema.parse(input);
+  const id = uniqueId(
+    new Set((data.decisionRecords ?? []).map((decision) => decision.id)),
+    normalizeSlug(parsed.question) || "decision",
+  );
+  return {
+    ...data,
+    decisionRecords: [
+      ...(data.decisionRecords ?? []),
+      {
+        ...parsed,
+        id,
+        kind: "tracked",
+        forecast: { ...parsed.forecast, capturedAt: recordedAt },
+        observations: [],
+        interpretations: [],
+      },
+    ],
+  };
+}
+
+function requireTrackedDecision(data: AssetTrackerData, id: string) {
+  const decision = (data.decisionRecords ?? []).find(
+    (candidate) => candidate.id === id,
+  );
+  if (decision?.kind !== "tracked") {
+    throw new AssetTrackerCommandError(
+      "DECISION_RECORD_NOT_FOUND",
+      `No tracked decision found with ID ${id}`,
+    );
+  }
+  return decision;
+}
+
+export function applyRecordDecisionObservation(
+  data: AssetTrackerData,
+  input: RecordDecisionObservationInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = RecordDecisionObservationInputSchema.parse(input);
+  const decision = requireTrackedDecision(data, parsed.decisionId);
+  if (
+    !decision.forecast.checkpoints.some(
+      (checkpoint) => checkpoint.id === parsed.checkpointId,
+    )
+  ) {
+    throw new AssetTrackerCommandError(
+      "DECISION_CHECKPOINT_NOT_FOUND",
+      `Decision ${decision.id} has no checkpoint ${parsed.checkpointId}`,
+    );
+  }
+  if (
+    decision.observations.some(
+      (observation) => observation.checkpointId === parsed.checkpointId,
+    )
+  ) {
+    throw new AssetTrackerCommandError(
+      "DECISION_CHECKPOINT_ALREADY_OBSERVED",
+      `Checkpoint ${parsed.checkpointId} already has an observation`,
+    );
+  }
+  const observationId = uniqueId(
+    new Set(decision.observations.map((observation) => observation.id)),
+    `${parsed.checkpointId}-observation`,
+  );
+  return {
+    ...data,
+    decisionRecords: (data.decisionRecords ?? []).map((candidate) =>
+      candidate.id === decision.id
+        ? {
+            ...decision,
+            observations: [
+              ...decision.observations,
+              {
+                id: observationId,
+                checkpointId: parsed.checkpointId,
+                observedAt: recordedAt,
+                actualAmount: parsed.actualAmount,
+                note: parsed.note,
+                divergenceSources: parsed.divergenceSources,
+              },
+            ],
+          }
+        : candidate,
+    ),
+  };
+}
+
+export function applyAddDecisionInterpretation(
+  data: AssetTrackerData,
+  input: AddDecisionInterpretationInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = AddDecisionInterpretationInputSchema.parse(input);
+  const decision = requireTrackedDecision(data, parsed.decisionId);
+  const interpretationId = uniqueId(
+    new Set(
+      decision.interpretations.map((interpretation) => interpretation.id),
+    ),
+    "interpretation",
+  );
+  return {
+    ...data,
+    decisionRecords: (data.decisionRecords ?? []).map((candidate) =>
+      candidate.id === decision.id
+        ? {
+            ...decision,
+            interpretations: [
+              ...decision.interpretations,
+              {
+                id: interpretationId,
+                createdAt: recordedAt,
+                reason: parsed.reason,
+                revisedRationale: parsed.revisedRationale,
+                assumptionChanges: parsed.assumptionChanges,
+              },
+            ],
+          }
+        : candidate,
+    ),
   };
 }
 
