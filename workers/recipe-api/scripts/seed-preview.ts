@@ -1,7 +1,8 @@
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { requiredEnv } from "node-base/env";
 import { createAuth } from "../src/auth";
 import { createDb, schema } from "recipe-db";
+import type { ShoppingListSnapshot } from "recipe-db/schema";
 import { RecipeContentSchema } from "recipe-domain";
 import type { PantryLocation } from "recipe-domain/pantry";
 import { previewScenarios } from "../src/preview-scenarios";
@@ -287,6 +288,97 @@ try {
       });
   }
 
+  // A shared plan that is useful the moment either household member signs in.
+  // Keep the solo recipes user empty because preview Playwright uses it as the
+  // clean account for creating and restoring a plan through the UI.
+  const CURRY_MEAL_ID = "preview-household-curry-dinner";
+  const householdShoppingList: ShoppingListSnapshot = {
+    recipes: [],
+    checked: [],
+    extras: [],
+    plan: [
+      {
+        id: "preview-household-flatbread-idea",
+        kind: "recipe",
+        status: "candidate",
+        recipeSlug: "preview-public-household-flatbread",
+        servings: 2,
+        note: "An easy option for later in the week",
+      },
+      {
+        id: CURRY_MEAL_ID,
+        kind: "recipe",
+        status: "committed",
+        date: dateFromToday(0),
+        mealType: "dinner",
+        recipeSlug: "preview-household-veggie-curry",
+        servings: 4,
+        note: "Cook enough for tomorrow's lunch",
+      },
+      {
+        id: "preview-household-curry-leftovers",
+        kind: "leftovers",
+        status: "committed",
+        date: dateFromToday(1),
+        mealType: "lunch",
+        servings: 2,
+        note: "Veggie curry leftovers",
+        sourceMealId: CURRY_MEAL_ID,
+      },
+      {
+        id: "preview-household-decide-together",
+        kind: "decide_later",
+        status: "committed",
+        date: dateFromToday(1),
+        mealType: "dinner",
+        note: "Choose together",
+      },
+      {
+        id: "preview-household-flatbread-dinner",
+        kind: "recipe",
+        status: "committed",
+        date: dateFromToday(2),
+        mealType: "dinner",
+        recipeSlug: "preview-public-household-flatbread",
+        servings: 2,
+      },
+      {
+        id: "preview-household-dinner-out",
+        kind: "eating_out",
+        status: "committed",
+        date: dateFromToday(3),
+        mealType: "dinner",
+        note: "Dinner out",
+      },
+    ],
+  };
+  const [activeHouseholdList] = await db
+    .select({ id: schema.shoppingList.id })
+    .from(schema.shoppingList)
+    .where(
+      and(
+        eq(schema.shoppingList.organizationId, HOUSEHOLD_ID),
+        eq(schema.shoppingList.status, "active"),
+      ),
+    )
+    .limit(1);
+  if (activeHouseholdList) {
+    await db
+      .update(schema.shoppingList)
+      .set({
+        revision: 0n,
+        snapshot: householdShoppingList,
+        updatedAt: new Date(),
+      })
+      .where(eq(schema.shoppingList.id, activeHouseholdList.id));
+  } else {
+    await db.insert(schema.shoppingList).values({
+      id: "88888888-8888-4888-8888-888888888888",
+      organizationId: HOUSEHOLD_ID,
+      snapshot: householdShoppingList,
+    });
+  }
+
   // The curry matches this equipment exactly. The household flatbread also
   // requires a grill, which stays unowned so preview QA can see both readiness
   // states without changing settings first.
@@ -489,7 +581,7 @@ try {
     .onConflictDoNothing();
 
   console.log(
-    `Seeded ${previewScenarios.length} preview scenarios with household, pantry, equipment, diet, cooking-history, and cross-household follow fixtures.`,
+    `Seeded ${previewScenarios.length} preview scenarios with household, meal-plan, pantry, equipment, diet, cooking-history, and cross-household follow fixtures.`,
   );
 } finally {
   await client.end({ timeout: 5 });
