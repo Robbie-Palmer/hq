@@ -2535,6 +2535,20 @@ export class WorkGraphRepository {
     });
   }
 
+  async evaluateCompletionCandidateIfConfigured(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation | null> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    const [assignment] = await this.db
+      .select({ workItemId: workItemCompletionPolicy.workItemId })
+      .from(workItemCompletionPolicy)
+      .where(eq(workItemCompletionPolicy.workItemId, input.workItemId))
+      .limit(1);
+    return assignment === undefined
+      ? null
+      : this.evaluateCompletionCandidate(input);
+  }
+
   async getCompletionCandidate(
     workItemId: string,
   ): Promise<StoredCompletionCandidateEvaluation | null> {

@@ -278,6 +278,11 @@ and revision used to produce it. A null `completionCandidate` means no
 evaluation has been recorded. Evidence history remains available through the
 REST collection.
 
+`completion-policy put` creates an immutable policy revision.
+`completion-policy assign` assigns a revision to a ticket and immediately
+evaluates its current evidence. Later GitHub deliveries reevaluate assigned
+tickets without changing their lifecycle.
+
 `pr refresh` and `pr link` remain available as low-level automation commands.
 `pr refresh` records the latest observed snapshot independently of any ticket
 claim. Add `--draft` for draft PRs; omit `--review-decision` when GitHub has no
