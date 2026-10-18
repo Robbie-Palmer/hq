@@ -6,6 +6,13 @@ describe("isPreviewDeployment", () => {
     expect(isPreviewDeployment("pr-42.personal-site-bu5.pages.dev")).toBe(true);
   });
 
+  it.each(["localhost", "127.0.0.1", "[::1]"])(
+    "recognizes the loopback host %s for local preview QA",
+    (hostname) => {
+      expect(isPreviewDeployment(hostname)).toBe(true);
+    },
+  );
+
   it.each([
     "robbiepalmer.me",
     "personal-site-bu5.pages.dev",

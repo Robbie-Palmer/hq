@@ -36,7 +36,7 @@ const steps: CookStep[] = [
   },
 ];
 
-function renderCookMode() {
+function renderCookMode(onComplete = vi.fn()) {
   return render(
     <CookModeProvider>
       <CookMode
@@ -51,7 +51,7 @@ function renderCookMode() {
         step={0}
         onStepChange={() => {}}
         onExit={() => {}}
-        onComplete={() => {}}
+        onComplete={onComplete}
       />
       <ActiveStepProbe />
     </CookModeProvider>,
@@ -125,5 +125,31 @@ describe("CookMode timer", () => {
     const liveCountdown = screen.getByText("10:00");
     expect(liveCountdown).not.toHaveClass("opacity-60");
     expect(screen.getByRole("button", { name: /pause/i })).toBeInTheDocument();
+  });
+
+  it("finishes without collecting optional meal details", async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    renderCookMode(onComplete);
+
+    await user.click(screen.getByRole("button", { name: "Finish ✓" }));
+
+    expect(onComplete).toHaveBeenCalledWith(null);
+    expect(
+      screen.queryByRole("dialog", { name: /save leftovers/i }),
+    ).toBeNull();
+  });
+
+  it("opens leftover tracking only when the cook asks for it", async () => {
+    const user = userEvent.setup();
+    const onComplete = vi.fn();
+    renderCookMode(onComplete);
+
+    await user.click(screen.getByRole("button", { name: "Track leftovers" }));
+
+    expect(
+      screen.getByRole("dialog", { name: "Save leftovers from Pasta" }),
+    ).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
   });
 });

@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { parseAllDocuments } from "yaml";
 
 interface KubernetesResource {
@@ -479,6 +480,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     );
 
     const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.equal(settings.continueThreadsAfterServerUpdate, true);
     assert.deepEqual(settings.defaultModelSelection, {
       instanceId: "codex",
       model: "gpt-5.6-sol",
@@ -508,6 +510,106 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     assert.equal(sol?.default_reasoning_level, "high");
     assert.equal(sol?.priority, 0);
     assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-idle-check-"));
+  const scriptPath = fileURLToPath(
+    new URL("../scripts/check-t3-idle.mjs", import.meta.url),
+  );
+  const check = (databasePath: string) =>
+    spawnSync(process.execPath, [scriptPath], {
+      encoding: "utf8",
+      env: { ...process.env, T3_STATE_DATABASE: databasePath },
+      timeout: 5000,
+    });
+
+  try {
+    const legacyPath = join(temporaryDirectory, "state.sqlite");
+    const legacy = new DatabaseSync(legacyPath);
+    legacy.exec(`
+      CREATE TABLE projection_threads (
+        thread_id TEXT PRIMARY KEY,
+        pending_approval_count INTEGER NOT NULL DEFAULT 0,
+        pending_user_input_count INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE projection_thread_sessions (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        active_turn_id TEXT
+      );
+      CREATE TABLE provider_session_runtime (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL
+      );
+      INSERT INTO projection_threads VALUES ('legacy-thread', 0, 0);
+      INSERT INTO projection_thread_sessions VALUES ('legacy-thread', 'stopped', NULL);
+      INSERT INTO provider_session_runtime VALUES ('legacy-thread', 'stopped');
+    `);
+    legacy.close();
+    assert.equal(check(legacyPath).status, 0);
+
+    const legacyBusy = new DatabaseSync(legacyPath);
+    legacyBusy.exec(
+      "UPDATE projection_thread_sessions SET status = 'running' WHERE thread_id = 'legacy-thread'",
+    );
+    legacyBusy.close();
+    const legacyResult = check(legacyPath);
+    assert.equal(legacyResult.status, 20);
+    assert.match(legacyResult.stderr, /legacy-thread/);
+
+    const v2Path = join(temporaryDirectory, "statev2.sqlite");
+    const v2 = new DatabaseSync(v2Path);
+    v2.exec(`
+      CREATE TABLE orchestration_v2_projection_runs (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_runtime_requests (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_provider_threads (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_subagents (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_turn_items (
+        thread_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_nodes (
+        thread_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      INSERT INTO orchestration_v2_projection_provider_threads
+        VALUES (
+          'v2-thread',
+          'idle',
+          '{"pendingBackgroundTasks":[{"taskId":"build","kind":"command"}]}'
+        );
+    `);
+    v2.close();
+    const v2Result = check(v2Path);
+    assert.equal(v2Result.status, 20);
+    assert.match(v2Result.stderr, /pendingBackgroundTasks|provider thread idle/);
+
+    const v2Idle = new DatabaseSync(v2Path);
+    v2Idle.exec(`
+      UPDATE orchestration_v2_projection_provider_threads
+      SET payload_json = '{"pendingBackgroundTasks":[]}'
+    `);
+    v2Idle.close();
+    assert.equal(check(v2Path).status, 0);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -570,11 +672,25 @@ test("the observability collector attributes quota, backup, and Kubernetes state
     "shared-task-cache-metrics.json",
   );
   const outputPath = join(temporaryDirectory, "statsd.txt");
+  const collectorStatePath = join(temporaryDirectory, "collector-state");
 
   try {
     mkdirSync(binaryDirectory);
     const commands: Record<string, string> = {
       curl: `#!/usr/bin/env bash
+if [[ "$*" == *"127.0.0.1:13133"* ]]; then
+  printf 'ok\n'
+  exit 0
+fi
+if [[ "$*" == *"127.0.0.1:8888"* ]]; then
+  cat <<'METRICS'
+otelcol_exporter_send_failed_spans_total{exporter="otlphttp/posthog"} 2
+otelcol_exporter_enqueue_failed_log_records_total{exporter="otlphttp/posthog"} 1
+otelcol_exporter_queue_size{exporter="otlphttp/posthog"} 4
+otelcol_processor_filter_spans_filtered_total{processor="filter/t3code"} 12
+METRICS
+  exit 0
+fi
 cat <<'METRICS'
 kube_pod_container_status_last_terminated_reason{namespace="t3-code",reason="OOMKilled"} 1
 kube_pod_status_reason{namespace="t3-code",reason="Evicted"} 0
@@ -611,6 +727,9 @@ printf '%s\\n' \\
         `BACKUP_STATUS_FILE=${statusPath}`,
         "BACKUP_MAXIMUM_AGE_SECONDS=129600",
         "KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics",
+        "OTELCOL_HEALTH_URL=http://127.0.0.1:13133/",
+        "OTELCOL_METRICS_URL=http://127.0.0.1:8888/metrics",
+        `OTELCOL_STATE_FILE=${collectorStatePath}`,
         "AGENT_COORDINATOR_ENABLED=1",
         `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
         `SHARED_TASK_CACHE_METRICS_FILE=${sharedTaskCacheMetricsPath}`,
@@ -722,11 +841,28 @@ printf '%s\\n' \\
     );
     assert.match(
       metrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:1\|g$/m,
+    );
+    assert.match(
+      metrics,
       /^remote_development\.operator\.agent_coordinator_admission_open:1\|g$/m,
     );
     assert.match(
       metrics,
       /^remote_development\.operator\.kube_state_metrics_up:1\|g$/m,
+    );
+    assert.match(metrics, /^remote_development\.operator\.otelcol_up:1\|g$/m);
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_pipeline_failures:3\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_export_queue_size:4\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.otelcol_policy_dropped_records:12\|g$/m,
     );
     assert.match(
       metrics,
@@ -736,8 +872,79 @@ printf '%s\\n' \\
       metrics,
       /^remote_development\.operator\.crash_loop:2\|g$/m,
     );
+
+    writeFileSync(sharedTaskCacheMetricsPath, "{not-json}\n");
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/remote-development-observability-metrics",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+        REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG: configPath,
+        STATSD_OUTPUT_FILE: outputPath,
+      },
+    );
+    const invalidCacheMetrics = readFileSync(outputPath, "utf8");
+    assert.match(
+      invalidCacheMetrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:0\|g$/m,
+    );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the T3 Code collector is host-bound and default-deny before PostHog export", () => {
+  const imagePackage = JSON.parse(
+    readFileSync(new URL("../images/t3-code/package.json", import.meta.url), "utf8"),
+  ) as { dependencies: Record<string, string> };
+  const collectorPath = new URL(
+    "../hosts/remote-development/opentelemetry-collector.yaml",
+    import.meta.url,
+  );
+  const collectorText = readFileSync(collectorPath, "utf8");
+  const documents = parseAllDocuments(collectorText);
+  assert.deepEqual(documents[0]?.errors, []);
+  const collector = documents[0]?.toJS() as Record<string, unknown>;
+
+  const t3Version = imagePackage.dependencies.t3;
+  assert.ok(typeof t3Version === "string");
+  assert.match(t3Version, /^\d+\.\d+\.\d+$/);
+  assert.equal(
+    valueAt(collector, ["receivers", "otlp/t3code", "protocols", "http", "endpoint"]),
+    "10.42.0.1:4318",
+  );
+  assert.equal(
+    valueAt(collector, ["exporters", "otlp/netdata", "endpoint"]),
+    "127.0.0.1:4317",
+  );
+  assert.equal(
+    valueAt(collector, ["exporters", "otlphttp/posthog", "endpoint"]),
+    "https://eu.i.posthog.com/i",
+  );
+  assert.match(collectorText, /keep_keys\(attributes/);
+  assert.match(collectorText, /set\(body, "T3 Code warning or error/);
+  assert.match(collectorText, /severity_number < SEVERITY_NUMBER_WARN/);
+  assert.match(collectorText, /spanevent:\n\s+- 'true'/);
+  for (const forbiddenAttribute of [
+    "provider.instance_id",
+    "provider.thread_id",
+    "provider.turn_id",
+    "terminal.cwd",
+    "terminal.id",
+  ]) {
+    assert.ok(
+      !collectorText.includes(`"${forbiddenAttribute}"`),
+      `${forbiddenAttribute} must not be allowlisted`,
+    );
   }
 });
 
@@ -1152,6 +1359,40 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "t3-code",
     "t3-code",
   );
+  const imageManifest = JSON.parse(
+    readFileSync(new URL("../images/t3-code/package.json", import.meta.url), "utf8"),
+  ) as { dependencies: { t3: string } };
+  const expectedT3Image = new RegExp(
+    `^ghcr\\.io/robbie-palmer/t3-code:${imageManifest.dependencies.t3.replaceAll(".", "\\.")}-agent-tools-\\d+$`,
+  );
+  const t3ContainerImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "image",
+  ]);
+  const t3InitImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "initContainers",
+    0,
+    "image",
+  ]);
+  assert.equal(typeof t3ContainerImage, "string");
+  assert.match(String(t3ContainerImage), expectedT3Image);
+  assert.equal(t3InitImage, t3ContainerImage);
+  assert.equal(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "terminationGracePeriodSeconds",
+    ]),
+    120,
+  );
   const operatorNamespace = resource(resources, "Namespace", "t3-code");
   assert.equal(
     valueAt(operatorNamespace, [
@@ -1250,11 +1491,18 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "env",
   ]);
   assert.ok(Array.isArray(operatorEnvironment));
-  for (const [name, value] of [
-    ["SHARED_TASK_CACHE_DIR", "/data/cache/shared-task-cache"],
-    ["SHARED_TASK_CACHE_MAX_BYTES", "12884901888"],
-    ["SHARED_TASK_CACHE_MAX_AGE_SECONDS", "1209600"],
-  ]) {
+  for (const [name, value] of Object.entries({
+    OTEL_RESOURCE_ATTRIBUTES:
+      "deployment.environment.name=remote-development,workspace.id=operator",
+    SHARED_TASK_CACHE_DIR: "/data/cache/shared-task-cache",
+    SHARED_TASK_CACHE_MAX_AGE_SECONDS: "1209600",
+    SHARED_TASK_CACHE_MAX_BYTES: "12884901888",
+    T3CODE_OTLP_EXPORT_INTERVAL_MS: "10000",
+    T3CODE_OTLP_LOGS_URL: "http://10.42.0.1:4318/v1/logs",
+    T3CODE_OTLP_METRICS_URL: "http://10.42.0.1:4318/v1/metrics",
+    T3CODE_OTLP_PROTOCOL: "http/protobuf",
+    T3CODE_OTLP_TRACES_URL: "http://10.42.0.1:4318/v1/traces",
+  })) {
     assert.deepEqual(
       operatorEnvironment.find(
         (entry) =>

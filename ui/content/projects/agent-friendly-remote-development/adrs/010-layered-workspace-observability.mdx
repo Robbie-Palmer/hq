@@ -88,8 +88,8 @@ will run an equivalent collector outside user namespaces. The
 Collector will:
 
 * send T3 Code metrics to Netdata's loopback OTLP/gRPC receiver;
-* send T3 Code traces and selected T3 Code container logs to this project's
-  PostHog project;
+* send T3 Code traces and selected T3 Code container logs to the existing
+  shared PostHog EU project;
 * add a stable workspace ID from the service name or Kubernetes namespace;
 * remove disallowed attributes before data leaves the host; and
 * expose its own health and dropped-record metrics to Netdata.
@@ -104,9 +104,17 @@ Pin or upgrade the T3 Code image to a release that contains the documented
 OTLP exporters. The deployed image, rather than upstream `main`, must pass the
 telemetry smoke test.
 
-Create a PostHog project for this remote development environment. Give it a
-project token, dashboards, retention and billing controls, alert definitions,
-and Slack destination.
+Reuse the existing PostHog EU project that already contains telemetry for the
+personal site and other personal applications. Mark every remote-development
+record with `deployment.environment.name=remote-development` and a
+`workspace.id`. Every dashboard, saved insight, alert, and Slack notification
+for this system must filter on the environment marker. Views and alerts for one
+workspace must also filter on its workspace ID.
+
+Use the shared project's ingestion token and trace and log retention. Keep
+trace and log retention at 30 days or less. Prefix saved assets with
+`Remote development /`, route matching alerts to the project-owned Slack
+destination, and keep the account-level billing controls enabled.
 
 ## Host-loss detection
 
@@ -129,7 +137,7 @@ Apply them consistently as the Kubernetes namespace label,
 `T3CODE_OTLP_SERVICE_NAME`, `service.namespace`, and `workspace.id`. PostHog
 may retain a session or trace ID for investigation. Slack messages must contain
 only the workspace ID, failure class, affected component, time, and a link to
-the relevant project-owned view.
+the relevant filtered view.
 
 Use the following ownership split:
 
@@ -170,9 +178,10 @@ Keep this ADR Proposed until a disposable test proves all of the following:
    without losing its local trace file.
 4. Controlled child-process and container OOM tests name the correct workspace
    and cause. The other workspace remains usable.
-5. A non-OOM provider child-process failure appears in PostHog with its
-   workspace ID and trace. Repeated failures trigger Slack without requiring a
-   pod restart.
+5. A non-OOM provider child-process failure appears in the filtered PostHog
+   views with its workspace ID and trace. Repeated failures trigger Slack
+   without requiring a pod restart, while unrelated application records do
+   not trigger the alert.
 6. Stopping K3s and stopping kube-state-metrics produce distinct alerts.
 7. Making the host unreachable causes the managed heartbeat service to alert
    Slack. Recovery produces one matching notification.
@@ -188,6 +197,15 @@ Keep this ADR Proposed until a disposable test proves all of the following:
     limit that prevents unplanned spend.
 
 # Alternatives
+
+A dedicated PostHog project would enforce the boundary through separate
+project settings and credentials. The existing PostHog project already keeps
+several personal applications separate with record filters and independent
+Slack destinations. The first deployment has one operator, and the Collector
+removes disallowed data before export, so another PostHog project adds little
+protection for this pilot. Revisit this choice before another person's
+workspace is enabled or if remote-development telemetry needs different
+retention, access, or billing controls.
 
 A separate Netdata Cloud space would provide off-host access and node-loss
 detection. It would reintroduce a hosted Netdata control plane and its plan
@@ -224,6 +242,12 @@ The project adds one small Kubernetes exporter, two host services, and one
 hosted heartbeat check. It must patch and monitor those components. The
 Collector needs redaction rules, while eBPF collection needs narrowly scoped
 host privileges.
+
+PostHog configuration errors can mix remote-development records into unrelated
+views or send the wrong Slack notification. The stable environment filter,
+workspace filter, and asset prefix are required configuration. The shared
+project also means trace and log retention and billing limits cannot vary
+independently for this system.
 
 Local Netdata history becomes unavailable while the remote host is down and
 may disappear with an unrecoverable host disk. The external heartbeat proves

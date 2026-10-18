@@ -1,0 +1,198 @@
+---
+title: "ADR 034: Identity and access capability contracts"
+date: "2026-10-15"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 019](/projects/personal-engineering-platform/adrs/019-cloudflare-access-boundaries)
+selects Cloudflare Access for preview protection and service authentication.
+[ADR 020](/projects/personal-engineering-platform/adrs/020-better-auth-and-google-oidc)
+selects Better Auth and Google OIDC for application sign-in. Those records chose
+technologies, but the platform manifest still grouped several independent jobs.
+A project could select a login provider without declaring how its browser session
+travels or where authorization runs.
+
+Recipe Site supplies the working evidence. It uses Better Auth, Google and GitHub
+OAuth, first-party cookie sessions, server-side household authorization, Cloudflare
+Access preview gates, and the Better Auth Agent Auth plugin. Work Graph uses
+Cloudflare Access service tokens without application user sessions. The overlap is
+useful, but it does not make every local choice a platform default.
+
+Authentication establishes a principal. Session transport carries that result.
+Authorization decides what the principal may do. Preview protection rejects traffic
+before the application, while service and agent credentials identify non-human
+callers. Secret delivery supports all of them without replacing any of those jobs.
+
+## Decision
+
+Model these jobs as separate platform slots:
+
+| Job                            | Slot                                           | Platform position                                                                                                                           |
+| ------------------------------ | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| User authentication library    | `identity.authentication-library`              | Prefer Better Auth when the application has a TypeScript server component, durable relational session storage, and runtime secret delivery. |
+| Human login provider           | `identity.login-provider`                      | Prefer Google OIDC. Keep the slot multi-valued so a project can add another provider without replacing its session library.                 |
+| Delegated agent authentication | `identity.delegated-agent-authentication`      | Record Better Auth Agent Auth as proposed. It has one adopter and remains a draft protocol, so the platform sets no default.                |
+| Browser session transport      | `identity.session-transport`                   | Prefer a same-origin, first-party, `Secure`, `HttpOnly` cookie session.                                                                     |
+| Application authorization      | `identity.authorization-policy`                | Require a project-owned, server-side resource and action policy for projects that adopt the identity layer.                                 |
+| Preview protection             | `security.preview-access`                      | Prefer Cloudflare Access for Cloudflare-managed preview hostnames.                                                                          |
+| Service authentication         | `security.service-auth`                        | Prefer Cloudflare Access service tokens for non-public services on Cloudflare-managed hostnames.                                            |
+| Runtime and CI secret delivery | `secrets.runtime-store` and `secrets.ci-store` | Keep credentials in the store that owns the consuming workload or delivery job.                                                             |
+
+Better Auth describes itself as an
+[authentication framework for TypeScript](https://www.better-auth.com/docs/introduction)
+and exposes a JavaScript `Request` and `Response` handler. A backend written only
+in Python, Go, Java, Rust, or another language cannot embed it. The policy records
+that component requirement directly. It also uses the accepted TypeScript
+primary-language selection as a conservative default gate because the manifest does
+not yet model implementation languages per component. A project with another
+primary language must record an explicit exception for a separate TypeScript
+authentication service or choose a managed or language-native authentication
+system.
+
+The platform keeps the accepted selections from ADRs 019 and 020. This record adds
+the missing policy jobs and operating contract. GitHub OAuth remains a proposed
+additional provider. Recipe Site uses it, but one project's secondary login path is
+not enough evidence for another platform default.
+
+Agent Auth does not replace Cloudflare Access service authentication. Access proves
+which client installation reached a protected hostname. Agent Auth proves which
+runtime agent holds a delegated grant for a user. Neither grants access to a product
+resource. The application authorization policy remains the last decision point.
+
+### Browser origin and cookie contract
+
+Route the browser application and Better Auth endpoints through one origin. Use a
+host-only `Secure` and `HttpOnly` session cookie with an explicit `SameSite` policy.
+The default is `SameSite=Lax`. Do not put the session token in browser storage.
+
+Two subdomains under one registrable domain may use an explicit cookie domain only
+when a project records the wider cookie scope and its CORS policy. Origins on
+different registrable domains are incompatible with the default because they need
+`SameSite=None` and depend on cross-site cookie behavior. A project that cannot keep
+auth routes same-origin must override the session-transport slot and own the CSRF,
+CORS, cookie, and browser-compatibility consequences.
+
+`BETTER_AUTH_URL` names the exact public origin for one environment. Better Auth
+callback routes and trusted-origin checks derive from it. Production, local
+development, and any stable test environment use different values.
+
+### Provider registration contract
+
+Register one OAuth web client per stable environment. Each client allowlists only
+the environment's owned origins and exact callback URI. For Better Auth's social
+providers, the callbacks are `/api/auth/callback/google` and
+`/api/auth/callback/github` on the configured `BETTER_AUTH_URL` origin.
+
+Ordinary pull-request URLs do not receive Google or GitHub OAuth clients. Recipe
+Site previews use seeded test identities behind Cloudflare Access. A project that
+needs social login in previews must provide a stable callback broker or another
+bounded registration scheme before it can enable those providers.
+
+Google OIDC is the preferred provider. Google account recovery and multi-factor
+authentication remain provider responsibilities. The application still owns
+account linking, session invalidation, provider removal, and the recovery path when
+Google is unavailable.
+
+GitHub OAuth remains a candidate additive provider. Google remains the default. A
+GitHub provider uses the same session and authorization contracts. Promotion needs
+evidence beyond Recipe Site and a product decision that covers account linking and
+recovery.
+
+### Configuration ownership
+
+The manifest records each selected provider's required names, owning secret slot,
+and sensitivity. The runtime contract is:
+
+| Name                      | Owner                                     | Sensitive | Purpose                                                            |
+| ------------------------- | ----------------------------------------- | --------- | ------------------------------------------------------------------ |
+| `BETTER_AUTH_URL`         | Runtime secret store config               | No        | Public origin for callbacks, cookies, and trusted-origin checks.   |
+| `BETTER_AUTH_SECRET`      | Runtime secret store                      | Yes       | Better Auth signing and encryption secret, unique per environment. |
+| `GOOGLE_CLIENT_ID`        | Runtime secret store config               | No        | Google web OAuth client identifier.                                |
+| `GOOGLE_CLIENT_SECRET`    | Runtime secret store                      | Yes       | Google web OAuth client secret.                                    |
+| `GITHUB_CLIENT_ID`        | Runtime secret store config               | No        | Proposed GitHub OAuth client identifier.                           |
+| `GITHUB_CLIENT_SECRET`    | Runtime secret store                      | Yes       | Proposed GitHub OAuth client secret.                               |
+| `CF_ACCESS_CLIENT_ID`     | Runtime or CI secret store for the caller | No        | Cloudflare Access service-token identifier.                        |
+| `CF_ACCESS_CLIENT_SECRET` | Runtime or CI secret store for the caller | Yes       | Cloudflare Access service-token secret.                            |
+
+GitHub Actions cannot store secret names beginning with `GITHUB_`. A GitHub-owned
+CI config may use `OAUTH_CLIENT_ID_GITHUB` and `OAUTH_CLIENT_SECRET_GITHUB`, but the
+delivery workflow must map them to the runtime names above. This is a delivery
+adapter, not a second application contract.
+
+Do not share Better Auth secrets across environments. Give every Access client or
+client class its own token, bind it to the intended application, and rotate it with
+an overlap. A preview automation token must not authenticate a production service.
+
+### Manual provider steps
+
+Some provider control planes do not expose the required operation through the
+repository's supported infrastructure tooling:
+
+* Create the Google OAuth consent screen and Web application client in Google Cloud
+  Console for each stable environment. Store the resulting client values in the
+  owning runtime config.
+* Register each proposed GitHub OAuth application and its exact callback URL in
+  GitHub. Store its values through the same runtime contract.
+* Enable the Cloudflare Pages preview access switch, configure the account identity
+  provider and human allowlist, then import the generated Access application before
+  Terraform manages its remaining settings.
+* Move a newly issued Cloudflare service-token secret directly into its owning
+  secret store. Cloudflare shows the secret once. Rotation automation can manage
+  later replacements only after that bootstrap handoff exists.
+
+Runbooks own the click sequence and recovery procedure. The manifest records that
+the step exists so project generation cannot claim full automation.
+
+### Authorization and agent access
+
+Every identity-layer adopter must define server-side resource and action rules.
+Recipe Site ADR 005 is the initial evidence. Its owner and household checks run in
+the API and database path. Browser visibility rules are not authorization.
+
+Better Auth Agent Auth stays proposed at platform level. Recipe Site ADR 019 proves
+one bounded implementation with per-agent keys, delegated capabilities, expiry,
+revocation, replay checks, and audit events. Any later platform adoption must keep
+the agent grant narrower than the delegated user's current permissions and must
+retain the product's resource checks. A shared user session or broad API key is not
+an acceptable substitute.
+
+The manifest validator rejects unknown configuration owners, duplicate required
+names, missing accepted defaults for opinionated policy slots, and technology
+prerequisites that do not match an accepted selection. Project stack resolution
+withholds a preferred selection until its slot prerequisites resolve. Tests cover
+the accepted Recipe Site and Work Graph combinations plus incomplete provider and
+session contracts.
+
+## Alternatives
+
+A managed identity service could combine provider registration, sessions, and some
+authorization features. That reduces runtime ownership but joins jobs that projects
+need to override independently and adds a hosted control plane. Projects may still
+override the library slot when those operations justify it.
+
+Treating Cloudflare Access as application authentication would work for a small
+internal tool. It cannot express Recipe Site's user accounts, households, or
+resource permissions, and its service tokens identify clients rather than end
+users.
+
+Promoting GitHub OAuth and Agent Auth now would match Recipe Site's current stack.
+It would confuse local adoption with cross-project evidence. Both stay visible as
+proposed selections so later work can promote them without inventing a new job.
+
+## Consequences
+
+Project generation can now ask separately about human sign-in, agents, browser
+sessions, service clients, preview exposure, authorization, and secret delivery.
+Projects can override one without abandoning the rest of the identity layer.
+
+The contract exposes work that dashboards used to hide. OAuth clients, exact
+redirect URIs, cookie scope, Access policy coverage, one-time secret capture, and
+rotation all need owners. Some setup remains manual and must be verified after each
+environment is created.
+
+Better Auth, Google, and Cloudflare remain external dependencies. The platform must
+revisit a selection if another adopter cannot use the same slots, if browser cookie
+rules break the transport contract, or if provider setup cannot be kept within the
+recorded ownership boundaries.

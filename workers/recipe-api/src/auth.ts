@@ -41,20 +41,32 @@ type CreateAuthOptions = {
   autoSignInPreviewSignUp?: boolean;
 };
 
-export function isPreviewAuthEnabled(env: PreviewAuthEnv): boolean {
+export function isLocalPreviewAuthEnabled(env: PreviewAuthEnv): boolean {
   if (env.DEPLOYMENT_ENV !== "preview") return false;
 
   try {
     const url = new URL(env.BETTER_AUTH_URL);
-    const isPagesPreview =
+    return (
+      url.protocol === "http:" &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function isPreviewAuthEnabled(env: PreviewAuthEnv): boolean {
+  if (isLocalPreviewAuthEnabled(env)) return true;
+  if (env.DEPLOYMENT_ENV !== "preview") return false;
+
+  try {
+    const url = new URL(env.BETTER_AUTH_URL);
+    return (
       url.protocol === "https:" &&
       /^pr-[1-9]\d*\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.pages\.dev$/i.test(
         url.hostname,
-      );
-    const isLocalDevelopment =
-      url.protocol === "http:" &&
-      ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
-    return isPagesPreview || isLocalDevelopment;
+      )
+    );
   } catch {
     return false;
   }

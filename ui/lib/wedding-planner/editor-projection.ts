@@ -26,6 +26,8 @@ export function toEditorState(plan: WeddingPlan): WeddingPlanDraft {
     dismissed_accommodation_suggestions: structuredClone(
       plan.seating.dismissed_accommodation_suggestions,
     ),
+    guest_directory: structuredClone(plan.guest_directory),
+    playlist: plan.playlist ? structuredClone(plan.playlist) : undefined,
   };
 }
 
@@ -65,6 +67,8 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
     table_plan,
     reviewed_non_couples,
     dismissed_accommodation_suggestions,
+    guest_directory,
+    playlist,
     ...accommodation
   } = state;
   const tables = defaultTablePlan(state);
@@ -82,6 +86,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
           "max_cottage_spend_gbp",
           "default_outside_cost_gbp",
           "optimization_mode",
+          "inventory",
         ].includes(key),
     ),
   );
@@ -98,6 +103,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
     couples: migrateCouples(state),
     hosts: hosts ?? ["You", "Your fiancé"],
     reviewed_non_couples,
+    guest_directory,
     accommodation: {
       ...accommodation,
       guests: Object.fromEntries(
@@ -120,6 +126,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
       ),
       dismissed_accommodation_suggestions,
     },
+    playlist,
     extensions,
   });
 }

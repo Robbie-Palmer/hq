@@ -99,7 +99,6 @@ describe("recipe agent mutations API", () => {
                   recipeSlug: "tomato-soup",
                   recipeTitle: "Tomato Soup",
                   servings: 2,
-                  diners: ["Alex", "Sam"],
                   cookedAt: "2026-09-27T18:30:00.000Z",
                 },
                 beforeVersion: null,
@@ -114,7 +113,7 @@ describe("recipe agent mutations API", () => {
     await expect(listAgentMutations()).resolves.toMatchObject([
       {
         targetType: "cook_log",
-        items: [{ sessionId, afterValue: { diners: ["Alex", "Sam"] } }],
+        items: [{ sessionId, afterValue: { recipeTitle: "Tomato Soup" } }],
       },
     ]);
   });

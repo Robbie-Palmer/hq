@@ -17,6 +17,8 @@ const env: ObserverBindings = {
   DELIVERIES: queue as unknown as Queue<GitHubDelivery>,
   GITHUB_ALLOWED_INSTALLATION_IDS: JSON.stringify([installationId]),
   GITHUB_ALLOWED_REPOSITORIES: JSON.stringify([repository]),
+  GITHUB_APP_ID: "123",
+  GITHUB_APP_PRIVATE_KEY: "fixture-key",
   GITHUB_WEBHOOK_SECRET: secret,
 };
 

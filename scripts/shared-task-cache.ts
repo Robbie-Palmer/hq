@@ -350,40 +350,79 @@ function delay(milliseconds: number): Promise<void> {
 function lockIsStale(path: string): boolean {
   try {
     const age = Date.now() - statSync(path).mtimeMs;
-    if (age <= LOCK_STALE_MILLISECONDS) return false;
-    const owner = JSON.parse(readFileSync(join(path, "owner.json"), "utf8")) as {
-      host?: string;
-      pid?: number;
-    };
-    if (owner.host === hostname() && typeof owner.pid === "number") {
+    let owner: { host?: string; pid?: number } | undefined;
+    try {
+      owner = JSON.parse(readFileSync(join(path, "owner.json"), "utf8")) as {
+        host?: string;
+        pid?: number;
+      };
+    } catch {
+      owner = undefined;
+    }
+    if (
+      owner?.host === hostname() &&
+      typeof owner.pid === "number" &&
+      Number.isSafeInteger(owner.pid) &&
+      owner.pid > 0
+    ) {
       try {
         process.kill(owner.pid, 0);
         return false;
-      } catch {
-        return true;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code === "ESRCH";
       }
     }
-    return true;
+    return age > LOCK_STALE_MILLISECONDS;
   } catch {
     return true;
   }
 }
 
-async function acquireLock(path: string): Promise<{ release: () => void; waited: boolean }> {
+interface CacheLock {
+  release: () => void;
+  waited: boolean;
+}
+
+function createLock(path: string, waited: boolean): CacheLock {
+  mkdirSync(path, { recursive: false, mode: 0o750 });
+  try {
+    writeFileSync(
+      join(path, "owner.json"),
+      `${JSON.stringify({ host: hostname(), pid: process.pid, createdAt: new Date().toISOString() })}\n`,
+      { mode: 0o640 },
+    );
+  } catch (error) {
+    rmSync(path, { recursive: true, force: true });
+    throw error;
+  }
+  return {
+    waited,
+    release: () => rmSync(path, { recursive: true, force: true }),
+  };
+}
+
+function tryAcquireLock(path: string): CacheLock | undefined {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return createLock(path, false);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (attempt === 0 && lockIsStale(path)) {
+        rmSync(path, { recursive: true, force: true });
+        continue;
+      }
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+async function acquireLock(path: string): Promise<CacheLock> {
   const startedAt = Date.now();
   let waited = false;
   while (true) {
     try {
-      mkdirSync(path, { recursive: false, mode: 0o750 });
-      writeFileSync(
-        join(path, "owner.json"),
-        `${JSON.stringify({ host: hostname(), pid: process.pid, createdAt: new Date().toISOString() })}\n`,
-        { mode: 0o640 },
-      );
-      return {
-        waited,
-        release: () => rmSync(path, { recursive: true, force: true }),
-      };
+      return createLock(path, waited);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code !== "EEXIST") throw error;
@@ -430,6 +469,14 @@ async function recordMetrics(root: string, delta: MetricDelta): Promise<void> {
     writeJsonAtomic(path, metrics);
   } finally {
     lock.release();
+  }
+}
+
+async function recordMetricsSafely(root: string, delta: MetricDelta): Promise<void> {
+  try {
+    await recordMetrics(root, delta);
+  } catch (error) {
+    console.warn(`shared-task-cache: metrics update failed: ${String(error)}`);
   }
 }
 
@@ -573,32 +620,117 @@ function runCommand(root: string, options: RunOptions): number {
 }
 
 function directoryBytes(path: string): number {
-  if (!existsSync(path)) return 0;
-  const metadata = lstatSync(path);
-  if (metadata.isFile()) return metadata.size;
-  if (!metadata.isDirectory()) return 0;
-  return readdirSync(path).reduce((sum, name) => sum + directoryBytes(join(path, name)), 0);
+  try {
+    const metadata = lstatSync(path);
+    if (metadata.isFile()) return metadata.size;
+    if (!metadata.isDirectory()) return 0;
+    return readdirSync(path).reduce((sum, name) => sum + directoryBytes(join(path, name)), 0);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw error;
+  }
+}
+
+function readDirectory(path: string): string[] {
+  try {
+    return readdirSync(path);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT" || code === "ENOTDIR") return [];
+    throw error;
+  }
+}
+
+function cacheEntry(path: string, lockPath: string): CacheEntry | undefined {
+  try {
+    if (!lstatSync(path).isDirectory()) return undefined;
+    return {
+      path,
+      lockPath,
+      bytes: directoryBytes(path),
+      modifiedAt: statSync(path).mtimeMs,
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
 }
 
 function listEntries(root: string): CacheEntry[] {
   const entriesRoot = join(root, "entries");
-  if (!existsSync(entriesRoot)) return [];
   const entries: CacheEntry[] = [];
-  for (const task of readdirSync(entriesRoot)) {
+  for (const task of readDirectory(entriesRoot)) {
     const taskPath = join(entriesRoot, task);
-    if (!lstatSync(taskPath).isDirectory()) continue;
-    for (const key of readdirSync(taskPath)) {
-      const path = join(taskPath, key);
-      if (!lstatSync(path).isDirectory()) continue;
-      entries.push({
-        path,
-        lockPath: join(root, "locks", task, key),
-        bytes: directoryBytes(path),
-        modifiedAt: statSync(path).mtimeMs,
-      });
+    for (const key of readDirectory(taskPath)) {
+      const entry = cacheEntry(join(taskPath, key), join(root, "locks", task, key));
+      if (entry) entries.push(entry);
     }
   }
   return entries;
+}
+
+interface PruneResult {
+  bytesReclaimed: number;
+  entriesRemoved: number;
+}
+
+function pruneEntry(entry: CacheEntry): PruneResult | undefined {
+  mkdirSync(dirname(entry.lockPath), { recursive: true });
+  const lock = tryAcquireLock(entry.lockPath);
+  if (!lock) return undefined;
+  try {
+    const bytesReclaimed = directoryBytes(entry.path);
+    statSync(entry.path);
+    rmSync(entry.path, { recursive: true, force: true });
+    return { bytesReclaimed, entriesRemoved: 1 };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return { bytesReclaimed: 0, entriesRemoved: 0 };
+    }
+    throw error;
+  } finally {
+    lock.release();
+  }
+}
+
+function pruneEntries(
+  entries: CacheEntry[],
+  maxBytes: number,
+  maxAgeSeconds: number,
+  now: number,
+): PruneResult {
+  let totalBytes = entries.reduce((sum, entry) => sum + entry.bytes, 0);
+  const result: PruneResult = { bytesReclaimed: 0, entriesRemoved: 0 };
+  for (const entry of entries) {
+    const expired = now - entry.modifiedAt > maxAgeSeconds * 1000;
+    if (!expired && totalBytes <= maxBytes) continue;
+    const entryResult = pruneEntry(entry);
+    if (!entryResult) continue;
+    totalBytes = Math.max(0, totalBytes - entry.bytes);
+    result.bytesReclaimed += entryResult.bytesReclaimed;
+    result.entriesRemoved += entryResult.entriesRemoved;
+  }
+  return result;
+}
+
+function pruneTemporaryEntry(path: string, now: number): number {
+  try {
+    if (now - statSync(path).mtimeMs <= LOCK_STALE_MILLISECONDS) return 0;
+    const bytesReclaimed = directoryBytes(path);
+    rmSync(path, { recursive: true, force: true });
+    return bytesReclaimed;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0;
+    throw error;
+  }
+}
+
+function pruneTemporaryEntries(root: string, now: number): number {
+  const temporaryRoot = join(root, "tmp");
+  return readDirectory(temporaryRoot).reduce(
+    (total, name) => total + pruneTemporaryEntry(join(temporaryRoot, name), now),
+    0,
+  );
 }
 
 async function pruneCache(root: string): Promise<{ bytesReclaimed: number; entriesRemoved: number }> {
@@ -620,71 +752,120 @@ async function pruneCache(root: string): Promise<{ bytesReclaimed: number; entri
     );
     const now = Date.now();
     const entries = listEntries(root).sort((left, right) => left.modifiedAt - right.modifiedAt);
-    let totalBytes = entries.reduce((sum, entry) => sum + entry.bytes, 0);
-    for (const entry of entries) {
-      const expired = now - entry.modifiedAt > maxAgeSeconds * 1000;
-      if (!expired && totalBytes <= maxBytes) continue;
-      if (existsSync(entry.lockPath)) continue;
-      rmSync(entry.path, { recursive: true, force: true });
-      totalBytes -= entry.bytes;
-      bytesReclaimed += entry.bytes;
-      entriesRemoved += 1;
-    }
-    const temporaryRoot = join(root, "tmp");
-    if (existsSync(temporaryRoot)) {
-      for (const name of readdirSync(temporaryRoot)) {
-        const path = join(temporaryRoot, name);
-        if (now - statSync(path).mtimeMs > LOCK_STALE_MILLISECONDS) {
-          bytesReclaimed += directoryBytes(path);
-          rmSync(path, { recursive: true, force: true });
-        }
-      }
-    }
+    const entryResult = pruneEntries(entries, maxBytes, maxAgeSeconds, now);
+    bytesReclaimed = entryResult.bytesReclaimed + pruneTemporaryEntries(root, now);
+    entriesRemoved = entryResult.entriesRemoved;
   } finally {
     lock.release();
   }
-  if (bytesReclaimed > 0) await recordMetrics(root, { bytesReclaimed });
+  if (bytesReclaimed > 0) await recordMetricsSafely(root, { bytesReclaimed });
   return { bytesReclaimed, entriesRemoved };
 }
 
-async function cachedRun(root: string, cachePath: string, options: RunOptions): Promise<number> {
-  mkdirSync(cachePath, { recursive: true, mode: 0o750 });
-  const identity = cacheIdentity(root, options);
-  const entryPath = join(cachePath, "entries", options.task, identity.key);
-  const lockPath = join(cachePath, "locks", options.task, identity.key);
-  mkdirSync(dirname(lockPath), { recursive: true });
-  const lock = await acquireLock(lockPath);
-  if (lock.waited) await recordMetrics(cachePath, { waits: 1 });
+async function restoreEntry(
+  root: string,
+  cachePath: string,
+  entryPath: string,
+  manifest: CacheManifest,
+  options: RunOptions,
+  identity: CacheIdentity,
+): Promise<boolean> {
   try {
-    if (existsSync(entryPath)) {
-      const manifest = validateEntry(entryPath, identity, options);
-      if (manifest) {
-        const restoredBytes = restoreArtifacts(root, entryPath, manifest);
-        const now = new Date();
-        utimesSync(entryPath, now, now);
-        await recordMetrics(cachePath, { hits: 1, bytesRestored: restoredBytes });
-        console.log(`shared-task-cache: hit ${options.task} ${identity.key.slice(0, 12)}`);
-        return 0;
-      }
-      rmSync(entryPath, { recursive: true, force: true });
-      await recordMetrics(cachePath, { corruptions: 1 });
-      console.warn(`shared-task-cache: rejected corrupt entry ${options.task} ${identity.key.slice(0, 12)}`);
+    const restoredBytes = restoreArtifacts(root, entryPath, manifest);
+    try {
+      const now = new Date();
+      utimesSync(entryPath, now, now);
+    } catch (error) {
+      console.warn(`shared-task-cache: access time update failed: ${String(error)}`);
     }
+    await recordMetricsSafely(cachePath, { hits: 1, bytesRestored: restoredBytes });
+    console.log(`shared-task-cache: hit ${options.task} ${identity.key.slice(0, 12)}`);
+    return true;
+  } catch (error) {
+    console.warn(`shared-task-cache: restore failed, running task: ${String(error)}`);
+    return false;
+  }
+}
 
-    await recordMetrics(cachePath, { misses: 1, runs: 1 });
-    console.log(`shared-task-cache: miss ${options.task} ${identity.key.slice(0, 12)}`);
-    const status = runCommand(root, options);
-    if (status !== 0) {
-      await recordMetrics(cachePath, { failures: 1 });
-      return status;
+async function publishEntrySafely(
+  root: string,
+  cachePath: string,
+  entryPath: string,
+  identity: CacheIdentity,
+  options: RunOptions,
+): Promise<void> {
+  for (const output of options.outputs) {
+    if (!existsSync(join(root, output))) {
+      throw new Error(`Declared cache output does not exist: ${output}`);
     }
+  }
+  try {
     const manifest = publishEntry(root, cachePath, entryPath, identity, options);
     const publishedBytes = manifest.artifacts.reduce((sum, artifact) => sum + artifact.bytes, 0);
-    await recordMetrics(cachePath, { bytesPublished: publishedBytes });
-    return 0;
+    await recordMetricsSafely(cachePath, { bytesPublished: publishedBytes });
+  } catch (error) {
+    console.warn(`shared-task-cache: publish failed: ${String(error)}`);
+  }
+}
+
+async function runCachedTask(
+  root: string,
+  cachePath: string,
+  entryPath: string,
+  identity: CacheIdentity,
+  options: RunOptions,
+): Promise<number> {
+  if (existsSync(entryPath)) {
+    const manifest = validateEntry(entryPath, identity, options);
+    if (manifest && (await restoreEntry(root, cachePath, entryPath, manifest, options, identity))) {
+      return 0;
+    }
+    rmSync(entryPath, { recursive: true, force: true });
+    await recordMetricsSafely(cachePath, { corruptions: 1 });
+    console.warn(`shared-task-cache: rejected corrupt entry ${options.task} ${identity.key.slice(0, 12)}`);
+  }
+
+  await recordMetricsSafely(cachePath, { misses: 1, runs: 1 });
+  console.log(`shared-task-cache: miss ${options.task} ${identity.key.slice(0, 12)}`);
+  const status = runCommand(root, options);
+  if (status !== 0) {
+    await recordMetricsSafely(cachePath, { failures: 1 });
+    return status;
+  }
+  await publishEntrySafely(root, cachePath, entryPath, identity, options);
+  return 0;
+}
+
+async function pruneCacheSafely(cachePath: string): Promise<void> {
+  try {
+    await pruneCache(cachePath);
+  } catch (error) {
+    console.warn(`shared-task-cache: prune failed: ${String(error)}`);
+  }
+}
+
+async function cachedRun(root: string, cachePath: string, options: RunOptions): Promise<number> {
+  let identity: CacheIdentity;
+  let entryPath: string;
+  let lock: CacheLock;
+  try {
+    mkdirSync(cachePath, { recursive: true, mode: 0o750 });
+    identity = cacheIdentity(root, options);
+    entryPath = join(cachePath, "entries", options.task, identity.key);
+    const lockPath = join(cachePath, "locks", options.task, identity.key);
+    mkdirSync(dirname(lockPath), { recursive: true });
+    lock = await acquireLock(lockPath);
+  } catch (error) {
+    console.warn(`shared-task-cache: cache unavailable, running task directly: ${String(error)}`);
+    return runCommand(root, options);
+  }
+
+  try {
+    if (lock.waited) await recordMetricsSafely(cachePath, { waits: 1 });
+    return await runCachedTask(root, cachePath, entryPath, identity, options);
   } finally {
     lock.release();
-    await pruneCache(cachePath);
+    await pruneCacheSafely(cachePath);
   }
 }
 

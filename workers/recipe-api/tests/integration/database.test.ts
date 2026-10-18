@@ -218,8 +218,8 @@ beforeAll(async () => {
     )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(28);
-  expect(tableCount?.count).toBe(55);
+  expect(migrationCount?.count).toBe(29);
+  expect(tableCount?.count).toBe(56);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
     {
@@ -908,7 +908,6 @@ describe("recipe API PostgreSQL integration", () => {
           recipeSlug: "tomato-soup",
           recipeTitle: "Tomato Soup",
           servings: 2,
-          diners: ["Alex", "Sam"],
           cookedAt: "2026-09-27T18:30:00.000Z",
         },
         {
@@ -916,7 +915,6 @@ describe("recipe API PostgreSQL integration", () => {
           recipeSlug: "lentil-soup",
           recipeTitle: "Lentil Soup",
           servings: 4,
-          diners: ["Alex", "Sam", "Jo"],
           cookedAt: "2026-09-26T18:30:00.000Z",
         },
       ],
@@ -1233,6 +1231,7 @@ describe("recipe API PostgreSQL integration", () => {
       sessionId: "2f64837b-3f3e-4c18-ae39-35df6808dc6c",
       recipeSlug: "cascade-soup",
       recipeTitle: "Cascade Soup",
+      recipeVersion: "2026-10-15T12:00:00.000Z",
       servings: 4,
     };
     const cookingStartedResponse = await authenticatedRequest(
@@ -1262,7 +1261,20 @@ describe("recipe API PostgreSQL integration", () => {
       "/api/profile/cooking-sessions",
       {
         method: "POST",
-        body: { ...cookingSession, event: "completed" },
+        body: {
+          sessionId: cookingSession.sessionId,
+          recipeSlug: cookingSession.recipeSlug,
+          recipeTitle: cookingSession.recipeTitle,
+          recipeVersion: cookingSession.recipeVersion,
+          servings: cookingSession.servings,
+          event: "completed",
+          outcome: {
+            leftoverPortions: 2,
+            leftoverStorage: "freezer",
+            leftoverUseBy: "2026-10-29",
+            audience: "personal",
+          },
+        },
       },
     );
     expect(cookingCompletedResponse.status).toBe(200);
@@ -1281,6 +1293,14 @@ describe("recipe API PostgreSQL integration", () => {
           recipeSlug: "cascade-soup",
           recipeTitle: "Cascade Soup",
           servings: 4,
+          leftoverPortions: 2,
+        }),
+      ],
+      leftoverSuggestions: [
+        expect.objectContaining({
+          recipeSlug: "cascade-soup",
+          portionsRemaining: 2,
+          storage: "freezer",
         }),
       ],
     });
@@ -1317,6 +1337,165 @@ describe("recipe API PostgreSQL integration", () => {
         .from(schema.cookingSession)
         .where(eq(schema.cookingSession.userId, cook.id)),
     ).toHaveLength(0);
+  });
+
+  it("completes cooking without collecting optional meal details", async () => {
+    const cook = await createUser(
+      "Optional Outcome Cook",
+      "optional-outcome-cook@example.test",
+    );
+    const sessionId = "2f64837b-3f3e-4c18-ae39-35df6808dc70";
+
+    const completed = await authenticatedRequest(
+      cook,
+      "/api/profile/cooking-sessions",
+      {
+        method: "POST",
+        body: {
+          sessionId,
+          recipeSlug: "quick-toast",
+          recipeTitle: "Quick Toast",
+          recipeVersion: "2026-10-17T08:00:00.000Z",
+          servings: 2,
+          event: "completed",
+          outcome: null,
+        },
+      },
+    );
+
+    expect(completed.status).toBe(201);
+    const [session] = await db
+      .select()
+      .from(schema.cookingSession)
+      .where(eq(schema.cookingSession.id, sessionId));
+    expect(session).toMatchObject({
+      recipeVersion: "2026-10-17T08:00:00.000Z",
+      repeatOfSessionId: null,
+    });
+    expect(
+      await db
+        .select()
+        .from(schema.leftoverBatch)
+        .where(eq(schema.leftoverBatch.cookingSessionId, sessionId)),
+    ).toHaveLength(0);
+  });
+
+  it("shares idempotent leftover outcomes with the household and links repeats", async () => {
+    const cook = await createUser("Outcome Cook", "outcome-cook@example.test");
+    const housemate = await createUser(
+      "Outcome Housemate",
+      "outcome-housemate@example.test",
+    );
+    const outsider = await createUser(
+      "Outcome Outsider",
+      "outcome-outsider@example.test",
+    );
+    const householdId = "integration-outcome-household";
+    await db.insert(schema.organization).values({
+      id: householdId,
+      name: "Outcome household",
+      slug: householdId,
+    });
+    await db.insert(schema.member).values([
+      {
+        id: "integration-outcome-cook-member",
+        organizationId: householdId,
+        userId: cook.id,
+        role: "owner",
+      },
+      {
+        id: "integration-outcome-housemate-member",
+        organizationId: householdId,
+        userId: housemate.id,
+      },
+    ]);
+
+    const firstSessionId = "2f64837b-3f3e-4c18-ae39-35df6808dc71";
+    const firstCompletion = {
+      sessionId: firstSessionId,
+      recipeSlug: "household-stew",
+      recipeTitle: "Household Stew",
+      recipeVersion: "2026-10-15T12:00:00.000Z",
+      servings: 4,
+      event: "completed",
+      outcome: {
+        leftoverPortions: 2,
+        leftoverStorage: "freezer",
+        leftoverUseBy: "2026-10-29",
+        audience: "household",
+      },
+    };
+    const completed = await authenticatedRequest(
+      cook,
+      "/api/profile/cooking-sessions",
+      { method: "POST", body: firstCompletion },
+    );
+    expect(completed.status).toBe(201);
+
+    const replayed = await authenticatedRequest(
+      cook,
+      "/api/profile/cooking-sessions",
+      { method: "POST", body: firstCompletion },
+    );
+    expect(replayed.status).toBe(200);
+    expect(
+      await db
+        .select()
+        .from(schema.leftoverBatch)
+        .where(eq(schema.leftoverBatch.cookingSessionId, firstSessionId)),
+    ).toHaveLength(1);
+
+    const housemateInsights = await authenticatedRequest(
+      housemate,
+      "/api/profile/cooking-insights",
+    );
+    expect(await housemateInsights.json()).toMatchObject({
+      leftoverScope: {
+        type: "household",
+        household: { id: householdId },
+      },
+      leftoverSuggestions: [
+        expect.objectContaining({
+          cookingSessionId: firstSessionId,
+          portionsRemaining: 2,
+        }),
+      ],
+    });
+
+    const outsiderInsights = await authenticatedRequest(
+      outsider,
+      "/api/profile/cooking-insights",
+    );
+    expect(await outsiderInsights.json()).toMatchObject({
+      leftoverScope: { type: "personal" },
+      leftoverSuggestions: [],
+    });
+    const unauthorizedCollision = await authenticatedRequest(
+      outsider,
+      "/api/profile/cooking-sessions",
+      { method: "POST", body: firstCompletion },
+    );
+    expect(unauthorizedCollision.status).toBe(409);
+
+    const secondSessionId = "2f64837b-3f3e-4c18-ae39-35df6808dc72";
+    const repeated = await authenticatedRequest(
+      cook,
+      "/api/profile/cooking-sessions",
+      {
+        method: "POST",
+        body: {
+          ...firstCompletion,
+          sessionId: secondSessionId,
+          outcome: null,
+        },
+      },
+    );
+    expect(repeated.status).toBe(201);
+    const [repeatRow] = await db
+      .select({ repeatOfSessionId: schema.cookingSession.repeatOfSessionId })
+      .from(schema.cookingSession)
+      .where(eq(schema.cookingSession.id, secondSessionId));
+    expect(repeatRow?.repeatOfSessionId).toBe(firstSessionId);
   });
 
   it("scopes and paginates delegated cooking-log reads", async () => {

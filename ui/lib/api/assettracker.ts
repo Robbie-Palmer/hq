@@ -4,23 +4,28 @@ import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import {
   type AddCashFlowDecisionInput,
   type AddCommitmentInput,
+  type AddDecisionInterpretationInput,
   type AddForecastAssumptionInput,
   type AddHouseholdMemberInput,
   type AddPlannedExpenditureInput,
+  type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
   type AssetTrackerBackup,
   type AssetTrackerData,
   AssetTrackerDataSchema,
   applyAddCashFlowDecision,
   applyAddCommitment,
+  applyAddDecisionInterpretation,
   applyAddForecastAssumption,
   applyAddHouseholdMember,
   applyAddPlannedExpenditure,
+  applyAddPlanningChecklistItem,
   applyAddRecurringFlow,
   applyClearAccountHistory,
   applyClearIncomeHistory,
   applyCloseAccount,
   applyCreateAccount,
+  applyCreateDecisionRecord,
   applyCreateForecastAssumptionSet,
   applyCreatePlanningCase,
   applyDeleteCapitalFlow,
@@ -38,6 +43,7 @@ import {
   applyMaterializeFlow,
   applyRecordActualCashFlow,
   applyRecordBalance,
+  applyRecordDecisionObservation,
   applyRecordTransfer,
   applyRenameHouseholdMember,
   applySaveEmergencyFundPlan,
@@ -56,6 +62,7 @@ import {
   applySetInflation,
   applySetMortgageTerms,
   applySetNetWorthTarget,
+  applySetPlanningChecklistItemStatus,
   applySetWithdrawalRate,
   applyUpdateCashFlowDecision,
   applyVersionForecastAssumptionSet,
@@ -63,6 +70,7 @@ import {
   type ClearAccountHistoryInput,
   type CloseAccountInput,
   type CreateAccountInput,
+  type CreateDecisionRecordInput,
   type CreateForecastAssumptionSetInput,
   type CreatePlanningCaseInput,
   type DeleteCapitalFlowInput,
@@ -82,6 +90,7 @@ import {
   parseAssetTrackerBackup,
   type RecordActualCashFlowInput,
   type RecordBalanceInput,
+  type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
   type SaveEmergencyFundPlanInput,
@@ -99,6 +108,7 @@ import {
   type SetInflationInput,
   type SetMortgageTermsInput,
   type SetNetWorthTargetInput,
+  type SetPlanningChecklistItemStatusInput,
   type SetWithdrawalRateInput,
   type UpdateCashFlowDecisionInput,
   type VersionForecastAssumptionSetInput,
@@ -138,6 +148,12 @@ export interface AssetTrackerApi {
   clearIncomeHistory(): Promise<AssetTrackerData>;
   addRecurringFlow(input: AddRecurringFlowInput): Promise<AssetTrackerData>;
   createPlanningCase(input: CreatePlanningCaseInput): Promise<AssetTrackerData>;
+  addPlanningChecklistItem(
+    input: AddPlanningChecklistItemInput,
+  ): Promise<AssetTrackerData>;
+  setPlanningChecklistItemStatus(
+    input: SetPlanningChecklistItemStatusInput,
+  ): Promise<AssetTrackerData>;
   addCommitment(input: AddCommitmentInput): Promise<AssetTrackerData>;
   addCashFlowDecision(
     input: AddCashFlowDecisionInput,
@@ -190,6 +206,15 @@ export interface AssetTrackerApi {
   setWithdrawalRate(input: SetWithdrawalRateInput): Promise<AssetTrackerData>;
   saveMortgageScenario(
     input: SaveMortgageScenarioInput,
+  ): Promise<AssetTrackerData>;
+  createDecisionRecord(
+    input: CreateDecisionRecordInput,
+  ): Promise<AssetTrackerData>;
+  recordDecisionObservation(
+    input: RecordDecisionObservationInput,
+  ): Promise<AssetTrackerData>;
+  addDecisionInterpretation(
+    input: AddDecisionInterpretationInput,
   ): Promise<AssetTrackerData>;
   saveEmergencyFundPlan(
     input: SaveEmergencyFundPlanInput,
@@ -454,6 +479,28 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         write(applyCreatePlanningCase(current(), input)),
       );
     },
+    addPlanningChecklistItem(input) {
+      return promiseFromSync(() =>
+        write(
+          applyAddPlanningChecklistItem(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    setPlanningChecklistItemStatus(input) {
+      return promiseFromSync(() =>
+        write(
+          applySetPlanningChecklistItemStatus(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
     addCommitment(input) {
       return promiseFromSync(() =>
         write(applyAddCommitment(current(), input, currentDate())),
@@ -577,6 +624,35 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     saveMortgageScenario(input) {
       return promiseFromSync(() =>
         write(applySaveMortgageScenario(current(), input, currentDate())),
+      );
+    },
+    createDecisionRecord(input) {
+      return promiseFromSync(() =>
+        write(
+          applyCreateDecisionRecord(current(), input, new Date().toISOString()),
+        ),
+      );
+    },
+    recordDecisionObservation(input) {
+      return promiseFromSync(() =>
+        write(
+          applyRecordDecisionObservation(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    addDecisionInterpretation(input) {
+      return promiseFromSync(() =>
+        write(
+          applyAddDecisionInterpretation(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
       );
     },
     saveEmergencyFundPlan(input) {

@@ -264,7 +264,7 @@ function MidShoppingShared() {
 
   return (
     <div className="mf mf-page">
-      <Nav active="shop" />
+      <Nav active="planning" />
 
       {/* shared banner */}
       <div style={{ padding: '14px 48px 0' }}>
@@ -770,7 +770,7 @@ function MobileShoppingShared() {
           );
         })}
       </div>
-      <TabBar active="shop" />
+      <TabBar active="planning" />
     </Phone>
   );
 }
@@ -793,7 +793,7 @@ function HouseholdLeftoverSuggestion() {
 
   return (
     <div className="mf mf-page">
-      <Nav active="shop" />
+      <Nav active="planning" />
 
       <div style={{ padding: '24px 48px 6px' }}>
         <div className="mf-mono" style={{ color: 'var(--terracotta)' }}>HOUSEHOLD · LEFTOVERS</div>

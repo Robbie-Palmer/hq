@@ -1,15 +1,17 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readlinkSync,
   readFileSync,
   rmSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -88,6 +90,7 @@ function run(fixture: Fixture, args = command()): ReturnType<typeof spawnSync> {
     cwd: fixture.root,
     encoding: "utf8",
     env: fixture.environment,
+    timeout: 10_000,
   });
 }
 
@@ -123,6 +126,9 @@ describe("shared task cache", () => {
     const fixture = createFixture();
     successful(run(fixture));
     writeFileSync(join(fixture.root, "input.txt"), "dirty-revision\n");
+    successful(run(fixture));
+    writeFileSync(join(fixture.root, "untracked.txt"), "untracked\n");
+    successful(run(fixture));
     spawnSync("git", ["add", "input.txt"], { cwd: fixture.root });
     spawnSync("git", ["commit", "--quiet", "-m", "change revision"], {
       cwd: fixture.root,
@@ -133,7 +139,7 @@ describe("shared task cache", () => {
     fixture.environment.npm_config_user_agent = "pnpm/12.8.2 node/v24.0.0";
     successful(run(fixture));
 
-    expect(readFileSync(fixture.counter, "utf8")).toBe("4");
+    expect(readFileSync(fixture.counter, "utf8")).toBe("6");
     expect(readFileSync(join(fixture.root, "output/result.txt"), "utf8")).toBe("dirty-revision\n");
   });
 
@@ -184,6 +190,57 @@ describe("shared task cache", () => {
     expect(recovery.stderr).toContain("rejected corrupt entry");
     expect(readFileSync(fixture.counter, "utf8")).toBe("2");
     expect(readFileSync(join(fixture.root, "output/result.txt"), "utf8")).toBe("revision-one\n");
+  });
+
+  it("recovers a fresh lock as soon as its local owner is gone", () => {
+    const fixture = createFixture();
+    successful(run(fixture));
+    const taskDirectory = join(fixture.cache, "entries", "fixture");
+    const [key] = readdirSync(taskDirectory);
+    assert.ok(key);
+    rmSync(join(taskDirectory, key), { recursive: true });
+    const lockPath = join(fixture.cache, "locks", "fixture", key);
+    mkdirSync(lockPath, { recursive: true });
+    writeFileSync(
+      join(lockPath, "owner.json"),
+      `${JSON.stringify({ host: hostname(), pid: 2_147_483_647 })}\n`,
+    );
+
+    successful(run(fixture));
+    expect(readFileSync(fixture.counter, "utf8")).toBe("2");
+  });
+
+  it("runs directly when cache setup fails", () => {
+    const fixture = createFixture();
+    writeFileSync(fixture.cache, "not a directory\n");
+
+    const result = run(fixture);
+
+    successful(result);
+    expect(result.stderr).toContain("cache unavailable, running task directly");
+    expect(readFileSync(fixture.counter, "utf8")).toBe("1");
+  });
+
+  it("preserves a successful task result when publishing and pruning fail", () => {
+    const fixture = createFixture();
+    fixture.environment.SHARED_TASK_CACHE_MAX_BYTES = "invalid";
+    const program = `
+      const fs = require("node:fs");
+      const path = require("node:path");
+      fs.mkdirSync("output", { recursive: true });
+      fs.writeFileSync("output/result.txt", "complete\\n");
+      fs.writeFileSync(path.join(process.env.SHARED_TASK_CACHE_DIR, "tmp"), "blocked\\n");
+    `;
+
+    const result = run(
+      fixture,
+      cli("run", "--task", "publish-failure", "--output", "output", "--", process.execPath, "-e", program),
+    );
+
+    successful(result);
+    expect(result.stderr).toContain("publish failed");
+    expect(result.stderr).toContain("prune failed");
+    expect(readFileSync(join(fixture.root, "output/result.txt"), "utf8")).toBe("complete\n");
   });
 
   it("rejects invalid commands, paths, environment names, and limits", () => {
@@ -333,13 +390,28 @@ describe("shared task cache", () => {
 
   it("prunes entries above the configured allocation", () => {
     const fixture = createFixture();
-    fixture.environment.SHARED_TASK_CACHE_MAX_BYTES = "1";
     successful(run(fixture));
-    mkdirSync(fixture.cache, { recursive: true });
-    const result = run(fixture, cli("prune"));
-    successful(result);
-    const report = JSON.parse(result.stdout.toString()) as { entriesRemoved: number };
-    expect(report.entriesRemoved).toBeGreaterThanOrEqual(0);
+    const taskDirectory = join(fixture.cache, "entries", "fixture");
+    const [key] = readdirSync(taskDirectory);
+    assert.ok(key);
+    const entryPath = join(taskDirectory, key);
+    const entryLockPath = join(fixture.cache, "locks", "fixture", key);
+    mkdirSync(entryLockPath, { recursive: true });
+    writeFileSync(
+      join(entryLockPath, "owner.json"),
+      `${JSON.stringify({ host: hostname(), pid: process.pid })}\n`,
+    );
+    fixture.environment.SHARED_TASK_CACHE_MAX_BYTES = "1";
+
+    const lockedPrune = run(fixture, cli("prune"));
+    successful(lockedPrune);
+    expect(JSON.parse(lockedPrune.stdout.toString())).toMatchObject({ entriesRemoved: 0 });
+    expect(existsSync(entryPath)).toBe(true);
+
+    rmSync(entryLockPath, { recursive: true });
+    const unlockedPrune = run(fixture, cli("prune"));
+    successful(unlockedPrune);
+    expect(JSON.parse(unlockedPrune.stdout.toString())).toMatchObject({ entriesRemoved: 1 });
     const status = run(fixture, cli("status"));
     successful(status);
     expect((JSON.parse(status.stdout.toString()) as { bytesStored: number }).bytesStored).toBe(0);

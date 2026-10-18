@@ -1,12 +1,33 @@
+import type {
+  CookingOutcome,
+  LeftoverStorageLocation,
+} from "recipe-domain/cook-log";
 import { apiRequest, isApiError } from "@/lib/api/http";
 
 export type CookingSession = {
   id: string;
   recipeSlug: string;
   recipeTitle: string;
+  recipeVersion: string | null;
   servings: number;
+  leftoverPortions: number;
+  leftoverStorage: LeftoverStorageLocation | null;
+  leftoverUseBy: string | null;
+  repeatOfSessionId: string | null;
   startedAt: string;
   completedAt: string | null;
+};
+
+export type LeftoverSuggestion = {
+  id: string;
+  cookingSessionId: string;
+  recipeSlug: string;
+  recipeTitle: string;
+  recipeVersion: string;
+  portionsRemaining: number;
+  storage: LeftoverStorageLocation;
+  useBy: string | null;
+  createdAt: string;
 };
 
 export type CookingInsights = {
@@ -14,19 +35,33 @@ export type CookingInsights = {
   mealsCooked: number;
   distinctRecipesCooked: number;
   recent: CookingSession[];
+  leftoverScope:
+    | { type: "personal" }
+    | { type: "household"; household: { id: string; name: string } };
+  leftoverSuggestions: LeftoverSuggestion[];
 };
 
-export type CookingSessionEvent = {
+type CookingSessionBase = {
   sessionId: string;
   recipeSlug: string;
   recipeTitle: string;
   servings: number;
-  event: "started" | "completed";
 };
 
-export type CookingCompletionEvent = CookingSessionEvent & {
-  event: "completed";
+export type CookingSessionStartEvent = CookingSessionBase & {
+  event: "started";
+  recipeVersion: string;
 };
+
+export type CookingCompletionEvent = CookingSessionBase & {
+  event: "completed";
+  recipeVersion: string;
+  outcome: CookingOutcome | null;
+};
+
+export type CookingSessionEvent =
+  | CookingSessionStartEvent
+  | CookingCompletionEvent;
 
 type PendingCookingCompletion = {
   userId: string;
@@ -35,7 +70,7 @@ type PendingCookingCompletion = {
 };
 
 export const COOKING_COMPLETION_OUTBOX_STORAGE_KEY =
-  "recipe-cooking-completion-outbox:v1";
+  "recipe-cooking-completion-outbox:v2";
 const OUTBOX_RETENTION_MS = 30 * 24 * 60 * 60 * 1_000;
 const OUTBOX_MAX_ENTRIES = 100;
 
@@ -55,7 +90,9 @@ function isCompletionEvent(value: unknown): value is CookingCompletionEvent {
     typeof event.sessionId === "string" &&
     typeof event.recipeSlug === "string" &&
     typeof event.recipeTitle === "string" &&
-    typeof event.servings === "number"
+    typeof event.servings === "number" &&
+    typeof event.recipeVersion === "string" &&
+    (event.outcome === null || typeof event.outcome === "object")
   );
 }
 

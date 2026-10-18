@@ -1,0 +1,53 @@
+---
+title: "PDR 005: Keep the first shared writes online-only"
+date: "2026-09-24"
+status: "Proposed"
+informed_by_adrs:
+  - "personal-finance-app:000-financial-fact-and-calculation-provenance"
+  - "personal-finance-app:001-household-identity-and-authorization-boundary"
+---
+
+## Context
+
+An installable web app can load without a network connection, but a shared
+financial write has to account for changes from other household members,
+revoked access, and uncertain network results. Different financial commands do
+not share one safe conflict rule.
+
+The first shared release needs trustworthy household state more than it needs
+offline mutation. A queued edit that later overwrites or conflicts with another
+person's accepted change would be worse than asking the user to reconnect.
+
+## Proposed decision
+
+Require connectivity to commit shared financial changes in the first multi-user
+release. Offline use may include cached read-only views and local drafts. The
+interface must distinguish those drafts from committed household state and wait
+for an explicit online submission.
+
+Do not promise a general offline-write mode. Add offline mutation only for a
+bounded set of commands after each command has conflict, ordering, revocation,
+retry, and recovery rules that a user can understand.
+
+## Consequences
+
+The first shared release can favor explicit conflicts over silent overwrites.
+Users can review information or prepare an edit during an outage, but they cannot
+complete that edit until the service is reachable.
+
+This limits use with unreliable connectivity. It also requires the interface to
+make local drafts and connection state clear instead of appearing to save a
+change that remains on one device.
+
+## Alternatives considered
+
+### Queue every command in a local outbox
+
+This was rejected because financial corrections, imports, and membership changes
+need different ordering and conflict rules. One queue cannot make all of them
+safe.
+
+### Resolve conflicts with device time
+
+This was rejected because device clocks do not establish a trustworthy order and
+last-write-wins can discard another household member's accepted change.

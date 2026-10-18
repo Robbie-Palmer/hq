@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { guestProfileSchema } from "./guest-profile";
 
 export const AttendanceSchema = z.enum(["unknown", "yes", "no"]);
 export type Attendance = z.infer<typeof AttendanceSchema>;
@@ -51,14 +52,15 @@ export function weddingRolesLabel(roles: readonly WeddingRole[]): string {
   return roles.map((role) => weddingRoleLabels[role]).join(" · ");
 }
 
-export const weddingGuestSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  source_party: z.string().default(""),
-  tags: z.string().default(""),
-  attendance: AttendanceSchema.default("unknown"),
-  wedding_roles: weddingRolesSchema.default([]),
-});
+export const weddingGuestSchema = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    source_party: z.string().default(""),
+    attendance: AttendanceSchema.default("unknown"),
+    wedding_roles: weddingRolesSchema.default([]),
+  })
+  .extend(guestProfileSchema.shape);
 
 export type WeddingGuest = z.infer<typeof weddingGuestSchema>;
 

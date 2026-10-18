@@ -1,0 +1,58 @@
+---
+title: "PDR 000: Start with data-entry-first wealth tracking"
+date: "2026-01-11"
+status: "Accepted"
+decision_date: "2026-01-11"
+---
+
+## Context
+
+People who already use spreadsheets to understand their finances sit between two
+established product categories. Budgeting apps help with short-term spending but
+do not model a wealth trajectory. Adviser software can model long-term plans but
+is expensive, model-first, and designed for professional workflows.
+
+The first user needs to record assets, liabilities, income, transfers, account
+relationships, and values in several currencies without rebuilding a spreadsheet
+or completing a full budgeting exercise.
+
+## Decision
+
+Build Asset Tracker as a data-entry-first wealth tracking and financial planning
+product for financially capable spreadsheet users. The primary interaction is a
+fast manual update on a phone. The product turns those observations into account
+history, net-worth views, and comparisons between forecasts and actual results.
+
+The first release will work without Open Banking. Automated imports can reduce
+later data-entry effort, but they will not define the domain model or block the
+manual product. Detailed transaction categorisation is outside the first product
+boundary.
+
+The initial scope covers tracking and understanding. More advanced forecasting,
+scenario analysis, and automated recommendations follow only after the tracking
+workflow earns repeated use.
+
+## Consequences
+
+The product can test its main claim without a bank-data provider or the cost and
+consent work that provider would add. Manual entry also gives users control over
+the level of detail they record.
+
+The product must make sparse updates useful. It cannot depend on complete bank
+feeds or daily engagement to produce a coherent view. Users who want automated
+budgeting or immediate transaction categorisation will not get that experience
+from the first release.
+
+## Alternatives considered
+
+### Start with account aggregation
+
+This would reduce manual entry for supported institutions. It was rejected as the
+starting point because provider coverage, consent flows, and normalized bank data
+would dominate the first release before the core planning workflow had evidence.
+
+### Start with an adviser-style planning model
+
+This would support detailed scenarios earlier. It was rejected because the main
+gap is regular capture of financial reality. A large up-front model recreates the
+friction that sends the target user back to a spreadsheet.

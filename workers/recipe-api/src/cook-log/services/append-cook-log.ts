@@ -35,7 +35,6 @@ function fingerprint(input: AppendCookLogInput): string {
         event.recipeSlug,
         event.recipeTitle,
         event.servings,
-        event.diners,
         new Date(event.cookedAt).toISOString(),
       ]),
   ]);

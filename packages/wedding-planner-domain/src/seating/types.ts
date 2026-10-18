@@ -5,7 +5,10 @@ export type SeatingPreferences = {
   prefer_table_with: string[];
   avoid_table_with: string[];
 };
-export type SeatingGuest = WeddingGuest &
+export type SeatingGuest = Pick<
+  WeddingGuest,
+  "id" | "name" | "attendance" | "wedding_roles"
+> &
   SeatingPreferences & { partner_id?: string };
 export type TableAppearance = {
   name?: string;

@@ -197,6 +197,13 @@
       "when": 1791531798628,
       "tag": "0027_enable_pg_trgm_recipe_search",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792232867906,
+      "tag": "0028_simplify_cooking_sessions_and_add_leftovers",
+      "breakpoints": true
     }
   ]
 }

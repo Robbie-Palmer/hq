@@ -4,15 +4,14 @@ Vendored design artifacts for the Recipe Site, exported from
 [Claude Design](https://claude.ai/design) (project id
 `019dd0cd-1a77-717c-b0ec-a6e1c969092f`). These **prototypes** document the
 intended look and behaviour of the full product. Keep them in version control
-alongside the PRD (`../index.mdx`) and ADRs
-(`../adrs/`).
+alongside the PRD (`../index.mdx`), PDRs (`../pdrs/`), and ADRs (`../adrs/`).
 
-The mid-fi pass covers 17 surfaces across desktop + mobile: recipe list,
-recipe read/cook, scan/import, kitchen (pantry + freezer), shopping & meal plan,
+The mid-fi pass covers 18 surfaces across desktop + mobile: recipe list,
+recipe read/cook, scan/import, kitchen (pantry + freezer), planning and shopping,
 share, cookbooks, profile, diet, a shared-household system (setup, settings,
 pantry, plan, leftovers, activity), recipe lineage/provenance, cook log,
 logged-out home + discover feed, onboarding, recommendations inbox,
-notifications, and a settings hub.
+notifications, a settings hub, and the planning/shopping navigation model.
 
 ## What's here
 

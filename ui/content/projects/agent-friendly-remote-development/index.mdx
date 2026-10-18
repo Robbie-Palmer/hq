@@ -2,7 +2,7 @@
 title: "Agent-friendly Remote Development"
 description: "Persistent remote workspaces for directing coding agents across devices, repositories, and harnesses"
 date: "2026-09-06"
-updated: "2026-09-28"
+updated: "2026-10-14"
 status: "in_progress"
 initiatives:
   - "semi-autonomous-software-development"
@@ -97,6 +97,22 @@ This changes the rollout order, not the product goal. The current VPS proves
 the persistent-workspace workflow and remains the rollback source while a
 multi-node design is evaluated. No migration may erase the only copy of a T3
 session, worktree, branch, login, or workspace backup.
+
+## Workspace telemetry notice
+
+The operator workspace records infrastructure health and a limited set of T3
+Code operational events. Project-owned PostHog receives provider and terminal
+lifecycle traces plus warning and error markers. Netdata receives aggregate T3
+Code counters and host, storage, and Kubernetes health metrics. Records use the
+workspace ID `operator` and may include provider type, operation, outcome,
+runtime mode, trace ID, and timing.
+
+Prompts, responses, source files, diffs, terminal output, environment
+variables, credentials, provider payloads, personal identifiers, and working
+directory paths are not exported. Warning and error text is replaced with a
+fixed marker before export. A more detailed rotating trace remains only on the
+workspace host for local diagnosis. This telemetry must be disclosed and
+reviewed again before enabling another person's workspace.
 
 # Current milestone
 

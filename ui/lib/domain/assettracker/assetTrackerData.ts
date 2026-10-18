@@ -3,6 +3,7 @@ import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
+import { FinancialDecisionRecordSchema } from "./decisionRecord";
 import { EmergencyFundPlanSchema } from "./emergencyFund";
 import { ForecastAssumptionSetSchema } from "./forecastAssumption";
 import {
@@ -20,10 +21,7 @@ import {
 import { IncomeRecordSchema } from "./incomeRecord";
 import { JobMoveScenarioSchema } from "./jobMoveScenario";
 import { PositiveMoneySchema } from "./money";
-import {
-  FinancialDecisionRecordSchema,
-  MortgageScenarioSchema,
-} from "./mortgageCalculator";
+import { MortgageScenarioSchema } from "./mortgageCalculator";
 import { PlannedExpenditureSchema } from "./plannedExpenditure";
 import { PropertyComparableSearchDefinitionSchema } from "./propertyComparables";
 import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";

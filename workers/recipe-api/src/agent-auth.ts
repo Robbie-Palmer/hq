@@ -851,7 +851,6 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
               "recipeSlug",
               "recipeTitle",
               "servings",
-              "diners",
               "cookedAt",
             ],
             properties: {
@@ -859,11 +858,6 @@ export const RECIPE_SITE_AGENT_CAPABILITIES = [
               recipeSlug: { type: "string", minLength: 1, maxLength: 120 },
               recipeTitle: { type: "string", minLength: 1, maxLength: 120 },
               servings: { type: "integer", minimum: 1, maximum: 1_000 },
-              diners: {
-                type: "array",
-                maxItems: 20,
-                items: { type: "string", minLength: 1, maxLength: 120 },
-              },
               cookedAt: { type: "string", format: "date-time" },
             },
           },
@@ -1162,7 +1156,20 @@ async function readCookingInsights(
   agentSession: AgentSession,
 ) {
   noArgumentsInput.parse(args ?? {});
-  return cookingInsightsResponse(db, agentSession.user.id);
+  const insights = await cookingInsightsResponse(db, agentSession.user.id);
+  return {
+    cookModeStarts: insights.cookModeStarts,
+    mealsCooked: insights.mealsCooked,
+    distinctRecipesCooked: insights.distinctRecipesCooked,
+    recent: insights.recent.map((session) => ({
+      id: session.id,
+      recipeSlug: session.recipeSlug,
+      recipeTitle: session.recipeTitle,
+      servings: session.servings,
+      startedAt: session.startedAt,
+      completedAt: session.completedAt,
+    })),
+  };
 }
 
 type AgentCapabilityResult =

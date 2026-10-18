@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  CookingOutcomeSchema,
   CookLogMutationEventSchema,
   MAX_COOK_LOG_MUTATION_EVENTS,
   validateCookLogMutationEvents,
@@ -10,11 +11,30 @@ const event = {
   recipeSlug: "tomato-soup",
   recipeTitle: "Tomato Soup",
   servings: 2,
-  diners: ["Alex", "Sam"],
   cookedAt: "2026-09-27T18:30:00.000Z",
 };
 
 describe("cook-log mutations", () => {
+  it("validates leftover tracking", () => {
+    expect(
+      CookingOutcomeSchema.parse({
+        leftoverPortions: 2,
+        leftoverStorage: "freezer",
+        leftoverUseBy: "2026-10-11",
+        audience: "household",
+      }),
+    ).toMatchObject({ leftoverPortions: 2, audience: "household" });
+
+    expect(() =>
+      CookingOutcomeSchema.parse({
+        leftoverPortions: 0,
+        leftoverStorage: "fridge",
+        leftoverUseBy: null,
+        audience: "personal",
+      }),
+    ).toThrow();
+  });
+
   it("accepts a bounded completed cook event", () => {
     expect(CookLogMutationEventSchema.parse(event)).toEqual(event);
     expect(() => validateCookLogMutationEvents([event])).not.toThrow();

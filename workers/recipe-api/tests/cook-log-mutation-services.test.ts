@@ -43,7 +43,6 @@ const event = {
   recipeSlug: "tomato-soup",
   recipeTitle: "Tomato Soup",
   servings: 2,
-  diners: ["Alex", "Sam"],
   cookedAt,
 };
 const actor = {
@@ -69,7 +68,7 @@ const changeSet = {
   commandFingerprint: JSON.stringify([
     "cook_log.append",
     "Record dinner",
-    [[event.sessionId, event.recipeSlug, event.recipeTitle, 2, event.diners, cookedAt]],
+    [[event.sessionId, event.recipeSlug, event.recipeTitle, 2, cookedAt]],
   ]),
   compensatesChangeSetId: null,
   createdAt: new Date("2026-09-27T18:31:00.000Z"),
@@ -148,7 +147,6 @@ describe("cook-log mutation services", () => {
         recipeSlug: event.recipeSlug,
         recipeTitle: event.recipeTitle,
         servings: event.servings,
-        diners: event.diners,
         completedAt: new Date(cookedAt),
       },
     ]);
@@ -180,7 +178,6 @@ describe("cook-log mutation services", () => {
         recipeSlug: event.recipeSlug,
         recipeTitle: event.recipeTitle,
         servings: event.servings,
-        diners: event.diners,
         completedAt: new Date(cookedAt),
       },
       {
@@ -190,7 +187,6 @@ describe("cook-log mutation services", () => {
         recipeSlug: event.recipeSlug,
         recipeTitle: event.recipeTitle,
         servings: event.servings,
-        diners: event.diners,
         completedAt: new Date(cookedAt),
       },
     ]);
@@ -277,7 +273,6 @@ describe("cook-log mutation services", () => {
         recipeSlug: event.recipeSlug,
         recipeTitle: event.recipeTitle,
         servings: event.servings,
-        diners: event.diners,
         completedAt: new Date(cookedAt),
       },
     ]);

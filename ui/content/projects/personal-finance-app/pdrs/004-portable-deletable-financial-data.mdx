@@ -1,0 +1,58 @@
+---
+title: "PDR 004: Keep financial data portable and deletable"
+date: "2026-09-24"
+status: "Proposed"
+informed_by_adrs:
+  - "personal-finance-app:000-financial-fact-and-calculation-provenance"
+---
+
+## Context
+
+Asset Tracker needs enough history and source lineage to explain financial views
+and calculations. That history contains balances, account names, transaction
+text, tax assumptions, imports, and forecasts. The architecture's immutable
+financial records make corrections traceable, but immutability must not become a
+claim to retain a household's data forever.
+
+Analytics, logs, exports, and temporary processing can create extra copies that
+outlive the reason they were collected. Users need a clear product promise before
+the shared service stores this information.
+
+## Proposed decision
+
+Give each household a machine-readable export of its financial records, history,
+and calculation lineage. Deleting a household removes its personal financial
+content from every product-controlled store, including immutable history and
+stored copies outside the primary database.
+
+Keep financial values, user-entered financial text, source documents, and stable
+domain identifiers out of general product analytics and operational telemetry.
+Collect only non-financial metadata needed to operate and assess the product.
+
+Retain source material only while it supports an explicit explanation,
+reproducibility, legal, or operating need. Define retention periods before a
+multi-user release and show when deletion makes an older calculation impossible
+to reproduce.
+
+## Consequences
+
+Users can leave with a useful copy of their history and can remove sensitive data
+instead of merely closing access to it. Product analytics will reveal less about
+feature use than events containing account or calculation details.
+
+Complete deletion requires an inventory of every store and backup that can hold
+financial content. Export and deletion behavior need testing before this proposal
+can become accepted.
+
+## Alternatives considered
+
+### Keep immutable history after account deletion
+
+This would preserve every calculation trail. It was rejected because the storage
+model does not change the fact that those records are personal financial data.
+
+### Send structured financial activity to analytics
+
+This would allow detailed feature analysis. It was rejected because values,
+descriptions, and stable financial identifiers can reconstruct a household's
+behavior even when obvious identity fields are absent.

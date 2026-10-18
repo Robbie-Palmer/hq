@@ -1,6 +1,10 @@
 export type { PairDecision, SharingLevel } from "./values";
 
-import type { WeddingGuest } from "wedding-planner-domain";
+import type {
+  CollaborativePlaylist,
+  GuestDirectoryMetadata,
+  WeddingGuest,
+} from "wedding-planner-domain";
 import type {
   Guest as AccommodationGuest,
   State as AccommodationState,
@@ -11,7 +15,7 @@ import type {
 } from "wedding-planner-domain/seating";
 
 export type Guest = AccommodationGuest &
-  Partial<Pick<WeddingGuest, "attendance" | "wedding_roles">> &
+  Partial<WeddingGuest> &
   Partial<SeatingPreferences>;
 
 export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {
@@ -20,11 +24,18 @@ export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {
   dismissed_accommodation_suggestions?: [string, string][];
   couples?: import("wedding-planner-domain").Couple[];
   hosts?: string[];
+  guest_directory?: GuestDirectoryMetadata;
+  playlist?: CollaborativePlaylist;
   reviewed_non_couples: string[][];
   [key: string]: unknown;
 };
 
 export type {
+  AccommodationAssignment,
+  AccommodationAudit,
+  AccommodationInventory,
+  AccommodationProperty,
+  AccommodationRoom,
   Allocation,
   BedGroup,
   Party,
@@ -34,6 +45,8 @@ export type {
   Property,
   PropertyPayment,
   Room,
+  SelfArrangedStay,
+  StayRequirements,
 } from "wedding-planner-domain/accommodation";
 export type {
   TableAllocation,

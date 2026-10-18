@@ -13,8 +13,17 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import type { CookingOutcome } from "recipe-domain/cook-log";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
+import { CookingOutcomeDialog } from "@/components/recipes/cooking-outcome-dialog";
 import { Button } from "@/components/ui/button";
 import { useCookMode } from "@/contexts/cook-mode-context";
 import { useCookingTimer } from "@/hooks/use-cooking-timers";
@@ -102,7 +111,87 @@ function timerCircleBackground(state: CookingTimer["state"] | "idle"): string {
   return "var(--card)";
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function CookCompletionControls({
+  recipeTitle,
+  servings,
+  onComplete,
+}: Readonly<{
+  recipeTitle: string;
+  servings: number;
+  onComplete: (outcome: CookingOutcome | null) => void;
+}>) {
+  const [showOutcome, setShowOutcome] = useState(false);
+  const completionReportedRef = useRef(false);
+  const complete = (outcome: CookingOutcome | null) => {
+    if (completionReportedRef.current) return;
+    completionReportedRef.current = true;
+    onComplete(outcome);
+  };
+  return (
+    <>
+      <Button
+        variant="outline"
+        onClick={() => setShowOutcome(true)}
+        className="h-12 flex-1 text-base md:max-w-44"
+      >
+        Track leftovers
+      </Button>
+      <Button
+        onClick={() => complete(null)}
+        className="h-12 flex-1 bg-[var(--terracotta)] text-base text-white hover:bg-[var(--terracotta-deep)] md:max-w-44"
+      >
+        Finish ✓
+      </Button>
+      {showOutcome && (
+        <CookingOutcomeDialog
+          recipeTitle={recipeTitle}
+          servings={servings}
+          onBack={() => setShowOutcome(false)}
+          onSave={complete}
+        />
+      )}
+    </>
+  );
+}
+
+function MobileIngredientSheet({
+  open,
+  onClose,
+  children,
+}: Readonly<{
+  open: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}>) {
+  if (!open) return null;
+  return (
+    <div className="absolute inset-0 z-10 md:hidden">
+      <button
+        type="button"
+        aria-label="Close ingredients"
+        onClick={onClose}
+        className="absolute inset-0 h-full w-full cursor-default bg-black/35"
+      />
+      <div className="absolute inset-x-0 bottom-0 max-h-[70%] overflow-y-auto rounded-t-2xl bg-[var(--paper)] px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(31,26,20,0.25)]">
+        <div className="mb-3 flex items-center justify-between">
+          <span className="rt-mono text-[var(--terracotta)]">
+            Ingredients · reference
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={onClose}
+            aria-label="Close ingredients"
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
 export function CookMode({
   recipeSlug,
   recipeTitle,
@@ -128,7 +217,7 @@ export function CookMode({
   step: number;
   onStepChange: (step: number) => void;
   onExit: () => void;
-  onComplete: () => void;
+  onComplete: (outcome: CookingOutcome | null) => void;
 }>) {
   const { setCookModeOpen, setActiveStep } = useCookMode();
   const clampedStep = Math.min(Math.max(step, 0), steps.length - 1);
@@ -136,7 +225,6 @@ export function CookMode({
   const [showIngredients, setShowIngredients] = useState(false);
   const containerRef = useRef<HTMLDialogElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
-  const completionReportedRef = useRef(false);
 
   const goTo = useCallback(
     (next: number) => {
@@ -528,53 +616,31 @@ export function CookMode({
                 <ChevronLeft className="size-5" />
                 Prev
               </Button>
-              <Button
-                onClick={() => {
-                  if (!isLastStep) {
-                    goTo(clampedStep + 1);
-                    return;
-                  }
-                  if (completionReportedRef.current) return;
-                  completionReportedRef.current = true;
-                  onComplete();
-                }}
-                className="h-12 flex-1 bg-[var(--terracotta)] text-base text-white hover:bg-[var(--terracotta-deep)] md:max-w-44"
-              >
-                {isLastStep ? "Finish ✓" : "Next"}
-                {!isLastStep && <ChevronRight className="size-5" />}
-              </Button>
+              {isLastStep ? (
+                <CookCompletionControls
+                  recipeTitle={recipeTitle}
+                  servings={servings}
+                  onComplete={onComplete}
+                />
+              ) : (
+                <Button
+                  onClick={() => goTo(clampedStep + 1)}
+                  className="h-12 flex-1 bg-[var(--terracotta)] text-base text-white hover:bg-[var(--terracotta-deep)] md:max-w-44"
+                >
+                  Next <ChevronRight className="size-5" />
+                </Button>
+              )}
             </div>
           </div>
         </main>
       </div>
 
-      {/* mobile ingredients sheet */}
-      {showIngredients && (
-        <div className="absolute inset-0 z-10 md:hidden">
-          <button
-            type="button"
-            aria-label="Close ingredients"
-            onClick={() => setShowIngredients(false)}
-            className="absolute inset-0 h-full w-full cursor-default bg-black/35"
-          />
-          <div className="absolute inset-x-0 bottom-0 max-h-[70%] overflow-y-auto rounded-t-2xl bg-[var(--paper)] px-5 pt-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(31,26,20,0.25)]">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="rt-mono text-[var(--terracotta)]">
-                Ingredients · reference
-              </span>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => setShowIngredients(false)}
-                aria-label="Close ingredients"
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-            {ingredientPanel}
-          </div>
-        </div>
-      )}
+      <MobileIngredientSheet
+        open={showIngredients}
+        onClose={() => setShowIngredients(false)}
+      >
+        {ingredientPanel}
+      </MobileIngredientSheet>
     </dialog>
   );
 }

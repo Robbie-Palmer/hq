@@ -186,7 +186,7 @@ describe("RecipeContent", () => {
     expect(method).not.toHaveClass("list-none");
   });
 
-  it("tracks a cook-mode start but only counts the meal when Finish is clicked", async () => {
+  it("tracks a cook-mode start but only counts the meal when cooking is completed", async () => {
     const user = userEvent.setup();
     render(
       <CookModeProvider>
@@ -207,13 +207,18 @@ describe("RecipeContent", () => {
     );
 
     const started = mocks.recordCookingSession.mock.calls[0]?.[0];
-    await user.click(screen.getByRole("button", { name: "Finish ✓" }));
+    await user.click(screen.getByRole("button", { name: "Track leftovers" }));
+    await user.click(screen.getByRole("button", { name: "Save leftovers" }));
 
     expect(mocks.recordCookingCompletionReliably).toHaveBeenCalledWith(
       "cook-1",
       expect.objectContaining({
         sessionId: started.sessionId,
         event: "completed",
+        recipeVersion: recipe.date,
+        outcome: expect.objectContaining({
+          leftoverPortions: 1,
+        }),
       }),
     );
     expect(mocks.captureRecipeValue).toHaveBeenCalledWith("recipe_cooked", {
@@ -268,6 +273,7 @@ describe("RecipeContent", () => {
       expect.objectContaining({
         sessionId: started.sessionId,
         event: "completed",
+        outcome: null,
       }),
     );
   });

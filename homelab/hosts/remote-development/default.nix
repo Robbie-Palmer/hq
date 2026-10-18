@@ -62,6 +62,9 @@ let
     BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
     BACKUP_MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
     KUBE_STATE_METRICS_URL=http://127.0.0.1:18080/api/v1/namespaces/observability/services/http:kube-state-metrics:8080/proxy/metrics
+    OTELCOL_HEALTH_URL=http://127.0.0.1:13133/
+    OTELCOL_METRICS_URL=http://127.0.0.1:8888/metrics
+    OTELCOL_STATE_FILE=/var/lib/remote-development-observability-metrics/collector-failures-total
     AGENT_COORDINATOR_ENABLED=${if agentCoordinatorEnabled then "1" else "0"}
     AGENT_COORDINATOR_HEALTH_FILE=${operatorDataPath}/home/.t3/work-graph-coordinator/health.json
   '';
@@ -195,6 +198,7 @@ in
     "remote-development-workspace-backup/export-excludes.txt".source =
       ../../remote-development-backup/export-excludes.txt;
     "remote-development-observability/metrics.env".source = observabilityMetricsConfig;
+    "opentelemetry-collector/config.yaml".source = ./opentelemetry-collector.yaml;
   };
 
   fileSystems.${dataMount} = {
@@ -505,22 +509,67 @@ in
     };
   };
 
+  systemd.services.opentelemetry-collector = {
+    description = "Filter and route T3 Code OpenTelemetry data";
+    after = [
+      "k3s.service"
+      "netdata.service"
+      "network-online.target"
+    ];
+    wants = [
+      "netdata.service"
+      "network-online.target"
+    ];
+    wantedBy = [ "multi-user.target" ];
+    restartTriggers = [ ./opentelemetry-collector.yaml ];
+    environment.OTELCOL_STORAGE_DIRECTORY = "/var/lib/opentelemetry-collector";
+    unitConfig.ConditionPathExists = "${observabilitySecretsDirectory}/posthog.env";
+    serviceConfig = {
+      DynamicUser = true;
+      EnvironmentFile = "${observabilitySecretsDirectory}/posthog.env";
+      ExecStart = "${pkgs.opentelemetry-collector-contrib}/bin/otelcol-contrib --config=/etc/opentelemetry-collector/config.yaml";
+      Restart = "on-failure";
+      RestartSec = "5s";
+      StateDirectory = "opentelemetry-collector";
+      StateDirectoryMode = "0700";
+      MemoryHigh = "112M";
+      MemoryMax = "128M";
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectSystem = "strict";
+      RestrictAddressFamilies = [
+        "AF_INET"
+        "AF_INET6"
+        "AF_UNIX"
+      ];
+    };
+  };
+
   systemd.services.remote-development-observability-metrics = {
     description = "Publish remote-development workspace metrics to Netdata";
     after = [
       "k3s.service"
       "netdata.service"
+      "opentelemetry-collector.service"
       "remote-development-kubernetes-api-proxy.service"
       "remote-development-project-quotas.service"
     ];
     wants = [
       "k3s.service"
       "netdata.service"
+      "opentelemetry-collector.service"
       "remote-development-kubernetes-api-proxy.service"
     ];
     serviceConfig = {
       Type = "oneshot";
       RuntimeDirectory = "remote-development-observability";
+      StateDirectory = "remote-development-observability-metrics";
+      StateDirectoryMode = "0700";
       PrivateTmp = true;
       ProtectHome = true;
       ProtectSystem = "strict";
@@ -793,6 +842,7 @@ in
     workspaceExport
     workspaceRestore
     observabilityMetrics
+    opentelemetry-collector-contrib
   ];
 
   nix = {

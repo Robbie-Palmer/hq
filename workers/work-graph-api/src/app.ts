@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   createRoute,
   OpenAPIHono,
@@ -9,6 +10,7 @@ import {
   classifyRetryableDatabaseFailure,
   type AttentionRequestReadModel,
   type ArchiveKnowledgeScopeInput,
+  type AssignCompletionPolicyInput,
   type ClaimWorkItemInput,
   type CreateAttentionRequestInput,
   type CreateAttentionRequestResult,
@@ -16,6 +18,7 @@ import {
   type CreatePostReleaseNoteInput,
   type DecomposeClaimedWorkItemInput,
   type DecomposeClaimedWorkItemResult,
+  type EvaluateCompletionCandidateInput,
   type IdempotentMutationOptions,
   type KnowledgeScopeRelationshipCursor,
   type ListAttentionRequestsInput,
@@ -68,6 +71,7 @@ import {
   WORK_STAGES,
   WorkGraphError,
   type CriticalPathProjection,
+  type CompletionPolicyRevision,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -99,6 +103,24 @@ const MAX_RELATIONSHIP_CURSOR_LENGTH = 4_096;
 const MAX_METADATA_CURSOR_LENGTH = 4_096;
 const MAX_INT32 = 2_147_483_647;
 const MAX_CRITICAL_PATH_EDGES = 5_000;
+
+const assignmentEvaluationId = (
+  workItemId: string,
+  policyId: string,
+  policyRevision: number,
+  assignedAt: string,
+): string => {
+  const bytes = createHash("sha256")
+    .update(JSON.stringify([workItemId, policyId, policyRevision, assignedAt]))
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = [...bytes]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
 const WORK_ITEM_EVENT_TYPES = [
   "attention.requested",
   "attention.resolved",
@@ -420,6 +442,34 @@ const completionCandidateSchema = z
     evaluatedAt: timestampSchema,
   })
   .openapi("CompletionCandidate");
+const completionPolicyRevisionSchema = z
+  .object({
+    policyId: identifierSchema,
+    revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    requiredCiNames: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
+    productionEnvironments: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
+    createdAt: timestampSchema,
+  })
+  .openapi("CompletionPolicyRevision");
+const completionPolicyRevisionPathSchema = z.object({
+  policyId: identifierSchema,
+  revision: z.coerce.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+});
+const putCompletionPolicyRevisionBodySchema = completionPolicyRevisionSchema.omit({
+  policyId: true,
+  revision: true,
+});
+const workItemCompletionPolicySchema = z
+  .object({
+    workItemId: identifierSchema,
+    policyId: identifierSchema,
+    policyRevision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    assignedAt: timestampSchema,
+  })
+  .openapi("WorkItemCompletionPolicy");
+const putWorkItemCompletionPolicyBodySchema = workItemCompletionPolicySchema.omit({
+  workItemId: true,
+});
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -1394,6 +1444,44 @@ const getWorkItemCompletionCandidateRoute = createRoute({
   },
 });
 
+const putCompletionPolicyRevisionRoute = createRoute({
+  method: "put",
+  path: "/api/completion-policies/{policyId}/revisions/{revision}",
+  operationId: "putCompletionPolicyRevision",
+  summary: "Create an immutable completion-policy revision",
+  description:
+    "Stores one owner-controlled set of required CI names and production environments. Reusing the same ID and revision with different contents is rejected.",
+  tags: ["completion-policies"],
+  security: accessSecurity,
+  request: {
+    params: completionPolicyRevisionPathSchema,
+    body: { required: true, content: { "application/json": { schema: putCompletionPolicyRevisionBodySchema } } },
+  },
+  responses: {
+    200: { description: "Policy revision created or matched", content: { "application/json": { schema: completionPolicyRevisionSchema } } },
+    ...standardErrors,
+  },
+});
+
+const putWorkItemCompletionPolicyRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/completion-policy",
+  operationId: "putWorkItemCompletionPolicy",
+  summary: "Assign a completion policy and evaluate current evidence",
+  description:
+    "Assigns an existing immutable policy revision to a work item and immediately evaluates evidence already correlated to its implementation pull requests.",
+  tags: ["completion-policies", "work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    body: { required: true, content: { "application/json": { schema: putWorkItemCompletionPolicyBodySchema } } },
+  },
+  responses: {
+    200: { description: "Policy assigned", content: { "application/json": { schema: workItemCompletionPolicySchema } } },
+    ...standardErrors,
+  },
+});
+
 const createWorkItemRoute = createRoute({
   method: "post",
   path: "/api/work-items",
@@ -2138,6 +2226,13 @@ export interface WorkGraphApiRepository {
   getCompletionCandidate(
     workItemId: string,
   ): Promise<StoredCompletionCandidateEvaluation | null>;
+  putCompletionPolicyRevision(
+    input: CompletionPolicyRevision,
+  ): Promise<CompletionPolicyRevision>;
+  assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void>;
+  evaluateCompletionCandidateIfConfigured(
+    input: EvaluateCompletionCandidateInput,
+  ): Promise<StoredCompletionCandidateEvaluation | null>;
   resolveWorkItemContext(
     workItemId: string,
   ): Promise<readonly ResolvedWorkItemContext[]>;
@@ -2792,6 +2887,40 @@ export const createWorkGraphApp = (
       },
       200,
     );
+  });
+
+  app.openapi(putCompletionPolicyRevisionRoute, async (context) => {
+    const { policyId, revision } = context.req.valid("param");
+    const stored = await repository.putCompletionPolicyRevision({
+      policyId,
+      revision,
+      ...context.req.valid("json"),
+    });
+    return context.json(
+      {
+        ...stored,
+        requiredCiNames: [...stored.requiredCiNames],
+        productionEnvironments: [...stored.productionEnvironments],
+      },
+      200,
+    );
+  });
+
+  app.openapi(putWorkItemCompletionPolicyRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const assignment = { workItemId, ...context.req.valid("json") };
+    await repository.assignCompletionPolicy(assignment);
+    await repository.evaluateCompletionCandidateIfConfigured({
+      id: assignmentEvaluationId(
+        assignment.workItemId,
+        assignment.policyId,
+        assignment.policyRevision,
+        assignment.assignedAt,
+      ),
+      workItemId,
+      evaluatedAt: assignment.assignedAt,
+    });
+    return context.json(assignment, 200);
   });
 
   app.openapi(listWorkItemContextsRoute, async (context) => {

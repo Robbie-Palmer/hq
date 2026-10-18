@@ -5,7 +5,7 @@ date: "2026-02-14"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
-updated: "2026-10-14"
+updated: "2026-10-15"
 platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
@@ -27,6 +27,10 @@ platform_layers:
         decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
       - slot: "security.preview-access"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:013-cloudflare-access-preview-gates"
+      - slot: "security.preview-access"
+        adopted: "2026-10-15T00:00:00Z"
         decision: "recipe-site:013-cloudflare-access-preview-gates"
   - layer: "web-app"
     adopted: "2026-09-12T00:00:00Z"
@@ -63,10 +67,24 @@ platform_layers:
     slots:
       - slot: "identity.authentication-library"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:003-better-auth"
+      - slot: "identity.authentication-library"
+        adopted: "2026-10-15T00:00:00Z"
         decision: "recipe-site:003-better-auth"
       - slot: "identity.login-provider"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-15T00:00:00Z"
         decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.login-provider"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.session-transport"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:007-google-oidc-login"
+      - slot: "identity.authorization-policy"
+        adopted: "2026-10-15T00:00:00Z"
+        decision: "recipe-site:005-authorization-model"
   - layer: "api-governance"
     adopted: "2026-09-29T00:00:00Z"
     tracking: true
@@ -507,6 +525,12 @@ of truth. Then add recipe forking with explicit lineage so household adaptations
 personalized without erasing the original. Record outcomes against immutable versions, not a mutable slug, so a
 later edit cannot rewrite the history of what people actually cooked.
 
+Treat personal and household recipes as branches in that lineage rather than making one person the permanent
+owner of every shared recipe. Active household members should maintain one household version. When somebody
+leaves, preserve the exact version they could last access and let later edits continue privately or enter another
+household. If they return, offer a three-way comparison, but let both versions remain separate when their
+divergence is intentional.
+
 ### Cross-Device and Offline Continuity
 
 After moving shared operational state server-side, add an installable offline-capable web experience for
@@ -621,11 +645,12 @@ surface, in both desktop and mobile, rendered in a warm "paper and handwriting"
 visual language (a soft paper palette with Caveat, Kalam, and JetBrains Mono
 type) that deliberately evokes the physical recipe book this replaces.
 
-It spans 17 surfaces: the recipe box and recipe read/cook views, scan/import,
+It spans 18 surfaces: the recipe box and recipe read/cook views, scan/import,
 the kitchen (pantry + freezer), shopping and meal planning, sharing, cookbooks,
 a public profile, a profile-wide diet, a full shared-household system, recipe
 lineage/provenance, a cook log, the logged-out home and discover feed,
-onboarding, a recommendations inbox, notifications, and a settings hub. Much of
+onboarding, a recommendations inbox, notifications, a settings hub, and the
+planning/shopping navigation model. Much of
 it is interactive. Cooking-mode timers run live, and a "tweaks" panel re-casts
 household size, diet model, and activity density across the artboards.
 
@@ -640,7 +665,7 @@ it again**, distinguish household members from followed cooks, and connect a per
 plan, and cook actions. The roadmap now makes that core system real instead of adding decorative social proof
 around an otherwise conventional recipe manager.
 
-<DesignEmbed src="/recipe-site-design/standalone.html" title="Recipe Site: mid-fi prototype" caption="All 17 surfaces, desktop + mobile · interactive · scroll and pan the canvas" height={760} />
+<DesignEmbed src="/recipe-site-design/standalone.html" title="Recipe Site: mid-fi prototype" caption="All 18 surfaces, desktop + mobile · interactive · scroll and pan the canvas" height={760} />
 
 The prototype above is a self-contained build; the editable design source
 (tokens, shared components, and one file per screen) is vendored alongside this

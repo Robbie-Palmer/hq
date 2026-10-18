@@ -1,8 +1,9 @@
 # Shared worktree cache
 
-The remote workspace keeps worktrees isolated while sharing immutable inputs and
-verified task results. It does not share `node_modules`, `.next`, `out`, test
-temporary files, or any other mutable worktree directory.
+On any developer machine with multiple worktrees, the shared cache keeps each
+worktree isolated while reusing immutable inputs and verified task results. It
+does not share `node_modules`, `.next`, `out`, test temporary files, or any other
+mutable worktree directory.
 
 ## Measured baseline
 
@@ -93,9 +94,11 @@ mise //:shared-cache:status
 mise //:shared-cache:prune
 ```
 
-Netdata receives cumulative hit, miss, run, wait, failure, corruption, restored
-byte, published byte, and reclaimed byte counters. The existing quota charts
-and alerts cover the whole 30 GiB cache project.
+Netdata reads cumulative hit, miss, run, wait, failure, corruption, restored
+byte, published byte, and reclaimed byte counters, then plots their per-second
+change. A separate validity gauge distinguishes an empty cache from an unreadable
+or invalid metrics file. The existing quota charts and alerts cover the whole 30
+GiB cache project.
 
 If the task cache is lost or corrupt, delete its dedicated
 `shared-task-cache` directory and recreate it with owner and group `t3code` and

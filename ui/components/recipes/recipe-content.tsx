@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { CookingOutcome } from "recipe-domain/cook-log";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import {
   CookMode,
@@ -217,13 +218,109 @@ function ingredientGroupClassName(index: number, hasName: boolean) {
   return hasName ? "border-t border-border/50 pt-4 mt-4" : "mt-4";
 }
 
+function useCookingSessionRecording({
+  cookOpen,
+  recipeSlug,
+  recipeTitle,
+  recipeVersion,
+  servings,
+  stepCount,
+  userId,
+  authPending,
+  enabled,
+  onComplete,
+}: Readonly<{
+  cookOpen: boolean;
+  recipeSlug: string;
+  recipeTitle: string;
+  recipeVersion: string;
+  servings: number;
+  stepCount: number;
+  userId: string | null;
+  authPending: boolean;
+  enabled: boolean;
+  onComplete: () => void;
+}>) {
+  const sessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cookOpen) {
+      sessionIdRef.current = null;
+      return;
+    }
+    if (sessionIdRef.current || (!userId && !authPending) || !enabled) return;
+    const sessionId = globalThis.crypto.randomUUID();
+    sessionIdRef.current = sessionId;
+    void recordCookingSession({
+      sessionId,
+      recipeSlug,
+      recipeTitle,
+      recipeVersion,
+      servings,
+      event: "started",
+    }).catch((error: unknown) => {
+      console.error("[RecipeContent] Could not record cook-mode start", error);
+    });
+  }, [
+    authPending,
+    cookOpen,
+    enabled,
+    recipeSlug,
+    recipeTitle,
+    recipeVersion,
+    servings,
+    userId,
+  ]);
+
+  return useCallback(
+    (outcome: CookingOutcome | null) => {
+      captureRecipeValue("recipe_cooked", {
+        recipe_slug: recipeSlug,
+        serving_count: servings,
+        step_count: stepCount,
+      });
+      const sessionId = sessionIdRef.current;
+      if (sessionId && (userId || authPending) && enabled) {
+        const completion = {
+          sessionId,
+          recipeSlug,
+          recipeTitle,
+          recipeVersion,
+          servings,
+          event: "completed" as const,
+          outcome,
+        };
+        const request = userId
+          ? recordCookingCompletionReliably(userId, completion)
+          : recordCookingSession(completion);
+        void request.catch((error: unknown) => {
+          console.error("[RecipeContent] Could not record cooked meal", error);
+        });
+      }
+      onComplete();
+    },
+    [
+      authPending,
+      enabled,
+      onComplete,
+      recipeSlug,
+      recipeTitle,
+      recipeVersion,
+      servings,
+      stepCount,
+      userId,
+    ],
+  );
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeContent({
   recipe,
+  recipeVersion = recipe.date,
   timersEnabled = true,
   shoppingListEnabled = true,
 }: Readonly<{
   recipe: RecipeDetailView;
+  recipeVersion?: string;
   timersEnabled?: boolean;
   shoppingListEnabled?: boolean;
 }>) {
@@ -359,7 +456,6 @@ export function RecipeContent({
   const [cookOpen, setCookOpen] = useState(false);
   const [cookStep, setCookStep] = useState(0);
   const pushedCookEntryRef = useRef(false);
-  const cookingSessionIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const applyLocation = () => {
@@ -397,75 +493,18 @@ export function RecipeContent({
     }
   }, []);
 
-  useEffect(() => {
-    if (!cookOpen) {
-      cookingSessionIdRef.current = null;
-      return;
-    }
-    if (
-      cookingSessionIdRef.current ||
-      (!authSession && !authSessionPending) ||
-      !timersEnabled
-    ) {
-      return;
-    }
-
-    const sessionId = globalThis.crypto.randomUUID();
-    cookingSessionIdRef.current = sessionId;
-    void recordCookingSession({
-      sessionId,
-      recipeSlug: recipe.slug,
-      recipeTitle: recipe.title,
-      servings: portions,
-      event: "started",
-    }).catch((error: unknown) => {
-      // Tracking must never interrupt cooking. Keep the same id so Finish can
-      // retry by upserting the completed session.
-      console.error("[RecipeContent] Could not record cook-mode start", error);
-    });
-  }, [
-    authSession,
-    authSessionPending,
+  const completeCookMode = useCookingSessionRecording({
     cookOpen,
-    portions,
-    recipe.slug,
-    recipe.title,
-    timersEnabled,
-  ]);
-
-  const completeCookMode = useCallback(() => {
-    captureRecipeValue("recipe_cooked", {
-      recipe_slug: recipe.slug,
-      serving_count: portions,
-      step_count: cookSteps.length,
-    });
-    const sessionId = cookingSessionIdRef.current;
-    if (sessionId && (authSession || authSessionPending) && timersEnabled) {
-      const completion = {
-        sessionId,
-        recipeSlug: recipe.slug,
-        recipeTitle: recipe.title,
-        servings: portions,
-        event: "completed" as const,
-      };
-      const request = authSession
-        ? recordCookingCompletionReliably(authSession.user.id, completion)
-        : recordCookingSession(completion);
-      void request.catch((error: unknown) => {
-        console.error("[RecipeContent] Could not record cooked meal", error);
-      });
-    }
-    exitCookMode();
-  }, [
-    authSession,
-    authSessionPending,
-    cookSteps.length,
-    exitCookMode,
-    portions,
-    recipe.slug,
-    recipe.title,
-    timersEnabled,
-  ]);
+    recipeSlug: recipe.slug,
+    recipeTitle: recipe.title,
+    recipeVersion,
+    servings: portions,
+    stepCount: cookSteps.length,
+    userId: authSession?.user.id ?? null,
+    authPending: authSessionPending,
+    enabled: timersEnabled,
+    onComplete: exitCookMode,
+  });
 
   const changeCookStep = useCallback((step: number) => {
     globalThis.history.replaceState(null, "", buildCookUrl(true, step));

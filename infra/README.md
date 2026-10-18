@@ -5,6 +5,7 @@ directory itself is organisational and is not a Terraform root.
 
 | Root | Responsibility | Lifecycle |
 | --- | --- | --- |
+| [`account-foundation/`](account-foundation/ownership-inventory.md) | Ownership and migration inventory for provider administrative resources | Inventory only; the Terraform root is not created yet |
 | [`bootstrap/`](bootstrap/README.md) | Foundational IAM and GitHub identity trust | Rare, security-sensitive changes |
 | [`public-platform/`](public-platform/README.md) | Cloudflare, Neon, PostHog, Pages, DNS, and public service infrastructure | Production and preview service changes |
 | [`remote-development/`](remote-development/README.md) | Remote agent-development infrastructure | Development-host provisioning and recovery |

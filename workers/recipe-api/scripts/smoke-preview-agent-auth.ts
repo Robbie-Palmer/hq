@@ -204,6 +204,7 @@ const cookingSession = {
   sessionId: cookingSessionId,
   recipeSlug: "preview-private-weeknight-pasta",
   recipeTitle: "Preview Weeknight Pasta",
+  recipeVersion: "preview-v1",
   servings: 2,
 };
 await expectJson(
@@ -226,7 +227,20 @@ await expectJson("/api/profile/cooking-sessions", {
     "content-type": "application/json",
     origin: siteURL,
   },
-  body: JSON.stringify({ ...cookingSession, event: "completed" }),
+  body: JSON.stringify({
+    sessionId: cookingSession.sessionId,
+    recipeSlug: cookingSession.recipeSlug,
+    recipeTitle: cookingSession.recipeTitle,
+    recipeVersion: cookingSession.recipeVersion,
+    servings: cookingSession.servings,
+    event: "completed",
+    outcome: {
+      leftoverPortions: 1,
+      leftoverStorage: "fridge",
+      leftoverUseBy: null,
+      audience: "personal",
+    },
+  }),
 });
 
 const hostKeys = await generateKeyPair("EdDSA");

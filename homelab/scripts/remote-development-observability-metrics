@@ -18,6 +18,9 @@ required_values=(
   BACKUP_STATUS_FILE
   BACKUP_MAXIMUM_AGE_SECONDS
   KUBE_STATE_METRICS_URL
+  OTELCOL_HEALTH_URL
+  OTELCOL_METRICS_URL
+  OTELCOL_STATE_FILE
   AGENT_COORDINATOR_ENABLED
   AGENT_COORDINATOR_HEALTH_FILE
   SHARED_TASK_CACHE_METRICS_FILE
@@ -141,6 +144,7 @@ shared_task_cache_waits=0
 shared_task_cache_bytes_restored=0
 shared_task_cache_bytes_published=0
 shared_task_cache_bytes_reclaimed=0
+shared_task_cache_metrics_valid=0
 if [ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]; then
   cache_summary=$(
     jq --raw-output --exit-status '
@@ -185,6 +189,7 @@ if [ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]; then
       shared_task_cache_bytes_published \
       shared_task_cache_bytes_reclaimed \
       <<<"${cache_summary}"
+    shared_task_cache_metrics_valid=1
   fi
 fi
 
@@ -205,6 +210,54 @@ if kube_metrics=$(curl --fail --silent --show-error --max-time 5 "${KUBE_STATE_M
   oom_killed=$(metric_sum kube_pod_container_status_last_terminated_reason 'reason="OOMKilled"')
   evicted=$(metric_sum kube_pod_status_reason 'reason="Evicted"')
   crash_loop=$(metric_sum kube_pod_container_status_waiting_reason 'reason="CrashLoopBackOff"')
+fi
+
+otelcol_up=0
+otelcol_pipeline_failures=0
+otelcol_export_queue_size=0
+otelcol_policy_dropped_records=0
+if curl --fail --silent --show-error --max-time 5 "${OTELCOL_HEALTH_URL}" >/dev/null; then
+  otelcol_up=1
+fi
+if otelcol_metrics=$(curl --fail --silent --show-error --max-time 5 "${OTELCOL_METRICS_URL}"); then
+  otelcol_failures_total=$(
+    awk '
+      $1 ~ /^otelcol_(exporter_send_failed_(spans|log_records|metric_points)|exporter_enqueue_failed_(spans|log_records|metric_points)|(receiver|processor)_refused_(spans|log_records|metric_points))(_total)?({|$)/ {
+        total += $2
+      }
+      END { printf "%.0f\n", total + 0 }
+    ' <<<"${otelcol_metrics}"
+  )
+  otelcol_export_queue_size=$(
+    awk '
+      $1 ~ /^otelcol_exporter_queue_size({|$)/ { total += $2 }
+      END { printf "%.0f\n", total + 0 }
+    ' <<<"${otelcol_metrics}"
+  )
+  otelcol_policy_dropped_records=$(
+    awk '
+      $1 ~ /^otelcol_processor_filter_(spans|logs|datapoints)_filtered(_total)?({|$)/ {
+        total += $2
+      }
+      END { printf "%.0f\n", total + 0 }
+    ' <<<"${otelcol_metrics}"
+  )
+  previous_failures=0
+  if [ -r "${OTELCOL_STATE_FILE}" ]; then
+    previous_failures=$(cat "${OTELCOL_STATE_FILE}")
+    if [[ ! ${previous_failures} =~ ^[0-9]+$ ]]; then
+      previous_failures=0
+    fi
+  fi
+  if [ "${otelcol_failures_total}" -ge "${previous_failures}" ]; then
+    otelcol_pipeline_failures=$((otelcol_failures_total - previous_failures))
+  else
+    otelcol_pipeline_failures=${otelcol_failures_total}
+  fi
+  state_tmp=$(mktemp "${OTELCOL_STATE_FILE}.XXXXXX")
+  printf '%s\n' "${otelcol_failures_total}" >"${state_tmp}"
+  chmod 0600 "${state_tmp}"
+  mv -f -- "${state_tmp}" "${OTELCOL_STATE_FILE}"
 fi
 
 read_pressure() {
@@ -250,7 +303,12 @@ metrics=$(printf '%s\n' \
   "${metric_prefix}.shared_task_cache_bytes_restored:${shared_task_cache_bytes_restored}|g" \
   "${metric_prefix}.shared_task_cache_bytes_published:${shared_task_cache_bytes_published}|g" \
   "${metric_prefix}.shared_task_cache_bytes_reclaimed:${shared_task_cache_bytes_reclaimed}|g" \
+  "${metric_prefix}.shared_task_cache_metrics_valid:${shared_task_cache_metrics_valid}|g" \
   "${metric_prefix}.kube_state_metrics_up:${kube_state_metrics_up}|g" \
+  "${metric_prefix}.otelcol_up:${otelcol_up}|g" \
+  "${metric_prefix}.otelcol_pipeline_failures:${otelcol_pipeline_failures}|g" \
+  "${metric_prefix}.otelcol_export_queue_size:${otelcol_export_queue_size}|g" \
+  "${metric_prefix}.otelcol_policy_dropped_records:${otelcol_policy_dropped_records}|g" \
   "${metric_prefix}.oom_killed:${oom_killed}|g" \
   "${metric_prefix}.evicted:${evicted}|g" \
   "${metric_prefix}.crash_loop:${crash_loop}|g" \

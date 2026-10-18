@@ -122,6 +122,105 @@ describe("createLocalAssetTrackerApi", () => {
     });
   });
 
+  it("persists a forecast, its observation, and a later interpretation", async () => {
+    const api = createApi();
+    await api.createDecisionRecord({
+      question: "Should we invest the cash reserve?",
+      decisionDate: "2026-10-17",
+      selectedScenario: { id: "invest", label: "Invest £10,000" },
+      rationale: "The emergency fund remains funded.",
+      action: "Invest £10,000.",
+      forecast: {
+        calculationVersion: "portfolio-v1",
+        lineage: [
+          {
+            id: "fact",
+            kind: "financial-fact",
+            label: "Cash",
+            value: "£30,000",
+            source: "Bank statement",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "rate",
+            kind: "rate",
+            label: "Return",
+            value: "5%",
+            source: "Planning policy",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "tax",
+            kind: "tax-rule",
+            label: "ISA allowance",
+            value: "£20,000",
+            source: "HMRC",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "assumption",
+            kind: "assumption",
+            label: "Contributions",
+            value: "£500 monthly",
+            source: "Household plan",
+            validAt: "2026-10-17",
+          },
+        ],
+        checkpoints: [
+          {
+            id: "year-one",
+            label: "Portfolio after one year",
+            dueDate: "2027-10-17",
+            expectedAmount: 16_650,
+            currency: "GBP",
+          },
+        ],
+      },
+    });
+    const tracked = (await api.load()).data.decisionRecords?.find(
+      (decision) =>
+        decision.kind === "tracked" &&
+        decision.selectedScenario.id === "invest",
+    );
+    if (tracked?.kind !== "tracked")
+      throw new Error("Expected tracked decision");
+    const originalForecast = structuredClone(tracked.forecast);
+
+    await api.recordDecisionObservation({
+      decisionId: tracked.id,
+      checkpointId: "year-one",
+      actualAmount: 15_300,
+      note: "One contribution was missed.",
+      divergenceSources: [
+        {
+          kind: "changed-reality",
+          label: "Missed contribution",
+          impactAmount: -500,
+        },
+      ],
+    });
+    await api.addDecisionInterpretation({
+      decisionId: tracked.id,
+      reason: "The contribution assumption was wrong.",
+      revisedRationale: "The investment remains affordable at £400 monthly.",
+      assumptionChanges: [
+        {
+          label: "Monthly contribution",
+          previousValue: "£500",
+          revisedValue: "£400",
+        },
+      ],
+    });
+
+    const saved = (await createApi().load()).data.decisionRecords?.find(
+      (decision) => decision.id === tracked.id,
+    );
+    if (saved?.kind !== "tracked") throw new Error("Expected tracked decision");
+    expect(saved.forecast).toEqual(originalForecast);
+    expect(saved.observations).toHaveLength(1);
+    expect(saved.interpretations).toHaveLength(1);
+  });
+
   it("persists editable job-move scenarios through portable data", async () => {
     const api = createApi();
     const saved = await api.saveJobMoveScenario({

@@ -2,43 +2,52 @@
 title: "ADR 002: Limit copies of financial content"
 date: "2026-09-24"
 status: "Proposed"
+implements_product_decisions:
+  - "personal-finance-app:004-portable-deletable-financial-data"
 ---
 
 ## Context
 
-Balances, transaction text, account names, tax assumptions, forecasts, imports, and calculation
-inputs are sensitive financial content. Copying that content into logs, analytics, exports, or
-temporary processing stores creates additional places where it can outlive its purpose.
+The product policy in
+[PDR 004](/projects/personal-finance-app/pdrs/004-portable-deletable-financial-data)
+requires portable and deletable household data while excluding financial content from general
+telemetry. Balances, transaction text, account names, tax assumptions, forecasts, imports, and
+calculation inputs can otherwise spread into logs, analytics, exports, temporary processing, and
+backups.
 
-Asset Tracker still needs operational telemetry, source provenance, portable exports, and a way to
-delete a household. Its immutable financial history must not become an excuse to retain personal
-data after the household is deleted.
+The architecture needs one governed storage boundary and a complete inventory of copies. It also
+needs enough source provenance to meet
+[ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance)
+without treating immutable active records as exempt from household deletion.
 
 ## Decision
 
-Keep financial content inside storage governed by household access and lifecycle rules. Product
-analytics and general operational telemetry may contain non-financial metadata, but they will not
-receive financial values, user-entered financial text, source documents, or stable domain
-identifiers that reconstruct a household's activity.
+Keep financial content inside stores governed by household authorization and the household data
+lifecycle. General analytics and operational telemetry accept only non-financial metadata. Their
+schemas reject financial values, user-entered financial text, source documents, and stable domain
+identifiers that could reconstruct household activity.
 
-Retain source material and calculation lineage only where they support the product's explanation and
-reproducibility guarantees. Retention periods and redaction mechanics belong in operating policy,
-where they can change without revising the architecture.
+Maintain a store inventory for primary records, source artifacts, derived results, exports,
+temporary objects, logs, analytics, and backups. Each entry names its data class, retention rule,
+export behavior, and deletion mechanism. A household deletion operation uses that inventory and
+records completion without retaining the deleted financial content.
 
-Provide a machine-readable export of the household's financial records, history, and lineage.
-Deleting a household removes its personal financial content, including immutable history and stored
-copies outside the primary database. Immutability governs changes while data is active; it does not
-override deletion.
+Keep source material and calculation lineage only in inventoried stores that support the product's
+explanation and reproducibility guarantees. Export reads from the governed records and emits the
+document directly to the requesting household rather than creating an untracked permanent copy.
+Retention periods and backup expiry belong in operating policy so they can change without revising
+this storage boundary.
 
 ## Consequences
 
-Operational systems cannot become a second financial datastore, and household data remains portable
-and deletable. The application will collect less detailed product analytics than a system that emits
-domain activity to an analytics provider.
+Operational systems cannot become an accidental second financial datastore. Schema controls and the
+store inventory make copies visible enough to test export and deletion behavior. The application
+will collect less detailed product analytics than a system that emits domain activity to an
+analytics provider.
 
 Complete export and deletion require an inventory of every store that may hold financial content.
-Some historical calculations may become irreproducible after their retained source material is
-deleted, and the product must represent that honestly.
+Some historical calculations may become irreproducible after their source material is deleted. The
+product must represent that limit as required by PDR 004.
 
 ## Alternatives considered
 
