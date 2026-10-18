@@ -1,12 +1,32 @@
 "use client";
 
 import { type SubmitEvent, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  ReferenceLine,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { Button } from "@/components/ui/button";
+import {
+  type ChartConfig,
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
 import { Input } from "@/components/ui/input";
-import { formatCurrency } from "@/lib/assettracker";
+import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
 import type {
   AdoptedDecisionForecastRecord,
+  AdoptedForecastReconciliation,
   AdoptedForecastVarianceSource,
+  Currency,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
 
@@ -105,6 +125,193 @@ const varianceLabels: Record<AdoptedForecastVarianceSource["kind"], string> = {
   "revised-assumption": "Revised assumption",
 };
 
+const balanceChartConfig = {
+  expected: { label: "Adopted", color: "var(--chart-2)" },
+  observed: { label: "Observed", color: "var(--chart-1)" },
+} satisfies ChartConfig;
+
+const varianceChartConfig = {
+  amount: { label: "Variance amount" },
+} satisfies ChartConfig;
+
+const varianceColors: Record<AdoptedForecastVarianceSource["kind"], string> = {
+  "changed-amount": "var(--chart-1)",
+  "changed-timing": "var(--chart-2)",
+  "household-cash-flow": "var(--chart-3)",
+  "market-or-currency": "var(--chart-4)",
+  unexplained: "var(--chart-5)",
+  "revised-assumption": "var(--muted-foreground)",
+};
+
+function BalanceComparisonChart({
+  reconciliation,
+  currency,
+}: Readonly<{
+  reconciliation: AdoptedForecastReconciliation;
+  currency: Currency;
+}>) {
+  const data = reconciliation.balances.flatMap((balance) =>
+    balance.observedBalance == null
+      ? []
+      : [
+          {
+            label: balance.accountName,
+            checkpointDate: balance.checkpointDate,
+            expected: balance.expectedBalance,
+            observed: balance.observedBalance,
+          },
+        ],
+  );
+  if (data.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div>
+        <h4 className="text-sm font-medium">Balances against forecast</h4>
+        <p className="text-xs text-muted-foreground">
+          Adopted checkpoint balances beside the first observation on or after
+          each checkpoint.
+        </p>
+      </div>
+      <div style={{ height: Math.max(190, data.length * 70 + 56) }}>
+        <ChartContainer
+          config={balanceChartConfig}
+          className="aspect-auto h-full w-full"
+          role="img"
+          aria-label="Adopted and observed account balances"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              accessibilityLayer
+              data={data}
+              layout="vertical"
+              margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
+            >
+              <CartesianGrid horizontal={false} />
+              <XAxis
+                type="number"
+                tickFormatter={(value: number) =>
+                  formatCurrencyAxisTick(value, currency)
+                }
+              />
+              <YAxis type="category" dataKey="label" width={96} />
+              <ReferenceLine x={0} className="stroke-muted-foreground" />
+              <ChartTooltip
+                content={<ChartTooltipContent />}
+                formatter={(value) => formatCurrency(value as number, currency)}
+              />
+              <ChartLegend content={<ChartLegendContent />} />
+              <Bar
+                dataKey="expected"
+                fill="var(--color-expected)"
+                radius={3}
+                isAnimationActive={false}
+              />
+              <Bar
+                dataKey="observed"
+                fill="var(--color-observed)"
+                radius={3}
+                isAnimationActive={false}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </div>
+      <div className="sr-only">
+        <table>
+          <caption>Adopted and observed account balances</caption>
+          <thead>
+            <tr>
+              <th>Account</th>
+              <th>Checkpoint</th>
+              <th>Adopted</th>
+              <th>Observed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row) => (
+              <tr key={`${row.label}-${row.checkpointDate}`}>
+                <th scope="row">{row.label}</th>
+                <td>{row.checkpointDate}</td>
+                <td>{formatCurrency(row.expected, currency)}</td>
+                <td>{formatCurrency(row.observed, currency)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function VarianceAttributionChart({
+  sources,
+  currency,
+}: Readonly<{
+  sources: readonly AdoptedForecastVarianceSource[];
+  currency: Currency;
+}>) {
+  const data = sources.flatMap((source, index) =>
+    source.amount == null
+      ? []
+      : [
+          {
+            id: `${source.kind}-${index}`,
+            label: varianceLabels[source.kind],
+            amount: source.amount,
+            kind: source.kind,
+          },
+        ],
+  );
+  if (data.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div>
+        <h4 className="text-sm font-medium">Measured variance</h4>
+        <p className="text-xs text-muted-foreground">
+          Monetary differences share one scale. Timing and assumption changes
+          stay in the notes below.
+        </p>
+      </div>
+      <div style={{ height: Math.max(190, data.length * 52 + 48) }}>
+        <ChartContainer
+          config={varianceChartConfig}
+          className="aspect-auto h-full w-full"
+          role="img"
+          aria-label="Monetary variance sources"
+        >
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              accessibilityLayer
+              data={data}
+              layout="vertical"
+              margin={{ top: 4, right: 12, bottom: 4, left: 4 }}
+            >
+              <CartesianGrid horizontal={false} />
+              <XAxis
+                type="number"
+                tickFormatter={(value: number) =>
+                  formatCurrencyAxisTick(value, currency)
+                }
+              />
+              <YAxis type="category" dataKey="label" width={112} />
+              <ReferenceLine x={0} className="stroke-muted-foreground" />
+              <ChartTooltip
+                content={<ChartTooltipContent hideIndicator />}
+                formatter={(value) => formatCurrency(value as number, currency)}
+              />
+              <Bar dataKey="amount" radius={3} isAnimationActive={false}>
+                {data.map((row) => (
+                  <Cell key={row.id} fill={varianceColors[row.kind]} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </ChartContainer>
+      </div>
+    </div>
+  );
+}
+
 function Reconciliation({
   forecast,
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
@@ -116,6 +323,8 @@ function Reconciliation({
   const observedBalances = reconciliation.balances.filter(
     ({ observedBalance }) => observedBalance != null,
   );
+  const currency =
+    forecast.balanceCheckpoints[0]?.accounts[0]?.currency ?? "GBP";
   return (
     <section>
       <h3 className="text-sm font-semibold">Forecast and actuals</h3>
@@ -128,20 +337,35 @@ function Reconciliation({
           No material variance has been observed yet.
         </p>
       ) : (
-        <ul className="mt-2 space-y-2 text-sm">
-          {reconciliation.varianceSources.map((source, index) => (
-            <li
-              key={`${source.kind}-${source.label}-${index}`}
-              className="rounded-md bg-muted/40 p-3"
-            >
-              <span className="font-medium">{varianceLabels[source.kind]}</span>
-              {`: ${source.label}`}
-              {source.amount == null
-                ? ""
-                : ` (${formatCurrency(Math.round(source.amount), forecast.balanceCheckpoints[0]?.accounts[0]?.currency ?? "GBP")})`}
-            </li>
-          ))}
-        </ul>
+        <>
+          <div className="mt-3 grid gap-3 xl:grid-cols-2">
+            <BalanceComparisonChart
+              reconciliation={reconciliation}
+              currency={currency}
+            />
+            <VarianceAttributionChart
+              sources={reconciliation.varianceSources}
+              currency={currency}
+            />
+          </div>
+          <h4 className="mt-4 text-sm font-medium">Variance notes</h4>
+          <ul className="mt-2 space-y-2 text-sm">
+            {reconciliation.varianceSources.map((source, index) => (
+              <li
+                key={`${source.kind}-${source.label}-${index}`}
+                className="rounded-md bg-muted/40 p-3"
+              >
+                <span className="font-medium">
+                  {varianceLabels[source.kind]}
+                </span>
+                {`: ${source.label}`}
+                {source.amount == null
+                  ? ""
+                  : ` (${formatCurrency(Math.round(source.amount), currency)})`}
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

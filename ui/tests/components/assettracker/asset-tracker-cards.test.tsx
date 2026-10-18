@@ -79,6 +79,15 @@ vi.mock("recharts", () => ({
       {children}
     </div>
   ),
+  BarChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="bar-chart">
+      {children}
+    </div>
+  ),
+  Bar: ({ children, dataKey }: { children?: ReactNode; dataKey: string }) => (
+    <div data-series={dataKey}>{children}</div>
+  ),
+  Cell: () => null,
   Area: ({ dataKey }: { dataKey: string }) => (
     <div data-range-series={dataKey} />
   ),
@@ -1784,6 +1793,29 @@ describe("AdoptedForecastCard", () => {
     expect(screen.getByText(/Save for the extension · monthly/)).toBeVisible();
     expect(screen.getByText("Changed amount").closest("li")).toHaveTextContent(
       "Changed amount: Build cost changed (£100)",
+    );
+    expect(
+      screen.getByRole("img", {
+        name: "Adopted and observed account balances",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("img", { name: "Monetary variance sources" }),
+    ).toBeVisible();
+    const charts = screen.getAllByTestId("bar-chart");
+    expect(charts[0]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining('"expected":20000,"observed":19500'),
+    );
+    expect(charts[1]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining('"label":"Changed amount","amount":100'),
+    );
+    expect(charts[1]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining(
+        '"label":"Market or currency movement","amount":-500',
+      ),
     );
 
     await userEvent.type(
