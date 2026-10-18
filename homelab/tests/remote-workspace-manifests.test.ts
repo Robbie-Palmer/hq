@@ -565,6 +565,21 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
     deletedLegacy.close();
     assert.equal(check(legacyPath).status, 0);
 
+    const liveApproval = new DatabaseSync(legacyPath);
+    liveApproval.exec(
+      "UPDATE projection_threads SET pending_approval_count = 1 WHERE thread_id = 'legacy-thread'",
+    );
+    liveApproval.close();
+    const liveApprovalResult = check(legacyPath);
+    assert.equal(liveApprovalResult.status, 20);
+    assert.match(liveApprovalResult.stderr, /pending approval/);
+
+    const clearLiveApproval = new DatabaseSync(legacyPath);
+    clearLiveApproval.exec(
+      "UPDATE projection_threads SET pending_approval_count = 0 WHERE thread_id = 'legacy-thread'",
+    );
+    clearLiveApproval.close();
+
     const legacyBusy = new DatabaseSync(legacyPath);
     legacyBusy.exec(
       "UPDATE projection_thread_sessions SET status = 'running' WHERE thread_id = 'legacy-thread'",
