@@ -449,24 +449,22 @@ export function buildAdoptDecisionForecastInput(
       ]),
     ).values(),
   );
-  const actions = comparison.actions.map((action) => ({
-    id: action.id,
-    sourceDecisionId: action.sourceDecisionId,
-    sourceStageId: action.sourceStageId,
-    accountId: action.accountId,
-    date: action.date,
-    cadence: action.cadence,
-    kind:
-      action.kind === "asset-sale"
-        ? ("transfer" as const)
-        : action.kind === "saving"
-          ? ("saving" as const)
-          : action.kind,
-    name: action.name,
-    accountName: action.accountName,
-    amount: action.amount,
-    currency: action.currency,
-  }));
+  const actions = comparison.actions.map((action) => {
+    const kind = action.kind === "asset-sale" ? "transfer" : action.kind;
+    return {
+      id: action.id,
+      sourceDecisionId: action.sourceDecisionId,
+      sourceStageId: action.sourceStageId,
+      accountId: action.accountId,
+      date: action.date,
+      cadence: action.cadence,
+      kind,
+      name: action.name,
+      accountName: action.accountName,
+      amount: action.amount,
+      currency: action.currency,
+    };
+  });
   const balanceCheckpoints = comparison.timeline
     .filter(({ isMaterialDate }) => isMaterialDate)
     .map((point) => ({
@@ -719,7 +717,7 @@ function assumptionVarianceSources(
   );
   return forecast.assumptionSets.flatMap((assumed) => {
     const current = currentSets.get(assumed.seriesId);
-    if (current != null && current.id === assumed.id) return [];
+    if (current?.id === assumed.id) return [];
     return [
       {
         kind: "revised-assumption" as const,
