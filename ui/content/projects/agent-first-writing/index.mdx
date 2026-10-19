@@ -2,7 +2,7 @@
 title: "Agent-first Writing Editor"
 description: "A layered writing system that turns dense agent output into prose people can absorb without erasing the author's voice"
 date: "2026-09-04"
-updated: "2026-09-30"
+updated: "2026-10-19"
 status: "in_progress"
 platform_layers:
   - layer: "governance"
@@ -76,10 +76,14 @@ The Personal Knowledge Graph runs Vale against changed prose. Its custom rules t
 patterns that make agent writing tiring to read. This makes agent-authored work
 more bearable and catches problems before review.
 
-I tested GECToR-2024 by running ADRs through it. It found only insubstantial
-corrections and did not close the gap between a technically correct draft and
-something I wanted to publish. That negative result narrows the problem. Generic
-grammatical error correction is not enough.
+I ran GECToR-2024 across a frozen cohort of five ADRs and four project pages.
+After adding Markdown-aware segmentation, it returned 114 suggestions in 81
+proposals. A few exposed missing articles, prepositions, and pronouns, but most
+damaged Markdown, technical terms, brand names, contractions, or sentence
+meaning. The useful corrections needed human
+review and the result still did not close the gap between a technically correct
+draft and something I wanted to publish. Generic grammatical error correction
+is not enough.
 
 The shared `writing-editor-domain` package defines records for findings,
 suggestions, grouped proposals, and editorial decisions. Every record refers to
@@ -91,8 +95,10 @@ freezes train, validation, and holdout membership, and runs Vale through the
 shared finding contract. It aligns findings with observed published edits while
 keeping boundary-crossing cases separate for manual adjudication. Git can show
 that prose changed, but it cannot turn a detection-only finding into an
-accepted suggestion. Scoring therefore waits for explicit editorial outcomes
-and a reproducible rewrite baseline.
+accepted suggestion. Scoring therefore uses explicit editorial outcomes and a
+reproducible rewrite baseline. The private DVC evidence now records accepted,
+rejected, and changed decisions with exact before and after bytes and
+hash-bound review receipts.
 
 Grammarly remains the practical baseline for the final mile, but it does not
 provide the API needed for an agentic publishing system. Its published research
@@ -114,48 +120,47 @@ does not need the same ceremony as restructuring an argument.
 
 ## Editorial data flow
 
-The implemented path runs repository text through Vale and stores its
-detection-only findings against hashed source bytes. The evaluation pipeline
-can compare those findings with published edits, but an observed edit is not an
-acceptance decision. The suggestion, rewrite, review, and outcome path remains
-planned. Solid blue nodes and lines are implemented. Dashed orange nodes and
-lines are planned.
+The implemented path runs repository text through Vale and GECToR. Vale stores
+detection-only findings against hashed source bytes. GECToR emits suggestions
+and grouped proposals, which enter a governed review stage. An observed edit is
+not an acceptance decision. Solid blue nodes and lines are implemented. Dashed
+orange nodes and lines are planned.
 
 <Mermaid
   chart={`flowchart LR
 Source["Source text<br/>[Implemented]<br/>Revision and SHA-256 hash"]
 Rules["Deterministic checks<br/>[Implemented]<br/>Vale rules"]
 Findings["Deterministic findings<br/>[Implemented]<br/>UTF-8 spans and provenance"]
-Local["Local suggestions<br/>[Planned]<br/>Replacement and confidence"]
+Local["Local suggestions<br/>[Implemented for GECToR]<br/>Replacement and confidence"]
 Rewrite["Passage rewrites<br/>[Planned]<br/>Grouped proposal and diff"]
-Review["Human review<br/>[Planned editor stage]<br/>Accept, reject, or change"]
+Review["Human review<br/>[Implemented evidence stage]<br/>Accept, reject, or change"]
 Evidence["Evaluation evidence<br/>[Implemented foundation]<br/>Published-edit alignment"]
-Outcomes["Decision-backed evidence<br/>[Planned]<br/>Quality and review-time metrics"]
+Outcomes["Decision-backed evidence<br/>[Implemented]<br/>Hash-bound records and receipts"]
 
 Source -->|"exact source bytes"| Rules
 Rules -->|"detection-only records"| Findings
 Findings -->|"finding IDs and published diffs"| Evidence
-Source -.->|"bounded source spans"| Local
+Source -->|"bounded source spans"| Local
 Source -.->|"wider document context"| Rewrite
-Local -.->|"one-suggestion proposals"| Review
+Local -->|"grouped proposals"| Review
 Rewrite -.->|"multi-edit proposals"| Review
-Review -.->|"recorded editorial decisions"| Outcomes
-Evidence -.->|"baseline comparisons"| Outcomes
+Review -->|"recorded editorial decisions"| Outcomes
+Evidence -->|"baseline comparisons"| Outcomes
 
 classDef implemented fill:#dbeafe,stroke:#2563eb,color:#1e3a5f,stroke-width:2px
 classDef planned fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:2px,stroke-dasharray:5 5
-class Source,Rules,Findings,Evidence implemented
-class Local,Rewrite,Review,Outcomes planned
-linkStyle 3,4,5,6,7,8 stroke:#ea580c,stroke-width:2px,stroke-dasharray:5 5
+class Source,Rules,Findings,Local,Review,Evidence,Outcomes implemented
+class Rewrite planned
+linkStyle 4,6 stroke:#ea580c,stroke-width:2px,stroke-dasharray:5 5
 `}
 />
 
 Read left to right, with two different records leaving analysis. A rule that
 can only locate a problem produces a finding and goes straight to evaluation.
-A producer that can supply a replacement will create a local suggestion or a
-grouped passage rewrite for review. The editor will preserve the proposal and
-the person's accept, reject, or change decision as evaluation evidence. No
-planned stage may publish in the author's name without that review.
+A producer that supplies a replacement creates a local suggestion or a grouped
+proposal for review. The pipeline preserves the proposal and the person's
+accept, reject, or change decision as evaluation evidence. No stage may publish
+in the author's name without that review.
 
 # Evaluation data
 
@@ -174,6 +179,26 @@ This can test whether an edit improves clarity while preserving facts, intent,
 terminology, and voice. Acceptance rate supplies evidence. A system that
 makes timid edits could achieve a high acceptance rate while adding little
 value.
+
+## Repository-wide GECToR pilot
+
+The GPU pilot now separates two current-content audiences. The customer corpus
+contains 89 blog posts, ideas, initiatives, project pages, and pitches. The
+developer corpus contains 220 ADRs and 93 first-party guides, runbooks, and
+package documents. Mirrored skills, vendored text, licences, and captured source
+documents stay outside the developer corpus.
+
+A 20-document calibration compared the original thresholds with balanced and
+strict profiles for each audience. The strict profile reduced the first full
+run to 106 customer-content proposals and 224 developer-content proposals. The
+governed evidence contains 411 outcomes across the seed and broad cohorts: 89
+accepted, 9 changed, and 313 rejected. Manual review accepted clear grammar and
+preposition corrections, but also rejected changes that broke punctuation,
+contractions, product names, technical meaning, or Markdown. The model
+therefore remains a review-only
+baseline. Its generated files are never copied over the source documents. The
+holdout decisions remain evaluation-only and are excluded from future training
+or threshold tuning.
 
 # First useful release
 

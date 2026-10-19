@@ -99,10 +99,11 @@ function emptyCounts(): Record<ArtifactType, number> {
   return { adr: 0, "project-page": 0 };
 }
 
-function readiness(
+export function cohortReadiness(
   cohortId: string,
   entries: FrozenEntry[],
   requiredArtifactTypes: ArtifactType[],
+  recordedOutcomeArtifactIds: ReadonlySet<string> = new Set(),
 ): Readiness {
   const byArtifactType = emptyCounts();
   const bySplit: Record<Split, Record<ArtifactType, number>> = {
@@ -114,7 +115,10 @@ function readiness(
     byArtifactType[entry.artifactType] += 1;
     bySplit[entry.split][entry.artifactType] += 1;
   }
-  const missingOutcomes = entries.map(({ artifactId }) => artifactId).sort(compareAscending);
+  const missingOutcomes = entries
+    .filter(({ artifactId }) => !recordedOutcomeArtifactIds.has(artifactId))
+    .map(({ artifactId }) => artifactId)
+    .sort(compareAscending);
   const requiredArtifactTypesPresent = requiredArtifactTypes.every(
     (artifactType) => byArtifactType[artifactType] > 0,
   );
@@ -123,7 +127,7 @@ function readiness(
     .map(({ artifactId }) => artifactId)
     .sort(compareAscending);
   const revisionsComplete = missingRevisions.length === 0;
-  const outcomesComplete = false;
+  const outcomesComplete = missingOutcomes.length === 0;
   return ReadinessSchema.parse({
     schemaVersion: 1,
     recordType: "writing-editor-cohort-readiness",
@@ -148,7 +152,7 @@ function readiness(
   });
 }
 
-function readinessMarkdown(report: Readiness): string {
+export function readinessMarkdown(report: Readiness): string {
   const lines = [
     "# Writing editor cohort readiness",
     "",
@@ -213,7 +217,7 @@ export function freezeCohort(options: FreezeCohortOptions): {
     splitRatios: params.cohort.split,
     entries,
   });
-  const report = readiness(
+  const report = cohortReadiness(
     cohort.cohortId,
     cohort.entries,
     params.cohort.requiredArtifactTypes,

@@ -27,7 +27,7 @@ project (`homelab/hosts/mac-mini/media-automation/`):
   `/Volumes/Expansion/Downloads`. See [ADR 015](/projects/homelab/adrs/015-single-containerized-torrent-client)
   for why it is the single shared client.
 * **Sonarr** watches TV series and **Radarr** watches movies. When an episode
-  or film becomes available they search the indexers, pick a release, send it
+  or a film becomes available, they search the indexers, pick a release, send it
   to qBittorrent, and import the finished download straight into Jellyfin's
   library folders (`/media/TV`, `/media/Movies`) renamed to Jellyfin's
   naming scheme.

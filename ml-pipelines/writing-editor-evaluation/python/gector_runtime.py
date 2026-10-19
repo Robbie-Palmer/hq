@@ -393,8 +393,13 @@ def verify_file_digest(path: Path, expected_digest: str, label: str) -> None:
         raise RuntimeError(msg)
 
 
-def frozen_job(artifact_id: str | None = None) -> InferenceJob:
-    cohort = read_model(FROZEN_COHORT, FrozenCohort)
+def frozen_job(
+    artifact_id: str | None = None,
+    *,
+    cohort_file: Path = FROZEN_COHORT,
+    corpus_root: Path = CORPUS_ROOT,
+) -> InferenceJob:
+    cohort = read_model(cohort_file, FrozenCohort)
     selected = [
         entry for entry in cohort.entries if artifact_id is None or entry.artifact_id == artifact_id
     ]
@@ -405,7 +410,7 @@ def frozen_job(artifact_id: str | None = None) -> InferenceJob:
         artifacts=tuple(
             InferenceArtifact(
                 artifactId=entry.artifact_id,
-                sourceFile=project_path(CORPUS_ROOT / entry.source.file),
+                sourceFile=project_path(corpus_root / entry.source.file),
             )
             for entry in selected
         )
@@ -903,6 +908,7 @@ class MarkdownSegmenter:
         self.paragraph_end: int | None = None
         self.in_frontmatter = source.startswith(("---\n", "---\r\n"))
         self.in_fence = False
+        self.in_template_literal = False
 
     def flush(self) -> None:
         if self.paragraph_start is not None and self.paragraph_end is not None:
@@ -916,6 +922,17 @@ class MarkdownSegmenter:
             )
         self.paragraph_start = None
         self.paragraph_end = None
+
+    def consume_template_literal(self, content: str) -> bool:
+        delimiters = len(re.findall(r"(?<!\\)`", content))
+        if self.in_template_literal:
+            if delimiters % 2 == 1:
+                self.in_template_literal = False
+            return True
+        if delimiters % 2 == 1:
+            self.in_template_literal = True
+            return True
+        return False
 
     def consume(self, line_index: int, line_match: re.Match[str]) -> None:
         line = line_match.group(0)
@@ -935,16 +952,25 @@ class MarkdownSegmenter:
         if self.in_fence:
             self.flush()
             return
+        if self.consume_template_literal(content):
+            self.flush()
+            return
         list_match = re.match(r"^\s*(?:[-*+] |\d+[.)] )", line)
         contains_inline_markup = (
             "`" in content
+            or "**" in content
+            or "__" in content
+            or re.search(r"\*[^*\n]+\*", content) is not None
+            or re.search(r"(?<!\w)_[^_\n]+_(?!\w)", content) is not None
             or re.search(r"!?\[[^\]\n]*\]\([^)]*\)", content) is not None
             or re.search(r"!?\[[^\]\n]*\]\[[^\]\n]*\]", content) is not None
             or re.search(r"<(?:https?://|mailto:)[^>\n]+>", content) is not None
+            or re.search(r"</?[A-Za-z][^>\n]*>", content) is not None
         )
         structural = (
             not stripped
             or re.match(r"^(?:#{1,6}\s|\||>|<|:::)", stripped) is not None
+            or stripped == "/>"
             or re.match(r"^\[[^\]]+\]:\s", stripped) is not None
             or re.match(r"^\s{4,}\S", line) is not None
             or contains_inline_markup
@@ -1063,7 +1089,14 @@ def write_cohort_result(result: RawRun) -> None:
         output.write(serialized_result(result))
 
 
-def run(mode: str) -> None:
+def run(
+    mode: str,
+    cohort: str | None = None,
+    corpus: str | None = None,
+    params: str | None = None,
+    output: str | None = None,
+    artifact: str | None = None,
+) -> None:
     validated_mode = RuntimeCommand(mode=mode).mode
     RuntimeSettings()
     if validated_mode == "runtime-smoke":
@@ -1071,12 +1104,19 @@ def run(mode: str) -> None:
     elif validated_mode == "adapter-smoke":
         job = frozen_job(ADAPTER_SMOKE_ARTIFACT)
     else:
-        job = frozen_job()
+        cohort_file = project_path(Path(cohort)) if cohort is not None else FROZEN_COHORT
+        corpus_root = project_path(Path(corpus)) if corpus is not None else CORPUS_ROOT
+        job = frozen_job(
+            artifact,
+            cohort_file=cohort_file,
+            corpus_root=corpus_root,
+        )
+    params_file = project_path(Path(params)) if params is not None else PARAMETERS_FILE
     result = run_job(
         job,
         MODEL_DIRECTORY,
         read_model(MODEL_MANIFEST, GectorModelManifest),
-        read_model(PARAMETERS_FILE, PipelineParameters).producers.gector,
+        read_model(params_file, PipelineParameters).producers.gector,
     )
     if validated_mode == "runtime-smoke":
         if result.artifacts != (RUNTIME_SMOKE.expected,):
@@ -1086,7 +1126,12 @@ def run(mode: str) -> None:
     elif validated_mode == "adapter-smoke":
         write_adapter_smoke_result(result)
     else:
-        write_cohort_result(result)
+        if output is None:
+            write_cohort_result(result)
+        else:
+            output_file = project_path(Path(output))
+            output_file.parent.mkdir(parents=True, exist_ok=True)
+            output_file.write_text(serialized_result(result), encoding="utf-8", newline="\n")
     print(f"Ran GECToR over {len(result.artifacts)} artifact(s) on CUDA")
 
 

@@ -79,7 +79,7 @@ request ID in the JSON error. The Worker logs that ID with the request method,
 path, and stable error code. It does not log database error text.
 
 Lease claims are intentionally not replayable. If a transient database failure
-occurs after a claim may have committed, the Worker returns
+occurs after a claim may have been committed, the Worker returns
 `claim_outcome_uncertain` without `Retry-After` and tells the caller to inspect
 the work item before claiming again.
 

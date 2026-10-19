@@ -8,6 +8,7 @@ import { sha256 } from "writing-editor-domain/suggestions";
 import { runGector } from "../src/run-gector";
 import { GectorProducerRunSchema } from "../src/schemas";
 import { GectorModelManifestSchema } from "../src/prepare-gector-model";
+import { recordGectorDecisions } from "../src/record-gector-decisions";
 
 const temporaryDirectories = new Set<string>();
 const projectRoot = path.resolve(import.meta.dirname, "..");
@@ -135,10 +136,10 @@ describe("GECToR producer", () => {
         checkpointContentHash: checkpoint.contentHash,
       },
       runtime: {
-        python_version: "3.12.12",
-        torch_version: "2.11.0+cu128",
+        python_version: "3.14.7",
+        torch_version: "2.13.0+cu126",
         transformers_version: "5.17.0",
-        cuda_version: "12.8",
+        cuda_version: "12.6",
         device: "cuda",
         compute_capability: "8.9",
       },
@@ -199,6 +200,67 @@ describe("GECToR producer", () => {
     expect(fs.readFileSync(path.join(outputDirectory, "generated/example.md"), "utf8"))
       .toBe("Café is useful.\n");
 
+    const publishedFile = path.join(corpusRoot, "artifacts/example/published.md");
+    fs.writeFileSync(publishedFile, "Café was useful.\n");
+    const targetRoot = path.join(temporary, "target");
+    writeJson(path.join(targetRoot, "manifest.json"), {
+      schemaVersion: 1,
+      recordType: "writing-editor-current-content-corpus",
+      audience: "developer",
+      datasetId: `dataset:v1:${"f".repeat(64)}`,
+      revision: `worktree:${"0".repeat(64)}`,
+      entries: [{
+        artifactId: "example",
+        kind: "adr",
+        path: "docs/example.md",
+        file: "artifacts/example/source.md",
+        contentHash: sha256("Café is useful.\n"),
+        bytes: Buffer.byteLength("Café is useful.\n"),
+      }],
+      calibrationArtifactIds: ["example"],
+    });
+    fs.mkdirSync(path.join(targetRoot, "artifacts/example"), { recursive: true });
+    fs.writeFileSync(path.join(targetRoot, "artifacts/example/source.md"), "Café is useful.\n");
+    const decisionConfig = path.join(temporary, "decision-config.json");
+    writeJson(decisionConfig, {
+      schemaVersion: 1,
+      baselineRevision: "a".repeat(40),
+      review: {
+        reviewStartedAt: "2026-10-18T00:00:00.000Z",
+        decidedAt: "2026-10-18T00:00:00.000Z",
+        method: "fixture review",
+        timing: "not-measured",
+        splitSeed: "fixture",
+      },
+      governance: {
+        dataClassification: "private",
+        consentBasis: "Synthetic fixture",
+        consentRecordedAt: "2026-10-18T00:00:00.000Z",
+        retentionPolicy: "Delete after test",
+        deletionStatus: "active",
+      },
+      deletionRequests: [],
+      deletedArtifacts: [],
+    });
+    const evidenceOutput = path.join(temporary, "evidence");
+    recordGectorDecisions({
+      configFile: decisionConfig,
+      inputs: [
+        { scope: "seed", cohortFile, corpusRoot, runFile: path.join(outputDirectory, "run.json") },
+        { scope: "developer", cohortFile, corpusRoot, runFile: path.join(outputDirectory, "run.json"), targetRoot },
+      ],
+      output: evidenceOutput,
+      outputRoot: temporary,
+    });
+    const decisions = fs.readFileSync(
+      path.join(evidenceOutput, "artifacts/developer-example/decisions.jsonl"),
+      "utf8",
+    ).trim().split("\n").map((line) => JSON.parse(line));
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0].outcome).toBe("accepted");
+    expect(JSON.parse(fs.readFileSync(path.join(evidenceOutput, "seed-outcomes.json"), "utf8")))
+      .toMatchObject({ artifactIds: ["seed-example"] });
+
     expect(runGector(options).runId).toBe(result.runId);
     fs.mkdirSync(`${outputDirectory}.backup`);
     fs.writeFileSync(path.join(`${outputDirectory}.backup`, "stale"), "stale");
@@ -211,15 +273,21 @@ describe("GECToR producer", () => {
     expect(fs.readFileSync(path.join(outputDirectory, "run.json"), "utf8")).toBe(publishedRun);
 
     const repeatedLine = structuredClone(result);
-    repeatedLine.artifacts[0]!.generated.correctedLines = [1, 1];
+    const repeatedLineArtifact = repeatedLine.artifacts[0];
+    if (!repeatedLineArtifact) throw new Error("fixture run has no artifact");
+    repeatedLineArtifact.generated.correctedLines = [1, 1];
     expect(GectorProducerRunSchema.safeParse(repeatedLine).success).toBe(false);
 
     const missingSuggestionId = structuredClone(result);
-    missingSuggestionId.artifacts[0]!.suggestionIds = [];
+    const missingSuggestionArtifact = missingSuggestionId.artifacts[0];
+    if (!missingSuggestionArtifact) throw new Error("fixture run has no artifact");
+    missingSuggestionArtifact.suggestionIds = [];
     expect(GectorProducerRunSchema.safeParse(missingSuggestionId).success).toBe(false);
 
     const missingProposalId = structuredClone(result);
-    missingProposalId.artifacts[0]!.proposalIds = [];
+    const missingProposalArtifact = missingProposalId.artifacts[0];
+    if (!missingProposalArtifact) throw new Error("fixture run has no artifact");
+    missingProposalArtifact.proposalIds = [];
     expect(GectorProducerRunSchema.safeParse(missingProposalId).success).toBe(false);
 
     const wrongSummary = structuredClone(result);

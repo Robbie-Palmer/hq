@@ -119,5 +119,5 @@ with different contents is rejected.
 5. Verify the production result, then release the ticket with the merged PR and
    deployment URLs as evidence.
 
-Webhook evidence never changes ticket lifecycle by itself. A human or agent
+Webhook evidence never changes the ticket lifecycle by itself. A human or agent
 still verifies production and performs the fenced release operation.

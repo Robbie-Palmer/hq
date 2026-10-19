@@ -443,7 +443,7 @@ service or admission alerts.
 
 ### Updates, rollback, and backups
 
-Build every NixOS change first, then switch it over the tailnet:
+Build every NixOS change first, then switch it over to the tailnet:
 
 ```bash
 mise run //homelab:remote-build

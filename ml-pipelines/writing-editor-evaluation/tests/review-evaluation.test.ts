@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { canonicalJson } from "writing-editor-domain/canonical-json";
 import { createDecision } from "writing-editor-domain/decisions";
 import { createFinding } from "writing-editor-domain/findings";
 import { createProposal } from "writing-editor-domain/proposals";
@@ -11,9 +12,10 @@ import {
   type ReviewReceipt,
   ReviewReceiptSchema,
 } from "writing-editor-domain/review-receipt";
-import { createSuggestion, sourceReference } from "writing-editor-domain/suggestions";
+import { createSuggestion, sha256, sourceReference } from "writing-editor-domain/suggestions";
 
 import { evaluateReviews, ReviewScorecardSchema } from "../src/evaluate-reviews";
+import { finalizeCohortReadiness } from "../src/finalize-cohort-readiness";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const temporaryDirectories = new Set<string>();
@@ -92,6 +94,22 @@ function writeReviewEvidenceFixture(): string {
       recordsFile: "records.json",
       decisionsFile: "decisions.jsonl",
       receiptFile: "receipt.json",
+      sourceBeforeFile: "source-before.md",
+      sourceAfterFile: "source-after.md",
+      provenance: {
+        sourceDatasetId: "fixture-dataset",
+        sourceRevision: revision,
+        producerRunId: "fixture-run",
+        reviewMethod: "fixture review",
+        reviewTiming: "measured",
+      },
+      governance: {
+        dataClassification: "public",
+        consentBasis: "Synthetic test fixture",
+        consentRecordedAt: "2026-01-01T00:00:00.000Z",
+        retentionPolicy: "Retain with the test suite",
+        deletionStatus: "active",
+      },
       quality: {
         factualPreservation: "pass",
         terminologyPreservation: "pass",
@@ -105,6 +123,8 @@ function writeReviewEvidenceFixture(): string {
   fs.writeFileSync(path.join(directory, "records.json"), JSON.stringify(records));
   fs.writeFileSync(path.join(directory, "decisions.jsonl"), `${JSON.stringify(decision)}\n`);
   fs.writeFileSync(path.join(directory, "receipt.json"), JSON.stringify(receipt));
+  fs.writeFileSync(path.join(directory, "source-before.md"), sourceBefore);
+  fs.writeFileSync(path.join(directory, "source-after.md"), sourceAfter);
   return directory;
 }
 
@@ -182,13 +202,116 @@ describe("review evidence scorecard", () => {
     })).toThrow(/receipt does not match its decisions/);
   });
 
+  it("rejects evidence when the recorded source bytes are changed", () => {
+    fs.writeFileSync(path.join(evidenceRoot, "source-before.md"), "Tampered source");
+
+    expect(() => evaluateReviews({
+      manifestFile: path.join(evidenceRoot, "manifest.json"),
+      evidenceRoot,
+      paramsFile: path.join(projectRoot, "evaluation-params.json"),
+    })).toThrow(/review records do not match the source/);
+  });
+
+  it("blocks adoption while any entry has a pending deletion request", () => {
+    const manifestFile = path.join(evidenceRoot, "manifest.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    manifest.entries[0].governance.deletionStatus = "deletion-requested";
+    manifest.entries[0].governance.deletionRequestedAt = "2026-01-02T00:00:00.000Z";
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+
+    const scorecard = evaluateReviews({
+      manifestFile,
+      evidenceRoot,
+      paramsFile: path.join(projectRoot, "evaluation-params.json"),
+    });
+
+    expect(scorecard.gates.deletionClear).toBe(false);
+    expect(scorecard.recommendation).toBe("keep-opt-in");
+  });
+
+  it("finalizes frozen readiness only from validated seed evidence", () => {
+    const manifestFile = path.join(evidenceRoot, "manifest.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    manifest.entries[0].artifactId = "seed-fixture-adr";
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest));
+    const cohortId = `cohort:v1:${"a".repeat(64)}`;
+    const cohortFile = path.join(evidenceRoot, "cohort.json");
+    fs.writeFileSync(cohortFile, JSON.stringify({
+      schemaVersion: 1,
+      recordType: "writing-editor-frozen-cohort",
+      cohortId,
+      datasetId: `dataset:v1:${"b".repeat(64)}`,
+      frozenAt: "2026-01-01T00:00:00.000Z",
+      seed: "fixture",
+      splitRatios: { train: 0.6, validation: 0.2, holdout: 0.2 },
+      entries: [{
+        artifactId: "fixture-adr",
+        artifactType: "adr",
+        path: "fixture.md",
+        outcomeStatus: "unrecorded",
+        split: "validation",
+        source: {
+          revision: "1".repeat(40), committedAt: "2026-01-01T00:00:00.000Z",
+          contentHash: `sha256:${"1".repeat(64)}`, bytes: 1, file: "source.md",
+        },
+        published: {
+          revision: "2".repeat(40), committedAt: "2026-01-02T00:00:00.000Z",
+          contentHash: `sha256:${"2".repeat(64)}`, bytes: 2, file: "published.md",
+        },
+      }],
+    }));
+    const paramsFile = path.join(evidenceRoot, "pipeline-params.json");
+    fs.writeFileSync(paramsFile, JSON.stringify({
+      cohort: {
+        frozenAt: "2026-01-01T00:00:00.000Z", seed: "fixture",
+        split: { train: 0.6, validation: 0.2, holdout: 0.2 },
+        requiredArtifactTypes: ["adr"],
+      },
+      producers: {
+        gector: {
+          batchSize: 1, iterations: 1, maxTokens: 50, minTokens: 1,
+          minErrorProbability: 0.9, minTokenProbability: 0, additionalConfidence: 0.3,
+        },
+        vale: { timeoutMs: 1_000 },
+      },
+      matching: { characterDiff: { maxEditLength: 1_000 } },
+    }));
+    const outcomesFile = path.join(evidenceRoot, "seed-outcomes.json");
+    fs.writeFileSync(outcomesFile, JSON.stringify({
+      schemaVersion: 1,
+      recordType: "writing-editor-seed-outcomes",
+      cohortId,
+      artifactIds: ["seed-fixture-adr"],
+      evidenceManifestHash: sha256(canonicalJson(manifest)),
+    }));
+    const outputJson = path.join(evidenceRoot, "readiness.json");
+    const outputMarkdown = path.join(evidenceRoot, "readiness.md");
+
+    finalizeCohortReadiness({
+      cohortFile,
+      paramsFile,
+      evidenceManifestFile: manifestFile,
+      evidenceRoot,
+      seedOutcomesFile: outcomesFile,
+      evaluationParamsFile: path.join(projectRoot, "evaluation-params.json"),
+      outputJson,
+      outputMarkdown,
+    });
+
+    expect(JSON.parse(fs.readFileSync(outputJson, "utf8"))).toMatchObject({
+      ready: true,
+      outcomes: { complete: true, recorded: 1 },
+    });
+    expect(fs.readFileSync(outputMarkdown, "utf8")).toContain("Status: ready");
+  });
+
   it.each([
     ["source identity", (receipt: ReviewReceipt) => {
       receipt.documentId = "other.md";
     }, /receipt does not match its source/],
     ["source hash", (receipt: ReviewReceipt) => {
       receipt.sourceBeforeHash = `sha256:${"0".repeat(64)}`;
-    }, /receipt does not match its source/],
+    }, /receipt does not match source-before bytes/],
     ["review time", (receipt: ReviewReceipt) => {
       receipt.summary.reviewMilliseconds += 1;
     }, /receipt review time does not match/],

@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { extractDataset } from "../src/extract-dataset";
-import { freezeCohort } from "../src/freeze-cohort";
+import { cohortReadiness, freezeCohort } from "../src/freeze-cohort";
 import { readJson, resetDirectory, resolveContainedFile } from "../src/files";
 import { fileAtRevision } from "../src/git-revisions";
 import {
@@ -312,6 +312,40 @@ describe("writing editor evaluation pipeline", () => {
     expect(() => resetDirectory(path.join(linked, "output"), allowed))
       .toThrow(/symbolic link/);
     expect(fs.readFileSync(sentinel, "utf8")).toBe("keep");
+  });
+
+  it("becomes ready only when every frozen artifact has recorded outcomes", () => {
+    const entries = ARTIFACTS.map(([artifactId, artifactType, artifactPath]) => ({
+      artifactId,
+      artifactType,
+      path: artifactPath,
+      outcomeStatus: "unrecorded" as const,
+      split: "train" as const,
+      source: {
+        revision: "1".repeat(40),
+        committedAt: "2026-01-01T00:00:00.000Z",
+        contentHash: `sha256:${"1".repeat(64)}`,
+        bytes: 6,
+        file: `${artifactId}/source.md`,
+      },
+      published: {
+        revision: "2".repeat(40),
+        committedAt: "2026-01-02T00:00:00.000Z",
+        contentHash: `sha256:${"2".repeat(64)}`,
+        bytes: 7,
+        file: `${artifactId}/published.md`,
+      },
+    }));
+    const all = new Set(entries.map(({ artifactId }) => artifactId));
+    const report = cohortReadiness(
+      `cohort:v1:${"3".repeat(64)}`,
+      entries,
+      ["adr", "project-page"],
+      all,
+    );
+
+    expect(report.ready).toBe(true);
+    expect(report.outcomes).toEqual({ complete: true, recorded: 6, missingArtifactIds: [] });
   });
 
   it("freezes stratified splits and reports missing decision evidence", () => {

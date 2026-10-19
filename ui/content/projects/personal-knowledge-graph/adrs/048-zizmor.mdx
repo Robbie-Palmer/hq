@@ -60,7 +60,7 @@ runs identically on a laptop ([ADR 016](/projects/personal-knowledge-graph/adrs/
   fails the job on a genuine tool or upload failure, so the scan cannot silently
   skip its job.
 * **actionlint**, a fast deterministic linter for workflow syntax, expression
-  validity, and (when present) shell via shellcheck. Unlike zizmor it runs as a
+  validity, and (when present) shell via shellcheck. Unlike zizmor, it runs as a
   **blocking** check in the existing `Lint CI` workflow alongside the Markdown
   and YAML linters, because the workflows pass it cleanly today, so it has a
   green baseline to protect. This also moves actionlint out of the

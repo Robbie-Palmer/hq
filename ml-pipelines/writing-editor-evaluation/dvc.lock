@@ -5,28 +5,28 @@ stages:
     deps:
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../packages/writing-editor-domain/src/suggestions.ts
       hash: md5
       md5: d0d064a3be87e2ce1256b3c17b004405
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 5f756255af12e63295cd0ae694448563
-      size: 536073
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: corpus-manifest.json
       hash: md5
-      md5: 4195da8575d48ca77585345d0e58f6fc
-      size: 3482
+      md5: 3241d2be614f1c85a823f7202406e0c5
+      size: 3868
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: scripts/extract.sh
       hash: md5
       md5: 511691310e70457553ae2dc270e1b4b1
@@ -46,12 +46,12 @@ stages:
       size: 1652
     - path: src/schemas.ts
       hash: md5
-      md5: f8e8e01727c4059cd99d0d2b7cdcd6f3
-      size: 25347
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
     outs:
     - path: data/corpus
       hash: md5
-      md5: 610214b3ea3bd1f12ce27a4b454d4e36.dir
+      md5: b4c9286e5a13d7639a83d0a8c9eae23f.dir
       size: 450429
       nfiles: 19
   freeze_cohort:
@@ -59,28 +59,28 @@ stages:
     deps:
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../packages/writing-editor-domain/src/suggestions.ts
       hash: md5
       md5: d0d064a3be87e2ce1256b3c17b004405
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 5f756255af12e63295cd0ae694448563
-      size: 536073
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: data/corpus/manifest.json
       hash: md5
-      md5: a04fb969810124f5d948f665ff62d92e
+      md5: ce838966341901d99b75389253e18d12
       size: 6774
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: scripts/freeze.sh
       hash: md5
       md5: a25cbd5f2aaac5c55bd6fbb71e515ad6
@@ -92,12 +92,12 @@ stages:
       size: 2954
     - path: src/freeze-cohort.ts
       hash: md5
-      md5: 85905c8bcf9ee66051efb3a2f1a01796
-      size: 7898
+      md5: 05b602032320ce966a6e09dbb047e406
+      size: 8097
     - path: src/schemas.ts
       hash: md5
-      md5: f8e8e01727c4059cd99d0d2b7cdcd6f3
-      size: 25347
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
     params:
       params.yaml:
         cohort:
@@ -113,16 +113,8 @@ stages:
     outs:
     - path: outputs/frozen/cohort.json
       hash: md5
-      md5: ebfd693321bb7191baad390a65e48b2b
+      md5: 9ee6923d17bb3431fe7d2e925d359430
       size: 7051
-    - path: outputs/frozen/readiness.json
-      hash: md5
-      md5: 70322d1d1d36cec9beabb36c44e8c4c5
-      size: 844
-    - path: outputs/frozen/readiness.md
-      hash: md5
-      md5: e139cf817f13d3f47355f91b16a31781
-      size: 624
   run_vale:
     cmd: bash scripts/run-vale.sh
     deps:
@@ -132,17 +124,17 @@ stages:
       size: 488
     - path: ../../.vale/styles/Unslop
       hash: md5
-      md5: 41a256bf9080486840836d143a9eb78b.dir
-      size: 3319
-      nfiles: 16
+      md5: dab1f1348d177e93032cf6ef0b63457d.dir
+      size: 3841
+      nfiles: 18
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../packages/writing-editor-domain/src/findings.ts
       hash: md5
       md5: 5bb634381e00b3c01794f50b67e21095
@@ -153,21 +145,21 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 65baed628bc0321f32b3b975da70942f
-      size: 530989
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: data/corpus
       hash: md5
-      md5: fcf34283092033752f464264434c0174.dir
-      size: 450418
+      md5: b4c9286e5a13d7639a83d0a8c9eae23f.dir
+      size: 450429
       nfiles: 19
     - path: outputs/frozen/cohort.json
       hash: md5
-      md5: 93ffa2cb3c14d709261afad2e3e56490
-      size: 7040
+      md5: 9ee6923d17bb3431fe7d2e925d359430
+      size: 7051
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: scripts/run-vale.sh
       hash: md5
       md5: cd5003ff889b2fdd098bd64011065f3b
@@ -179,33 +171,32 @@ stages:
       size: 2954
     - path: src/run-vale.ts
       hash: md5
-      md5: cc35322334ef3d1015cf39edcd906f56
-      size: 11943
+      md5: 71d16972690c8f1b14c7160e24f249f2
+      size: 11746
     - path: src/schemas.ts
       hash: md5
-      md5: a289d1db7e9d57d033c3174acf5227bc
-      size: 19061
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
     params:
       params.yaml:
         producers.vale:
-          binaryVersion: 3.20.0
           timeoutMs: 300000
     outs:
     - path: outputs/producers/vale.json
       hash: md5
-      md5: 738169103b5b7fb19c576725d2049c85
-      size: 46348
+      md5: a3b8573b845ea0d799d76d2590684255
+      size: 46403
   match_edits:
     cmd: bash scripts/match-edits.sh
     deps:
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../packages/writing-editor-domain/src/findings.ts
       hash: md5
       md5: 5bb634381e00b3c01794f50b67e21095
@@ -216,25 +207,25 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 65baed628bc0321f32b3b975da70942f
-      size: 530989
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: data/corpus
       hash: md5
-      md5: fcf34283092033752f464264434c0174.dir
-      size: 450418
+      md5: b4c9286e5a13d7639a83d0a8c9eae23f.dir
+      size: 450429
       nfiles: 19
     - path: outputs/frozen/cohort.json
       hash: md5
-      md5: 93ffa2cb3c14d709261afad2e3e56490
-      size: 7040
+      md5: 9ee6923d17bb3431fe7d2e925d359430
+      size: 7051
     - path: outputs/producers/vale.json
       hash: md5
-      md5: 738169103b5b7fb19c576725d2049c85
-      size: 46348
+      md5: a3b8573b845ea0d799d76d2590684255
+      size: 46403
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: scripts/match-edits.sh
       hash: md5
       md5: a7af8b2496e3e3fad8bf89e59f8384b5
@@ -250,8 +241,8 @@ stages:
       size: 13570
     - path: src/schemas.ts
       hash: md5
-      md5: a289d1db7e9d57d033c3174acf5227bc
-      size: 19061
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
     params:
       params.yaml:
         matching.characterDiff:
@@ -259,31 +250,31 @@ stages:
     outs:
     - path: outputs/matched/vale.json
       hash: md5
-      md5: 6f6c99d8b416337298f9aca7ab2af3d0
-      size: 213429
+      md5: f140287ebce50fa1765baa3b56da7c16
+      size: 213451
   prepare_gector_model:
     cmd: bash scripts/prepare-gector-model.sh
     deps:
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 5f756255af12e63295cd0ae694448563
-      size: 536073
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: model-manifest.json
       hash: md5
       md5: 019548f82adf52cf49f38bacfbb68c7b
       size: 9435
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: scripts/prepare-gector-model.sh
       hash: md5
       md5: ae8261e68e61310dd3c24b576eb662d3
@@ -295,8 +286,8 @@ stages:
       size: 2954
     - path: src/prepare-gector-model.ts
       hash: md5
-      md5: 5514de5e5d7ed569f8115c77f4989d3a
-      size: 14535
+      md5: e4f6aa4f517d642ec0ac28339750ffe3
+      size: 20924
     outs:
     - path: data/models/gector-2024
       hash: md5
@@ -308,12 +299,12 @@ stages:
     deps:
     - path: ../../packages/writing-editor-domain/package.json
       hash: md5
-      md5: 9e1385bf0bb13eada79607c5126dbf4b
-      size: 767
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
     - path: ../../packages/writing-editor-domain/src/canonical-json.ts
       hash: md5
-      md5: f713bc7d6da316d2ebfeb10a77e0fb31
-      size: 1638
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
     - path: ../../packages/writing-editor-domain/src/proposals.ts
       hash: md5
       md5: c4b20db48f31d2324134763913160fac
@@ -324,11 +315,11 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 5f756255af12e63295cd0ae694448563
-      size: 536073
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: data/corpus
       hash: md5
-      md5: 610214b3ea3bd1f12ce27a4b454d4e36.dir
+      md5: b4c9286e5a13d7639a83d0a8c9eae23f.dir
       size: 450429
       nfiles: 19
     - path: data/models/gector-2024
@@ -342,20 +333,20 @@ stages:
       size: 9435
     - path: outputs/frozen/cohort.json
       hash: md5
-      md5: ebfd693321bb7191baad390a65e48b2b
+      md5: 9ee6923d17bb3431fe7d2e925d359430
       size: 7051
     - path: package.json
       hash: md5
-      md5: c6fd5991eb42dbfd3b0e5d088ca06c32
-      size: 513
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
     - path: pyproject.toml
       hash: md5
-      md5: 64942037780dd74cad3bc2ecc1687ccb
-      size: 999
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
     - path: python/gector_runtime.py
       hash: md5
-      md5: f377a7beb5f43783424802a642b3bc4d
-      size: 42147
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
     - path: scripts/run-gector.sh
       hash: md5
       md5: 982fb0f7bcccd8a4f76aaec3d31fa6a8
@@ -374,12 +365,12 @@ stages:
       size: 15253
     - path: src/schemas.ts
       hash: md5
-      md5: f8e8e01727c4059cd99d0d2b7cdcd6f3
-      size: 25347
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
     - path: uv.lock
       hash: md5
-      md5: 889acf0c3641d0e48d2831cd5f328a9c
-      size: 48460
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
     params:
       params.yaml:
         matching.characterDiff.maxEditLength: 10000
@@ -394,8 +385,8 @@ stages:
     outs:
     - path: outputs/producers/gector
       hash: md5
-      md5: 3b7a87328743ed3684e95689af98e192.dir
-      size: 711440
+      md5: 1194d19676d710cd76f26f70df4bd3e5.dir
+      size: 453712
       nfiles: 10
   evaluate_reviews:
     cmd: bash scripts/evaluate-reviews-dvc.sh
@@ -434,8 +425,8 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: c62f798a274ca43f49b0d7dc885cd811
-      size: 663909
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
     - path: data/review-evidence/repository-pilot/decisions.jsonl
       hash: md5
       md5: fa8151bcdbb6e612cc5189c5dca5f55c
@@ -467,8 +458,8 @@ stages:
       isexec: true
     - path: src/evaluate-reviews.ts
       hash: md5
-      md5: c922e38c8a4d195dcec54ab4e10455a4
-      size: 13816
+      md5: e6ded5431579c6517fb574e9c9c2fbc1
+      size: 17860
     - path: src/files.ts
       hash: md5
       md5: fce85952c262353a104b1705fc30ddc6
@@ -476,5 +467,1480 @@ stages:
     outs:
     - path: outputs/evaluation/repository-pilot.json
       hash: md5
-      md5: 04d1c96de0b46ab8dfb352989577a9a0
-      size: 1894
+      md5: 61bdcfbc5a3c5d5896b77e2f0d64d330
+      size: 1940
+  build_current_content_corpus:
+    cmd: bash scripts/build-current-content-corpus.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: ../../ui/content
+      hash: md5
+      md5: f1305344b7b9aaf9017211d6f97aeab6.dir
+      size: 3593056
+      nfiles: 367
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/build-current-content-corpus.sh
+      hash: md5
+      md5: 13aea28168eb56a9a18709f401de9776
+      size: 218
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+  calibrate_current_content_gector_balanced:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/current-content/calibration-cohort.json 
+      current-content-params-balanced.json 
+      outputs/current-content/calibration/balanced
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-balanced.json
+      hash: md5
+      md5: cdcec7c6dd2fe26333f043c688784b4f
+      size: 551
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/current-content/calibration/balanced
+      hash: md5
+      md5: b15d4ea731e03b2b3098f1ed9dbec02a.dir
+      size: 247555
+      nfiles: 21
+  calibrate_current_content_gector_baseline:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/current-content/calibration-cohort.json 
+      current-content-params-baseline.json 
+      outputs/current-content/calibration/baseline
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-baseline.json
+      hash: md5
+      md5: 6942cf90dd1054eebb3ee01d31ba821b
+      size: 552
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/current-content/calibration/baseline
+      hash: md5
+      md5: 980f515c9d77c69d238fc032a0033f0f.dir
+      size: 305189
+      nfiles: 21
+  calibrate_current_content_gector_strict:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/current-content/calibration-cohort.json 
+      current-content-params-strict.json 
+      outputs/current-content/calibration/strict
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/current-content/calibration/strict
+      hash: md5
+      md5: 90bf3d8bbbbfed467a4bc6aa26b2a015.dir
+      size: 202814
+      nfiles: 21
+  run_current_content_gector:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/current-content/cohort.json current-content-params-strict.json 
+      outputs/current-content/full
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/current-content/full
+      hash: md5
+      md5: 6941722b4db632922e1589519cbf1e27.dir
+      size: 1036281
+      nfiles: 90
+  report_current_content_gector:
+    cmd: bash scripts/report-current-content-gector.sh
+    deps:
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: data/current-content/manifest.json
+      hash: md5
+      md5: fdf720e426513f8f7ddcb4560d67b304
+      size: 25877
+    - path: outputs/current-content/calibration/balanced/run.json
+      hash: md5
+      md5: e1c8a54939260374d1ff1a4b2f8d601f
+      size: 66754
+    - path: outputs/current-content/calibration/baseline/run.json
+      hash: md5
+      md5: f802f07b48f878e154732d7091005eba
+      size: 124388
+    - path: outputs/current-content/calibration/strict/run.json
+      hash: md5
+      md5: e31e7c112fad81c867dc95716343193b
+      size: 22053
+    - path: outputs/current-content/full/run.json
+      hash: md5
+      md5: 2e6c35c348bcc0e7ee83eddc2fba31dc
+      size: 218617
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/report-current-content-gector.sh
+      hash: md5
+      md5: ebd9e6c3b239d96dd6d36b92b0e555c7
+      size: 436
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/report-current-content-gector.ts
+      hash: md5
+      md5: dddafdd8c46396801c50017f566191a6
+      size: 5905
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: outputs/current-content/report
+      hash: md5
+      md5: aeaa6a5512b701be0f74a1c9e65216c6.dir
+      size: 4181
+      nfiles: 2
+  build_developer_content_corpus:
+    cmd: bash scripts/build-developer-content-corpus.sh
+    deps:
+    - path: ../../.agents
+      hash: md5
+      md5: 46bf3f6b4604d57aa67df63257388d13.dir
+      size: 23868
+      nfiles: 7
+    - path: ../../.vale/styles/README.md
+      hash: md5
+      md5: c8492da5a28b90dcd0c0a1794eae8576
+      size: 2679
+    - path: ../../AGENTS.md
+      hash: md5
+      md5: 45fc0852d2c53876c873ba3c0d970756
+      size: 3598
+    - path: ../../CLAUDE.md
+      hash: md5
+      md5: 5c27369b226fcf2be8a6cfe52224e767
+      size: 11
+    - path: ../../CONTRIBUTING.md
+      hash: md5
+      md5: 9f17df198045c58b45efe9817ab023dc
+      size: 300
+    - path: ../../README.md
+      hash: md5
+      md5: 12657bbbcb7eef913c36eb626c38cc72
+      size: 4084
+    - path: ../../SECURITY.md
+      hash: md5
+      md5: 9a699fe4ff490e689df6027fe631784e
+      size: 277
+    - path: ../../ai-review
+      hash: md5
+      md5: e74d55037b61400d98fa005a65e6c8a5.dir
+      size: 743678
+      nfiles: 73
+    - path: ../../backups
+      hash: md5
+      md5: 509f416196c5e3b704acc9ead29e3ff7.dir
+      size: 27133
+      nfiles: 6
+    - path: ../../cpp
+      hash: md5
+      md5: c9743711421d5689394d34fdee7a42a5.dir
+      size: 614090
+      nfiles: 83
+    - path: ../../docs
+      hash: md5
+      md5: 49528cdf50826613a839e52a7e6c08a0.dir
+      size: 91289
+      nfiles: 10
+    - path: ../../functions
+      hash: md5
+      md5: 725fc6a9819f0714453a8453028812de.dir
+      size: 57007
+      nfiles: 27
+    - path: ../../homelab
+      hash: md5
+      md5: 1dc1efc2905768d27c0c552d7be660db.dir
+      size: 746547
+      nfiles: 183
+    - path: ../../infra
+      hash: md5
+      md5: bbd5e00719c7a62c2ec7884466884864.dir
+      size: 223338379
+      nfiles: 73
+    - path: ../../ml-pipelines/README.md
+      hash: md5
+      md5: 439809822928b59a17f805ea2126e95a
+      size: 2928
+    - path: ../../ml-pipelines/ai-review-evaluation/README.md
+      hash: md5
+      md5: c137f975d9aecc6422a9bb4398a656f1
+      size: 6908
+    - path: ../../ml-pipelines/recipe-dataset/README.md
+      hash: md5
+      md5: af33bf20e8d141cf18b4374e870187d9
+      size: 5324
+    - path: ../../ml-pipelines/recipe-parsing/README.md
+      hash: md5
+      md5: 4e9bce16abe7888f855f808b961badc0
+      size: 4486
+    - path: ../../ml-pipelines/wsi-analysis/README.md
+      hash: md5
+      md5: 9d95304657cedabd0c68324a4a04111d
+      size: 3556
+    - path: ../../packages
+      hash: md5
+      md5: e903ee7b52d82c8336179dc6fd80f430.dir
+      size: 5456713
+      nfiles: 725
+    - path: ../../ui/content
+      hash: md5
+      md5: f1305344b7b9aaf9017211d6f97aeab6.dir
+      size: 3593056
+      nfiles: 367
+    - path: ../../ui/e2e
+      hash: md5
+      md5: ff88bbcb7e0d9ca10329ab48840e2814.dir
+      size: 70163
+      nfiles: 11
+    - path: ../../workers
+      hash: md5
+      md5: 51de5aede33ea2bf06caa9e1aa232919.dir
+      size: 5988922
+      nfiles: 290
+    - path: README.md
+      hash: md5
+      md5: f5a5f9caab7f47484c6690a5c5c73994
+      size: 13241
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/build-developer-content-corpus.sh
+      hash: md5
+      md5: 6acb5168912dc2ef678c6fd4143e3c34
+      size: 221
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+  calibrate_developer_content_gector_balanced:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/developer-content/calibration-cohort.json 
+      current-content-params-balanced.json 
+      outputs/developer-content/calibration/balanced data/developer-content
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-balanced.json
+      hash: md5
+      md5: cdcec7c6dd2fe26333f043c688784b4f
+      size: 551
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/developer-content/calibration/balanced
+      hash: md5
+      md5: 69230cb861a46cbc06c7735e98dd1888.dir
+      size: 175603
+      nfiles: 21
+  calibrate_developer_content_gector_baseline:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/developer-content/calibration-cohort.json 
+      current-content-params-baseline.json 
+      outputs/developer-content/calibration/baseline data/developer-content
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-baseline.json
+      hash: md5
+      md5: 6942cf90dd1054eebb3ee01d31ba821b
+      size: 552
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/developer-content/calibration/baseline
+      hash: md5
+      md5: af9280622779038c2d3eb66ae4613225.dir
+      size: 201123
+      nfiles: 21
+  calibrate_developer_content_gector_strict:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/developer-content/calibration-cohort.json 
+      current-content-params-strict.json 
+      outputs/developer-content/calibration/strict data/developer-content
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/developer-content/calibration/strict
+      hash: md5
+      md5: 41454103612c7580a4eb26bfb381aab3.dir
+      size: 162891
+      nfiles: 21
+  run_developer_content_gector:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/developer-content/cohort.json current-content-params-strict.json 
+      outputs/developer-content/full data/developer-content
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/developer-content/full
+      hash: md5
+      md5: ed068dace182a5e81d021f601e981a17.dir
+      size: 2871682
+      nfiles: 314
+  report_developer_content_gector:
+    cmd: bash scripts/report-developer-content-gector.sh
+    deps:
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: data/developer-content/manifest.json
+      hash: md5
+      md5: 7401abd7fb24c93ab3717ef71df1ad46
+      size: 121100
+    - path: outputs/developer-content/calibration/balanced/run.json
+      hash: md5
+      md5: aa7437b816eeecd100ab71b18c4062bf
+      size: 49982
+    - path: outputs/developer-content/calibration/baseline/run.json
+      hash: md5
+      md5: 18e2174a87efd621ad4a9ccfe89146a2
+      size: 75507
+    - path: outputs/developer-content/calibration/strict/run.json
+      hash: md5
+      md5: d602103a9e3445851042b3f8632c8f2f
+      size: 37279
+    - path: outputs/developer-content/full/run.json
+      hash: md5
+      md5: 4a1e8bc5aa6970fa346fda91d5ea24ad
+      size: 677078
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/report-developer-content-gector.sh
+      hash: md5
+      md5: 292cf475131fb52c65cf0b867ce691e3
+      size: 448
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/report-current-content-gector.ts
+      hash: md5
+      md5: dddafdd8c46396801c50017f566191a6
+      size: 5905
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: outputs/developer-content/report
+      hash: md5
+      md5: e9d7a39606d97f5530c3f9cf4089c7ff.dir
+      size: 4045
+      nfiles: 2
+  build_review_baseline:
+    cmd: bash scripts/build-review-baseline.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: review-baseline-config.json
+      hash: md5
+      md5: 741036eda3ea753242abd2e66702559b
+      size: 91
+    - path: scripts/build-review-baseline.sh
+      hash: md5
+      md5: 0d2e73b15941aa4845acaca5608bda4a
+      size: 617
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: data/review-baseline
+      hash: md5
+      md5: 4873de377415569d98334dad51eb0c7e.dir
+      size: 3514381
+      nfiles: 408
+  run_review_baseline_customer_gector:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/review-baseline/customer/cohort.json 
+      current-content-params-strict.json outputs/review-baseline/customer 
+      data/review-baseline/customer
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: data/review-baseline/customer
+      hash: md5
+      md5: 1a5b7516b2ba6618ddea0595d94c7fd5.dir
+      size: 920422
+      nfiles: 92
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/review-baseline/customer
+      hash: md5
+      md5: 21d8937c6834b3019d1ff56e770da3df.dir
+      size: 1155122
+      nfiles: 90
+  run_review_baseline_developer_gector:
+    cmd: bash scripts/run-current-content-gector.sh 
+      data/review-baseline/developer/cohort.json 
+      current-content-params-strict.json outputs/review-baseline/developer 
+      data/review-baseline/developer
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: current-content-params-strict.json
+      hash: md5
+      md5: 526573ee990db2be304541539a52e4e7
+      size: 551
+    - path: data/models/gector-2024
+      hash: md5
+      md5: b7e9e899637ddf30002aed7489e1908b.dir
+      size: 1449362195
+      nfiles: 11
+    - path: data/review-baseline/developer
+      hash: md5
+      md5: bc455ca0c6aca29df1385ea53ed73511.dir
+      size: 2593959
+      nfiles: 316
+    - path: model-manifest.json
+      hash: md5
+      md5: 019548f82adf52cf49f38bacfbb68c7b
+      size: 9435
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: pyproject.toml
+      hash: md5
+      md5: 43bd82386d7814f7947881b2c12423ca
+      size: 1164
+    - path: python/gector_runtime.py
+      hash: md5
+      md5: 29d3e72289eec6d9f9fabad6c3dee1ce
+      size: 43848
+    - path: scripts/run-current-content-gector.sh
+      hash: md5
+      md5: 6ee7331f96336e551b25291fb7f06091
+      size: 655
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/run-gector.ts
+      hash: md5
+      md5: b4a402b15476c8147a3f675b46275ebd
+      size: 15253
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    - path: uv.lock
+      hash: md5
+      md5: b0c00733db12b1445e71c69125ca2c6e
+      size: 55441
+    outs:
+    - path: outputs/review-baseline/developer
+      hash: md5
+      md5: 7b635a5cab417f938279a1a0ea2595d2.dir
+      size: 2964758
+      nfiles: 314
+  record_gector_decisions:
+    cmd: bash scripts/record-gector-decisions.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
+      hash: md5
+      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
+      size: 2318
+    - path: ../../packages/writing-editor-domain/src/review.ts
+      hash: md5
+      md5: 79f007f6de0209d2cf47263ce61ae544
+      size: 7966
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: data/corpus
+      hash: md5
+      md5: b4c9286e5a13d7639a83d0a8c9eae23f.dir
+      size: 450429
+      nfiles: 19
+    - path: data/current-content
+      hash: md5
+      md5: 7f2c1bccf3c2facca6d4de5c3de6f08d.dir
+      size: 929166
+      nfiles: 92
+    - path: data/developer-content
+      hash: md5
+      md5: 4535b0d3ef449d6aad1e705ebbb1988f.dir
+      size: 2620456
+      nfiles: 316
+    - path: data/review-baseline
+      hash: md5
+      md5: 4873de377415569d98334dad51eb0c7e.dir
+      size: 3514381
+      nfiles: 408
+    - path: outputs/frozen/cohort.json
+      hash: md5
+      md5: 9ee6923d17bb3431fe7d2e925d359430
+      size: 7051
+    - path: outputs/producers/gector/run.json
+      hash: md5
+      md5: 851b8eef9d49e76050a0af521a4cbe1d
+      size: 231795
+    - path: outputs/review-baseline/customer/run.json
+      hash: md5
+      md5: 391f04943db969b9a3e9b9ababfd5d7a
+      size: 338923
+    - path: outputs/review-baseline/developer/run.json
+      hash: md5
+      md5: 10c5bef001bd1b21d6a3d19073175d3e
+      size: 774545
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: review-decision-config.json
+      hash: md5
+      md5: 9524265d11efb316a65e48b1558c5f23
+      size: 775
+    - path: scripts/record-gector-decisions.sh
+      hash: md5
+      md5: 84f2b04eec5de4a2172fcc8d6ecdcff3
+      size: 751
+    - path: src/build-current-content-corpus.ts
+      hash: md5
+      md5: c2eba182c866a8e253994c9efc884796
+      size: 11683
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/match-edits.ts
+      hash: md5
+      md5: 1f85bda15bea599b998ca5a847417af8
+      size: 13570
+    - path: src/record-gector-decisions.ts
+      hash: md5
+      md5: 00bfae0ed7df3f4b96492cf38a28fb6b
+      size: 13898
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: fee2684663ef09d8a77056870e7fa48d.dir
+      size: 5596868
+      nfiles: 832
+  evaluate_gector_decisions:
+    cmd: pnpm exec tsx src/evaluate-reviews.ts --manifest 
+      data/review-evidence/gector-broad-pilot/manifest.json --evidence 
+      data/review-evidence/gector-broad-pilot --params evaluation-params.json 
+      --output outputs/review-evaluation/gector-broad-pilot-scorecard.json
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
+      hash: md5
+      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
+      size: 2318
+    - path: ../../packages/writing-editor-domain/src/review.ts
+      hash: md5
+      md5: 79f007f6de0209d2cf47263ce61ae544
+      size: 7966
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: fee2684663ef09d8a77056870e7fa48d.dir
+      size: 5596868
+      nfiles: 832
+    - path: evaluation-params.json
+      hash: md5
+      md5: 26ed31f4343e1382730c572a859d7e23
+      size: 172
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: e6ded5431579c6517fb574e9c9c2fbc1
+      size: 17860
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    outs:
+    - path: outputs/review-evaluation/gector-broad-pilot-scorecard.json
+      hash: md5
+      md5: 25ae577fb39866f41ad37a65f3257057
+      size: 123222
+  finalize_cohort_readiness:
+    cmd: bash scripts/finalize-cohort-readiness.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
+      hash: md5
+      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
+      size: 2318
+    - path: ../../packages/writing-editor-domain/src/review.ts
+      hash: md5
+      md5: 79f007f6de0209d2cf47263ce61ae544
+      size: 7966
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: c79ec320f3a994b378bf43897e53d7a9
+      size: 671533
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: fee2684663ef09d8a77056870e7fa48d.dir
+      size: 5596868
+      nfiles: 832
+    - path: evaluation-params.json
+      hash: md5
+      md5: 26ed31f4343e1382730c572a859d7e23
+      size: 172
+    - path: outputs/frozen/cohort.json
+      hash: md5
+      md5: 9ee6923d17bb3431fe7d2e925d359430
+      size: 7051
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/finalize-cohort-readiness.sh
+      hash: md5
+      md5: 023a2e1f6f7902b7ec99e8738972bf01
+      size: 494
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: e6ded5431579c6517fb574e9c9c2fbc1
+      size: 17860
+    - path: src/files.ts
+      hash: md5
+      md5: fce85952c262353a104b1705fc30ddc6
+      size: 2954
+    - path: src/finalize-cohort-readiness.ts
+      hash: md5
+      md5: 884d9a296fb96632f2b32528b7f324b9
+      size: 3985
+    - path: src/freeze-cohort.ts
+      hash: md5
+      md5: 05b602032320ce966a6e09dbb047e406
+      size: 8097
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    params:
+      params.yaml:
+        cohort.requiredArtifactTypes:
+        - adr
+        - project-page
+    outs:
+    - path: outputs/frozen/readiness.json
+      hash: md5
+      md5: babaac44cd58e30199f6640e8eec0086
+      size: 534
+    - path: outputs/frozen/readiness.md
+      hash: md5
+      md5: a7b1fdd09f9f3e8547124a00fa3d7dda
+      size: 284

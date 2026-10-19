@@ -74,7 +74,7 @@ Three indexes let PostgreSQL combine field matches with bitmap operations and pr
 OR semantics. They also make their storage costs visible separately. After the first large corpus
 import, record `pg_relation_size` for each index and representative `EXPLAIN (ANALYZE, BUFFERS)`
 plans. If body search costs more storage or write time than it saves, revise the search document or
-drop that index in a later migration. Do not quietly stop searching ingredients and instructions.
+drop that index in a later migration. Do not quietly stop searching for ingredients and instructions.
 
 ## Deferred extensions
 

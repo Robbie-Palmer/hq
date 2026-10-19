@@ -52,7 +52,7 @@ options enough detail to show why the decision fits this problem, including
 where a rejected option would fit better. Do not move that analysis to the
 project index.
 
-Include implementation facts only when they constrained the choice or form an
+Include implementation facts only when they constrain the choice or form an
 architectural invariant. Include point-in-time NFRs such as latency,
 availability, security, cost, compatibility, data retention, or scale when they
 changed the decision. State a measured value, source, or explicit assumption.
