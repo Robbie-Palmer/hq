@@ -95,6 +95,12 @@ export const OperationalRequirementSchema = z.enum([
   "provider-registration",
   "server-side-authorization",
   "credential-rotation",
+  "interactive-browser-server-state",
+  "runtime-derived-api-contract",
+  "committed-api-contract",
+  "published-api-baseline",
+  "committed-migration-history",
+  "serialized-migration-runner",
 ]);
 
 export const OperationalPrerequisiteSchema = z.object({

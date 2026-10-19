@@ -1,0 +1,186 @@
+---
+title: "ADR 035: Web, API, and data capability contracts"
+date: "2026-10-19"
+status: "Accepted"
+tech_stack:
+  [
+    "TanStack Query",
+    "Hono",
+    "@hono/zod-openapi",
+    "OpenAPI",
+    "Spectral",
+    "oasdiff",
+    "Drizzle",
+    "Hyperdrive",
+  ]
+---
+
+## Context
+
+The platform already selected the main tools for browser server state, HTTP APIs,
+API governance, and PostgreSQL access:
+
+* [ADR 014](/projects/personal-engineering-platform/adrs/014-hono-openapi)
+  selects Hono and OpenAPI.
+* [ADR 015](/projects/personal-engineering-platform/adrs/015-api-governance)
+  selects Spectral and oasdiff.
+* [ADR 017](/projects/personal-engineering-platform/adrs/017-relational-data-stack)
+  selects Drizzle and Hyperdrive.
+* [ADR 021](/projects/personal-engineering-platform/adrs/021-tanstack-query-for-client-server-state)
+  selects TanStack Query.
+
+Those decisions are sound, but two jobs are still hidden inside broader slots.
+`@hono/zod-openapi` connects Hono routes and Zod schemas to the committed OpenAPI
+contract. It is neither the HTTP framework nor the contract format. Committed
+database migrations also need their own policy. Drizzle can issue typed queries
+without proving that a project reviews, checks, serializes, and applies schema
+changes before new application code runs.
+
+The missing boundaries matter to project generation. A resolved project profile
+must be able to select OpenAPI without Hono, Hono without contract generation,
+Drizzle without Hyperdrive, or PostgreSQL without Drizzle. It must also refuse the
+specific combinations that cannot work.
+
+Recipe Site and Work Graph provide evidence for the shared jobs. Both services
+use Hono, `@hono/zod-openapi`, committed OpenAPI 3.1 documents, Spectral,
+PostgreSQL, Drizzle migrations, and Hyperdrive. Recipe Site has the independent
+client contract that justifies an oasdiff compatibility gate. Work Graph remains
+pre-stable and does not claim that adoption.
+
+## Decision
+
+Keep the existing technology selections and model their jobs as separate
+capabilities.
+
+| Job                                | Slot                                 | Platform position                                                                             | Prerequisites                                                              |
+| ---------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Browser server-state coordination  | `web-app.server-state-client`        | Prefer TanStack Query for interactive browser reads and mutations.                            | React and an interactive browser server-state requirement.                 |
+| HTTP routing and middleware        | `backend-api.http-framework`         | Prefer Hono.                                                                                  | A selected backend runtime.                                                |
+| HTTP contract format               | `backend-api.contract-format`        | Prefer OpenAPI 3.1.                                                                           | None. The format does not depend on Hono.                                  |
+| Runtime contract generation        | `backend-api.contract-generator`     | Prefer `@hono/zod-openapi`.                                                                   | Hono, OpenAPI, Zod, and a runtime-derived contract.                        |
+| Contract linting                   | `api-governance.contract-linter`     | Require Spectral when OpenAPI activates the API governance layer.                             | OpenAPI and a committed contract.                                          |
+| Compatibility checking             | `api-governance.compatibility-check` | Prefer oasdiff when an API promises compatibility.                                            | OpenAPI and a published baseline.                                          |
+| Relational schema and access       | `database.relational-access`         | Prefer Drizzle for PostgreSQL projects.                                                       | PostgreSQL.                                                                |
+| Relational migration discipline    | `database.migration-discipline`      | Require committed, ordered migrations with drift checks and one serialized deployment runner. | PostgreSQL, Drizzle, committed migration history, and a serialized runner. |
+| Managed runtime connection pooling | `backend-api.relational-connection`  | Prefer Hyperdrive for Workers that connect to PostgreSQL.                                     | Cloudflare Workers and PostgreSQL.                                         |
+
+The effective records dated 2026-10-19 replace the earlier slot policies. The
+earlier selections remain valid evidence. The new records add the missing
+contract-generator and migration-discipline jobs and make the dependency graph
+explicit.
+
+### Browser server state
+
+TanStack Query manages remote reads, mutations, freshness, retries, and cache
+invalidation in interactive React clients. It does not own query keys, HTTP
+resources, authorization behavior, stale-time policy, or private-cache cleanup.
+Each product keeps those decisions.
+
+Do not add the selection to a static site, a server-only service, or a React
+application whose remote data never needs a browser lifecycle. React is necessary
+for the selected adapter, but React alone is not evidence that the job exists.
+
+### HTTP implementation and contract generation
+
+Hono owns request routing and middleware. OpenAPI owns the portable contract.
+`@hono/zod-openapi` is the selected bridge between them. A project adopts the
+bridge only when all three prerequisites resolve: Hono, OpenAPI, and Zod.
+
+Route declarations and request or response schemas stay with the product. The
+platform supplies the generation convention and the checks around its output.
+Each adopter must commit the generated contract, fail CI when regeneration
+changes it, and keep a route-parity test for handlers that bypass the adapter.
+
+Spectral validates the committed document against the repository rules under
+`api-governance/`. It does not decide API resources, verbs, or versioning policy
+for a product. oasdiff compares a proposed document with the published baseline
+only after the product promises compatibility to an independent client.
+
+Recipe Site adopts both checks because its contract has that promise. Work Graph
+adopts Spectral but not oasdiff. Its API and CLI still release together, and its
+ADR explicitly defers the breaking-change gate until an independent client needs
+one.
+
+### PostgreSQL access and migrations
+
+Drizzle owns TypeScript schema declarations, typed queries, and generated
+migration inputs for PostgreSQL adopters. Direct SQL remains valid for queries or
+database features that Drizzle cannot express clearly.
+
+The migration discipline is a separate policy. Every adopter must:
+
+* commit the ordered migration history and its schema snapshots;
+* run the migration-history check and fail when schema changes lack a committed
+  migration;
+* apply migrations through one serialized deployment job before deploying code
+  that requires the new schema;
+* connect the migration runner directly to PostgreSQL rather than through the
+  application pooler; and
+* test the migration history against a disposable PostgreSQL database.
+
+Products own their tables, domain constraints, migration contents, reference-data
+changes, backfills, and expand-and-contract sequence. The platform standard owns
+the review and delivery discipline, not the product schema.
+
+Hyperdrive remains narrower than Drizzle. It is the preferred connection service
+only when a Cloudflare Worker connects to PostgreSQL. Migration jobs bypass it.
+Node services, long-running processes, and other runtimes choose a connection
+method that fits their own pooling model.
+
+### Evidence and checks
+
+Recipe Site records the browser-state decision in its ADR 018, the Hono and
+OpenAPI generation path in ADR 023, and committed migrations in ADR 017. Work
+Graph records the API path in ADR 003 and its PostgreSQL boundary in ADR 001.
+
+The repository checks provide executable evidence:
+
+* both API workers generate committed OpenAPI documents and run Spectral;
+* Recipe Site runs oasdiff against its base contract;
+* both PostgreSQL projects run `drizzle-kit check`, generate once to detect
+  missing migrations, and apply their committed history in integration tests;
+* both deployed Workers connect to PostgreSQL through Hyperdrive while migration
+  tasks use direct database URLs; and
+* Recipe Site exercises TanStack Query through its query provider and component
+  tests.
+
+Project frontmatter records adoption for the new contract-generator and
+migration-discipline slots. The platform manifest retains the exact source ADRs,
+effective dates, origins, and prerequisites that the future profile resolver will
+need.
+
+## Alternatives
+
+Keeping contract generation inside the OpenAPI slot would be shorter. It would
+also make a hand-maintained OpenAPI contract look incompatible even though the
+format and governance rules still apply. A separate generator slot keeps format,
+implementation, and derivation independent.
+
+Treating committed migrations as part of Drizzle would match the current tools,
+but it would let a project claim the access library without adopting safe schema
+delivery. A policy slot can survive a future access-library change and still
+require reviewable migrations.
+
+Making oasdiff required for every OpenAPI service would create a compatibility
+promise for internal and pre-stable APIs. The gate remains preferred and requires
+a published baseline.
+
+Promoting product query keys, API resources, Zod schemas, tables, or migration SQL
+would turn current application design into platform policy. Those records remain
+local because they express product behavior rather than a recurring engineering
+job.
+
+## Consequences
+
+The project profile can now resolve each job independently and reject unsupported
+combinations before Copier plans repository changes. The generator can add an API
+framework without inventing a contract, add OpenAPI without assuming Hono, and add
+Hyperdrive only for the Workers and PostgreSQL combination.
+
+The manifest has two more slots and a longer prerequisite graph. That is deliberate.
+The previous compact model made false adoption easy. The new records match the
+checks that already run in the repository.
+
+Projects still own their HTTP resources, schemas, database design, and browser
+cache policy. Updating a platform selection changes the shared convention and
+profile resolution. It does not rewrite product semantics.
