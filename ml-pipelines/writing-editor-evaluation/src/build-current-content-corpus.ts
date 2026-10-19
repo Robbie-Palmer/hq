@@ -79,12 +79,12 @@ function walk(directory: string): string[] {
 }
 
 function pathId(value: string): string {
-  return value
+  const normalized = value
     .toLowerCase()
     .replace(/\.(?:md|mdx)$/u, "")
-    .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+/u, "")
-    .replace(/-+$/u, "");
+    .replace(/[^a-z0-9]+/gu, "-");
+
+  return normalized.split("-").filter(Boolean).join("-");
 }
 
 function classifyPublic(relativePath: string): ContentKind | undefined {
