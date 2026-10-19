@@ -64,7 +64,9 @@ interface SelectedFile {
 const gitExecutable = "/usr/bin/git";
 
 function compareAscending(left: string, right: string): number {
-  return left < right ? -1 : left > right ? 1 : 0;
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
 }
 
 function walk(directory: string): string[] {
@@ -81,7 +83,8 @@ function pathId(value: string): string {
     .toLowerCase()
     .replace(/\.(?:md|mdx)$/u, "")
     .replace(/[^a-z0-9]+/gu, "-")
-    .replace(/^-+|-+$/gu, "");
+    .replace(/^-+/u, "")
+    .replace(/-+$/u, "");
 }
 
 function classifyPublic(relativePath: string): ContentKind | undefined {
