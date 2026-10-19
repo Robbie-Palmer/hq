@@ -14,7 +14,11 @@ import {
 } from "writing-editor-domain/review-receipt";
 import { createSuggestion, sha256, sourceReference } from "writing-editor-domain/suggestions";
 
-import { evaluateReviews, ReviewScorecardSchema } from "../src/evaluate-reviews";
+import {
+  evaluateReviews,
+  ReviewEvidenceManifestSchema,
+  ReviewScorecardSchema,
+} from "../src/evaluate-reviews";
 import { finalizeCohortReadiness } from "../src/finalize-cohort-readiness";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
@@ -140,6 +144,23 @@ function tamperReceipt(
 }
 
 describe("review evidence scorecard", () => {
+  it("requires source snapshots for current evidence while accepting legacy entries", () => {
+    const manifest = JSON.parse(
+      fs.readFileSync(path.join(evidenceRoot, "manifest.json"), "utf8"),
+    );
+    delete manifest.entries[0].sourceBeforeFile;
+    delete manifest.entries[0].sourceAfterFile;
+
+    const currentResult = ReviewEvidenceManifestSchema.safeParse(manifest);
+    expect(currentResult.success).toBe(false);
+    if (currentResult.success) throw new Error("expected current evidence without snapshots to fail");
+    expect(currentResult.error.issues[0]?.message)
+      .toBe("current evidence entries must include source snapshots");
+
+    delete manifest.entries[0].provenance;
+    expect(ReviewEvidenceManifestSchema.parse(manifest).entries).toHaveLength(1);
+  });
+
   it("keeps a one-proposal cohort opt-in until the volume gate is met", () => {
     const scorecard = evaluateReviews({
       manifestFile: path.join(evidenceRoot, "manifest.json"),
@@ -231,9 +252,13 @@ describe("review evidence scorecard", () => {
   });
 
   it("finalizes frozen readiness only from validated seed evidence", () => {
+    const datasetId = `dataset:v1:${"b".repeat(64)}`;
+    const sourceRevision = "1".repeat(40);
     const manifestFile = path.join(evidenceRoot, "manifest.json");
     const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
     manifest.entries[0].artifactId = "seed-fixture-adr";
+    manifest.entries[0].provenance.sourceDatasetId = datasetId;
+    manifest.entries[0].provenance.sourceRevision = sourceRevision;
     fs.writeFileSync(manifestFile, JSON.stringify(manifest));
     const cohortId = `cohort:v1:${"a".repeat(64)}`;
     const cohortFile = path.join(evidenceRoot, "cohort.json");
@@ -241,7 +266,7 @@ describe("review evidence scorecard", () => {
       schemaVersion: 1,
       recordType: "writing-editor-frozen-cohort",
       cohortId,
-      datasetId: `dataset:v1:${"b".repeat(64)}`,
+      datasetId,
       frozenAt: "2026-01-01T00:00:00.000Z",
       seed: "fixture",
       splitRatios: { train: 0.6, validation: 0.2, holdout: 0.2 },
@@ -252,7 +277,7 @@ describe("review evidence scorecard", () => {
         outcomeStatus: "unrecorded",
         split: "validation",
         source: {
-          revision: "1".repeat(40), committedAt: "2026-01-01T00:00:00.000Z",
+          revision: sourceRevision, committedAt: "2026-01-01T00:00:00.000Z",
           contentHash: `sha256:${"1".repeat(64)}`, bytes: 1, file: "source.md",
         },
         published: {
@@ -325,6 +350,48 @@ describe("review evidence scorecard", () => {
       outputJson,
       outputMarkdown,
     })).toThrow("seed outcomes refer to missing or non-seed evidence entries");
+
+    const wrongSourceManifest = structuredClone(manifest);
+    wrongSourceManifest.entries[0].provenance.sourceRevision = "3".repeat(40);
+    fs.writeFileSync(manifestFile, JSON.stringify(wrongSourceManifest));
+    fs.writeFileSync(outcomesFile, JSON.stringify({
+      schemaVersion: 1,
+      recordType: "writing-editor-seed-outcomes",
+      cohortId,
+      artifactIds: ["seed-fixture-adr"],
+      evidenceManifestHash: sha256(canonicalJson(wrongSourceManifest)),
+    }));
+    expect(() => finalizeCohortReadiness({
+      cohortFile,
+      paramsFile,
+      evidenceManifestFile: manifestFile,
+      evidenceRoot,
+      seedOutcomesFile: outcomesFile,
+      evaluationParamsFile: path.join(projectRoot, "evaluation-params.json"),
+      outputJson,
+      outputMarkdown,
+    })).toThrow("seed outcomes do not match the frozen cohort source");
+
+    const wrongDatasetManifest = structuredClone(manifest);
+    wrongDatasetManifest.entries[0].provenance.sourceDatasetId = `dataset:v1:${"c".repeat(64)}`;
+    fs.writeFileSync(manifestFile, JSON.stringify(wrongDatasetManifest));
+    fs.writeFileSync(outcomesFile, JSON.stringify({
+      schemaVersion: 1,
+      recordType: "writing-editor-seed-outcomes",
+      cohortId,
+      artifactIds: ["seed-fixture-adr"],
+      evidenceManifestHash: sha256(canonicalJson(wrongDatasetManifest)),
+    }));
+    expect(() => finalizeCohortReadiness({
+      cohortFile,
+      paramsFile,
+      evidenceManifestFile: manifestFile,
+      evidenceRoot,
+      seedOutcomesFile: outcomesFile,
+      evaluationParamsFile: path.join(projectRoot, "evaluation-params.json"),
+      outputJson,
+      outputMarkdown,
+    })).toThrow("seed outcomes do not match the frozen cohort source");
   });
 
   it.each([

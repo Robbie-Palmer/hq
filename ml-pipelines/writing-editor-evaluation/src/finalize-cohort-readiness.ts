@@ -46,10 +46,20 @@ export function finalizeCohortReadiness(options: {
     throw new Error("seed outcomes do not match the evidence manifest");
   }
   const manifestEntries = new Map(manifest.entries.map((entry) => [entry.artifactId, entry]));
-  if (seedOutcomes.artifactIds.some((artifactId) =>
-    manifestEntries.get(artifactId)?.provenance?.scope !== "seed"
-  )) {
-    throw new Error("seed outcomes refer to missing or non-seed evidence entries");
+  const frozenEntries = new Map(cohort.entries.map((entry) => [entry.artifactId, entry]));
+  for (const evidenceId of seedOutcomes.artifactIds) {
+    const provenance = manifestEntries.get(evidenceId)?.provenance;
+    if (provenance?.scope !== "seed") {
+      throw new Error("seed outcomes refer to missing or non-seed evidence entries");
+    }
+    const cohortEntry = frozenEntries.get(evidenceId.slice("seed-".length));
+    if (
+      !cohortEntry ||
+      provenance.sourceDatasetId !== cohort.datasetId ||
+      provenance.sourceRevision !== cohortEntry.source.revision
+    ) {
+      throw new Error("seed outcomes do not match the frozen cohort source");
+    }
   }
   const recorded = scorecard.gates.deletionClear
     ? new Set(seedOutcomes.artifactIds.map((artifactId) => artifactId.slice(5)))

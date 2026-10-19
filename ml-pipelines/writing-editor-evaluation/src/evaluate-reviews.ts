@@ -71,6 +71,13 @@ const ReviewEvidenceEntrySchema = z.object({
     regression: z.enum(["none", "present", "not-assessed"]),
   }).strict(),
 }).strict().superRefine((entry, context) => {
+  if (entry.provenance && entry.sourceBeforeFile === undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "current evidence entries must include source snapshots",
+      path: ["sourceBeforeFile"],
+    });
+  }
   if ((entry.sourceBeforeFile === undefined) !== (entry.sourceAfterFile === undefined)) {
     context.addIssue({
       code: "custom",
