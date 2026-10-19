@@ -45,9 +45,11 @@ export function finalizeCohortReadiness(options: {
   if (seedOutcomes.evidenceManifestHash !== sha256(canonicalJson(manifest))) {
     throw new Error("seed outcomes do not match the evidence manifest");
   }
-  const manifestIds = new Set(manifest.entries.map(({ artifactId }) => artifactId));
-  if (seedOutcomes.artifactIds.some((artifactId) => !manifestIds.has(artifactId))) {
-    throw new Error("seed outcomes refer to missing evidence entries");
+  const manifestEntries = new Map(manifest.entries.map((entry) => [entry.artifactId, entry]));
+  if (seedOutcomes.artifactIds.some((artifactId) =>
+    manifestEntries.get(artifactId)?.provenance?.scope !== "seed"
+  )) {
+    throw new Error("seed outcomes refer to missing or non-seed evidence entries");
   }
   const recorded = scorecard.gates.deletionClear
     ? new Set(seedOutcomes.artifactIds.map((artifactId) => artifactId.slice(5)))

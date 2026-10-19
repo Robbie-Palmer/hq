@@ -1,4 +1,3 @@
-import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -7,7 +6,7 @@ import { canonicalJson } from "writing-editor-domain/canonical-json";
 import { sha256 } from "writing-editor-domain/suggestions";
 import { z } from "zod";
 
-import { readJson, resetDirectory, writeJson } from "./files";
+import { ensureOutputDirectory, readJson, writeJson } from "./files";
 import {
   type ArtifactType,
   DatasetManifestSchema,
@@ -223,10 +222,8 @@ export function freezeCohort(options: FreezeCohortOptions): {
     params.cohort.requiredArtifactTypes,
   );
 
-  resetDirectory(options.output, options.outputRoot);
+  ensureOutputDirectory(options.output, options.outputRoot);
   writeJson(path.join(options.output, "cohort.json"), cohort);
-  writeJson(path.join(options.output, "readiness.json"), report);
-  fs.writeFileSync(path.join(options.output, "readiness.md"), readinessMarkdown(report));
   return { cohort, readiness: report };
 }
 

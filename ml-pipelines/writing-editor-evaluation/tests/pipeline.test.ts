@@ -12,7 +12,6 @@ import { fileAtRevision } from "../src/git-revisions";
 import {
   CorpusSourceManifestSchema,
   FrozenCohortSchema,
-  ReadinessSchema,
 } from "../src/schemas";
 
 const ARTIFACTS = [
@@ -348,7 +347,7 @@ describe("writing editor evaluation pipeline", () => {
     expect(report.outcomes).toEqual({ complete: true, recorded: 6, missingArtifactIds: [] });
   });
 
-  it("freezes stratified splits and reports missing decision evidence", () => {
+  it("freezes stratified splits without replacing finalized readiness", () => {
     const temporary = temporaryDirectory("writing-freeze-");
     const repository = path.join(temporary, "repository");
     const revisions = createRepository(repository);
@@ -364,6 +363,9 @@ describe("writing editor evaluation pipeline", () => {
       output: corpus,
       outputRoot: temporary,
     });
+    fs.mkdirSync(output, { recursive: true });
+    fs.writeFileSync(path.join(output, "readiness.json"), "finalized-json\n");
+    fs.writeFileSync(path.join(output, "readiness.md"), "finalized-markdown\n");
 
     const result = freezeCohort({
       datasetFile: path.join(corpus, "manifest.json"),
@@ -374,8 +376,8 @@ describe("writing editor evaluation pipeline", () => {
 
     expect(FrozenCohortSchema.parse(readJson(path.join(output, "cohort.json"))))
       .toEqual(result.cohort);
-    expect(ReadinessSchema.parse(readJson(path.join(output, "readiness.json"))))
-      .toEqual(result.readiness);
+    expect(fs.readFileSync(path.join(output, "readiness.json"), "utf8")).toBe("finalized-json\n");
+    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8")).toBe("finalized-markdown\n");
     expect(result.cohort.datasetId).toBe(dataset.datasetId);
     expect(result.cohort.entries).toHaveLength(6);
     for (const split of ["train", "validation", "holdout"] as const) {
@@ -396,9 +398,6 @@ describe("writing editor evaluation pipeline", () => {
       },
     });
     expect(result.readiness.outcomes.missingArtifactIds).toHaveLength(6);
-    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8"))
-      .toContain("Status: not ready");
-
     const repeated = freezeCohort({
       datasetFile: path.join(corpus, "manifest.json"),
       paramsFile,
@@ -452,8 +451,6 @@ describe("writing editor evaluation pipeline", () => {
       missingArtifactIds: [first.artifactId],
     });
     expect(result.readiness.ready).toBe(false);
-    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8"))
-      .toContain(`## Missing revision pairs\n\n- ${first.artifactId}`);
   });
 
   it("rejects split ratios that do not sum to one", () => {

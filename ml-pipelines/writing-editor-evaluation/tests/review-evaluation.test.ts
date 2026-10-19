@@ -97,6 +97,7 @@ function writeReviewEvidenceFixture(): string {
       sourceBeforeFile: "source-before.md",
       sourceAfterFile: "source-after.md",
       provenance: {
+        scope: "seed",
         sourceDatasetId: "fixture-dataset",
         sourceRevision: revision,
         producerRunId: "fixture-run",
@@ -303,6 +304,27 @@ describe("review evidence scorecard", () => {
       outcomes: { complete: true, recorded: 1 },
     });
     expect(fs.readFileSync(outputMarkdown, "utf8")).toContain("Status: ready");
+
+    const nonSeedManifest = structuredClone(manifest);
+    nonSeedManifest.entries[0].provenance.scope = "customer";
+    fs.writeFileSync(manifestFile, JSON.stringify(nonSeedManifest));
+    fs.writeFileSync(outcomesFile, JSON.stringify({
+      schemaVersion: 1,
+      recordType: "writing-editor-seed-outcomes",
+      cohortId,
+      artifactIds: ["seed-fixture-adr"],
+      evidenceManifestHash: sha256(canonicalJson(nonSeedManifest)),
+    }));
+    expect(() => finalizeCohortReadiness({
+      cohortFile,
+      paramsFile,
+      evidenceManifestFile: manifestFile,
+      evidenceRoot,
+      seedOutcomesFile: outcomesFile,
+      evaluationParamsFile: path.join(projectRoot, "evaluation-params.json"),
+      outputJson,
+      outputMarkdown,
+    })).toThrow("seed outcomes refer to missing or non-seed evidence entries");
   });
 
   it.each([

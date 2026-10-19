@@ -44,7 +44,21 @@ export const CurrentContentManifestSchema = z.object({
   ]),
   entries: z.array(CurrentContentEntrySchema).min(1),
   calibrationArtifactIds: z.array(z.string()).min(1),
-}).strict();
+}).strict().superRefine((manifest, context) => {
+  const firstPathByArtifactId = new Map<string, string>();
+  manifest.entries.forEach((entry, index) => {
+    const firstPath = firstPathByArtifactId.get(entry.artifactId);
+    if (firstPath !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message: `artifact ID ${entry.artifactId} collides between ${firstPath} and ${entry.path}`,
+        path: ["entries", index, "artifactId"],
+      });
+      return;
+    }
+    firstPathByArtifactId.set(entry.artifactId, entry.path);
+  });
+});
 
 const CliOptionsSchema = z.object({
   repository: z.string().trim().min(1),

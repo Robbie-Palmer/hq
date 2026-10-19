@@ -23,6 +23,7 @@ const GovernanceSchema = z.object({
   retentionPolicy: z.string().trim().min(1),
   deletionStatus: z.literal("active"),
 }).strict();
+const ArtifactIdSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 
 const ReviewDecisionConfigSchema = z.object({
   schemaVersion: z.literal(1),
@@ -35,12 +36,13 @@ const ReviewDecisionConfigSchema = z.object({
     splitSeed: z.string().trim().min(1),
   }).strict(),
   governance: GovernanceSchema,
+  targetRenames: z.record(ArtifactIdSchema, ArtifactIdSchema).default({}),
   deletionRequests: z.array(z.object({
-    artifactId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    artifactId: ArtifactIdSchema,
     requestedAt: z.iso.datetime({ offset: true }),
   }).strict()).default([]),
   deletedArtifacts: z.array(z.object({
-    artifactId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    artifactId: ArtifactIdSchema,
     requestedAt: z.iso.datetime({ offset: true }),
     deletedAt: z.iso.datetime({ offset: true }),
   }).strict()).default([]),
@@ -188,9 +190,10 @@ function readReviewTarget(options: {
   input: ReviewInput;
   cohortEntry: CohortEntry;
   targetEntries: Map<string, ContentEntry> | undefined;
+  targetArtifactId: string;
   evidenceId: string;
 }): string {
-  const targetEntry = options.targetEntries?.get(options.cohortEntry.artifactId);
+  const targetEntry = options.targetEntries?.get(options.targetArtifactId);
   if (options.targetEntries && !targetEntry) {
     throw new Error(`target corpus is missing ${options.evidenceId}`);
   }
@@ -219,6 +222,7 @@ function writeEvidenceArtifact(options: {
   cohortEntry: CohortEntry;
   artifact: RunArtifact;
   targetEntries: Map<string, ContentEntry> | undefined;
+  targetArtifactId: string;
   evidenceId: string;
 }): void {
   const { config, input, cohortEntry, artifact, evidenceId } = options;
@@ -227,6 +231,7 @@ function writeEvidenceArtifact(options: {
     input,
     cohortEntry,
     targetEntries: options.targetEntries,
+    targetArtifactId: options.targetArtifactId,
     evidenceId,
   });
   const records = prepareReviewRecords({
@@ -273,6 +278,7 @@ function writeEvidenceArtifact(options: {
     sourceBeforeFile,
     sourceAfterFile,
     provenance: {
+      scope: input.scope,
       sourceDatasetId: options.cohort.datasetId,
       sourceRevision: cohortEntry.source.revision,
       producerRunId: options.runId,
@@ -289,6 +295,28 @@ function writeEvidenceArtifact(options: {
   });
 }
 
+function runArtifact(
+  input: ReviewInput,
+  artifacts: ReadonlyMap<string, RunArtifact>,
+  cohortEntry: CohortEntry,
+): RunArtifact {
+  const artifact = artifacts.get(cohortEntry.artifactId);
+  if (!artifact) throw new Error(`${input.scope} run is missing ${cohortEntry.artifactId}`);
+  return artifact;
+}
+
+function validateBaselineRevision(
+  input: ReviewInput,
+  config: ReviewDecisionConfig,
+  cohortEntry: CohortEntry,
+): void {
+  if (input.scope !== "seed" && cohortEntry.source.revision !== config.baselineRevision) {
+    throw new Error(
+      `${input.scope} source revision does not match the decision baseline for ${cohortEntry.artifactId}`,
+    );
+  }
+}
+
 function recordInputEvidence(options: {
   config: ReviewDecisionConfig;
   input: ReviewInput;
@@ -297,6 +325,7 @@ function recordInputEvidence(options: {
   seedArtifactIds: string[];
   deletionRequests: Map<string, ReviewDecisionConfig["deletionRequests"][number]>;
   deletedArtifactIds: Set<string>;
+  candidateIds: Set<string>;
 }): void {
   const { config, input } = options;
   const cohort = FrozenCohortSchema.parse(readJson(input.cohortFile));
@@ -310,12 +339,16 @@ function recordInputEvidence(options: {
     : undefined;
 
   for (const cohortEntry of cohort.entries) {
-    const artifact = artifacts.get(cohortEntry.artifactId);
-    if (!artifact) throw new Error(`${input.scope} run is missing ${cohortEntry.artifactId}`);
+    const artifact = runArtifact(input, artifacts, cohortEntry);
+    validateBaselineRevision(input, config, cohortEntry);
     if (input.scope !== "seed" && artifact.proposals.length === 0) continue;
     const evidenceId = `${input.scope}-${cohortEntry.artifactId}`;
+    options.candidateIds.add(evidenceId);
     if (options.deletedArtifactIds.has(evidenceId)) continue;
     if (input.scope === "seed") options.seedArtifactIds.push(evidenceId);
+    const targetArtifactId = input.scope === "seed"
+      ? cohortEntry.artifactId
+      : config.targetRenames[cohortEntry.artifactId] ?? cohortEntry.artifactId;
     writeEvidenceArtifact({
       config,
       input,
@@ -327,6 +360,7 @@ function recordInputEvidence(options: {
       cohortEntry,
       artifact,
       targetEntries,
+      targetArtifactId,
       evidenceId,
     });
   }
@@ -348,6 +382,7 @@ export function recordGectorDecisions(options: {
   const deletedArtifactIds = new Set(
     config.deletedArtifacts.map(({ artifactId }) => artifactId),
   );
+  const candidateIds = new Set<string>();
 
   for (const input of options.inputs) {
     recordInputEvidence({
@@ -358,7 +393,17 @@ export function recordGectorDecisions(options: {
       seedArtifactIds,
       deletionRequests,
       deletedArtifactIds,
+      candidateIds,
     });
+  }
+  const unmatchedDeletionIds = [...new Set([
+    ...deletionRequests.keys(),
+    ...deletedArtifactIds,
+  ])].filter((artifactId) => !candidateIds.has(artifactId)).sort();
+  if (unmatchedDeletionIds.length > 0) {
+    throw new Error(
+      `deletion entries match no evidence artifact: ${unmatchedDeletionIds.join(", ")}`,
+    );
   }
   const manifestBody = {
     schemaVersion: 1,

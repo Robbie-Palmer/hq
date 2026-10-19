@@ -15,6 +15,7 @@
     "retentionPolicy": "Retain in the private writing-evaluation DVC remote; remove on repository-owner request.",
     "deletionStatus": "active"
   },
+  "targetRenames": {},
   "deletionRequests": [],
   "deletedArtifacts": []
 }

@@ -127,7 +127,7 @@ all four. A source change that crosses a proposal boundary is rejected rather
 than treated as an inferred editorial outcome. Vale findings remain detection
 coverage and never become invented proposal decisions.
 
-The broad pilot records 411 proposal outcomes: 89 accepted, 9 changed, and 313
+The broad pilot records 411 proposal outcomes: 87 accepted, 9 changed, and 315
 rejected. The frozen seed contributes 81 explicitly rejected GECToR proposals;
 its published revisions did not contain the model's exact changes. The current
 customer and developer corpora contribute the accepted and changed examples.
@@ -143,12 +143,17 @@ artifact, with source hashes, revisions, producer IDs, and evidence hashes.
 Thresholds live in `evaluation-params.json`; every gate must pass before the
 recommendation can change from `keep-opt-in` to `adopt-default`. This pilot
 stays `keep-opt-in`: review duration was not measured, quality preservation was
-not independently assessed, and useful yield was 23.8%.
+not independently assessed, and useful yield was 23.4%.
 
 The repository pilot and future private cohorts live in the project's DVC data
 area. Git tracks only their DVC pointers. Each evidence manifest records its
 classification, consent, retention, and deletion status. A deletion request
 blocks adoption even when the numerical thresholds pass.
+
+If a reviewed file moves after the pinned baseline, map its baseline artifact
+ID to the current artifact ID in `targetRenames` in
+`review-decision-config.json`. The recorder resolves that map before reading
+the reviewed target while keeping the baseline ID in the evidence record.
 
 To honour a deletion request, first add the evidence artifact ID and request
 time to `deletionRequests` in `review-decision-config.json`. Reproduce the

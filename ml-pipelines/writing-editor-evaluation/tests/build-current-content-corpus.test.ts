@@ -5,7 +5,10 @@ import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { buildCurrentContentCorpus } from "../src/build-current-content-corpus";
+import {
+  buildCurrentContentCorpus,
+  CurrentContentManifestSchema,
+} from "../src/build-current-content-corpus";
 
 const temporaryDirectories = new Set<string>();
 const paramsFile = path.resolve(import.meta.dirname, "../current-content-params-strict.json");
@@ -34,6 +37,41 @@ function git(repository: string, ...args: string[]): string {
 }
 
 describe("current content corpus", () => {
+  it("rejects artifact ID collisions with both source paths", () => {
+    const result = CurrentContentManifestSchema.safeParse({
+      schemaVersion: 1,
+      recordType: "writing-editor-current-content-corpus",
+      audience: "developer",
+      datasetId: `dataset:v1:${"a".repeat(64)}`,
+      revision: "b".repeat(40),
+      entries: [
+        {
+          artifactId: "developer-doc-docs-foo-bar",
+          kind: "developer-doc",
+          path: "docs/foo-bar.md",
+          file: "artifacts/one/source.md",
+          contentHash: `sha256:${"c".repeat(64)}`,
+          bytes: 1,
+        },
+        {
+          artifactId: "developer-doc-docs-foo-bar",
+          kind: "developer-doc",
+          path: "docs/foo_bar.md",
+          file: "artifacts/two/source.md",
+          contentHash: `sha256:${"d".repeat(64)}`,
+          bytes: 1,
+        },
+      ],
+      calibrationArtifactIds: ["developer-doc-docs-foo-bar"],
+    });
+
+    expect(result.success).toBe(false);
+    if (result.success) throw new Error("expected duplicate artifact IDs to fail");
+    expect(result.error.issues[0]?.message).toContain(
+      "artifact ID developer-doc-docs-foo-bar collides between docs/foo-bar.md and docs/foo_bar.md",
+    );
+  });
+
   it("captures public and developer Markdown from a worktree or pinned commit", () => {
     const temporary = temporaryDirectory();
     const repository = path.join(temporary, "repository");

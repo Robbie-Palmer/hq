@@ -222,7 +222,7 @@ describe("GECToR producer", () => {
     fs.mkdirSync(path.join(targetRoot, "artifacts/example"), { recursive: true });
     fs.writeFileSync(path.join(targetRoot, "artifacts/example/source.md"), "Café is useful.\n");
     const decisionConfig = path.join(temporary, "decision-config.json");
-    writeJson(decisionConfig, {
+    const decisionConfigBody = {
       schemaVersion: 1,
       baselineRevision: "a".repeat(40),
       review: {
@@ -239,9 +239,11 @@ describe("GECToR producer", () => {
         retentionPolicy: "Delete after test",
         deletionStatus: "active",
       },
+      targetRenames: {},
       deletionRequests: [],
       deletedArtifacts: [],
-    });
+    };
+    writeJson(decisionConfig, decisionConfigBody);
     const evidenceOutput = path.join(temporary, "evidence");
     recordGectorDecisions({
       configFile: decisionConfig,
@@ -260,6 +262,103 @@ describe("GECToR producer", () => {
     expect(decisions[0].outcome).toBe("accepted");
     expect(JSON.parse(fs.readFileSync(path.join(evidenceOutput, "seed-outcomes.json"), "utf8")))
       .toMatchObject({ artifactIds: ["seed-example"] });
+    const evidenceManifest = JSON.parse(
+      fs.readFileSync(path.join(evidenceOutput, "manifest.json"), "utf8"),
+    );
+    expect(evidenceManifest.entries.map((entry: { provenance: { scope: string } }) =>
+      entry.provenance.scope
+    )).toEqual(["seed", "developer"]);
+
+    const renamedTargetManifest = JSON.parse(
+      fs.readFileSync(path.join(targetRoot, "manifest.json"), "utf8"),
+    );
+    renamedTargetManifest.entries[0].artifactId = "renamed-example";
+    renamedTargetManifest.calibrationArtifactIds = ["renamed-example"];
+    writeJson(path.join(targetRoot, "manifest.json"), renamedTargetManifest);
+    writeJson(decisionConfig, {
+      ...decisionConfigBody,
+      targetRenames: { example: "renamed-example" },
+    });
+    const renamedEvidenceOutput = path.join(temporary, "renamed-evidence");
+    recordGectorDecisions({
+      configFile: decisionConfig,
+      inputs: [
+        { scope: "seed", cohortFile, corpusRoot, runFile: path.join(outputDirectory, "run.json") },
+        {
+          scope: "developer",
+          cohortFile,
+          corpusRoot,
+          runFile: path.join(outputDirectory, "run.json"),
+          targetRoot,
+        },
+      ],
+      output: renamedEvidenceOutput,
+      outputRoot: temporary,
+    });
+    expect(fs.existsSync(
+      path.join(renamedEvidenceOutput, "artifacts/developer-example/decisions.jsonl"),
+    )).toBe(true);
+
+    writeJson(decisionConfig, {
+      ...decisionConfigBody,
+      targetRenames: { example: "renamed-example" },
+      deletionRequests: [{
+        artifactId: "developer-missing",
+        requestedAt: "2026-10-18T00:00:00.000Z",
+      }],
+    });
+    expect(() => recordGectorDecisions({
+      configFile: decisionConfig,
+      inputs: [
+        { scope: "seed", cohortFile, corpusRoot, runFile: path.join(outputDirectory, "run.json") },
+        {
+          scope: "developer",
+          cohortFile,
+          corpusRoot,
+          runFile: path.join(outputDirectory, "run.json"),
+          targetRoot,
+        },
+      ],
+      output: path.join(temporary, "unknown-deletion-evidence"),
+      outputRoot: temporary,
+    })).toThrow("deletion entries match no evidence artifact: developer-missing");
+
+    const noProposalsRun = structuredClone(result);
+    const noProposalsArtifact = noProposalsRun.artifacts[0];
+    if (!noProposalsArtifact) throw new Error("fixture run has no artifact");
+    noProposalsArtifact.suggestionIds = [];
+    noProposalsArtifact.suggestions = [];
+    noProposalsArtifact.proposalIds = [];
+    noProposalsArtifact.proposals = [];
+    noProposalsRun.summary = {
+      artifacts: 1,
+      artifactsWithSuggestions: 0,
+      suggestions: 0,
+      proposals: 0,
+    };
+    const noProposalsRunFile = path.join(temporary, "no-proposals-run.json");
+    writeJson(noProposalsRunFile, noProposalsRun);
+    expect(GectorProducerRunSchema.parse(noProposalsRun)).toEqual(noProposalsRun);
+    writeJson(decisionConfig, {
+      ...decisionConfigBody,
+      baselineRevision: "b".repeat(40),
+      targetRenames: { example: "renamed-example" },
+    });
+    expect(() => recordGectorDecisions({
+      configFile: decisionConfig,
+      inputs: [
+        { scope: "seed", cohortFile, corpusRoot, runFile: path.join(outputDirectory, "run.json") },
+        {
+          scope: "developer",
+          cohortFile,
+          corpusRoot,
+          runFile: noProposalsRunFile,
+          targetRoot,
+        },
+      ],
+      output: path.join(temporary, "wrong-baseline-evidence"),
+      outputRoot: temporary,
+    })).toThrow("developer source revision does not match the decision baseline for example");
 
     expect(runGector(options).runId).toBe(result.runId);
     fs.mkdirSync(`${outputDirectory}.backup`);

@@ -56,6 +56,7 @@ const ReviewEvidenceEntrySchema = z.object({
   sourceBeforeFile: EvidencePathSchema.optional(),
   sourceAfterFile: EvidencePathSchema.optional(),
   provenance: z.object({
+    scope: z.enum(["seed", "customer", "developer"]),
     sourceDatasetId: z.string().trim().min(1),
     sourceRevision: z.string().trim().min(1),
     producerRunId: z.string().trim().min(1),
