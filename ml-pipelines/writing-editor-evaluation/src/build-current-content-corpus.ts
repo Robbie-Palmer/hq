@@ -61,6 +61,8 @@ interface SelectedFile {
   absolutePath?: string;
 }
 
+const gitExecutable = "/usr/bin/git";
+
 function compareAscending(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -83,12 +85,16 @@ function pathId(value: string): string {
 }
 
 function classifyPublic(relativePath: string): ContentKind | undefined {
-  if (/^blog\/[^/]+\.mdx$/u.test(relativePath)) return "blog";
-  if (/^ideas\/[^/]+\.mdx$/u.test(relativePath)) return "idea";
-  if (/^initiatives\/[^/]+\.mdx$/u.test(relativePath)) return "initiative";
-  const project = /^projects\/[^/]+\/(index|pitch)\.mdx$/u.exec(relativePath);
-  if (project?.[1] === "index") return "project-page";
-  if (project?.[1] === "pitch") return "pitch";
+  const parts = relativePath.split("/");
+  if (parts.length === 2 && parts[1]?.endsWith(".mdx")) {
+    if (parts[0] === "blog") return "blog";
+    if (parts[0] === "ideas") return "idea";
+    if (parts[0] === "initiatives") return "initiative";
+  }
+  if (parts.length === 3 && parts[0] === "projects") {
+    if (parts[2] === "index.mdx") return "project-page";
+    if (parts[2] === "pitch.mdx") return "pitch";
+  }
   return undefined;
 }
 
@@ -106,7 +112,7 @@ function trackedMarkdown(repository: string, revision?: string): string[] {
   const args = revision
     ? ["ls-tree", "-r", "--name-only", revision]
     : ["ls-files", "*.md", "*.mdx"];
-  return execFileSync("git", args, { cwd: repository, encoding: "utf8" })
+  return execFileSync(gitExecutable, args, { cwd: repository, encoding: "utf8" })
     .trim().split("\n").filter((file) => /\.mdx?$/u.test(file)).sort(compareAscending);
 }
 
@@ -168,9 +174,8 @@ function selectedFiles(
   audience: ContentAudience,
   revision?: string,
 ): SelectedFile[] {
-  return audience === "customer"
-    ? selectedPublicFiles(repository, revision)
-    : selectedDeveloperFiles(repository, revision);
+  if (audience === "customer") return selectedPublicFiles(repository, revision);
+  return selectedDeveloperFiles(repository, revision);
 }
 
 function readSelectedContent(
@@ -179,7 +184,7 @@ function readSelectedContent(
   file: SelectedFile,
 ): string {
   if (revision) {
-    return execFileSync("git", ["show", `${revision}:${file.path}`], {
+    return execFileSync(gitExecutable, ["show", `${revision}:${file.path}`], {
       cwd: repository,
       encoding: "utf8",
       maxBuffer: 16 * 1024 * 1024,
@@ -260,7 +265,7 @@ export function buildCurrentContentCorpus(options: {
     JSON.parse(fs.readFileSync(options.paramsFile, "utf8")),
   );
   const revision = options.revision
-    ? execFileSync("git", ["rev-parse", `${options.revision}^{commit}`], {
+    ? execFileSync(gitExecutable, ["rev-parse", `${options.revision}^{commit}`], {
       cwd: repository,
       encoding: "utf8",
     }).trim()

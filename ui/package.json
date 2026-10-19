@@ -20,7 +20,7 @@
     "test:integration": "vitest run --no-file-parallelism tests/integration",
     "test:watch": "vitest --exclude 'tests/integration/**'",
     "lint": "biome check && oxlint",
-    "lint:design": "oxlint",
+    "lint:design": "oxlint --no-error-on-unmatched-pattern",
     "format": "biome check --write --no-errors-on-unmatched",
     "format:check": "biome check",
     "typecheck": "tsc --noEmit",

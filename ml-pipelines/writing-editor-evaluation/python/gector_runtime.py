@@ -1089,6 +1089,24 @@ def write_cohort_result(result: RawRun) -> None:
         output.write(serialized_result(result))
 
 
+def write_selected_result(result: RawRun, mode: str, output: str | None) -> None:
+    if mode == "runtime-smoke":
+        if result.artifacts != (RUNTIME_SMOKE.expected,):
+            msg = "smoke output does not match the pinned expected correction"
+            raise RuntimeError(msg)
+        write_runtime_smoke_result(result)
+        return
+    if mode == "adapter-smoke":
+        write_adapter_smoke_result(result)
+        return
+    if output is None:
+        write_cohort_result(result)
+        return
+    output_file = project_path(Path(output))
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(serialized_result(result), encoding="utf-8", newline="\n")
+
+
 def run(
     mode: str,
     cohort: str | None = None,
@@ -1118,20 +1136,7 @@ def run(
         read_model(MODEL_MANIFEST, GectorModelManifest),
         read_model(params_file, PipelineParameters).producers.gector,
     )
-    if validated_mode == "runtime-smoke":
-        if result.artifacts != (RUNTIME_SMOKE.expected,):
-            msg = "smoke output does not match the pinned expected correction"
-            raise RuntimeError(msg)
-        write_runtime_smoke_result(result)
-    elif validated_mode == "adapter-smoke":
-        write_adapter_smoke_result(result)
-    else:
-        if output is None:
-            write_cohort_result(result)
-        else:
-            output_file = project_path(Path(output))
-            output_file.parent.mkdir(parents=True, exist_ok=True)
-            output_file.write_text(serialized_result(result), encoding="utf-8", newline="\n")
+    write_selected_result(result, validated_mode, output)
     print(f"Ran GECToR over {len(result.artifacts)} artifact(s) on CUDA")
 
 

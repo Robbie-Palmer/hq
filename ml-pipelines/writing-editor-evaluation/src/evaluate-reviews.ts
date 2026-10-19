@@ -185,6 +185,15 @@ export const ReviewScorecardSchema = z.object({
 }).strict();
 export type ReviewScorecard = z.infer<typeof ReviewScorecardSchema>;
 
+function readOptionalEvidence(
+  evidenceRoot: string,
+  file: string | undefined,
+  label: string,
+): string | undefined {
+  if (file === undefined) return undefined;
+  return fs.readFileSync(resolveContainedFile(evidenceRoot, file, label), "utf8");
+}
+
 export function evaluateReviews(options: {
   manifestFile: string;
   evidenceRoot: string;
@@ -208,20 +217,16 @@ export function evaluateReviews(options: {
     const decisions = decisionsText.split("\n")
       .filter((line) => line.trim().length > 0)
       .map((line) => DecisionSchema.parse(JSON.parse(line)));
-    const sourceBefore = entry.sourceBeforeFile
-      ? fs.readFileSync(resolveContainedFile(
-        options.evidenceRoot,
-        entry.sourceBeforeFile,
-        `${entry.artifactId} source before review`,
-      ), "utf8")
-      : undefined;
-    const sourceAfter = entry.sourceAfterFile
-      ? fs.readFileSync(resolveContainedFile(
-        options.evidenceRoot,
-        entry.sourceAfterFile,
-        `${entry.artifactId} source after review`,
-      ), "utf8")
-      : undefined;
+    const sourceBefore = readOptionalEvidence(
+      options.evidenceRoot,
+      entry.sourceBeforeFile,
+      `${entry.artifactId} source before review`,
+    );
+    const sourceAfter = readOptionalEvidence(
+      options.evidenceRoot,
+      entry.sourceAfterFile,
+      `${entry.artifactId} source after review`,
+    );
     if (sourceBefore !== undefined) prepareReviewRecords(records, sourceBefore);
     validateRecordedDecisions(decisions, records.proposals);
     if (decisions.length !== records.proposals.length) {

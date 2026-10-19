@@ -74,7 +74,8 @@ export function createReport(
   full: GectorProducerRun,
 ) {
   const entryByPath = new Map(manifest.entries.map((entry) => [entry.path, entry]));
-  const kinds = [...new Set(manifest.entries.map(({ kind }) => kind))].sort();
+  const kinds = [...new Set(manifest.entries.map(({ kind }) => kind))]
+    .sort((left, right) => left.localeCompare(right));
   const byKind = Object.fromEntries(kinds.map((kind) => {
     const entries = manifest.entries.filter((entry) => entry.kind === kind);
     const artifacts = full.artifacts.filter((artifact) => entryByPath.get(artifact.source.documentId)?.kind === kind);
