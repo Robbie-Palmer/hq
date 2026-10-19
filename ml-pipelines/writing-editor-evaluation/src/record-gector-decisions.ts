@@ -399,7 +399,9 @@ export function recordGectorDecisions(options: {
   const unmatchedDeletionIds = [...new Set([
     ...deletionRequests.keys(),
     ...deletedArtifactIds,
-  ])].filter((artifactId) => !candidateIds.has(artifactId)).sort();
+  ])]
+    .filter((artifactId) => !candidateIds.has(artifactId))
+    .sort((left, right) => left.localeCompare(right));
   if (unmatchedDeletionIds.length > 0) {
     throw new Error(
       `deletion entries match no evidence artifact: ${unmatchedDeletionIds.join(", ")}`,
