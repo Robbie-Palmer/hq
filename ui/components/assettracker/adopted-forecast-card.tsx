@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   type ChartConfig,
@@ -23,12 +24,23 @@ import {
 import { Input } from "@/components/ui/input";
 import { formatCurrency, formatCurrencyAxisTick } from "@/lib/assettracker";
 import type {
+  AdoptedActionReconciliation,
   AdoptedDecisionForecastRecord,
   AdoptedForecastReconciliation,
   AdoptedForecastVarianceSource,
   Currency,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+
+function formatDate(value: string): string {
+  const date = value.length === 10 ? `${value}T00:00:00Z` : value;
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(date));
+}
 
 function SourceSnapshot({
   forecast,
@@ -42,11 +54,9 @@ function SourceSnapshot({
     0,
   );
   return (
-    <details className="rounded-md border p-3">
-      <summary className="cursor-pointer text-sm font-medium">
-        Frozen forecast sources
-      </summary>
-      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+    <section>
+      <h4 className="text-sm font-semibold">Frozen forecast sources</h4>
+      <dl className="mt-2 grid gap-3 rounded-md border p-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="text-xs text-muted-foreground">Planning cases</dt>
           <dd>
@@ -86,7 +96,7 @@ function SourceSnapshot({
           <dd>{forecast.calculationVersion}</dd>
         </div>
       </dl>
-    </details>
+    </section>
   );
 }
 
@@ -95,23 +105,29 @@ function ActionTimeline({
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
   return (
     <section>
-      <h3 className="text-sm font-semibold">Live actions</h3>
-      <ul className="mt-2 divide-y rounded-md border text-sm">
-        {forecast.actions.map((action) => (
-          <li
-            key={action.id}
-            className="flex flex-wrap items-center justify-between gap-2 p-3"
-          >
-            <span>
-              {action.date} · {action.kind} · {action.name}
-              {action.cadence === "monthly" ? " · monthly" : ""}
-            </span>
-            <span className="font-mono">
-              {formatCurrency(Math.round(action.amount), action.currency)}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <h4 className="text-sm font-semibold">Full action schedule</h4>
+      {forecast.actions.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          No actions were adopted.
+        </p>
+      ) : (
+        <ul className="mt-2 divide-y rounded-md border text-sm">
+          {forecast.actions.map((action) => (
+            <li
+              key={action.id}
+              className="flex flex-wrap items-center justify-between gap-2 p-3"
+            >
+              <span>
+                {action.date} · {action.kind} · {action.name}
+                {action.cadence === "monthly" ? " · monthly" : ""}
+              </span>
+              <span className="font-mono">
+                {formatCurrency(Math.round(action.amount), action.currency)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
@@ -120,8 +136,8 @@ const varianceLabels: Record<AdoptedForecastVarianceSource["kind"], string> = {
   "changed-amount": "Changed amount",
   "changed-timing": "Changed timing",
   "household-cash-flow": "Household cash flow",
-  "market-or-currency": "Market or currency movement",
-  unexplained: "Unexplained balance change",
+  "market-or-currency": "Market or currency",
+  unexplained: "Unexplained",
   "revised-assumption": "Revised assumption",
 };
 
@@ -131,7 +147,7 @@ const balanceChartConfig = {
 } satisfies ChartConfig;
 
 const varianceChartConfig = {
-  amount: { label: "Variance amount" },
+  amount: { label: "Change" },
 } satisfies ChartConfig;
 
 const varianceColors: Record<AdoptedForecastVarianceSource["kind"], string> = {
@@ -205,29 +221,6 @@ function BalanceChartPlot({
   );
 }
 
-function BalanceValues({
-  data,
-  currency,
-}: Readonly<{
-  data: readonly BalanceChartDatum[];
-  currency: Currency;
-}>) {
-  return (
-    <div className="sr-only">
-      <h5>Adopted and observed account balances</h5>
-      <ul>
-        {data.map((row) => (
-          <li key={`${row.label}-${row.checkpointDate}`}>
-            {row.label}, checkpoint {row.checkpointDate}: adopted{" "}
-            {formatCurrency(row.expected, currency)}, observed{" "}
-            {formatCurrency(row.observed, currency)}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function BalanceComparisonChart({
   reconciliation,
   currency,
@@ -249,17 +242,23 @@ function BalanceComparisonChart({
   );
   if (data.length === 0) return null;
   return (
-    <div className="space-y-2 rounded-md border p-3">
-      <div>
-        <h4 className="text-sm font-medium">Balances against forecast</h4>
-        <p className="text-xs text-muted-foreground">
-          Adopted checkpoint balances beside the first observation on or after
-          each checkpoint.
-        </p>
+    <section className="space-y-2">
+      <h4 className="text-sm font-semibold">Account balance comparison</h4>
+      <div className="rounded-md border p-3">
+        <BalanceChartPlot data={data} currency={currency} />
+        <div className="sr-only">
+          <ul>
+            {data.map((row) => (
+              <li key={`${row.label}-${row.checkpointDate}`}>
+                {row.label}, checkpoint {row.checkpointDate}: adopted{" "}
+                {formatCurrency(row.expected, currency)}, observed{" "}
+                {formatCurrency(row.observed, currency)}
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
-      <BalanceChartPlot data={data} currency={currency} />
-      <BalanceValues data={data} currency={currency} />
-    </div>
+    </section>
   );
 }
 
@@ -270,19 +269,6 @@ type VarianceChartDatum = {
   kind: AdoptedForecastVarianceSource["kind"];
 };
 
-function wrapAxisLabel(label: string, lineLength = 24): string[] {
-  const lines: string[] = [];
-  for (const word of label.split(" ")) {
-    const current = lines.at(-1);
-    if (current == null || `${current} ${word}`.length > lineLength) {
-      lines.push(word);
-    } else {
-      lines[lines.length - 1] = `${current} ${word}`;
-    }
-  }
-  return lines;
-}
-
 function VarianceAxisTick({
   x = 0,
   y = 0,
@@ -292,15 +278,14 @@ function VarianceAxisTick({
   y?: number;
   payload?: { value?: string };
 }>) {
-  const lines = wrapAxisLabel(payload?.value ?? "");
-  const firstLineOffset = -((lines.length - 1) * 0.55);
+  const lines = (payload?.value ?? "").split(" · ");
   return (
     <text x={x - 6} y={y} fill="currentColor" fontSize={10} textAnchor="end">
       {lines.map((line, index) => (
         <tspan
           key={`${index}-${line}`}
           x={x - 6}
-          dy={index === 0 ? `${firstLineOffset}em` : "1.1em"}
+          dy={index === 0 ? "-0.2em" : "1.1em"}
         >
           {line}
         </tspan>
@@ -317,12 +302,12 @@ function VarianceChartPlot({
   currency: Currency;
 }>) {
   return (
-    <div style={{ height: Math.max(220, data.length * 72 + 48) }}>
+    <div style={{ height: Math.max(190, data.length * 54 + 44) }}>
       <ChartContainer
         config={varianceChartConfig}
         className="aspect-auto h-full w-full"
         role="img"
-        aria-label="Monetary variance sources"
+        aria-label="Largest forecast changes"
       >
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
@@ -342,7 +327,7 @@ function VarianceChartPlot({
               type="category"
               dataKey="label"
               tick={<VarianceAxisTick />}
-              width={156}
+              width={124}
             />
             <ReferenceLine x={0} className="stroke-muted-foreground" />
             <ChartTooltip
@@ -361,97 +346,281 @@ function VarianceChartPlot({
   );
 }
 
-function VarianceAttributionChart({
+function measuredSources(
+  sources: readonly AdoptedForecastVarianceSource[],
+): AdoptedForecastVarianceSource[] {
+  return sources
+    .filter(
+      (source): source is AdoptedForecastVarianceSource & { amount: number } =>
+        source.amount != null,
+    )
+    .toSorted((left, right) => Math.abs(right.amount) - Math.abs(left.amount));
+}
+
+function PrimaryVarianceChart({
   sources,
   currency,
 }: Readonly<{
   sources: readonly AdoptedForecastVarianceSource[];
   currency: Currency;
 }>) {
-  const data = sources.flatMap((source, index) =>
-    source.amount == null
-      ? []
-      : [
-          {
-            id: `${source.kind}-${index}`,
-            label: `${varianceLabels[source.kind]}: ${source.label}`,
-            amount: source.amount,
-            kind: source.kind,
-          },
-        ],
-  );
+  const data = measuredSources(sources)
+    .slice(0, 5)
+    .map((source, index) => ({
+      id: `${source.kind}-${source.subject}-${index}`,
+      label: source.subject,
+      amount: source.amount ?? 0,
+      kind: source.kind,
+    }));
   if (data.length === 0) return null;
   return (
-    <div className="space-y-2 rounded-md border p-3">
-      <div>
-        <h4 className="text-sm font-medium">Measured variance</h4>
-        <p className="text-xs text-muted-foreground">
-          Monetary differences share one scale. Timing and assumption changes
-          stay in the notes below.
-        </p>
-      </div>
+    <section className="rounded-md border p-3">
+      <h3 className="text-sm font-semibold">What changed</h3>
       <VarianceChartPlot data={data} currency={currency} />
-    </div>
+    </section>
   );
 }
 
-function Reconciliation({
-  forecast,
-}: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
-  const { reconcileAdoptedForecast } = useAssetTracker();
-  const reconciliation = reconcileAdoptedForecast(forecast);
-  const observedActions = reconciliation.actions.filter(
-    ({ actualAmount }) => actualAmount != null,
+type ForecastPosition = {
+  checkpointDate: string;
+  observedAt: string;
+  expected: number;
+  observed: number;
+  observedCount: number;
+  accountCount: number;
+};
+
+function latestPosition(
+  reconciliation: AdoptedForecastReconciliation,
+): ForecastPosition | null {
+  const observed = reconciliation.balances.filter(
+    (balance) => balance.observedBalance != null,
   );
-  const observedBalances = reconciliation.balances.filter(
-    ({ observedBalance }) => observedBalance != null,
+  const checkpointDate = observed
+    .map(({ checkpointDate: date }) => date)
+    .toSorted()
+    .at(-1);
+  if (checkpointDate == null) return null;
+  const atCheckpoint = observed.filter(
+    (balance) => balance.checkpointDate === checkpointDate,
   );
-  const currency =
-    forecast.balanceCheckpoints[0]?.accounts[0]?.currency ?? "GBP";
+  const observedAt = atCheckpoint
+    .flatMap((balance) =>
+      balance.observedAt == null ? [] : [balance.observedAt],
+    )
+    .toSorted()
+    .at(-1);
+  if (observedAt == null) return null;
+  return {
+    checkpointDate,
+    observedAt,
+    expected: atCheckpoint.reduce(
+      (total, balance) => total + balance.expectedBalance,
+      0,
+    ),
+    observed: atCheckpoint.reduce(
+      (total, balance) => total + (balance.observedBalance ?? 0),
+      0,
+    ),
+    observedCount: atCheckpoint.length,
+    accountCount: reconciliation.balances.filter(
+      (balance) => balance.checkpointDate === checkpointDate,
+    ).length,
+  };
+}
+
+function forecastStatus(
+  reconciliation: AdoptedForecastReconciliation,
+  variance: number | null,
+) {
+  const needsReview =
+    (variance != null && variance < -0.01) ||
+    reconciliation.varianceSources.some(({ kind }) =>
+      ["unexplained", "revised-assumption"].includes(kind),
+    );
+  if (needsReview) {
+    return { label: "Needs review", variant: "destructive" as const };
+  }
+  if (reconciliation.varianceSources.length > 0) {
+    return { label: "Changed", variant: "secondary" as const };
+  }
+  if (variance == null) {
+    return { label: "Awaiting data", variant: "outline" as const };
+  }
+  return { label: "On track", variant: "outline" as const };
+}
+
+function forecastHeadline(
+  reconciliation: AdoptedForecastReconciliation,
+  variance: number | null,
+  currency: Currency,
+): string {
+  if (variance == null) {
+    return reconciliation.varianceSources.length > 0
+      ? `${reconciliation.varianceSources.length} changes to review`
+      : "Waiting for observations";
+  }
+  if (Math.abs(variance) < 0.01) return "On track";
+  return `${formatCurrency(Math.abs(Math.round(variance)), currency)} ${variance > 0 ? "above" : "below"} forecast`;
+}
+
+function SummaryStatus({
+  reconciliation,
+  currency,
+}: Readonly<{
+  reconciliation: AdoptedForecastReconciliation;
+  currency: Currency;
+}>) {
+  const position = latestPosition(reconciliation);
+  const variance =
+    position == null ? null : position.observed - position.expected;
+  const status = forecastStatus(reconciliation, variance);
+  const headline = forecastHeadline(reconciliation, variance, currency);
   return (
-    <section>
-      <h3 className="text-sm font-semibold">Forecast and actuals</h3>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {observedActions.length} cash-flow actions and {observedBalances.length}{" "}
-        balance observations now reconcile with the frozen forecast.
-      </p>
-      {reconciliation.varianceSources.length === 0 ? (
-        <p className="mt-2 rounded-md bg-muted/40 p-3 text-sm">
-          No material variance has been observed yet.
+    <section className="flex flex-wrap items-start justify-between gap-3 rounded-md bg-muted/40 p-4">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Latest position
         </p>
-      ) : (
-        <>
-          <div className="mt-3 grid gap-3 xl:grid-cols-2">
-            <BalanceComparisonChart
-              reconciliation={reconciliation}
-              currency={currency}
-            />
-            <VarianceAttributionChart
-              sources={reconciliation.varianceSources}
-              currency={currency}
-            />
-          </div>
-          <h4 className="mt-4 text-sm font-medium">Variance notes</h4>
-          <ul className="mt-2 space-y-2 text-sm">
-            {reconciliation.varianceSources.map((source, index) => (
-              <li
-                key={`${source.kind}-${source.label}-${index}`}
-                className="rounded-md bg-muted/40 p-3"
-              >
-                <span className="font-medium">
-                  {varianceLabels[source.kind]}
-                </span>
-                {`: ${source.label}`}
-                {source.amount == null
-                  ? ""
-                  : ` (${formatCurrency(Math.round(source.amount), currency)})`}
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
+        <p className="mt-1 text-2xl font-semibold tracking-tight">{headline}</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {position == null
+            ? "No balance observation yet"
+            : `Observed ${formatDate(position.observedAt)} · ${position.observedCount} of ${position.accountCount} balances`}
+        </p>
+      </div>
+      <Badge variant={status.variant}>{status.label}</Badge>
     </section>
   );
+}
+
+function formatDriverAmount(amount: number | null, currency: Currency): string {
+  if (amount == null) return "Non-monetary";
+  const sign = amount > 0 ? "+" : amount < 0 ? "−" : "";
+  return `${sign}${formatCurrency(Math.abs(Math.round(amount)), currency)}`;
+}
+
+function TopDrivers({
+  sources,
+  currency,
+}: Readonly<{
+  sources: readonly AdoptedForecastVarianceSource[];
+  currency: Currency;
+}>) {
+  const drivers = sources
+    .toSorted(
+      (left, right) => Math.abs(right.amount ?? 0) - Math.abs(left.amount ?? 0),
+    )
+    .slice(0, 3);
+  if (drivers.length === 0) return null;
+  return (
+    <section>
+      <h3 className="text-sm font-semibold">Biggest drivers</h3>
+      <ol className="mt-2 divide-y rounded-md border">
+        {drivers.map((source, index) => (
+          <li
+            key={`${source.kind}-${source.subject}-${index}`}
+            className="flex items-center justify-between gap-3 p-3 text-sm"
+          >
+            <div className="min-w-0">
+              <p className="truncate font-medium">{source.subject}</p>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="size-2 shrink-0 rounded-full"
+                  style={{ backgroundColor: varianceColors[source.kind] }}
+                />
+                {varianceLabels[source.kind]}
+              </p>
+            </div>
+            <span className="shrink-0 font-mono text-xs">
+              {formatDriverAmount(source.amount, currency)}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function actionExceptionLabel(
+  reconciliation: AdoptedActionReconciliation,
+): string {
+  const changes: string[] = [];
+  if (reconciliation.amountVariance != null) {
+    changes.push(
+      `${formatCurrency(Math.abs(Math.round(reconciliation.amountVariance)), reconciliation.action.currency)} ${reconciliation.amountVariance > 0 ? "higher" : "lower"}`,
+    );
+  }
+  if (reconciliation.timingVarianceDays != null) {
+    const dayLabel =
+      Math.abs(reconciliation.timingVarianceDays) === 1 ? "day" : "days";
+    changes.push(
+      `${Math.abs(reconciliation.timingVarianceDays)} ${dayLabel} ${reconciliation.timingVarianceDays > 0 ? "late" : "early"}`,
+    );
+  }
+  return changes.join(" · ");
+}
+
+function ActionExceptions({
+  actions,
+}: Readonly<{ actions: readonly AdoptedActionReconciliation[] }>) {
+  const exceptions = actions.filter(
+    (action) =>
+      (action.amountVariance != null &&
+        Math.abs(action.amountVariance) >= 0.01) ||
+      (action.timingVarianceDays != null && action.timingVarianceDays !== 0),
+  );
+  if (exceptions.length === 0) return null;
+  return (
+    <section>
+      <h3 className="text-sm font-semibold">Actions needing attention</h3>
+      <ul className="mt-2 divide-y rounded-md border text-sm">
+        {exceptions.map((action) => (
+          <li
+            key={action.action.id}
+            className="flex flex-wrap items-center justify-between gap-2 p-3"
+          >
+            <span className="font-medium">{action.action.name}</span>
+            <span className="text-xs text-muted-foreground">
+              {actionExceptionLabel(action)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function useRevisitForm(forecastId: string, decisionId: string) {
+  const { revisitAdoptedDecision } = useAssetTracker();
+  const [editing, setEditing] = useState(false);
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function submit(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await revisitAdoptedDecision({ forecastId, decisionId, reason });
+      setReason("");
+      setEditing(false);
+    } catch {
+      setError("This decision could not be reopened.");
+    } finally {
+      setSaving(false);
+    }
+  }
+  return {
+    editing,
+    setEditing,
+    reason,
+    setReason,
+    saving,
+    error,
+    submit,
+  };
 }
 
 function RevisitDecision({
@@ -463,70 +632,124 @@ function RevisitDecision({
   decisionId: string;
   decisionName: string;
 }>) {
-  const { revisitAdoptedDecision } = useAssetTracker();
-  const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  async function submit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      await revisitAdoptedDecision({ forecastId, decisionId, reason });
-      setReason("");
-    } catch {
-      setError("This decision could not be reopened.");
-    } finally {
-      setSaving(false);
-    }
+  const form = useRevisitForm(forecastId, decisionId);
+  if (!form.editing) {
+    return (
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => form.setEditing(true)}
+        aria-label={`Revisit decision: ${decisionName}`}
+      >
+        Revisit decision
+      </Button>
+    );
   }
   return (
-    <form className="grid gap-2 rounded-md border p-3" onSubmit={submit}>
+    <form className="grid gap-2 rounded-md border p-3" onSubmit={form.submit}>
       <label
         className="text-sm font-medium"
         htmlFor={`${forecastId}-${decisionId}`}
       >
-        {decisionName}
+        Why revisit {decisionName}?
       </label>
       <Input
         id={`${forecastId}-${decisionId}`}
         required
         placeholder="What changed?"
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
+        value={form.reason}
+        onChange={(event) => form.setReason(event.target.value)}
       />
-      {error != null && (
+      {form.error != null && (
         <p className="text-sm text-destructive" role="alert">
-          {error}
+          {form.error}
         </p>
       )}
-      <Button className="justify-self-start" disabled={saving} size="sm">
-        {saving ? "Reopening…" : "Revisit this decision"}
-      </Button>
+      <div className="flex gap-2">
+        <Button disabled={form.saving} size="sm">
+          {form.saving ? "Reopening…" : "Confirm revisit"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => form.setEditing(false)}
+        >
+          Cancel
+        </Button>
+      </div>
     </form>
   );
 }
 
-function Decisions({
+function DecisionControls({
+  forecast,
+}: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
+  if (forecast.selectedDecisions.length === 0) return null;
+  return (
+    <section className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
+      <p className="text-sm text-muted-foreground">
+        {forecast.selectedDecisions.map(({ name }) => name).join(", ")}
+      </p>
+      {forecast.selectedDecisions.map((decision) => (
+        <RevisitDecision
+          key={decision.id}
+          decisionId={decision.id}
+          decisionName={decision.name}
+          forecastId={forecast.id}
+        />
+      ))}
+    </section>
+  );
+}
+
+function VarianceNotes({
+  sources,
+  currency,
+}: Readonly<{
+  sources: readonly AdoptedForecastVarianceSource[];
+  currency: Currency;
+}>) {
+  if (sources.length === 0) return null;
+  return (
+    <section>
+      <h4 className="text-sm font-semibold">Complete variance notes</h4>
+      <ul className="mt-2 space-y-2 text-sm">
+        {sources.map((source, index) => (
+          <li
+            key={`${source.kind}-${source.label}-${index}`}
+            className="rounded-md bg-muted/40 p-3"
+          >
+            <span className="font-medium">{varianceLabels[source.kind]}</span>
+            {`: ${source.label}`}
+            {source.amount == null
+              ? ""
+              : ` (${formatCurrency(Math.round(source.amount), currency)})`}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DecisionDetails({
   forecast,
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
   return (
     <section className="grid gap-4 lg:grid-cols-2">
       <div>
-        <h3 className="text-sm font-semibold">Adopted choices</h3>
-        <div className="mt-2 space-y-2">
+        <h4 className="text-sm font-semibold">Adopted choices</h4>
+        <ul className="mt-2 space-y-2 text-sm">
           {forecast.selectedDecisions.map((decision) => (
-            <RevisitDecision
-              key={decision.id}
-              decisionId={decision.id}
-              decisionName={decision.name}
-              forecastId={forecast.id}
-            />
+            <li key={decision.id} className="rounded-md border p-3">
+              {decision.name}
+            </li>
           ))}
-        </div>
+        </ul>
       </div>
       <div>
-        <h3 className="text-sm font-semibold">Still undecided</h3>
+        <h4 className="text-sm font-semibold">Still undecided</h4>
         {forecast.undecidedDecisions.length === 0 ? (
           <p className="mt-2 text-sm text-muted-foreground">None</p>
         ) : (
@@ -543,26 +766,79 @@ function Decisions({
   );
 }
 
+function PlanDetails({
+  forecast,
+  reconciliation,
+  currency,
+}: Readonly<{
+  forecast: AdoptedDecisionForecastRecord;
+  reconciliation: AdoptedForecastReconciliation;
+  currency: Currency;
+}>) {
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        View plan details
+      </summary>
+      <div className="mt-4 space-y-5 border-t pt-4">
+        <SourceSnapshot forecast={forecast} />
+        <ActionTimeline forecast={forecast} />
+        <BalanceComparisonChart
+          reconciliation={reconciliation}
+          currency={currency}
+        />
+        <VarianceNotes
+          sources={reconciliation.varianceSources}
+          currency={currency}
+        />
+        <DecisionDetails forecast={forecast} />
+      </div>
+    </details>
+  );
+}
+
 export function AdoptedForecastCard({
   forecast,
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
+  const { reconcileAdoptedForecast } = useAssetTracker();
+  const reconciliation = reconcileAdoptedForecast(forecast);
+  const currency =
+    forecast.balanceCheckpoints[0]?.accounts[0]?.currency ?? "GBP";
   return (
     <article className="space-y-4 rounded-lg border p-5">
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h2 className="font-semibold">{forecast.title}</h2>
           <p className="text-xs text-muted-foreground">
-            Adopted {forecast.adoptedAt}
+            Adopted {formatDate(forecast.adoptedAt)}
           </p>
         </div>
-        <span className="rounded-full bg-muted px-2 py-1 text-xs">
-          Live forecast
-        </span>
-      </div>
-      <SourceSnapshot forecast={forecast} />
-      <ActionTimeline forecast={forecast} />
-      <Reconciliation forecast={forecast} />
-      <Decisions forecast={forecast} />
+        <Badge variant="secondary">Live forecast</Badge>
+      </header>
+      <SummaryStatus reconciliation={reconciliation} currency={currency} />
+      {reconciliation.varianceSources.length === 0 ? (
+        <p className="rounded-md bg-muted/40 p-3 text-sm">
+          No material variance has been observed yet.
+        </p>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(16rem,0.6fr)]">
+          <PrimaryVarianceChart
+            sources={reconciliation.varianceSources}
+            currency={currency}
+          />
+          <TopDrivers
+            sources={reconciliation.varianceSources}
+            currency={currency}
+          />
+        </div>
+      )}
+      <ActionExceptions actions={reconciliation.actions} />
+      <DecisionControls forecast={forecast} />
+      <PlanDetails
+        forecast={forecast}
+        reconciliation={reconciliation}
+        currency={currency}
+      />
     </article>
   );
 }

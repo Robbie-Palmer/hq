@@ -1722,7 +1722,7 @@ describe("AdoptedForecastCard", () => {
     reviews: [],
   } satisfies AdoptedDecisionForecastRecord;
 
-  it("shows the frozen sources, actions, actuals, and separate choices", async () => {
+  it("leads with exceptions and keeps the audit trail on demand", async () => {
     const revisitAdoptedDecision = vi.fn().mockResolvedValue(undefined);
     const reconciliation = {
       actions: [
@@ -1750,30 +1750,35 @@ describe("AdoptedForecastCard", () => {
         {
           kind: "changed-amount",
           label: "Build cost changed",
+          subject: "Build an extension · 2 Nov 2026",
           amount: 100,
           decisionId: "extension",
         },
         {
           kind: "changed-timing",
           label: "Build started late",
+          subject: "Build an extension · 2 Nov 2026",
           amount: null,
           decisionId: "extension",
         },
         {
           kind: "household-cash-flow",
           label: "Unexpected saving",
+          subject: "Current account · 15 Mar 2027",
           amount: 500,
           decisionId: null,
         },
         {
           kind: "market-or-currency",
           label: "Account value moved",
+          subject: "Current account · 1 Jul 2027",
           amount: -500,
           decisionId: null,
         },
         {
           kind: "revised-assumption",
           label: "Income changed",
+          subject: "Household changes · v1",
           amount: null,
           decisionId: null,
         },
@@ -1787,45 +1792,55 @@ describe("AdoptedForecastCard", () => {
     render(<AdoptedForecastCard forecast={forecast} />);
 
     expect(screen.getByText("Extension live forecast")).toBeVisible();
-    await userEvent.click(screen.getByText("Frozen forecast sources"));
+    expect(screen.getByText("£500 below forecast")).toBeVisible();
+    expect(screen.getByText("Needs review")).toBeVisible();
+    expect(
+      screen.getByText("Observed 1 Jul 2027 · 1 of 1 balances"),
+    ).toBeVisible();
+    expect(screen.getByText("What changed")).toBeVisible();
+    expect(screen.getByText("Biggest drivers")).toBeVisible();
+    expect(screen.getByText("Actions needing attention")).toBeVisible();
+    expect(screen.getByText("£100 higher · 1 day late")).toBeVisible();
+    expect(screen.getByText("Frozen forecast sources")).not.toBeVisible();
+    expect(screen.getByText("Convert the loft")).not.toBeVisible();
+    await userEvent.click(screen.getByText("View plan details"));
     expect(screen.getByText("Improve the house")).toBeVisible();
     expect(screen.getByText("Convert the loft")).toBeVisible();
     expect(screen.getByText(/Save for the extension · monthly/)).toBeVisible();
-    expect(screen.getByText("Changed amount").closest("li")).toHaveTextContent(
+    expect(screen.getByText(/Build cost changed/)).toHaveTextContent(
       "Changed amount: Build cost changed (£100)",
     );
+    expect(
+      screen.getByRole("img", { name: "Largest forecast changes" }),
+    ).toBeVisible();
     expect(
       screen.getByRole("img", {
         name: "Adopted and observed account balances",
       }),
     ).toBeVisible();
-    expect(
-      screen.getByRole("img", { name: "Monetary variance sources" }),
-    ).toBeVisible();
     const charts = screen.getAllByTestId("bar-chart");
     expect(charts[0]).toHaveAttribute(
       "data-chart-data",
+      expect.stringContaining(
+        '"label":"Current account · 1 Jul 2027","amount":-500',
+      ),
+    );
+    expect(charts[1]).toHaveAttribute(
+      "data-chart-data",
       expect.stringContaining('"expected":20000,"observed":19500'),
     );
-    expect(charts[1]).toHaveAttribute(
-      "data-chart-data",
-      expect.stringContaining(
-        '"label":"Changed amount: Build cost changed","amount":100',
-      ),
-    );
-    expect(charts[1]).toHaveAttribute(
-      "data-chart-data",
-      expect.stringContaining(
-        '"label":"Market or currency movement: Account value moved","amount":-500',
-      ),
-    );
 
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Revisit decision: Build an extension",
+      }),
+    );
     await userEvent.type(
       screen.getByPlaceholderText("What changed?"),
       "Quote changed",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Revisit this decision" }),
+      screen.getByRole("button", { name: "Confirm revisit" }),
     );
     await waitFor(() =>
       expect(revisitAdoptedDecision).toHaveBeenCalledWith({
@@ -1858,7 +1873,9 @@ describe("AdoptedForecastCard", () => {
       />,
     );
 
-    await userEvent.click(screen.getByText("Frozen forecast sources"));
+    expect(screen.getByText("Waiting for observations")).toBeVisible();
+    expect(screen.getByText("Awaiting data")).toBeVisible();
+    await userEvent.click(screen.getByText("View plan details"));
     expect(screen.getByText("No named case")).toBeVisible();
     expect(screen.getByText("No warning threshold")).toBeVisible();
     expect(
@@ -1866,12 +1883,17 @@ describe("AdoptedForecastCard", () => {
     ).toBeVisible();
     expect(screen.getByText("None")).toBeVisible();
 
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Revisit decision: Build an extension",
+      }),
+    );
     await userEvent.type(
       screen.getByPlaceholderText("What changed?"),
       "Costs changed",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Revisit this decision" }),
+      screen.getByRole("button", { name: "Confirm revisit" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This decision could not be reopened.",

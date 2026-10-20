@@ -528,6 +528,7 @@ export type AdoptedForecastVarianceSource = {
     | "unexplained"
     | "revised-assumption";
   label: string;
+  subject: string;
   amount: number | null;
   decisionId: string | null;
 };
@@ -650,6 +651,7 @@ function actionVarianceSources(
       sources.push({
         kind: "changed-amount",
         label: `${action.action.name} differed from the adopted amount`,
+        subject: `${action.action.name} · ${action.actualDate ?? action.action.date}`,
         amount: convertMoneyAtDate(
           repository,
           {
@@ -665,6 +667,7 @@ function actionVarianceSources(
       sources.push({
         kind: "changed-timing",
         label: `${action.action.name} occurred ${Math.abs(action.timingVarianceDays)} days ${action.timingVarianceDays > 0 ? "late" : "early"}`,
+        subject: `${action.action.name} · ${action.actualDate ?? action.action.date}`,
         amount: null,
         decisionId: action.action.sourceDecisionId,
       });
@@ -700,6 +703,7 @@ function householdCashFlowSources(
       {
         kind: "household-cash-flow" as const,
         label: `Recorded household cash flow on ${repository.accounts.get(flow.accountId)?.name ?? flow.accountId}`,
+        subject: `${repository.accounts.get(flow.accountId)?.name ?? flow.accountId} · ${flow.date}`,
         amount,
         decisionId: null,
       },
@@ -826,6 +830,7 @@ function balanceVarianceSources(
         label: marketOrCurrency
           ? `${balance.accountName} moved after known cash flows were removed`
           : `${balance.accountName} has a residual balance difference`,
+        subject: `${balance.accountName} · ${balance.checkpointDate}`,
         amount: residual,
         decisionId: null,
       },
@@ -852,6 +857,7 @@ function assumptionVarianceSources(
           current == null
             ? `${assumed.name} is no longer active`
             : `${assumed.name} changed from version ${assumed.version} to ${current.version}`,
+        subject: `${assumed.name} · v${assumed.version}`,
         amount: null,
         decisionId: null,
       },
