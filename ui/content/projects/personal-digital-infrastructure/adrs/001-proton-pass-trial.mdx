@@ -1,8 +1,8 @@
 ---
 title: "ADR 001: Trial Proton Pass without replacing Dashlane"
 date: "2026-10-18"
-status: "Proposed"
-tech_stack: ["Dashlane", "Doppler", "Proton Pass"]
+status: "Accepted"
+tech_stack: ["Proton Pass"]
 ---
 
 # Context
@@ -23,10 +23,14 @@ interactive credentials and purpose-built automation tokens.
 
 # Decision
 
-Keep Dashlane authoritative while running a Proton Pass Plus trial with
-synthetic and low-risk accounts. Do not cancel Dashlane during the trial. Avoid
-static vault exports because they create unmanaged copies, not because an agent
-must never see an interactive credential.
+Accept a bounded Proton Pass Plus trial, not a migration. Keep Dashlane
+authoritative and do not cancel it during the trial. A Proton Pass Free dry run
+proved enough of the browser, TOTP, agent-retrieval, and encrypted-export path
+to justify testing the paid capabilities. It did not prove the daily autofill,
+device, recovery, or paid agent-token workflows needed to replace Dashlane.
+
+Avoid static vault exports because they create unmanaged copies, not because
+an agent must never see an interactive credential.
 
 Use this credential boundary:
 
@@ -54,7 +58,9 @@ CLI. Use low-risk credentials to compare direct browser or GUI access with an
 optional agent vault and short-lived access token. Verify retrieval, rotation,
 expiry, revocation, and the access log. Proton documents vault selection, token
 expiry, CLI access, and audit records for
-[agent access tokens](https://proton.me/pass/access-tokens).
+[agent access tokens](https://proton.me/pass/access-tokens). These tokens
+require Pass Plus or another paid Proton plan, so the paid trial is the next
+gate rather than an assumed capability.
 
 Promote Proton Pass only if it matches or beats Dashlane on:
 
@@ -71,6 +77,40 @@ Promote Proton Pass only if it matches or beats Dashlane on:
 At current annual prices, [Pass Plus is $35.88](https://proton.me/pass/pricing).
 The Dashlane Premium renewal notice quotes $57.10 on 19 July 2026, so that is
 the current baseline for this project.
+
+# Trial evidence
+
+The 20 October 2026 dry run used Proton Pass Free 1.42.0 and an isolated,
+synthetic login with a non-routable account. It established that:
+
+* the web app stored and retrieved the username, password, URL, notes, and TOTP,
+  and a supervised agent could reveal the low-risk credential through the GUI;
+* a passphrase-protected export contained the documented `data.pgp` payload,
+  could be inspected without writing decrypted credentials to disk, and
+  imported back into Proton Pass with all tested login fields intact; and
+* the encrypted export was removed from the browser download area after the
+  check. Proton's [export guidance](https://proton.me/support/pass-export)
+  confirms that the encrypted ZIP is a supported round-trip format.
+
+The dry run also found limits that prevent promotion:
+
+* Free collapsed the two exported vaults into the default vault on import;
+* the Dashlane importer offered ZIP and CSV, not Dashlane's CXP export, and no
+  production Dashlane vault was imported;
+* `pass-cli` 2.5.0 timed out during three 10-minute browser-login attempts, and
+  the Free account could not create an access token as a fallback;
+* the simulated-exposure drill reached credential retrieval and replacement
+  entry, but the browser stopped responding before the saved rotation could be
+  verified; the synthetic target had no live service session to revoke; and
+* Android, browser-extension autofill, macOS, signed-in Ubuntu desktop use,
+  passkeys, hardware keys, emergency recovery, shared-account use, and a clean
+  account recovery remain untested.
+
+Before promotion, the paid trial must complete those open checks and prove a
+short-lived, vault-scoped token through expiry, audited retrieval, deletion,
+and failed reuse. A real low-risk account must also complete password rotation
+and session revocation. Until then, Proton Pass remains a trial system and
+Dashlane remains canonical.
 
 # Alternatives
 
