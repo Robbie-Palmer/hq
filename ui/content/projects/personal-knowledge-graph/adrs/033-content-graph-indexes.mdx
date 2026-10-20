@@ -57,7 +57,7 @@ You can traverse connections: "Start at TypeScript → find all Projects using i
 ## What is an "Index"?
 
 An **index** is a pre-computed lookup table optimized for specific queries.
-Instead of searching through all data every time, you build the answer once and look it up in O(1).
+Instead of searching through all the data every time, you build the answer once and look it up in O(1).
 
 Think of it like the index at the back of a book: instead of scanning every page for "React",
 you look up "React" in the index and get page numbers directly.
@@ -222,7 +222,7 @@ SQL's power (complex JOINs, aggregations, subqueries) isn't needed yet.
 
 **Escape hatch**: The typed index design mirrors SQL tables.
 `technologyUsage.projects` maps to `SELECT project_id FROM project_tech WHERE tech_id = ?`.
-Migration path is clear if needed.
+The migration path is clear if needed.
 
 ## Alternative 2: Headless CMS (Contentful, Sanity, Strapi)
 
@@ -343,7 +343,7 @@ repo.graph.query()
 ```
 
 This would provide SQL-like expressiveness for complex queries like
-"projects using technologies that are also used at job roles, but where the project wasn't done during that job."
+"projects using technologies that are also used in job roles, but where the project wasn't done during that job."
 
 **Pros:**
 

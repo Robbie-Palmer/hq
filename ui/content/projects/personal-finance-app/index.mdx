@@ -102,7 +102,7 @@ Self-funded via subscriptions, no VC backing. Targets the FIRE community and sop
 ## [Monarch Money](https://www.monarchmoney.com)
 
 **Overview:** VC-backed personal finance app ([$95M total funding](https://www.crunchbase.com/organization/monarch-money-inc)).
-Positioned as the Mint replacement after Intuit shut down Mint in early 2024. Founded 2018 in San Francisco.
+Positioned as the Mint replacement after Intuit shut down Mint in early 2024. Founded in 2018 in San Francisco.
 
 **Pricing:** [$100/year or $15/month. 7-day free trial.](https://www.monarchmoney.com/pricing)
 
@@ -318,7 +318,7 @@ The shared version will use the existing platform defaults while keeping each re
 * **A dedicated Cloudflare Worker** exposes a versioned REST API, authenticates each request, enforces household and
   ownership permissions, and runs the financial domain commands
 * **PostgreSQL on Neon** is the system of record for people, households, ownership, accounts, balances, transfers,
-  plans, and audit history. The Worker reaches it through a connection path suitable for the Workers runtime
+  plans, and audit history. The Worker reaches it through a connection path suitable for the Worker runtime
 * **Cloudflare R2** is optional object storage for features that introduce files, such as uploaded statements,
   receipts, or encrypted export artifacts. It is not the primary store for structured financial state
 
@@ -461,7 +461,7 @@ The contrast is stark: YNAB and Monarch Money (both subscription-based) are thri
 
 # Defensibility
 
-No moat exists at v1, and the code is open source with no proprietary IP. This is true of every early-stage product. Some just delude themselves otherwise.
+No moat exists in v1, and the code is open source with no proprietary IP. This is true of every early-stage product. Some just delude themselves otherwise.
 
 **Pre-PMF:** Product vision and relentless execution are the only advantages. PMF itself, and the momentum that follows, are the moat.
 
@@ -490,7 +490,7 @@ The pitch to paying users: stop spending hours maintaining fragile spreadsheets 
 
 ## Long-term: startup finance
 
-The "whale" opportunity. Business financial planning commands higher willingness to pay than personal:
+The "whale" opportunity. Business financial planning commands a higher willingness to pay than personal:
 
 * **Burn rate and runway tracking** for startups, the same modelling engine, different framing
 * **Equity tracking** for employees, vesting schedules, dilution scenarios, exercise planning. Sold to companies as a benefit, used by employees for personal financial planning

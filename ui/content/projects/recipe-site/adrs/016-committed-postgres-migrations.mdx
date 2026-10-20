@@ -210,7 +210,7 @@ changes without a committed migration.
 The default correction strategy is roll-forward because Drizzle does not
 generate safe automatic down migrations and a schema rollback does not
 necessarily restore transformed data. Before a destructive or expensive
-migration, create a Neon snapshot. If data is damaged, restore to an isolated
+migration, create a Neon snapshot. If data is damaged, restore it to an isolated
 branch for inspection before finalizing production recovery; the restored
 migration journal then tells CD which later migrations need reapplying.
 

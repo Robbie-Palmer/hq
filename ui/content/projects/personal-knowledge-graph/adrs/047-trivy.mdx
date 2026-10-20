@@ -20,7 +20,7 @@ The remaining gaps are:
 1. **Infrastructure as Code (IaC) security scanning**: Terraform configurations are not currently analyzed for misconfigurations that could expose resources, grant excessive permissions, or create vulnerabilities in the Cloudflare infrastructure.
 2. **Dependency vulnerability gating on PRs**: Renovate provides visibility into CVEs for existing dependencies, but when a PR introduces a *new* dependency with known vulnerabilities, nothing blocks it from merging. CodeQL scans source code, not dependency trees. Renovate updates existing dependencies but doesn't gate new additions.
 
-Additionally, while containers are not in use today, they are expected medium-to-long term for Python ML workloads. Choosing a security scanner now that can extend to container scanning avoids future migration overhead.
+Additionally, while containers are not in use today, they are expected in the medium-to-long term for Python ML workloads. Choosing a security scanner now that can extend to container scanning avoids future migration overhead.
 
 # Decision
 

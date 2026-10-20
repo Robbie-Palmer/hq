@@ -216,7 +216,7 @@ This view borrows C4's boundary and relationship conventions. It shows the Work
 Graph system, its main containers and components, the places where the CLI runs,
 and the external systems it uses. It is not a production deployment diagram.
 
-People and agents install the CLI in local workstations, remote development
+People and agents install the CLI on local workstations, remote development
 workspaces, or automation runtimes. The CLI sends authenticated commands and
 queries to the REST API. For pull-request commands, it also reads current status
 and checks from GitHub before attaching that snapshot to a work item.
@@ -395,7 +395,7 @@ lease or return unfinished work to the queue. For repository-backed work, the
 release transition requires evidence that the change was merged and deployed.
 A passing local build, a commit, or an open pull request does not qualify.
 
-The system needs a history of changes even if the main interface shows only
+The system needs a history of changes even if the main interface shows only the
 current state. Otherwise an expired lease or rewritten plan can erase the
 context needed by the next actor.
 

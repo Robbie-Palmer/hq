@@ -226,7 +226,7 @@ provider-administration credential set above.
    consider setting the Cloudflare Zero Trust dashboard to read-only.
 
 The high-risk steps are HCP token replacement, Access service-identity moves,
-and any R2 operation that proposes replacement. Stop before apply if a plan
+and any R2 operation that proposes replacement. Stop before applying if a plan
 renames or deletes a state workspace, Access application, service identity, or
 bucket.
 

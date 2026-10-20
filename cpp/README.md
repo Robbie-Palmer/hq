@@ -1,7 +1,7 @@
 # C++ workspace
 
 This directory owns the shared C++ development toolchain. Its mise configuration pins CMake,
-Ninja, clang-format, and clang-tidy for projects below it while each project owns its target-specific
+Ninja, clang-format, and clang-tidy for projects below it, while each project owns its target-specific
 build, test, simulation, and firmware tasks.
 
 ## Projects

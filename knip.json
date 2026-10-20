@@ -116,6 +116,7 @@
       "entry": [
         "src/extract-dataset.ts",
         "src/freeze-cohort.ts",
+        "src/report-current-content-gector.ts",
         "tests/*.test.ts"
       ]
     }

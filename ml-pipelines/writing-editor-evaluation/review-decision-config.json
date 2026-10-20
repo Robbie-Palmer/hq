@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "baselineRevision": "8d6ecca439699fd579aa597aacc917db285aabdc",
+  "review": {
+    "reviewStartedAt": "2026-10-18T16:48:12.795Z",
+    "decidedAt": "2026-10-18T16:48:12.795Z",
+    "method": "manual-diff-review-with-deterministic-source-alignment",
+    "timing": "not-measured",
+    "splitSeed": "gector-broad-review-v1"
+  },
+  "governance": {
+    "dataClassification": "private",
+    "consentBasis": "Repository owner explicitly requested dataset enrichment and the decision-recording stage.",
+    "consentRecordedAt": "2026-10-19T13:09:00.000Z",
+    "retentionPolicy": "Retain in the private writing-evaluation DVC remote; remove on repository-owner request.",
+    "deletionStatus": "active"
+  },
+  "targetRenames": {},
+  "deletionRequests": [],
+  "deletedArtifacts": []
+}

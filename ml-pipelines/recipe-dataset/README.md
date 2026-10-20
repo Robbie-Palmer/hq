@@ -67,7 +67,7 @@ Each prepared row includes source dataset, record ID, URL, declared license,
 retrieval date, source checksum, and normalized-content signature. This supports
 idempotent database loading and both exact-content and title-level deduplication.
 The acquisition date lives in tracked `snapshot.json`; update it when refreshing
-the raw corpus so reproducing an existing snapshot remains deterministic.
+the raw corpus, so reproducing an existing snapshot remains deterministic.
 
 Run the complete pipeline from this directory:
 

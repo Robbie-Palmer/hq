@@ -288,7 +288,7 @@ spend monitoring.
   querying both APIs: Llama 3.3 70B Instruct is **not in Vercel's catalogue at all**
   (OpenRouter has 15 providers for it); Claude Sonnet 4.6 has 3 endpoints on Vercel vs 8 on
   OpenRouter; the long-tail open-weight providers (Groq, Cerebras, Nebius, AkashML, Parasail,
-  Friendli) are largely missing. For closed frontier models the depth is comparable (GPT-5.5:
+  Friendli) are largely missing. For closed frontier models, the depth is comparable (GPT-5.5:
   2 vs 2; DeepSeek V3.1: 6 vs 7), and Vercel   occasionally has more depth (Qwen 3 235B: 4 vs 1),
   but the open-weight long tail is where cost arbitrage lives and OpenRouter is clearly
   ahead. Fewer published granular routing knobs (no documented equivalent of `provider.zdr`,
@@ -325,7 +325,7 @@ EU data residency by default, headquartered in France.
   modalities we need: LLMs, VLMs, embeddings, image generation, and (since the
   [2025 audio APIs launch](https://openrouter.ai/announcements/announcing-audio-apis)) STT and
   TTS via Whisper, Chirp 3, GPT-4o Transcribe, Groq Whisper, and similar TTS providers. Eden
-  AI's specialist providers (DeepL, Mindee, Deepgram) are higher-quality on their narrow
+  AI's specialist providers (DeepL, Mindee, Deepgram) are higher-quality in their narrow
   domains but we don't need them. Our document parsing is already VLM-based, voice navigation
   in cooking mode uses the browser-native Web Speech API
   (see the recipe-site roadmap's *Voice / Hands-Free Navigation* section), and translation isn't on the roadmap. The
@@ -492,7 +492,7 @@ A typed `LLMClient` interface in the domain layer with adapters per provider, sw
   coordinate with OpenRouter as a sub-processor rather than self-serving from our own logs.
   `provider.zdr: true` and `provider.data_collection: "deny"` mitigate retention/training
   concerns where the provider supports them, but the request still transits OpenRouter's
-  infrastructure. For a B2C consumer product this is a normal sub-processor relationship and
+  infrastructure. For a B2C consumer product, this is a normal sub-processor relationship and
   the right trade-off; if the product ever takes on a partner or use case that demands
   in-house data flow, Cloudflare AI Gateway as a BYOK proxy is the documented escape hatch
   (with its own per-provider onboarding cost).
@@ -539,7 +539,7 @@ This decision should be revisited if any of the following become true:
   Vercel AI Gateway is warranted, they run at \~2.5% effective (Stripe passthrough) so the
   \~3pp gap on that traffic could justify accepting the catalogue/depth trade-offs.
 * A feature comes to depend on prompt caching across providers (Anthropic-style cache control,
-  OpenAI cached input pricing) and OpenRouter's pass-through coverage lags. At that point
+  OpenAI cached input pricing) and OpenRouter's pass-through coverage lags. At that point,
   going direct for one specific stage via BYOK is reasonable.
 * **User-facing AI features become abuse vectors.** If a Phase 3+ cooking-assistant chat,
   AI URL import, or AI photo import accepts freeform user input that ends up at a model, the
