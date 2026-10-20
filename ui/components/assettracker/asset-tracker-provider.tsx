@@ -36,6 +36,8 @@ import {
   type AddPlannedExpenditureInput,
   type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
+  type AdoptedDecisionForecastRecord,
+  type AdoptedForecastReconciliation,
   type AssetAllocationDataPoint,
   type AssetTrackerBackup,
   type AssetTrackerBackupPreview,
@@ -44,6 +46,7 @@ import {
   analyseEmergencyFund,
   applyEmergencyFundDerivedFacts,
   buildAccountReadModels,
+  buildAdoptDecisionForecastInput,
   buildPropertyComparableViews,
   buildPropertyValueHistoryViews,
   buildRepository,
@@ -107,6 +110,8 @@ import {
   type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type RevisitAdoptedDecisionInput,
+  reconcileAdoptedDecisionForecast,
   type SalaryHistoryRecord,
   type SaveEmergencyFundPlanInput,
   type SaveJobMoveScenarioInput,
@@ -158,6 +163,9 @@ interface AssetTrackerContextValue {
   ): EmergencyFundAnalysis;
   mortgageScenarios: MortgageScenario[];
   decisionRecords: FinancialDecisionRecord[];
+  reconcileAdoptedForecast(
+    forecast: AdoptedDecisionForecastRecord,
+  ): AdoptedForecastReconciliation;
   incomeHistory: IncomeRecord[];
   salaryHistory: SalaryHistoryRecord[];
   currentSalaryHistory: SalaryHistoryRecord[];
@@ -255,6 +263,13 @@ interface AssetTrackerContextValue {
   setWithdrawalRate(rate: number): Promise<void>;
   saveMortgageScenario(input: SaveMortgageScenarioInput): Promise<void>;
   createDecisionRecord(input: CreateDecisionRecordInput): Promise<void>;
+  adoptDecisionForecast(input: {
+    decisionIds: readonly string[];
+    horizonMonths: number;
+    reserveMonths: number | null;
+    title?: string;
+  }): Promise<void>;
+  revisitAdoptedDecision(input: RevisitAdoptedDecisionInput): Promise<void>;
   recordDecisionObservation(
     input: RecordDecisionObservationInput,
   ): Promise<void>;
@@ -452,6 +467,56 @@ function decisionComparison(
     });
 }
 
+function householdDecisionComparison(
+  repository: ReturnType<typeof buildRepository>,
+) {
+  const valuationDate =
+    getLatestPortfolioValuation(repository)?.date ?? todayIsoDate();
+  const financialIndependence = getPortfolioFinancialIndependence(
+    repository,
+    valuationDate,
+  );
+  const emergencyFund = resolveEmergencyFundViews(
+    repository,
+    financialIndependence.representativeAnnualCurrentExpenditure,
+    valuationDate,
+  );
+  const emergencyFundAnalysis =
+    emergencyFund.activePlan == null
+      ? null
+      : analyseEmergencyFund(
+          repository,
+          emergencyFund.activePlan,
+          valuationDate,
+        );
+  return decisionComparison(
+    repository,
+    financialIndependence,
+    emergencyFundAnalysis,
+    valuationDate,
+  );
+}
+
+export function buildHouseholdAdoptedDecisionForecast(
+  data: AssetTrackerData,
+  input: {
+    decisionIds: readonly string[];
+    horizonMonths: number;
+    reserveMonths: number | null;
+    title?: string;
+  },
+) {
+  const repository = buildRepository(data);
+  const comparison = householdDecisionComparison(repository)(input);
+  return buildAdoptDecisionForecastInput(repository, comparison, {
+    title:
+      input.title ??
+      `${comparison.judgments.map(({ name }) => name).join(" + ")} live forecast`,
+    calculationVersion: "decision-scenario-v1",
+    reserveMonths: input.reserveMonths,
+  });
+}
+
 function jobMoveComparison(
   repository: ReturnType<typeof buildRepository>,
   financialIndependence: PortfolioFinancialIndependence,
@@ -517,6 +582,12 @@ function useAssetTrackerViews(data: AssetTrackerData) {
             emergencyFund.activePlan,
             valuationDate,
           );
+    const compareDecisions = decisionComparison(
+      repository,
+      financialIndependence,
+      emergencyFundAnalysis,
+      valuationDate,
+    );
     return {
       accounts,
       accountDetails,
@@ -542,12 +613,15 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       emergencyFundPlans: emergencyFund.plans,
       emergencyFundFacts: emergencyFund.facts,
       emergencyFundAnalysis,
-      compareDecisionScenario: decisionComparison(
-        repository,
-        financialIndependence,
-        emergencyFundAnalysis,
-        valuationDate,
-      ),
+      compareDecisionScenario: compareDecisions,
+      buildAdoptedDecisionForecast: (input: {
+        decisionIds: readonly string[];
+        horizonMonths: number;
+        reserveMonths: number | null;
+        title?: string;
+      }) => {
+        return buildHouseholdAdoptedDecisionForecast(data, input);
+      },
       analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
         analyseEmergencyFund(
           repository,
@@ -556,6 +630,8 @@ function useAssetTrackerViews(data: AssetTrackerData) {
         ),
       mortgageScenarios: repository.mortgageScenarios,
       decisionRecords: repository.decisionRecords,
+      reconcileAdoptedForecast: (forecast: AdoptedDecisionForecastRecord) =>
+        reconcileAdoptedDecisionForecast(forecast, repository),
       incomeHistory: repository.incomeHistory,
       salaryHistory: repository.salaryHistory,
       currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
@@ -716,6 +792,12 @@ export function AssetTrackerProvider({
         mutate((api) => api.saveMortgageScenario(input)),
       createDecisionRecord: (input) =>
         mutate((api) => api.createDecisionRecord(input)),
+      adoptDecisionForecast: (input) =>
+        mutate((api) =>
+          api.adoptDecisionForecast(views.buildAdoptedDecisionForecast(input)),
+        ),
+      revisitAdoptedDecision: (input) =>
+        mutate((api) => api.revisitAdoptedDecision(input)),
       recordDecisionObservation: (input) =>
         mutate((api) => api.recordDecisionObservation(input)),
       addDecisionInterpretation: (input) =>

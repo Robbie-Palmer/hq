@@ -10,6 +10,7 @@ import {
   type AddPlannedExpenditureInput,
   type AddPlanningChecklistItemInput,
   type AddRecurringFlowInput,
+  type AdoptDecisionForecastInput,
   type AssetTrackerBackup,
   type AssetTrackerData,
   AssetTrackerDataSchema,
@@ -21,6 +22,7 @@ import {
   applyAddPlannedExpenditure,
   applyAddPlanningChecklistItem,
   applyAddRecurringFlow,
+  applyAdoptDecisionForecast,
   applyClearAccountHistory,
   applyClearIncomeHistory,
   applyCloseAccount,
@@ -46,6 +48,7 @@ import {
   applyRecordDecisionObservation,
   applyRecordTransfer,
   applyRenameHouseholdMember,
+  applyRevisitAdoptedDecision,
   applySaveEmergencyFundPlan,
   applySaveJobMoveScenario,
   applySaveMortgageScenario,
@@ -93,6 +96,7 @@ import {
   type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RenameHouseholdMemberInput,
+  type RevisitAdoptedDecisionInput,
   type SaveEmergencyFundPlanInput,
   type SaveJobMoveScenarioInput,
   type SaveMortgageScenarioInput,
@@ -209,6 +213,12 @@ export interface AssetTrackerApi {
   ): Promise<AssetTrackerData>;
   createDecisionRecord(
     input: CreateDecisionRecordInput,
+  ): Promise<AssetTrackerData>;
+  adoptDecisionForecast(
+    input: AdoptDecisionForecastInput,
+  ): Promise<AssetTrackerData>;
+  revisitAdoptedDecision(
+    input: RevisitAdoptedDecisionInput,
   ): Promise<AssetTrackerData>;
   recordDecisionObservation(
     input: RecordDecisionObservationInput,
@@ -630,6 +640,28 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
       return promiseFromSync(() =>
         write(
           applyCreateDecisionRecord(current(), input, new Date().toISOString()),
+        ),
+      );
+    },
+    adoptDecisionForecast(input) {
+      return promiseFromSync(() =>
+        write(
+          applyAdoptDecisionForecast(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
+        ),
+      );
+    },
+    revisitAdoptedDecision(input) {
+      return promiseFromSync(() =>
+        write(
+          applyRevisitAdoptedDecision(
+            current(),
+            input,
+            new Date().toISOString(),
+          ),
         ),
       );
     },

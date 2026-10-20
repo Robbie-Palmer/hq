@@ -1,10 +1,19 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
 import { DecisionsRoute } from "@/components/assettracker/decisions-route";
 import type { TrackedFinancialDecisionRecord } from "@/lib/domain/assettracker";
 
+const navigation = vi.hoisted(() => ({
+  replace: vi.fn(),
+  search: "",
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: navigation.replace }),
+  useSearchParams: () => new URLSearchParams(navigation.search),
+}));
 vi.mock("@/components/assettracker/asset-tracker-provider", () => ({
   useAssetTracker: vi.fn(),
 }));
@@ -91,6 +100,11 @@ function trackedDecision(
 }
 
 describe("DecisionsRoute", () => {
+  beforeEach(() => {
+    navigation.replace.mockReset();
+    navigation.search = "";
+  });
+
   it("opens with the job-move workspace", () => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
@@ -102,6 +116,24 @@ describe("DecisionsRoute", () => {
     render(<DecisionsRoute />);
 
     expect(screen.getByText("Job move workspace")).toBeVisible();
+  });
+
+  it("opens the comparison workspace requested in the URL", () => {
+    navigation.search = "tab=compare";
+    mockUseAssetTracker.mockReturnValue({
+      accountDetails: [],
+      baseCurrency: "GBP",
+      decisionRecords: [],
+      mortgageScenarios: [],
+    } as unknown as ReturnType<typeof useAssetTracker>);
+
+    render(<DecisionsRoute />);
+
+    expect(screen.getByText("Decision comparison workspace")).toBeVisible();
+    expect(screen.getByRole("tab", { name: "Compare" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
   });
 
   it.each([

@@ -6,6 +6,7 @@ import type {
   FinancialDecisionRecord,
   MortgageScenario,
 } from "@/lib/domain/assettracker";
+import { AdoptedForecastCard } from "./adopted-forecast-card";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { CreateDecisionRecordForm } from "./decision-record-forms";
 import { TrackedDecisionCard } from "./tracked-decision-card";
@@ -96,6 +97,11 @@ export function DecisionRecordLedger() {
         <EmptyDecisionRecords />
       ) : (
         decisionRecords.map((decision) => {
+          if (decision.kind === "adopted-forecast") {
+            return (
+              <AdoptedForecastCard key={decision.id} forecast={decision} />
+            );
+          }
           if (decision.kind === "tracked") {
             return (
               <TrackedDecisionCard key={decision.id} decision={decision} />

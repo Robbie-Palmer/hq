@@ -743,7 +743,9 @@ export function scopeAssetTrackerData(
   );
   const decisionRecords = (data.decisionRecords ?? []).filter(
     (decision) =>
-      decision.kind === "tracked" || keptScenarioIds.has(decision.scenarioId),
+      decision.kind !== "adopted-forecast" &&
+      (decision.kind !== "mortgage" ||
+        keptScenarioIds.has(decision.scenarioId)),
   );
   const planningCases = retainKnownAssetTrackerChecklistLinks(
     data.planningCases,
