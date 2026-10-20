@@ -1,1 +1,0 @@
-"""Python health-service prototype."""

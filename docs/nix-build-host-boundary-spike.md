@@ -2,7 +2,7 @@
 
 - Status: ADR-ready recommendation
 - Work item: `pep-nix-build-host-spike`
-- Prototype: `homelab/spikes/nix-build-host-boundary`
+- Experiment history: [pull request #1846](https://github.com/Robbie-Palmer/hq/pull/1846)
 
 ## Question
 
@@ -11,9 +11,9 @@ package builds, OCI image construction, and NixOS host configuration without
 making Nix a prerequisite for every builder or coupling unrelated releases to
 one lock file?
 
-## Prototype
+## Experiment
 
-The spike uses one project-owned `flake.lock` to pin Nixpkgs and expose these
+The spike used one project-owned `flake.lock` to pin Nixpkgs and expose these
 outputs on Linux and Darwin:
 
 - separate TypeScript and Python development shells;
@@ -23,14 +23,24 @@ outputs on Linux and Darwin:
 - a NixOS module plus disposable host evaluation that consumes the Python
   package directly.
 
-Mise is the only user-facing command surface. A wrapper uses local Nix when it
-is installed and a pinned Nix container on Linux otherwise. The Docker fallback
-proves that a contributor can evaluate and build the locked flake without
-installing Nix on the host, while the Dockerfile remains buildable without Nix.
+The experiment exposed every operation through mise. A wrapper used local Nix
+when installed and a pinned Nix container on Linux otherwise. The Docker
+fallback proved that a contributor could evaluate and build the locked flake
+without installing Nix on the host, while the Dockerfile remained buildable
+without Nix.
+
+## Retention
+
+The repository retains this report, not the experiment code. The prototype had
+no production consumer or ongoing CI owner, so keeping it would create an
+unsupported example that could drift from the Copier templates it is meant to
+inform. Pull request #1846 retains the implementation and test history. When
+Copier work begins, add smaller executable examples as template fixtures covered
+by the generated-project test suite.
 
 ## Findings
 
-The comparison task produced this Linux `x86_64` snapshot on 2026-10-20. Image
+The experiment produced this Linux `x86_64` snapshot on 2026-10-20. Image
 size is Docker's unpacked size. Package counts come from Syft 1.54.1. The final
 column is the number of high or critical findings reported by Trivy 0.76.0 with
 the database available at execution time; it is evidence that both formats are
@@ -52,7 +62,7 @@ benchmark. The multi-platform export produced distinct `linux/amd64` and
 | Concern | Dockerfile and BuildKit | `dockerTools.buildLayeredImage` |
 | --- | --- | --- |
 | Cache behaviour | Instruction and file checksums give legible, registry-exportable cache boundaries. A source change invalidates the source copy and later steps. | Nix reuses content-addressed derivations and their dependency closures. Reuse is excellent with a shared Nix store or binary cache, but not available to an ordinary OCI-only builder. |
-| Layers | The prototype has an explicit base, build, and application history. The runtime retains Alpine and a shell, which helps inspection but adds packages. | Nix assigns popular store paths to individual layers up to `maxLayers`, then groups the remainder. The measured closure was larger and had more layers than the Alpine image; store-path layers are also less familiar to OCI operators. |
+| Layers | The experimental Dockerfile had an explicit base, build, and application history. The runtime retained Alpine and a shell, which helped inspection but added packages. | Nix assigns popular store paths to individual layers up to `maxLayers`, then groups the remainder. The measured closure was larger and had more layers than the Alpine image; store-path layers are also less familiar to OCI operators. |
 | Multi-architecture | One Dockerfile builds an OCI index for `linux/amd64` and `linux/arm64` with Buildx. Native nodes are preferable to emulation for expensive builds. | The image output is native to each Linux Nix system. Separate native builders can build both outputs, but another step must assemble and attest the multi-platform index. Darwin can build packages and shells but cannot produce or run the Linux image locally without a Linux builder. |
 | SBOM and provenance | BuildKit attaches SPDX SBOM and SLSA provenance attestations to an OCI index using standard flags. Syft also inventories the loaded image. | Syft recognizes the Nix store, but `dockerTools` creates a Docker-compatible tarball rather than BuildKit attestations. Publication needs a separate SBOM and provenance step tied to the resulting digest. |
 | Vulnerability scanning | Trivy identifies Alpine and language packages through conventional metadata. Findings map to familiar package update paths. | Store contents are reproducible, but scanner coverage depends on Nix catalog support and can differ from Nixpkgs vulnerability metadata. The pipeline must scan the final image and must not treat an empty result as proof of safety. |
