@@ -7,13 +7,13 @@ shift
 project="${DOPPLER_PROJECT:-personal-site}"
 case "$mode" in
   seed)
-    config="${DOPPLER_ACCOUNT_FOUNDATION_SEED_CONFIG:-prd_account_foundation_seed}"
+    config="${DOPPLER_ACCOUNT_FOUNDATION_SEED_CONFIG:-ops_account_foundation_seed}"
     ;;
   plan)
-    config="${DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG:-prd_account_foundation_plan}"
+    config="${DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG:-ops_account_foundation_plan}"
     ;;
   apply)
-    config="${DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG:-prd_account_foundation}"
+    config="${DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG:-ops_account_foundation}"
     ;;
   *)
     echo "Unknown account-foundation credential mode: $mode" >&2

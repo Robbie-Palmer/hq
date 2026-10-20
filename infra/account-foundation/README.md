@@ -18,13 +18,14 @@ and configs, the two GitHub environments below, and the credentials needed to
 recover them. Keep provider recovery material outside this repository and
 outside the services it recovers.
 
-Create these Doppler configs under `personal-site` before the first run:
+Create these Doppler configs in the `personal-site` project's `Operations`
+environment before the first run:
 
 | Config | Purpose |
 | --- | --- |
-| `prd_account_foundation_seed` | One-time HCP workspace creation or verification. This config is never used by GitHub Actions. |
-| `prd_account_foundation_plan` | Pull-request plans with state access and read-only or narrowly scoped provider credentials. |
-| `prd_account_foundation` | Default-branch applies with provider write credentials. |
+| `ops_account_foundation_seed` | One-time HCP workspace creation or verification. This config is never used by GitHub Actions. |
+| `ops_account_foundation_plan` | Pull-request plans with state access and read-only or narrowly scoped provider credentials. |
+| `ops_account_foundation` | Default-branch applies with provider write credentials. |
 
 The provider credentials use these environment variable names:
 
@@ -42,11 +43,11 @@ able to change provider configuration.
 
 Create `production-account-foundation-plan` and
 `production-account-foundation` as GitHub environments before enabling the
-workflows. The plan environment receives only the plan config. The apply
-environment receives only the write config, permits the `main` branch, and
-requires reviewer approval. Owner and seed credentials belong in neither
-environment. After verifying those protection rules, mirror the plan and apply
-configs without exposing their values:
+workflows. Both environments require reviewer approval. The plan environment
+receives only the plan config. The apply environment receives only the write
+config and permits only the `main` branch. Owner and seed credentials belong in
+neither environment. After verifying those protection rules, mirror the plan
+and apply configs without exposing their values:
 
 ```bash
 mise run //infra/account-foundation:credentials:sync
@@ -89,8 +90,8 @@ mise run //infra/account-foundation:plan
 mise run //infra/account-foundation:apply
 ```
 
-`plan` uses `prd_account_foundation_plan`. `apply` consumes the saved
-`.planfile` with `prd_account_foundation`. The plan file and Terraform working
+`plan` uses `ops_account_foundation_plan`. `apply` consumes the saved
+`.planfile` with `ops_account_foundation`. The plan file and Terraform working
 directory are ignored by Git.
 
 Pull requests run static checks and a plan through

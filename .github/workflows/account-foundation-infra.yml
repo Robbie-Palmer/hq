@@ -39,7 +39,7 @@ jobs:
       - name: Terraform plan with write credentials
         run: mise run //infra/account-foundation:plan
         env:
-          DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG: prd_account_foundation
+          DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG: ops_account_foundation
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
           DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           ACCOUNT_FOUNDATION_GITHUB_TOKEN: ${{ secrets.ACCOUNT_FOUNDATION_GITHUB_TOKEN }}

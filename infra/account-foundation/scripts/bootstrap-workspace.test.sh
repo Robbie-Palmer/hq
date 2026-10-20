@@ -120,6 +120,28 @@ CI=true \
     [[ "$GITHUB_TOKEN" == "test-github-token" ]]
   '
 
+cat > "$mock_bin/doppler" <<'MOCK_DOPPLER'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" > "$DOPPLER_ARGS_LOG"
+MOCK_DOPPLER
+chmod +x "$mock_bin/doppler"
+
+for mode_and_config in \
+  "seed:ops_account_foundation_seed" \
+  "plan:ops_account_foundation_plan" \
+  "apply:ops_account_foundation"; do
+  mode="${mode_and_config%%:*}"
+  expected_config="${mode_and_config#*:}"
+  doppler_args_log="$work_dir/doppler-$mode-args"
+
+  DOPPLER_ARGS_LOG="$doppler_args_log" \
+    PATH="$mock_bin:$PATH" \
+    bash "$script_dir/doppler-terraform-env" "$mode" true
+
+  grep -Fxq -- "$expected_config" "$doppler_args_log"
+done
+
 if CI=true bash "$script_dir/doppler-terraform-env" invalid true 2>/dev/null; then
   echo "Expected an unknown credential mode to fail." >&2
   exit 1
