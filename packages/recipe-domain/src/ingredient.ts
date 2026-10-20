@@ -12,6 +12,8 @@ export const IngredientCategorySchema = z.enum([
   "herb",
   "dairy",
   "grain",
+  "leavening",
+  "nuts",
   "spice",
   "condiment",
   "sweets",

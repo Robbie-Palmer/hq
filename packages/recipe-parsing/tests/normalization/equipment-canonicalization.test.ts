@@ -5,6 +5,7 @@ import {
   canonicalizeCookwareList,
   canonicalizeEquipmentName,
   equipmentDisplayName,
+  splitEquipmentAlternatives,
 } from "../../src/lib/equipment-canonicalization.js";
 import { canonicalEquipment } from "../../src/lib/canonical-equipment-data.js";
 import { buildOntology, buildOntologyIndex } from "../../src/lib/slug-matching.js";
@@ -147,5 +148,29 @@ describe("canonicalizeCookwareList", () => {
   it("should keep unmatched equipment in the list", () => {
     const result = canonicalizeCookwareList(["tagine"], ontology, ontologyIndex);
     expect(result.cookware).toEqual(["tagine"]);
+  });
+
+  it("should split explicit alternatives before canonicalizing them", () => {
+    const result = canonicalizeCookwareList(
+      ["wooden spoon or spatula", "blender/food processor"],
+      ontology,
+      ontologyIndex,
+    );
+    expect(result.cookware).toEqual([
+      "wooden spoon",
+      "spatula",
+      "blender",
+      "food processor",
+    ]);
+  });
+
+  it("should preserve established compound names", () => {
+    expect(splitEquipmentAlternatives("pestle and mortar")).toEqual([
+      "pestle and mortar",
+    ]);
+    expect(splitEquipmentAlternatives("measuring cups and spoons")).toEqual([
+      "measuring cups",
+      "measuring spoons",
+    ]);
   });
 });

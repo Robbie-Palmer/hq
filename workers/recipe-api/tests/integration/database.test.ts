@@ -218,7 +218,74 @@ beforeAll(async () => {
     )
     order by slug
   `;
-  expect(migrationCount?.count).toBe(29);
+  const addedCatalogRows = await client<
+    { category: string | null; name: string; slug: string }[]
+  >`
+    select slug, name, category
+    from ingredient
+    where slug in (
+      'almond-extract',
+      'apple-cider-vinegar',
+      'applesauce',
+      'baking-powder',
+      'baking-soda',
+      'beef-stock',
+      'bread-crumbs',
+      'canola-oil',
+      'cashew',
+      'cashew-nuts',
+      'cashews',
+      'cocoa-powder',
+      'coconut',
+      'cooking-spray',
+      'cornstarch',
+      'cream-of-tartar',
+      'dried-basil',
+      'dijon-mustard',
+      'egg-white',
+      'dry-yeast',
+      'ground-beef',
+      'ground-cloves',
+      'ground-almonds',
+      'heavy-cream',
+      'ketchup',
+      'lean-ground-beef',
+      'onion',
+      'pecan',
+      'pepper',
+      'semisweet-chocolate-chips',
+      'shortening',
+      'sour-cream',
+      'vanilla-extract',
+      'walnut',
+      'white-vinegar',
+      'whole-milk',
+      'whole-wheat-flour',
+      'worcestershire-sauce'
+    )
+    order by slug
+  `;
+  const addedGroupRows = await client<
+    { groupKey: string; ingredientSlug: string }[]
+  >`
+    select group_key as "groupKey", ingredient_slug as "ingredientSlug"
+    from ingredient_group_member
+    where ingredient_slug in (
+      'bread-crumbs',
+      'cashew',
+      'egg-white',
+      'ground-beef',
+      'heavy-cream',
+      'lean-ground-beef',
+      'pecan',
+      'sour-cream',
+      'walnut',
+      'whole-milk',
+      'whole-wheat-flour'
+    )
+    order by group_key, ingredient_slug
+  `;
+  expect(migrationCount?.count).toBe(30);
   expect(tableCount?.count).toBe(56);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
@@ -285,6 +352,97 @@ beforeAll(async () => {
     { category: "spice", name: "mixed spice", slug: "mixed-spice" },
     { category: "dairy", name: "salted butter", slug: "salted-butter" },
     { category: "spice", name: "whole cloves", slug: "whole-cloves" },
+  ]);
+  expect(addedCatalogRows).toEqual([
+    {
+      category: "condiment",
+      name: "almond extract",
+      slug: "almond-extract",
+    },
+    {
+      category: "condiment",
+      name: "apple cider vinegar",
+      slug: "apple-cider-vinegar",
+    },
+    { category: "condiment", name: "applesauce", slug: "applesauce" },
+    {
+      category: "leavening",
+      name: "baking powder",
+      slug: "baking-powder",
+    },
+    { category: "leavening", name: "baking soda", slug: "baking-soda" },
+    { category: "liquid", name: "beef stock", slug: "beef-stock" },
+    { category: "grain", name: "bread crumbs", slug: "bread-crumbs" },
+    { category: "oil-fat", name: "canola oil", slug: "canola-oil" },
+    { category: "nuts", name: "cashew", slug: "cashew" },
+    { category: "nuts", name: "cashew nuts", slug: "cashew-nuts" },
+    { category: "nuts", name: "cashews", slug: "cashews" },
+    { category: "sweets", name: "cocoa powder", slug: "cocoa-powder" },
+    { category: "fruit", name: "coconut", slug: "coconut" },
+    { category: "oil-fat", name: "cooking spray", slug: "cooking-spray" },
+    { category: "grain", name: "cornstarch", slug: "cornstarch" },
+    {
+      category: "leavening",
+      name: "cream of tartar",
+      slug: "cream-of-tartar",
+    },
+    { category: "condiment", name: "Dijon mustard", slug: "dijon-mustard" },
+    { category: "herb", name: "dried basil", slug: "dried-basil" },
+    { category: "leavening", name: "dry yeast", slug: "dry-yeast" },
+    { category: "protein", name: "egg white", slug: "egg-white" },
+    { category: "nuts", name: "ground almonds", slug: "ground-almonds" },
+    { category: "protein", name: "ground beef", slug: "ground-beef" },
+    { category: "spice", name: "ground cloves", slug: "ground-cloves" },
+    { category: "dairy", name: "heavy cream", slug: "heavy-cream" },
+    { category: "condiment", name: "ketchup", slug: "ketchup" },
+    {
+      category: "protein",
+      name: "lean ground beef",
+      slug: "lean-ground-beef",
+    },
+    { category: "vegetable", name: "onion", slug: "onion" },
+    { category: "nuts", name: "pecan", slug: "pecan" },
+    { category: "spice", name: "pepper", slug: "pepper" },
+    {
+      category: "sweets",
+      name: "semisweet chocolate chips",
+      slug: "semisweet-chocolate-chips",
+    },
+    { category: "oil-fat", name: "shortening", slug: "shortening" },
+    { category: "dairy", name: "sour cream", slug: "sour-cream" },
+    {
+      category: "condiment",
+      name: "vanilla extract",
+      slug: "vanilla-extract",
+    },
+    { category: "nuts", name: "walnut", slug: "walnut" },
+    { category: "condiment", name: "white vinegar", slug: "white-vinegar" },
+    { category: "dairy", name: "whole milk", slug: "whole-milk" },
+    {
+      category: "grain",
+      name: "whole wheat flour",
+      slug: "whole-wheat-flour",
+    },
+    {
+      category: "condiment",
+      name: "Worcestershire sauce",
+      slug: "worcestershire-sauce",
+    },
+  ]);
+  expect(addedGroupRows).toEqual([
+    { groupKey: "dairy", ingredientSlug: "heavy-cream" },
+    { groupKey: "dairy", ingredientSlug: "sour-cream" },
+    { groupKey: "dairy", ingredientSlug: "whole-milk" },
+    { groupKey: "egg", ingredientSlug: "egg-white" },
+    { groupKey: "gluten", ingredientSlug: "bread-crumbs" },
+    { groupKey: "gluten", ingredientSlug: "whole-wheat-flour" },
+    { groupKey: "meat", ingredientSlug: "ground-beef" },
+    { groupKey: "meat", ingredientSlug: "lean-ground-beef" },
+    { groupKey: "nuts", ingredientSlug: "cashew" },
+    { groupKey: "nuts", ingredientSlug: "pecan" },
+    { groupKey: "nuts", ingredientSlug: "walnut" },
+    { groupKey: "wheat", ingredientSlug: "bread-crumbs" },
+    { groupKey: "wheat", ingredientSlug: "whole-wheat-flour" },
   ]);
 });
 

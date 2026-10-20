@@ -170,6 +170,31 @@ export function equipmentDisplayName(slug: string): string {
   return slug.replaceAll("-", " ");
 }
 
+const PRESERVED_EQUIPMENT_PAIRS = new Set([
+  "mortar and pestle",
+  "pestle and mortar",
+]);
+
+export function splitEquipmentAlternatives(rawName: string): string[] {
+  const name = rawName.trim().replace(/\s+/gu, " ");
+  if (!name) return [];
+  if (PRESERVED_EQUIPMENT_PAIRS.has(name.toLowerCase())) return [name];
+
+  const measuringPair = name.match(/^measuring\s+(.+?)\s+and\s+(.+)$/iu);
+  if (measuringPair) {
+    return [
+      `measuring ${measuringPair[1]}`,
+      `measuring ${measuringPair[2]}`,
+    ];
+  }
+
+  const alternatives = name
+    .split(/\s+(?:or|and\/or)\s+|\s*\/\s*/iu)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  return alternatives.length > 1 ? alternatives : [name];
+}
+
 /**
  * Strips one tier of modifiers at a time so the fuller name still gets to
  * match first — "large wooden spoon" must reach "wooden-spoon" before "spoon".
@@ -245,8 +270,7 @@ export function canonicalizeCookwareList(
   decisions: EquipmentCanonicalizationDecision[];
 } {
   const decisions = cookware
-    .map((name) => name.trim())
-    .filter((name) => name !== "")
+    .flatMap(splitEquipmentAlternatives)
     .map((rawName) =>
       canonicalizeEquipmentName({ rawName, ontology, ontologyIndex }),
     );

@@ -1,4 +1,5 @@
 import { normalizeSlug } from "recipe-domain/slugs";
+import type { RecipeIngredient } from "recipe-domain";
 import {
   pluralizeIngredientTerm,
   singularizeIngredientTerm,
@@ -52,6 +53,7 @@ export interface CanonicalizationOntologies {
 
 const MODIFIER_TOKENS = new Set([
   "fresh",
+  "freshly",
   "dried",
   "dry",
   "frozen",
@@ -61,8 +63,36 @@ const MODIFIER_TOKENS = new Set([
   "semi",
   "skimmed",
   "hot",
+  "large",
   "small",
   "fat",
+  "white",
+  "ground",
+  "minced",
+  "melted",
+  "softened",
+  "grated",
+  "chopped",
+  "diced",
+  "distilled",
+  "flaked",
+  "sliced",
+  "crushed",
+  "finely",
+  "coarsely",
+  "packed",
+  "shredded",
+  "unsweetened",
+  "beaten",
+  "boiling",
+  "boneless",
+  "cold",
+  "crumbled",
+  "half",
+  "halves",
+  "juiced",
+  "skinless",
+  "warm",
 ]);
 
 const NOISE_TOKENS = new Set([
@@ -70,6 +100,72 @@ const NOISE_TOKENS = new Set([
   "slice",
   "slices",
   "cooked",
+  "to",
+  "taste",
+  "needed",
+  "optional",
+  "divided",
+  "more",
+  "as",
+  "or",
+  "stalk",
+  "stalks",
+]);
+
+const MEASUREMENT_UNIT_TOKENS = new Set([
+  "g",
+  "kg",
+  "oz",
+  "ounce",
+  "ounces",
+  "lb",
+  "lbs",
+  "pound",
+  "pounds",
+  "ml",
+  "l",
+  "litre",
+  "litres",
+  "liter",
+  "liters",
+  "tsp",
+  "teaspoon",
+  "teaspoons",
+  "tbsp",
+  "tablespoon",
+  "tablespoons",
+  "cup",
+  "cups",
+  "pint",
+  "pints",
+  "qt",
+  "quart",
+  "quarts",
+  "gal",
+  "gallon",
+  "gallons",
+  "pinch",
+  "pinches",
+  "handful",
+  "handfuls",
+  "package",
+  "packages",
+  "can",
+  "cans",
+]);
+
+const COMBINED_INGREDIENT_NOISE = new Set([
+  "as",
+  "coarsely",
+  "cracked",
+  "fresh",
+  "freshly",
+  "ground",
+  "needed",
+  "optional",
+  "or",
+  "taste",
+  "to",
 ]);
 
 export function normalizeIngredientSlug(slug: string): string {
@@ -82,18 +178,61 @@ function withoutToken(tokens: string[], unwanted: string): string[] {
     : [];
 }
 
+function withoutLeadingMeasurements(tokens: string[]): string[] {
+  let index = 0;
+  let sawAmount = false;
+  let sawUnit = false;
+
+  while (index < tokens.length) {
+    const token = tokens.at(index);
+    if (!token) break;
+    if (/^(?:\d+(?:dot\d+)?|dot\d+)$/.test(token)) {
+      sawAmount = true;
+      index += 1;
+      continue;
+    }
+    if (sawAmount && MEASUREMENT_UNIT_TOKENS.has(token)) {
+      sawUnit = true;
+      index += 1;
+      continue;
+    }
+    if (sawUnit && (token === "and" || token === "of")) {
+      index += 1;
+      continue;
+    }
+    break;
+  }
+
+  return sawUnit && index < tokens.length ? tokens.slice(index) : [];
+}
+
 function ingredientStems(base: string): string[] {
   const tokens = applyIngredientTokenFixups(tokenize(base));
   const withoutNoise = tokens.filter((token) => !NOISE_TOKENS.has(token));
+  const withoutMeasurements = withoutLeadingMeasurements(tokens);
+  const measurementVariants = withoutMeasurements.length
+    ? [
+        withoutMeasurements,
+        withoutMeasurements.filter((token) => !MODIFIER_TOKENS.has(token)),
+        withoutMeasurements.filter((token) => !NOISE_TOKENS.has(token)),
+        withoutMeasurements.filter(
+          (token) => !MODIFIER_TOKENS.has(token) && !NOISE_TOKENS.has(token),
+        ),
+      ]
+    : [];
 
   const stems = [
     [base],
     tokens,
-    tokens.length === 2 ? [tokens[1]!, tokens[0]!] : [],
+    tokens.length === 2 ? [...tokens].reverse() : [],
     tokens.filter((token) => !MODIFIER_TOKENS.has(token)),
     withoutNoise,
+    tokens.filter(
+      (token) => !MODIFIER_TOKENS.has(token) && !NOISE_TOKENS.has(token),
+    ),
     withoutToken(tokens, "and"),
     withoutToken(withoutNoise, "and"),
+    ...measurementVariants,
   ].map(detokenize);
 
   return uniqueSlugs(
@@ -101,6 +240,22 @@ function ingredientStems(base: string): string[] {
       stem.endsWith("-cheese") ? [stem, stem.replace(/-cheese$/, "")] : [stem],
     ),
   );
+}
+
+function splitCombinedIngredient(item: RecipeIngredient): RecipeIngredient[] {
+  if (item.amount !== undefined || item.unit !== undefined) return [item];
+  const base = detokenize(
+    tokenize(normalizeSlug(item.ingredient)).filter(
+      (token) => !COMBINED_INGREDIENT_NOISE.has(token),
+    ),
+  );
+  if (base !== "salt-and-pepper" && base !== "salt-and-black-pepper") {
+    return [item];
+  }
+  return ["salt", "black-pepper"].map((ingredient) => ({
+    ...item,
+    ingredient,
+  }));
 }
 
 function generateDeterministicCandidates(base: string): string[] {
@@ -147,18 +302,20 @@ export function canonicalizeRecipeIngredients(
     ...recipe,
     ingredientGroups: recipe.ingredientGroups.map((group) => ({
       ...group,
-      items: group.items.map((item) => {
-        const decision = canonicalizeIngredientSlug({
-          rawSlug: item.ingredient,
-          ontology,
-          ontologyIndex: index,
-        });
-        decisions.push(decision);
-        return {
-          ...item,
-          ingredient: decision.canonicalSlug,
-        };
-      }),
+      items: group.items.flatMap((item) =>
+        splitCombinedIngredient(item).map((splitItem) => {
+          const decision = canonicalizeIngredientSlug({
+            rawSlug: splitItem.ingredient,
+            ontology,
+            ontologyIndex: index,
+          });
+          decisions.push(decision);
+          return {
+            ...splitItem,
+            ingredient: decision.canonicalSlug,
+          };
+        }),
+      ),
     })),
   };
 

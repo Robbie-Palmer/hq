@@ -21,8 +21,11 @@ stages:
       - package.json
       - snapshot.json
       - sources.json
+      - src/lib/extracted-recipe.mjs
+      - src/lib/wprm.mjs
       - src/stages/prepare.mjs
     outs:
+      - outputs/extracted-recipes.jsonl
       - outputs/recipes.jsonl
       - outputs/rejects.jsonl
       - outputs/gutenberg-candidates.jsonl
@@ -35,6 +38,7 @@ stages:
       - outputs/rejects.jsonl
       - outputs/gutenberg-candidates.jsonl
       - outputs/ingredient-only.jsonl
+      - outputs/extracted-recipes.jsonl
       - src/stages/stats.mjs
     outs:
       - outputs/recipes-deduplicated.jsonl
@@ -48,3 +52,37 @@ stages:
           title: Recipes by source
           x_label: Recipes
           y_label: Source
+
+  adapt-product:
+    cmd: pnpm exec tsx src/stages/adapt-product.mjs
+    deps:
+      - ../../packages/recipe-domain/package.json
+      - ../../packages/recipe-domain/src
+      - ../../packages/recipe-parsing/package.json
+      - ../../packages/recipe-parsing/src
+      - ../../pnpm-lock.yaml
+      - outputs/extracted-recipes.jsonl
+      - package.json
+      - src/stages/adapt-product.mjs
+    outs:
+      - outputs/product-recipes.jsonl
+      - outputs/product-adapter-skips.jsonl
+    metrics:
+      - outputs/product-adapter-metrics.json
+
+  canonicalize-product:
+    cmd: pnpm exec tsx src/stages/canonicalize-product.mjs
+    deps:
+      - ../../packages/recipe-domain/package.json
+      - ../../packages/recipe-domain/src
+      - ../../packages/recipe-parsing/package.json
+      - ../../packages/recipe-parsing/src
+      - ../../pnpm-lock.yaml
+      - outputs/product-recipes.jsonl
+      - package.json
+      - src/stages/canonicalize-product.mjs
+    outs:
+      - outputs/product-recipes-canonicalized.jsonl
+      - outputs/product-canonicalization-decisions.jsonl
+    metrics:
+      - outputs/product-canonicalization-metrics.json

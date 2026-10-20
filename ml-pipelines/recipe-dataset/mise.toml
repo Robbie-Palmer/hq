@@ -10,6 +10,14 @@ run = "node src/stages/prepare.mjs"
 description = "Compute corpus quality and source metrics"
 run = "node src/stages/stats.mjs"
 
+[tasks."adapt-product"]
+description = "Adapt extracted recipes to the current product recipe domain"
+run = "pnpm exec tsx src/stages/adapt-product.mjs"
+
+[tasks."canonicalize-product"]
+description = "Map adapted ingredients and equipment to the product registries"
+run = "pnpm exec tsx src/stages/canonicalize-product.mjs"
+
 [tasks.repro]
 description = "Reproduce the complete recipe dataset pipeline"
 run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
@@ -25,9 +33,14 @@ run = "bash scripts/push.sh"
 [tasks.check]
 description = "Check recipe dataset pipeline scripts"
 depends = ["test"]
-run = "bash -n scripts/download.sh scripts/push.sh && node --check src/stages/prepare.mjs && node --check src/stages/stats.mjs"
+run = "bash -n scripts/download.sh scripts/push.sh && node --check src/lib/extracted-recipe.mjs && node --check src/lib/wprm.mjs && node --check src/stages/prepare.mjs && node --check src/stages/adapt-product.mjs && node --check src/stages/canonicalize-product.mjs && node --check src/stages/stats.mjs"
 
 [tasks.test]
 description = "Test the recipe dataset pipeline and its dependency contracts"
 depends = ["//:install"]
 run = "node --test tests/*.test.mjs"
+
+[tasks."test:coverage"]
+description = "Test recipe dataset parsing helpers with line and function coverage"
+depends = ["//:install"]
+run = "node --experimental-test-coverage --test-coverage-include='src/lib/*.mjs' --test-coverage-lines=80 --test-coverage-functions=80 --test tests/*.test.mjs"

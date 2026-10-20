@@ -105,8 +105,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$recovery_migration_count" != "29" ]]; then
-    echo "Expected the recovery database to apply all 29 migrations." >&2
+  if [[ "$recovery_migration_count" != "30" ]]; then
+    echo "Expected the recovery database to apply all 30 migrations." >&2
     exit 1
   fi
 
@@ -123,7 +123,7 @@ if [[ -n "$migration_recovery_url" ]]; then
     --username postgres \
     --dbname "$migration_recovery_database" \
     --set ON_ERROR_STOP=1 \
-    --command 'delete from drizzle.__drizzle_migrations where created_at = 1792232867906' \
+    --command 'delete from drizzle.__drizzle_migrations where created_at in (1792232867906, 1792494340628)' \
     >/dev/null
   pending_migration_count=$(docker exec "$container_id" psql \
     --username postgres \
@@ -132,7 +132,7 @@ if [[ -n "$migration_recovery_url" ]]; then
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
   if [[ "$pending_migration_count" != "28" ]]; then
-    echo "Expected migration 0028 to be pending in the recovery database." >&2
+    echo "Expected migration 0028 and its successor to be pending in the recovery database." >&2
     exit 1
   fi
 
@@ -143,8 +143,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$reapplied_migration_count" != "29" ]]; then
-    echo "Expected migration 0028 to reapply over its existing schema." >&2
+  if [[ "$reapplied_migration_count" != "30" ]]; then
+    echo "Expected migration 0028 and its successor to reapply over the existing schema." >&2
     exit 1
   fi
 fi
