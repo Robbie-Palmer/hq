@@ -1733,6 +1733,28 @@ describe("AdoptedForecastCard", () => {
           amountVariance: 100,
           timingVarianceDays: 1,
         },
+        {
+          action: {
+            ...forecastAction,
+            id: "survey",
+            name: "Complete the survey",
+          },
+          actualAmount: 1_000,
+          actualDate: "2026-11-04",
+          amountVariance: 0,
+          timingVarianceDays: 3,
+        },
+        {
+          action: {
+            ...forecastAction,
+            id: "appliances",
+            name: "Buy the appliances",
+          },
+          actualAmount: 1_075,
+          actualDate: "2026-11-01",
+          amountVariance: 75,
+          timingVarianceDays: 0,
+        },
       ],
       balances: [
         {
@@ -1801,6 +1823,10 @@ describe("AdoptedForecastCard", () => {
     expect(screen.getByText("Biggest drivers")).toBeVisible();
     expect(screen.getByText("Actions needing attention")).toBeVisible();
     expect(screen.getByText("£100 higher · 1 day late")).toBeVisible();
+    expect(screen.getByText("3 days late")).toBeVisible();
+    expect(screen.getByText("£75 higher")).toBeVisible();
+    expect(screen.queryByText(/£0 lower/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 days early/)).not.toBeInTheDocument();
     expect(screen.getByText("Frozen forecast sources")).not.toBeVisible();
     expect(screen.getByText("Convert the loft")).not.toBeVisible();
     await userEvent.click(screen.getByText("View plan details"));
@@ -1822,7 +1848,7 @@ describe("AdoptedForecastCard", () => {
     expect(charts[0]).toHaveAttribute(
       "data-chart-data",
       expect.stringContaining(
-        '"label":"Current account · 1 Jul 2027","amount":-500',
+        '"label":"Market / FX · Current account · 1 Jul 2027","amount":-500',
       ),
     );
     expect(charts[1]).toHaveAttribute(

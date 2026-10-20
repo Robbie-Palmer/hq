@@ -141,6 +141,18 @@ const varianceLabels: Record<AdoptedForecastVarianceSource["kind"], string> = {
   "revised-assumption": "Revised assumption",
 };
 
+const varianceChartLabels: Record<
+  AdoptedForecastVarianceSource["kind"],
+  string
+> = {
+  "changed-amount": "Amount",
+  "changed-timing": "Timing",
+  "household-cash-flow": "Cash flow",
+  "market-or-currency": "Market / FX",
+  unexplained: "Unexplained",
+  "revised-assumption": "Assumption",
+};
+
 const balanceChartConfig = {
   expected: { label: "Adopted", color: "var(--chart-2)" },
   observed: { label: "Observed", color: "var(--chart-1)" },
@@ -368,7 +380,7 @@ function PrimaryVarianceChart({
     .slice(0, 5)
     .map((source, index) => ({
       id: `${source.kind}-${source.subject}-${index}`,
-      label: source.subject,
+      label: `${varianceChartLabels[source.kind]} · ${source.subject}`,
       amount: source.amount ?? 0,
       kind: source.kind,
     }));
@@ -547,12 +559,18 @@ function actionExceptionLabel(
   reconciliation: AdoptedActionReconciliation,
 ): string {
   const changes: string[] = [];
-  if (reconciliation.amountVariance != null) {
+  if (
+    reconciliation.amountVariance != null &&
+    Math.abs(reconciliation.amountVariance) >= 0.01
+  ) {
     changes.push(
       `${formatCurrency(Math.abs(Math.round(reconciliation.amountVariance)), reconciliation.action.currency)} ${reconciliation.amountVariance > 0 ? "higher" : "lower"}`,
     );
   }
-  if (reconciliation.timingVarianceDays != null) {
+  if (
+    reconciliation.timingVarianceDays != null &&
+    reconciliation.timingVarianceDays !== 0
+  ) {
     const dayLabel =
       Math.abs(reconciliation.timingVarianceDays) === 1 ? "day" : "days";
     changes.push(
