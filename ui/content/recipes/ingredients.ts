@@ -180,8 +180,15 @@ export const ingredients = [
   { name: "water", category: "liquid" },
   { name: "orange juice", category: "liquid" },
 
+  // Leavening
+  { name: "dry yeast", category: "leavening" },
+
+  // Nuts
+  { name: "cashew nuts", category: "nuts" },
+  { name: "cashews", category: "nuts" },
+  { name: "ground almonds", category: "nuts" },
+
   // Other
-  { name: "dry yeast", category: "other" },
   { name: "prawn crackers", category: "other" },
   { name: "garlic bread", category: "other" },
   { name: "chips", category: "other" },
@@ -190,9 +197,6 @@ export const ingredients = [
   { name: "caster sugar", category: "sweets" },
   { name: "flour", category: "other" },
   { name: "cornflakes", category: "other" },
-  { name: "cashew nuts", category: "other" },
-  { name: "cashews", category: "other" },
-  { name: "ground almonds", category: "other" },
   { name: "naan", category: "other" },
   { name: "white chocolate", category: "sweets" },
   { name: "white chocolate chips", category: "sweets" },

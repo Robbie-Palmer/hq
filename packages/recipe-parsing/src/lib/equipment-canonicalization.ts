@@ -170,6 +170,57 @@ export function equipmentDisplayName(slug: string): string {
   return slug.replaceAll("-", " ");
 }
 
+const PRESERVED_EQUIPMENT_PAIRS = new Set([
+  "mortar and pestle",
+  "pestle and mortar",
+]);
+
+export function splitEquipmentAlternatives(rawName: string): string[] {
+  const name = rawName.trim().replace(/\s+/gu, " ");
+  if (!name) return [];
+  if (PRESERVED_EQUIPMENT_PAIRS.has(name.toLowerCase())) return [name];
+
+  const lowerName = name.toLowerCase();
+  const measuringPrefix = "measuring ";
+  const measuringSeparator = " and ";
+  const measuringSeparatorIndex = lowerName.indexOf(
+    measuringSeparator,
+    measuringPrefix.length,
+  );
+  if (
+    lowerName.startsWith(measuringPrefix) &&
+    measuringSeparatorIndex > measuringPrefix.length &&
+    measuringSeparatorIndex + measuringSeparator.length < name.length
+  ) {
+    return [
+      `measuring ${name.slice(measuringPrefix.length, measuringSeparatorIndex)}`,
+      `measuring ${name.slice(measuringSeparatorIndex + measuringSeparator.length)}`,
+    ];
+  }
+
+  const alternatives = [];
+  let start = 0;
+  while (start < name.length) {
+    const separators = [
+      { index: lowerName.indexOf(" and/or ", start), length: 8 },
+      { index: lowerName.indexOf(" or ", start), length: 4 },
+      { index: lowerName.indexOf("/", start), length: 1 },
+    ].filter(({ index }) => index >= 0);
+    if (!separators.length) break;
+    const separator = separators.reduce(
+      (earliest, candidate) =>
+        candidate.index < earliest.index ? candidate : earliest,
+      { index: Number.POSITIVE_INFINITY, length: 0 },
+    );
+    const alternative = name.slice(start, separator.index).trim();
+    if (alternative) alternatives.push(alternative);
+    start = separator.index + separator.length;
+  }
+  const finalAlternative = name.slice(start).trim();
+  if (finalAlternative) alternatives.push(finalAlternative);
+  return alternatives.length > 1 ? alternatives : [name];
+}
+
 /**
  * Strips one tier of modifiers at a time so the fuller name still gets to
  * match first — "large wooden spoon" must reach "wooden-spoon" before "spoon".
@@ -245,8 +296,7 @@ export function canonicalizeCookwareList(
   decisions: EquipmentCanonicalizationDecision[];
 } {
   const decisions = cookware
-    .map((name) => name.trim())
-    .filter((name) => name !== "")
+    .flatMap(splitEquipmentAlternatives)
     .map((rawName) =>
       canonicalizeEquipmentName({ rawName, ontology, ontologyIndex }),
     );

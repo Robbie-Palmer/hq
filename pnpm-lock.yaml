@@ -334,6 +334,19 @@ importers:
       '@cooklang/cooklang':
         specifier: 'catalog:'
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
+      recipe-parsing:
+        specifier: workspace:*
+        version: link:../../packages/recipe-parsing
+      zod:
+        specifier: ^4.2.1
+        version: 4.6.5
+    devDependencies:
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.15
 
   ml-pipelines/recipe-parsing:
     dependencies:

@@ -478,6 +478,7 @@ depends = [
     "//packages/writing-editor-domain:test:coverage",
     "//packages/wedding-planner-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
+    "//ml-pipelines/recipe-dataset:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",

@@ -10,11 +10,17 @@ import {
   getFlatTimers,
   quantity_display,
 } from "@cooklang/cooklang";
+import {
+  createExtractedRecipe,
+  toLegacyRecipe,
+} from "../lib/extracted-recipe.mjs";
+import { parseWprmRecipe } from "../lib/wprm.mjs";
 
 const projectRoot = new URL("../..", import.meta.url).pathname;
 const raw = `${projectRoot}/data/raw`;
 const outputs = `${projectRoot}/outputs`;
 const sourceCatalog = JSON.parse(await readFile(`${projectRoot}/sources.json`, "utf8"));
+const sourcesById = new Map(sourceCatalog.map((source) => [source.id, source]));
 const snapshot = JSON.parse(await readFile(`${projectRoot}/snapshot.json`, "utf8"));
 if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshot.retrievedAt)) {
   throw new Error("snapshot.json retrievedAt must use YYYY-MM-DD format");
@@ -22,14 +28,23 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(snapshot.retrievedAt)) {
 await mkdir(outputs, { recursive: true });
 const recipesTemporary = `${outputs}/recipes.jsonl.part`;
 const rejectsTemporary = `${outputs}/rejects.jsonl.part`;
+const extractedRecipesTemporary = `${outputs}/extracted-recipes.jsonl.part`;
 const recipes = createWriteStream(recipesTemporary, { encoding: "utf8" });
 const rejects = createWriteStream(rejectsTemporary, { encoding: "utf8" });
+const extractedRecipes = createWriteStream(extractedRecipesTemporary, { encoding: "utf8" });
 const gutenbergCandidatesTemporary = `${outputs}/gutenberg-candidates.jsonl.part`;
 const gutenbergCandidates = createWriteStream(gutenbergCandidatesTemporary, { encoding: "utf8" });
 const ingredientOnlyTemporary = `${outputs}/ingredient-only.jsonl.part`;
 const ingredientOnly = createWriteStream(ingredientOnlyTemporary, { encoding: "utf8" });
 let accepted = 0;
 let rejected = 0;
+let extracted = 0;
+
+function catalogSource(id) {
+  const source = sourcesById.get(id);
+  if (!source) throw new Error(`Unknown source dataset: ${id}`);
+  return source;
+}
 
 function emitReject(source, error, value) {
   rejects.write(`${JSON.stringify({ sourceDataset: source.id, error: error.message, value })}\n`);
@@ -40,6 +55,11 @@ function strings(value) {
   return Array.isArray(value)
     ? value.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean)
     : [];
+}
+
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  return value == null ? [] : [value];
 }
 
 function instructionText(value) {
@@ -72,11 +92,6 @@ function htmlText(value) {
     .trim();
 }
 
-function htmlClassItems(html, className) {
-  const pattern = new RegExp(String.raw`<li[^>]+class=["'][^"']*${className}[^"']*["'][^>]*>([\s\S]*?)<\/li>`, "gi");
-  return [...html.matchAll(pattern)].map((match) => htmlText(match[1])).filter(Boolean);
-}
-
 function schemaInstructionTexts(value) {
   let items = [];
   if (Array.isArray(value)) items = value;
@@ -89,45 +104,75 @@ function schemaInstructionTexts(value) {
   });
 }
 
+function schemaInstructionEntry(entry) {
+  if (typeof entry === "string") return { ungrouped: [entry] };
+  if (!entry || typeof entry !== "object") return {};
+  const sectionItems = schemaInstructionTexts(entry.itemListElement);
+  if (sectionItems.length) {
+    return { section: { name: entry.name, items: sectionItems } };
+  }
+  return typeof entry.text === "string" ? { ungrouped: [entry.text] } : {};
+}
+
+function schemaInstructionSections(value) {
+  const normalized = asArray(value).map(schemaInstructionEntry);
+  const sections = normalized.flatMap(({ section }) =>
+    section ? [section] : [],
+  );
+  const ungrouped = normalized.flatMap(({ ungrouped: items }) => items ?? []);
+  return ungrouped.length ? [{ items: ungrouped }, ...sections] : sections;
+}
+
+function schemaParties(value) {
+  return asArray(value).flatMap((entry) => {
+    if (typeof entry === "string") return entry.trim() ? [{ name: entry.trim() }] : [];
+    if (!entry || typeof entry !== "object" || typeof entry.name !== "string") return [];
+    return [{ name: entry.name, url: typeof entry.url === "string" ? entry.url : undefined }];
+  });
+}
+
+function schemaImages(value) {
+  return asArray(value).flatMap((entry) => {
+    if (typeof entry === "string") return [entry];
+    if (entry && typeof entry === "object" && typeof entry.url === "string") return [entry.url];
+    return [];
+  });
+}
+
+function ingredientSectionsFromLines(value) {
+  const sections = [];
+  let current = { items: [] };
+  for (const line of strings(value)) {
+    if (line.endsWith(":")) {
+      if (current.items.length) sections.push(current);
+      current = { name: line.slice(0, -1).trim(), items: [] };
+    } else {
+      current.items.push(line);
+    }
+  }
+  if (current.items.length) sections.push(current);
+  return sections;
+}
+
 function emit(source, value) {
   try {
-    const title = typeof value.title === "string" ? value.title.trim() : "";
-    const ingredientGroups = Array.isArray(value.ingredientGroups)
-      ? value.ingredientGroups
-          .map((group) => ({ name: group.name || undefined, items: strings(group.items) }))
-          .filter((group) => group.items.length)
-      : [];
-    const instructions = strings(value.instructions);
-    if (!title || ingredientGroups.length === 0 || instructions.length === 0) {
-      throw new Error("missing title, ingredients, or instructions");
-    }
-    const signature = createHash("sha256")
-      .update(JSON.stringify({ title, ingredientGroups, instructions }))
-      .digest("hex");
-    recipes.write(`${JSON.stringify({
-      sourceDataset: source.id,
-      sourceRecordId: value.sourceRecordId || signature,
-      sourceUrl: value.sourceUrl || source.url,
-      license: source.license,
-      retrievedAt: snapshot.retrievedAt,
-      sourceChecksum: value.sourceChecksum || signature,
-      contentSignature: signature,
-      title,
-      description: typeof value.description === "string" ? value.description.trim() : "",
-      cuisine: strings(value.cuisine),
-      category: typeof value.category === "string" ? value.category.trim() : "",
-      servings: value.servings,
-      prepTime: value.prepTime,
-      cookTime: value.cookTime,
-      ingredientGroups,
-      instructions,
-      nutrition: value.nutrition,
-      equipment: strings(value.equipment),
-      cooklangSource: typeof value.cooklangSource === "string" ? value.cooklangSource : undefined,
-      parserDiagnostics: typeof value.parserDiagnostics === "string" ? value.parserDiagnostics : undefined,
-      originalSource: value.originalSource,
-    })}\n`);
+    const recipe = createExtractedRecipe(source, snapshot, value);
+    extractedRecipes.write(`${JSON.stringify(recipe)}\n`);
+    recipes.write(`${JSON.stringify(toLegacyRecipe(recipe, value))}\n`);
     accepted += 1;
+    extracted += 1;
+  } catch (error) {
+    emitReject(source, error, value);
+  }
+}
+
+function emitIngredientsOnly(source, value) {
+  try {
+    const recipe = createExtractedRecipe(source, snapshot, value, {
+      completeness: "ingredients-only",
+    });
+    extractedRecipes.write(`${JSON.stringify(recipe)}\n`);
+    extracted += 1;
   } catch (error) {
     emitReject(source, error, value);
   }
@@ -139,7 +184,7 @@ async function linesFromStream(stream, callback) {
   }
 }
 
-const kaggle = { id: "kaggle-64k", url: "https://www.kaggle.com/datasets/prashantsingh001/recipes-dataset-64k-dishes", license: "CC0-1.0" };
+const kaggle = catalogSource("kaggle-64k");
 const unzip = spawn("/usr/bin/unzip", ["-p", `${raw}/kaggle-64k/archive.zip`, "2_Recipe_json.json"]);
 const unzipClosed = new Promise((resolve, reject) => {
   unzip.on("close", resolve);
@@ -152,14 +197,14 @@ await linesFromStream(unzip.stdout, (row) => {
     sourceChecksum,
     title: row.recipe_title,
     description: row.description,
-    category: row.category,
+    metadata: { categories: [row.category, row.subcategory] },
     ingredientGroups: [{ items: row.ingredients }],
     instructions: row.directions,
   });
 });
 if ((await unzipClosed) !== 0) throw new Error("unzip failed");
 
-const myplate = { id: "usda-myplate", url: "https://myplate.food/recipes", license: "Public Domain Mark" };
+const myplate = catalogSource("usda-myplate");
 await linesFromStream(createReadStream(`${raw}/usda-myplate/recipes.jsonl`), (row) => {
   const recipe = row.recipe;
   emit(myplate, {
@@ -168,18 +213,39 @@ await linesFromStream(createReadStream(`${raw}/usda-myplate/recipes.jsonl`), (ro
     sourceChecksum: row.sourceChecksum,
     title: recipe.name,
     description: recipe.description,
-    cuisine: typeof recipe.recipeCuisine === "string" ? [recipe.recipeCuisine] : recipe.recipeCuisine,
-    category: recipe.recipeCategory,
-    servings: recipe.recipeYield,
-    prepTime: recipe.prepTime,
-    cookTime: recipe.cookTime,
-    ingredientGroups: [{ items: recipe.recipeIngredient }],
-    instructions: schemaInstructionTexts(recipe.recipeInstructions),
-    nutrition: recipe.nutrition,
+    ingredientSections: ingredientSectionsFromLines(recipe.recipeIngredient),
+    instructionSections: schemaInstructionSections(recipe.recipeInstructions),
+    metadata: {
+      cuisines: recipe.recipeCuisine,
+      categories: recipe.recipeCategory,
+      tags: typeof recipe.keywords === "string"
+        ? recipe.keywords.split(",").map((item) => item.trim())
+        : recipe.keywords,
+      servings: recipe.recipeYield,
+      prepTime: recipe.prepTime,
+      cookTime: recipe.cookTime,
+      totalTime: recipe.totalTime,
+      authors: schemaParties(recipe.author),
+      publishers: schemaParties(recipe.publisher),
+      sourceOrganizations: schemaParties(recipe.sourceOrganization),
+      datePublished: recipe.datePublished,
+      images: schemaImages(recipe.image),
+      rating: recipe.aggregateRating && {
+        value: recipe.aggregateRating.ratingValue,
+        count: recipe.aggregateRating.ratingCount,
+        best: recipe.aggregateRating.bestRating,
+        worst: recipe.aggregateRating.worstRating,
+      },
+      nutrition: recipe.nutrition,
+      sourceMetadata: {
+        isBasedOn: recipe.isBasedOn,
+        isAccessibleForFree: recipe.isAccessibleForFree,
+      },
+    },
   });
 });
 
-const wikibooks = { id: "wikibooks-cookbook", url: "https://huggingface.co/datasets/gossminn/wikibooks-cookbook", license: "CC-BY-SA-4.0" };
+const wikibooks = catalogSource("wikibooks-cookbook");
 const wikibooksRows = JSON.parse(await readFile(`${raw}/wikibooks-cookbook/recipes_parsed.json`, "utf8"));
 for (const row of wikibooksRows) {
   const data = row.recipe_data;
@@ -203,18 +269,25 @@ for (const row of wikibooksRows) {
   const firstUnsectionedInstruction = data.text_lines.findIndex(
     (line) => !line.section && line.line_type === "ol",
   );
-  const ingredients = data.text_lines
+  const ingredientSections = [...linesBySection].flatMap(([section, lines]) => {
+    const items = lines
+      .filter((line) =>
+        (/ingredient/i.test(section) && ["ul", "ol", "p"].includes(line.line_type)) ||
+        (mixedRecipeSections.has(section) && line.line_type === "ul"),
+      )
+      .map((line) => line.text);
+    return items.length ? [{ name: section, items }] : [];
+  });
+  const unsectionedIngredients = data.text_lines
     .filter(
       (line, index) =>
-        (/ingredient/i.test(line.section || "") &&
-          ["ul", "ol", "p"].includes(line.line_type)) ||
-        (mixedRecipeSections.has(line.section) && line.line_type === "ul") ||
-        (firstUnsectionedInstruction >= 0 &&
-          index < firstUnsectionedInstruction &&
-          !line.section &&
-          line.line_type === "ul"),
+        firstUnsectionedInstruction >= 0 &&
+        index < firstUnsectionedInstruction &&
+        !line.section &&
+        line.line_type === "ul",
     )
     .map((line) => line.text);
+  if (unsectionedIngredients.length) ingredientSections.unshift({ items: unsectionedIngredients });
   const equipment = data.text_lines
     .filter(
       (line) =>
@@ -222,27 +295,46 @@ for (const row of wikibooksRows) {
         ["ul", "ol", "p"].includes(line.line_type),
     )
     .map((line) => line.text);
-  const instructions = data.text_lines
-    .filter(
-      (line) =>
-        (/procedure|instruction|direction|method|preparation|process|^recipe$/i.test(
-          line.section || "",
-        ) && ["ol", "ul", "p"].includes(line.line_type)) ||
-        (mixedRecipeSections.has(line.section) && line.line_type === "ol") ||
-        (!line.section && line.line_type === "ol"),
-    )
+  const instructionSections = [...linesBySection].flatMap(([section, lines]) => {
+    const items = lines
+      .filter((line) =>
+        (/procedure|instruction|direction|method|preparation|process|^recipe$/i.test(section) &&
+          ["ol", "ul", "p"].includes(line.line_type)) ||
+        (mixedRecipeSections.has(section) && line.line_type === "ol"),
+      )
+      .map((line) => instructionText(line.text))
+      .filter(Boolean);
+    return items.length ? [{ name: section, items }] : [];
+  });
+  const unsectionedInstructions = data.text_lines
+    .filter((line) => !line.section && line.line_type === "ol")
     .map((line) => instructionText(line.text))
     .filter(Boolean);
+  if (unsectionedInstructions.length) instructionSections.unshift({ items: unsectionedInstructions });
+  const notes = data.text_lines
+    .filter((line) => /note|tip|variation|warning/i.test(line.section || ""))
+    .map((line) => line.text)
+    .filter(Boolean);
+  const description = data.text_lines
+    .filter((line) => !line.section && ["p", "blockquote"].includes(line.line_type))
+    .map((line) => line.text)
+    .join("\n");
   emit(wikibooks, {
     sourceRecordId: row.filename,
     sourceUrl: data.url,
     sourceChecksum: createHash("sha256").update(JSON.stringify(row)).digest("hex"),
     title: data.title,
-    category: data.infobox?.category,
-    servings: data.infobox?.servings,
-    ingredientGroups: [{ items: ingredients }],
-    instructions,
+    description,
+    ingredientSections,
+    instructionSections,
     equipment,
+    metadata: {
+      categories: data.infobox?.category,
+      servings: data.infobox?.servings,
+      totalTime: data.infobox?.time,
+      difficulty: data.infobox?.difficulty,
+      notes,
+    },
   });
 }
 
@@ -314,11 +406,14 @@ for (const source of sourceCatalog.filter((item) => item.format === "Cooklang"))
       const flatIngredients = getFlatIngredients(parsed);
       const flatCookware = getFlatCookware(parsed);
       const flatTimers = getFlatTimers(parsed);
-      const instructions = parsed.sections.flatMap((section) => section.content.flatMap((content) => {
-        if (content.type !== "step" || isCooklangIngredientListStep(content.value)) return [];
-        const text = cooklangStepText(content.value, parsed, flatIngredients, flatCookware, flatTimers);
-        return text ? [text] : [];
-      }));
+      const instructionSections = parsed.sections.flatMap((section) => {
+        const items = section.content.flatMap((content) => {
+          if (content.type !== "step" || isCooklangIngredientListStep(content.value)) return [];
+          const text = cooklangStepText(content.value, parsed, flatIngredients, flatCookware, flatTimers);
+          return text ? [text] : [];
+        });
+        return items.length ? [{ name: section.name || undefined, items }] : [];
+      });
       const title = parsed.title || row.path.split("/").pop().replace(/\.cook$/i, "");
       emit(source, {
         sourceRecordId: row.path,
@@ -326,18 +421,50 @@ for (const source of sourceCatalog.filter((item) => item.format === "Cooklang"))
         sourceChecksum: row.sourceChecksum,
         title,
         description: parsed.description,
-        cuisine: typeof parsed.cuisine === "string" ? [parsed.cuisine] : parsed.cuisine,
-        category: [...parsed.tags].join(", "),
-        servings: parsed.servings,
         ingredientGroups: [{
-          items: flatIngredients.map((ingredient) => [
-            ingredient.displayText,
-            ingredient.name,
-            ingredient.note ? `(${ingredient.note})` : undefined,
-          ].filter(Boolean).join(" ")),
+          items: flatIngredients.map((ingredient) => ({
+            text: [
+              ingredient.displayText,
+              ingredient.name,
+              ingredient.note ? `(${ingredient.note})` : undefined,
+            ].filter(Boolean).join(" "),
+            name: ingredient.name,
+            quantity: ingredient.quantity ?? undefined,
+            unit: ingredient.unit ?? undefined,
+            note: ingredient.note ?? undefined,
+          })),
         }],
-        instructions,
-        equipment: flatCookware.map((item) => item.name),
+        instructionSections,
+        equipment: flatCookware.map((item) => ({
+          text: [item.displayText, item.name, item.note ? `(${item.note})` : undefined]
+            .filter(Boolean)
+            .join(" "),
+          name: item.name,
+          quantity: item.quantity ?? undefined,
+          note: item.note ?? undefined,
+        })),
+        timers: flatTimers.map((timer) => ({
+          text: [timer.name, timer.displayText].filter(Boolean).join(" "),
+          name: timer.name ?? undefined,
+          quantity: timer.quantity ?? undefined,
+          unit: timer.unit ?? undefined,
+        })),
+        metadata: {
+          cuisines: parsed.cuisine,
+          categories: parsed.course,
+          tags: [...parsed.tags, ...strings(parsed.diet)],
+          servings: parsed.servings,
+          totalTime: parsed.time,
+          difficulty: parsed.difficulty,
+          authors: schemaParties(parsed.author),
+          images: schemaImages(parsed.images),
+          sourceMetadata: {
+            locale: parsed.locale,
+            source: parsed.source,
+            custom: Object.fromEntries(parsed.custom_metadata),
+            raw: Object.fromEntries(parsed.rawMetadata),
+          },
+        },
         cooklangSource: row.text,
         parserDiagnostics: diagnostics,
         originalSource: parsed.source,
@@ -379,6 +506,39 @@ function bulletItems(source) {
       ? [trimmed.slice(2).trim()]
       : [];
   }).filter(Boolean);
+}
+
+function markdownSubheading(line) {
+  const trimmed = line.trim();
+  let markerLength = 0;
+  while (trimmed[markerLength] === "#") markerLength += 1;
+  if (markerLength < 3 || markerLength > 6) return undefined;
+  if (!/[\t ]/u.test(trimmed[markerLength] ?? "")) return undefined;
+  return trimmed.slice(markerLength + 1).trim().replace(/:$/, "") || undefined;
+}
+
+function bulletSections(source) {
+  const sections = [];
+  let current = { items: [] };
+  for (const line of source.split("\n")) {
+    const heading = markdownSubheading(line);
+    if (heading) {
+      if (current.items.length) sections.push(current);
+      current = { name: heading, items: [] };
+      continue;
+    }
+    const item = bulletItems(line)[0];
+    if (item) current.items.push(item);
+  }
+  if (current.items.length) sections.push(current);
+  return sections;
+}
+
+function frontmatterList(source, key) {
+  const value = frontmatterValue(source, key);
+  if (!value) return [];
+  const unwrapped = value.startsWith("[") && value.endsWith("]") ? value.slice(1, -1) : value;
+  return unwrapped.split(",").map((item) => item.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
 }
 
 function removeListMarker(value) {
@@ -427,7 +587,7 @@ function numberedList(source) {
   return steps;
 }
 
-const foss = { id: "fossrecipes", url: "https://github.com/thenaterhood/fossrecipes", license: "CC0-1.0" };
+const foss = catalogSource("fossrecipes");
 const fossArchive = `${raw}/fossrecipes/a6d8d27ba1cd7a2dcaf4dc5d84b7d5a7ab0eaf9c.tar.gz`;
 for (const name of archiveFiles(fossArchive, /\/_recipes\/.*\.md$/)) {
   const source = archiveText(fossArchive, name);
@@ -440,15 +600,16 @@ for (const name of archiveFiles(fossArchive, /\/_recipes\/.*\.md$/)) {
     sourceUrl: `${foss.url}/blob/a6d8d27ba1cd7a2dcaf4dc5d84b7d5a7ab0eaf9c/${name.split("/").slice(1).join("/")}`,
     sourceChecksum: createHash("sha256").update(source).digest("hex"),
     title,
-    ingredientGroups: [{ items: bulletItems(ingredientSource) }],
+    ingredientSections: bulletSections(ingredientSource),
     instructions: paragraphBlocks(directionSource)
       .map(removeListMarker)
       .filter((block) => block && !/^#{1,6}\s/.test(block)),
     equipment: bulletItems(equipmentSource),
+    metadata: { tags: frontmatterList(source, "tags") },
   });
 }
 
-const koha = { id: "koha-cookbook", url: "https://gitlab.com/koha-community/koha-cookbook", license: "CC0-1.0" };
+const koha = catalogSource("koha-cookbook");
 const kohaArchive = `${raw}/koha-cookbook/908b2244.tar.gz`;
 for (const name of archiveFiles(kohaArchive, /\/source\/(?!index|conf)[^/]+\.rst$/)) {
   const source = archiveText(kohaArchive, name);
@@ -473,21 +634,15 @@ for (const name of archiveFiles(kohaArchive, /\/source\/(?!index|conf)[^/]+\.rst
 
 const icnPath = `${raw}/icn-child-nutrition/recipes.jsonl`;
 try {
-  const icn = { id: "icn-child-nutrition", url: "https://theicn.org/cnrb/", license: "Per-record provenance" };
+  const icn = catalogSource("icn-child-nutrition");
   await linesFromStream(createReadStream(icnPath), (row) => {
-    const html = row.html;
-    const description = /class=["'][^"']*wprm-recipe-summary[^"']*["'][^>]*>([\s\S]*?)<\/div>/i.exec(html)?.[1];
-    const servings = /data-servings=["']([^"']*)/i.exec(html)?.[1];
+    const parsed = parseWprmRecipe(row.html);
     emit(icn, {
       sourceRecordId: row.sourceRecordId,
       sourceUrl: row.sourceUrl,
       sourceChecksum: row.sourceChecksum,
       title: htmlText(row.title),
-      description: htmlText(description),
-      servings,
-      ingredientGroups: [{ items: htmlClassItems(html, "wprm-recipe-ingredient") }],
-      instructions: htmlClassItems(html, "wprm-recipe-instruction"),
-      equipment: htmlClassItems(html, "wprm-recipe-equipment"),
+      ...parsed,
     });
   });
 } catch (error) {
@@ -584,7 +739,15 @@ function csvRows(source) {
   return rows;
 }
 
+function splitIngredientList(value) {
+  return value
+    .split(/,\s+(?=(?:\d+(?:[./]\d+)?|[¼½¾⅐⅑⅒⅓⅔⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞])\s)/u)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 let ingredientOnlyCount = 0;
+const tastyr = catalogSource("tastyr");
 for (const filename of ["all_recipes.csv", "cuisines.csv"]) {
   const rows = csvRows(await readFile(`${raw}/tastyr/${filename}`, "utf8"));
   const headers = rows.shift();
@@ -592,6 +755,36 @@ for (const filename of ["all_recipes.csv", "cuisines.csv"]) {
     const value = Object.fromEntries(headers.map((header, index) => [header, fields[index] || ""]));
     if (!value.name || !value.ingredients) continue;
     const sourceChecksum = createHash("sha256").update(fields.join("\u0000")).digest("hex");
+    emitIngredientsOnly(tastyr, {
+      sourceRecordId: sourceChecksum,
+      sourceUrl: value.url,
+      sourceChecksum,
+      title: value.name,
+      ingredientGroups: [{ items: splitIngredientList(value.ingredients) }],
+      metadata: {
+        categories: value.country,
+        servings: value.servings,
+        prepTime: value.prep_time,
+        cookTime: value.cook_time,
+        totalTime: value.total_time,
+        authors: value.author,
+        datePublished: value.date_published,
+        rating: value.avg_rating
+          ? { value: value.avg_rating, count: value.total_ratings }
+          : undefined,
+        nutrition: {
+          calories: value.calories,
+          fat: value.fat,
+          carbohydrates: value.carbs,
+          protein: value.protein,
+        },
+        sourceMetadata: {
+          collection: filename.replace(".csv", ""),
+          reviews: value.reviews,
+          ingredientsText: value.ingredients,
+        },
+      },
+    });
     ingredientOnly.write(`${JSON.stringify({
       sourceDataset: "tastyr",
       sourceRecordId: sourceChecksum,
@@ -621,11 +814,13 @@ for (const filename of ["all_recipes.csv", "cuisines.csv"]) {
 await Promise.all([
   new Promise((resolve, reject) => recipes.end((error) => error ? reject(error) : resolve())),
   new Promise((resolve, reject) => rejects.end((error) => error ? reject(error) : resolve())),
+  new Promise((resolve, reject) => extractedRecipes.end((error) => error ? reject(error) : resolve())),
   new Promise((resolve, reject) => gutenbergCandidates.end((error) => error ? reject(error) : resolve())),
   new Promise((resolve, reject) => ingredientOnly.end((error) => error ? reject(error) : resolve())),
 ]);
 await rename(recipesTemporary, `${outputs}/recipes.jsonl`);
 await rename(rejectsTemporary, `${outputs}/rejects.jsonl`);
+await rename(extractedRecipesTemporary, `${outputs}/extracted-recipes.jsonl`);
 await rename(gutenbergCandidatesTemporary, `${outputs}/gutenberg-candidates.jsonl`);
 await rename(ingredientOnlyTemporary, `${outputs}/ingredient-only.jsonl`);
-console.log(`Prepared ${accepted} recipes; rejected ${rejected} records; found ${gutenbergCandidateCount} Gutenberg candidates and ${ingredientOnlyCount} ingredient-only records.`);
+console.log(`Prepared ${accepted} complete recipes and ${extracted} total extracted recipes; rejected ${rejected} records; found ${gutenbergCandidateCount} Gutenberg candidates and ${ingredientOnlyCount} ingredient-only records.`);

@@ -33,6 +33,7 @@ const CATEGORY_TO_AISLE: Record<IngredientCategory, string> = {
   protein: "meat-fish",
   dairy: "dairy",
   grain: "bakery-grains",
+  nuts: "sweets-baking",
   legume: "tins-cooking",
   condiment: "tins-cooking",
   "oil-fat": "tins-cooking",
@@ -40,6 +41,7 @@ const CATEGORY_TO_AISLE: Record<IngredientCategory, string> = {
   // than drinks, so it belongs with the cooking staples, not on its own aisle.
   liquid: "tins-cooking",
   spice: "herbs-spices",
+  leavening: "sweets-baking",
   sweets: "sweets-baking",
   other: "other",
 };

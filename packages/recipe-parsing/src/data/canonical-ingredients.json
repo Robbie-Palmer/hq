@@ -1,8 +1,20 @@
 {
   "ingredients": [
     {
+      "slug": "almond-extract",
+      "category": "condiment"
+    },
+    {
       "slug": "almond-milk",
       "category": "dairy"
+    },
+    {
+      "slug": "apple-cider-vinegar",
+      "category": "condiment"
+    },
+    {
+      "slug": "applesauce",
+      "category": "condiment"
     },
     {
       "slug": "arborio-rice",
@@ -19,6 +31,14 @@
     {
       "slug": "bacon",
       "category": "protein"
+    },
+    {
+      "slug": "baking-powder",
+      "category": "leavening"
+    },
+    {
+      "slug": "baking-soda",
+      "category": "leavening"
     },
     {
       "slug": "balsamic-vinegar",
@@ -41,6 +61,10 @@
       "category": "vegetable"
     },
     {
+      "slug": "beef-stock",
+      "category": "liquid"
+    },
+    {
       "slug": "bell-pepper",
       "category": "vegetable"
     },
@@ -49,7 +73,15 @@
       "category": "spice"
     },
     {
+      "slug": "blueberry",
+      "category": "fruit"
+    },
+    {
       "slug": "bread",
+      "category": "grain"
+    },
+    {
+      "slug": "bread-crumbs",
       "category": "grain"
     },
     {
@@ -73,6 +105,10 @@
       "category": "spice"
     },
     {
+      "slug": "canola-oil",
+      "category": "oil-fat"
+    },
+    {
       "slug": "caramel",
       "category": "sweets"
     },
@@ -82,7 +118,7 @@
     },
     {
       "slug": "cashew",
-      "category": "other"
+      "category": "nuts"
     },
     {
       "slug": "caster-sugar",
@@ -90,6 +126,14 @@
     },
     {
       "slug": "cayenne-pepper",
+      "category": "spice"
+    },
+    {
+      "slug": "celery",
+      "category": "vegetable"
+    },
+    {
+      "slug": "celery-seed",
       "category": "spice"
     },
     {
@@ -153,6 +197,18 @@
       "category": "protein"
     },
     {
+      "slug": "cinnamon",
+      "category": "spice"
+    },
+    {
+      "slug": "cocoa-powder",
+      "category": "sweets"
+    },
+    {
+      "slug": "coconut",
+      "category": "fruit"
+    },
+    {
       "slug": "coconut-cream",
       "category": "dairy"
     },
@@ -165,12 +221,32 @@
       "category": "other"
     },
     {
+      "slug": "cooking-spray",
+      "category": "oil-fat"
+    },
+    {
       "slug": "cornflour",
       "category": "grain"
     },
     {
+      "slug": "cornmeal",
+      "category": "grain"
+    },
+    {
+      "slug": "cornstarch",
+      "category": "grain"
+    },
+    {
+      "slug": "cranberry",
+      "category": "fruit"
+    },
+    {
       "slug": "cream-cheese",
       "category": "dairy"
+    },
+    {
+      "slug": "cream-of-tartar",
+      "category": "leavening"
     },
     {
       "slug": "creme-fraiche",
@@ -189,6 +265,10 @@
       "category": "spice"
     },
     {
+      "slug": "dark-brown-sugar",
+      "category": "sweets"
+    },
+    {
       "slug": "dark-chocolate",
       "category": "sweets"
     },
@@ -197,8 +277,16 @@
       "category": "condiment"
     },
     {
+      "slug": "dijon-mustard",
+      "category": "condiment"
+    },
+    {
       "slug": "double-cream",
       "category": "dairy"
+    },
+    {
+      "slug": "dried-basil",
+      "category": "herb"
     },
     {
       "slug": "dried-bay-leaves",
@@ -217,6 +305,10 @@
       "category": "spice"
     },
     {
+      "slug": "dried-rosemary",
+      "category": "herb"
+    },
+    {
       "slug": "dried-tarragon",
       "category": "herb"
     },
@@ -225,8 +317,12 @@
       "category": "herb"
     },
     {
+      "slug": "dry-mustard",
+      "category": "spice"
+    },
+    {
       "slug": "dry-yeast",
-      "category": "other"
+      "category": "leavening"
     },
     {
       "slug": "dulce-de-leche",
@@ -235,6 +331,18 @@
     {
       "slug": "egg",
       "category": "protein"
+    },
+    {
+      "slug": "egg-white",
+      "category": "protein"
+    },
+    {
+      "slug": "egg-yolk",
+      "category": "protein"
+    },
+    {
+      "slug": "evaporated-milk",
+      "category": "dairy"
     },
     {
       "slug": "extra-virgin-olive-oil",
@@ -251,6 +359,10 @@
     {
       "slug": "farfalle",
       "category": "grain"
+    },
+    {
+      "slug": "feta-cheese",
+      "category": "dairy"
     },
     {
       "slug": "five-spice",
@@ -325,6 +437,10 @@
       "category": "vegetable"
     },
     {
+      "slug": "garlic-salt",
+      "category": "spice"
+    },
+    {
       "slug": "ginger",
       "category": "spice"
     },
@@ -335,6 +451,10 @@
     {
       "slug": "ginger-puree",
       "category": "condiment"
+    },
+    {
+      "slug": "graham-cracker-crumbs",
+      "category": "grain"
     },
     {
       "slug": "grana-padano",
@@ -350,10 +470,18 @@
     },
     {
       "slug": "ground-almonds",
-      "category": "other"
+      "category": "nuts"
+    },
+    {
+      "slug": "ground-beef",
+      "category": "protein"
     },
     {
       "slug": "ground-cinnamon",
+      "category": "spice"
+    },
+    {
+      "slug": "ground-cloves",
       "category": "spice"
     },
     {
@@ -369,6 +497,14 @@
       "category": "spice"
     },
     {
+      "slug": "ground-pork",
+      "category": "protein"
+    },
+    {
+      "slug": "ground-turkey",
+      "category": "protein"
+    },
+    {
       "slug": "ground-white-pepper",
       "category": "spice"
     },
@@ -377,12 +513,20 @@
       "category": "condiment"
     },
     {
+      "slug": "half-and-half",
+      "category": "dairy"
+    },
+    {
       "slug": "harissa-paste",
       "category": "condiment"
     },
     {
       "slug": "harissa-seasoning",
       "category": "spice"
+    },
+    {
+      "slug": "heavy-cream",
+      "category": "dairy"
     },
     {
       "slug": "herbes-de-provence",
@@ -401,6 +545,10 @@
       "category": "spice"
     },
     {
+      "slug": "ice",
+      "category": "other"
+    },
+    {
       "slug": "icing-sugar",
       "category": "sweets"
     },
@@ -413,12 +561,20 @@
       "category": "spice"
     },
     {
+      "slug": "ketchup",
+      "category": "condiment"
+    },
+    {
       "slug": "kosher-salt",
       "category": "spice"
     },
     {
       "slug": "large-pasta-shells",
       "category": "grain"
+    },
+    {
+      "slug": "lean-ground-beef",
+      "category": "protein"
     },
     {
       "slug": "leek",
@@ -429,8 +585,16 @@
       "category": "condiment"
     },
     {
+      "slug": "lemon-zest",
+      "category": "fruit"
+    },
+    {
       "slug": "lettuce",
       "category": "vegetable"
+    },
+    {
+      "slug": "light-corn-syrup",
+      "category": "sweets"
     },
     {
       "slug": "light-soft-cheese",
@@ -497,6 +661,14 @@
       "category": "spice"
     },
     {
+      "slug": "molasses",
+      "category": "sweets"
+    },
+    {
+      "slug": "monterey-jack-cheese",
+      "category": "dairy"
+    },
+    {
       "slug": "mozzarella",
       "category": "dairy"
     },
@@ -513,8 +685,16 @@
       "category": "grain"
     },
     {
+      "slug": "oil",
+      "category": "oil-fat"
+    },
+    {
       "slug": "olive-oil",
       "category": "oil-fat"
+    },
+    {
+      "slug": "onion",
+      "category": "vegetable"
     },
     {
       "slug": "onion-powder",
@@ -538,6 +718,10 @@
     },
     {
       "slug": "paella-rice",
+      "category": "grain"
+    },
+    {
+      "slug": "panko-bread-crumbs",
       "category": "grain"
     },
     {
@@ -565,8 +749,16 @@
       "category": "vegetable"
     },
     {
+      "slug": "pecan",
+      "category": "nuts"
+    },
+    {
       "slug": "penne-pasta",
       "category": "grain"
+    },
+    {
+      "slug": "pepper",
+      "category": "spice"
     },
     {
       "slug": "peri-peri-salt",
@@ -601,6 +793,18 @@
       "category": "other"
     },
     {
+      "slug": "pumpkin-pie-spice",
+      "category": "spice"
+    },
+    {
+      "slug": "quick-oats",
+      "category": "grain"
+    },
+    {
+      "slug": "raisin",
+      "category": "fruit"
+    },
+    {
       "slug": "red-chilli-powder",
       "category": "spice"
     },
@@ -617,12 +821,20 @@
       "category": "vegetable"
     },
     {
+      "slug": "red-wine-vinegar",
+      "category": "condiment"
+    },
+    {
       "slug": "rice",
       "category": "grain"
     },
     {
       "slug": "rice-wine-vinegar",
       "category": "condiment"
+    },
+    {
+      "slug": "ricotta-cheese",
+      "category": "dairy"
     },
     {
       "slug": "rolled-oats",
@@ -653,6 +865,10 @@
       "category": "other"
     },
     {
+      "slug": "semisweet-chocolate-chips",
+      "category": "sweets"
+    },
+    {
       "slug": "semolina",
       "category": "grain"
     },
@@ -669,12 +885,20 @@
       "category": "vegetable"
     },
     {
+      "slug": "shortening",
+      "category": "oil-fat"
+    },
+    {
       "slug": "single-cream",
       "category": "dairy"
     },
     {
       "slug": "smoked-paprika",
       "category": "spice"
+    },
+    {
+      "slug": "sour-cream",
+      "category": "dairy"
     },
     {
       "slug": "soy-sauce",
@@ -725,6 +949,10 @@
       "category": "vegetable"
     },
     {
+      "slug": "sweetened-condensed-milk",
+      "category": "dairy"
+    },
+    {
       "slug": "taco-seasoning",
       "category": "spice"
     },
@@ -765,6 +993,14 @@
       "category": "dairy"
     },
     {
+      "slug": "vanilla",
+      "category": "spice"
+    },
+    {
+      "slug": "vanilla-extract",
+      "category": "condiment"
+    },
+    {
       "slug": "vegetable-oil",
       "category": "oil-fat"
     },
@@ -775,6 +1011,14 @@
     {
       "slug": "vine-tomato",
       "category": "vegetable"
+    },
+    {
+      "slug": "vinegar",
+      "category": "condiment"
+    },
+    {
+      "slug": "walnut",
+      "category": "nuts"
     },
     {
       "slug": "water",
@@ -793,6 +1037,10 @@
       "category": "spice"
     },
     {
+      "slug": "white-vinegar",
+      "category": "condiment"
+    },
+    {
       "slug": "white-wine",
       "category": "liquid"
     },
@@ -803,6 +1051,18 @@
     {
       "slug": "whole-cloves",
       "category": "spice"
+    },
+    {
+      "slug": "whole-milk",
+      "category": "dairy"
+    },
+    {
+      "slug": "whole-wheat-flour",
+      "category": "grain"
+    },
+    {
+      "slug": "worcestershire-sauce",
+      "category": "condiment"
     },
     {
       "slug": "yoghurt",
