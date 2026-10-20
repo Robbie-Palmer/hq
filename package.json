@@ -49,6 +49,11 @@
     "ui/**/*.json": [
       "mise run //ui:format"
     ],
+    "infra/account-foundation/**/*.tf": [
+      "mise run //infra/account-foundation:format",
+      "mise run //infra/account-foundation:precommit-lint",
+      "mise run //infra/account-foundation:lint:tflint"
+    ],
     "infra/public-platform/**/*.tf": [
       "mise run //infra/public-platform:format",
       "mise run //infra/public-platform:precommit-lint",
