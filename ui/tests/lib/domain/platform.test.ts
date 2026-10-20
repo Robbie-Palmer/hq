@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getADRsForProject } from "@/lib/domain/adr/adrQueries";
 import {
+  classifyDefaultSelection,
   compareUtcInstants,
   type DefaultSelection,
   getSelectionLifecycleStatus,
@@ -78,6 +79,121 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
 }
 
 describe("temporal platform layers", () => {
+  it("classifies every promoted capability without treating local candidates as defaults", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const expected = new Map<
+      string,
+      ReturnType<typeof classifyDefaultSelection>
+    >([
+      [
+        "identity-authentication-library-better-auth-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "identity-login-provider-google-oauth-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "identity-login-provider-github-oauth-2026-10-15",
+        "project-local-choice",
+      ],
+      [
+        "identity-delegated-agent-authentication-better-auth-2026-10-15",
+        "project-local-choice",
+      ],
+      [
+        "identity-session-transport-same-origin-cookie-2026-10-15",
+        "policy-value",
+      ],
+      [
+        "identity-authorization-policy-server-side-resource-rules-2026-10-15",
+        "policy-value",
+      ],
+      [
+        "security-preview-access-cloudflare-access-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "security-service-auth-cloudflare-access-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "web-app-server-state-client-tanstack-query-2026-09-29",
+        "preferred-capability",
+      ],
+      ["backend-api-http-framework-hono-2026-09-29", "preferred-capability"],
+      [
+        "backend-api-contract-format-openapi-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "backend-api-contract-generator-hono-zod-openapi-2026-10-19",
+        "preferred-capability",
+      ],
+      [
+        "api-governance-contract-linter-spectral-2026-09-29",
+        "required-default",
+      ],
+      [
+        "api-governance-compatibility-check-oasdiff-2026-09-29",
+        "preferred-capability",
+      ],
+      ["database-relational-access-drizzle-2026-09-29", "preferred-capability"],
+      ["database-migration-discipline-committed-2026-10-19", "policy-value"],
+      [
+        "backend-api-relational-connection-hyperdrive-2026-09-29",
+        "preferred-capability",
+      ],
+      ["delivery-preview-environment-isolated-2026-09-29", "policy-value"],
+      ["database-preview-isolation-fresh-2026-10-20", "policy-value"],
+      ["database-backup-restore-encrypted-archives-2026-09-29", "policy-value"],
+      ["storage-object-store-cloudflare-r2-2026-09-29", "preferred-capability"],
+      [
+        "observability-telemetry-protocol-opentelemetry-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "observability-application-telemetry-posthog-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "observability-alert-evaluation-posthog-2026-09-29",
+        "preferred-capability",
+      ],
+      ["observability-alert-delivery-slack-2026-09-29", "preferred-capability"],
+    ]);
+
+    const platform = getProjectWithADRs(
+      repository,
+      "personal-engineering-platform",
+    );
+    const slots = new Map(
+      platform?.platformManifest?.slots.map((slot) => [slot.slug, slot]),
+    );
+
+    for (const [selectionId, classification] of expected) {
+      const selection = manifest.selections.find(
+        (candidate) => candidate.id === selectionId,
+      );
+      expect(selection, selectionId).toBeDefined();
+      if (!selection) continue;
+
+      expect(
+        classifyDefaultSelection(manifest, selection, "2026-10-20T12:00:00Z"),
+      ).toBe(classification);
+      expect(selection.decision).toMatch(/^personal-engineering-platform:/);
+      expect(selection.evidenceADRs.length).toBeGreaterThan(0);
+      expect(selection.originProjects.length).toBeGreaterThan(0);
+      if (classification !== "project-local-choice") {
+        expect(slots.get(selection.slot)?.adopters.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("accepts a layer re-adoption at the prior period's exclusive boundary", () => {
     const result = ProjectLayerUsesSchema.safeParse([
       {

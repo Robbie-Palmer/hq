@@ -27,6 +27,34 @@ export type EffectivePolicySource = Exclude<
   "project-specific"
 >;
 
+export type PlatformCapabilityClassification =
+  | "required-default"
+  | "preferred-capability"
+  | "policy-value"
+  | "project-local-choice";
+
+export function classifyDefaultSelection(
+  manifest: PlatformManifest,
+  selection: DefaultSelection,
+  at = selection.effectiveFrom,
+): PlatformCapabilityClassification {
+  if (selection.status !== "Accepted") return "project-local-choice";
+  if (selection.kind === "policy") return "policy-value";
+
+  const policy = manifest.policies.find(
+    (candidate) =>
+      candidate.slot === selection.slot && isEffectiveAt(candidate, at),
+  );
+  if (!policy) {
+    throw new RangeError(
+      `Accepted selection '${selection.id}' has no effective slot policy`,
+    );
+  }
+  return policy.mode === "required"
+    ? "required-default"
+    : "preferred-capability";
+}
+
 interface EffectiveDefaultUseBase {
   kind: "technology" | "policy";
   source: EffectiveTechnologySource;
