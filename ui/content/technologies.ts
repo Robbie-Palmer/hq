@@ -1134,6 +1134,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "@hono/zod-openapi",
+    added: "2026-10-19",
+    description:
+      "Hono adapter that derives OpenAPI operations from Zod-backed route declarations",
+    website: "https://hono.dev/examples/zod-openapi",
+    type: "library",
+  },
+  {
     name: "Hyperdrive",
     added: "2026-05-28",
     description:
