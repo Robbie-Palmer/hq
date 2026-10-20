@@ -1,0 +1,107 @@
+---
+title: "ADR 023: Restic and Backblaze B2 for the offsite non-photo archive"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["restic", "Backblaze B2"]
+---
+
+# Context
+
+Non-photo documents and other personal artifacts have been consolidated onto
+an external hard drive in the same home as the Mac mini. That is now the only
+copy of much of the archive, so theft, fire, electrical damage, disk failure,
+ransomware, or an accidental deletion could destroy it.
+
+Photos and code do not share this gap. Ente is the source of truth for photos,
+stores them across three cloud providers, and exports them to the external hard
+drive. GitHub and the machines that clone its repositories provide the working
+copies of code. This decision excludes both categories.
+
+A cloud drive answers synchronization and everyday access. It does not prove
+that an older independent copy can be restored after the working library is
+damaged. The lab needs a separate, encrypted, versioned, offsite backup with a
+routine that can be run and checked from the command line.
+
+# Decision
+
+Pilot [restic](https://restic.readthedocs.io/en/stable/) with a private
+[Backblaze B2](https://www.backblaze.com/cloud-storage) bucket for the
+non-photo, non-code personal archive. Restic
+[encrypts file content and metadata](https://restic.readthedocs.io/en/stable/070_encryption.html)
+before upload and
+[supports B2 through its S3-compatible API](https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html).
+B2 provides an independent provider, simple capacity pricing, and
+[Object Lock](https://www.backblaze.com/docs/cloud-storage-object-lock) for
+retention that an ordinary compromised client cannot immediately erase.
+
+Start with the deduplicated document archive. Add another category only when an
+inventory shows that it lacks the protection already provided for photos and
+code.
+
+The automated backup credential gets only the access needed to write and check
+its repository. Keep retention-changing and destructive maintenance credentials
+outside the scheduled job. Enable a short Object Lock retention period during
+the pilot and explicitly test how backup, stale-lock cleanup, `forget`, and
+`prune` behave before lengthening it. Retained old object versions increase cost
+and must not be mistaken for a failed cleanup.
+
+Store the restic password and B2 application key in Doppler for the scheduled
+Mac mini job. Store an independent printed or hardware-encrypted recovery copy
+of the restic password outside Doppler and outside the house. Losing the
+password makes the backup unrecoverable.
+
+Promote the pilot only after it passes:
+
+* an initial full backup and a second incremental backup;
+* automated failure and stale-backup alerts;
+* restoration of random files and a complete representative directory into a
+  clean temporary location;
+* checksum comparison between source and restore;
+* a recovery drill using the independent credential copy; and
+* a documented estimate based on actual stored bytes and retained versions.
+
+Backblaze currently lists B2 at
+[$6.95 per TB per month](https://www.backblaze.com/cloud-storage/pricing), with
+the first 10 GB free, free uploads and transactions, and free egress up to three
+times average monthly storage. Egress above that allowance costs $0.01 per GB.
+A normal full restore is within the allowance, but repeated full restores in
+one billing month may cost extra. At the storage rate, 200 GB is about $1.39 per
+month, 500 GB about $3.48, and 1 TB $6.95 before retained-version growth.
+
+# Alternatives
+
+## Cloudflare R2
+
+R2 is already used by projects and costs
+[$0.015 per GB-month](https://developers.cloudflare.com/r2/pricing/) in its
+standard tier with no egress charge. At 1 TB it is roughly $15 per month, more
+than twice B2's storage price. More importantly, R2 does not currently expose
+bucket versioning or Object Lock through its S3-compatible API. Reusing an
+existing account is not worth a weaker deletion boundary and a shared provider
+failure domain.
+
+## The working document library as the only offsite copy
+
+The synchronized library selected by the
+[Personal Digital Infrastructure](/projects/personal-digital-infrastructure)
+project will improve availability but remains a user-facing working copy. A
+mistaken deletion, account lockout, or provider problem can affect the same
+system used every day. It complements this backup rather than replacing it.
+
+## A friend's tailnet node
+
+A trusted offsite machine avoids another storage subscription and can run
+restic's append-only server mode. It adds another person's power, broadband,
+hardware, and physical access to the recovery path. Reconsider it as a second
+offsite target after the cloud recovery drill works.
+
+# Consequences
+
+The non-photo archive gains an independent copy outside the home, encrypted
+before it leaves the Mac mini, with predictable command-line operations and
+tested restoration. Photos and code remain outside this backup because their
+existing distribution is already acceptable.
+
+The lab must monitor a new scheduled job, protect another recovery secret, and
+pay for retained bytes. Object Lock also makes mistakes deliberately slower to
+undo, so retention changes and pruning need more care than an ordinary bucket.

@@ -1,0 +1,82 @@
+---
+title: "ADR 003: Ente Locker for a replicated recovery packet"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["Ente"]
+---
+
+# Context
+
+A document drive contains files used every day, and a backup restores a large
+archive after loss. Neither answers the narrower emergency question: what does
+the owner or a trusted person need to recover the most important accounts and
+documents when the usual devices are unavailable?
+
+Ente Locker is designed for a small collection of identity documents, recovery
+codes, notes, and trusted-contact access. It is not a generic drive, photo
+library, TOTP generator, or daily password manager. Ente recommends using it
+alongside those tools. The existing Ente Photos subscription raises Locker's
+allowance to 1,000 items and 10 GB at no extra cost.
+
+Locker currently has no bulk export. That makes it unsuitable as the only copy
+or canonical authoring system for recovery material.
+
+# Decision
+
+Trial [Ente Locker](https://ente.com/help/locker/) as a mobile and
+trusted-contact copy of a small recovery packet. Keep the canonical packet in
+an encrypted local directory covered by the Home Lab's proposed
+[restic and B2 archive](/projects/homelab/adrs/023-restic-backblaze-personal-archive).
+Keep the minimum printed or hardware-held material needed when every cloud
+account is locked.
+
+The first packet covers:
+
+* password-manager and primary-email recovery instructions;
+* the location and purpose of hardware security keys;
+* domain registrar and renewal instructions;
+* insurance, identity, and emergency-contact documents;
+* Ente, Proton, Doppler, and restic recovery steps; and
+* instructions that a trusted person can follow without knowing the homelab.
+
+Do not store the only Ente recovery key inside Ente. Do not copy the complete
+password vault into Locker. [ADR
+001](/projects/personal-digital-infrastructure/adrs/001-proton-pass-trial)
+governs daily and agent credentials. [ADR
+000](/projects/personal-digital-infrastructure/adrs/000-filen-document-library-trial)
+governs the general document library.
+
+Promote the trial only after a trusted contact can find the packet, explain the
+sequence, and retrieve a harmless test item from a clean phone. Review the
+packet every six months and after changing the password manager, primary
+email, domain registrar, backup provider, or hardware keys.
+
+Ente Locker has no incremental cost for the existing paid Photos account. Its
+[paid limits and export limitation](https://ente.com/help/locker/faq/getting-started)
+must be rechecked before acceptance.
+
+# Alternatives
+
+## Keep the packet only in the document drive
+
+A primary-account failure may remove the same drive access needed to read the
+instructions. Reject it as the only copy.
+
+## Keep the packet only in the password manager
+
+Emergency access is useful, but it cannot recover the password manager itself
+and may be confusing to someone who has never used it. Selected instructions
+may live there, but not the sole packet.
+
+## Use Ente Locker as the general document store
+
+Locker has item and capacity limits, no bulk export, and workflows built around
+important records rather than arbitrary folders. Reject that use. Its narrow
+scope is useful only while the recovery packet stays small.
+
+# Consequences
+
+Critical instructions become available on mobile and to trusted contacts
+without creating another unbounded file silo. Every Locker item still needs an
+independently recoverable source, and a recovery drill must use more than the
+owner's already logged-in phone.

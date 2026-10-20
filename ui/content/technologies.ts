@@ -488,6 +488,14 @@ Diff operations can set an edit-distance or time limit. The function returns no 
     type: "platform",
   },
   {
+    name: "Backblaze B2",
+    added: "2026-10-18",
+    description:
+      "S3-compatible object storage with low-cost capacity, version history, and Object Lock retention",
+    website: "https://www.backblaze.com/cloud-storage",
+    type: "platform",
+  },
+  {
     name: "Cloudflare Workflows",
     added: "2026-07-08",
     description: "Durable execution engine for multi-step Workers applications",
@@ -744,6 +752,22 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     description:
       "A platform for packaging, distributing, and running applications in containers",
     website: "https://www.docker.com",
+    type: "tool",
+  },
+  {
+    name: "Gluetun",
+    added: "2026-10-18",
+    description:
+      "Containerized VPN client and network boundary for routing other containers through WireGuard or OpenVPN",
+    website: "https://github.com/qdm12/gluetun",
+    type: "tool",
+  },
+  {
+    name: "restic",
+    added: "2026-10-18",
+    description:
+      "Encrypted, deduplicated command-line backups to local and cloud object storage",
+    website: "https://restic.net",
     type: "tool",
   },
   {
@@ -1329,6 +1353,55 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
       "VPN client and service that encrypts internet traffic and routes it through remote servers, masking the user's IP address",
     website: "https://www.hotspotshield.com",
     type: "tool",
+  },
+  {
+    name: "Proton VPN",
+    added: "2026-10-18",
+    description:
+      "Commercial internet egress service with third-party exit servers, location choice, P2P support, port forwarding, and standard WireGuard configurations; complementary to Tailscale's private mesh",
+    website: "https://protonvpn.com",
+    type: "tool",
+  },
+  {
+    name: "Dashlane",
+    added: "2026-10-18",
+    description:
+      "Cross-platform personal password manager with browser and mobile autofill",
+    website: "https://www.dashlane.com",
+    type: "tool",
+  },
+  {
+    name: "Filen",
+    added: "2026-10-18",
+    description:
+      "End-to-end encrypted cloud file storage with desktop, mobile, web, and command-line sync clients",
+    website: "https://filen.io",
+    type: "platform",
+  },
+  {
+    name: "Proton Pass",
+    added: "2026-10-18",
+    description:
+      "Cross-platform password manager with browser and mobile autofill, a CLI, and vault-scoped agent access tokens",
+    website: "https://proton.me/pass",
+    type: "tool",
+  },
+  {
+    name: "Proton Mail",
+    added: "2026-10-18",
+    description:
+      "End-to-end encrypted email service with mobile, web, custom-domain, and Bridge access",
+    website: "https://proton.me/mail",
+    type: "platform",
+  },
+  {
+    name: "Cloudflare Email Routing",
+    added: "2026-10-18",
+    description:
+      "Custom-domain inbound email routing to verified destination mailboxes",
+    website: "https://developers.cloudflare.com/email-routing/",
+    iconSlug: "cloudflare",
+    type: "platform",
   },
   {
     name: "t3-code",
