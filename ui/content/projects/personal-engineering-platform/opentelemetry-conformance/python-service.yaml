@@ -28,17 +28,19 @@ cardinality:
   max_active_instances: 4
   max_metric_series_per_instrument: 1000
   max_span_name_templates: 50
-allowed_attributes:
-  - "http.request.method"
-  - "http.response.status_code"
-  - "server.address"
-  - "db.system.name"
-  - "db.namespace"
-  - "error.type"
-rejected_attributes:
-  - "db.query.text"
-  - "url.query"
-  - "user.id"
+attribute_allowlist:
+  span_and_log_attributes:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "server.address"
+    - "db.system.name"
+    - "db.namespace"
+    - "error.type"
+  metric_dimensions:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "db.system.name"
+    - "error.type"
 assertions:
   - "The service exports all signals to a local or private collector."
   - "Shutdown performs one bounded force flush."

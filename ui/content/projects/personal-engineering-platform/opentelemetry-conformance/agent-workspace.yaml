@@ -29,15 +29,11 @@ cardinality:
   max_active_instances: 20
   max_metric_series_per_instrument: 1000
   max_span_name_templates: 100
-allowed_attributes:
-  - "error.type"
-rejected_attributes:
-  - "cicd.pipeline.name"
-  - "cicd.pipeline.run.id"
-  - "gen_ai.prompt"
-  - "gen_ai.completion"
-  - "gen_ai.conversation.id"
-  - "me.robbiepalmer.workspace.id"
+attribute_allowlist:
+  span_and_log_attributes:
+    - "error.type"
+  metric_dimensions:
+    - "error.type"
 assertions:
   - "Release-candidate and development CI/CD, agent, and generative-AI fields are not emitted."
   - "The collector drops prompt, response, source, diff, terminal, path, and environment content."

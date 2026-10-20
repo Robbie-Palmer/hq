@@ -27,15 +27,17 @@ cardinality:
   max_active_instances: 1
   max_metric_series_per_instrument: 500
   max_span_name_templates: 30
-allowed_attributes:
-  - "http.request.method"
-  - "http.response.status_code"
-  - "url.path"
-  - "error.type"
-rejected_attributes:
-  - "http.request.header.authorization"
-  - "url.query"
-  - "user.id"
+attribute_allowlist:
+  span_and_log_attributes:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "http.route"
+    - "error.type"
+  metric_dimensions:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "http.route"
+    - "error.type"
 assertions:
   - "Inbound and outbound HTTP calls preserve W3C Trace Context."
   - "The Worker uses waitUntil for a bounded flush and never blocks the response on telemetry."

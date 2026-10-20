@@ -89,18 +89,37 @@ data boundary, migration plan, and removal trigger. Until then, agent telemetry
 records the stable service context but does not export CI/CD, prompt, response,
 tool arguments, or unstable agent fields.
 
-Telemetry is default-deny. Instrumentation starts with a per-signal allowlist
-and drops a record that cannot be made safe through deterministic redaction.
-Credentials, authorization headers, cookies, environment values, prompt or
-response bodies, source, diffs, terminal output, database statements and bind
-values, message bodies, user-bearing object keys, and raw query strings never
-leave the workload.
+Telemetry is default-deny. Each runtime has one allowlist shared by spans and
+logs, plus a separate allowlist for metric dimensions. Spans and logs share a
+policy because they have the same data boundary and do not create metric time
+series. A project can split them in a later contract only when retention,
+indexing, or redaction requirements differ in practice.
+
+The security policy names prohibited content classes and known attribute keys
+or prefixes. Credentials, authorization headers, cookies, environment values,
+personal identifiers, prompt or response bodies, tool arguments or results,
+source, diffs, terminal output, database statements and bind values, message
+bodies, user-bearing object keys, and raw URL paths or queries never leave the
+workload. This rule applies even when instrumentation uses an unknown or custom
+attribute name. It covers resource attributes, span attributes and events, log
+attributes and bodies, metric attributes, and baggage. Only deterministic
+redaction may make a record safe; otherwise the runtime or Collector drops the
+record. The exact-key and prefix rules make known OpenTelemetry fields
+executable: the validator rejects any runtime allowlist containing one. This is
+stricter than upstream defaults. OpenTelemetry warns that captured
+[HTTP headers](https://opentelemetry.io/docs/specs/semconv/http/http-spans/),
+[database parameters](https://opentelemetry.io/docs/specs/semconv/db/sql/),
+[generative-AI messages](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/),
+and [URLs](https://opentelemetry.io/docs/specs/semconv/url/) may contain
+sensitive data.
 
 An instrument may produce at most 2,000 active metric series per service and
 environment. Each record has at most 128 attributes with 4,096 characters per
-value, and a service has at most 100 span-name templates. IDs, raw URLs, query
-text, message IDs, conversations, and workspace IDs are not metric dimensions.
-Projects set smaller fixture budgets where their runtime has tighter limits.
+value, and a service has at most 100 span-name templates. The metric allowlist
+also excludes IDs, raw URLs, query text, message IDs, conversations, and
+workspace IDs. An attribute may be useful on a span or log while remaining
+forbidden as a metric dimension. Projects set smaller fixture budgets where
+their runtime has tighter limits.
 
 Use parent-based ratio sampling with all traces in development and test and a
 0.1 root ratio in production unless a project records another ratio. Batching,
@@ -124,8 +143,10 @@ agent conventions, and default-deny content handling.
 
 The repository check parses the contract and every fixture. It rejects missing
 identity, signals, propagation, required runtime coverage, transport drift,
-out-of-range sampling and batching, unknown convention families, and budgets
-above the platform limits.
+out-of-range sampling and batching, unknown convention families, duplicate
+allowlist entries, prohibited security attributes, forbidden metric
+attributes, and budgets above the platform limits. Negative cases live in the
+validator tests rather than a second rejection list in each fixture.
 
 ## Alternatives
 
@@ -147,9 +168,10 @@ adopt an unstable group through a scoped ADR when its value exceeds that cost.
 ## Consequences
 
 The project-profile resolver can now turn the telemetry capability into
-resource attributes, transport, required configuration, checks, and finite
-runtime budgets without knowing the eventual backend. Copier can generate one
-of four tested runtime shapes rather than an unbounded observability template.
+resource attributes, transport, security rules, span-and-log attributes,
+metric dimensions, checks, and finite runtime budgets without knowing the
+eventual backend. Copier can generate one of four tested runtime shapes rather
+than an unbounded observability template.
 
 The contract is stricter than the existing shared TypeScript package. That
 package still needs a later reconciliation change before it can claim version

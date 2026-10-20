@@ -79,10 +79,89 @@ describe("OpenTelemetry contract", () => {
       ({ runtime }) => runtime === "agent-workspace",
     );
     if (!workspace) throw new Error("Missing agent workspace fixture");
-    workspace.allowed_attributes.push("trace_id");
+    workspace.attribute_allowlist.metric_dimensions.push("trace_id");
 
     expect(validateOpenTelemetryConformance(contract, fixtures)).toContain(
-      "agent-workspace: allows prohibited metric dimension 'trace_id'",
+      "agent-workspace: allows forbidden metric attribute 'trace_id'",
+    );
+  });
+
+  it("permits a high-cardinality attribute on spans and logs", async () => {
+    const [contract, fixtures] = await Promise.all([
+      loadOpenTelemetryContract(repositoryRoot),
+      loadOpenTelemetryFixtures(repositoryRoot),
+    ]);
+    const workspace = fixtures.find(
+      ({ runtime }) => runtime === "agent-workspace",
+    );
+    if (!workspace) throw new Error("Missing agent workspace fixture");
+    workspace.attribute_allowlist.span_and_log_attributes.push("trace_id");
+
+    expect(validateOpenTelemetryConformance(contract, fixtures)).toEqual([]);
+  });
+
+  it("rejects an explicitly prohibited attribute key", async () => {
+    const [contract, fixtures] = await Promise.all([
+      loadOpenTelemetryContract(repositoryRoot),
+      loadOpenTelemetryFixtures(repositoryRoot),
+    ]);
+    const worker = fixtures.find(
+      ({ runtime }) => runtime === "typescript-worker",
+    );
+    if (!worker) throw new Error("Missing TypeScript Worker fixture");
+    worker.attribute_allowlist.span_and_log_attributes.push("url.query");
+
+    expect(validateOpenTelemetryConformance(contract, fixtures)).toContain(
+      "typescript-worker: span_and_log_attributes allowlist includes prohibited attribute 'url.query'",
+    );
+  });
+
+  it("rejects an attribute covered by a prohibited prefix", async () => {
+    const [contract, fixtures] = await Promise.all([
+      loadOpenTelemetryContract(repositoryRoot),
+      loadOpenTelemetryFixtures(repositoryRoot),
+    ]);
+    const python = fixtures.find(({ runtime }) => runtime === "python-service");
+    if (!python) throw new Error("Missing Python fixture");
+    python.attribute_allowlist.metric_dimensions.push(
+      "db.query.parameter.customer_id",
+    );
+
+    expect(validateOpenTelemetryConformance(contract, fixtures)).toContain(
+      "python-service: metric_dimensions allowlist includes prohibited attribute 'db.query.parameter.customer_id'",
+    );
+  });
+
+  it("rejects an incomplete or ambiguous security policy", async () => {
+    const [contract, fixtures] = await Promise.all([
+      loadOpenTelemetryContract(repositoryRoot),
+      loadOpenTelemetryFixtures(repositoryRoot),
+    ]);
+    contract.data_policy.prohibited_attribute_keys.exact.push("url.query");
+    contract.data_policy.prohibited_attribute_keys.prefixes.push("env.", "unsafe");
+    contract.data_policy.prohibited_content_classes.pop();
+    contract.data_policy.prohibited_content_classes.push("credential");
+    contract.data_policy.enforcement_surfaces.pop();
+    contract.data_policy.enforcement_surfaces.push("log-body");
+    contract.cardinality.forbidden_metric_attributes.push("trace_id");
+    const workspace = fixtures.find(
+      ({ runtime }) => runtime === "agent-workspace",
+    );
+    if (!workspace) throw new Error("Missing agent workspace fixture");
+    workspace.attribute_allowlist.metric_dimensions.push("error.type");
+
+    expect(validateOpenTelemetryConformance(contract, fixtures)).toEqual(
+      expect.arrayContaining([
+        "Data policy must prohibit every security content class",
+        "Data policy must cover every security enforcement surface",
+        "Duplicate forbidden metric attribute 'trace_id'",
+        "Duplicate prohibited attribute key 'url.query'",
+        "Duplicate prohibited attribute prefix 'env.'",
+        "Duplicate prohibited content class 'credential'",
+        "Duplicate security enforcement surface 'log-body'",
+        "Prohibited attribute prefix 'unsafe' must end with '.'",
+        "agent-workspace: duplicate metric_dimensions entry 'error.type'",
+      ]),
     );
   });
 

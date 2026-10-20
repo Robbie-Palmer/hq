@@ -20,6 +20,35 @@ const runtimeSchema = z.enum([
 ]);
 const protocolSchema = z.enum(["http/protobuf", "grpc"]);
 const routeSchema = z.enum(["direct", "collector"]);
+const prohibitedContentClassSchema = z.enum([
+  "credential",
+  "authorization-header",
+  "cookie",
+  "environment-variable",
+  "prompt",
+  "model-response",
+  "tool-arguments",
+  "tool-result",
+  "source-content",
+  "diff",
+  "terminal-output",
+  "database-statement",
+  "database-bind-value",
+  "message-body",
+  "user-data-object-key",
+  "personal-identifier",
+  "raw-url-path",
+  "raw-url-query-string",
+]);
+const securityEnforcementSurfaceSchema = z.enum([
+  "resource-attributes",
+  "span-attributes",
+  "span-events",
+  "log-attributes",
+  "log-body",
+  "metric-attributes",
+  "baggage",
+]);
 
 const transportSchema = z
   .object({ protocol: protocolSchema, route: routeSchema })
@@ -83,8 +112,18 @@ const contractSchema = z
     data_policy: z
       .object({
         mode: z.literal("default-deny"),
-        prohibited: z.array(z.string()).min(1),
-        handling: z.string(),
+        enforcement_surfaces: z.array(securityEnforcementSurfaceSchema).min(1),
+        prohibited_attribute_keys: z
+          .object({
+            exact: z.array(z.string()).min(1),
+            prefixes: z.array(z.string()).min(1),
+          })
+          .strict(),
+        prohibited_content_classes: z
+          .array(prohibitedContentClassSchema)
+          .min(1),
+        redaction: z.literal("deterministic-only"),
+        unsafe_record_action: z.literal("drop"),
       })
       .strict(),
     cardinality: z
@@ -99,7 +138,7 @@ const contractSchema = z
             bounded: z.number().int().positive(),
           })
           .strict(),
-        prohibited_metric_dimensions: z.array(z.string()).min(1),
+        forbidden_metric_attributes: z.array(z.string()).min(1),
       })
       .strict(),
     processing: z
@@ -193,8 +232,12 @@ const fixtureSchema = z
         max_span_name_templates: z.number().int().positive(),
       })
       .strict(),
-    allowed_attributes: z.array(z.string()),
-    rejected_attributes: z.array(z.string()),
+    attribute_allowlist: z
+      .object({
+        span_and_log_attributes: z.array(z.string()),
+        metric_dimensions: z.array(z.string()),
+      })
+      .strict(),
     assertions: z.array(z.string()).min(1),
   })
   .strict();
@@ -329,10 +372,10 @@ function validateCardinality(
     issues.push(`${fixture.fixture}: span-name budget exceeds the contract`);
   }
 
-  const prohibited = new Set(contract.cardinality.prohibited_metric_dimensions);
-  for (const attribute of fixture.allowed_attributes) {
-    if (prohibited.has(attribute)) {
-      issues.push(`${fixture.fixture}: allows prohibited metric dimension '${attribute}'`);
+  const forbidden = new Set(contract.cardinality.forbidden_metric_attributes);
+  for (const attribute of fixture.attribute_allowlist.metric_dimensions) {
+    if (forbidden.has(attribute)) {
+      issues.push(`${fixture.fixture}: allows forbidden metric attribute '${attribute}'`);
     }
   }
   return issues;
@@ -379,12 +422,79 @@ function validateSemanticDomains(
   return issues;
 }
 
-function validateAttributePolicy(fixture: OpenTelemetryFixture): string[] {
+function validateContractAttributePolicy(
+  contract: OpenTelemetryContract,
+): string[] {
   const issues: string[] = [];
-  const rejected = new Set(fixture.rejected_attributes);
-  for (const attribute of fixture.allowed_attributes) {
-    if (rejected.has(attribute)) {
-      issues.push(`${fixture.fixture}: both allows and rejects '${attribute}'`);
+  const { exact, prefixes } = contract.data_policy.prohibited_attribute_keys;
+  for (const duplicate of duplicateValues(exact)) {
+    issues.push(`Duplicate prohibited attribute key '${duplicate}'`);
+  }
+  for (const duplicate of duplicateValues(prefixes)) {
+    issues.push(`Duplicate prohibited attribute prefix '${duplicate}'`);
+  }
+  for (const prefix of prefixes) {
+    if (!prefix.endsWith(".")) {
+      issues.push(`Prohibited attribute prefix '${prefix}' must end with '.'`);
+    }
+  }
+  for (const duplicate of duplicateValues(
+    contract.data_policy.prohibited_content_classes,
+  )) {
+    issues.push(`Duplicate prohibited content class '${duplicate}'`);
+  }
+  if (
+    !setsEqual(
+      contract.data_policy.prohibited_content_classes,
+      prohibitedContentClassSchema.options,
+    )
+  ) {
+    issues.push("Data policy must prohibit every security content class");
+  }
+  for (const duplicate of duplicateValues(
+    contract.data_policy.enforcement_surfaces,
+  )) {
+    issues.push(`Duplicate security enforcement surface '${duplicate}'`);
+  }
+  if (
+    !setsEqual(
+      contract.data_policy.enforcement_surfaces,
+      securityEnforcementSurfaceSchema.options,
+    )
+  ) {
+    issues.push("Data policy must cover every security enforcement surface");
+  }
+  for (const duplicate of duplicateValues(
+    contract.cardinality.forbidden_metric_attributes,
+  )) {
+    issues.push(`Duplicate forbidden metric attribute '${duplicate}'`);
+  }
+  return issues;
+}
+
+function validateAttributePolicy(
+  contract: OpenTelemetryContract,
+  fixture: OpenTelemetryFixture,
+): string[] {
+  const issues: string[] = [];
+  const exact = new Set(contract.data_policy.prohibited_attribute_keys.exact);
+  const prefixes = contract.data_policy.prohibited_attribute_keys.prefixes;
+  const scopes = ["span_and_log_attributes", "metric_dimensions"] as const;
+
+  for (const scope of scopes) {
+    const attributes = fixture.attribute_allowlist[scope];
+    for (const duplicate of duplicateValues(attributes)) {
+      issues.push(`${fixture.fixture}: duplicate ${scope} entry '${duplicate}'`);
+    }
+    for (const attribute of attributes) {
+      if (
+        exact.has(attribute) ||
+        prefixes.some((prefix) => attribute.startsWith(prefix))
+      ) {
+        issues.push(
+          `${fixture.fixture}: ${scope} allowlist includes prohibited attribute '${attribute}'`,
+        );
+      }
     }
   }
   return issues;
@@ -397,7 +507,7 @@ function validateFixture(
   return [
     ...validateFixtureContractFields(contract, fixture),
     ...validateSemanticDomains(contract, fixture),
-    ...validateAttributePolicy(fixture),
+    ...validateAttributePolicy(contract, fixture),
     ...validateIdentity(contract, fixture),
     ...validateProcessing(contract, fixture),
     ...validateCardinality(contract, fixture),
@@ -408,7 +518,7 @@ export function validateOpenTelemetryConformance(
   contract: OpenTelemetryContract,
   fixtures: OpenTelemetryFixture[],
 ): string[] {
-  const issues: string[] = [];
+  const issues = validateContractAttributePolicy(contract);
   const runtimes = fixtures.map(({ runtime }) => runtime);
   if (!setsEqual(runtimes, contract.conformance.required_runtimes)) {
     issues.push("Fixtures must cover each required runtime exactly once");

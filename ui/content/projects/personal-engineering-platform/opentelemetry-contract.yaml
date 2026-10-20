@@ -72,18 +72,68 @@ semantic_conventions:
 
 data_policy:
   mode: "default-deny"
-  prohibited:
-    - "credentials"
-    - "authorization headers"
-    - "cookies"
-    - "environment variables"
-    - "prompt or response bodies"
-    - "source files, diffs, or terminal output"
-    - "database statements or bind values"
-    - "message bodies"
-    - "object keys containing user data"
-    - "raw URL query strings"
-  handling: "Drop a record that cannot be made safe by an allowlist or deterministic redaction rule."
+  enforcement_surfaces:
+    - "resource-attributes"
+    - "span-attributes"
+    - "span-events"
+    - "log-attributes"
+    - "log-body"
+    - "metric-attributes"
+    - "baggage"
+  prohibited_attribute_keys:
+    exact:
+      - "app.installation.id"
+      - "db.query.text"
+      - "device.id"
+      - "enduser.id"
+      - "enduser.pseudo.id"
+      - "gen_ai.completion"
+      - "gen_ai.input.messages"
+      - "gen_ai.output.messages"
+      - "gen_ai.prompt"
+      - "gen_ai.system_instructions"
+      - "gen_ai.tool.call.arguments"
+      - "gen_ai.tool.call.result"
+      - "gen_ai.tool.definitions"
+      - "http.request.header.authorization"
+      - "http.request.header.cookie"
+      - "http.request.header.proxy-authorization"
+      - "http.response.header.set-cookie"
+      - "messaging.message.body"
+      - "process.command_args"
+      - "session.id"
+      - "session.previous_id"
+      - "url.full"
+      - "url.original"
+      - "url.path"
+      - "url.query"
+      - "user.id"
+    prefixes:
+      - "db.operation.parameter."
+      - "db.query.parameter."
+      - "env."
+      - "process.environment_variable."
+  prohibited_content_classes:
+    - "credential"
+    - "authorization-header"
+    - "cookie"
+    - "environment-variable"
+    - "prompt"
+    - "model-response"
+    - "tool-arguments"
+    - "tool-result"
+    - "source-content"
+    - "diff"
+    - "terminal-output"
+    - "database-statement"
+    - "database-bind-value"
+    - "message-body"
+    - "user-data-object-key"
+    - "personal-identifier"
+    - "raw-url-path"
+    - "raw-url-query-string"
+  redaction: "deterministic-only"
+  unsafe_record_action: "drop"
 
 cardinality:
   max_metric_series_per_instrument: 2000
@@ -93,7 +143,7 @@ cardinality:
   metric_attribute_value_classes:
     low: 20
     bounded: 200
-  prohibited_metric_dimensions:
+  forbidden_metric_attributes:
     - "user.id"
     - "session.id"
     - "trace_id"
