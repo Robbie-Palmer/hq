@@ -792,6 +792,9 @@ describe("temporal platform layers", () => {
       {
         slot: "storage.object-store",
       },
+      { requirement: "backup-key-custody" },
+      { requirement: "backup-retention-policy" },
+      { requirement: "restore-drill" },
     ]);
 
     for (const project of ["recipe-site", "work-graph"]) {
@@ -832,7 +835,12 @@ describe("temporal platform layers", () => {
       ),
     ).toMatchObject({
       mode: "preferred",
-      prerequisites: [{ slot: "delivery.ci" }],
+      prerequisites: [
+        { slot: "delivery.ci" },
+        { requirement: "preview-scoped-credentials" },
+        { requirement: "synthetic-preview-data" },
+        { requirement: "preview-cleanup" },
+      ],
     });
     expect(
       manifest?.selections.find(
@@ -867,6 +875,81 @@ describe("temporal platform layers", () => {
         }),
       );
     }
+  });
+
+  it("records operated state, proof, and preview database isolation", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const operatedSlots = [
+      "storage.object-store",
+      "database.backup-restore",
+      "delivery.preview-environment",
+      "database.preview-isolation",
+      "security.preview-access",
+      "observability.telemetry-protocol",
+      "observability.application-telemetry",
+      "observability.alert-evaluation",
+      "observability.alert-delivery",
+    ];
+
+    for (const slot of operatedSlots) {
+      const selection = manifest.selections.find(
+        (candidate) =>
+          candidate.slot === slot &&
+          candidate.status === "Accepted" &&
+          candidate.effectiveUntil === undefined,
+      );
+      expect(selection, slot).toMatchObject({
+        stateRequirements: expect.arrayContaining([
+          expect.objectContaining({ owner: "adopting-project" }),
+        ]),
+        operationalChecks: expect.arrayContaining([
+          expect.objectContaining({ name: expect.any(String) }),
+        ]),
+      });
+    }
+
+    expect(
+      manifest.policies.find(
+        (policy) => policy.slot === "database.preview-isolation",
+      ),
+    ).toMatchObject({
+      mode: "preferred",
+      decision:
+        "personal-engineering-platform:036-operated-capability-contracts",
+      prerequisites: [
+        { slot: "delivery.preview-environment" },
+        { slot: "database.relational-engine", technology: "postgresql" },
+        { slot: "database.migration-discipline" },
+        { requirement: "fresh-migration-baseline" },
+      ],
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-10-20T12:00:00Z",
+      ).policies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "database.preview-isolation",
+        value:
+          "Fresh pull-request database from committed migrations and synthetic fixtures",
+      }),
+    );
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "personal-knowledge-graph",
+        "2026-10-20T12:00:00Z",
+      ).policies,
+    ).not.toContainEqual(
+      expect.objectContaining({ slot: "database.preview-isolation" }),
+    );
   });
 
   it("keeps preview access and service authentication separate", () => {
