@@ -1,0 +1,152 @@
+---
+title: "ADR 037: Capability promotion audit"
+date: "2026-10-20"
+status: "Accepted"
+---
+
+## Context
+
+The platform needs a closed inventory of recurring application capabilities
+before a project profile can drive Copier. The earlier decisions established the
+individual boundaries:
+
+* [ADR 034](/projects/personal-engineering-platform/adrs/034-identity-and-access-capability-contracts)
+  separates authentication, session transport, authorization, preview access,
+  service authentication, and delegated agent access;
+* [ADR 035](/projects/personal-engineering-platform/adrs/035-web-api-data-capability-contracts)
+  separates browser state, HTTP implementation, API contracts, governance,
+  relational access, migrations, and connection pooling; and
+* [ADR 036](/projects/personal-engineering-platform/adrs/036-operated-capability-contracts)
+  records state ownership and operational proof for storage, recovery, previews,
+  telemetry, and alerts.
+
+The manifest contains the dated policies and selections, while project
+frontmatter contains adoption. The remaining gap is a common interpretation of
+those records. A generator must distinguish a required technology from an
+optional capability, a technology from a policy value, and a product-local
+candidate from a platform default. It must do that without treating every
+package used by one product as shared policy.
+
+## Decision
+
+Classify a selection at an explicit instant from its status, kind, and effective
+slot policy:
+
+* an accepted technology in a required slot is a **required default**;
+* an accepted technology in a preferred slot is a **preferred capability**;
+* an accepted non-technology selection is a **policy value**; and
+* a proposed, rejected, or deprecated selection is a **project-local choice**
+  until a later accepted decision promotes it.
+
+The domain query implements this rule so profile resolution and tests use the
+same classification. The manifest remains authoritative for the slot, effective
+date, deciding platform ADR, source ADR evidence, origins, and prerequisites.
+Adopters remain derived from dated project records. The audit does not copy an
+adopter list into the manifest.
+
+### Identity and access
+
+| Candidate or job                   | Classification       | Stable slot                               | Decision and exact source evidence                                                                                                                              | Prerequisites and adopters                                                                                                            |
+| ---------------------------------- | -------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Better Auth                        | Preferred capability | `identity.authentication-library`         | [ADR 020](/projects/personal-engineering-platform/adrs/020-better-auth-and-google-oidc), refined by ADR 034; `recipe-site:003-better-auth`                      | TypeScript server component, backend runtime, PostgreSQL session storage, runtime secrets, and server-side authorization; Recipe Site |
+| Google OIDC                        | Preferred capability | `identity.login-provider`                 | ADR 020, refined by ADR 034; `recipe-site:007-google-oidc-login`                                                                                                | Better Auth, same-origin session transport, runtime secrets, exact redirects, and provider registration; Recipe Site                  |
+| GitHub OAuth                       | Project-local choice | `identity.login-provider`                 | ADR 034; `recipe-site:003-better-auth`                                                                                                                          | Recipe Site is the only origin and the platform has not accepted it as another default                                                |
+| Better Auth Agent Auth             | Project-local choice | `identity.delegated-agent-authentication` | ADR 034; `recipe-site:019-agent-auth`                                                                                                                           | One adopter and a draft protocol are insufficient for promotion                                                                       |
+| First-party cookie session         | Policy value         | `identity.session-transport`              | ADR 034; `recipe-site:007-google-oidc-login`                                                                                                                    | Better Auth, a backend runtime, same-origin routes, and a `Secure`, `HttpOnly` cookie; Recipe Site                                    |
+| Server-side resource authorization | Policy value         | `identity.authorization-policy`           | ADR 034; `recipe-site:005-authorization-model`                                                                                                                  | Required when the identity layer is active; Recipe Site                                                                               |
+| Cloudflare Access preview gate     | Preferred capability | `security.preview-access`                 | [ADR 019](/projects/personal-engineering-platform/adrs/019-cloudflare-access-boundaries), refined by ADR 034; `recipe-site:013-cloudflare-access-preview-gates` | A preview deployment and provider registration; Recipe Site                                                                           |
+| Cloudflare Access service token    | Preferred capability | `security.service-auth`                   | ADR 019, refined by ADR 034; `work-graph:004-cloudflare-access-service-auth`                                                                                    | A protected service, scoped credentials, and rotation; Work Graph                                                                     |
+
+Authentication and authorization remain independent. Login establishes
+a principal, session transport carries it, and the product's server-side policy
+still decides whether the principal may perform an action. Access and agent
+credentials authenticate different non-human boundaries and do not grant product
+permissions.
+
+### Web, API, and relational data
+
+| Candidate or job               | Classification       | Stable slot                          | Decision and exact source evidence                                                                                                                                                                                                                                       | Prerequisites and adopters                                                                                |
+| ------------------------------ | -------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| TanStack Query                 | Preferred capability | `web-app.server-state-client`        | [ADR 021](/projects/personal-engineering-platform/adrs/021-tanstack-query-for-client-server-state), refined by ADR 035; `recipe-site:018-tanstack-query-for-client-server-state`                                                                                         | React and interactive browser server state; Recipe Site                                                   |
+| Hono                           | Preferred capability | `backend-api.http-framework`         | [ADR 014](/projects/personal-engineering-platform/adrs/014-hono-openapi), refined by ADR 035; `recipe-site:004-backend-platform-for-authenticated-features`, `work-graph:003-rest-api-and-cli-first`                                                                     | A selected backend runtime; Recipe Site and Work Graph                                                    |
+| OpenAPI 3.1                    | Preferred capability | `backend-api.contract-format`        | ADR 014, refined by ADR 035; `recipe-site:023-spectral`, `work-graph:003-rest-api-and-cli-first`                                                                                                                                                                         | None beyond a project need for an HTTP contract; Recipe Site and Work Graph                               |
+| `@hono/zod-openapi`            | Preferred capability | `backend-api.contract-generator`     | ADR 035; `recipe-site:023-spectral`, `work-graph:003-rest-api-and-cli-first`                                                                                                                                                                                             | Hono, OpenAPI, Zod, and a runtime-derived contract; Recipe Site and Work Graph                            |
+| Spectral                       | Required default     | `api-governance.contract-linter`     | [ADR 015](/projects/personal-engineering-platform/adrs/015-api-governance), refined by ADR 035; `recipe-site:023-spectral`, `work-graph:003-rest-api-and-cli-first`                                                                                                      | An OpenAPI contract committed to the repository; API-governance adopters                                  |
+| oasdiff                        | Preferred capability | `api-governance.compatibility-check` | ADR 015, refined by ADR 035; `recipe-site:023-spectral`                                                                                                                                                                                                                  | OpenAPI and a published compatibility baseline; Recipe Site                                               |
+| Drizzle                        | Preferred capability | `database.relational-access`         | [ADR 017](/projects/personal-engineering-platform/adrs/017-relational-data-stack), refined by ADR 035; `recipe-site:004-backend-platform-for-authenticated-features`, `recipe-site:016-committed-postgres-migrations`, `work-graph:001-postgresql-coordination-boundary` | PostgreSQL; Recipe Site and Work Graph                                                                    |
+| Committed migration discipline | Policy value         | `database.migration-discipline`      | ADR 035; `recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project`, `work-graph:001-postgresql-coordination-boundary`                                                                                                                             | PostgreSQL, Drizzle, committed history, drift checks, and a serialized runner; Recipe Site and Work Graph |
+| Hyperdrive                     | Preferred capability | `backend-api.relational-connection`  | ADR 017, refined by ADR 035; `recipe-site:004-backend-platform-for-authenticated-features`, `work-graph:001-postgresql-coordination-boundary`                                                                                                                            | Cloudflare Workers and PostgreSQL; Recipe Site and Work Graph                                             |
+
+OpenAPI does not imply Hono, and Hono does not imply generated OpenAPI. Spectral
+becomes required only after a project adopts the API-governance layer. oasdiff
+remains optional until a project promises compatibility to an independent
+consumer. This preserves the ability to adopt or override each job separately.
+
+### Operated capabilities
+
+| Candidate or job                        | Classification       | Stable slot                           | Decision and exact source evidence                                                                                                                                                                                                                                                                                            | Prerequisites and adopters                                                                                          |
+| --------------------------------------- | -------------------- | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare R2                           | Preferred capability | `storage.object-store`                | [ADR 016](/projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-storage), refined by ADR 036; `personal-knowledge-graph:039-cloudflare-r2`, `recipe-site:012-cloudflare-workflows-recipe-ingestion`, `recipe-site:014-neon-database-snapshots-and-backups`, `agentic-code-review:001-stateful-ai-code-review` | Data classification, lifecycle policy, and scoped credentials; four current adopters including Work Graph           |
+| Encrypted PostgreSQL backup and restore | Policy value         | `database.backup-restore`             | ADR 017, refined by ADR 036; `recipe-site:014-neon-database-snapshots-and-backups`                                                                                                                                                                                                                                            | PostgreSQL, object storage, separate key custody, retention, and restore drills; Recipe Site and Work Graph         |
+| Isolated pull-request deployment        | Policy value         | `delivery.preview-environment`        | [ADR 018](/projects/personal-engineering-platform/adrs/018-pull-request-preview-environments), refined by ADR 036; `recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project`                                                                                                                           | CI, scoped credentials, synthetic data, and cleanup; Recipe Site and Personal Knowledge Graph                       |
+| Fresh preview database                  | Policy value         | `database.preview-isolation`          | ADR 036; `recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project`                                                                                                                                                                                                                                     | Preview deployment, PostgreSQL, committed migrations, and a fresh baseline; Recipe Site                             |
+| OpenTelemetry transport                 | Preferred capability | `observability.telemetry-protocol`    | [ADR 023](/projects/personal-engineering-platform/adrs/023-application-observability-stack), refined by ADR 036; `recipe-site:020-direct-otlp-export-to-posthog`, `agent-friendly-remote-development:010-layered-workspace-observability`                                                                                     | Instrumentation, redaction, and bounded exporter failure; Recipe Site and Agent-friendly Remote Development         |
+| PostHog operational logs                | Preferred capability | `observability.application-telemetry` | ADR 023, refined by ADR 036; `recipe-site:010-posthog-logs`, `recipe-site:020-direct-otlp-export-to-posthog`, `agent-friendly-remote-development:010-layered-workspace-observability`                                                                                                                                         | OpenTelemetry and project-owned retention; Recipe Site and Agent-friendly Remote Development                        |
+| PostHog alert evaluation                | Preferred capability | `observability.alert-evaluation`      | ADR 023, refined by ADR 036; `recipe-site:021-posthog-alerting-and-slack`, `agent-friendly-remote-development:010-layered-workspace-observability`                                                                                                                                                                            | Operational telemetry and a named responder; Recipe Site and Agent-friendly Remote Development                      |
+| Slack alert delivery                    | Preferred capability | `observability.alert-delivery`        | ADR 023, refined by ADR 036; `recipe-site:021-posthog-alerting-and-slack`, `agent-friendly-remote-development:010-layered-workspace-observability`                                                                                                                                                                            | Alert evaluation, channel routing, and project-owned credentials; Recipe Site and Agent-friendly Remote Development |
+
+Telemetry remains four separate concerns: transport, storage, evaluation, and
+delivery. Product analytics does not activate operational logging, and a stored
+log does not claim that the alerting path evaluated or delivered an alert.
+
+### Choices not promoted
+
+GitHub OAuth and delegated Agent Auth stay project-local because each has one
+origin and neither has enough independent evidence for a default. They remain
+proposed manifest records so a later decision can promote them without losing
+provenance.
+
+Query keys, routes, request schemas, database tables, migration contents,
+preview fixtures, retention periods, recovery objectives, alert thresholds,
+responders, and notification channels also stay local. They encode product
+semantics or operating policy rather than a recurring implementation job. The
+platform records the need for those values, not a shared value that would
+silently fit one product to another.
+
+### Adoption and override boundary
+
+A project adopts a preferred capability by naming one slot in its layer record.
+A local ADR may override that slot for a dated period while every other slot in
+the layer continues to resolve normally. Required slots still apply unless the
+project records a valid override. Closing the override returns the project to the
+current platform selection. Existing resolver tests cover technology and policy
+overrides, single- and multi-valued slots, prerequisite withholding, overlapping
+period rejection, and return to the default.
+
+## Alternatives
+
+Classifying every accepted technology as a default would make optional jobs look
+mandatory. A static site would inherit server state, a public API would inherit a
+compatibility promise, and a stateless preview would inherit a database.
+
+Using adoption count alone would promote incidental product choices and reject
+required controls that apply to a narrow layer. The promotion test instead uses
+an architectural job, a stable slot, credible alternatives, evidence, and a
+decision to recommend the result.
+
+Keeping the classification only in this ADR would force the project-profile
+resolver to recreate the rules. The domain query makes the interpretation
+deterministic while this record preserves why the rule exists and what the audit
+included.
+
+## Consequences
+
+This decision closes the capability-gap audit without merging authentication,
+authorization, API, data, or telemetry jobs. The future project profile can
+consume one classification rule and carry each selection's dated policy,
+evidence, prerequisites, and adopters.
+
+The audit takes a conservative line. A project-local choice needs another
+accepted platform decision before generation can offer it as a default. New
+candidate families require another audit or a focused capability decision rather
+than an unreviewed manifest entry.
