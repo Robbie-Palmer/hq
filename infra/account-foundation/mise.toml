@@ -63,7 +63,15 @@ run = "bash scripts/bootstrap-workspace.test.sh"
 
 [tasks."test:terraform"]
 description = "Test account-foundation declarations with mocked providers"
-run = "terraform test"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/account-foundation-terraform-test.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform test
+"""
 
 [tasks.test]
 description = "Test account-foundation scripts and Terraform declarations"

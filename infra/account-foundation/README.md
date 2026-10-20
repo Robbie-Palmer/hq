@@ -101,11 +101,48 @@ with local execution, automatic apply disabled, and global remote-state access
 disabled. If the workspace already exists, the task verifies those settings
 and refuses to change them. It has no delete or rename operation.
 
-The Terraform configuration does not declare its own HCP workspace or its
-current credential as resources. A future workspace registry may record this
-workspace as an external seed, but it must not create a `tfe_workspace`
-resource for it. Replacing a seed credential requires an overlapping
-credential, a no-change plan, and a tested break-glass login before revocation.
+The Terraform configuration reads its own HCP workspace as a data source. It
+never declares that workspace or its current credential as resources, so an
+ordinary plan cannot rename or destroy its state container. Replacing a seed
+credential requires an overlapping credential, a no-change plan, and a tested
+break-glass login before revocation.
+
+## HCP root registry
+
+`variables.tf` declares the typed `hcp_projects` and `hcp_roots` registries.
+Each root entry names one workspace, its project, exact Terraform version,
+run-queue and file-trigger settings, tags, explicit state consumers, deletion
+policy, and optional import ID. The provider creates the workspace and applies
+these fixed settings:
+
+* local execution;
+* automatic apply disabled;
+* organization-wide and project-wide state access disabled;
+* only the workspace IDs named by `state_consumers` allowed to read state.
+
+Existing projects and workspaces include their provider IDs. The import blocks
+claim those objects at their protected resource addresses. Keep an imported
+entry's name, project, Terraform version, tags, and state consumers equal to
+the observed provider values until its first no-change plan has been reviewed.
+Changing policy belongs in a later apply.
+
+Protected entries use Terraform `prevent_destroy`. A temporary canary must set
+`deletion_protected = false` on its project and root entries. Add it without an
+import ID, apply it, then remove only its root entry and apply again. Remove its
+project entry after no other root references that project. HCP's safe-delete
+path remains active because the registry never enables `force_delete`.
+
+The current registry imports these workspaces from the provider-created
+`Default Project`:
+
+| Registry key | Workspace |
+| --- | --- |
+| `public-platform` | `personal-site` |
+| `bootstrap` | `personal-site-bootstrap` |
+| `remote-development` | `personal-site-remote-development` |
+| `remote-development-cluster` | `personal-site-remote-development-cluster` |
+| `work-graph` | `personal-site-work-graph` |
+| `personal-blog` | `personal-blog` |
 
 ## Commands
 
