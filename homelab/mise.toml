@@ -491,3 +491,70 @@ else
 fi
 [ "$failures" -eq 0 ] || exit 1
 '''
+
+# ---------------------------------------------------------------------------
+# Non-production Nix build and host boundary spike
+# ---------------------------------------------------------------------------
+
+[tasks.nix-spike-scripts-check]
+description = "Check the Nix boundary spike shell scripts"
+dir = "spikes/nix-build-host-boundary"
+run = "bash -n scripts/*.sh scripts/nix-command"
+
+[tasks.nix-spike-dockerfile-lint]
+description = "Lint the Nix boundary spike Dockerfile with a pinned Hadolint image"
+dir = "spikes/nix-build-host-boundary"
+run = '''
+docker run --rm --interactive \
+  hadolint/hadolint:v2.15.0-alpine@sha256:ddabce597257a5b466cc60878090de88b0fd191b84eb7652bddfe88ad192d0d5 \
+  < services/typescript/Dockerfile
+'''
+
+[tasks.nix-spike-flake-check]
+description = "Build the locked Nix boundary spike checks"
+dir = "spikes/nix-build-host-boundary"
+run = "scripts/nix-command flake check --no-update-lock-file --print-build-logs path:."
+
+[tasks.nix-spike-flake-show]
+description = "Show the locked Nix boundary spike outputs"
+dir = "spikes/nix-build-host-boundary"
+run = "scripts/nix-command flake show --no-update-lock-file path:."
+
+[tasks.nix-spike-format-check]
+description = "Check formatting of the Nix boundary spike expressions"
+dir = "spikes/nix-build-host-boundary"
+run = '''
+scripts/nix-command fmt path:. -- --check \
+  flake.nix \
+  nix/modules/pep-health.nix \
+  nix/hosts/prototype.nix
+'''
+
+[tasks.nix-spike-image-dockerfile]
+description = "Build the Nix boundary spike Dockerfile image"
+dir = "spikes/nix-build-host-boundary"
+run = "docker buildx build --load --tag pep-nix-spike:dockerfile services/typescript"
+
+[tasks.nix-spike-image-nix]
+description = "Build and load the Nix boundary spike dockerTools image"
+dir = "spikes/nix-build-host-boundary"
+run = "scripts/load-nix-image.sh"
+
+[tasks.nix-spike-image-compare]
+description = "Build, smoke-test, inventory, and scan both spike image variants"
+dir = "spikes/nix-build-host-boundary"
+run = "scripts/compare-images.sh"
+
+[tasks.nix-spike-image-multiarch]
+description = "Export the spike's two-platform OCI index with attestations"
+dir = "spikes/nix-build-host-boundary"
+run = "scripts/build-multiarch.sh"
+
+[tasks.nix-spike-check]
+description = "Run the non-production Nix boundary prototype checks"
+depends = [
+  "nix-spike-scripts-check",
+  "nix-spike-dockerfile-lint",
+  "nix-spike-flake-check",
+  "nix-spike-format-check",
+]
