@@ -132,6 +132,26 @@ import ID, apply it, then remove only its root entry and apply again. Remove its
 project entry after no other root references that project. HCP's safe-delete
 path remains active because the registry never enables `force_delete`.
 
+Changing `deletion_protected` moves an existing entry between resource
+addresses. Add explicit per-key `moved` blocks in the same change so Terraform
+moves state instead of deleting and recreating the provider objects. For
+example, promoting the `canary` project and workspace requires both moves:
+
+```hcl
+moved {
+  from = tfe_project.disposable["canary"]
+  to   = tfe_project.protected["canary"]
+}
+
+moved {
+  from = tfe_workspace.disposable["canary"]
+  to   = tfe_workspace.protected["canary"]
+}
+```
+
+Reverse the two moves when removing protection. Review a plan that reports
+only address moves before applying the policy change.
+
 The current registry imports these workspaces from the provider-created
 `Default Project`:
 

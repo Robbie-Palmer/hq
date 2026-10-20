@@ -109,4 +109,12 @@ variable "hcp_roots" {
     condition     = length(distinct([for root in values(var.hcp_roots) : root.workspace_name])) == length(var.hcp_roots)
     error_message = "Each HCP root must have a unique workspace name."
   }
+
+  validation {
+    condition = !contains(
+      [for root in values(var.hcp_roots) : root.workspace_name],
+      "personal-site-account-foundation",
+    )
+    error_message = "The account-foundation workspace is a manual seed and must never appear in the managed root registry."
+  }
 }

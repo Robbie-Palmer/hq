@@ -109,15 +109,9 @@ check "state_consumers_exist" {
   }
 }
 
-check "account_foundation_remains_seeded" {
+check "account_foundation_seed_is_readable" {
   assert {
-    condition = (
-      data.tfe_workspace.account_foundation_seed.name == local.account_foundation_workspace &&
-      !contains(
-        [for root in values(var.hcp_roots) : root.workspace_name],
-        local.account_foundation_workspace,
-      )
-    )
-    error_message = "The account-foundation workspace is a manual seed and must never appear in the managed root registry."
+    condition     = data.tfe_workspace.account_foundation_seed.name == local.account_foundation_workspace
+    error_message = "The manually seeded account-foundation workspace must remain readable."
   }
 }

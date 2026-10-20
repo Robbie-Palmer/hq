@@ -31,6 +31,11 @@ mock_provider "tfe" {
   }
 }
 
+override_resource {
+  target = tfe_workspace.disposable["canary-reader"]
+  values = { id = "ws-canary-reader" }
+}
+
 variables {
   hcp_projects = {
     canary = {
@@ -74,7 +79,7 @@ run "create_canary" {
       tfe_workspace_settings.managed["canary"].auto_apply == false &&
       tfe_workspace_settings.managed["canary"].global_remote_state == false &&
       tfe_workspace_settings.managed["canary"].project_remote_state == false &&
-      length(tfe_workspace_settings.managed["canary"].remote_state_consumer_ids) == 1 &&
+      tfe_workspace_settings.managed["canary"].remote_state_consumer_ids == toset(["ws-canary-reader"]) &&
       length(tfe_workspace_settings.managed["canary-reader"].remote_state_consumer_ids) == 0
     )
     error_message = "The canary workspace must use local execution, manual apply, and explicit state consumers."
@@ -118,5 +123,5 @@ run "reject_managed_seed" {
     }
   }
 
-  expect_failures = [check.account_foundation_remains_seeded]
+  expect_failures = [var.hcp_roots]
 }
