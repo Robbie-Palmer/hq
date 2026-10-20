@@ -5,7 +5,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   ReferenceLine,
   ResponsiveContainer,
   XAxis,
@@ -346,11 +345,7 @@ function VarianceChartPlot({
               content={<ChartTooltipContent hideIndicator />}
               formatter={(value) => formatCurrency(value as number, currency)}
             />
-            <Bar dataKey="amount" radius={3} isAnimationActive={false}>
-              {data.map((row) => (
-                <Cell key={row.id} fill={varianceColors[row.kind]} />
-              ))}
-            </Bar>
+            <Bar dataKey="amount" radius={3} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </ChartContainer>
@@ -383,6 +378,7 @@ function PrimaryVarianceChart({
       label: `${varianceChartLabels[source.kind]} · ${source.subject}`,
       amount: source.amount ?? 0,
       kind: source.kind,
+      fill: varianceColors[source.kind],
     }));
   if (data.length === 0) return null;
   return (
@@ -410,7 +406,7 @@ function latestPosition(
   );
   const checkpointDate = observed
     .map(({ checkpointDate: date }) => date)
-    .toSorted()
+    .toSorted((left, right) => left.localeCompare(right))
     .at(-1);
   if (checkpointDate == null) return null;
   const atCheckpoint = observed.filter(
@@ -420,7 +416,7 @@ function latestPosition(
     .flatMap((balance) =>
       balance.observedAt == null ? [] : [balance.observedAt],
     )
-    .toSorted()
+    .toSorted((left, right) => left.localeCompare(right))
     .at(-1);
   if (observedAt == null) return null;
   return {
@@ -508,7 +504,9 @@ function SummaryStatus({
 
 function formatDriverAmount(amount: number | null, currency: Currency): string {
   if (amount == null) return "Non-monetary";
-  const sign = amount > 0 ? "+" : amount < 0 ? "−" : "";
+  let sign = "";
+  if (amount > 0) sign = "+";
+  else if (amount < 0) sign = "−";
   return `${sign}${formatCurrency(Math.abs(Math.round(amount)), currency)}`;
 }
 

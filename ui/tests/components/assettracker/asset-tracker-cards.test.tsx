@@ -87,7 +87,6 @@ vi.mock("recharts", () => ({
   Bar: ({ children, dataKey }: { children?: ReactNode; dataKey: string }) => (
     <div data-series={dataKey}>{children}</div>
   ),
-  Cell: () => null,
   Area: ({ dataKey }: { dataKey: string }) => (
     <div data-range-series={dataKey} />
   ),
@@ -1850,6 +1849,10 @@ describe("AdoptedForecastCard", () => {
       expect.stringContaining(
         '"label":"Market / FX · Current account · 1 Jul 2027","amount":-500',
       ),
+    );
+    expect(charts[0]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining('"fill":"var(--chart-4)"'),
     );
     expect(charts[1]).toHaveAttribute(
       "data-chart-data",
