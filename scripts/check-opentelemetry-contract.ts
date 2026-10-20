@@ -354,9 +354,8 @@ function validateFixtureContractFields(
   }
   const expectedTransport = contract.transport.runtime_defaults[fixture.runtime];
   if (
-    !expectedTransport ||
-    fixture.transport.protocol !== expectedTransport.protocol ||
-    fixture.transport.route !== expectedTransport.route
+    fixture.transport.protocol !== expectedTransport?.protocol ||
+    fixture.transport.route !== expectedTransport?.route
   ) {
     issues.push(`${fixture.fixture}: transport does not match its runtime default`);
   }
