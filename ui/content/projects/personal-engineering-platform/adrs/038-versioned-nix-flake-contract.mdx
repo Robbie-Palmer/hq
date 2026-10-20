@@ -1,0 +1,98 @@
+---
+title: "ADR 038: Versioned Nix flake contract"
+date: "2026-10-20"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 013](/projects/personal-engineering-platform/adrs/013-build-runtime-standards)
+selects locked Nix flakes for reproducible builds, but it does not say which
+outputs a project exposes or where a lock belongs. Copier needs that boundary
+before it can create or update Nix files. Without it, each generated project
+would invent output names, system lists, and task wrappers.
+
+The repository already has a working host flake under `homelab`. It builds two
+NixOS systems, exports nixos-anywhere, records the source revision in each
+system, and supports Disko installation and NixOS generation rollback. The
+contract must keep those properties while also fitting application and library
+projects that do not own a NixOS host.
+
+## Decision
+
+Adopt version 1 of the machine-readable contract in
+`ui/content/projects/personal-engineering-platform/nix-flake-contract.yaml`.
+Nix remains the reproducible environment and build-input layer. People,
+agents, and CI continue to invoke it through mise.
+
+Every flake supports `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, and
+`aarch64-darwin` for portable developer tooling. A target-specific package,
+application, or check may exist on fewer systems. Each supported system has a
+default development shell, a formatter, and a `flake-contract` check. Flakes
+add named packages for distributable artifacts and named apps for commands.
+They export reusable NixOS behavior through `nixosModules` and owned hosts
+through `nixosConfigurations`. An overlay is exceptional: add one only when a
+consumer must compose the flake's packages into its own nixpkgs instance.
+
+Each flake owns the adjacent `flake.lock`. Direct inputs follow the flake's
+shared `nixpkgs` input where the upstream flake permits it. Normal and release
+builds use the committed lock. The owning Nix command creates and updates the
+lock; Copier must not render lockfile contents.
+
+A project uses an existing monorepo flake output when it shares that flake's
+inputs, release cadence, and trust boundary. It gets its own flake when it has
+an independently consumed output, input policy, release cadence, or deployment
+boundary. A separate source directory alone is not a reason to add another
+lock and update stream.
+
+Flake inputs, derivation arguments, generated source, and the Nix store must
+not contain secret values. Nix declarations may carry a secret identifier,
+provider reference, or runtime path. Activation or runtime code fetches or
+installs the value outside the store. Builds must not depend on an impure local
+secret lookup.
+
+Treat binary caches only as substituters. A cache must not change the build
+result, and projects configure trusted substituters and public keys outside the
+project flake. Offline work is supported after the locked input and build
+closures are present locally. Operators retain the committed lock and a
+previous deployable generation or artifact. A recovery runbook must name the
+native rollback command when a mise rollback task would be misleading.
+
+Mise exposes the common `nix-flake-show`, `nix-flake-check`, `nix-format`, and
+`nix-develop` tasks. Target tasks keep explicit names such as `remote-build`
+and `remote-rebuild`; deployment and rollback differ too much to hide behind a
+generic command. The homelab flake declares contract version 1, adopts the
+portable shell, check, and formatter outputs, and exposes its revision module.
+Its existing Disko, nixos-anywhere, revision, deployment, and rollback paths
+remain intact.
+
+## Alternatives
+
+One flake per logical project would make ownership visually simple, but most
+monorepo projects would duplicate `nixpkgs`, lock updates, and developer
+shells. It is appropriate only when the project also has an independent build
+or release boundary.
+
+A single repository-root flake would centralize every Nix input. It would also
+couple host recovery and application updates to one lock and one evaluation
+root. The contract allows shared flakes without forcing unrelated systems into
+the same failure boundary.
+
+Using Nix commands directly in CI and documentation would save a few mise
+tasks. It would break the repository's common command interface and make
+generated projects depend on how each caller installs Nix.
+
+## Consequences
+
+Copier can decide whether to add an output or a new flake from declared project
+boundaries. A reviewer can also tell which outputs and mise tasks are missing
+without reverse-engineering each project.
+
+Portable outputs add evaluation work on systems that are not deployment
+targets. Separate flakes are still possible, but each one brings another lock
+and update stream. Offline builds work only after the required closures have
+been fetched or built, so recovery preparation must happen before an outage.
+
+The contract does not make secrets reproducible. It keeps their identifiers
+and installation rules reproducible while leaving values in the runtime
+secret system.
