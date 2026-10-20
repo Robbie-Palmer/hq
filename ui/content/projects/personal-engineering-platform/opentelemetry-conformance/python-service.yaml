@@ -1,0 +1,45 @@
+schema_version: 1
+fixture: "python-service"
+runtime: "python-service"
+resource:
+  service.namespace: "agent-first-writing"
+  service.name: "writing-evaluator"
+  service.version: "git:0123456789abcdef"
+  service.instance.id: "writing-evaluator-01"
+  deployment.environment.name: "production"
+  me.robbiepalmer.project.id: "agent-first-writing"
+instance_strategy: "addressable-runtime"
+signals: ["traces", "metrics", "logs"]
+profiles_enabled: false
+propagators: ["tracecontext", "baggage"]
+transport:
+  protocol: "grpc"
+  route: "collector"
+semantic_domains: ["http", "database"]
+sampling:
+  sampler: "parentbased_traceidratio"
+  ratio: 0.1
+batching:
+  max_queue_size: 2048
+  max_export_batch_size: 512
+  schedule_delay_ms: 5000
+  export_timeout_ms: 30000
+cardinality:
+  max_active_instances: 4
+  max_metric_series_per_instrument: 1000
+  max_span_name_templates: 50
+allowed_attributes:
+  - "http.request.method"
+  - "http.response.status_code"
+  - "server.address"
+  - "db.system.name"
+  - "db.namespace"
+  - "error.type"
+rejected_attributes:
+  - "db.query.text"
+  - "url.query"
+  - "user.id"
+assertions:
+  - "The service exports all signals to a local or private collector."
+  - "Shutdown performs one bounded force flush."
+  - "Handled exceptions do not set span status to error."

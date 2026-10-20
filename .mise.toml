@@ -121,7 +121,7 @@ run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:layout:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/planning-case-domain:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:layout:check", "//:opentelemetry-contract:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/planning-case-domain:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."layout:check"]
 description = "Validate the monorepo project and package layout contract"
@@ -137,6 +137,21 @@ run = "pnpm exec vitest run scripts/check-monorepo-layout.test.ts"
 description = "Test the monorepo layout validator with coverage"
 depends = ["//:install"]
 run = "pnpm --filter ui exec vitest run --root .. scripts/check-monorepo-layout.test.ts --coverage --coverage.include=scripts/check-monorepo-layout.ts"
+
+[tasks."opentelemetry-contract:check"]
+description = "Validate the OpenTelemetry contract and runtime fixtures"
+depends = ["//:opentelemetry-contract:test"]
+run = "pnpm exec tsx scripts/check-opentelemetry-contract.ts"
+
+[tasks."opentelemetry-contract:test"]
+description = "Test OpenTelemetry contract validation"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/check-opentelemetry-contract.test.ts"
+
+[tasks."opentelemetry-contract:test:coverage"]
+description = "Test OpenTelemetry contract validation with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root .. scripts/check-opentelemetry-contract.test.ts --coverage --coverage.include=scripts/check-opentelemetry-contract.ts"
 
 [tasks."shared-cache:test"]
 description = "Test revision-safe shared task caching"

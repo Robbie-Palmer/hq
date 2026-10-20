@@ -2060,6 +2060,9 @@ selections:
         owner: "adopting-project"
         lifecycle: "durable"
     operational_checks:
+      - name: "OpenTelemetry contract conformance"
+        kind: "mise-task"
+        reference: "//:opentelemetry-contract:check"
       - name: "Telemetry exporter tests"
         kind: "mise-task"
         reference: "//packages/observability:check"
