@@ -589,6 +589,11 @@ slots:
     description: "Provider-independent database archives, retention, key custody, and tested restoration."
     rationale: "Provider snapshots, logical archives, physical backups, and managed recovery services cover different failure and account-loss scenarios."
     kind: "policy"
+  - slug: "database.preview-isolation"
+    title: "Preview database isolation"
+    description: "A disposable pull-request database rebuilt from committed migrations and synthetic fixtures."
+    rationale: "A shared staging database, production clone, provider branch, and fresh disposable database differ in isolation, data exposure, drift, and cleanup behavior."
+    kind: "policy"
   - slug: "database.olap-engine"
     title: "OLAP engine"
     description: "Analytical SQL processing when a project needs it."
@@ -670,6 +675,9 @@ policies:
     decision: "personal-engineering-platform:018-pull-request-preview-environments"
     prerequisites:
       - slot: "delivery.ci"
+      - requirement: "preview-scoped-credentials"
+      - requirement: "synthetic-preview-data"
+      - requirement: "preview-cleanup"
   - id: "base-dependency-updates-2026-09-15"
     layer: "base"
     slot: "delivery.dependency-updates"
@@ -1345,6 +1353,21 @@ policies:
       - slot: "database.relational-engine"
         technology: "postgresql"
       - slot: "storage.object-store"
+      - requirement: "backup-key-custody"
+      - requirement: "backup-retention-policy"
+      - requirement: "restore-drill"
+  - id: "database-preview-isolation-2026-10-20"
+    layer: "database"
+    slot: "database.preview-isolation"
+    mode: "preferred"
+    effective_from: "2026-10-20T00:00:00Z"
+    decision: "personal-engineering-platform:036-operated-capability-contracts"
+    prerequisites:
+      - slot: "delivery.preview-environment"
+      - slot: "database.relational-engine"
+        technology: "postgresql"
+      - slot: "database.migration-discipline"
+      - requirement: "fresh-migration-baseline"
   - id: "backend-api-relational-connection-2026-09-29"
     layer: "backend-api"
     slot: "backend-api.relational-connection"
@@ -1380,6 +1403,10 @@ policies:
     mode: "preferred"
     effective_from: "2026-09-29T00:00:00Z"
     decision: "personal-engineering-platform:016-cloudflare-r2-object-storage"
+    prerequisites:
+      - requirement: "data-classification"
+      - requirement: "object-lifecycle-policy"
+      - requirement: "scoped-storage-credentials"
   - id: "data-artifact-versioning-2026-09-30"
     layer: "data"
     slot: "data.artifact-versioning"
@@ -1515,6 +1542,17 @@ selections:
     origin_projects: ["recipe-site"]
     evidence_adrs:
       - "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
+    state_requirements:
+      - name: "Pull-request deployment resources"
+        owner: "adopting-project"
+        lifecycle: "ephemeral"
+    operational_checks:
+      - name: "Preview workflow"
+        kind: "workflow"
+        reference: ".github/workflows/preview-environment.yml"
+      - name: "Authenticated preview smoke test"
+        kind: "mise-task"
+        reference: "//workers/recipe-api:preview:smoke"
   - id: "delivery-dependency-updates-renovate-2026-09-15"
     slot: "delivery.dependency-updates"
     technology: "Renovate"
@@ -1578,6 +1616,17 @@ selections:
       - name: "CF_ACCESS_CLIENT_SECRET"
         owner: "secrets.runtime-store"
         sensitive: true
+    state_requirements:
+      - name: "Access application and reviewer policy"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Protected preview fetch"
+        kind: "mise-task"
+        reference: "//:preview:fetch"
+      - name: "Authenticated browser QA"
+        kind: "mise-task"
+        reference: "//ui:test:e2e:preview"
     manual_setup:
       - "Enable the Pages preview access policy, configure the account identity provider and human allowlist, then import the generated Access application before Terraform manages it."
   - id: "security-service-auth-cloudflare-access-2026-09-29"
@@ -1999,6 +2048,24 @@ selections:
     evidence_adrs:
       - "recipe-site:020-direct-otlp-export-to-posthog"
       - "agent-friendly-remote-development:010-layered-workspace-observability"
+    configuration_requirements:
+      - name: "POSTHOG_KEY"
+        owner: "secrets.runtime-store"
+        sensitive: false
+      - name: "POSTHOG_OTLP_BASE_URL"
+        owner: "secrets.runtime-store"
+        sensitive: false
+    state_requirements:
+      - name: "Project instrumentation and exporter configuration"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Telemetry exporter tests"
+        kind: "mise-task"
+        reference: "//packages/observability:check"
+      - name: "End-to-end trace and log smoke test"
+        kind: "procedure"
+        reference: "/projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
   - id: "observability-application-telemetry-posthog-2026-09-12"
     slot: "observability.application-telemetry"
     technology: "PostHog"
@@ -2020,6 +2087,14 @@ selections:
       - "recipe-site:010-posthog-logs"
       - "recipe-site:020-direct-otlp-export-to-posthog"
       - "agent-friendly-remote-development:010-layered-workspace-observability"
+    state_requirements:
+      - name: "Telemetry retention, redaction, and cost policy"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Correlated log ingestion smoke test"
+        kind: "procedure"
+        reference: "/projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
   - id: "observability-alert-evaluation-posthog-2026-09-29"
     slot: "observability.alert-evaluation"
     technology: "PostHog"
@@ -2030,6 +2105,21 @@ selections:
     evidence_adrs:
       - "recipe-site:021-posthog-alerting-and-slack"
       - "agent-friendly-remote-development:010-layered-workspace-observability"
+    configuration_requirements:
+      - name: "POSTHOG_API_KEY"
+        owner: "secrets.ci-store"
+        sensitive: true
+      - name: "POSTHOG_PROJECT_ID"
+        owner: "secrets.ci-store"
+        sensitive: false
+    state_requirements:
+      - name: "Alert definitions and named responder ownership"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Production-safe synthetic alert"
+        kind: "procedure"
+        reference: "/projects/recipe-site/adrs/021-posthog-alerting-and-slack"
   - id: "observability-alert-delivery-slack-2026-09-29"
     slot: "observability.alert-delivery"
     technology: "Slack"
@@ -2040,6 +2130,18 @@ selections:
     evidence_adrs:
       - "recipe-site:021-posthog-alerting-and-slack"
       - "agent-friendly-remote-development:010-layered-workspace-observability"
+    configuration_requirements:
+      - name: "CLOUDFLARE_SLACK_WEBHOOK_URL"
+        owner: "secrets.ci-store"
+        sensitive: true
+    state_requirements:
+      - name: "Alert channel routing"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Synthetic alert delivery"
+        kind: "procedure"
+        reference: "/projects/recipe-site/adrs/021-posthog-alerting-and-slack"
   - id: "observability-node-monitoring-netdata-2026-09-12"
     slot: "observability.node-monitoring"
     technology: "Netdata"
@@ -2106,6 +2208,65 @@ selections:
     origin_projects: ["recipe-site"]
     evidence_adrs:
       - "recipe-site:014-neon-database-snapshots-and-backups"
+    configuration_requirements:
+      - name: "AGE_RECIPIENT"
+        owner: "secrets.ci-store"
+        sensitive: false
+      - name: "NEON_DATABASE_URL_UNPOOLED"
+        owner: "secrets.ci-store"
+        sensitive: true
+      - name: "R2_DATABASE_BACKUPS_BUCKET_NAME"
+        owner: "secrets.ci-store"
+        sensitive: false
+      - name: "R2_ACCESS_KEY_ID"
+        owner: "secrets.ci-store"
+        sensitive: true
+      - name: "R2_SECRET_ACCESS_KEY"
+        owner: "secrets.ci-store"
+        sensitive: true
+    state_requirements:
+      - name: "Encrypted archives and checksums"
+        owner: "adopting-project"
+        lifecycle: "durable"
+      - name: "Restore drill evidence"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Scheduled encrypted backup"
+        kind: "workflow"
+        reference: ".github/workflows/database-backup.yml"
+      - name: "Work Graph scheduled encrypted backup"
+        kind: "workflow"
+        reference: ".github/workflows/work-graph-database-backup.yml"
+      - name: "Archive decryption and structure verification"
+        kind: "mise-task"
+        reference: "//backups:verify"
+      - name: "Scratch database restore drill"
+        kind: "procedure"
+        reference: "/projects/personal-engineering-platform/adrs/017-relational-data-stack"
+    manual_setup:
+      - "Generate the age identity outside CI and the database and object-store provider accounts, then keep a separate recovery copy."
+  - id: "database-preview-isolation-fresh-2026-10-20"
+    slot: "database.preview-isolation"
+    kind: "policy"
+    value: "Fresh pull-request database from committed migrations and synthetic fixtures"
+    status: "Accepted"
+    effective_from: "2026-10-20T00:00:00Z"
+    decision: "personal-engineering-platform:036-operated-capability-contracts"
+    origin_projects: ["recipe-site"]
+    evidence_adrs:
+      - "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
+    state_requirements:
+      - name: "Pull-request database branch"
+        owner: "adopting-project"
+        lifecycle: "ephemeral"
+    operational_checks:
+      - name: "Preview migrations and synthetic fixtures"
+        kind: "workflow"
+        reference: ".github/workflows/preview-environment.yml"
+      - name: "Stateful preview smoke test"
+        kind: "mise-task"
+        reference: "//workers/recipe-api:preview:smoke"
   - id: "database-olap-engine-duckdb-2026-09-12"
     slot: "database.olap-engine"
     technology: "DuckDB"
@@ -2126,6 +2287,17 @@ selections:
       - "recipe-site:012-cloudflare-workflows-recipe-ingestion"
       - "recipe-site:014-neon-database-snapshots-and-backups"
       - "agentic-code-review:001-stateful-ai-code-review"
+    state_requirements:
+      - name: "Bucket configuration and object contents"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Declared bucket plan"
+        kind: "mise-task"
+        reference: "//infra/public-platform:check"
+      - name: "Use-case access and lifecycle check"
+        kind: "procedure"
+        reference: "/projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-storage"
   - id: "data-artifact-versioning-dvc-2026-09-30"
     slot: "data.artifact-versioning"
     technology: "DVC"
