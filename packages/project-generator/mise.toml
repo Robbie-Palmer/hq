@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install project generator dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the project generator"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the project generator"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the project generator with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the project generator"
+depends = ["typecheck", "test"]
