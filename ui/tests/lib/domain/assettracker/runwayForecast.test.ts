@@ -460,8 +460,8 @@ describe("buildRunwayForecast", () => {
   it("applies dated household changes and exposes each monthly cash-flow class", () => {
     const data = forecastData();
     data.planningCases = [
-      { id: "case-a", name: "Case A", labels: [] },
-      { id: "case-b", name: "Case B", labels: [] },
+      { id: "case-a", name: "Case A", labels: [], checklistItems: [] },
+      { id: "case-b", name: "Case B", labels: [], checklistItems: [] },
     ];
     data.recurringFlows.push(
       {

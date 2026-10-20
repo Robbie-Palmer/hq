@@ -29,6 +29,7 @@ config_roots = [
     "packages/recipe-db",
     "packages/observability",
     "packages/openrouter-client",
+    "packages/planning-case-domain",
     "packages/project-economics-domain",
     "packages/recipe-domain",
     "packages/recipe-parsing",
@@ -120,7 +121,7 @@ run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:layout:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:layout:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/planning-case-domain:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."layout:check"]
 description = "Validate the monorepo project and package layout contract"
@@ -136,6 +137,26 @@ run = "pnpm exec vitest run scripts/check-monorepo-layout.test.ts"
 description = "Test the monorepo layout validator with coverage"
 depends = ["//:install"]
 run = "pnpm --filter ui exec vitest run --root .. scripts/check-monorepo-layout.test.ts --coverage --coverage.include=scripts/check-monorepo-layout.ts"
+
+[tasks."shared-cache:test"]
+description = "Test revision-safe shared task caching"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:test:coverage"]
+description = "Test shared task caching with coverage"
+depends = ["//:install"]
+run = "pnpm exec c8 --all --include=scripts/shared-task-cache.ts --reporter=json --reporter=text --check-coverage --lines=80 --functions=80 --statements=80 --branches=80 pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:status"]
+description = "Report shared task cache use and reuse counters"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts status"
+
+[tasks."shared-cache:prune"]
+description = "Remove expired shared task cache entries and enforce its byte allocation"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts prune"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
@@ -446,6 +467,7 @@ depends = [
     "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
     "//packages/observability:test:coverage",
+    "//packages/planning-case-domain:test:coverage",
     "//packages/project-economics-domain:test:coverage",
     "//packages/recipe-domain:test:coverage",
     "//packages/recipe-parsing:test:coverage",

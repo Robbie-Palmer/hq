@@ -3,20 +3,16 @@ import { AccountIdSchema } from "./account";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
 import type { PlannedExpenditure } from "./plannedExpenditure";
 
+export {
+  type PlanningCase,
+  PlanningCaseSchema,
+} from "planning-case-domain";
+
 const OptionalTextSchema = z.string().trim().min(1).optional();
 const LabelsSchema = z
   .array(z.string().trim().min(1))
   .default([])
   .transform((labels) => Array.from(new Set(labels)));
-
-export const PlanningCaseSchema = z.object({
-  id: z.string().trim().min(1),
-  name: z.string().trim().min(1),
-  description: OptionalTextSchema,
-  labels: LabelsSchema,
-  targetDate: z.iso.date().optional(),
-});
-export type PlanningCase = z.infer<typeof PlanningCaseSchema>;
 
 export const FutureCashFlowDirectionSchema = z.enum(["payment", "receipt"]);
 export type FutureCashFlowDirection = z.infer<

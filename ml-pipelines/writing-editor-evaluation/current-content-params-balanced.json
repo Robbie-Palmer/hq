@@ -1,0 +1,21 @@
+{
+  "cohort": {
+    "frozenAt": "2026-10-18T00:00:00Z",
+    "seed": "current-public-content-v1",
+    "split": { "train": 0.6, "validation": 0.2, "holdout": 0.2 },
+    "requiredArtifactTypes": ["project-page"]
+  },
+  "producers": {
+    "gector": {
+      "batchSize": 8,
+      "iterations": 5,
+      "maxTokens": 50,
+      "minTokens": 3,
+      "minErrorProbability": 0.8,
+      "minTokenProbability": 0.0,
+      "additionalConfidence": 0.2
+    },
+    "vale": { "timeoutMs": 300000 }
+  },
+  "matching": { "characterDiff": { "maxEditLength": 10000 } }
+}

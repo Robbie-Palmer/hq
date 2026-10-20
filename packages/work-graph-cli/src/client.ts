@@ -34,7 +34,9 @@ import {
   listWorkItems,
   moveKnowledgeScopePriority,
   moveWorkItemPriority,
+  putCompletionPolicyRevision,
   putKnowledgeScope,
+  putWorkItemCompletionPolicy,
   putWorkItemPullRequest,
   putWorkItemContext,
   putWorkItemParent,
@@ -73,7 +75,9 @@ import type {
   ListWorkItemsData,
   MoveKnowledgeScopePriorityData,
   MoveWorkItemPriorityData,
+  PutCompletionPolicyRevisionData,
   PutKnowledgeScopeData,
+  PutWorkItemCompletionPolicyData,
   PutWorkItemPullRequestData,
   PutWorkItemContextData,
   PutWorkItemParentData,
@@ -650,6 +654,33 @@ export class WorkGraphClient {
   getWorkItem(workItemId: string) {
     return this.#unwrap(
       getWorkItem({ ...this.#options(), path: { workItemId } }),
+    );
+  }
+
+  putCompletionPolicyRevision(
+    policyId: string,
+    revision: number,
+    body: PutCompletionPolicyRevisionData["body"],
+  ) {
+    return this.#unwrap(
+      putCompletionPolicyRevision({
+        ...this.#options(),
+        body,
+        path: { policyId, revision },
+      }),
+    );
+  }
+
+  putWorkItemCompletionPolicy(
+    workItemId: string,
+    body: PutWorkItemCompletionPolicyData["body"],
+  ) {
+    return this.#unwrap(
+      putWorkItemCompletionPolicy({
+        ...this.#options(),
+        body,
+        path: { workItemId },
+      }),
     );
   }
 

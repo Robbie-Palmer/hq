@@ -109,7 +109,14 @@ describe("buildRepository", () => {
     ];
 
     expect(() => buildRepository(data)).toThrow(/unknown planning case/);
-    data.planningCases = [{ id: "missing-case", name: "Plans", labels: [] }];
+    data.planningCases = [
+      {
+        id: "missing-case",
+        name: "Plans",
+        labels: [],
+        checklistItems: [],
+      },
+    ];
     const futureCashFlow = data.futureCashFlows[0];
     if (futureCashFlow == null)
       throw new Error("fixture has no future cash flow");

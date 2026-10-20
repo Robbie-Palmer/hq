@@ -6,13 +6,12 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { extractDataset } from "../src/extract-dataset";
-import { freezeCohort } from "../src/freeze-cohort";
+import { cohortReadiness, freezeCohort } from "../src/freeze-cohort";
 import { readJson, resetDirectory, resolveContainedFile } from "../src/files";
 import { fileAtRevision } from "../src/git-revisions";
 import {
   CorpusSourceManifestSchema,
   FrozenCohortSchema,
-  ReadinessSchema,
 } from "../src/schemas";
 
 const ARTIFACTS = [
@@ -314,7 +313,41 @@ describe("writing editor evaluation pipeline", () => {
     expect(fs.readFileSync(sentinel, "utf8")).toBe("keep");
   });
 
-  it("freezes stratified splits and reports missing decision evidence", () => {
+  it("becomes ready only when every frozen artifact has recorded outcomes", () => {
+    const entries = ARTIFACTS.map(([artifactId, artifactType, artifactPath]) => ({
+      artifactId,
+      artifactType,
+      path: artifactPath,
+      outcomeStatus: "unrecorded" as const,
+      split: "train" as const,
+      source: {
+        revision: "1".repeat(40),
+        committedAt: "2026-01-01T00:00:00.000Z",
+        contentHash: `sha256:${"1".repeat(64)}`,
+        bytes: 6,
+        file: `${artifactId}/source.md`,
+      },
+      published: {
+        revision: "2".repeat(40),
+        committedAt: "2026-01-02T00:00:00.000Z",
+        contentHash: `sha256:${"2".repeat(64)}`,
+        bytes: 7,
+        file: `${artifactId}/published.md`,
+      },
+    }));
+    const all = new Set(entries.map(({ artifactId }) => artifactId));
+    const report = cohortReadiness(
+      `cohort:v1:${"3".repeat(64)}`,
+      entries,
+      ["adr", "project-page"],
+      all,
+    );
+
+    expect(report.ready).toBe(true);
+    expect(report.outcomes).toEqual({ complete: true, recorded: 6, missingArtifactIds: [] });
+  });
+
+  it("freezes stratified splits without replacing finalized readiness", () => {
     const temporary = temporaryDirectory("writing-freeze-");
     const repository = path.join(temporary, "repository");
     const revisions = createRepository(repository);
@@ -330,6 +363,9 @@ describe("writing editor evaluation pipeline", () => {
       output: corpus,
       outputRoot: temporary,
     });
+    fs.mkdirSync(output, { recursive: true });
+    fs.writeFileSync(path.join(output, "readiness.json"), "finalized-json\n");
+    fs.writeFileSync(path.join(output, "readiness.md"), "finalized-markdown\n");
 
     const result = freezeCohort({
       datasetFile: path.join(corpus, "manifest.json"),
@@ -340,8 +376,8 @@ describe("writing editor evaluation pipeline", () => {
 
     expect(FrozenCohortSchema.parse(readJson(path.join(output, "cohort.json"))))
       .toEqual(result.cohort);
-    expect(ReadinessSchema.parse(readJson(path.join(output, "readiness.json"))))
-      .toEqual(result.readiness);
+    expect(fs.readFileSync(path.join(output, "readiness.json"), "utf8")).toBe("finalized-json\n");
+    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8")).toBe("finalized-markdown\n");
     expect(result.cohort.datasetId).toBe(dataset.datasetId);
     expect(result.cohort.entries).toHaveLength(6);
     for (const split of ["train", "validation", "holdout"] as const) {
@@ -362,9 +398,6 @@ describe("writing editor evaluation pipeline", () => {
       },
     });
     expect(result.readiness.outcomes.missingArtifactIds).toHaveLength(6);
-    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8"))
-      .toContain("Status: not ready");
-
     const repeated = freezeCohort({
       datasetFile: path.join(corpus, "manifest.json"),
       paramsFile,
@@ -418,8 +451,6 @@ describe("writing editor evaluation pipeline", () => {
       missingArtifactIds: [first.artifactId],
     });
     expect(result.readiness.ready).toBe(false);
-    expect(fs.readFileSync(path.join(output, "readiness.md"), "utf8"))
-      .toContain(`## Missing revision pairs\n\n- ${first.artifactId}`);
   });
 
   it("rejects split ratios that do not sum to one", () => {

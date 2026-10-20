@@ -1,3 +1,10 @@
+import {
+  CreatePlanningChecklistItemInputSchema,
+  createPlanningChecklistItem,
+  type PlanningCase,
+  PlanningChecklistStatusChangeInputSchema,
+  setPlanningChecklistItemStatus,
+} from "planning-case-domain";
 import { z } from "zod";
 import { normalizeSlug } from "../../generic/slugs";
 import {
@@ -21,6 +28,18 @@ import {
   capitalFlowKind,
 } from "./capitalFlow";
 import { CurrencySchema } from "./currency";
+import {
+  type AddDecisionInterpretationInput,
+  AddDecisionInterpretationInputSchema,
+  type AdoptDecisionForecastInput,
+  AdoptDecisionForecastInputSchema,
+  type CreateDecisionRecordInput,
+  CreateDecisionRecordInputSchema,
+  type RecordDecisionObservationInput,
+  RecordDecisionObservationInputSchema,
+  type RevisitAdoptedDecisionInput,
+  RevisitAdoptedDecisionInputSchema,
+} from "./decisionRecord";
 import {
   type EmergencyFundPlanInput,
   EmergencyFundPlanInputSchema,
@@ -66,6 +85,10 @@ import {
   SaveMortgageScenarioInputSchema,
 } from "./mortgageCalculator";
 import {
+  retainKnownAssetTrackerChecklistLinks,
+  validateAssetTrackerPlanningCaseChecklist,
+} from "./planningChecklist";
+import {
   flowOccurrenceDates,
   monthlyAmount,
   RecurringFlowDefinitionShape,
@@ -102,9 +125,14 @@ export type AssetTrackerCommandErrorCode =
   | "PLANNED_EXPENDITURE_NOT_FOUND"
   | "INVALID_PLANNED_EXPENDITURE"
   | "PLANNING_CASE_NOT_FOUND"
+  | "CHECKLIST_ITEM_NOT_FOUND"
+  | "INVALID_CHECKLIST_ITEM"
   | "FUTURE_CASH_FLOW_NOT_FOUND"
   | "INVALID_FUTURE_CASH_FLOW"
   | "FORECAST_ASSUMPTION_SET_NOT_FOUND"
+  | "DECISION_RECORD_NOT_FOUND"
+  | "DECISION_CHECKPOINT_NOT_FOUND"
+  | "DECISION_CHECKPOINT_ALREADY_OBSERVED"
   | "INVALID_FORECAST_ASSUMPTION"
   | "INVALID_SPENDING_BASELINE"
   | "INVALID_RECURRING_FLOW_CONVERSION"
@@ -298,9 +326,26 @@ export type DeletePlannedExpenditureInput = z.infer<
 
 export const CreatePlanningCaseInputSchema = PlanningCaseSchema.omit({
   id: true,
+  checklistItems: true,
 });
 export type CreatePlanningCaseInput = z.input<
   typeof CreatePlanningCaseInputSchema
+>;
+
+export const AddPlanningChecklistItemInputSchema =
+  CreatePlanningChecklistItemInputSchema.extend({
+    planningCaseId: z.string().trim().min(1),
+  });
+export type AddPlanningChecklistItemInput = z.input<
+  typeof AddPlanningChecklistItemInputSchema
+>;
+
+export const SetPlanningChecklistItemStatusInputSchema =
+  PlanningChecklistStatusChangeInputSchema.extend({
+    planningCaseId: z.string().trim().min(1),
+  });
+export type SetPlanningChecklistItemStatusInput = z.infer<
+  typeof SetPlanningChecklistItemStatusInputSchema
 >;
 
 const CommitmentStageInputShape = {
@@ -1285,12 +1330,18 @@ export function applyDeletePlannedExpenditure(
       `No planned expenditure found with ID ${parsed.id}`,
     );
   }
+  const futureCashFlows = data.futureCashFlows.filter(
+    (record) => record.id !== parsed.id,
+  );
   return {
     ...data,
     plannedExpenditures,
-    futureCashFlows: data.futureCashFlows.filter(
-      (record) => record.id !== parsed.id,
+    planningCases: retainKnownAssetTrackerChecklistLinks(
+      data.planningCases,
+      futureCashFlows,
+      data.decisionRecords ?? [],
     ),
+    futureCashFlows,
     ownership: {
       ...data.ownership,
       futureCashFlows: Object.fromEntries(
@@ -1305,16 +1356,18 @@ export function applyDeletePlannedExpenditure(
 function requirePlanningCase(
   data: AssetTrackerData,
   planningCaseId: string | undefined,
-): void {
-  if (
-    planningCaseId != null &&
-    !data.planningCases.some(({ id }) => id === planningCaseId)
-  ) {
+): PlanningCase | undefined {
+  if (planningCaseId == null) return undefined;
+  const planningCase = data.planningCases.find(
+    ({ id }) => id === planningCaseId,
+  );
+  if (planningCase == null) {
     throw new AssetTrackerCommandError(
       "PLANNING_CASE_NOT_FOUND",
       `No planning case found with ID ${planningCaseId}`,
     );
   }
+  return planningCase;
 }
 
 function requireEligibleFutureCashFlowAccount(
@@ -1383,8 +1436,93 @@ export function applyCreatePlanningCase(
     ...data,
     planningCases: [
       ...data.planningCases,
-      PlanningCaseSchema.parse({ id, ...parsed }),
+      PlanningCaseSchema.parse({ id, ...parsed, checklistItems: [] }),
     ],
+  };
+}
+
+function validateChecklistCommand(
+  planningCase: PlanningCase,
+  data: AssetTrackerData,
+): void {
+  try {
+    validateAssetTrackerPlanningCaseChecklist(
+      planningCase,
+      data.futureCashFlows,
+      data.decisionRecords ?? [],
+    );
+  } catch (error) {
+    throw new AssetTrackerCommandError(
+      "INVALID_CHECKLIST_ITEM",
+      error instanceof Error ? error.message : "The checklist item is invalid",
+    );
+  }
+}
+
+export function applyAddPlanningChecklistItem(
+  data: AssetTrackerData,
+  input: AddPlanningChecklistItemInput,
+  changedAt: string,
+): AssetTrackerData {
+  const parsed = AddPlanningChecklistItemInputSchema.parse(input);
+  const planningCase = requirePlanningCase(data, parsed.planningCaseId);
+  if (planningCase == null)
+    throw new AssetTrackerCommandError(
+      "PLANNING_CASE_NOT_FOUND",
+      `No planning case found with ID ${parsed.planningCaseId}`,
+    );
+  const { planningCaseId: _planningCaseId, ...itemInput } = parsed;
+  const id = uniqueId(
+    new Set(planningCase.checklistItems.map((item) => item.id)),
+    normalizeSlug(parsed.title) || "checklist-item",
+  );
+  const item = createPlanningChecklistItem(id, itemInput, changedAt);
+  const updated = PlanningCaseSchema.parse({
+    ...planningCase,
+    checklistItems: [...planningCase.checklistItems, item],
+  });
+  validateChecklistCommand(updated, data);
+  return {
+    ...data,
+    planningCases: data.planningCases.map((candidate) =>
+      candidate.id === updated.id ? updated : candidate,
+    ),
+  };
+}
+
+export function applySetPlanningChecklistItemStatus(
+  data: AssetTrackerData,
+  input: SetPlanningChecklistItemStatusInput,
+  changedAt: string,
+): AssetTrackerData {
+  const parsed = SetPlanningChecklistItemStatusInputSchema.parse(input);
+  const planningCase = requirePlanningCase(data, parsed.planningCaseId);
+  if (planningCase == null)
+    throw new AssetTrackerCommandError(
+      "PLANNING_CASE_NOT_FOUND",
+      `No planning case found with ID ${parsed.planningCaseId}`,
+    );
+  if (!planningCase.checklistItems.some((item) => item.id === parsed.itemId))
+    throw new AssetTrackerCommandError(
+      "CHECKLIST_ITEM_NOT_FOUND",
+      `No checklist item found with ID ${parsed.itemId}`,
+    );
+  const updated = setPlanningChecklistItemStatus(
+    planningCase,
+    {
+      itemId: parsed.itemId,
+      status: parsed.status,
+      changedBy: parsed.changedBy,
+    },
+    changedAt,
+  );
+  if (updated === planningCase) return data;
+  validateChecklistCommand(updated, data);
+  return {
+    ...data,
+    planningCases: data.planningCases.map((candidate) =>
+      candidate.id === updated.id ? updated : candidate,
+    ),
   };
 }
 
@@ -1767,9 +1905,17 @@ export function applyDeleteFutureCashFlow(
       `"${dependent.name}" still references this future cash flow`,
     );
   }
+  const futureCashFlows = data.futureCashFlows.filter(
+    ({ id }) => id !== parsed.id,
+  );
   return {
     ...data,
-    futureCashFlows: data.futureCashFlows.filter(({ id }) => id !== parsed.id),
+    planningCases: retainKnownAssetTrackerChecklistLinks(
+      data.planningCases,
+      futureCashFlows,
+      data.decisionRecords ?? [],
+    ),
+    futureCashFlows,
     plannedExpenditures: data.plannedExpenditures.filter(
       ({ id }) => id !== parsed.id,
     ),
@@ -2284,6 +2430,229 @@ export function applySaveMortgageScenario(
               status: "recorded",
             },
           ],
+  };
+}
+
+export function applyCreateDecisionRecord(
+  data: AssetTrackerData,
+  input: CreateDecisionRecordInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = CreateDecisionRecordInputSchema.parse(input);
+  const id = uniqueId(
+    new Set((data.decisionRecords ?? []).map((decision) => decision.id)),
+    normalizeSlug(parsed.question) || "decision",
+  );
+  return {
+    ...data,
+    decisionRecords: [
+      ...(data.decisionRecords ?? []),
+      {
+        ...parsed,
+        id,
+        kind: "tracked",
+        forecast: { ...parsed.forecast, capturedAt: recordedAt },
+        observations: [],
+        interpretations: [],
+      },
+    ],
+  };
+}
+
+export function applyAdoptDecisionForecast(
+  data: AssetTrackerData,
+  input: AdoptDecisionForecastInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = AdoptDecisionForecastInputSchema.parse(input);
+  const selectedIds = new Set(parsed.selectedDecisions.map(({ id }) => id));
+  const availableDecisions = new Set(
+    data.futureCashFlows.flatMap((record) =>
+      record.kind === "decision" ? [record.id] : [],
+    ),
+  );
+  for (const id of selectedIds) {
+    if (!availableDecisions.has(id)) {
+      throw new AssetTrackerCommandError(
+        "FUTURE_CASH_FLOW_NOT_FOUND",
+        `No cash-flow decision found with ID ${id}`,
+      );
+    }
+  }
+  const id = uniqueId(
+    new Set((data.decisionRecords ?? []).map((record) => record.id)),
+    normalizeSlug(parsed.title) || "adopted-forecast",
+  );
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((record) =>
+      record.kind === "decision" && selectedIds.has(record.id)
+        ? { ...record, status: "selected" }
+        : record,
+    ),
+    decisionRecords: [
+      ...(data.decisionRecords ?? []),
+      {
+        ...parsed,
+        id,
+        kind: "adopted-forecast",
+        adoptedAt: recordedAt,
+        reviews: [],
+      },
+    ],
+  };
+}
+
+export function applyRevisitAdoptedDecision(
+  data: AssetTrackerData,
+  input: RevisitAdoptedDecisionInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = RevisitAdoptedDecisionInputSchema.parse(input);
+  const forecast = (data.decisionRecords ?? []).find(
+    (record) => record.id === parsed.forecastId,
+  );
+  if (forecast?.kind !== "adopted-forecast") {
+    throw new AssetTrackerCommandError(
+      "DECISION_RECORD_NOT_FOUND",
+      `No adopted forecast found with ID ${parsed.forecastId}`,
+    );
+  }
+  if (!forecast.selectedDecisions.some(({ id }) => id === parsed.decisionId)) {
+    throw new AssetTrackerCommandError(
+      "FUTURE_CASH_FLOW_NOT_FOUND",
+      `Forecast ${forecast.id} does not include decision ${parsed.decisionId}`,
+    );
+  }
+  const reviewId = uniqueId(
+    new Set(forecast.reviews.map(({ id }) => id)),
+    `${parsed.decisionId}-review`,
+  );
+  return {
+    ...data,
+    futureCashFlows: data.futureCashFlows.map((record) =>
+      record.kind === "decision" && record.id === parsed.decisionId
+        ? { ...record, status: "considering" }
+        : record,
+    ),
+    decisionRecords: (data.decisionRecords ?? []).map((record) =>
+      record.id === forecast.id
+        ? {
+            ...forecast,
+            reviews: [
+              ...forecast.reviews,
+              {
+                id: reviewId,
+                decisionId: parsed.decisionId,
+                requestedAt: recordedAt,
+                reason: parsed.reason,
+              },
+            ],
+          }
+        : record,
+    ),
+  };
+}
+
+function requireTrackedDecision(data: AssetTrackerData, id: string) {
+  const decision = (data.decisionRecords ?? []).find(
+    (candidate) => candidate.id === id,
+  );
+  if (decision?.kind !== "tracked") {
+    throw new AssetTrackerCommandError(
+      "DECISION_RECORD_NOT_FOUND",
+      `No tracked decision found with ID ${id}`,
+    );
+  }
+  return decision;
+}
+
+export function applyRecordDecisionObservation(
+  data: AssetTrackerData,
+  input: RecordDecisionObservationInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = RecordDecisionObservationInputSchema.parse(input);
+  const decision = requireTrackedDecision(data, parsed.decisionId);
+  if (
+    !decision.forecast.checkpoints.some(
+      (checkpoint) => checkpoint.id === parsed.checkpointId,
+    )
+  ) {
+    throw new AssetTrackerCommandError(
+      "DECISION_CHECKPOINT_NOT_FOUND",
+      `Decision ${decision.id} has no checkpoint ${parsed.checkpointId}`,
+    );
+  }
+  if (
+    decision.observations.some(
+      (observation) => observation.checkpointId === parsed.checkpointId,
+    )
+  ) {
+    throw new AssetTrackerCommandError(
+      "DECISION_CHECKPOINT_ALREADY_OBSERVED",
+      `Checkpoint ${parsed.checkpointId} already has an observation`,
+    );
+  }
+  const observationId = uniqueId(
+    new Set(decision.observations.map((observation) => observation.id)),
+    `${parsed.checkpointId}-observation`,
+  );
+  return {
+    ...data,
+    decisionRecords: (data.decisionRecords ?? []).map((candidate) =>
+      candidate.id === decision.id
+        ? {
+            ...decision,
+            observations: [
+              ...decision.observations,
+              {
+                id: observationId,
+                checkpointId: parsed.checkpointId,
+                observedAt: recordedAt,
+                actualAmount: parsed.actualAmount,
+                note: parsed.note,
+                divergenceSources: parsed.divergenceSources,
+              },
+            ],
+          }
+        : candidate,
+    ),
+  };
+}
+
+export function applyAddDecisionInterpretation(
+  data: AssetTrackerData,
+  input: AddDecisionInterpretationInput,
+  recordedAt: string,
+): AssetTrackerData {
+  const parsed = AddDecisionInterpretationInputSchema.parse(input);
+  const decision = requireTrackedDecision(data, parsed.decisionId);
+  const interpretationId = uniqueId(
+    new Set(
+      decision.interpretations.map((interpretation) => interpretation.id),
+    ),
+    "interpretation",
+  );
+  return {
+    ...data,
+    decisionRecords: (data.decisionRecords ?? []).map((candidate) =>
+      candidate.id === decision.id
+        ? {
+            ...decision,
+            interpretations: [
+              ...decision.interpretations,
+              {
+                id: interpretationId,
+                createdAt: recordedAt,
+                reason: parsed.reason,
+                revisedRationale: parsed.revisedRationale,
+                assumptionChanges: parsed.assumptionChanges,
+              },
+            ],
+          }
+        : candidate,
+    ),
   };
 }
 

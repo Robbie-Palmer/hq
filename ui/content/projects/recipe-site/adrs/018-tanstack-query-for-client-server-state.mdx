@@ -78,7 +78,7 @@ export const recipeBoxQuery = (userId: string) =>
 All private query keys include a stable user identifier or live beneath a user-scoped key prefix.
 Sign-out cancels private in-flight queries and removes private cached data. Persisting the query
 cache to `localStorage` or IndexedDB is out of scope until private-data retention and shared-device
-behavior receive a separate security decision.
+behavior receives a separate security decision.
 
 ## Loading semantics
 
@@ -207,7 +207,7 @@ freshness, refetch, request deduplication, mutation invalidation, or async garba
 Accept this proposal when a small implementation spike demonstrates that:
 
 * user-scoped cache cleanup is reliable across sign-out and account changes;
-* the recipe box reaches one correct ready state without default-data flashes;
+* the recipe box reaches the correct ready state without default-data flashes;
 * mutations refresh all affected views with less coordination code than the current event/effect
   approach;
 * retry and refetch policies do not amplify `401`, `403`, validation, or preview-backend failures;

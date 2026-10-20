@@ -171,7 +171,7 @@ variable "cloudflare_account_identity_provider_id" {
 }
 
 variable "auth_rate_limit_requests" {
-  description = "Max auth requests per IP within the counting period before the edge returns 429"
+  description = "Max protected API requests per IP within the counting period before the edge returns 429"
   type        = number
   default     = 20
 
@@ -182,7 +182,7 @@ variable "auth_rate_limit_requests" {
 }
 
 variable "auth_rate_limit_period" {
-  description = "Counting period in seconds for edge auth rate limiting"
+  description = "Counting period in seconds for protected API edge rate limiting"
   type        = number
   default     = 10
 

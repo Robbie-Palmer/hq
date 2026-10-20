@@ -27,6 +27,7 @@ coverage/
 lighthouse-reports/
 playwright-report/
 test-results/
+.shared-task-cache-*/
 .pnpm-approved-builds.json
 trivy-rendered-kubernetes/
 

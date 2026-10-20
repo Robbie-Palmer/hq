@@ -1,0 +1,116 @@
+---
+title: "ADR 024: Trial Proton VPN for programmable egress"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["Proton VPN", "Gluetun"]
+---
+
+# Context
+
+Hotspot Shield works across the personal devices and is included with Dashlane
+Premium. The homelab currently depends on its GUI-controlled tunnel on the Mac
+mini. It does not publish a suitable configuration interface for container
+workloads, and sustained use has sometimes exhausted resources badly enough to
+hang the Mac mini. [ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)
+therefore protects only startup: the media stack waits for the macOS tunnel,
+but an already-running container can regain ordinary network access if that
+tunnel later fails.
+
+Tailscale already provides the WireGuard-based private network between owned
+devices. A self-hosted Tailscale exit node can also carry internet traffic, but
+that traffic still leaves through an owned home or cloud connection. Proton
+VPN supplies the part Tailscale does not: third-party exit servers, country
+choice, P2P support, and port forwarding. It complements the tailnet rather
+than replacing it, but Android cannot run both clients at once. On Android,
+switch between Proton for third-party egress and Tailscale for tailnet access
+unless a tested router or proxy path provides both.
+
+The replacement needs ordinary apps on macOS and Android, a supported Linux
+command line, WireGuard or OpenVPN configuration for a container network
+namespace, P2P support, and a kill switch that can be tested without relying on
+the provider's GUI.
+
+# Decision
+
+Trial Proton VPN as the intended programmable replacement for Hotspot Shield.
+Use Proton's normal clients for personal devices, its
+[Linux CLI](https://protonvpn.com/support/linux-cli), and provider-generated
+[WireGuard configuration](https://protonvpn.com/support/wireguard-configurations/)
+for an isolated Gluetun proof of concept around qBittorrent.
+
+Do not cancel Dashlane or Hotspot Shield during the trial. The existing
+provider-agnostic startup gate remains in place until the container-level route
+has passed failure tests and the VPN decision is accepted.
+
+The proof must demonstrate:
+
+* qBittorrent has no route outside Gluetun's network namespace;
+* traffic stops when the tunnel is killed and resumes only after reconnection;
+* the torrent client's observed address is the selected VPN exit;
+* Tailscale access to Jellyfin and the management surfaces still works;
+* DNS uses the intended resolver without leaking outside the tunnel;
+* a Mac mini reboot restores the route without an interactive login;
+* the chosen server supports P2P and
+  [port forwarding](https://protonvpn.com/support/port-forwarding); and
+* sustained qBittorrent load does not exhaust Mac mini resources or hang the
+  host, with throughput, CPU, and memory recorded against Hotspot Shield.
+
+Proton VPN Plus is currently advertised at
+[$83.76 for the first two years](https://protonvpn.com/pricing), renewing at
+$83.88 per year. Proton Unlimited is $191.76 for the first two years on the
+same offer and then $119.88 per year, including paid Mail, Drive, Pass, and VPN.
+Compare the bundle with Dashlane's included VPN at its renewal cost. The
+introductory price only describes the first term.
+
+# Alternatives
+
+## Keep Hotspot Shield
+
+This has no incremental subscription cost and already works on the personal
+devices. It cannot provide the configuration boundary needed for a Gluetun
+kill switch, so the media stack would retain its mid-session leak risk.
+
+## Route the whole home through Proton VPN
+
+Reject this without a concrete need for every device to use a third-party exit
+IP or appear in another country. AdGuard already provides network-wide DNS
+filtering, while Tailscale provides remote access to the home. A router-level
+Proton tunnel would add ISP privacy and location choice, but it would also put
+ordinary household access, streaming services, and the tailnet behind another
+failure boundary. AdGuard has already shown that a central network service can
+cause a whole-home outage, and its DNS filtering provides a clear benefit that
+this tunnel currently does not. The media workload and selected personal
+devices can get the useful egress properties without taking down the whole home
+when the tunnel fails.
+
+The Fire TV Stick does not require a whole-home tunnel for region selection.
+Proton publishes apps for both Android-based
+[Fire OS](https://protonvpn.com/support/firestick) and newer
+[Vega OS](https://protonvpn.com/support/vega-os) devices. A paid plan lets the
+remote choose a country in the app, so the stick does not need the Mac mini or
+Pi as a VPN gateway. Test the exact stick before relying on this. Fire OS allows
+[only one active VPN](https://tailscale.com/docs/reference/faq/other-vpns), so
+Proton and Tailscale cannot run on it at the same time. The trial must also
+confirm that Proton's
+[LAN access](https://protonvpn.com/support/lan-connections) still lets the stick
+reach Jellyfin directly at home.
+
+## Use a Tailscale Mullvad exit node
+
+This is a real alternative for commercial egress from tailnet devices and uses
+the existing Tailscale control plane. It does not directly give Gluetun a
+provider configuration or the NAT-PMP port-mapping behaviour this workload is
+testing. It remains useful for general device egress even if Proton is a better
+fit for qBittorrent.
+
+# Consequences
+
+A successful trial closes the mid-session leak left by ADR 017 and turns VPN
+state into something the lab can configure, observe, and test. The
+[Personal Digital Infrastructure](/projects/personal-digital-infrastructure)
+project will combine this evidence with the password, document, email, and
+renewal-price trials. VPN success alone does not justify Proton Unlimited.
+
+The trial adds Gluetun and provider configuration to the media stack. Proton's
+port-forwarded endpoint can change between sessions, so qBittorrent needs a
+small reconciliation step rather than a hard-coded port.

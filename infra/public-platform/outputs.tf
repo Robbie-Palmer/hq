@@ -13,6 +13,11 @@ output "pages_project_domains" {
   value       = cloudflare_pages_project.personal_site.domains
 }
 
+output "wedding_playlists_r2_bucket_name" {
+  description = "R2 bucket used by the production wedding playlist API"
+  value       = cloudflare_r2_bucket.wedding_playlists.name
+}
+
 output "preview_access_service_token_client_id" {
   description = "Client ID for coding-agent access to protected Pages previews"
   value       = cloudflare_zero_trust_access_service_token.preview_qa_agents.client_id

@@ -1,0 +1,81 @@
+---
+title: "ADR 000: Trial Filen for the working document library"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["Filen"]
+---
+
+# Context
+
+Personal documents accumulated across old computers, Google Drive, OneDrive,
+and removable storage. Most files are now consolidated on one external hard
+drive for deduplication. That drive is neither an offsite copy nor a convenient
+way to retrieve a document from Android or another computer.
+
+The replacement needs end-to-end encryption, macOS, Ubuntu, Android, and web
+access. Routine transfers, checks, and clean-machine recovery should not depend
+on many GUI steps. The cloud library will be a synchronized working copy, not
+the only copy or the independent backup.
+
+Filen offers encrypted storage with desktop and mobile clients. Its
+[CLI](https://docs.filen.io/docs/cli/) supports sync, mounting, WebDAV, and S3
+access. This is a better match for Ubuntu and agent-operated file workflows
+than a transfer-only command line.
+
+# Decision
+
+Trial Filen first with a representative copy of the consolidated document
+library. Keep every Google Drive, OneDrive, and hard-drive source during the
+trial.
+
+Use nested folders, large files, common office formats, scans, Unicode names,
+and deliberate duplicates. Test the macOS and Android apps, web interface, and
+Ubuntu CLI. Exercise both on-demand transfers and continuous synchronization.
+
+Promote Filen only after the trial proves:
+
+* manifests before and after transfer match;
+* a deleted file and an earlier version can be recovered;
+* a clean Ubuntu machine can restore the test set with documented commands;
+* Android can open, download, edit, and upload the document types used in
+  practice;
+* unattended CLI sync reports failures clearly and does not duplicate or lose
+  files after conflicts; and
+* the measured library fits the selected plan with growth headroom.
+
+Filen currently lists 200 GB at
+[€1.99 per month](https://filen.io/pricing), or €23.88 per year, and 500 GB at
+€3.99 per month, or €47.88 per year. Recheck the checkout price, tax, and
+renewal terms before accepting this decision.
+
+# Alternatives
+
+## Proton Drive
+
+Proton Drive provides end-to-end encrypted file storage, polished mobile
+access, and a CLI. Its Linux CLI supports transfers but does not provide the
+same continuous sync and mount options as Filen. It becomes the preferred
+second trial if Filen fails, or if paid Proton Pass and VPN trials make Proton
+Unlimited economically compelling.
+
+## Cloudflare R2
+
+R2 has an S3-compatible API, strong command-line tooling, and no egress charge.
+It is an object store rather than a personal sync product. It has no first-party
+document browser or offline mobile workflow. Keep it for project objects. The
+working personal library needs a sync product.
+
+## Google Drive or OneDrive
+
+Both have polished clients and already hold historical files. Neither is a
+preferred provider, and retaining both would preserve the fragmentation this
+decision should remove. They remain migration sources until manifests and
+recovery tests prove the move complete.
+
+# Consequences
+
+The first trial costs less than Proton Drive and tests the strongest current
+Linux and CLI candidate. The Android and macOS experience remains unproven, and
+Filen's [roadmap](https://filen.io/hub/roadmap/) still includes sync-engine and
+security-audit work. A failed trial loses no sole copy and can move directly to
+the Proton Drive comparison.

@@ -9,16 +9,21 @@ import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PantryRealtimeBoundary } from "@/components/recipes/pantry-realtime-boundary";
 import type { RecipeBootstrap } from "@/lib/api/recipe-bootstrap";
+import type { StoredShoppingList } from "@/lib/api/shopping-lists";
 import { authClient } from "@/lib/auth-client";
+import { setCookingTimerOwner } from "@/lib/cooking/timerStore";
 import {
   loadOfflineRecipeSnapshot,
   saveOfflineRecipeSnapshot,
+  saveOfflineShoppingListSnapshot,
 } from "@/lib/pwa/offline-recipe-cache";
 import {
   clearOtherPrivateRecipeQueries,
   createRecipeQueryClient,
 } from "@/lib/query/recipe-query-client";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
+import { isOfflineShoppingListRestore } from "@/lib/query/shopping-list-queries";
+import { setShoppingListOwner } from "@/lib/shopping/shoppingListStore";
 
 const RecipeQueryDevtools =
   process.env.NODE_ENV === "development"
@@ -61,7 +66,7 @@ export function RecipeAccountCacheBoundary() {
   return null;
 }
 
-export function OfflineRecipeCacheBoundary() {
+function useOfflineRecipeCache(): void {
   const { data: session, isPending } = authClient.useSession();
   const queryClient = useQueryClient();
   const userId = session?.user.id;
@@ -69,7 +74,10 @@ export function OfflineRecipeCacheBoundary() {
   activeAccount.current = { isPending, userId };
 
   useEffect(() => {
-    if (isPending || !userId) return;
+    if (isPending) return;
+    setCookingTimerOwner(userId);
+    setShoppingListOwner(userId);
+    if (!userId) return;
     let disposed = false;
     let restoring = false;
     const queryKey = recipeQueryKeys.bootstrap(userId);
@@ -127,7 +135,53 @@ export function OfflineRecipeCacheBoundary() {
       unsubscribe();
     };
   }, [isPending, queryClient, userId]);
+}
 
+function useOfflineShoppingListCache(): void {
+  const { data: session, isPending } = authClient.useSession();
+  const queryClient = useQueryClient();
+  const userId = session?.user.id;
+  const activeAccount = useRef({ isPending, userId });
+  activeAccount.current = { isPending, userId };
+
+  useEffect(() => {
+    if (isPending || !userId) return;
+    let disposed = false;
+    const queryKey = recipeQueryKeys.shoppingList(userId);
+    const queryHash = hashKey(queryKey);
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (
+        event.type !== "updated" ||
+        event.action.type !== "success" ||
+        event.query.queryHash !== queryHash
+      ) {
+        return;
+      }
+      const data = queryClient.getQueryData<StoredShoppingList>(queryKey);
+      if (
+        !data ||
+        isOfflineShoppingListRestore(data) ||
+        disposed ||
+        activeAccount.current.isPending ||
+        activeAccount.current.userId !== userId
+      ) {
+        return;
+      }
+      void saveOfflineShoppingListSnapshot(userId, data).catch(() => {
+        // Browser persistence must not affect the live shopping query.
+      });
+    });
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [isPending, queryClient, userId]);
+}
+
+export function OfflineRecipeCacheBoundary() {
+  useOfflineRecipeCache();
+  useOfflineShoppingListCache();
   return null;
 }
 

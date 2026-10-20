@@ -172,6 +172,66 @@ export function createSampleWeddingPlan(): WeddingPlan {
       },
       guest_charge_cap_gbp: "85",
       default_outside_cost_gbp: "90",
+      inventory: {
+        properties: [
+          {
+            id: "sample-hotel",
+            name: "Harbour Hotel",
+            kind: "room_block",
+            address: "1 Harbour Road",
+            provider_name: "Groups team",
+            provider_contact: "groups@example.test",
+            check_in_on: "2027-06-04",
+            check_out_on: "2027-06-06",
+            booking_deadline: "2027-04-01",
+            accessibility: ["step-free"],
+            cost: { basis: "nightly", amount_gbp: "125" },
+            booking: {
+              status: "held",
+              payer: { kind: "guest_direct" },
+              commitment_id: "hotel-room-block",
+            },
+          },
+        ],
+        rooms: [
+          {
+            id: "sample-hotel-101",
+            property_id: "sample-hotel",
+            name: "Room 101",
+            capacity: 2,
+            accessibility: ["step-free"],
+            beds: [
+              {
+                id: "sample-hotel-101-double",
+                name: "Double bed",
+                kind: "double",
+                capacity: 2,
+              },
+            ],
+          },
+        ],
+        assignments: [
+          {
+            id: "sample-parents-room",
+            subject: { kind: "guest", id: "alex" },
+            room_id: "sample-hotel-101",
+            bed_ids: ["sample-hotel-101-double"],
+            arrives_on: "2027-06-04",
+            departs_on: "2027-06-06",
+            locked: true,
+          },
+        ],
+        self_arranged_stays: [
+          {
+            id: "sample-casey-self-arranged",
+            subject: { kind: "guest", id: "casey" },
+            arrives_on: "2027-06-04",
+            departs_on: "2027-06-06",
+            provider_name: "Guest's own hotel",
+            confirmation_details: "Booked by guest",
+          },
+        ],
+      },
     },
     seating: {
       top_table_capacity: 10,

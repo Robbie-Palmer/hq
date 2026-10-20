@@ -10,7 +10,11 @@ vi.mock("next/navigation", () => ({
 
 import AssetTrackerLayout from "@/app/assettracker/layout";
 import { AssetTrackerLayoutClient } from "@/components/assettracker/asset-tracker-layout-client";
-import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
+import {
+  buildHouseholdAdoptedDecisionForecast,
+  useAssetTracker,
+} from "@/components/assettracker/asset-tracker-provider";
+import { getDemoAssetTrackerData } from "@/lib/assettracker";
 
 function ProviderProbe() {
   const { accounts } = useAssetTracker();
@@ -88,6 +92,36 @@ describe("AssetTrackerLayoutClient", () => {
     );
 
     expect(await screen.findByText(/accounts available/)).toBeVisible();
+  });
+
+  it("builds adopted forecasts from household values in a member view", () => {
+    const data = getDemoAssetTrackerData();
+    const forecast = buildHouseholdAdoptedDecisionForecast(
+      {
+        ...data,
+        household: {
+          ...data.household,
+          activeScope: { kind: "member", memberId: "alex" },
+        },
+      },
+      {
+        decisionIds: ["single-storey-extension"],
+        horizonMonths: 36,
+        reserveMonths: 6,
+      },
+    );
+
+    expect(
+      forecast.actions.find(
+        ({ sourceDecisionId, kind }) =>
+          sourceDecisionId === "single-storey-extension" && kind === "payment",
+      )?.amount,
+    ).toBe(45_000);
+    expect(
+      forecast.sourceBalances.find(
+        ({ accountId }) => accountId === "nationwide-current",
+      )?.balance,
+    ).toBe(3_400);
   });
 
   it("links every application section and marks the current route", () => {

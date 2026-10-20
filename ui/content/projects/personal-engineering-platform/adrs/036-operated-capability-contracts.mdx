@@ -1,0 +1,128 @@
+---
+title: "ADR 036: Operated capability contracts"
+date: "2026-10-20"
+status: "Accepted"
+---
+
+## Context
+
+The platform has accepted decisions for object storage, PostgreSQL recovery,
+pull-request previews, preview access, telemetry, and alerts. Those decisions
+name the right jobs and products:
+
+* [ADR 016](/projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-storage)
+  selects R2 for object storage.
+* [ADR 017](/projects/personal-engineering-platform/adrs/017-relational-data-stack)
+  defines encrypted PostgreSQL archives and restore drills.
+* [ADR 018](/projects/personal-engineering-platform/adrs/018-pull-request-preview-environments)
+  defines disposable pull-request deployments.
+* [ADR 019](/projects/personal-engineering-platform/adrs/019-cloudflare-access-boundaries)
+  and [ADR 034](/projects/personal-engineering-platform/adrs/034-identity-and-access-capability-contracts)
+  define the preview identity gate.
+* [ADR 023](/projects/personal-engineering-platform/adrs/023-application-observability-stack)
+  separates telemetry transport, telemetry storage, alert evaluation, and alert
+  delivery.
+
+The manifest records prerequisites, evidence, and project adoption. It does not
+yet record two facts that project generation needs. First, it cannot say whether
+a selected capability creates durable project-owned state or disposable
+environment state. Second, it cannot name the repository task, workflow, or
+operating procedure that proves the capability works.
+
+The preview decision also hides a conditional job. A static frontend preview
+does not need a database. A stateful preview needs its own database, a fresh
+migration baseline, synthetic fixtures, and cleanup. Treating those as part of
+every preview would either over-provision static projects or let database
+projects claim preview isolation without proving data isolation.
+
+## Decision
+
+Keep the accepted provider selections. Add machine-readable state ownership and
+operational checks to their selection records. Add a separate
+`database.preview-isolation` policy for projects that exercise PostgreSQL in a
+pull-request environment.
+
+Each operated selection may declare:
+
+* `configuration_requirements`, with the slot that owns each value and whether
+  it is sensitive;
+* `state_requirements`, with the adopting project or platform as owner and a
+  durable or ephemeral lifecycle; and
+* `operational_checks`, pointing to a mise task, GitHub Actions workflow, or
+  documented procedure.
+
+These records are inputs to project profiles. A generated plan can identify
+state that must be provisioned, configuration that must be routed to a secret
+owner, and checks that must pass before adoption is complete. A task or workflow
+reference names executable repository evidence. A procedure reference covers
+provider checks that need controlled credentials or deliberate human
+observation.
+
+### Capability boundaries
+
+| Job                           | Slot                                  | Shared prerequisites                                                                                | State and proof                                                                                                                                                                                               |
+| ----------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Object storage                | `storage.object-store`                | Data classification, lifecycle policy, and scoped credentials                                       | The adopter owns bucket configuration and objects. Infrastructure checks validate declared buckets; each use case checks access and lifecycle behavior.                                                       |
+| PostgreSQL backup and restore | `database.backup-restore`             | PostgreSQL, object storage, separate key custody, retention policy, and restore drills              | The adopter owns encrypted archives, checksums, and drill evidence. Scheduled workflows create archives, `//backups:verify` checks archive structure, and the restore procedure exercises a scratch database. |
+| Pull-request deployment       | `delivery.preview-environment`        | CI, preview-scoped credentials, synthetic data, and automatic cleanup                               | The adopter owns ephemeral pull-request resources. The preview workflow and smoke task prove deployment, isolation, and cleanup behavior.                                                                     |
+| Preview database              | `database.preview-isolation`          | Pull-request deployment, PostgreSQL, committed migration discipline, and a fresh migration baseline | The adopter owns an ephemeral database branch. The preview workflow applies migrations, loads synthetic fixtures, and runs the stateful smoke test.                                                           |
+| Preview identity gate         | `security.preview-access`             | A preview deployment and provider registration                                                      | The adopter owns the Access application and reviewer policy. The protected fetch and browser QA tasks prove that the gate admits the intended clients.                                                        |
+| Telemetry transport           | `observability.telemetry-protocol`    | Instrumented runtime, redaction, and bounded exporter failure                                       | The adopter owns instrumentation and exporter configuration. Package tests and an end-to-end trace check prove export behavior.                                                                               |
+| Operational logs              | `observability.application-telemetry` | OpenTelemetry and a project retention policy                                                        | The adopter owns retention, redaction, and cost policy. A correlated log smoke check proves ingestion and trace linkage.                                                                                      |
+| Alert evaluation              | `observability.alert-evaluation`      | Operational telemetry and a named responder                                                         | The adopter owns alert definitions. A production-safe synthetic signal proves evaluation.                                                                                                                     |
+| Alert delivery                | `observability.alert-delivery`        | Alert evaluation, channel routing, and project-owned delivery credentials                           | The adopter owns channel routing. The synthetic alert procedure proves delivery to Slack.                                                                                                                     |
+
+The four observability slots remain separate. Product analytics does not activate
+the operational log store. Log ingestion does not claim that alerts exist.
+Alert evaluation does not claim that a notification reached its destination.
+
+### Product-owned policy
+
+The platform owns the job boundaries and the reusable checks. Each adopter still
+owns its data classification, retention duration, recovery objectives, incident
+thresholds, responder, notification channel, preview fixtures, and rules for
+disposing project data. The manifest records that these decisions must exist. It
+does not choose their product-specific values.
+
+### Evidence
+
+Recipe Site supplies accepted evidence for the full operated path. Its ADR 014
+defines independent database backups, ADR 017 defines fresh preview databases,
+ADR 013 defines the Access gate, ADR 020 proves direct OTLP export to PostHog,
+and ADR 021 defines synthetic alert evaluation and Slack delivery.
+
+Work Graph uses the shared encrypted backup implementation with its own bucket,
+credentials, key custody, and restore procedure. Personal Knowledge Graph and
+Agentic Code Review provide additional R2 use cases. Agent-friendly Remote
+Development provides a second implementation of the OpenTelemetry and alerting
+path, while its decision remains proposed evidence rather than a second accepted
+product decision.
+
+## Alternatives
+
+Keeping state and checks only in prose would preserve the existing model, but a
+profile resolver could not distinguish durable resources from disposable ones
+or tell when setup is complete. Copier would have to infer those facts from ADR
+text.
+
+Making every operational check a command would be convenient for generation.
+Provider dashboards, restore drills, and alert delivery still need controlled
+credentials and observed external effects. Procedure references make that work
+explicit without pretending it is a local unit test.
+
+Putting preview database behavior inside `delivery.preview-environment` would
+make the simple frontend path depend on PostgreSQL. The separate conditional
+slot preserves frontend-only previews and gives stateful projects a checkable
+database contract.
+
+## Consequences
+
+Project profiles can now resolve operational resources and completion checks
+without scraping prose. The Copier plan can show durable and ephemeral state,
+route known configuration to its owner, and list the checks required after
+materialization.
+
+The manifest contains more operational detail and must keep references current
+when tasks or workflows move. Procedure checks remain deliberate work. A record
+does not become healthy merely because its referenced document exists; adopters
+must run the check and keep the result with their operating evidence.

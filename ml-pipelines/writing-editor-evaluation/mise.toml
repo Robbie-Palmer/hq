@@ -18,7 +18,7 @@ depends = ["install"]
 run = "bash scripts/run-vale.sh"
 
 [tools]
-python = "3.12.12"
+python = "3.14.7"
 
 [env]
 CUBLAS_WORKSPACE_CONFIG = ":4096:8"
@@ -51,6 +51,16 @@ description = "Run the DVC GECToR stage over the frozen cohort"
 depends = ["install", "runtime:sync"]
 run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro run_gector"
 
+[tasks."run:gector:current"]
+description = "Build, calibrate, run, and report GECToR over current public content"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro report_current_content_gector"
+
+[tasks."run:gector:developer"]
+description = "Build, calibrate, run, and report GECToR over current developer content"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro report_developer_content_gector"
+
 [tasks."model:prepare"]
 description = "Download and verify the pinned GECToR-2024 checkpoint"
 depends = ["install"]
@@ -70,6 +80,11 @@ run = "bash scripts/match-edits.sh"
 description = "Validate review outcomes and produce the evidence-gated scorecard"
 depends = ["install", "review-evidence:pull"]
 run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro evaluate_reviews"
+
+[tasks."record:gector:decisions"]
+description = "Record governed decisions for seed and broad GECToR proposals"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro finalize_cohort_readiness evaluate_gector_decisions"
 
 [tasks."review-evidence:pull"]
 description = "Pull the governed writing-review evidence from DVC"

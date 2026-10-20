@@ -11,7 +11,10 @@ type OfflineReadiness = {
   sessionCached: boolean;
   snapshotDatabaseExists: boolean;
   snapshotStoreExists: boolean;
+  scopedSnapshotStore: boolean;
   snapshotCount: number;
+  recipeSnapshotExists: boolean;
+  shoppingSnapshotExists: boolean;
   snapshotReadError: string | null;
 };
 
@@ -67,7 +70,10 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
       ({ name }) => name === "robbies-recipes",
     );
     let snapshotStoreExists = false;
+    let scopedSnapshotStore = false;
     let snapshotCount = 0;
+    let recipeSnapshotExists = false;
+    let shoppingSnapshotExists = false;
     let snapshotReadError: string | null = null;
 
     if (snapshotDatabaseExists) {
@@ -80,24 +86,47 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
         };
         request.onsuccess = () => {
           const database = request.result;
-          if (!database.objectStoreNames.contains("recipe-snapshots")) {
+          const snapshotStoreName = [
+            "offline-snapshots",
+            "recipe-snapshots",
+          ].find((name) => database.objectStoreNames.contains(name));
+          if (!snapshotStoreName) {
             database.close();
             resolve();
             return;
           }
           snapshotStoreExists = true;
-          const count = database
-            .transaction("recipe-snapshots")
-            .objectStore("recipe-snapshots")
-            .count();
-          count.onerror = () => {
+          scopedSnapshotStore = snapshotStoreName === "offline-snapshots";
+          const snapshots = database
+            .transaction(snapshotStoreName)
+            .objectStore(snapshotStoreName)
+            .getAll();
+          snapshots.onerror = () => {
             snapshotReadError =
-              count.error?.message ?? "could not count recipe snapshots";
+              snapshots.error?.message ?? "could not read offline snapshots";
             database.close();
             resolve();
           };
-          count.onsuccess = () => {
-            snapshotCount = count.result;
+          snapshots.onsuccess = () => {
+            snapshotCount = snapshots.result.length;
+            recipeSnapshotExists = !scopedSnapshotStore
+              ? snapshotCount > 0
+              : snapshots.result.some(
+                  (snapshot: unknown) =>
+                    typeof snapshot === "object" &&
+                    snapshot !== null &&
+                    "kind" in snapshot &&
+                    snapshot.kind === "recipes",
+                );
+            shoppingSnapshotExists =
+              scopedSnapshotStore &&
+              snapshots.result.some(
+                (snapshot: unknown) =>
+                  typeof snapshot === "object" &&
+                  snapshot !== null &&
+                  "kind" in snapshot &&
+                  snapshot.kind === "shopping-list",
+              );
             database.close();
             resolve();
           };
@@ -110,7 +139,10 @@ async function readOfflineReadiness(page: Page): Promise<OfflineReadiness> {
       sessionCached: session !== undefined,
       snapshotDatabaseExists,
       snapshotStoreExists,
+      scopedSnapshotStore,
       snapshotCount,
+      recipeSnapshotExists,
+      shoppingSnapshotExists,
       snapshotReadError,
     };
   });
@@ -124,9 +156,9 @@ function missingOfflinePrerequisites(readiness: OfflineReadiness): string[] {
     missing.push("recipe snapshot database");
   } else if (!readiness.snapshotStoreExists) {
     missing.push("recipe snapshot store");
-  } else if (readiness.snapshotCount !== 1) {
+  } else if (!readiness.recipeSnapshotExists) {
     missing.push(
-      `one recipe snapshot (found ${readiness.snapshotCount.toString()})`,
+      `recipe snapshot (found ${readiness.snapshotCount.toString()} stored snapshots)`,
     );
   }
   if (readiness.snapshotReadError) {
@@ -176,8 +208,17 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
         request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const database = request.result;
-          const transaction = database.transaction(
+          const snapshotStoreName = [
+            "offline-snapshots",
             "recipe-snapshots",
+          ].find((name) => database.objectStoreNames.contains(name));
+          if (!snapshotStoreName) {
+            database.close();
+            reject(new Error("The offline snapshot store does not exist"));
+            return;
+          }
+          const transaction = database.transaction(
+            snapshotStoreName,
             "readwrite",
           );
           transaction.onerror = () => reject(transaction.error);
@@ -185,7 +226,7 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
             database.close();
             resolve();
           };
-          transaction.objectStore("recipe-snapshots").clear();
+          transaction.objectStore(snapshotStoreName).clear();
         };
       }),
   );
@@ -215,7 +256,6 @@ test.describe("deployed recipe PWA offline navigation", () => {
       { name: "Discover", path: "/recipes/discover" },
       { name: "Kitchen", path: "/recipes/kitchen" },
       { name: "Log", path: "/recipes/log" },
-      { name: "Shopping", path: "/recipes/shopping" },
     ];
 
     for (const destination of destinations) {
@@ -266,5 +306,44 @@ test.describe("deployed recipe PWA offline navigation", () => {
     await page.getByRole("link", { name: "diet settings" }).click();
 
     await expectOfflineDestination(page, "/recipes/settings?section=diet");
+  });
+
+  test("reloads the current shopping trip from its scoped snapshot", async ({
+    createPreviewSession,
+  }) => {
+    const { context, page } = await createPreviewSession("household-owner");
+    await prepareOfflineRecipeSession(page);
+    await page.getByRole("link", { name: "Shopping", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Shopping list." }),
+    ).toBeVisible();
+
+    const readiness = await readOfflineReadiness(page);
+    if (!readiness.scopedSnapshotStore) {
+      await context.setOffline(true);
+      await page.reload();
+      await expectOfflineDestination(page, "/recipes/shopping");
+      return;
+    }
+    await expect
+      .poll(
+        async () => (await readOfflineReadiness(page)).shoppingSnapshotExists,
+      )
+      .toBe(true);
+
+    await context.setOffline(true);
+    await page.reload();
+
+    await expect(
+      page.getByRole("heading", { name: "Shopping list." }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "Offline. Showing saved data from",
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Your shopping list could not be loaded."),
+    ).toHaveCount(0);
   });
 });

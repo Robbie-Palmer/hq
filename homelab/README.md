@@ -117,6 +117,16 @@ mise run //homelab:t3-image-check
 mise run //homelab:t3-image-load-remote
 ```
 
+For later image upgrades, publish the checked image and run:
+
+```bash
+mise run //homelab:t3-image-deploy-remote
+```
+
+The deployment waits for the T3 database to report no active or queued work,
+then applies the remote overlay and verifies the replacement pod. It stops
+without changing the deployment if it cannot understand the live database.
+
 After tailnet SSH, HTTPS, and the health task pass, set Terraform's
 `bootstrap_mode_enabled` to `false` and `bootstrap_ssh_cidrs` to `[]`, review a
 new plan, and apply it. Reboot once more and rerun `remote-health`. Never remove
@@ -433,7 +443,7 @@ service or admission alerts.
 
 ### Updates, rollback, and backups
 
-Build every NixOS change first, then switch it over the tailnet:
+Build every NixOS change first, then switch it over to the tailnet:
 
 ```bash
 mise run //homelab:remote-build

@@ -8,6 +8,7 @@ import {
   type FutureCashFlow,
   futureCashFlowStageAccountId,
 } from "./futureCashFlow";
+import { retainKnownAssetTrackerChecklistLinks } from "./planningChecklist";
 import type { SpendingBaseline } from "./spendingBaseline";
 
 export const DEFAULT_HOUSEHOLD_MEMBER_ID = "primary";
@@ -740,8 +741,16 @@ export function scopeAssetTrackerData(
   const keptScenarioIds = new Set(
     mortgageScenarios.map((scenario) => scenario.id),
   );
-  const decisionRecords = (data.decisionRecords ?? []).filter((decision) =>
-    keptScenarioIds.has(decision.scenarioId),
+  const decisionRecords = (data.decisionRecords ?? []).filter(
+    (decision) =>
+      decision.kind !== "adopted-forecast" &&
+      (decision.kind !== "mortgage" ||
+        keptScenarioIds.has(decision.scenarioId)),
+  );
+  const planningCases = retainKnownAssetTrackerChecklistLinks(
+    data.planningCases,
+    futureCashFlows,
+    decisionRecords,
   );
   const holdingObservations = (data.holdingObservations ?? []).flatMap(
     (row) => {
@@ -786,6 +795,7 @@ export function scopeAssetTrackerData(
     recurringFlows,
     jobMoveScenarios,
     plannedExpenditures,
+    planningCases,
     futureCashFlows,
     forecastAssumptionSets,
     spendingBaselines,

@@ -193,6 +193,7 @@ function deploymentObservation(delivery: GitHubDelivery): GitHubObservation {
     "queued",
     "pending",
     "success",
+    "waiting",
   ];
   if (!states.includes(text(status.state))) throw new InvalidGitHubDelivery();
   return {

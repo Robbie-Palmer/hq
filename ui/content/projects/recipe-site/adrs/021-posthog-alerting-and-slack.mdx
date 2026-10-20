@@ -140,7 +140,7 @@ for operational alert state.
 * Simulate material threshold changes against at least seven days of production history.
 * Aim for actionable, low-noise alerts; a recurring non-incident notification is a threshold or
   signal-quality problem, not something to tolerate indefinitely.
-* Link notifications to the filtered PostHog logs and alert detail so Slack remains a prompt to
+* Link notifications to the filtered PostHog logs and alert details so Slack remains a prompt to
   investigate, not a second diagnostic interface.
 * Keep alert definitions in code. Do not make threshold changes only in the PostHog UI because
   Terraform will treat them as drift.
@@ -159,7 +159,7 @@ completed before acceptance.
   integration.
 * Review the integration's requested Slack scopes during installation and whenever they change.
 * Attach all managed production log alerts to that channel in PostHog.
-* Configure desktop and mobile Slack clients to notify for every message in the alert channel while
+* Configure desktop and mobile Slack clients to notify about every message in the alert channel while
   leaving unrelated Slack notifications disabled.
 * Send concise alert state, affected service, threshold result, and investigation links. Keep raw
   logs, credentials, request headers, and unnecessary personal data in PostHog rather than copying

@@ -102,8 +102,24 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       },
     ],
     transfers,
+    capitalFlows: [
+      {
+        accountId: "nationwide-current",
+        date: "2024-12-01",
+        amount: 600,
+        kind: "external",
+      },
+    ],
     recurringFlows,
     planningCases: [
+      {
+        id: "2024-kitchen-renovation",
+        name: "Kitchen renovation",
+        description:
+          "An adopted household plan with actual costs and later evidence to reconcile.",
+        labels: ["home", "recorded"],
+        targetDate: "2024-12-01",
+      },
       {
         id: "2027-home-upgrade",
         name: "2027 home upgrade",
@@ -114,6 +130,103 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       },
     ],
     futureCashFlows: [
+      {
+        id: "kitchen-design-and-survey",
+        name: "Kitchen design and survey",
+        description: "Design work committed before choosing the build scope.",
+        planningCaseId: "2024-kitchen-renovation",
+        labels: ["professional-fees", "completed"],
+        currency: "GBP",
+        kind: "commitment",
+        counterparty: "Demo Kitchen Studio",
+        status: "active",
+        changeability: "fixed",
+        refundable: false,
+        stages: [
+          {
+            id: "kitchen-design-fee",
+            name: "Design fee",
+            fromAccountId: "nationwide-current",
+            dueDate: "2024-08-15",
+            amount: 1_200,
+            actuals: [
+              {
+                id: "kitchen-design-fee-payment",
+                date: "2024-08-15",
+                amount: 1_200,
+                direction: "payment",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "kitchen-renovation-build",
+        name: "Full kitchen renovation",
+        description:
+          "The adopted option, now reconciled with the final contractor payment.",
+        planningCaseId: "2024-kitchen-renovation",
+        labels: ["renovation", "adopted-option"],
+        currency: "GBP",
+        kind: "decision",
+        status: "selected",
+        importance: "Replace the failing layout and appliances in one project",
+        confidence: 0.7,
+        reversibility: "irreversible",
+        dependencyIds: ["kitchen-design-and-survey"],
+        alternativeToIds: ["kitchen-refresh-only"],
+        stages: [
+          {
+            id: "kitchen-build",
+            name: "Build and fit-out",
+            fromAccountId: "nationwide-current",
+            earliestDate: "2024-11-01",
+            expectedDate: "2024-11-15",
+            latestDate: "2024-11-30",
+            minimumAmount: 7_000,
+            expectedAmount: 8_000,
+            maximumAmount: 9_500,
+            actuals: [
+              {
+                id: "kitchen-final-payment",
+                date: "2024-11-22",
+                amount: 8_650,
+                direction: "payment",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "kitchen-refresh-only",
+        name: "Refresh doors and worktops",
+        description:
+          "The lower-cost alternative that remained undecided when the forecast was adopted.",
+        planningCaseId: "2024-kitchen-renovation",
+        labels: ["renovation", "undecided-option"],
+        currency: "GBP",
+        kind: "decision",
+        status: "considering",
+        importance: "Extend the life of the existing kitchen at lower cost",
+        confidence: 0.6,
+        reversibility: "partly-reversible",
+        dependencyIds: ["kitchen-design-and-survey"],
+        alternativeToIds: ["kitchen-renovation-build"],
+        stages: [
+          {
+            id: "kitchen-refresh",
+            name: "Doors, worktops and decoration",
+            fromAccountId: "nationwide-current",
+            earliestDate: "2024-10-15",
+            expectedDate: "2024-11-01",
+            latestDate: "2024-11-30",
+            minimumAmount: 2_500,
+            expectedAmount: 3_500,
+            maximumAmount: 4_500,
+            actuals: [],
+          },
+        ],
+      },
       {
         id: "architect-and-survey",
         name: "Architect and survey work",
@@ -213,6 +326,61 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       },
     ],
     forecastAssumptionSets: [
+      {
+        id: "renovation-outlook-v1",
+        seriesId: "renovation-outlook",
+        name: "Renovation household costs",
+        version: 1,
+        status: "superseded",
+        createdAt: "2024-09-01T12:00:00Z",
+        assumptions: [
+          {
+            id: "temporary-kitchen-costs-v1",
+            name: "Temporary kitchen costs",
+            kind: "expenditure",
+            startDate: "2024-10-01",
+            endDate: "2024-11-30",
+            monthlyChange: {
+              minimum: 200,
+              expected: 300,
+              maximum: 400,
+            },
+            currency: "GBP",
+            confidence: 0.7,
+            ownership: equalHouseholdOwnership,
+            source: { kind: "manual" },
+            sourceNotes: "Original allowance while the kitchen was unusable",
+          },
+        ],
+      },
+      {
+        id: "renovation-outlook-v2",
+        seriesId: "renovation-outlook",
+        name: "Renovation household costs",
+        version: 2,
+        status: "active",
+        createdAt: "2024-10-15T12:00:00Z",
+        supersedesId: "renovation-outlook-v1",
+        assumptions: [
+          {
+            id: "temporary-kitchen-costs-v2",
+            name: "Temporary kitchen costs",
+            kind: "expenditure",
+            startDate: "2024-10-01",
+            endDate: "2024-11-30",
+            monthlyChange: {
+              minimum: 300,
+              expected: 450,
+              maximum: 600,
+            },
+            currency: "GBP",
+            confidence: 0.85,
+            ownership: equalHouseholdOwnership,
+            source: { kind: "manual" },
+            sourceNotes: "Revised after the contractor confirmed the programme",
+          },
+        ],
+      },
       {
         id: "household-outlook-v1",
         seriesId: "household-outlook",
@@ -386,11 +554,207 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
     decisionRecords: [
       {
         id: "five-year-fix-decision",
-        kind: "mortgage",
-        title: "Five-year fix",
-        scenarioId: "five-year-fix",
-        recordedAt: "2024-12-01",
-        status: "recorded",
+        kind: "tracked",
+        question: "Should we take the five-year fixed mortgage?",
+        decisionDate: "2024-12-01",
+        selectedScenario: {
+          id: "five-year-fix",
+          label: "Five-year fix",
+        },
+        rationale:
+          "The payment fits the household budget and the fixed period removes rate uncertainty while we rebuild cash reserves.",
+        action:
+          "Accept the five-year fix and make the scheduled monthly payments.",
+        forecast: {
+          capturedAt: "2024-12-01T12:00:00.000Z",
+          calculationVersion: "mortgage-schedule-v1",
+          lineage: [
+            {
+              id: "five-year-fix-property-fact",
+              kind: "financial-fact",
+              label: "Property and deposit",
+              value: "£298,000 property; £85,200 deposit",
+              source: "Home purchase records",
+              validAt: "2024-12-01",
+            },
+            {
+              id: "five-year-fix-rate",
+              kind: "rate",
+              label: "Mortgage rates",
+              value: "4.25% fixed, then 5.25%",
+              source: "Accepted mortgage offer",
+              validAt: "2024-12-01",
+              version: "offer-2024-12-01",
+            },
+            {
+              id: "five-year-fix-tax-rule",
+              kind: "tax-rule",
+              label: "Purchase tax treatment",
+              value: "Purchase taxes already settled; no forecast cash event",
+              source: "Completion statement",
+              validAt: "2024-12-01",
+              version: "2024-25",
+            },
+            {
+              id: "five-year-fix-assumption",
+              kind: "assumption",
+              label: "Payment behaviour",
+              value: "274-month repayment term; no monthly overpayment",
+              source: "Household decision",
+              validAt: "2024-12-01",
+            },
+          ],
+          checkpoints: [
+            {
+              id: "five-year-fix-year-one-balance",
+              label: "Mortgage balance after the first year",
+              dueDate: "2025-12-01",
+              expectedAmount: -205_090,
+              currency: "GBP",
+            },
+          ],
+        },
+        observations: [
+          {
+            id: "five-year-fix-year-one-observation",
+            checkpointId: "five-year-fix-year-one-balance",
+            observedAt: "2025-12-02T09:00:00.000Z",
+            actualAmount: -204_240,
+            note: "The year-end statement shows a lower balance than forecast.",
+            divergenceSources: [
+              {
+                kind: "changed-reality",
+                label: "One additional principal payment",
+                impactAmount: 1_000,
+              },
+              {
+                kind: "changed-assumption",
+                label: "First payment accrued for fewer days",
+                impactAmount: -150,
+              },
+            ],
+          },
+        ],
+        interpretations: [],
+      },
+      {
+        id: "kitchen-renovation-live-forecast",
+        kind: "adopted-forecast",
+        title: "Kitchen renovation live forecast",
+        adoptedAt: "2024-09-16T12:00:00.000Z",
+        calculationVersion: "decision-scenario-v1",
+        selectedDecisions: [
+          {
+            id: "kitchen-renovation-build",
+            name: "Full kitchen renovation",
+            planningCaseId: "2024-kitchen-renovation",
+          },
+        ],
+        undecidedDecisions: [
+          {
+            id: "kitchen-refresh-only",
+            name: "Refresh doors and worktops",
+            planningCaseId: "2024-kitchen-renovation",
+          },
+        ],
+        planningCases: [
+          { id: "2024-kitchen-renovation", name: "Kitchen renovation" },
+        ],
+        commitments: [
+          {
+            id: "kitchen-design-and-survey",
+            name: "Kitchen design and survey",
+          },
+        ],
+        sourceBalances: [
+          {
+            accountId: "nationwide-current",
+            accountName: "Nationwide Current",
+            date: "2024-09-15",
+            balance: 1_896,
+            currency: "GBP",
+          },
+          {
+            accountId: "us-brokerage",
+            accountName: "US Brokerage",
+            date: "2024-09-15",
+            balance: 9_270,
+            currency: "USD",
+          },
+        ],
+        assumptionSets: [
+          {
+            id: "renovation-outlook-v1",
+            seriesId: "renovation-outlook",
+            name: "Renovation household costs",
+            version: 1,
+            incomeAssumptionIds: [],
+            expenditureAssumptionIds: ["temporary-kitchen-costs-v1"],
+          },
+        ],
+        reservePreference: { coverageMonths: 6 },
+        rates: [
+          {
+            accountId: "nationwide-current",
+            accountName: "Nationwide Current",
+            annualRate: 0.01,
+            effectiveDate: "2024-09-16",
+          },
+          {
+            accountId: "us-brokerage",
+            accountName: "US Brokerage",
+            annualRate: 0.075,
+            effectiveDate: "2024-09-16",
+          },
+        ],
+        actions: [
+          {
+            id: "kitchen-renovation-build:kitchen-saving",
+            sourceDecisionId: "kitchen-renovation-build",
+            sourceStageId: "kitchen-build",
+            accountId: "nationwide-current",
+            date: "2024-09-16",
+            cadence: "monthly",
+            kind: "saving",
+            name: "Set aside renovation cash",
+            accountName: "Nationwide Current",
+            amount: 1_000,
+            currency: "GBP",
+          },
+          {
+            id: "kitchen-renovation-build:kitchen-build",
+            sourceDecisionId: "kitchen-renovation-build",
+            sourceStageId: "kitchen-build",
+            accountId: "nationwide-current",
+            date: "2024-11-15",
+            cadence: "once",
+            kind: "payment",
+            name: "Pay kitchen contractor",
+            accountName: "Nationwide Current",
+            amount: 8_000,
+            currency: "GBP",
+          },
+        ],
+        balanceCheckpoints: [
+          {
+            date: "2024-12-01",
+            accounts: [
+              {
+                accountId: "nationwide-current",
+                accountName: "Nationwide Current",
+                expectedBalance: 3_450,
+                currency: "GBP",
+              },
+              {
+                accountId: "us-brokerage",
+                accountName: "US Brokerage",
+                expectedBalance: 8_400,
+                currency: "GBP",
+              },
+            ],
+          },
+        ],
+        reviews: [],
       },
     ],
     household: {
@@ -419,6 +783,9 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
         incomeHistory.map(({ date }) => [date, equalHouseholdOwnership]),
       ),
       futureCashFlows: {
+        "kitchen-design-and-survey": equalHouseholdOwnership,
+        "kitchen-renovation-build": equalHouseholdOwnership,
+        "kitchen-refresh-only": equalHouseholdOwnership,
         "architect-and-survey": equalHouseholdOwnership,
         "single-storey-extension": equalHouseholdOwnership,
         "loft-conversion": equalHouseholdOwnership,

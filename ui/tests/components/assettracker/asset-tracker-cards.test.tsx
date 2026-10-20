@@ -20,6 +20,7 @@ import {
 } from "vitest";
 import { AccountFlows } from "@/components/assettracker/account-flows";
 import { AccountsTable } from "@/components/assettracker/accounts-table";
+import { AdoptedForecastCard } from "@/components/assettracker/adopted-forecast-card";
 import { AssetAllocationHistoryChart } from "@/components/assettracker/asset-allocation-history-chart";
 import { AssetTrackerDashboard } from "@/components/assettracker/asset-tracker-dashboard";
 import { useAssetTracker } from "@/components/assettracker/asset-tracker-provider";
@@ -44,6 +45,9 @@ import {
 import { getDemoAssetTrackerData } from "@/lib/assettracker/demoData";
 import type {
   AccountDetailView,
+  AdoptedDecisionForecastRecord,
+  AdoptedForecastAction,
+  AdoptedForecastReconciliation,
   PortfolioFinancialIndependence,
 } from "@/lib/domain/assettracker";
 import { getHouseholdTaxEstimate } from "@/lib/domain/assettracker";
@@ -74,6 +78,14 @@ vi.mock("recharts", () => ({
     <div data-chart-data={JSON.stringify(data)} data-testid="composed-chart">
       {children}
     </div>
+  ),
+  BarChart: ({ children, data }: { children: ReactNode; data: unknown[] }) => (
+    <div data-chart-data={JSON.stringify(data)} data-testid="bar-chart">
+      {children}
+    </div>
+  ),
+  Bar: ({ children, dataKey }: { children?: ReactNode; dataKey: string }) => (
+    <div data-series={dataKey}>{children}</div>
   ),
   Area: ({ dataKey }: { dataKey: string }) => (
     <div data-range-series={dataKey} />
@@ -1351,6 +1363,7 @@ describe("RunwayForecast", () => {
 
 describe("DecisionScenarioComparison", () => {
   it("compares selected choices without collapsing judgment inputs into a score", async () => {
+    const adoptDecisionForecast = vi.fn().mockResolvedValue(undefined);
     const decision = {
       id: "extension",
       name: "Extension",
@@ -1440,6 +1453,9 @@ describe("DecisionScenarioComparison", () => {
       actions: [
         {
           id: "extension:build",
+          sourceDecisionId: "extension",
+          sourceStageId: "build",
+          accountId: "cash",
           date: "2027-07-01",
           cadence: "once" as const,
           kind: "payment" as const,
@@ -1453,6 +1469,7 @@ describe("DecisionScenarioComparison", () => {
       fundingMechanics: [
         {
           id: "extension:build",
+          accountId: "cash",
           decisionName: "Extension",
           stageName: "Payment",
           accountName: "Current account",
@@ -1478,7 +1495,9 @@ describe("DecisionScenarioComparison", () => {
     }));
     mockAssetTracker({
       futureCashFlows: [decision],
-      planningCases: [{ id: "home", name: "Home work", labels: [] }],
+      planningCases: [
+        { id: "home", name: "Home work", labels: [], checklistItems: [] },
+      ],
       emergencyFundPlans: [
         {
           id: "reserve-v1",
@@ -1510,6 +1529,7 @@ describe("DecisionScenarioComparison", () => {
         },
       ],
       compareDecisionScenario,
+      adoptDecisionForecast,
     });
 
     render(<DecisionScenarioComparison />);
@@ -1529,6 +1549,14 @@ describe("DecisionScenarioComparison", () => {
         name: "Runway effect versus committed-only",
       }),
     ).toBeVisible();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Adopt as live forecast" }),
+    );
+    expect(adoptDecisionForecast).toHaveBeenCalledWith({
+      decisionIds: ["extension"],
+      horizonMonths: 60,
+      reserveMonths: 6,
+    });
     await userEvent.click(screen.getByText("View exact figures"));
     expect(
       screen.getByRole("table", {
@@ -1622,6 +1650,324 @@ describe("DecisionScenarioComparison", () => {
     });
     expect(compareDecisionScenario).not.toHaveBeenCalledWith(
       expect.objectContaining({ decisionIds: ["extension", "loft"] }),
+    );
+  });
+});
+
+describe("AdoptedForecastCard", () => {
+  const forecastAction = {
+    id: "extension:save",
+    sourceDecisionId: "extension",
+    sourceStageId: "build",
+    accountId: "current",
+    date: "2026-11-01",
+    cadence: "monthly",
+    kind: "saving",
+    name: "Save for the extension",
+    accountName: "Current account",
+    amount: 1_000,
+    currency: "GBP",
+  } satisfies AdoptedForecastAction;
+  const forecast = {
+    id: "forecast-1",
+    kind: "adopted-forecast",
+    title: "Extension live forecast",
+    adoptedAt: "2026-10-17T12:00:00.000Z",
+    calculationVersion: "decision-scenario-v1",
+    selectedDecisions: [{ id: "extension", name: "Build an extension" }],
+    undecidedDecisions: [{ id: "loft", name: "Convert the loft" }],
+    planningCases: [{ id: "home", name: "Improve the house" }],
+    commitments: [{ id: "tax", name: "Council tax" }],
+    sourceBalances: [
+      {
+        accountId: "current",
+        accountName: "Current account",
+        date: "2026-10-01",
+        balance: 60_000,
+        currency: "GBP",
+      },
+    ],
+    assumptionSets: [
+      {
+        id: "household-v1",
+        seriesId: "household",
+        name: "Household changes",
+        version: 1,
+        incomeAssumptionIds: ["bonus"],
+        expenditureAssumptionIds: ["energy"],
+      },
+    ],
+    reservePreference: { coverageMonths: 6 },
+    rates: [
+      {
+        accountId: "current",
+        accountName: "Current account",
+        annualRate: 0.02,
+        effectiveDate: "2026-10-17",
+      },
+    ],
+    actions: [forecastAction],
+    balanceCheckpoints: [
+      {
+        date: "2027-07-01",
+        accounts: [
+          {
+            accountId: "current",
+            accountName: "Current account",
+            expectedBalance: 20_000,
+            currency: "GBP",
+          },
+        ],
+      },
+    ],
+    reviews: [],
+  } satisfies AdoptedDecisionForecastRecord;
+
+  it("leads with exceptions and keeps the audit trail on demand", async () => {
+    const revisitAdoptedDecision = vi.fn().mockResolvedValue(undefined);
+    const reconciliation = {
+      actions: [
+        {
+          action: forecastAction,
+          actualAmount: 1_100,
+          actualDate: "2026-11-02",
+          amountVariance: 100,
+          timingVarianceDays: 1,
+        },
+        {
+          action: {
+            ...forecastAction,
+            id: "survey",
+            name: "Complete the survey",
+          },
+          actualAmount: 1_000,
+          actualDate: "2026-11-04",
+          amountVariance: 0,
+          timingVarianceDays: 3,
+        },
+        {
+          action: {
+            ...forecastAction,
+            id: "appliances",
+            name: "Buy the appliances",
+          },
+          actualAmount: 1_075,
+          actualDate: "2026-11-01",
+          amountVariance: 75,
+          timingVarianceDays: 0,
+        },
+      ],
+      balances: [
+        {
+          checkpointDate: "2027-07-01",
+          accountId: "current",
+          accountName: "Current account",
+          currency: "GBP",
+          expectedBalance: 20_000,
+          observedBalance: 19_500,
+          observedAt: "2027-07-01",
+          variance: -500,
+        },
+      ],
+      varianceSources: [
+        {
+          kind: "changed-amount",
+          label: "Build cost changed",
+          subject: "Build an extension · 2 Nov 2026",
+          amount: 100,
+          decisionId: "extension",
+        },
+        {
+          kind: "changed-timing",
+          label: "Build started late",
+          subject: "Build an extension · 2 Nov 2026",
+          amount: null,
+          decisionId: "extension",
+        },
+        {
+          kind: "household-cash-flow",
+          label: "Unexpected saving",
+          subject: "Current account · 15 Mar 2027",
+          amount: 500,
+          decisionId: null,
+        },
+        {
+          kind: "market-or-currency",
+          label: "Account value moved",
+          subject: "Current account · 1 Jul 2027",
+          amount: -500,
+          decisionId: null,
+        },
+        {
+          kind: "revised-assumption",
+          label: "Income changed",
+          subject: "Household changes · v1",
+          amount: null,
+          decisionId: null,
+        },
+      ],
+    } satisfies AdoptedForecastReconciliation;
+    mockAssetTracker({
+      revisitAdoptedDecision,
+      reconcileAdoptedForecast: vi.fn(() => reconciliation),
+    });
+
+    render(<AdoptedForecastCard forecast={forecast} />);
+
+    expect(screen.getByText("Extension live forecast")).toBeVisible();
+    expect(screen.getByText("£500 below forecast")).toBeVisible();
+    expect(screen.getByText("Needs review")).toBeVisible();
+    expect(
+      screen.getByText("Observed 1 Jul 2027 · 1 of 1 balances"),
+    ).toBeVisible();
+    expect(screen.getByText("What changed")).toBeVisible();
+    expect(screen.getByText("Biggest drivers")).toBeVisible();
+    expect(screen.getByText("Actions needing attention")).toBeVisible();
+    expect(screen.getByText("£100 higher · 1 day late")).toBeVisible();
+    expect(screen.getByText("3 days late")).toBeVisible();
+    expect(screen.getByText("£75 higher")).toBeVisible();
+    expect(screen.queryByText(/£0 lower/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/0 days early/)).not.toBeInTheDocument();
+    expect(screen.getByText("Frozen forecast sources")).not.toBeVisible();
+    expect(screen.getByText("Convert the loft")).not.toBeVisible();
+    await userEvent.click(screen.getByText("View plan details"));
+    expect(screen.getByText("Improve the house")).toBeVisible();
+    expect(screen.getByText("Convert the loft")).toBeVisible();
+    expect(screen.getByText(/Save for the extension · monthly/)).toBeVisible();
+    expect(screen.getByText(/Build cost changed/)).toHaveTextContent(
+      "Changed amount: Build cost changed (£100)",
+    );
+    expect(
+      screen.getByRole("img", { name: "Largest forecast changes" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("img", {
+        name: "Adopted and observed account balances",
+      }),
+    ).toBeVisible();
+    const charts = screen.getAllByTestId("bar-chart");
+    expect(charts[0]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining(
+        '"label":"Market / FX · Current account · 1 Jul 2027","amount":-500',
+      ),
+    );
+    expect(charts[0]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining('"fill":"var(--chart-4)"'),
+    );
+    expect(charts[1]).toHaveAttribute(
+      "data-chart-data",
+      expect.stringContaining('"expected":20000,"observed":19500'),
+    );
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Reopen decision: Build an extension",
+      }),
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText("What changed?"),
+      "Quote changed",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Confirm reopen" }),
+    );
+    await waitFor(() =>
+      expect(revisitAdoptedDecision).toHaveBeenCalledWith({
+        forecastId: "forecast-1",
+        decisionId: "extension",
+        reason: "Quote changed",
+      }),
+    );
+  });
+
+  it("shows why a decision was reopened and links to scenario review", () => {
+    mockAssetTracker({
+      reconcileAdoptedForecast: vi.fn(() => ({
+        actions: [],
+        balances: [],
+        varianceSources: [],
+      })),
+    });
+
+    render(
+      <AdoptedForecastCard
+        forecast={{
+          ...forecast,
+          reviews: [
+            {
+              id: "extension-review",
+              decisionId: "extension",
+              requestedAt: "2027-02-01T12:00:00.000Z",
+              reason: "The contractor quote changed.",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Reopened 1 Feb 2027")).toBeVisible();
+    expect(screen.getByText("The contractor quote changed.")).toBeVisible();
+    expect(
+      screen.getByText(/No longer included in the live forecast/),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Review scenarios" }),
+    ).toHaveAttribute("href", "/assettracker/decisions?tab=compare");
+    expect(
+      screen.queryByRole("button", {
+        name: "Reopen decision: Build an extension",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows empty reconciliation states and reports a revisit failure", async () => {
+    mockAssetTracker({
+      revisitAdoptedDecision: vi.fn().mockRejectedValue(new Error("failed")),
+      reconcileAdoptedForecast: vi.fn(() => ({
+        actions: [],
+        balances: [],
+        varianceSources: [],
+      })),
+    });
+
+    render(
+      <AdoptedForecastCard
+        forecast={{
+          ...forecast,
+          planningCases: [],
+          reservePreference: { coverageMonths: null },
+          actions: [],
+          undecidedDecisions: [],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Waiting for observations")).toBeVisible();
+    expect(screen.getByText("Awaiting data")).toBeVisible();
+    await userEvent.click(screen.getByText("View plan details"));
+    expect(screen.getByText("No named case")).toBeVisible();
+    expect(screen.getByText("No warning threshold")).toBeVisible();
+    expect(
+      screen.getByText("No material variance has been observed yet."),
+    ).toBeVisible();
+    expect(screen.getByText("None")).toBeVisible();
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: "Reopen decision: Build an extension",
+      }),
+    );
+    await userEvent.type(
+      screen.getByPlaceholderText("What changed?"),
+      "Costs changed",
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Confirm reopen" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This decision could not be reopened.",
     );
   });
 });
@@ -1949,7 +2295,14 @@ describe("FutureCashFlowManager", () => {
     const addCashFlowDecision = vi.fn();
     mockAssetTracker({
       accounts: [currentAccount],
-      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      planningCases: [
+        {
+          id: "summer-plans",
+          name: "Summer plans",
+          labels: [],
+          checklistItems: [],
+        },
+      ],
       futureCashFlows: [
         {
           id: "booking",
@@ -2078,7 +2431,14 @@ describe("FutureCashFlowManager", () => {
     const recordActualCashFlow = vi.fn();
     mockAssetTracker({
       accounts: [currentAccount],
-      planningCases: [{ id: "summer-plans", name: "Summer plans", labels: [] }],
+      planningCases: [
+        {
+          id: "summer-plans",
+          name: "Summer plans",
+          labels: [],
+          checklistItems: [],
+        },
+      ],
       futureCashFlows: [
         {
           id: "booking",

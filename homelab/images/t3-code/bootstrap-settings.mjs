@@ -270,5 +270,10 @@ settings.defaultModelSelection = {
   ],
 };
 
+// Kubernetes replaces this process during an image rollout. Keep T3's
+// provider-native restart recovery enabled in case work starts after the
+// deployment command's idle check and before the old pod receives SIGTERM.
+settings.continueThreadsAfterServerUpdate = true;
+
 atomicWrite(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 configureCodexDefaults(refreshModelCatalog());

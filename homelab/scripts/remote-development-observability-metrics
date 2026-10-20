@@ -23,6 +23,7 @@ required_values=(
   OTELCOL_STATE_FILE
   AGENT_COORDINATOR_ENABLED
   AGENT_COORDINATOR_HEALTH_FILE
+  SHARED_TASK_CACHE_METRICS_FILE
 )
 for name in "${required_values[@]}"; do
   if [ -z "${!name:-}" ]; then
@@ -134,6 +135,64 @@ if [ "${agent_coordinator_enabled}" = 1 ] \
   fi
 fi
 
+shared_task_cache_hits=0
+shared_task_cache_misses=0
+shared_task_cache_runs=0
+shared_task_cache_failures=0
+shared_task_cache_corruptions=0
+shared_task_cache_waits=0
+shared_task_cache_bytes_restored=0
+shared_task_cache_bytes_published=0
+shared_task_cache_bytes_reclaimed=0
+shared_task_cache_metrics_valid=0
+if [ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]; then
+  cache_summary=$(
+    jq --raw-output --exit-status '
+      select(
+        .schemaVersion == 1
+          and ([
+            .hits,
+            .misses,
+            .runs,
+            .failures,
+            .corruptions,
+            .waits,
+            .bytesRestored,
+            .bytesPublished,
+            .bytesReclaimed
+          ] | all(type == "number" and . >= 0 and floor == .))
+      )
+      | [
+          .hits,
+          .misses,
+          .runs,
+          .failures,
+          .corruptions,
+          .waits,
+          .bytesRestored,
+          .bytesPublished,
+          .bytesReclaimed
+        ]
+      | @tsv
+    ' "${SHARED_TASK_CACHE_METRICS_FILE}" 2>/dev/null \
+      || true
+  )
+  if [ -n "${cache_summary}" ]; then
+    read -r \
+      shared_task_cache_hits \
+      shared_task_cache_misses \
+      shared_task_cache_runs \
+      shared_task_cache_failures \
+      shared_task_cache_corruptions \
+      shared_task_cache_waits \
+      shared_task_cache_bytes_restored \
+      shared_task_cache_bytes_published \
+      shared_task_cache_bytes_reclaimed \
+      <<<"${cache_summary}"
+    shared_task_cache_metrics_valid=1
+  fi
+fi
+
 kube_state_metrics_up=0
 oom_killed=0
 evicted=0
@@ -235,6 +294,16 @@ metrics=$(printf '%s\n' \
   "${metric_prefix}.agent_coordinator_tracked:${agent_coordinator_tracked}|g" \
   "${metric_prefix}.agent_coordinator_needs_attention:${agent_coordinator_needs_attention}|g" \
   "${metric_prefix}.agent_coordinator_admission_open:${agent_coordinator_admission_open}|g" \
+  "${metric_prefix}.shared_task_cache_hits:${shared_task_cache_hits}|g" \
+  "${metric_prefix}.shared_task_cache_misses:${shared_task_cache_misses}|g" \
+  "${metric_prefix}.shared_task_cache_runs:${shared_task_cache_runs}|g" \
+  "${metric_prefix}.shared_task_cache_failures:${shared_task_cache_failures}|g" \
+  "${metric_prefix}.shared_task_cache_corruptions:${shared_task_cache_corruptions}|g" \
+  "${metric_prefix}.shared_task_cache_waits:${shared_task_cache_waits}|g" \
+  "${metric_prefix}.shared_task_cache_bytes_restored:${shared_task_cache_bytes_restored}|g" \
+  "${metric_prefix}.shared_task_cache_bytes_published:${shared_task_cache_bytes_published}|g" \
+  "${metric_prefix}.shared_task_cache_bytes_reclaimed:${shared_task_cache_bytes_reclaimed}|g" \
+  "${metric_prefix}.shared_task_cache_metrics_valid:${shared_task_cache_metrics_valid}|g" \
   "${metric_prefix}.kube_state_metrics_up:${kube_state_metrics_up}|g" \
   "${metric_prefix}.otelcol_up:${otelcol_up}|g" \
   "${metric_prefix}.otelcol_pipeline_failures:${otelcol_pipeline_failures}|g" \

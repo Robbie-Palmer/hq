@@ -17,6 +17,7 @@ import {
   type NetWorthDataPoint,
   toFxImpactTimeSeries,
 } from "@/lib/domain/assettracker/assetTrackerViews";
+import { reconcileAdoptedDecisionForecast } from "@/lib/domain/assettracker/decisionRecord";
 import {
   analyseEmergencyFund,
   applyEmergencyFundDerivedFacts,
@@ -284,6 +285,12 @@ describe("Asset Tracker demo-data adapter", () => {
       "vanguard-global-all-cap",
     );
     expect(
+      alexData.decisionRecords?.some(({ kind }) => kind === "adopted-forecast"),
+    ).toBe(false);
+    expect(
+      samData.decisionRecords?.some(({ kind }) => kind === "adopted-forecast"),
+    ).toBe(false);
+    expect(
       alexData.snapshots.find(
         ({ accountId, date }) => accountId === "home" && date === "2024-12-01",
       )?.balance,
@@ -375,6 +382,7 @@ describe("Asset Tracker demo-data adapter", () => {
         "Compare committed preparation work with two possible ways to add space.",
       labels: ["home", "2027"],
       targetDate: "2027-09-01",
+      checklistItems: [],
     });
     expect(repository.futureCashFlows).toEqual(
       expect.arrayContaining([
@@ -455,6 +463,23 @@ describe("Asset Tracker demo-data adapter", () => {
         version: 1,
         status: "superseded",
       },
+      {
+        id: "renovation-outlook-v2",
+        version: 2,
+        status: "active",
+        supersedesId: "renovation-outlook-v1",
+        assumptions: [
+          {
+            id: "temporary-kitchen-costs-v2",
+            monthlyChange: { minimum: 300, expected: 450, maximum: 600 },
+          },
+        ],
+      },
+      {
+        id: "renovation-outlook-v1",
+        version: 1,
+        status: "superseded",
+      },
     ]);
 
     const emergencyFundPlan = repository.emergencyFundPlans[0];
@@ -505,20 +530,20 @@ describe("Asset Tracker demo-data adapter", () => {
     expect(emergencyFundAnalysis.policyTargets).toEqual([
       {
         months: 6,
-        target: 9_300,
+        target: 11_778,
         fundingGap: 0,
-        availableAboveTarget: 9_600,
+        availableAboveTarget: 7_122,
       },
       {
         months: 12,
-        target: 18_600,
-        fundingGap: 0,
-        availableAboveTarget: 300,
+        target: 23_556,
+        fundingGap: 4_656,
+        availableAboveTarget: 0,
       },
       {
         months: 18,
-        target: 27_900,
-        fundingGap: 9_000,
+        target: 35_334,
+        fundingGap: 16_434,
         availableAboveTarget: 0,
       },
     ]);
@@ -531,6 +556,89 @@ describe("Asset Tracker demo-data adapter", () => {
         .filter(({ included }) => included)
         .every(({ protectedBalance }) => protectedBalance === null),
     ).toBe(true);
+  });
+
+  it("opens with an adopted forecast reconciled against later evidence", () => {
+    const repository = buildRepository(getDemoAssetTrackerData());
+    const forecast = repository.decisionRecords.find(
+      ({ id }) => id === "kitchen-renovation-live-forecast",
+    );
+    if (forecast?.kind !== "adopted-forecast") {
+      throw new Error("Expected the demo adopted forecast");
+    }
+
+    expect(forecast).toMatchObject({
+      title: "Kitchen renovation live forecast",
+      selectedDecisions: [
+        { id: "kitchen-renovation-build", name: "Full kitchen renovation" },
+      ],
+      undecidedDecisions: [
+        { id: "kitchen-refresh-only", name: "Refresh doors and worktops" },
+      ],
+      actions: [
+        expect.objectContaining({ kind: "saving", cadence: "monthly" }),
+        expect.objectContaining({
+          kind: "payment",
+          amount: 8_000,
+          date: "2024-11-15",
+        }),
+      ],
+    });
+
+    const reconciliation = reconcileAdoptedDecisionForecast(
+      forecast,
+      repository,
+    );
+    expect(reconciliation.actions[1]).toMatchObject({
+      actualAmount: 8_650,
+      actualDate: "2024-11-22",
+      amountVariance: 650,
+      timingVarianceDays: 7,
+    });
+    expect(
+      reconciliation.balances.find(
+        ({ accountId }) => accountId === "us-brokerage",
+      ),
+    ).toMatchObject({
+      expectedBalance: 8_400,
+      observedBalance: 8_593.75,
+      variance: 193.75,
+    });
+    expect(
+      new Set(reconciliation.varianceSources.map(({ kind }) => kind)),
+    ).toEqual(
+      new Set([
+        "changed-amount",
+        "changed-timing",
+        "household-cash-flow",
+        "market-or-currency",
+        "revised-assumption",
+      ]),
+    );
+
+    const dataWithForeignFlow = getDemoAssetTrackerData();
+    const repositoryWithForeignFlow = buildRepository({
+      ...dataWithForeignFlow,
+      capitalFlows: [
+        ...dataWithForeignFlow.capitalFlows,
+        {
+          accountId: "us-brokerage",
+          date: "2024-12-01",
+          amount: 128,
+          kind: "external" as const,
+        },
+      ],
+    });
+    const foreignFlowReconciliation = reconcileAdoptedDecisionForecast(
+      forecast,
+      repositoryWithForeignFlow,
+    );
+    expect(
+      foreignFlowReconciliation.varianceSources.find(
+        ({ kind, label }) =>
+          kind === "household-cash-flow" && label.includes("US Brokerage"),
+      )?.amount,
+    ).toBe(100);
   });
 
   it("includes a decision-ready mortgage product in the demo household", () => {
@@ -567,14 +675,24 @@ describe("Asset Tracker demo-data adapter", () => {
         }),
       }),
     );
-    expect(repository.decisionRecords).toContainEqual({
-      id: "five-year-fix-decision",
-      kind: "mortgage",
-      title: "Five-year fix",
-      scenarioId: "five-year-fix",
-      recordedAt: "2024-12-01",
-      status: "recorded",
-    });
+    expect(repository.decisionRecords).toContainEqual(
+      expect.objectContaining({
+        id: "five-year-fix-decision",
+        kind: "tracked",
+        question: "Should we take the five-year fixed mortgage?",
+        decisionDate: "2024-12-01",
+        selectedScenario: {
+          id: "five-year-fix",
+          label: "Five-year fix",
+        },
+        observations: [
+          expect.objectContaining({
+            checkpointId: "five-year-fix-year-one-balance",
+            actualAmount: -204_240,
+          }),
+        ],
+      }),
+    );
   });
 
   it("includes a sourced indexed history for the demo home", () => {

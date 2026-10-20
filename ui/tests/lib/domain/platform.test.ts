@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getADRsForProject } from "@/lib/domain/adr/adrQueries";
 import {
+  classifyDefaultSelection,
   compareUtcInstants,
   type DefaultSelection,
   getSelectionLifecycleStatus,
@@ -78,6 +79,121 @@ function sameDayManifest(linkReplacement = true): PlatformManifest {
 }
 
 describe("temporal platform layers", () => {
+  it("classifies every promoted capability without treating local candidates as defaults", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const expected = new Map<
+      string,
+      ReturnType<typeof classifyDefaultSelection>
+    >([
+      [
+        "identity-authentication-library-better-auth-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "identity-login-provider-google-oauth-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "identity-login-provider-github-oauth-2026-10-15",
+        "project-local-choice",
+      ],
+      [
+        "identity-delegated-agent-authentication-better-auth-2026-10-15",
+        "project-local-choice",
+      ],
+      [
+        "identity-session-transport-same-origin-cookie-2026-10-15",
+        "policy-value",
+      ],
+      [
+        "identity-authorization-policy-server-side-resource-rules-2026-10-15",
+        "policy-value",
+      ],
+      [
+        "security-preview-access-cloudflare-access-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "security-service-auth-cloudflare-access-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "web-app-server-state-client-tanstack-query-2026-09-29",
+        "preferred-capability",
+      ],
+      ["backend-api-http-framework-hono-2026-09-29", "preferred-capability"],
+      [
+        "backend-api-contract-format-openapi-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "backend-api-contract-generator-hono-zod-openapi-2026-10-19",
+        "preferred-capability",
+      ],
+      [
+        "api-governance-contract-linter-spectral-2026-09-29",
+        "required-default",
+      ],
+      [
+        "api-governance-compatibility-check-oasdiff-2026-09-29",
+        "preferred-capability",
+      ],
+      ["database-relational-access-drizzle-2026-09-29", "preferred-capability"],
+      ["database-migration-discipline-committed-2026-10-19", "policy-value"],
+      [
+        "backend-api-relational-connection-hyperdrive-2026-09-29",
+        "preferred-capability",
+      ],
+      ["delivery-preview-environment-isolated-2026-09-29", "policy-value"],
+      ["database-preview-isolation-fresh-2026-10-20", "policy-value"],
+      ["database-backup-restore-encrypted-archives-2026-09-29", "policy-value"],
+      ["storage-object-store-cloudflare-r2-2026-09-29", "preferred-capability"],
+      [
+        "observability-telemetry-protocol-opentelemetry-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "observability-application-telemetry-posthog-2026-09-29",
+        "preferred-capability",
+      ],
+      [
+        "observability-alert-evaluation-posthog-2026-09-29",
+        "preferred-capability",
+      ],
+      ["observability-alert-delivery-slack-2026-09-29", "preferred-capability"],
+    ]);
+
+    const platform = getProjectWithADRs(
+      repository,
+      "personal-engineering-platform",
+    );
+    const slots = new Map(
+      platform?.platformManifest?.slots.map((slot) => [slot.slug, slot]),
+    );
+
+    for (const [selectionId, classification] of expected) {
+      const selection = manifest.selections.find(
+        (candidate) => candidate.id === selectionId,
+      );
+      expect(selection, selectionId).toBeDefined();
+      if (!selection) continue;
+
+      expect(
+        classifyDefaultSelection(manifest, selection, "2026-10-20T12:00:00Z"),
+      ).toBe(classification);
+      expect(selection.decision).toMatch(/^personal-engineering-platform:/);
+      expect(selection.evidenceADRs.length).toBeGreaterThan(0);
+      expect(selection.originProjects.length).toBeGreaterThan(0);
+      if (classification !== "project-local-choice") {
+        expect(slots.get(selection.slot)?.adopters.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
   it("accepts a layer re-adoption at the prior period's exclusive boundary", () => {
     const result = ProjectLayerUsesSchema.safeParse([
       {
@@ -576,6 +692,163 @@ describe("temporal platform layers", () => {
     );
   });
 
+  it("keeps browser state, API generation, migrations, and connection pooling as separate jobs", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    expect(manifest.slots.map((slot) => slot.slug)).toEqual(
+      expect.arrayContaining([
+        "web-app.server-state-client",
+        "backend-api.http-framework",
+        "backend-api.contract-format",
+        "backend-api.contract-generator",
+        "api-governance.contract-linter",
+        "api-governance.compatibility-check",
+        "database.relational-access",
+        "database.migration-discipline",
+        "backend-api.relational-connection",
+      ]),
+    );
+
+    expect(
+      manifest.policies.find(
+        (policy) => policy.id === "web-app-server-state-client-2026-10-19",
+      )?.prerequisites,
+    ).toEqual([
+      { slot: "web-app.ui-library", technology: "react" },
+      { requirement: "interactive-browser-server-state" },
+    ]);
+    expect(
+      manifest.policies.find(
+        (policy) => policy.id === "backend-api-contract-generator-2026-10-19",
+      )?.prerequisites,
+    ).toEqual([
+      { slot: "backend-api.http-framework", technology: "hono" },
+      { slot: "backend-api.contract-format", technology: "openapi" },
+      { slot: "typescript.schema-validation", technology: "zod" },
+      { requirement: "runtime-derived-api-contract" },
+    ]);
+    expect(
+      manifest.policies.find(
+        (policy) => policy.id === "database-migration-discipline-2026-10-19",
+      )?.prerequisites,
+    ).toEqual([
+      { slot: "database.relational-engine", technology: "postgresql" },
+      { slot: "database.relational-access", technology: "drizzle" },
+      { requirement: "committed-migration-history" },
+      { requirement: "serialized-migration-runner" },
+    ]);
+    expect(
+      manifest.policies.find(
+        (policy) =>
+          policy.id === "backend-api-relational-connection-2026-10-19",
+      )?.prerequisites,
+    ).toEqual([
+      { slot: "backend-api.runtime", technology: "cloudflare-workers" },
+      { slot: "database.relational-engine", technology: "postgresql" },
+    ]);
+
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id ===
+          "backend-api-contract-generator-hono-zod-openapi-2026-10-19",
+      ),
+    ).toMatchObject({
+      technology: "honozod-openapi",
+      originProjects: ["recipe-site", "work-graph"],
+      evidenceADRs: [
+        "recipe-site:023-spectral",
+        "work-graph:003-rest-api-and-cli-first",
+      ],
+    });
+    expect(
+      manifest.selections.find(
+        (selection) =>
+          selection.id ===
+          "api-governance-compatibility-check-oasdiff-2026-09-29",
+      ),
+    ).toMatchObject({
+      originProjects: ["recipe-site"],
+      evidenceADRs: ["recipe-site:023-spectral"],
+    });
+
+    for (const project of ["recipe-site", "work-graph"] as const) {
+      const stack = resolveEffectiveProjectStack(
+        repository,
+        project,
+        "2026-10-19T12:00:00Z",
+      );
+      expect(stack.technologies).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            slot: "backend-api.http-framework",
+            technology: "hono",
+          }),
+          expect.objectContaining({
+            slot: "backend-api.contract-format",
+            technology: "openapi",
+          }),
+          expect.objectContaining({
+            slot: "backend-api.contract-generator",
+            technology: "honozod-openapi",
+          }),
+          expect.objectContaining({
+            slot: "api-governance.contract-linter",
+            technology: "spectral",
+          }),
+          expect.objectContaining({
+            slot: "database.relational-access",
+            technology: "drizzle",
+          }),
+          expect.objectContaining({
+            slot: "backend-api.relational-connection",
+            technology: "hyperdrive",
+          }),
+        ]),
+      );
+      expect(stack.policies).toContainEqual(
+        expect.objectContaining({
+          slot: "database.migration-discipline",
+          value:
+            "Committed ordered migrations with drift checks and one serialized deployment runner",
+        }),
+      );
+    }
+
+    const recipe = resolveEffectiveProjectStack(
+      repository,
+      "recipe-site",
+      "2026-10-19T12:00:00Z",
+    );
+    expect(recipe.technologies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          slot: "web-app.server-state-client",
+          technology: "tanstack-query",
+        }),
+        expect.objectContaining({
+          slot: "api-governance.compatibility-check",
+          technology: "oasdiff",
+        }),
+      ]),
+    );
+
+    const workGraph = resolveEffectiveProjectStack(
+      repository,
+      "work-graph",
+      "2026-10-19T12:00:00Z",
+    );
+    expect(workGraph.technologies).not.toContainEqual(
+      expect.objectContaining({
+        slot: "api-governance.compatibility-check",
+        technology: "oasdiff",
+      }),
+    );
+  });
+
   it("keeps event envelopes separate from asynchronous transport semantics", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;
@@ -635,6 +908,9 @@ describe("temporal platform layers", () => {
       {
         slot: "storage.object-store",
       },
+      { requirement: "backup-key-custody" },
+      { requirement: "backup-retention-policy" },
+      { requirement: "restore-drill" },
     ]);
 
     for (const project of ["recipe-site", "work-graph"]) {
@@ -675,7 +951,12 @@ describe("temporal platform layers", () => {
       ),
     ).toMatchObject({
       mode: "preferred",
-      prerequisites: [{ slot: "delivery.ci" }],
+      prerequisites: [
+        { slot: "delivery.ci" },
+        { requirement: "preview-scoped-credentials" },
+        { requirement: "synthetic-preview-data" },
+        { requirement: "preview-cleanup" },
+      ],
     });
     expect(
       manifest?.selections.find(
@@ -710,6 +991,81 @@ describe("temporal platform layers", () => {
         }),
       );
     }
+  });
+
+  it("records operated state, proof, and preview database isolation", () => {
+    const repository = loadDomainRepository();
+    const manifest = repository.platform.manifest;
+    expect(manifest).toBeDefined();
+    if (!manifest) return;
+
+    const operatedSlots = [
+      "storage.object-store",
+      "database.backup-restore",
+      "delivery.preview-environment",
+      "database.preview-isolation",
+      "security.preview-access",
+      "observability.telemetry-protocol",
+      "observability.application-telemetry",
+      "observability.alert-evaluation",
+      "observability.alert-delivery",
+    ];
+
+    for (const slot of operatedSlots) {
+      const selection = manifest.selections.find(
+        (candidate) =>
+          candidate.slot === slot &&
+          candidate.status === "Accepted" &&
+          candidate.effectiveUntil === undefined,
+      );
+      expect(selection, slot).toMatchObject({
+        stateRequirements: expect.arrayContaining([
+          expect.objectContaining({ owner: "adopting-project" }),
+        ]),
+        operationalChecks: expect.arrayContaining([
+          expect.objectContaining({ name: expect.any(String) }),
+        ]),
+      });
+    }
+
+    expect(
+      manifest.policies.find(
+        (policy) => policy.slot === "database.preview-isolation",
+      ),
+    ).toMatchObject({
+      mode: "preferred",
+      decision:
+        "personal-engineering-platform:036-operated-capability-contracts",
+      prerequisites: [
+        { slot: "delivery.preview-environment" },
+        { slot: "database.relational-engine", technology: "postgresql" },
+        { slot: "database.migration-discipline" },
+        { requirement: "fresh-migration-baseline" },
+      ],
+    });
+
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "recipe-site",
+        "2026-10-20T12:00:00Z",
+      ).policies,
+    ).toContainEqual(
+      expect.objectContaining({
+        slot: "database.preview-isolation",
+        value:
+          "Fresh pull-request database from committed migrations and synthetic fixtures",
+      }),
+    );
+    expect(
+      resolveEffectiveProjectStack(
+        repository,
+        "personal-knowledge-graph",
+        "2026-10-20T12:00:00Z",
+      ).policies,
+    ).not.toContainEqual(
+      expect.objectContaining({ slot: "database.preview-isolation" }),
+    );
   });
 
   it("keeps preview access and service authentication separate", () => {

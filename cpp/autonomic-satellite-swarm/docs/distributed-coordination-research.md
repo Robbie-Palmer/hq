@@ -5,7 +5,7 @@
 The current three-node protocol assumes one mission initiator, cooperative peers, bounded response
 times, and a path between every participant. Those assumptions make the bench demonstration useful,
 but they are the first things a real swarm would violate. Orbital motion creates scheduled contacts,
-links may be asymmetric, a silent node may be healthy but unreachable, and a reset node may replay
+links may be asymmetric, a silent node may be healthy but unreachable, and a reset node may replay an
 old state after the rest of the swarm has moved on.
 
 "Cooperative peers" is also a security assumption. It excludes a malfunctioning or compromised

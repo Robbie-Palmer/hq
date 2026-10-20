@@ -95,6 +95,22 @@ export const OperationalRequirementSchema = z.enum([
   "provider-registration",
   "server-side-authorization",
   "credential-rotation",
+  "interactive-browser-server-state",
+  "runtime-derived-api-contract",
+  "committed-api-contract",
+  "published-api-baseline",
+  "committed-migration-history",
+  "serialized-migration-runner",
+  "data-classification",
+  "object-lifecycle-policy",
+  "scoped-storage-credentials",
+  "backup-key-custody",
+  "backup-retention-policy",
+  "restore-drill",
+  "preview-scoped-credentials",
+  "synthetic-preview-data",
+  "preview-cleanup",
+  "fresh-migration-baseline",
 ]);
 
 export const OperationalPrerequisiteSchema = z.object({
@@ -121,6 +137,30 @@ export const ConfigurationRequirementSchema = z.object({
   sensitive: z.boolean(),
 });
 
+export const StateRequirementSchema = z.object({
+  name: z.string().min(1),
+  owner: z.enum(["adopting-project", "platform"]),
+  lifecycle: z.enum(["durable", "ephemeral"]),
+});
+
+export const OperationalCheckSchema = z.discriminatedUnion("kind", [
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("mise-task"),
+    reference: z.string().regex(/^\/\/(?:[a-z0-9/-]+)?:[a-z0-9:-]+$/),
+  }),
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("workflow"),
+    reference: z.string().regex(/^\.github\/workflows\/[a-z0-9-]+\.ya?ml$/),
+  }),
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("procedure"),
+    reference: z.string().startsWith("/"),
+  }),
+]);
+
 const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
   slot: DefaultSlotSlugSchema,
@@ -130,6 +170,8 @@ const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
   configurationRequirements: z.array(ConfigurationRequirementSchema).optional(),
+  stateRequirements: z.array(StateRequirementSchema).optional(),
+  operationalChecks: z.array(OperationalCheckSchema).optional(),
   manualSetup: z.array(z.string().min(1)).optional(),
 });
 
@@ -260,6 +302,28 @@ function validateSelectionConfiguration(
         `Selection '${selection.id}' assigns configuration '${requirement.name}' to unknown owner slot '${requirement.owner}'`,
       );
     }
+  }
+
+  const stateNames = new Set<string>();
+  for (const requirement of selection.stateRequirements ?? []) {
+    if (stateNames.has(requirement.name)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' repeats state requirement '${requirement.name}'`,
+      );
+    }
+    stateNames.add(requirement.name);
+  }
+
+  const checkNames = new Set<string>();
+  for (const check of selection.operationalChecks ?? []) {
+    if (checkNames.has(check.name)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' repeats operational check '${check.name}'`,
+      );
+    }
+    checkNames.add(check.name);
   }
 }
 

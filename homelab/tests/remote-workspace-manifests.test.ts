@@ -16,6 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
+import { DatabaseSync } from "node:sqlite";
 import { parseAllDocuments } from "yaml";
 
 interface KubernetesResource {
@@ -479,6 +480,7 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     );
 
     const settings = JSON.parse(firstSettings) as Record<string, unknown>;
+    assert.equal(settings.continueThreadsAfterServerUpdate, true);
     assert.deepEqual(settings.defaultModelSelection, {
       instanceId: "codex",
       model: "gpt-5.6-sol",
@@ -508,6 +510,134 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     assert.equal(sol?.default_reasoning_level, "high");
     assert.equal(sol?.priority, 0);
     assert.equal(astra?.priority, 1);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "t3-idle-check-"));
+  const scriptPath = fileURLToPath(
+    new URL("../scripts/check-t3-idle.mjs", import.meta.url),
+  );
+  const check = (databasePath: string) =>
+    spawnSync(process.execPath, [scriptPath], {
+      encoding: "utf8",
+      env: { ...process.env, T3_STATE_DATABASE: databasePath },
+      timeout: 5000,
+    });
+
+  try {
+    const legacyPath = join(temporaryDirectory, "state.sqlite");
+    const legacy = new DatabaseSync(legacyPath);
+    legacy.exec(`
+      CREATE TABLE projection_threads (
+        thread_id TEXT PRIMARY KEY,
+        pending_approval_count INTEGER NOT NULL DEFAULT 0,
+        pending_user_input_count INTEGER NOT NULL DEFAULT 0,
+        deleted_at TEXT
+      );
+      CREATE TABLE projection_thread_sessions (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL,
+        active_turn_id TEXT
+      );
+      CREATE TABLE provider_session_runtime (
+        thread_id TEXT PRIMARY KEY,
+        status TEXT NOT NULL
+      );
+      INSERT INTO projection_threads VALUES ('legacy-thread', 0, 0, NULL);
+      INSERT INTO projection_thread_sessions VALUES ('legacy-thread', 'stopped', NULL);
+      INSERT INTO provider_session_runtime VALUES ('legacy-thread', 'stopped');
+    `);
+    legacy.close();
+    assert.equal(check(legacyPath).status, 0);
+
+    const deletedLegacy = new DatabaseSync(legacyPath);
+    deletedLegacy.exec(`
+      INSERT INTO projection_threads
+        VALUES ('deleted-legacy-thread', 1, 0, '2026-10-10T03:52:22.029Z');
+      INSERT INTO projection_thread_sessions
+        VALUES ('deleted-legacy-thread', 'stopped', NULL);
+      INSERT INTO provider_session_runtime
+        VALUES ('deleted-legacy-thread', 'stopped');
+    `);
+    deletedLegacy.close();
+    assert.equal(check(legacyPath).status, 0);
+
+    const liveApproval = new DatabaseSync(legacyPath);
+    liveApproval.exec(
+      "UPDATE projection_threads SET pending_approval_count = 1 WHERE thread_id = 'legacy-thread'",
+    );
+    liveApproval.close();
+    const liveApprovalResult = check(legacyPath);
+    assert.equal(liveApprovalResult.status, 20);
+    assert.match(liveApprovalResult.stderr, /pending approval/);
+
+    const clearLiveApproval = new DatabaseSync(legacyPath);
+    clearLiveApproval.exec(
+      "UPDATE projection_threads SET pending_approval_count = 0 WHERE thread_id = 'legacy-thread'",
+    );
+    clearLiveApproval.close();
+
+    const legacyBusy = new DatabaseSync(legacyPath);
+    legacyBusy.exec(
+      "UPDATE projection_thread_sessions SET status = 'running' WHERE thread_id = 'legacy-thread'",
+    );
+    legacyBusy.close();
+    const legacyResult = check(legacyPath);
+    assert.equal(legacyResult.status, 20);
+    assert.match(legacyResult.stderr, /legacy-thread/);
+
+    const v2Path = join(temporaryDirectory, "statev2.sqlite");
+    const v2 = new DatabaseSync(v2Path);
+    v2.exec(`
+      CREATE TABLE orchestration_v2_projection_runs (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_runtime_requests (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_provider_threads (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL,
+        payload_json TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_subagents (
+        thread_id TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_turn_items (
+        thread_id TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      CREATE TABLE orchestration_v2_projection_nodes (
+        thread_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL
+      );
+      INSERT INTO orchestration_v2_projection_provider_threads
+        VALUES (
+          'v2-thread',
+          'idle',
+          '{"pendingBackgroundTasks":[{"taskId":"build","kind":"command"}]}'
+        );
+    `);
+    v2.close();
+    const v2Result = check(v2Path);
+    assert.equal(v2Result.status, 20);
+    assert.match(v2Result.stderr, /pendingBackgroundTasks|provider thread idle/);
+
+    const v2Idle = new DatabaseSync(v2Path);
+    v2Idle.exec(`
+      UPDATE orchestration_v2_projection_provider_threads
+      SET payload_json = '{"pendingBackgroundTasks":[]}'
+    `);
+    v2Idle.close();
+    assert.equal(check(v2Path).status, 0);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -564,6 +694,10 @@ test("the observability collector attributes quota, backup, and Kubernetes state
   const coordinatorHealthPath = join(
     temporaryDirectory,
     "agent-coordinator-health.json",
+  );
+  const sharedTaskCacheMetricsPath = join(
+    temporaryDirectory,
+    "shared-task-cache-metrics.json",
   );
   const outputPath = join(temporaryDirectory, "statsd.txt");
   const collectorStatePath = join(temporaryDirectory, "collector-state");
@@ -626,6 +760,7 @@ printf '%s\\n' \\
         `OTELCOL_STATE_FILE=${collectorStatePath}`,
         "AGENT_COORDINATOR_ENABLED=1",
         `AGENT_COORDINATOR_HEALTH_FILE=${coordinatorHealthPath}`,
+        `SHARED_TASK_CACHE_METRICS_FILE=${sharedTaskCacheMetricsPath}`,
         "",
       ].join("\n"),
     );
@@ -646,6 +781,21 @@ printf '%s\\n' \\
         needsAttentionCount: 2,
         admission: { open: false },
         reconciledAt: new Date().toISOString().replace(/\.\d{3}Z$/, "Z"),
+      })}\n`,
+    );
+    writeFileSync(
+      sharedTaskCacheMetricsPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        hits: 7,
+        misses: 2,
+        runs: 2,
+        failures: 1,
+        corruptions: 1,
+        waits: 3,
+        bytesRestored: 4096,
+        bytesPublished: 2048,
+        bytesReclaimed: 1024,
       })}\n`,
     );
 
@@ -707,6 +857,22 @@ printf '%s\\n' \\
     );
     assert.match(
       metrics,
+      /^remote_development\.operator\.shared_task_cache_hits:7\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_corruptions:1\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_bytes_restored:4096\|g$/m,
+    );
+    assert.match(
+      metrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:1\|g$/m,
+    );
+    assert.match(
+      metrics,
       /^remote_development\.operator\.agent_coordinator_admission_open:1\|g$/m,
     );
     assert.match(
@@ -734,6 +900,31 @@ printf '%s\\n' \\
       metrics,
       /^remote_development\.operator\.crash_loop:2\|g$/m,
     );
+
+    writeFileSync(sharedTaskCacheMetricsPath, "{not-json}\n");
+    run(
+      "bash",
+      [
+        fileURLToPath(
+          new URL(
+            "../scripts/remote-development-observability-metrics",
+            import.meta.url,
+          ),
+        ),
+      ],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${binaryDirectory}:${process.env.PATH}`,
+        REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG: configPath,
+        STATSD_OUTPUT_FILE: outputPath,
+      },
+    );
+    const invalidCacheMetrics = readFileSync(outputPath, "utf8");
+    assert.match(
+      invalidCacheMetrics,
+      /^remote_development\.operator\.shared_task_cache_metrics_valid:0\|g$/m,
+    );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -752,7 +943,9 @@ test("the T3 Code collector is host-bound and default-deny before PostHog export
   assert.deepEqual(documents[0]?.errors, []);
   const collector = documents[0]?.toJS() as Record<string, unknown>;
 
-  assert.equal(imagePackage.dependencies.t3, "0.0.44");
+  const t3Version = imagePackage.dependencies.t3;
+  assert.ok(typeof t3Version === "string");
+  assert.match(t3Version, /^\d+\.\d+\.\d+$/);
   assert.equal(
     valueAt(collector, ["receivers", "otlp/t3code", "protocols", "http", "endpoint"]),
     "10.42.0.1:4318",
@@ -1194,6 +1387,40 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "t3-code",
     "t3-code",
   );
+  const imageManifest = JSON.parse(
+    readFileSync(new URL("../images/t3-code/package.json", import.meta.url), "utf8"),
+  ) as { dependencies: { t3: string } };
+  const expectedT3Image = new RegExp(
+    `^ghcr\\.io/robbie-palmer/t3-code:${imageManifest.dependencies.t3.replaceAll(".", "\\.")}-agent-tools-\\d+$`,
+  );
+  const t3ContainerImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "image",
+  ]);
+  const t3InitImage = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "initContainers",
+    0,
+    "image",
+  ]);
+  assert.equal(typeof t3ContainerImage, "string");
+  assert.match(String(t3ContainerImage), expectedT3Image);
+  assert.equal(t3InitImage, t3ContainerImage);
+  assert.equal(
+    valueAt(operatorDeployment, [
+      "spec",
+      "template",
+      "spec",
+      "terminationGracePeriodSeconds",
+    ]),
+    120,
+  );
   const operatorNamespace = resource(resources, "Namespace", "t3-code");
   assert.equal(
     valueAt(operatorNamespace, [
@@ -1295,6 +1522,9 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
   for (const [name, value] of Object.entries({
     OTEL_RESOURCE_ATTRIBUTES:
       "deployment.environment.name=remote-development,workspace.id=operator",
+    SHARED_TASK_CACHE_DIR: "/data/cache/shared-task-cache",
+    SHARED_TASK_CACHE_MAX_AGE_SECONDS: "1209600",
+    SHARED_TASK_CACHE_MAX_BYTES: "12884901888",
     T3CODE_OTLP_EXPORT_INTERVAL_MS: "10000",
     T3CODE_OTLP_LOGS_URL: "http://10.42.0.1:4318/v1/logs",
     T3CODE_OTLP_METRICS_URL: "http://10.42.0.1:4318/v1/metrics",
@@ -1534,6 +1764,29 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
     "volumes",
   ]);
   assert.ok(Array.isArray(operatorVolumes));
+  const operatorVolumeMounts = valueAt(operatorDeployment, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+    0,
+    "volumeMounts",
+  ]);
+  assert.ok(Array.isArray(operatorVolumeMounts));
+  assert.deepEqual(
+    operatorVolumeMounts.find(
+      (candidate: unknown) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        (candidate as Record<string, unknown>).mountPath ===
+          "/data/cache/shared-task-cache",
+    ),
+    {
+      mountPath: "/data/cache/shared-task-cache",
+      name: "cache",
+      subPath: "shared-task-cache",
+    },
+  );
   const dockerDataVolume = operatorVolumes.find(
     (candidate: unknown) =>
       typeof candidate === "object" &&
@@ -1733,6 +1986,12 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(
     hostDefinition.includes(
       "install -d -m 2770 -o t3code -g t3code ${cacheDataPath}",
+    ),
+  );
+  assert.ok(
+    hostDefinition.includes(
+      // biome-ignore lint/suspicious/noTemplateCurlyInString: Assert the literal Nix interpolation in the source.
+      "install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache",
     ),
   );
   assert.ok(!hostDefinition.includes("pilotDataPath"));

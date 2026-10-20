@@ -49,6 +49,17 @@ export function writeJson(file: string, value: unknown): void {
 }
 
 export function resetDirectory(directory: string, allowedRoot: string): void {
+  const resolved = resolveSafeOutputDirectory(directory, allowedRoot);
+  fs.rmSync(resolved, { recursive: true, force: true });
+  fs.mkdirSync(resolved, { recursive: true });
+}
+
+export function ensureOutputDirectory(directory: string, allowedRoot: string): void {
+  const resolved = resolveSafeOutputDirectory(directory, allowedRoot);
+  fs.mkdirSync(resolved, { recursive: true });
+}
+
+function resolveSafeOutputDirectory(directory: string, allowedRoot: string): string {
   const resolved = path.resolve(directory);
   const root = path.resolve(allowedRoot);
   const relative = path.relative(root, resolved);
@@ -61,8 +72,7 @@ export function resetDirectory(directory: string, allowedRoot: string): void {
     throw new Error(`refusing to reset unsafe output directory: ${resolved}`);
   }
   assertNoSymlinkComponents(root, relative);
-  fs.rmSync(resolved, { recursive: true, force: true });
-  fs.mkdirSync(resolved, { recursive: true });
+  return resolved;
 }
 
 function assertNoSymlinkComponents(root: string, relative: string): void {
