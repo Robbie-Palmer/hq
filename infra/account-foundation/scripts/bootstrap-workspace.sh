@@ -2,8 +2,10 @@
 set -euo pipefail
 
 require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Cannot bootstrap the account-foundation workspace: $1 is required." >&2
+  local command_name="$1"
+
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Cannot bootstrap the account-foundation workspace: $command_name is required." >&2
     exit 1
   fi
 }
