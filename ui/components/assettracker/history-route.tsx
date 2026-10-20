@@ -5,7 +5,10 @@ import type { Currency } from "@/lib/domain/assettracker";
 import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { HistoricalCurrencyDisclosure } from "./historical-currency-disclosure";
-import { HistoryRouteHeader } from "./history-route-header";
+import {
+  HistoryRouteHeader,
+  PortfolioHistoryHeader,
+} from "./history-route-header";
 import { NetWorthChart } from "./net-worth-chart";
 import { PortfolioContributionChart } from "./portfolio-contribution-chart";
 import { RealGrossSalaryHistory } from "./real-gross-salary-history";
@@ -40,32 +43,48 @@ export function HistoryRoute() {
   const netWorthData = netWorthDataByCurrency[historyCurrency];
 
   return (
-    <div className="space-y-8">
-      <HistoryRouteHeader
-        availableCurrencies={availableCurrencies}
-        currency={historyCurrency}
-        onCurrencyChange={setHistoryCurrency}
-      />
-      <NetWorthChart
-        data={netWorthData}
-        currency={historyCurrency}
-        baseCurrencyData={netWorthDataByCurrency[baseCurrency]}
-        householdBaseCurrency={baseCurrency}
-      />
-      <HistoricalCurrencyDisclosure
-        data={netWorthData}
-        currency={historyCurrency}
-      />
-      <PortfolioContributionChart
-        data={contributionData}
-        currency={baseCurrency}
-      />
-      <RealGrossSalaryHistory salaryHistory={salaryHistory} />
-      <RealIncomeHistoryChart
-        incomeHistory={incomeHistory}
-        currency={baseCurrency}
-      />
-      <AssetAllocationHistoryChart data={assetAllocationHistory} />
+    <div className="space-y-10">
+      <HistoryRouteHeader />
+      <section aria-labelledby="income-history-heading" className="space-y-6">
+        <div>
+          <h2 id="income-history-heading" className="text-2xl font-semibold">
+            Income history
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Salary rates, estimated take-home pay, and recorded income.
+          </p>
+        </div>
+        <RealGrossSalaryHistory salaryHistory={salaryHistory} />
+        <RealIncomeHistoryChart
+          incomeHistory={incomeHistory}
+          currency={baseCurrency}
+        />
+      </section>
+      <section
+        aria-labelledby="portfolio-history-heading"
+        className="space-y-6 border-t pt-8"
+      >
+        <PortfolioHistoryHeader
+          availableCurrencies={availableCurrencies}
+          currency={historyCurrency}
+          onCurrencyChange={setHistoryCurrency}
+        />
+        <NetWorthChart
+          data={netWorthData}
+          currency={historyCurrency}
+          baseCurrencyData={netWorthDataByCurrency[baseCurrency]}
+          householdBaseCurrency={baseCurrency}
+        />
+        <HistoricalCurrencyDisclosure
+          data={netWorthData}
+          currency={historyCurrency}
+        />
+        <PortfolioContributionChart
+          data={contributionData}
+          currency={baseCurrency}
+        />
+        <AssetAllocationHistoryChart data={assetAllocationHistory} />
+      </section>
     </div>
   );
 }

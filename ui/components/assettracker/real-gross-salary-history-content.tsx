@@ -160,10 +160,7 @@ function SalarySections({
   label: string;
   view: RealGrossSalaryHistoryView;
 }>) {
-  const availableDateDomain = salaryTrajectoryDateDomain(
-    view.chartData,
-    view.noPensionChartData,
-  );
+  const availableDateDomain = salaryTrajectoryDateDomain(view.chartData);
   const [range, setRange] =
     useState<SalaryTrajectoryDateDomain>(availableDateDomain);
 

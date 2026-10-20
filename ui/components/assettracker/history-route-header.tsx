@@ -8,7 +8,18 @@ import {
 import { type Currency, CurrencySchema } from "@/lib/domain/assettracker";
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 
-export function HistoryRouteHeader({
+export function HistoryRouteHeader() {
+  return (
+    <div>
+      <h1 className="mb-2 text-3xl font-bold sm:text-4xl">History</h1>
+      <p className="text-lg text-muted-foreground">
+        Review income and portfolio records in separate timelines.
+      </p>
+    </div>
+  );
+}
+
+export function PortfolioHistoryHeader({
   availableCurrencies,
   currency,
   onCurrencyChange,
@@ -20,9 +31,11 @@ export function HistoryRouteHeader({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
       <div>
-        <h1 className="mb-2 text-3xl font-bold sm:text-4xl">History</h1>
-        <p className="text-lg text-muted-foreground">
-          Follow net worth, contributed capital, and allocation over time.
+        <h2 id="portfolio-history-heading" className="text-2xl font-semibold">
+          Portfolio history
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Net worth, contributed capital, and asset allocation.
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

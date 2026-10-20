@@ -490,6 +490,34 @@ describe("RealGrossSalaryHistory", () => {
     );
   });
 
+  it("keeps a current nominal net estimate when inflation data lags", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
+    try {
+      render(
+        <RealGrossSalaryHistory
+          salaryHistory={[
+            salaryRecord({
+              id: "salary-2026",
+              effectiveStart: "2026-10-16",
+              effectiveEnd: undefined,
+              grossPay: 127_460,
+              acceptedAt: "2026-10-16T12:00:00.000Z",
+            }),
+          ]}
+        />,
+      );
+
+      expect(screen.getAllByText("2026-10-16")).toHaveLength(2);
+      expect(screen.getByText("2026-27")).toBeVisible();
+      expect(
+        screen.getAllByText(/2026-10 has not been published/),
+      ).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("switches salary basis, person, and inflation index", () => {
     Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
       configurable: true,
