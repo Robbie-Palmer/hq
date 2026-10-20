@@ -21,6 +21,11 @@ The same account may need human and agent access. Splitting accounts between
 Dashlane and Doppler would make availability worse. The useful split is between
 interactive credentials and purpose-built automation tokens.
 
+A household needs a different split. Each partner should have a private account,
+private vaults, and independent recovery. Shared logins belong in an explicitly
+shared vault. Sharing one password-manager account would make privacy, recovery,
+and separation needlessly brittle.
+
 # Decision
 
 Accept a bounded Proton Pass Plus trial, not a migration. Keep Dashlane
@@ -29,8 +34,13 @@ proved enough of the browser, TOTP, agent-retrieval, and encrypted-export path
 to justify testing the paid capabilities. It did not prove the daily autofill,
 device, recovery, or paid agent-token workflows needed to replace Dashlane.
 
-Avoid static vault exports because they create unmanaged copies, not because
-an agent must never see an interactive credential.
+Start the partner test with two Proton Free accounts and a synthetic shared
+vault. Do not share a Proton account or its account password. If both people
+prefer Proton and only need paid Pass features, use Pass Family rather than
+buying two Pass Plus subscriptions. If the partner also needs paid Proton Mail
+and Drive, compare Proton Duo instead. Avoid static vault exports because they
+create unmanaged copies, not because an agent must never see an interactive
+credential.
 
 Use this credential boundary:
 
@@ -72,11 +82,25 @@ Promote Proton Pass only if it matches or beats Dashlane on:
 * reliable agent access through browser, GUI, or CLI without copying the
   canonical password into Doppler;
 * a fast rotation and session-revocation drill after simulated exposure; and
-* shared-account use without duplicating secrets in Doppler.
+* separate partner accounts with private vaults, a least-privilege household
+  vault, independent recovery, and a practised member-removal path, without
+  duplicating secrets in Doppler.
 
 At current annual prices, [Pass Plus is $35.88](https://proton.me/pass/pricing).
 The Dashlane Premium renewal notice quotes $57.10 on 19 July 2026, so that is
-the current baseline for this project.
+the current baseline for this project. Two Pass Plus subscriptions cost $71.76
+per year. [Pass Family](https://proton.me/pass/pricing) costs $59.88 per year
+for up to six Plus accounts, so it saves $11.88 per year even with only two
+members. Dashlane Friends & Family supports ten members; Dashlane's public 2026
+[work-perk material](https://www.dashlane.com/uploads/2022/08/The-Employee-Guide-to-How-Password-Managers-Work-2026.pdf)
+values it at $90 per year, but the actual upgrade checkout and tax still need
+recording. Only the Dashlane plan manager receives Hotspot Shield.
+
+Pass Family cannot include someone who already has Mail Plus, Drive Plus,
+Unlimited, Duo, or another paid Proton plan. Proton Duo costs $179.88 per year
+and gives two separate accounts the full Proton suite plus 2 TB of shared
+storage. Do not count its second VPN entitlement as a partner benefit when the
+partner does not want a VPN. Evaluate Duo on Mail and Drive value instead.
 
 # Trial evidence
 
@@ -103,7 +127,7 @@ The dry run also found limits that prevent promotion:
   entry, but the browser stopped responding before the saved rotation could be
   verified; the synthetic target had no live service session to revoke; and
 * Android, browser-extension autofill, macOS, signed-in Ubuntu desktop use,
-  passkeys, hardware keys, emergency recovery, shared-account use, and a clean
+  passkeys, hardware keys, emergency recovery, partner sharing, and a clean
   account recovery remain untested.
 
 Before promotion, the paid trial must complete those open checks and prove a
@@ -137,6 +161,14 @@ day. A bundle price is not evidence that the password workflow works.
 The trial can measure agent and Linux capability without risking the working
 vault. There will be temporary duplication and possibly one short paid overlap.
 The project must remove that overlap after it accepts or rejects the migration.
+
+Pass Family keeps private vaults private from the billing administrator and
+allows selected vault sharing. Removing someone from the subscription only
+downgrades that account to Free. It does not revoke access to shared vaults, so
+offboarding must remove both plan membership and vault access. Each partner
+also needs a recovery phrase stored outside the other partner's private vault.
+Proton Duo has the same private-account advantage, but its primary administrator
+cannot be transferred.
 
 If Proton Pass and Proton VPN both succeed, buying them separately costs
 $119.76 per year at renewal. Proton Unlimited costs $119.88 and then adds paid

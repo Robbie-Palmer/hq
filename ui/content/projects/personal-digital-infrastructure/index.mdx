@@ -76,6 +76,8 @@ The portfolio should:
   long sequence of web settings;
 * keep at least one independent copy of irreplaceable data;
 * support mobile access for documents and recovery material;
+* give each partner a private password vault and independent recovery while
+  keeping household logins in explicitly shared vaults;
 * use the custom domain without making the domain registrar the mailbox; and
 * record renewal prices and exit steps before a trial becomes a migration.
 
@@ -115,9 +117,9 @@ features solve an observed need.
 
 # Cost and capability
 
-These are public USD and EUR price observations from 18 October 2026, before
-country-specific tax. The Dashlane baseline is the $57.10 renewal quoted for
-19 July 2026 rather than a public example price.
+These are public USD and EUR price observations from 18 and 20 October 2026,
+before country-specific tax. The Dashlane baseline is the $57.10 renewal quoted
+for 19 July 2026 rather than a public example price.
 
 | Portfolio                            | Recurring price used for comparison | Change from the current baseline | Capability change                                                                                                                                                                                             |
 | ------------------------------------ | ----------------------------------: | -------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -125,6 +127,36 @@ country-specific tax. The Dashlane baseline is the $57.10 renewal quoted for
 | Keep Dashlane and add Filen 200 GB   |        $57.10/year plus €23.88/year |                 plus €23.88/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                   |
 | Proton Pass Plus and Proton VPN Plus |             $119.76/year at renewal |                 plus $62.66/year | Adds password CLI, agent vault tokens, custom-domain aliases, alias sending, Linux VPN control, WireGuard profiles, Gluetun support, and port forwarding; does not add paid Mail or substantial Drive storage |
 | Proton Unlimited                     |             $119.88/year at renewal |                 plus $62.78/year | Adds the same paid Pass and VPN, plus 500 GB shared Drive storage, paid Mail, three custom email domains, and Calendar                                                                                        |
+
+For a partner, the password-only comparison is simpler:
+
+| Option                     | Annual price used for comparison | Accounts | Household trade-off                                                                               |
+| -------------------------- | -------------------------------: | -------: | ------------------------------------------------------------------------------------------------- |
+| Current Dashlane Premium   |                           $57.10 |        1 | Proven autofill and Hotspot Shield for one person                                                 |
+| Dashlane Friends & Family  |                 $90 public value | Up to 10 | Private vaults and secure sharing for every member; only the plan manager receives Hotspot Shield |
+| Two Proton Pass Plus plans |                           $71.76 |        2 | Two paid accounts without family administration                                                   |
+| Proton Pass Family         |                           $59.88 |  Up to 6 | Six Plus accounts, private vaults, shared vaults, and family administration                       |
+| Proton Duo                 |                          $179.88 |        2 | Full paid Mail, Drive, Calendar, Pass, and VPN for both people, with 2 TB of shared storage       |
+
+Pass Family is the clear paid two-person option if Proton wins the usability
+trial. It costs $11.88 less than two Plus subscriptions and only $2.78 more
+than the current one-person Dashlane renewal. A second Proton Free account can
+join a shared test vault first, so the partner trial does not require a purchase.
+Both people keep private vaults. Shared household credentials move into a
+dedicated shared vault, and neither partner sees the other's whole account.
+
+VPN adds no partner-side value. Paid Mail and Drive could still justify Duo.
+One Unlimited account plus one Mail Plus account costs $167.76 per year and
+provides 500 GB plus 15 GB. Duo costs $12.12 more, adds paid Pass and full Drive
+for the partner, and raises shared storage to 2 TB. Two Unlimited subscriptions
+cost $239.76, so Duo saves $59.88 against that route. Assign no value to the
+partner's VPN entitlement when making the comparison.
+
+Pass Family is not a clean base for adding paid Mail or Drive later. Proton
+does not allow a member with Mail Plus, Drive Plus, Unlimited, Duo, or another
+paid Proton plan to join Pass Family. If the partner wants paid Mail and Drive,
+the final comparison should therefore be Duo against separate individual plans,
+not Pass Family plus an assumed add-on.
 
 The striking comparison is the last two rows. At renewal, separate Proton Pass
 Plus and VPN Plus cost twelve cents less per year than Unlimited. If both
@@ -147,8 +179,13 @@ is cancelled.
 Sources:
 
 * [Dashlane Premium and its included VPN](https://www.dashlane.com/personal-pricing)
+* [Dashlane Friends & Family features](https://support.dashlane.com/hc/en-us/articles/360001166969-Compare-Dashlane-personal-plans)
+* [Dashlane's $90 Friends & Family public value](https://www.dashlane.com/uploads/2022/08/The-Employee-Guide-to-How-Password-Managers-Work-2026.pdf)
 * Dashlane renewal notice for $57.10 on 19 July 2026
 * [Proton Pass pricing and features](https://proton.me/pass/pricing)
+* [Proton Pass Family account and removal behaviour](https://proton.me/support/pass-family-user-guide)
+* [Proton Pass Family membership restrictions](https://proton.me/support/pass-family-add-user)
+* [Proton Duo pricing and account separation](https://proton.me/family)
 * [Proton VPN and Unlimited introductory and renewal prices](https://protonvpn.com/pricing)
 * [Filen plans](https://filen.io/pricing)
 
@@ -159,8 +196,11 @@ Do not buy Proton Unlimited to begin the evaluation. The first sequence is:
 1. Record the current document volume and any existing Google or Microsoft
    storage charges. Use the confirmed $57.10 Dashlane renewal as the current
    password-manager and VPN baseline.
-2. Trial Proton Pass Plus with synthetic and low-risk accounts while Dashlane
-   remains authoritative.
+2. Have the partner create a separate Proton Free account and test a synthetic
+   shared household vault. Keep each person's private items private. If both
+   prefer Proton and the paid checks pass, choose Pass Family for a
+   password-only household. Compare Duo if paid Mail and Drive would replace
+   services the partner already uses or plans to buy.
 3. Trial Filen with a representative document set. Compare Proton Drive only
    if Filen fails or the Proton bundle becomes justified by the password and
    VPN results.
