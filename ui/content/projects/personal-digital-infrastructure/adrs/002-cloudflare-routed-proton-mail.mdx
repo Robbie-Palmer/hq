@@ -1,0 +1,84 @@
+---
+title: "ADR 002: Route custom-domain inbound mail to free Proton"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["Cloudflare Email Routing", "Proton Mail"]
+---
+
+# Context
+
+The custom domain already uses Cloudflare. Proton Mail is attractive, but Mail
+Plus costs $47.88 per year and the immediate requirement is a durable inbound
+address rather than a full mailbox migration.
+
+[Cloudflare Email Routing](https://developers.cloudflare.com/email-routing/)
+can map custom-domain addresses and catch-all patterns to a verified Proton
+destination. It forwards incoming mail. It does not make free Proton send as
+the custom domain, and it does not provide an ordinary mailbox or sent folder.
+
+Proton requires a paid Mail plan to host a
+[custom domain](https://proton.me/support/custom-domain) for normal sending and
+receiving. Cloudflare's separate Email Service can send through SMTP or an API,
+but operating that path would add client integration, delivery monitoring, and
+sent-mail retention.
+
+# Decision
+
+Start with Cloudflare Email Routing forwarding the custom domain to the free
+Proton mailbox. Continue sending from the Proton address. Do not buy Mail Plus
+solely to receive custom-domain mail.
+
+The trial must verify:
+
+* each intended address reaches Proton and rejects unintended destinations;
+* SPF, DKIM, DMARC, and Cloudflare routing records are documented;
+* forwarded messages retain enough original headers for filtering and later
+  Inbox Signal ingestion;
+* replies visibly use the Proton address, so no one mistakes forwarding for
+  custom-domain sending;
+* the domain can be repointed to another mailbox without changing public
+  contact addresses; and
+* export and recovery work from a clean Proton session.
+
+Revisit paid mailbox hosting when sending or replying as the custom domain is a
+regular need, Proton Bridge is required, or the Proton bundle has already been
+justified by Pass and VPN. At current prices, Mail Plus is
+[$47.88 per year](https://proton.me/pricing). Unlimited is $119.88 per year and
+includes three custom email domains with paid Pass, VPN, and 500 GB of shared
+storage.
+
+# Alternatives
+
+## Use Proton Pass custom-domain aliases
+
+Pass Plus supports custom domains for aliases and can
+[initiate mail from an alias](https://proton.me/pass/pricing). If the Pass trial
+in [ADR 001](/projects/personal-digital-infrastructure/adrs/001-proton-pass-trial)
+succeeds, test this before buying Mail Plus. It may cover custom-domain replies
+and new messages, but it remains an alias forwarding system rather than a full
+mailbox with ordinary IMAP or Bridge behaviour.
+
+## Buy Proton Mail Plus now
+
+This gives the cleanest custom-domain sending and receiving experience. It also
+adds Bridge access, more addresses, filters, and Proton-managed domain signing.
+Defer it until outbound identity or those mailbox features matter in practice.
+
+## Operate outbound mail through Cloudflare Email Service
+
+This keeps the provider split and supplies SMTP and API sending. It also turns
+a simple personal mailbox into an operated mail system. Reconsider it for
+automated messages, not as the first answer to ordinary personal replies.
+
+## Move directly to Proton Unlimited
+
+Unlimited makes sense if the Pass and VPN trials succeed because its renewal
+price is almost identical to those products bought separately. Buying it for
+inbound mail alone would spend $119.88 to solve a free forwarding problem.
+
+# Consequences
+
+The custom domain becomes a portable inbound identity at no new subscription
+cost. Outbound messages expose the Proton address, and some correspondents may
+reply to it directly. The project accepts that limitation until real usage
+justifies paid hosting.

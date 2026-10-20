@@ -2,19 +2,24 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-10-08"
+updated: "2026-10-18"
 status: "live"
 tech_stack:
   - "Ansible"
   - "Tailscale"
   - "AdGuard Home"
   - "Hotspot Shield"
+  - "Proton VPN"
+  - "Gluetun"
   - "t3-code"
   - "Claude Code"
   - "Codex"
   - "Grok Build"
   - "OpenCode"
   - "Ente"
+  - "Backblaze B2"
+  - "restic"
+  - "Doppler"
   - "DVC"
   - "Netdata"
   - "NixOS"
@@ -477,6 +482,25 @@ volumes, authentication homes, and t3-code state. GitHub branches and pull
 requests are the handoff between them. Tailscale is the only application access
 path; t3-code and the K3s API remain closed to the public internet.
 
+## Personal digital infrastructure boundary
+
+The [Personal Digital Infrastructure](/projects/personal-digital-infrastructure)
+project owns provider choice, cross-device access, account policy, recovery,
+portability, and the combined subscription budget. The Home Lab implements the
+parts that need local machines or scheduled jobs:
+
+* [ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive) keeps
+  an independent encrypted archive in Backblaze B2 and requires recovery
+  drills before it counts as a backup.
+* [ADR 024](/projects/homelab/adrs/024-proton-vpn-programmable-egress) trials
+  Proton VPN and Gluetun as a container-scoped, testable replacement for the
+  GUI-controlled Hotspot Shield tunnel on the Mac mini.
+
+Document sync, password management, custom-domain email, and the recovery
+packet remain useful when the lab is unavailable, so their decisions live in
+the separate project. Inbox Signal continues to own mail processing rather
+than mailbox-provider selection.
+
 ## Raspberry Pi, the independent fallback
 
 A secondary node that removes single points of failure from the two things
@@ -559,6 +583,8 @@ workloads and layering on the rest:
 | 10    | Automated media acquisition (arr stack behind the VPN gate)   | Live     |
 | 11    | Trakt watchlist recommendation loop into Jellyfin             | Live     |
 | 12    | Off-site t3-code environment on an independent NixOS/K3s VPS  | Proposed |
+| 13    | Encrypted offsite non-photo archive                           | Proposed |
+| 14    | Programmable VPN egress and container kill switch             | Proposed |
 
 # What this is not
 
@@ -578,11 +604,9 @@ workloads and layering on the rest:
 
 These ideas remain outside the current build plan:
 
-* **Offsite backup.** The 10TB drive is a second copy, but it's in the same
-  house. A cheap offsite target (a friend's tailnet node, or cold storage)
-  for the photo library would close the last gap in the backup story.
-* **Expanded backup scope.** Documents, game saves, movies, TV, and music
-  are candidates for the same sync-and-verify pipeline as the photos.
+* **Expanded bulk backup scope.** Game saves, movies, TV, and music need an
+  explicit keep-or-replace policy before they enter the document backup. The
+  Ente photo system remains separate.
 * **Dashboards on this site.** A public page could show selected Netdata
   graphs and lab status without exposing the private services behind them.
 * **Heterogeneous orchestration.** If the lab grows past two compute nodes,

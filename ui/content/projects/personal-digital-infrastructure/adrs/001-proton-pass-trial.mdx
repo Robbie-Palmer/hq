@@ -1,0 +1,104 @@
+---
+title: "ADR 001: Trial Proton Pass without replacing Dashlane"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["Dashlane", "Doppler", "Proton Pass"]
+---
+
+# Context
+
+Dashlane has been reliable for browser and Android autofill across Ubuntu,
+macOS, and Android. Previous Bitwarden and 1Password use was poor enough that a
+feature checklist does not justify another trial of either product.
+
+Dashlane is awkward outside the browser. On Ubuntu, a credential for a terminal
+or desktop application requires opening Chrome, and the personal plan has no
+general CLI. Doppler is excellent for terminals and automation, but it is a
+secrets delivery system rather than a password manager with browser and mobile
+autofill, passkeys, payment details, and personal account recovery.
+
+The same account may need human and agent access. Splitting accounts between
+Dashlane and Doppler would make availability worse. The useful split is between
+interactive credentials and purpose-built automation tokens.
+
+# Decision
+
+Keep Dashlane authoritative while running a Proton Pass Plus trial with
+synthetic and low-risk accounts. Do not cancel Dashlane during the trial. Avoid
+static vault exports because they create unmanaged copies, not because an agent
+must never see an interactive credential.
+
+Use this credential boundary:
+
+| Credential                     | Canonical home   | Examples                                                                   |
+| ------------------------------ | ---------------- | -------------------------------------------------------------------------- |
+| Interactive account credential | Password manager | Passwords, passkeys, browser and mobile autofill, recovery codes           |
+| Scoped automation credential   | Doppler          | API tokens, deployment keys, service accounts, job configuration           |
+| Offline recovery material      | Recovery kit     | Password-manager recovery, hardware-key recovery, restic recovery password |
+
+One account can have its interactive login in the password manager and a
+separate scoped API token in Doppler. Do not copy the same password into both.
+This boundary chooses the canonical store; it does not forbid agent access.
+When no scoped token exists, an agent may retrieve the interactive login through
+the password manager's browser, GUI, or CLI flow. A dedicated agent vault is an
+optional containment tool, not a requirement that may reduce availability.
+
+Treat credential exposure as a recoverable failure. If a password or token
+appears in agent context, logs, or another unintended place, rotate it, revoke
+old sessions where the service permits that, and record the incident. Fast,
+practised rotation is more useful here than making credentials so difficult to
+reach that automation cannot complete the task.
+
+Test Proton Pass on Android, Chrome, Firefox, Ubuntu desktop, macOS, and the
+CLI. Use low-risk credentials to compare direct browser or GUI access with an
+optional agent vault and short-lived access token. Verify retrieval, rotation,
+expiry, revocation, and the access log. Proton documents vault selection, token
+expiry, CLI access, and audit records for
+[agent access tokens](https://proton.me/pass/access-tokens).
+
+Promote Proton Pass only if it matches or beats Dashlane on:
+
+* Android and browser autofill for real login shapes;
+* desktop application and terminal access on Ubuntu;
+* passkey and built-in TOTP behaviour;
+* import fidelity, encrypted export, and clean-account recovery;
+* emergency access and hardware security keys;
+* reliable agent access through browser, GUI, or CLI without copying the
+  canonical password into Doppler;
+* a fast rotation and session-revocation drill after simulated exposure; and
+* shared-account use without duplicating secrets in Doppler.
+
+At current annual prices, [Pass Plus is $35.88](https://proton.me/pass/pricing).
+The Dashlane Premium renewal notice quotes $57.10 on 19 July 2026, so that is
+the current baseline for this project.
+
+# Alternatives
+
+## Keep Dashlane without a trial
+
+This preserves the proven daily experience and included Hotspot Shield VPN.
+It leaves terminal retrieval and agent access dependent on GUI handoff. Keep it
+if Proton Pass fails the autofill or recovery tests.
+
+## Put all credentials in Doppler
+
+Doppler works well for named environments and scoped service tokens. It does
+not replace consumer autofill, passkeys, payment details, or personal recovery.
+Reject it for interactive credentials.
+
+## Move immediately to Proton Pass
+
+The CLI and agent access are useful, and Proton Unlimited may make the product
+cheap at the margin. Unreliable autofill would still be felt many times each
+day. A bundle price is not evidence that the password workflow works.
+
+# Consequences
+
+The trial can measure agent and Linux capability without risking the working
+vault. There will be temporary duplication and possibly one short paid overlap.
+The project must remove that overlap after it accepts or rejects the migration.
+
+If Proton Pass and Proton VPN both succeed, buying them separately costs
+$119.76 per year at renewal. Proton Unlimited costs $119.88 and then adds paid
+Mail and 500 GB of Drive storage. At that point Unlimited is the sensible
+renewal purchase, even if the project continues using Filen for documents.
