@@ -70,16 +70,17 @@ requires review. The declaration manages environment names and protection
 rules only. GitHub secrets and variables still come from Doppler through the
 existing sync flow and are absent from Terraform configuration and state.
 
-Resource keys use provider import identities so an existing structure can be
-adopted without renaming it:
+Resource keys use the same names as provider import IDs, but some separators
+are different. Use the first column as the Terraform import target and the
+second as the provider import ID:
 
-| Resource | Import identity |
+| Terraform resource address | Provider import ID |
 | --- | --- |
-| Doppler project | `<project>` |
-| Doppler environment | `<project>.<environment>` |
-| Doppler config | `<project>.<environment>.<config>` |
-| GitHub environment | `<repository>:<environment>` |
-| GitHub deployment policy | `<repository>:<environment>:<policy-id>` |
+| `doppler_project.managed["<project>"]` | `<project>` |
+| `doppler_environment.managed["<project>/<environment>"]` | `<project>.<environment>` |
+| `doppler_config.managed["<project>/<environment>/<config>"]` | `<project>.<environment>.<config>` |
+| `github_repository_environment.managed["<repository>/<environment>"]` | `<repository>:<environment>` |
+| `github_repository_environment_deployment_policy.managed["<repository>/<environment>/<branch-pattern>"]` | `<repository>:<environment>:<policy-id>` |
 
 Import the project before its environments and configs. Import a GitHub
 environment before its custom branch policies, then require a no-change plan.

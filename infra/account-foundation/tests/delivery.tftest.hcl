@@ -24,7 +24,14 @@ run "cloudflare_access_delivery_boundaries" {
   }
 
   assert {
-    condition     = toset([for config in values(doppler_config.managed) : config.name]) == toset(["ops_plan", "ops_drift", "ops_apply"])
+    condition = toset([
+      for config in values(doppler_config.managed) :
+      "${config.project}/${config.environment}/${config.name}"
+      ]) == toset([
+      "cloudflare-access/ops/ops_plan",
+      "cloudflare-access/ops/ops_drift",
+      "cloudflare-access/ops/ops_apply",
+    ])
     error_message = "The canary must separate plan, drift, and apply configs."
   }
 
@@ -50,13 +57,25 @@ run "cloudflare_access_delivery_boundaries" {
 
   assert {
     condition = toset([
-      for policy in values(github_repository_environment_deployment_policy.managed) : policy.branch_pattern
-    ]) == toset(["main"])
+      for policy in values(github_repository_environment_deployment_policy.managed) :
+      "${policy.environment}/${policy.branch_pattern}"
+      ]) == toset([
+      "production-cloudflare-access-drift/main",
+      "production-cloudflare-access/main",
+    ])
     error_message = "Drift and apply must be restricted to the main branch."
   }
 
   assert {
     condition     = length(github_repository_environment_deployment_policy.managed) == 2
     error_message = "Only the drift and apply environments may use custom branch policies."
+  }
+
+  assert {
+    condition = alltrue([
+      github_repository_environment.managed["hq/production-cloudflare-access-drift"].deployment_branch_policy[0].custom_branch_policies,
+      github_repository_environment.managed["hq/production-cloudflare-access"].deployment_branch_policy[0].custom_branch_policies,
+    ])
+    error_message = "Drift and apply must enable custom branch policies."
   }
 }
