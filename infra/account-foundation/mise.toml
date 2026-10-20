@@ -57,9 +57,17 @@ terraform init -backend=false -input=false > /dev/null
 terraform validate
 """
 
-[tasks.test]
+[tasks."test:scripts"]
 description = "Test the account-foundation bootstrap and credential boundary scripts"
 run = "bash scripts/bootstrap-workspace.test.sh"
+
+[tasks."test:terraform"]
+description = "Test account-foundation declarations with mocked providers"
+run = "terraform test"
+
+[tasks.test]
+description = "Test account-foundation scripts and Terraform declarations"
+depends = ["test:scripts", "test:terraform"]
 
 [tasks."credentials:sync"]
 description = "Sync account-foundation plan and apply values from Doppler to protected GitHub environments"

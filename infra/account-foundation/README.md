@@ -56,6 +56,38 @@ mise run //infra/account-foundation:credentials:sync
 The sync task does not configure protection rules. Do not run it against newly
 created environments until their branch and reviewer policy is in place.
 
+## Root delivery registry
+
+`delivery.tf` declares the non-secret delivery structure for each managed
+root. The first canary entry is `cloudflare-access`. It owns a Doppler project,
+an `ops` environment, separate plan, drift, and apply configs, and the matching
+GitHub environments in `Robbie-Palmer/hq`.
+
+The plan environment accepts pull-request branches and requires review. The
+drift environment accepts only `main` and has no reviewer gate so scheduled
+read-only checks can run. The apply environment accepts only `main` and
+requires review. The declaration manages environment names and protection
+rules only. GitHub secrets and variables still come from Doppler through the
+existing sync flow and are absent from Terraform configuration and state.
+
+Resource keys use the same names as provider import IDs, but some separators
+are different. Use the first column as the Terraform import target and the
+second as the provider import ID:
+
+| Terraform resource address | Provider import ID |
+| --- | --- |
+| `doppler_project.managed["<project>"]` | `<project>` |
+| `doppler_environment.managed["<project>/<environment>"]` | `<project>.<environment>` |
+| `doppler_config.managed["<project>/<environment>/<config>"]` | `<project>.<environment>.<config>` |
+| `github_repository_environment.managed["<repository>/<environment>"]` | `<repository>:<environment>` |
+| `github_repository_environment_deployment_policy.managed["<repository>/<environment>/<branch-pattern>"]` | `<repository>:<environment>:<policy-id>` |
+
+Import the project before its environments and configs. Import a GitHub
+environment before its custom branch policies, then require a no-change plan.
+Do not run the ordinary apply if Terraform proposes replacing an imported
+container. Every managed project, environment, and config has
+`prevent_destroy`; GitHub environments have the same guard.
+
 ## Workspace bootstrap
 
 Run the bootstrap task from a trusted human session:
@@ -92,7 +124,8 @@ mise run //infra/account-foundation:apply
 
 `plan` uses `ops_account_foundation_plan`. `apply` consumes the saved
 `.planfile` with `ops_account_foundation`. The plan file and Terraform working
-directory are ignored by Git.
+directory are ignored by Git. `test` runs the shell boundary tests and a mocked
+Terraform plan; the test does not use live provider credentials.
 
 Pull requests run static checks and a plan through
 `production-account-foundation-plan`. Merges to `main` run a fresh plan and
