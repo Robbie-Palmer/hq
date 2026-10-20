@@ -207,8 +207,10 @@ export function splitEquipmentAlternatives(rawName: string): string[] {
       { index: lowerName.indexOf("/", start), length: 1 },
     ].filter(({ index }) => index >= 0);
     if (!separators.length) break;
-    const separator = separators.reduce((earliest, candidate) =>
-      candidate.index < earliest.index ? candidate : earliest,
+    const separator = separators.reduce(
+      (earliest, candidate) =>
+        candidate.index < earliest.index ? candidate : earliest,
+      { index: Number.POSITIVE_INFINITY, length: 0 },
     );
     const alternative = name.slice(start, separator.index).trim();
     if (alternative) alternatives.push(alternative);
