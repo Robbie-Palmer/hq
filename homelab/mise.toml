@@ -206,8 +206,20 @@ run = "ansible/scripts/deploy_asus.sh"
 # ---------------------------------------------------------------------------
 
 [tasks.nix-flake-check]
-description = "Check every Nix flake output"
+description = "Check the Nix flake contract and outputs for this system"
 run = "bash scripts/nix-command flake check"
+
+[tasks.nix-flake-show]
+description = "Show the Nix flake outputs without building them"
+run = "bash scripts/nix-command flake show"
+
+[tasks.nix-format]
+description = "Format the homelab Nix flake"
+run = "bash scripts/nix-command fmt -- flake.nix"
+
+[tasks.nix-develop]
+description = "Enter the default Nix development shell"
+run = "bash scripts/nix-command develop"
 
 [tasks.remote-build]
 description = "Build the remote-development NixOS system"
