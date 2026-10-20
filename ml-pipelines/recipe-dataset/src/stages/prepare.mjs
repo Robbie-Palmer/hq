@@ -57,6 +57,11 @@ function strings(value) {
     : [];
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  return value == null ? [] : [value];
+}
+
 function instructionText(value) {
   return typeof value === "string"
     ? value.replace(/^\s*\d+[.)]\s*/, "").trim()
@@ -110,8 +115,7 @@ function schemaInstructionEntry(entry) {
 }
 
 function schemaInstructionSections(value) {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  const normalized = values.map(schemaInstructionEntry);
+  const normalized = asArray(value).map(schemaInstructionEntry);
   const sections = normalized.flatMap(({ section }) =>
     section ? [section] : [],
   );
@@ -120,8 +124,7 @@ function schemaInstructionSections(value) {
 }
 
 function schemaParties(value) {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  return values.flatMap((entry) => {
+  return asArray(value).flatMap((entry) => {
     if (typeof entry === "string") return entry.trim() ? [{ name: entry.trim() }] : [];
     if (!entry || typeof entry !== "object" || typeof entry.name !== "string") return [];
     return [{ name: entry.name, url: typeof entry.url === "string" ? entry.url : undefined }];
@@ -129,8 +132,7 @@ function schemaParties(value) {
 }
 
 function schemaImages(value) {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  return values.flatMap((entry) => {
+  return asArray(value).flatMap((entry) => {
     if (typeof entry === "string") return [entry];
     if (entry && typeof entry === "object" && typeof entry.url === "string") return [entry.url];
     return [];
@@ -506,11 +508,20 @@ function bulletItems(source) {
   }).filter(Boolean);
 }
 
+function markdownSubheading(line) {
+  const trimmed = line.trim();
+  let markerLength = 0;
+  while (trimmed[markerLength] === "#") markerLength += 1;
+  if (markerLength < 3 || markerLength > 6) return undefined;
+  if (!/[\t ]/u.test(trimmed[markerLength] ?? "")) return undefined;
+  return trimmed.slice(markerLength + 1).trim().replace(/:$/, "") || undefined;
+}
+
 function bulletSections(source) {
   const sections = [];
   let current = { items: [] };
   for (const line of source.split("\n")) {
-    const heading = /^#{3,6}\s+(.+?)\s*$/.exec(line)?.[1]?.replace(/:$/, "").trim();
+    const heading = markdownSubheading(line);
     if (heading) {
       if (current.items.length) sections.push(current);
       current = { name: heading, items: [] };

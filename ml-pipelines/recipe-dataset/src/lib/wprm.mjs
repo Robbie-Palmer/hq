@@ -14,6 +14,14 @@ function uniqueSections(sections) {
   });
 }
 
+function withoutTimeUnit(value) {
+  const lower = value.toLowerCase();
+  for (const suffix of [" minutes", " minute", " hours", " hour"]) {
+    if (lower.endsWith(suffix)) return value.slice(0, -suffix.length).trimEnd();
+  }
+  return value;
+}
+
 export function parseWprmRecipe(html) {
   const $ = cheerio.load(html);
   const root = $(".wprm-recipe-container").first();
@@ -95,9 +103,8 @@ export function parseWprmRecipe(html) {
 
   const time = (kind) => {
     const container = scope.find(`.wprm-recipe-${kind}-time-container`).first();
-    const amount = elementText($, container.find(".wprm-recipe-details").first()).replace(
-      /\s+(minutes?|hours?)$/i,
-      "",
+    const amount = withoutTimeUnit(
+      elementText($, container.find(".wprm-recipe-details").first()),
     );
     const unit = elementText($, container.find(".wprm-recipe-details-unit").first());
     return [amount, unit].filter(Boolean).join(" ");

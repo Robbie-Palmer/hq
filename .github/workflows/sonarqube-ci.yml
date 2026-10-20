@@ -147,6 +147,7 @@ jobs:
             packages/writing-editor-domain/coverage/lcov.info
             packages/wedding-planner-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
+            ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
             ml-pipelines/wsi-analysis/coverage.xml

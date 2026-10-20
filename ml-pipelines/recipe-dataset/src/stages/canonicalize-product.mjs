@@ -61,13 +61,13 @@ function recordDecision(kind, decision, provenance, seenInRecipe) {
     kind === "ingredient" ? decision.originalSlug : decision.originalName;
   if (!existing.authoredExamples.includes(authored)) {
     existing.authoredExamples.push(authored);
-    existing.authoredExamples.sort();
+    existing.authoredExamples.sort((left, right) => left.localeCompare(right));
     existing.authoredExamples = existing.authoredExamples.slice(0, 5);
   }
   const source = `${provenance.dataset}:${provenance.recordId}`;
   if (!existing.sourceExamples.includes(source)) {
     existing.sourceExamples.push(source);
-    existing.sourceExamples.sort();
+    existing.sourceExamples.sort((left, right) => left.localeCompare(right));
     existing.sourceExamples = existing.sourceExamples.slice(0, 5);
   }
   terms.set(key, existing);
@@ -151,7 +151,7 @@ function coverage(kind, registry) {
     unresolvedRecipeTermPairs: total(unresolved, "recipes"),
     unresolvedByReason: Object.fromEntries(
       [...new Set(unresolved.map((row) => row.reason ?? "unknown"))]
-        .sort()
+        .sort((left, right) => left.localeCompare(right))
         .map((reason) => [
           reason,
           unresolved.filter((row) => (row.reason ?? "unknown") === reason)

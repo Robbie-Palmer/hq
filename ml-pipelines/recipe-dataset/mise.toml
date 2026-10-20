@@ -43,4 +43,4 @@ run = "node --test tests/*.test.mjs"
 [tasks."test:coverage"]
 description = "Test recipe dataset parsing helpers with line and function coverage"
 depends = ["//:install"]
-run = "node --experimental-test-coverage --test-coverage-include='src/lib/*.mjs' --test-coverage-lines=80 --test-coverage-functions=80 --test tests/*.test.mjs"
+run = "pnpm exec c8 --all --include='src/lib/*.mjs' --reporter=lcov --reporter=text --check-coverage --lines=80 --functions=80 node --test tests/*.test.mjs"

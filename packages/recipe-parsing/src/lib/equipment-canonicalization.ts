@@ -180,18 +180,42 @@ export function splitEquipmentAlternatives(rawName: string): string[] {
   if (!name) return [];
   if (PRESERVED_EQUIPMENT_PAIRS.has(name.toLowerCase())) return [name];
 
-  const measuringPair = name.match(/^measuring\s+(.+?)\s+and\s+(.+)$/iu);
-  if (measuringPair) {
+  const lowerName = name.toLowerCase();
+  const measuringPrefix = "measuring ";
+  const measuringSeparator = " and ";
+  const measuringSeparatorIndex = lowerName.indexOf(
+    measuringSeparator,
+    measuringPrefix.length,
+  );
+  if (
+    lowerName.startsWith(measuringPrefix) &&
+    measuringSeparatorIndex > measuringPrefix.length &&
+    measuringSeparatorIndex + measuringSeparator.length < name.length
+  ) {
     return [
-      `measuring ${measuringPair[1]}`,
-      `measuring ${measuringPair[2]}`,
+      `measuring ${name.slice(measuringPrefix.length, measuringSeparatorIndex)}`,
+      `measuring ${name.slice(measuringSeparatorIndex + measuringSeparator.length)}`,
     ];
   }
 
-  const alternatives = name
-    .split(/\s+(?:or|and\/or)\s+|\s*\/\s*/iu)
-    .map((value) => value.trim())
-    .filter(Boolean);
+  const alternatives = [];
+  let start = 0;
+  while (start < name.length) {
+    const separators = [
+      { index: lowerName.indexOf(" and/or ", start), length: 8 },
+      { index: lowerName.indexOf(" or ", start), length: 4 },
+      { index: lowerName.indexOf("/", start), length: 1 },
+    ].filter(({ index }) => index >= 0);
+    if (!separators.length) break;
+    const separator = separators.reduce((earliest, candidate) =>
+      candidate.index < earliest.index ? candidate : earliest,
+    );
+    const alternative = name.slice(start, separator.index).trim();
+    if (alternative) alternatives.push(alternative);
+    start = separator.index + separator.length;
+  }
+  const finalAlternative = name.slice(start).trim();
+  if (finalAlternative) alternatives.push(finalAlternative);
   return alternatives.length > 1 ? alternatives : [name];
 }
 

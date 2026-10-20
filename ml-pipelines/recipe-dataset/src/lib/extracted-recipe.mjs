@@ -79,9 +79,13 @@ function text(value) {
   return "";
 }
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  return value == null ? [] : [value];
+}
+
 function strings(value) {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  return [...new Set(values.map(text).filter(Boolean))];
+  return [...new Set(asArray(value).map(text).filter(Boolean))];
 }
 
 function item(value) {
@@ -120,8 +124,7 @@ function sections(value) {
 }
 
 function parties(value) {
-  const values = Array.isArray(value) ? value : value == null ? [] : [value];
-  return values.flatMap((party) => {
+  return asArray(value).flatMap((party) => {
     if (typeof party === "string") return text(party) ? [{ name: text(party) }] : [];
     if (!party || typeof party !== "object") return [];
     const name = text(party.name);

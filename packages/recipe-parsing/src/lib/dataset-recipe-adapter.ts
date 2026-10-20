@@ -82,7 +82,7 @@ function unmappedFields(recipe: ExtractedDatasetRecipe): string[] {
     ...Object.entries(optionalFields).flatMap(([field, present]) =>
       present ? [field] : [],
     ),
-  ].sort();
+  ].sort((left, right) => left.localeCompare(right));
 }
 
 function parseDiagnostics(recipe: ExtractedDatasetRecipe): string[] {

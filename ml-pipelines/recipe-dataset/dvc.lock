@@ -67,16 +67,16 @@ stages:
       size: 5080
     - path: src/lib/extracted-recipe.mjs
       hash: md5
-      md5: 62553256e70d2efbdd3b385fc4799a5b
-      size: 9607
+      md5: 2a598a038a071c725b1352b18f43f1ee
+      size: 9577
     - path: src/lib/wprm.mjs
       hash: md5
-      md5: 5389c98a5a953743d7bd4e49aa546376
-      size: 4602
+      md5: 1b2d78b3e023cc363bbabd676eb3810e
+      size: 4819
     - path: src/stages/prepare.mjs
       hash: md5
-      md5: 95e3c4c6fa8fb634aea9a12a13cc09db
-      size: 30723
+      md5: 8ecfd00fbea9966d20826fab7c841bc4
+      size: 30948
     outs:
     - path: outputs/extracted-recipes.jsonl
       hash: md5
@@ -156,8 +156,8 @@ stages:
       size: 729
     - path: ../../packages/recipe-parsing/src
       hash: md5
-      md5: 1f34c643505c8419dd0198457ae80f21.dir
-      size: 154429
+      md5: 0e34ba95d5f594efeba4221445d7c3dc.dir
+      size: 155531
       nfiles: 28
     - path: ../../pnpm-lock.yaml
       hash: md5
@@ -206,8 +206,8 @@ stages:
       size: 729
     - path: ../../packages/recipe-parsing/src
       hash: md5
-      md5: 1f34c643505c8419dd0198457ae80f21.dir
-      size: 154429
+      md5: 0e34ba95d5f594efeba4221445d7c3dc.dir
+      size: 155531
       nfiles: 28
     - path: ../../pnpm-lock.yaml
       hash: md5
@@ -223,13 +223,13 @@ stages:
       size: 296
     - path: src/stages/canonicalize-product.mjs
       hash: md5
-      md5: fda07ac9691a0b1456801d436a00015f
-      size: 6412
+      md5: 2e9b77a5dd1e0ee10fb2ae11c23b256f
+      size: 6538
     outs:
     - path: outputs/product-canonicalization-decisions.jsonl
       hash: md5
-      md5: 825069e5acf7c63560229e12c9fdef6a
-      size: 26503166
+      md5: 99990bf3ce5044284f086c5687dbed63
+      size: 26503298
     - path: outputs/product-canonicalization-metrics.json
       hash: md5
       md5: 6aa4d8df75e567a1a181163ce5f211ae

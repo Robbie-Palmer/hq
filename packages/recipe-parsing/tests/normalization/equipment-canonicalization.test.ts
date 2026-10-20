@@ -162,6 +162,10 @@ describe("canonicalizeCookwareList", () => {
       "blender",
       "food processor",
     ]);
+    expect(splitEquipmentAlternatives("whisk and/or fork")).toEqual([
+      "whisk",
+      "fork",
+    ]);
   });
 
   it("should preserve established compound names", () => {
