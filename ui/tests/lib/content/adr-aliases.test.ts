@@ -58,6 +58,7 @@ describe("legacy ADR aliases", () => {
   it.each([
     "agentic-code-review",
     "homelab",
+    "personal-digital-infrastructure",
     "personal-knowledge-graph",
     "recipe-site",
     "work-graph",

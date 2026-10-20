@@ -21,7 +21,9 @@ devices. A self-hosted Tailscale exit node can also carry internet traffic, but
 that traffic still leaves through an owned home or cloud connection. Proton
 VPN supplies the part Tailscale does not: third-party exit servers, country
 choice, P2P support, and port forwarding. It complements the tailnet rather
-than replacing it.
+than replacing it, but Android cannot run both clients at once. On Android,
+switch between Proton for third-party egress and Tailscale for tailnet access
+unless a tested router or proxy path provides both.
 
 The replacement needs ordinary apps on macOS and Android, a supported Linux
 command line, WireGuard or OpenVPN configuration for a container network

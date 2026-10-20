@@ -50,6 +50,12 @@ Mac mini job. Store an independent printed or hardware-encrypted recovery copy
 of the restic password outside Doppler and outside the house. Losing the
 password makes the backup unrecoverable.
 
+Create a separate B2 application key limited to read access for this repository
+and keep it with the independent recovery material. The recovery drill must use
+that key and the independent restic password without access to Doppler or the
+Mac mini. If Backblaze changes how application keys work, document and test the
+account-recovery and key-issuance path before retiring the stored key.
+
 Promote the pilot only after it passes:
 
 * an initial full backup and a second incremental backup;
@@ -75,10 +81,12 @@ month, 500 GB about $3.48, and 1 TB $6.95 before retained-version growth.
 R2 is already used by projects and costs
 [$0.015 per GB-month](https://developers.cloudflare.com/r2/pricing/) in its
 standard tier with no egress charge. At 1 TB it is roughly $15 per month, more
-than twice B2's storage price. More importantly, R2 does not currently expose
-bucket versioning or Object Lock through its S3-compatible API. Reusing an
-existing account is not worth a weaker deletion boundary and a shared provider
-failure domain.
+than twice B2's storage price. R2 does not currently expose bucket versioning
+or Object Lock through its S3-compatible API, but it does provide
+[bucket locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/)
+through its dashboard, Wrangler, and API. B2 remains the pilot choice because
+it provides an independent failure domain at less than half the storage price,
+not because R2 lacks a retention control.
 
 ## The working document library as the only offsite copy
 
