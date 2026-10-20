@@ -1861,7 +1861,7 @@ describe("AdoptedForecastCard", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Revisit decision: Build an extension",
+        name: "Reopen decision: Build an extension",
       }),
     );
     await userEvent.type(
@@ -1869,7 +1869,7 @@ describe("AdoptedForecastCard", () => {
       "Quote changed",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Confirm revisit" }),
+      screen.getByRole("button", { name: "Confirm reopen" }),
     );
     await waitFor(() =>
       expect(revisitAdoptedDecision).toHaveBeenCalledWith({
@@ -1878,6 +1878,46 @@ describe("AdoptedForecastCard", () => {
         reason: "Quote changed",
       }),
     );
+  });
+
+  it("shows why a decision was reopened and links to scenario review", () => {
+    mockAssetTracker({
+      reconcileAdoptedForecast: vi.fn(() => ({
+        actions: [],
+        balances: [],
+        varianceSources: [],
+      })),
+    });
+
+    render(
+      <AdoptedForecastCard
+        forecast={{
+          ...forecast,
+          reviews: [
+            {
+              id: "extension-review",
+              decisionId: "extension",
+              requestedAt: "2027-02-01T12:00:00.000Z",
+              reason: "The contractor quote changed.",
+            },
+          ],
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Reopened 1 Feb 2027")).toBeVisible();
+    expect(screen.getByText("The contractor quote changed.")).toBeVisible();
+    expect(
+      screen.getByText(/No longer included in the live forecast/),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Review scenarios" }),
+    ).toHaveAttribute("href", "/assettracker/decisions?tab=compare");
+    expect(
+      screen.queryByRole("button", {
+        name: "Reopen decision: Build an extension",
+      }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows empty reconciliation states and reports a revisit failure", async () => {
@@ -1914,7 +1954,7 @@ describe("AdoptedForecastCard", () => {
 
     await userEvent.click(
       screen.getByRole("button", {
-        name: "Revisit decision: Build an extension",
+        name: "Reopen decision: Build an extension",
       }),
     );
     await userEvent.type(
@@ -1922,7 +1962,7 @@ describe("AdoptedForecastCard", () => {
       "Costs changed",
     );
     await userEvent.click(
-      screen.getByRole("button", { name: "Confirm revisit" }),
+      screen.getByRole("button", { name: "Confirm reopen" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This decision could not be reopened.",

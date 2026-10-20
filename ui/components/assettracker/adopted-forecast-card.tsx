@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { type SubmitEvent, useState } from "react";
 import {
   Bar,
@@ -608,7 +609,7 @@ function ActionExceptions({
   );
 }
 
-function useRevisitForm(forecastId: string, decisionId: string) {
+function useReopenForm(forecastId: string, decisionId: string) {
   const { revisitAdoptedDecision } = useAssetTracker();
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState("");
@@ -639,7 +640,7 @@ function useRevisitForm(forecastId: string, decisionId: string) {
   };
 }
 
-function RevisitDecision({
+function ReopenDecision({
   forecastId,
   decisionId,
   decisionName,
@@ -648,7 +649,7 @@ function RevisitDecision({
   decisionId: string;
   decisionName: string;
 }>) {
-  const form = useRevisitForm(forecastId, decisionId);
+  const form = useReopenForm(forecastId, decisionId);
   if (!form.editing) {
     return (
       <Button
@@ -656,9 +657,9 @@ function RevisitDecision({
         variant="outline"
         size="sm"
         onClick={() => form.setEditing(true)}
-        aria-label={`Revisit decision: ${decisionName}`}
+        aria-label={`Reopen decision: ${decisionName}`}
       >
-        Revisit decision
+        Reopen decision
       </Button>
     );
   }
@@ -668,7 +669,7 @@ function RevisitDecision({
         className="text-sm font-medium"
         htmlFor={`${forecastId}-${decisionId}`}
       >
-        Why revisit {decisionName}?
+        Why reopen {decisionName}?
       </label>
       <Input
         id={`${forecastId}-${decisionId}`}
@@ -684,7 +685,7 @@ function RevisitDecision({
       )}
       <div className="flex gap-2">
         <Button disabled={form.saving} size="sm">
-          {form.saving ? "Reopening…" : "Confirm revisit"}
+          {form.saving ? "Reopening…" : "Confirm reopen"}
         </Button>
         <Button
           type="button"
@@ -699,23 +700,85 @@ function RevisitDecision({
   );
 }
 
+type AdoptedDecisionReview = AdoptedDecisionForecastRecord["reviews"][number];
+
+function ReopenedDecision({
+  decisionName,
+  review,
+}: Readonly<{
+  decisionName: string;
+  review: AdoptedDecisionReview;
+}>) {
+  return (
+    <div className="flex flex-col gap-3 p-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="font-medium">{decisionName}</p>
+          <Badge variant="secondary">Reopened</Badge>
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Reopened {formatDate(review.requestedAt)}
+        </p>
+        <p className="mt-2 text-sm">{review.reason}</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          No longer included in the live forecast. It now contributes to the
+          possible-decision range; the adopted baseline and reconciliation stay
+          unchanged.
+        </p>
+      </div>
+      <Button asChild className="w-full sm:w-auto" size="sm" variant="outline">
+        <Link href="/assettracker/decisions?tab=compare">Review scenarios</Link>
+      </Button>
+    </div>
+  );
+}
+
 function DecisionControls({
   forecast,
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
   if (forecast.selectedDecisions.length === 0) return null;
   return (
-    <section className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3">
-      <p className="text-sm text-muted-foreground">
-        {forecast.selectedDecisions.map(({ name }) => name).join(", ")}
+    <section>
+      <h3 className="text-sm font-semibold">Plan decisions</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Reopen a choice when it is no longer agreed. This keeps the adopted
+        baseline intact, removes the choice from the live forecast, and treats
+        it as a possible decision.
       </p>
-      {forecast.selectedDecisions.map((decision) => (
-        <RevisitDecision
-          key={decision.id}
-          decisionId={decision.id}
-          decisionName={decision.name}
-          forecastId={forecast.id}
-        />
-      ))}
+      <div className="mt-2 divide-y rounded-md border text-sm">
+        {forecast.selectedDecisions.map((decision) => {
+          const review = forecast.reviews
+            .filter(({ decisionId }) => decisionId === decision.id)
+            .at(-1);
+          if (review != null) {
+            return (
+              <ReopenedDecision
+                key={decision.id}
+                decisionName={decision.name}
+                review={review}
+              />
+            );
+          }
+          return (
+            <div
+              key={decision.id}
+              className="flex flex-wrap items-center justify-between gap-3 p-3"
+            >
+              <div>
+                <p className="font-medium">{decision.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  Included in the live forecast
+                </p>
+              </div>
+              <ReopenDecision
+                decisionId={decision.id}
+                decisionName={decision.name}
+                forecastId={forecast.id}
+              />
+            </div>
+          );
+        })}
+      </div>
     </section>
   );
 }
