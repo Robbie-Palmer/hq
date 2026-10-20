@@ -44,17 +44,21 @@ set_if_unset() {
   fi
 }
 
-set_if_unset TF_TOKEN_app_terraform_io "${TF_API_TOKEN:-}"
-set_if_unset TFE_TOKEN "${TF_API_TOKEN:-}"
-set_if_unset GITHUB_TOKEN "${ACCOUNT_FOUNDATION_GITHUB_TOKEN:-}"
-
 if [[ "$mode" == "plan" || "$mode" == "apply" ]]; then
-  for required_name in TF_TOKEN_app_terraform_io TFE_TOKEN DOPPLER_TOKEN GITHUB_TOKEN; do
+  for required_name in TF_API_TOKEN DOPPLER_TOKEN ACCOUNT_FOUNDATION_GITHUB_TOKEN; do
     if [[ -z "${!required_name:-}" ]]; then
       echo "Cannot run account-foundation $mode: $required_name is missing." >&2
       exit 1
     fi
   done
+
+  export TF_TOKEN_app_terraform_io="$TF_API_TOKEN"
+  export TFE_TOKEN="$TF_API_TOKEN"
+  export GITHUB_TOKEN="$ACCOUNT_FOUNDATION_GITHUB_TOKEN"
+else
+  set_if_unset TF_TOKEN_app_terraform_io "${TF_API_TOKEN:-}"
+  set_if_unset TFE_TOKEN "${TF_API_TOKEN:-}"
+  set_if_unset GITHUB_TOKEN "${ACCOUNT_FOUNDATION_GITHUB_TOKEN:-}"
 fi
 
 exec "$@"

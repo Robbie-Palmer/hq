@@ -109,10 +109,13 @@ if grep -Eq 'DELETE|PATCH' "$request_log"; then
   exit 1
 fi
 
-CI=true \
+env CI=true \
   TF_API_TOKEN="test-state-token" \
   DOPPLER_TOKEN="test-doppler-token" \
   ACCOUNT_FOUNDATION_GITHUB_TOKEN="test-github-token" \
+  GITHUB_TOKEN="inherited-github-token" \
+  TFE_TOKEN="inherited-state-token" \
+  TF_TOKEN_app_terraform_io="inherited-state-token" \
   bash "$script_dir/doppler-terraform-env" plan bash -c '
     [[ "$TF_TOKEN_app_terraform_io" == "test-state-token" ]]
     [[ "$TFE_TOKEN" == "test-state-token" ]]
@@ -135,7 +138,12 @@ for mode_and_config in \
   expected_config="${mode_and_config#*:}"
   doppler_args_log="$work_dir/doppler-$mode-args"
 
-  DOPPLER_ARGS_LOG="$doppler_args_log" \
+  env -u CI \
+    -u DOPPLER_ACCOUNT_FOUNDATION_ENV_WRAPPED \
+    -u DOPPLER_ACCOUNT_FOUNDATION_SEED_CONFIG \
+    -u DOPPLER_ACCOUNT_FOUNDATION_PLAN_CONFIG \
+    -u DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG \
+    DOPPLER_ARGS_LOG="$doppler_args_log" \
     PATH="$mock_bin:$PATH" \
     bash "$script_dir/doppler-terraform-env" "$mode" true
 
@@ -147,11 +155,20 @@ if CI=true bash "$script_dir/doppler-terraform-env" invalid true 2>/dev/null; th
   exit 1
 fi
 
-if missing_credential_output="$(CI=true bash "$script_dir/doppler-terraform-env" plan true 2>&1)"; then
+if missing_credential_output="$(
+  env -u TF_API_TOKEN \
+    -u DOPPLER_TOKEN \
+    -u ACCOUNT_FOUNDATION_GITHUB_TOKEN \
+    -u TF_TOKEN_app_terraform_io \
+    -u TFE_TOKEN \
+    -u GITHUB_TOKEN \
+    CI=true \
+    bash "$script_dir/doppler-terraform-env" plan true 2>&1
+)"; then
   echo "Expected missing plan credentials to fail." >&2
   exit 1
 fi
-[[ "$missing_credential_output" == *"TF_TOKEN_app_terraform_io is missing"* ]]
+[[ "$missing_credential_output" == *"TF_API_TOKEN is missing"* ]]
 
 cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
 {
