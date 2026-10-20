@@ -8,7 +8,20 @@ mock_provider "github" {
   }
 }
 
-mock_provider "tfe" {}
+mock_provider "tfe" {
+  mock_data "tfe_workspace" {
+    defaults = {
+      execution_mode      = "local"
+      auto_apply          = false
+      global_remote_state = false
+    }
+  }
+}
+
+variables {
+  hcp_projects = {}
+  hcp_roots    = {}
+}
 
 run "cloudflare_access_delivery_boundaries" {
   command = plan
