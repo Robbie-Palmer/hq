@@ -153,4 +153,64 @@ if missing_credential_output="$(CI=true bash "$script_dir/doppler-terraform-env"
 fi
 [[ "$missing_credential_output" == *"TF_TOKEN_app_terraform_io is missing"* ]]
 
+cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
+{
+  "ACCOUNT_FOUNDATION_GITHUB_TOKEN": {
+    "computed": "fixture-github-token",
+    "computedVisibility": "masked"
+  },
+  "DOPPLER_PROJECT": {
+    "computed": "personal-site",
+    "computedVisibility": "unmasked"
+  },
+  "DOPPLER_TOKEN": {
+    "computed": "fixture-doppler-token",
+    "computedVisibility": "masked"
+  },
+  "TF_API_TOKEN": {
+    "computed": "fixture-terraform-token",
+    "computedVisibility": "masked"
+  }
+}
+FIXTURE
+
+cat > "$mock_bin/doppler" <<'MOCK_DOPPLER'
+#!/usr/bin/env bash
+set -euo pipefail
+cat "$SYNC_TEST_DIRECTORY/account-foundation-secrets.json"
+MOCK_DOPPLER
+chmod +x "$mock_bin/doppler"
+
+cat > "$mock_bin/gh" <<'MOCK_GH'
+#!/usr/bin/env bash
+set -euo pipefail
+if [[ "${2:-}" == "list" ]]; then
+  echo '[]'
+  exit 0
+fi
+if [[ "${2:-}" == "set" ]]; then
+  printf '%s %s %s %s\n' "$1" "$2" "$3" "$5" >> "$SYNC_TEST_DIRECTORY/github-calls"
+fi
+MOCK_GH
+chmod +x "$mock_bin/gh"
+
+: > "$work_dir/github-calls"
+SYNC_TEST_DIRECTORY="$work_dir" \
+  PATH="$mock_bin:$PATH" \
+  bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+    production-account-foundation-plan \
+    production-account-foundation
+
+for github_environment in \
+  production-account-foundation-plan \
+  production-account-foundation; do
+  grep -Fxq -- "secret set DOPPLER_TOKEN $github_environment" "$work_dir/github-calls"
+  grep -Fxq -- "secret set TF_API_TOKEN $github_environment" "$work_dir/github-calls"
+  grep -Fxq -- "secret set ACCOUNT_FOUNDATION_GITHUB_TOKEN $github_environment" "$work_dir/github-calls"
+  if grep -Fxq -- "variable set DOPPLER_PROJECT $github_environment" "$work_dir/github-calls"; then
+    echo "The account-foundation sync exported reserved Doppler metadata." >&2
+    exit 1
+  fi
+done
+
 echo "Account-foundation bootstrap boundary tests passed."

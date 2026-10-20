@@ -46,6 +46,13 @@ load_config_entries() {
             or .key == "DOPPLER_SERVICE_TOKEN"
           )
         )
+        or (
+          (
+            $config == "ops_account_foundation_plan"
+            or $config == "ops_account_foundation"
+          )
+          and .key == "DOPPLER_TOKEN"
+        )
       ))
     | map({
         name: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
