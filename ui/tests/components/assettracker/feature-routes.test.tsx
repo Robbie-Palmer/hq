@@ -134,6 +134,13 @@ describe("Asset Tracker feature routes", () => {
   it("composes the history route", () => {
     render(<HistoryRoute />);
 
+    const incomeHeading = screen.getByRole("heading", {
+      name: "Income history",
+    });
+    const portfolioHeading = screen.getByRole("heading", {
+      name: "Portfolio history",
+    });
+    expect(incomeHeading).toAppearBefore(portfolioHeading);
     expect(screen.getByText("Account history import")).toBeVisible();
     expect(screen.getByText("Net worth history")).toBeVisible();
     expect(screen.getByText("Contribution history")).toBeVisible();

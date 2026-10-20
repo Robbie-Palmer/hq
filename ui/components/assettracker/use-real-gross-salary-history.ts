@@ -2,6 +2,7 @@
 
 import { latestOnsInflationRelease } from "finance-inflation-indices/dataset";
 import { useState } from "react";
+import { todayIsoDate } from "@/lib/assettracker";
 import {
   buildGrossSalaryTrajectory,
   buildNoPensionNetTrajectory,
@@ -53,7 +54,7 @@ export function useRealGrossSalaryHistory(
     selectedReferenceDate,
     person,
     amountKind,
-    selectedReferenceDate,
+    todayIsoDate(),
   );
   const chartData = grossSalaryChartData(points, selectedReferenceDate);
   const noPensionChartData = noPensionNetChartData(
