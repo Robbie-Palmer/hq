@@ -73,28 +73,54 @@ export const platformPolicySourceSchema = z.looseObject({
 
 const namedRequirementSchema = z.looseObject({ name: z.string().min(1) });
 
-export const platformSelectionSourceSchema = z.looseObject({
-  id: platformSlugSchema,
-  slot: platformSlotSchema,
-  kind: z.enum(["technology", "policy"]).default("technology"),
-  technology: platformTechnologySlugSchema.optional(),
-  value: z.string().min(1).optional(),
-  status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
-  decision: platformAdrRefSchema,
-  effective_from: platformUtcInstantSchema,
-  effective_until: platformUtcInstantSchema.optional(),
-  configuration_requirements: z.array(namedRequirementSchema).default([]),
-  state_requirements: z.array(namedRequirementSchema).default([]),
-  operational_checks: z
-    .array(
-      z.looseObject({
-        name: z.string().min(1),
-        reference: z.string().min(1),
-      }),
-    )
-    .default([]),
-  manual_setup: z.array(z.string().min(1)).default([]),
-});
+export const platformSelectionSourceSchema = z
+  .looseObject({
+    id: platformSlugSchema,
+    slot: platformSlotSchema,
+    kind: z.enum(["technology", "policy"]).optional(),
+    technology: platformTechnologySlugSchema.optional(),
+    value: z.string().min(1).optional(),
+    status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
+    decision: platformAdrRefSchema,
+    effective_from: platformUtcInstantSchema,
+    effective_until: platformUtcInstantSchema.optional(),
+    configuration_requirements: z.array(namedRequirementSchema).default([]),
+    state_requirements: z.array(namedRequirementSchema).default([]),
+    operational_checks: z
+      .array(
+        z.looseObject({
+          name: z.string().min(1),
+          reference: z.string().min(1),
+        }),
+      )
+      .default([]),
+    manual_setup: z.array(z.string().min(1)).default([]),
+  })
+  .transform((selection) => ({
+    ...selection,
+    kind:
+      selection.kind ??
+      (selection.value !== undefined && selection.technology === undefined
+        ? ("policy" as const)
+        : ("technology" as const)),
+  }))
+  .superRefine((selection, context) => {
+    if (selection.technology !== undefined && selection.value !== undefined) {
+      context.addIssue({
+        code: "custom",
+        message: "selection cannot define both technology and value",
+      });
+      return;
+    }
+    const requiredField = selection.kind === "technology" ? "technology" : "value";
+    if (selection[requiredField] === undefined) {
+      context.addIssue({
+        code: "custom",
+        message: `selection kind '${selection.kind}' requires ${requiredField}`,
+        path: [requiredField],
+      });
+    }
+  });
 
 export const platformManifestSourceSchema = z
   .object({

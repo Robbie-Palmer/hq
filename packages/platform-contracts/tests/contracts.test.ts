@@ -65,6 +65,57 @@ describe("shared platform contract parsers", () => {
     expect(parsed.selections[0]?.technology).toBe("typescript");
   });
 
+  it("infers policy selections from their value", () => {
+    const parsed = parsePlatformManifestSource({
+      schema_version: 1,
+      project: "platform",
+      layers: [],
+      slots: [{ slug: "governance.visibility", kind: "policy" }],
+      policies: [],
+      selections: [
+        {
+          id: "public-source",
+          slot: "governance.visibility",
+          value: "Public source",
+          status: "Accepted",
+          decision: "platform:001-public-source",
+          effective_from: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    expect(parsed.selections[0]).toMatchObject({
+      kind: "policy",
+      value: "Public source",
+    });
+  });
+
+  it.each([
+    { kind: "technology" },
+    { kind: "policy" },
+    { technology: "TypeScript", value: "Public source" },
+  ])("rejects inconsistent selection fields", (selection) => {
+    expect(() =>
+      parsePlatformManifestSource({
+        schema_version: 1,
+        project: "platform",
+        layers: [],
+        slots: [{ slug: "project.selection" }],
+        policies: [],
+        selections: [
+          {
+            id: "invalid-selection",
+            slot: "project.selection",
+            status: "Accepted",
+            decision: "platform:001-selection",
+            effective_from: "2026-01-01T00:00:00Z",
+            ...selection,
+          },
+        ],
+      }),
+    ).toThrow(/Invalid/);
+  });
+
   it.each([
     [parseRepositoryLayoutContract, {}],
     [parsePlatformManifestSource, {}],
