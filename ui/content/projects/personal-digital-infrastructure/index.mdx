@@ -61,7 +61,8 @@ The boundary is deliberate:
   Android and browser autofill, Ubuntu desktop access, encrypted export, and
   two-account shared vault have passed. Dashlane remains available only during
   the rollback and recovery-check period, and its Hotspot Shield benefit still
-  supplies the current consumer VPN.
+  supplies the current consumer VPN. Live TOTP codes remain in Authy and Google
+  Authenticator until a separate migration is verified.
 * Doppler works well for software and agent secrets, but it is not a personal
   password manager.
 * Cloudflare manages the custom domain. Proton is available as a new, mostly
@@ -100,8 +101,9 @@ make it available to an agent.
 [ADR 004](/projects/personal-digital-infrastructure/adrs/004-proton-pass-primary-password-manager)
 makes Proton Pass canonical after production import, autofill, sharing, desktop
 access, and encrypted export passed. Dashlane stays available only until the
-remaining recovery and device checks allow its safe removal. The Proton Pass
-CLI remains unproven, so supervised GUI retrieval is the current agent path.
+remaining recovery and device checks allow its safe removal. Proton rejected
+CLI access because the account is on Free. The paid CLI path remains untested,
+so supervised GUI retrieval is the current agent path.
 
 # Email and domain boundary
 
@@ -125,12 +127,12 @@ These are public USD and EUR price observations from 18 and 20 October 2026,
 before country-specific tax. The Dashlane baseline is the $57.10 renewal quoted
 for 19 July 2026 rather than a public example price.
 
-| Portfolio                            | Recurring price used for comparison | Change from the current baseline | Capability change                                                                                                                                                                                             |
-| ------------------------------------ | ----------------------------------: | -------------------------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Dashlane Premium with Hotspot Shield |                         $57.10/year |                         baseline | Proven autofill and consumer VPN; no personal CLI or configurable VPN profiles                                                                                                                                |
-| Keep Dashlane and add Filen 200 GB   |        $57.10/year plus €23.88/year |                 plus €23.88/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                   |
-| Proton Pass Plus and Proton VPN Plus |             $119.76/year at renewal |                 plus $62.66/year | Adds password CLI, agent vault tokens, custom-domain aliases, alias sending, Linux VPN control, WireGuard profiles, Gluetun support, and port forwarding; does not add paid Mail or substantial Drive storage |
-| Proton Unlimited                     |             $119.88/year at renewal |                 plus $62.78/year | Adds the same paid Pass and VPN, plus 500 GB shared Drive storage, paid Mail, three custom email domains, and Calendar                                                                                        |
+| Portfolio                            | Recurring price used for comparison | Change from the current baseline | Capability change                                                                                                                                                                                                            |
+| ------------------------------------ | ----------------------------------: | -------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashlane Premium with Hotspot Shield |                         $57.10/year |                         baseline | Proven autofill and consumer VPN; no personal CLI or configurable VPN profiles                                                                                                                                               |
+| Keep Dashlane and add Filen 200 GB   |        $57.10/year plus €23.88/year |                 plus €23.88/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                                  |
+| Proton Pass Plus and Proton VPN Plus |             $119.76/year at renewal |                 plus $62.66/year | Adds built-in TOTP, password CLI, agent vault tokens, custom-domain aliases, alias sending, Linux VPN control, WireGuard profiles, Gluetun support, and port forwarding; does not add paid Mail or substantial Drive storage |
+| Proton Unlimited                     |             $119.88/year at renewal |                 plus $62.78/year | Adds the same paid Pass and VPN, plus 500 GB shared Drive storage, paid Mail, three custom email domains, and Calendar                                                                                                       |
 
 For a partner, the password-only comparison is simpler:
 
@@ -149,6 +151,8 @@ than the current one-person Dashlane renewal. A second Proton Free account can
 join a shared test vault first, so the partner trial does not require a purchase.
 Both people keep private vaults. Shared household credentials move into a
 dedicated shared vault, and neither partner sees the other's whole account.
+The paid plan would also move TOTP generation into Pass. That is a real benefit
+for the existing Authy and Google Authenticator codes, not an incidental extra.
 
 The password manager is the partner's main benefit. Mail and Drive are extras,
 and the second VPN entitlement has no value for this comparison. That makes
@@ -211,10 +215,11 @@ Do not buy Proton Unlimited to begin the evaluation. The first sequence is:
 2. Finish the Proton Pass cutover using the two separate Free accounts already
    tested. Keep each person's private items private and household logins in the
    Shared vault. Complete recovery and remaining-device checks before cancelling
-   Dashlane. If both people later need paid Pass features, choose Pass Family.
-   If only one person needs the wider Proton suite, compare Unlimited plus Pass
-   Plus with Duo. Pay Duo's $24.12 premium only if its partner-side extras have
-   demonstrated value.
+   Dashlane. Keep live TOTP codes in their current apps during the Free phase.
+   If both people later need paid Pass features, choose Pass Family and migrate
+   the codes with per-account verification. If only one person needs the wider
+   Proton suite, compare Unlimited plus Pass Plus with Duo. Pay Duo's $24.12
+   premium only if its partner-side extras have demonstrated value.
 3. Trial Filen with a representative document set. Compare Proton Drive only
    if Filen fails or the Proton bundle becomes justified by the password and
    VPN results.
