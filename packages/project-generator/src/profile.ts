@@ -1,38 +1,51 @@
 import { parse } from "yaml";
 import { z } from "zod";
+import {
+  type NixFlakeContract,
+  parseNixFlakeContract,
+} from "platform-contracts/nix-flake";
+import {
+  type OpenTelemetryContract,
+  openTelemetryRuntimeSchema,
+  parseOpenTelemetryContract,
+} from "platform-contracts/opentelemetry";
+import {
+  parsePlatformManifestSource,
+  type PlatformManifestSource,
+} from "platform-contracts/platform-manifest";
+import {
+  parseRepositoryLayoutContract,
+  type RepositoryLayoutContract,
+} from "platform-contracts/repository-layout";
+import {
+  compareUtcInstants,
+  isUtcInstant,
+  UTC_INSTANT_PATTERN,
+} from "ts-base/dates";
+import {
+  compareStrings,
+  LOWERCASE_KEBAB_CASE_PATTERN,
+  normalizeSlug,
+} from "ts-base/strings";
 
-const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const UTC_INSTANT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
 
 export const PROJECT_PROFILE_SCHEMA_VERSION = 1;
 export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 1;
 
-const slugSchema = z.string().regex(SLUG_PATTERN);
+const slugSchema = z.string().regex(LOWERCASE_KEBAB_CASE_PATTERN);
 const slotSchema = z.string().regex(SLOT_PATTERN);
 const adrRefSchema = z.string().regex(ADR_REF_PATTERN);
 const utcInstantSchema = z.string().regex(UTC_INSTANT_PATTERN).refine(
-  (value) => !Number.isNaN(Date.parse(value)),
+  isUtcInstant,
   "must be a valid RFC 3339 UTC instant",
 );
-
-function normalizeTechnologySlug(value: string): string {
-  return value
-    .toLowerCase()
-    .replaceAll("++", "plusplus")
-    .replaceAll("#", "sharp")
-    .replaceAll(".", "dot")
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]+/g, "")
-    .replace(/-{2,}/g, "-")
-    .replace(/(^-|-$)/g, "");
-}
 
 const technologySlugSchema = z
   .string()
   .min(1)
-  .transform(normalizeTechnologySlug)
+  .transform(normalizeSlug)
   .pipe(slugSchema);
 
 const projectKindSchema = z.enum([
@@ -147,14 +160,7 @@ const nixProfileSchema = z
 const otelProfileSchema = z
   .object({
     enabled: z.boolean(),
-    runtime: z
-      .enum([
-        "typescript-worker",
-        "python-service",
-        "kubernetes-workload",
-        "agent-workspace",
-      ])
-      .optional(),
+    runtime: openTelemetryRuntimeSchema.optional(),
   })
   .strict()
   .superRefine((otel, context) => {
@@ -242,115 +248,37 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
 export const projectProfileSchema = projectProfileFieldsSchema.superRefine(validateProfile);
 export type ProjectProfile = z.infer<typeof projectProfileSchema>;
 
-const layoutContractSchema = z.looseObject({
-    schema_version: z.literal(1),
-    project_kinds: z.array(z.looseObject({ id: slugSchema })),
-    component_kinds: z.array(
-      z.looseObject({ id: slugSchema, directory: z.string().min(1) }),
-    ),
-    task_contract: z.looseObject({
-      id: slugSchema,
-      required: z.array(taskNameSchema),
-    }),
-    knowledge_graph: z.looseObject({
-      project_index: z.string().min(1),
-      architecture_decisions: z.string().min(1),
-      product_decisions: z.string().min(1),
-    }),
-  });
-
-const prerequisiteSchema = z.union([
-  z
-    .object({
-      slot: slotSchema,
-      technology: technologySlugSchema.optional(),
-    })
-    .strict(),
-  z.object({ requirement: slugSchema }).strict(),
-]);
-
-const platformContractSchema = z.looseObject({
-    schema_version: z.literal(1),
-    layers: z.array(
-      z.looseObject({ slug: slugSchema }),
-    ),
-    slots: z.array(
-      z.looseObject({
-          slug: slotSchema,
-          kind: z.enum(["technology", "policy"]).default("technology"),
-          cardinality: z.enum(["one", "many"]).default("one"),
-          opinionated: z.boolean().default(true),
-        }),
-    ),
-    policies: z.array(
-      z.looseObject({
-          id: slugSchema,
-          layer: slugSchema,
-          slot: slotSchema,
-          mode: z.enum(["required", "preferred"]),
-          effective_from: utcInstantSchema,
-          effective_until: utcInstantSchema.optional(),
-          prerequisites: z.array(prerequisiteSchema).default([]),
-        }),
-    ),
-    selections: z.array(
-      z.looseObject({
-          id: slugSchema,
-          slot: slotSchema,
-          kind: z.enum(["technology", "policy"]).default("technology"),
-          technology: technologySlugSchema.optional(),
-          value: z.string().min(1).optional(),
-          status: z.enum(["Proposed", "Accepted", "Rejected", "Deprecated"]),
-          decision: adrRefSchema,
-          effective_from: utcInstantSchema,
-          effective_until: utcInstantSchema.optional(),
-          configuration_requirements: z.array(z.looseObject({ name: z.string().min(1) })).default([]),
-          state_requirements: z.array(z.looseObject({ name: z.string().min(1) })).default([]),
-          operational_checks: z.array(z.looseObject({ name: z.string().min(1), reference: z.string().min(1) })).default([]),
-          manual_setup: z.array(z.string().min(1)).default([]),
-        }),
-    ),
-  });
-
-const nixContractSchema = z.looseObject({
-    schema_version: z.literal(1),
-    supported_systems: z.array(z.string().min(1)),
-    outputs: z.object({
-      per_system: z.record(z.string(), z.string()),
-      top_level: z.record(z.string(), z.string()),
-    }),
-    inputs: z.looseObject({
-      locked: z.boolean(),
-      allow_unlocked_production_builds: z.boolean(),
-    }),
-    mise_tasks: z.record(z.string(), z.string()),
-  });
-
-const otelContractSchema = z.looseObject({
-    schema_version: z.literal(1),
-    signals: z.looseObject({ required: z.array(z.string().min(1)) }),
-    resource_identity: z.looseObject({ required: z.array(z.string().min(1)) }),
-    transport: z.looseObject({
-      runtime_defaults: z.record(
-        z.string(),
-        z.object({ protocol: z.string().min(1), route: z.string().min(1) }),
-      ),
-    }),
-    semantic_conventions: z.looseObject({ policy: z.string().min(1) }),
-    data_policy: z.looseObject({ mode: z.string().min(1), unsafe_record_action: z.string().min(1) }),
-    cardinality: z.looseObject({
-      max_metric_series_per_instrument: z.number().int().positive(),
-      max_attribute_count_per_record: z.number().int().positive(),
-      max_attribute_value_length: z.number().int().positive(),
-    }),
-    processing: z.looseObject({ failure_mode: z.string().min(1) }),
-  });
-
 export interface ProjectProfileContracts {
-  layout: z.infer<typeof layoutContractSchema>;
-  platform: z.infer<typeof platformContractSchema>;
-  nix: z.infer<typeof nixContractSchema>;
-  opentelemetry: z.infer<typeof otelContractSchema>;
+  layout: Pick<
+    RepositoryLayoutContract,
+    "schema_version" | "project_kinds" | "component_kinds" | "task_contract" | "knowledge_graph"
+  >;
+  platform: PlatformManifestSource;
+  nix: {
+    schema_version: NixFlakeContract["schema_version"];
+    supported_systems: NixFlakeContract["supported_systems"];
+    inputs: Pick<
+      NixFlakeContract["inputs"],
+      "locked" | "allow_unlocked_production_builds"
+    >;
+    outputs: NixFlakeContract["outputs"];
+    mise_tasks: NixFlakeContract["mise_tasks"];
+  };
+  opentelemetry: {
+    schema_version: OpenTelemetryContract["schema_version"];
+    signals: Pick<OpenTelemetryContract["signals"], "required">;
+    resource_identity: Pick<OpenTelemetryContract["resource_identity"], "required">;
+    transport: {
+      runtime_defaults: Partial<OpenTelemetryContract["transport"]["runtime_defaults"]>;
+    };
+    semantic_conventions: Pick<OpenTelemetryContract["semantic_conventions"], "policy">;
+    data_policy: Pick<OpenTelemetryContract["data_policy"], "mode" | "unsafe_record_action"> & Record<string, unknown>;
+    cardinality: Pick<
+      OpenTelemetryContract["cardinality"],
+      "max_metric_series_per_instrument" | "max_attribute_count_per_record" | "max_attribute_value_length"
+    > & Record<string, unknown>;
+    processing: Pick<OpenTelemetryContract["processing"], "failure_mode">;
+  };
 }
 
 interface ResolvedSelection {
@@ -410,24 +338,8 @@ function addDuplicateIssues(values: readonly string[], label: string, context: z
   if (duplicate) context.addIssue({ code: "custom", message: `duplicate ${label}: '${duplicate}'` });
 }
 
-function compareStrings(left: string, right: string): number {
-  return left.localeCompare(right, "en");
-}
-
-function parseContract<T>(source: string, schema: z.ZodType<T>, label: string): T {
-  const result = schema.safeParse(parse(source));
-  if (result.success) return result.data;
-  const details = result.error.issues
-    .map((issue) => {
-      const location = issue.path.join(".") || label;
-      return `${location}: ${issue.message}`;
-    })
-    .join("; ");
-  throw new Error(`Invalid ${label}: ${details}`);
-}
-
 export function parseProjectProfile(source: string): ProjectProfile {
-  return parseContract(source, projectProfileSchema, "project profile");
+  return projectProfileSchema.parse(parse(source));
 }
 
 export function parseProjectProfileContracts(sources: {
@@ -437,28 +349,11 @@ export function parseProjectProfileContracts(sources: {
   opentelemetry: string;
 }): ProjectProfileContracts {
   return {
-    layout: parseContract(sources.layout, layoutContractSchema, "repository layout contract"),
-    platform: parseContract(sources.platform, platformContractSchema, "platform contract"),
-    nix: parseContract(sources.nix, nixContractSchema, "Nix contract"),
-    opentelemetry: parseContract(sources.opentelemetry, otelContractSchema, "OpenTelemetry contract"),
+    layout: parseRepositoryLayoutContract(parse(sources.layout)),
+    platform: parsePlatformManifestSource(parse(sources.platform)),
+    nix: parseNixFlakeContract(parse(sources.nix)),
+    opentelemetry: parseOpenTelemetryContract(parse(sources.opentelemetry)),
   };
-}
-
-function compareUtcInstants(left: string, right: string): number {
-  const parts = (value: string) => {
-    const match = /^(.*?)(?:\.(\d{1,9}))?Z$/.exec(value);
-    if (!match?.[1]) throw new Error(`Invalid UTC instant '${value}'`);
-    return {
-      milliseconds: Date.parse(`${match[1]}Z`),
-      nanoseconds: Number((match[2] ?? "").padEnd(9, "0")),
-    };
-  };
-  const leftParts = parts(left);
-  const rightParts = parts(right);
-  if (leftParts.milliseconds !== rightParts.milliseconds) {
-    return leftParts.milliseconds < rightParts.milliseconds ? -1 : 1;
-  }
-  return Math.sign(leftParts.nanoseconds - rightParts.nanoseconds);
 }
 
 function isEffectiveAt(period: { effective_from: string; effective_until?: string }, instant: string): boolean {
@@ -496,6 +391,9 @@ function validateAgainstContracts(profile: ProjectProfile, contracts: ProjectPro
 
 function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileContracts) {
   const directories = new Map(contracts.layout.component_kinds.map((kind) => [kind.id, kind.directory]));
+  const requiredTasks = taskNameSchema.array().parse(
+    contracts.layout.task_contract.required,
+  );
   const components = profile.components.map((component) => {
     const template = directories.get(component.kind);
     if (!template) throw new Error(`No directory template for component kind '${component.kind}'`);
@@ -507,7 +405,7 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       name: component.name,
       kind: component.kind,
       path: componentPath,
-      tasks: contracts.layout.task_contract.required.toSorted(compareStrings).map((name) => {
+      tasks: requiredTasks.toSorted(compareStrings).map((name) => {
         const reason = exceptions.get(name);
         return reason === undefined
           ? { name, disposition: "generated" as const }
@@ -520,7 +418,7 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
   return components;
 }
 
-function selectedValue(selection: z.infer<typeof platformContractSchema>["selections"][number]): string {
+function selectedValue(selection: PlatformManifestSource["selections"][number]): string {
   const value = selection.kind === "technology" ? selection.technology : selection.value;
   if (!value) throw new Error(`Selection '${selection.id}' has no ${selection.kind} value`);
   return value;

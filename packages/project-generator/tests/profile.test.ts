@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { parsePlatformManifestSource } from "platform-contracts/platform-manifest";
 import { stringify } from "yaml";
 import { describe, expect, it } from "vitest";
 import {
@@ -87,6 +88,7 @@ function contracts(overrides: {
   };
   const platform = {
     schema_version: 1,
+    project: "personal-engineering-platform",
     layers: [{ slug: "base" }, { slug: "observability" }],
     slots: [
       { slug: "project.task-runner" },
@@ -98,6 +100,7 @@ function contracts(overrides: {
         layer: "base",
         slot: "project.task-runner",
         mode: "required",
+        decision: "personal-engineering-platform:001-mise",
         effective_from: "2026-01-01T00:00:00Z",
       },
       {
@@ -105,6 +108,7 @@ function contracts(overrides: {
         layer: "observability",
         slot: "observability.telemetry-protocol",
         mode: "preferred",
+        decision: "personal-engineering-platform:039-opentelemetry",
         effective_from: "2026-01-01T00:00:00Z",
         prerequisites: [
           { requirement: "instrumented-runtime" },
@@ -171,12 +175,12 @@ function contracts(overrides: {
     processing: { failure_mode: "fail-open" },
     ...overrides.opentelemetry,
   };
-  return parseProjectProfileContracts({
-    layout: stringify(layout),
-    platform: stringify(platform),
-    nix: stringify(nix),
-    opentelemetry: stringify(opentelemetry),
-  });
+  return {
+    layout,
+    platform: parsePlatformManifestSource(platform),
+    nix,
+    opentelemetry,
+  } as unknown as ProjectProfileContracts;
 }
 
 describe("project profile contracts", () => {
@@ -350,6 +354,7 @@ describe("project profile resolution", () => {
         layer: "base",
         slot: "project.task-runner",
         mode: "required",
+        decision: "personal-engineering-platform:001-mise",
         effective_from: "2026-01-01T00:00:00Z",
         prerequisites: [{ slot: "observability.telemetry-protocol" }],
       }],

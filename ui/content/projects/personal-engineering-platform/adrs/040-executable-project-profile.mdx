@@ -27,8 +27,11 @@ choices must not look like missing template behavior.
 
 ## Decision
 
-Adopt version 1 of the executable project profile and resolved blueprint
-implemented in `packages/project-generator/src/profile.ts`.
+Adopt version 1 of the executable project profile and resolved blueprint. The
+profile compiler lives in `packages/project-generator`; the versioned source
+contracts it consumes live in `packages/platform-contracts`. Generic slug and
+UTC-instant semantics live in `packages/ts-base` and are shared by contract
+parsers and domain consumers.
 
 The source profile is strict YAML with these top-level fields:
 
@@ -150,8 +153,10 @@ does not prove that its redaction, failure, retention, or ownership conditions
 exist. Manual checkpoints remain visible in the blueprint until later tooling
 can verify or generate them safely.
 
-The compiler carries narrow parsers for the parts of four repository contracts
-that affect generation. Contract tests parse the production files so drift is
-caught in CI. Adding a kind, task, runtime, or capability may require a new
-profile schema version or a backward-compatible compiler change before
-templates can use it.
+The shared contract package is the sole parser for repository layout, platform,
+Nix, and OpenTelemetry source contracts. Repository validators, the knowledge
+graph loader, and the profile compiler consume those parsers rather than
+maintaining parallel schema fragments. Contract tests parse the production
+files so drift is caught in CI. Adding a kind, task, runtime, or capability may
+require a new profile schema version or a backward-compatible compiler change
+before templates can use it.
