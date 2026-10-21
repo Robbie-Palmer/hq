@@ -74,13 +74,6 @@ variable "hcp_roots" {
       state_consumers   = []
       import_id         = "ws-64FJmz4zhCYqNwvg"
     }
-    personal-archive = {
-      workspace_name    = "personal-site-personal-archive"
-      project           = "default"
-      terraform_version = "1.16.4"
-      tags              = {}
-      state_consumers   = []
-    }
     remote-development-cluster = {
       workspace_name    = "personal-site-remote-development-cluster"
       project           = "default"

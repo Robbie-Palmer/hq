@@ -154,7 +154,7 @@ only address moves before applying the policy change.
 
 The current registry manages these workspaces in the provider-created
 `Default Project`. Existing workspaces have import IDs. The Cloudflare Access
-and personal archive workspaces are created from the registry:
+workspace is created from the registry:
 
 | Registry key | Workspace |
 | --- | --- |
@@ -162,7 +162,6 @@ and personal archive workspaces are created from the registry:
 | `bootstrap` | `personal-site-bootstrap` |
 | `cloudflare-access` | `personal-site-cloudflare-access` |
 | `remote-development` | `personal-site-remote-development` |
-| `personal-archive` | `personal-site-personal-archive` |
 | `remote-development-cluster` | `personal-site-remote-development-cluster` |
 | `work-graph` | `personal-site-work-graph` |
 | `personal-blog` | `personal-blog` |
