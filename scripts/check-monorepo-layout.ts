@@ -96,8 +96,23 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
       .split("{")
       .slice(1)
       .map((segment) => `{${segment.split("}")[0]}}`);
-    if (placeholders.some((placeholder) => placeholder !== "{component}")) {
+    if (
+      placeholders.some(
+        (placeholder) =>
+          placeholder !== "{component}" && placeholder !== "{project}",
+      )
+    ) {
       issues.push(`Component path '${component.directory}' has an unknown placeholder`);
+    }
+    if (!component.mise_config_root && !component.delegated_task_project) {
+      issues.push(
+        `Component kind '${component.id}' without a mise root must delegate its tasks`,
+      );
+    }
+    if (component.mise_config_root && component.delegated_task_project) {
+      issues.push(
+        `Component kind '${component.id}' cannot own and delegate its mise tasks`,
+      );
     }
   }
   issues.push(

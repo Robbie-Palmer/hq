@@ -11,7 +11,15 @@ export const repositoryLayoutNamedRecordSchema = z
 
 export const repositoryLayoutComponentKindSchema =
   repositoryLayoutNamedRecordSchema
-    .extend({ directory: z.string() })
+    .extend({
+      directory: z.string(),
+      mise_config_root: z.boolean().default(true),
+      pnpm_workspace_package: z.boolean().default(false),
+      delegated_task_project: z
+        .string()
+        .regex(/^\/\/[a-z0-9][a-z0-9./-]*$/)
+        .optional(),
+    })
     .strict();
 
 export const repositoryLayoutProjectRegistrationSchema =
