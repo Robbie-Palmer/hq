@@ -297,10 +297,12 @@ export function PortfolioGoal({
           </p>
         </div>
         <div className="rounded-md border p-3">
-          <p className="text-xs text-muted-foreground">Projected FI</p>
+          <p className="text-xs text-muted-foreground">Simple FI projection</p>
           <p className="mt-1 text-xl font-semibold">{yearsToFiLabel}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            {projectedFiDescription}
+            {projectedFiDescription}. Uses current net worth, annual savings,
+            and the blended real return; dated future plans appear in Expected
+            runway and Decision outlook.
           </p>
         </div>
       </div>
