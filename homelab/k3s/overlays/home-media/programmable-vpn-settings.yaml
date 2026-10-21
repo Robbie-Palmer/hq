@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: programmable-vpn-settings
+  namespace: media
+data:
+  # A nearby country with Proton P2P servers. PORT_FORWARD_ONLY narrows the
+  # selection to servers that can satisfy the qBittorrent trial.
+  SERVER_COUNTRIES: Netherlands
+  DNS_UPSTREAM_RESOLVERS: quad9

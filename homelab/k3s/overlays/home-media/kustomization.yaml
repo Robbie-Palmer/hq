@@ -4,6 +4,11 @@ namespace: media
 resources:
   - ../../base/media
   - persistent-volumes.yaml
+  - proton-vpn-secret.yaml
+  - programmable-vpn-settings.yaml
+  - qbittorrent-vpn-scripts.yaml
+patches:
+  - path: qbittorrent-gluetun-patch.yaml
 labels:
   - pairs:
       homelab.dev/environment: home

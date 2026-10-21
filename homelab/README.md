@@ -662,9 +662,11 @@ Jellyfin-friendly names.
 apps' quality profiles on the TRaSH Guides with a nightly sync.
 
 K3s owns the six deployments. Ansible owns the host boundary: the Colima
-profile, durable mounts, exact disk check, VPN gate, and nightly backup. It
-installs the two operational scripts under `~/.local/bin`, so deleting a
-repository checkout cannot stop either launchd job.
+profile, durable mounts, exact disk check, deployment reconciler, and nightly
+backup. It installs the two operational scripts under `~/.local/bin`, so
+deleting a repository checkout cannot stop either launchd job. qBittorrent
+shares its pod network with Gluetun. Gluetun's firewall leaves it no fallback
+route when the Proton WireGuard tunnel is down.
 
 Web UIs (LAN/tailnet only): Prowlarr **9696**, Sonarr **8989**, Radarr
 **7878**, qBittorrent **8080**. Login is `admin`; qBittorrent's password is
@@ -672,20 +674,36 @@ stored in `~/.local/share/homelab/k3s/media/.env`.
 
 ### Media automation one-time bootstrap
 
-Mount the Expansion disk and connect the host VPN first. Then run:
+Mount the Expansion disk. Before the first programmable VPN deployment, buy or
+start the Proton VPN trial and generate a WireGuard configuration for a P2P
+server with NAT-PMP enabled. Copy only its `PrivateKey` into Doppler through
+the CLI's interactive value prompt:
 
 ```bash
-mise run //homelab:ansible-check-mac
-mise run //homelab:ansible-configure-mac
+doppler secrets set PROTON_VPN_WIREGUARD_PRIVATE_KEY \
+  --project homelab \
+  --config prd \
+  --visibility restricted
+```
+
+Keep Hotspot Shield connected for the migration. Then run these commands in
+order:
+
+```bash
+mise run //homelab:media-vpn-doppler-install
 mise run //homelab:k3s-dry-run-home-media
 mise run //homelab:k3s-deploy-home-media
+mise run //homelab:ansible-check-mac
+mise run //homelab:ansible-configure-mac
 mise run //homelab:media-k3s-provision
 ```
 
 The Ansible apply creates every host directory required by the persistent
-volumes and installs the gate and backup jobs. The deploy task applies the
-overlay and immediately reconciles the gate. qBittorrent has zero replicas in
-the manifest, so an apply cannot start torrent traffic before that check.
+volumes and installs the reconciler and backup jobs. Apply the Gluetun workload
+before replacing the old host-VPN gate. This order prevents the old
+qBittorrent pod from starting on the residential route between the two
+changes. The Doppler operator copies only the WireGuard private key into the
+media namespace.
 
 The provisioner creates the credential file on a fresh host, waits for the
 applications, completes Jellyfin setup, and wires the download clients, root
@@ -698,6 +716,30 @@ Radarr still need one interactive Trakt OAuth grant each.
 mise run //homelab:media-k3s-status
 mise run //homelab:media-k3s-provision
 mise run //homelab:media-k3s-backup
+```
+
+The normal VPN verification is read-only:
+
+```bash
+mise run //homelab:media-vpn-verify
+```
+
+Run the tunnel-drop check during a maintenance window. It removes Gluetun's
+WireGuard interface, expects qBittorrent egress to fail, and waits up to 60
+seconds for automatic recovery:
+
+```bash
+mise run //homelab:media-vpn-verify -- --disruptive
+```
+
+The benchmark task writes a CSV of qBittorrent download speed, pod CPU and
+memory, Colima process use, and Hotspot Shield process use. Capture comparable
+30-minute samples under sustained qBittorrent load before and after the
+switch:
+
+```bash
+VPN_BENCHMARK_PROVIDER=hotspot mise run //homelab:media-vpn-benchmark
+VPN_BENCHMARK_PROVIDER=proton mise run //homelab:media-vpn-benchmark
 ```
 
 ### Media automation upgrading
@@ -737,10 +779,11 @@ mise run //homelab:media-k3s-backup
 - **Recyclarr sync runs nightly** (`@daily` in-container cron). Manual run:
   `kubectl --context colima-homelab-k3s --namespace media exec
   deployment/recyclarr -- recyclarr sync`.
-- **The stack waits for the VPN.** The launchd gate checks the host default
-  route every 10 seconds. It scales the five user-facing deployments to zero
-  when the route does not use a tunnel and to one when it does
-  ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
+- **qBittorrent fails closed inside its pod.** Gluetun owns the pod's network
+  rules, encrypted DNS, Proton server selection, and dynamic forwarded port.
+  The host no longer needs an interactive VPN before K3s can start. Jellyfin
+  and the management UIs remain available on the LAN and tailnet when the
+  Proton tunnel is down.
 - **Backups fail closed.** The nightly job verifies the Expansion volume UUID,
   takes online SQLite copies, and sends the live config and staged databases
   to one encrypted restic snapshot. It keeps 7 daily, 4 weekly, and 6 monthly
@@ -748,6 +791,15 @@ mise run //homelab:media-k3s-backup
   `k3s/overlays/home-media/backup-media-config.sh`.
 - The Compose definitions and old `media-*` tasks remain only as the rollback
   path until the ADR 020 reboot and storage-recovery checks pass.
+
+### Programmable VPN rollback
+
+Do not remove Hotspot Shield during the Proton trial. To return to the
+host-wide tunnel, connect Hotspot Shield and verify that the Mac default route
+uses a `utun` interface. Check out the last deployed revision before the
+Gluetun change, then run `mise run //homelab:ansible-configure-mac` followed by
+`mise run //homelab:k3s-deploy-home-media`. The old manifest keeps
+qBittorrent at zero replicas until the restored host gate confirms the tunnel.
 
 ## SilverBullet on the Mac mini
 

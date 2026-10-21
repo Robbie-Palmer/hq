@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-expected_context=${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}
+expected_context=${DOPPLER_KUBE_CONTEXT:-${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}}
+expected_location=${DOPPLER_KUBE_LOCATION:-cloud}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 operator_url=https://github.com/DopplerHQ/kubernetes-operator/releases/download/v1.7.1/recommended.yaml
 operator_sha256=ef448ad54b37c122fff753fa3dfc5a218c13be9b67ff6866dc25dacea82b5f8c
@@ -17,7 +18,7 @@ trap cleanup EXIT
 umask 077
 operator_file=$(mktemp)
 
-"${script_dir}/require-kube-context" "${expected_context}" cloud
+"${script_dir}/require-kube-context" "${expected_context}" "${expected_location}"
 curl --fail --location --silent --show-error "${operator_url}" --output "${operator_file}"
 echo "${operator_sha256}  ${operator_file}" | sha256sum -c - >/dev/null
 kubectl apply --server-side --filename "${operator_file}"
