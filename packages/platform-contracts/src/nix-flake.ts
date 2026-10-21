@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { parseContract } from "./parse.js";
+import { parseContract } from "./parse";
 
 export const nixFlakeContractSchema = z
   .object({

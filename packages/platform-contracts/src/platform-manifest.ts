@@ -7,7 +7,7 @@ import {
   normalizeSlug,
 } from "ts-base/strings";
 import { z } from "zod";
-import { parseContract } from "./parse.js";
+import { parseContract } from "./parse";
 
 const SLOT_PATTERN =
   /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;

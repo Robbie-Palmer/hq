@@ -2,11 +2,11 @@ import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { parseNixFlakeContract } from "../src/nix-flake.js";
-import { parseOpenTelemetryContract } from "../src/opentelemetry.js";
-import { parseContract } from "../src/parse.js";
-import { parsePlatformManifestSource } from "../src/platform-manifest.js";
-import { parseRepositoryLayoutContract } from "../src/repository-layout.js";
+import { parseNixFlakeContract } from "../src/nix-flake";
+import { parseOpenTelemetryContract } from "../src/opentelemetry";
+import { parseContract } from "../src/parse";
+import { parsePlatformManifestSource } from "../src/platform-manifest";
+import { parseRepositoryLayoutContract } from "../src/repository-layout";
 
 const contractRoot = new URL(
   "../../../ui/content/projects/personal-engineering-platform/",
