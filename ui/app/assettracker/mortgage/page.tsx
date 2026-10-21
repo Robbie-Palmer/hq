@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { MortgageRoute } from "@/components/assettracker/mortgage-route";
+import { AssetTrackerMortgage } from "@/app/_projects/personal-finance-app/routes/mortgage";
 
 export const metadata: Metadata = { title: "Mortgage planning" };
 
 export default function AssetTrackerMortgagePage() {
-  return <MortgageRoute />;
+  return <AssetTrackerMortgage />;
 }

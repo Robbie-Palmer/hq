@@ -10,7 +10,12 @@ export default defineConfig({
   test: {
     exclude: [...configDefaults.exclude, "e2e/**"],
     ...(coverageEnabled
-      ? { include: ["ui/tests/**/*.{test,spec}.{ts,tsx}"] }
+      ? {
+          include: [
+            "ui/app/_projects/**/tests/**/*.{test,spec}.{ts,tsx}",
+            "ui/tests/**/*.{test,spec}.{ts,tsx}",
+          ],
+        }
       : {}),
     coverage: {
       provider: "v8",

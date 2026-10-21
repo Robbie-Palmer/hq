@@ -1,0 +1,51 @@
+---
+title: "ADR 042: Project-owned UI in the shared application"
+date: "2026-10-21"
+status: "Accepted"
+supersedes: "personal-engineering-platform:041-project-owned-web-features-in-shared-frontend-hosts"
+---
+
+## Context
+
+[ADR 041](/projects/personal-engineering-platform/adrs/041-project-owned-web-features-in-shared-frontend-hosts)
+established separate ownership for products hosted by the shared frontend.
+Copier needs one stable subtree for each product while public routes and domains
+can change independently. The subtree must remain part of the existing
+application until a product needs its own runtime boundary.
+
+## Decision
+
+Call this component kind `project-ui` and place it under
+`ui/app/_projects/<project>`. The `app` parent supplies the application context;
+the private `_projects` directory groups implementation by stable project
+identity without creating a URL segment.
+
+The shared public route remains a thin adapter. For Personal Finance,
+`ui/app/assettracker` mounts the public entry points owned by
+`ui/app/_projects/personal-finance-app`. Its project profile records
+`mount_path: /assettracker`, while its component identity and owned source path
+remain independent of that address.
+
+A project UI remains part of the existing `ui` mise and pnpm workspace. Its
+standard tasks delegate to `//ui`. The directory marks ownership while build
+and deployment boundaries remain unchanged.
+
+## Alternatives
+
+Putting product behavior directly in each public route would avoid an adapter,
+but would couple project ownership to a route slug such as `assettracker` and
+make a domain or route change a source-ownership migration.
+
+Creating a separate Next.js application for each product would give stronger
+runtime isolation. It would also duplicate build and deployment configuration
+before the products need independent operation.
+
+## Consequences
+
+Products stay in one Next.js bundle without losing a Copier-owned boundary.
+Giving a product its own domain does not require a source move.
+
+The `_projects` convention is specific to the shared Next.js host. A project
+that later needs independent dependencies, configuration, release cadence, or
+failure isolation must still create a real application boundary and migrate
+its component path deliberately.

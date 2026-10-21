@@ -36,9 +36,9 @@ component_kinds:
     directory: "ui"
     mise_config_root: true
     pnpm_workspace_package: true
-  - id: "web-feature"
+  - id: "project-ui"
     description: "Project-owned browser code mounted into the shared frontend host."
-    directory: "ui/features/{project}"
+    directory: "ui/app/_projects/{project}"
     mise_config_root: false
     pnpm_workspace_package: false
     delegated_task_project: "//ui"
