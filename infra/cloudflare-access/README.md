@@ -30,6 +30,10 @@ The reusable account-member policy is not attached during this migration.
 Attaching it changes who can use an application and needs a separate reviewed
 change after recovery tests pass.
 
+The [account-foundation recovery runbook](../account-foundation/recovery.md)
+covers Access drift repair, lost credentials, service-token state checks, and
+the dashboard read-only gate.
+
 ## Credentials
 
 Account foundation creates Doppler project `cloudflare-access`, its `ops`

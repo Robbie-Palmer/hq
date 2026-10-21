@@ -113,6 +113,10 @@ ordinary plan cannot rename or destroy its state container. Replacing a seed
 credential requires an overlapping credential, a no-change plan, and a tested
 break-glass login before revocation.
 
+The [recovery runbook](recovery.md) covers clean initialization, the disposable
+canary and rollback, provider-console drift, lost credentials, and the
+Cloudflare dashboard read-only gate.
+
 ## HCP root registry
 
 `variables.tf` declares the typed `hcp_projects` and `hcp_roots` registries.
