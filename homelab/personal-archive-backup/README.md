@@ -24,17 +24,17 @@ Restrict both keys to the same bucket and prefix. Keep the read-only key and a
 copy of the restic password outside Doppler and outside the house. Do not keep
 the maintenance key in the laptop credential file.
 
-After authorizing the official B2 CLI with the account's administrative key,
-create the bucket with Object Lock available but no default retention. Create
-the scheduled key with explicit capabilities because the web console's broad
-"Read and Write" preset also permits deletion. Each `b2 key create` command
-prints its secret only once, so capture it directly into the intended secret
-store or offline recovery material.
+Create the bucket through the independent
+[`infra/personal-archive`](../../infra/personal-archive/README.md) Terraform
+root. It enables Object Lock without default retention and keeps workload key
+secrets out of Terraform state. After its reviewed plan has been applied, use
+the isolated administrative B2 CLI session to create the scheduled and recovery
+keys with explicit capabilities. The web console's broad "Read and Write"
+preset also permits deletion. Each `b2 key create` command prints its secret
+only once, so capture it directly into the intended secret store or offline
+recovery material.
 
 ```bash
-b2 bucket create --file-lock-enabled \
-  --default-server-side-encryption=SSE-B2 \
-  robbie-personal-archive allPrivate
 b2 key create --bucket robbie-personal-archive \
   --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
   robbie-vector-gp68hx-13vh-personal-archive \
@@ -52,7 +52,7 @@ b2 key create --bucket robbie-personal-archive \
 If the Backblaze web console is stuck at its human-verification page, do not
 try to automate around it. If an administrative application key already
 exists, the official CLI can authenticate interactively with `b2 account
-authorize` and complete the bucket and key setup without the console. Creating
+authorize` and complete the key setup without the console. Creating
 the first administrative key still requires a working Backblaze account path.
 
 ## Install an inventory profile
@@ -139,10 +139,11 @@ Record each live run here. Do not record credentials or full source paths.
 | --- | --- |
 | Inventory | 4 PDF files, 376 KiB allocated in `Documents` on 2026-10-21 |
 | Local implementation drill | Two snapshots and a verified full restore passed; latest snapshot referenced 298,794 bytes |
-| Initial backup | Pending Backblaze login and bucket creation |
-| Incremental backup | Pending |
+| Initial backup | Live B2 snapshot `f40a77a6` and repository integrity check passed on 2026-10-21 |
+| Incremental backup | Live B2 snapshot `93108e66` and repository integrity check passed on 2026-10-21 |
 | Forced-failure alert | Healthchecks.io accepted a failure and recovery ping on 2026-10-21 |
+| Live repository restore | Snapshot `93108e66` restored 4 files; restic verification and source checksum comparison passed |
 | Clean-machine restore | Pending |
 | Object Lock maintenance test | Pending |
-| B2 stored bytes and monthly cost | Pending |
-| Restore egress | Pending |
+| B2 stored bytes and monthly cost | 302,165 bytes across 9 live objects after two backups; below the current 10 GB free allowance |
+| Restore egress | About 334 KiB for the verified live restore; independent recovery drill still pending |

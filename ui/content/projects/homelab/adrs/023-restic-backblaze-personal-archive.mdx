@@ -48,6 +48,21 @@ the pilot and explicitly test how backup, stale-lock cleanup, `forget`, and
 `prune` behave before lengthening it. Retained old object versions increase cost
 and must not be mistaken for a failed cleanup.
 
+Manage the private bucket, its Object Lock capability, and its bucket policy in
+the independent `infra/personal-archive` Terraform root. The root uses the
+`personal-site-personal-archive` HCP Terraform workspace and protects the
+bucket from ordinary destroy plans. Object Lock is enabled at bucket creation
+without a default retention period so the pilot can test retention before it
+commits to a longer policy.
+
+Use the Backblaze administrative key only through an isolated B2 CLI bootstrap
+session. That session creates a narrow infrastructure key for Terraform and
+the bucket- and prefix-restricted workload keys after the bucket exists. Do
+not manage application keys with Terraform. The Backblaze provider returns a
+new application key's secret to Terraform, which would put scheduled and
+recovery credentials in Terraform state. Keep those credentials in Doppler or
+the independent recovery material instead.
+
 Store the restic password and a source-specific B2 application key in Doppler
 for each scheduled host. Store an independent printed or hardware-encrypted
 recovery copy of the restic password outside Doppler and outside the house.

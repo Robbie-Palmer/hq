@@ -10,6 +10,7 @@ directory itself is organisational and is not a Terraform root.
 | [`cloudflare-access/`](cloudflare-access/README.md) | Shared Zero Trust organization, identity, and Access policy | Reviewed identity and access changes |
 | [`public-platform/`](public-platform/README.md) | Cloudflare, Neon, PostHog, Pages, DNS, and public service infrastructure | Production and preview service changes |
 | [`remote-development/`](remote-development/README.md) | Remote agent-development infrastructure | Development-host provisioning and recovery |
+| [`personal-archive/`](personal-archive/README.md) | Private Backblaze B2 archive bucket | Backup storage policy and retention controls |
 | [`work-graph/`](work-graph/README.md) | Work Graph service and workload-specific Access resources | Production service changes |
 
 Each root must use its own Terraform Cloud workspace and state. Do not couple

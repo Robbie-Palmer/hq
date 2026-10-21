@@ -65,6 +65,11 @@
       "mise run //infra/bootstrap:precommit-lint",
       "mise run //infra/bootstrap:lint:tflint"
     ],
+    "infra/personal-archive/**/*.tf": [
+      "mise run //infra/personal-archive:format",
+      "mise run //infra/personal-archive:precommit-lint",
+      "mise run //infra/personal-archive:lint:tflint"
+    ],
     "infra/remote-development/**/*.tf": [
       "mise run //infra/remote-development:format",
       "mise run //infra/remote-development:precommit-lint",

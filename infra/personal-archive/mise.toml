@@ -1,0 +1,67 @@
+[tasks.init]
+description = "Initialize personal-archive Terraform"
+run = "bash scripts/doppler-terraform-env.sh terraform init"
+sources = ["*.tf", "**/*.tf", "**/*.tfvars", ".terraform.lock.hcl"]
+outputs = [".terraform/**/*"]
+
+[tasks.format]
+description = "Format personal-archive Terraform files (optionally pass files as args)"
+run = """
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  terraform fmt -recursive .
+else
+  terraform fmt "$@"
+fi
+"""
+
+[tasks."format:check"]
+description = "Check personal-archive Terraform formatting"
+run = """
+#!/usr/bin/env bash
+if [ $# -eq 0 ]; then
+  terraform fmt -check -recursive .
+else
+  terraform fmt -check "$@"
+fi
+"""
+
+[tasks.lint]
+description = "Validate personal-archive Terraform configuration"
+depends = ["//infra/personal-archive:init"]
+run = "terraform validate"
+
+[tasks."lint:tflint"]
+description = "Lint personal-archive Terraform with TFLint"
+run = """
+#!/usr/bin/env bash
+# Lints the whole root; ignores file args appended by lint-staged.
+tflint --format compact
+"""
+
+[tasks.precommit-lint]
+description = "Validate personal-archive Terraform without its backend"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-archive-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+bash scripts/doppler-terraform-env.sh terraform init -backend=false -input=false > /dev/null
+bash scripts/doppler-terraform-env.sh terraform validate
+"""
+
+[tasks.plan]
+description = "Create a saved personal-archive Terraform plan"
+depends = ["//infra/personal-archive:init"]
+run = "bash scripts/doppler-terraform-env.sh terraform plan -input=false -out .planfile"
+outputs = [".planfile"]
+
+[tasks.apply]
+description = "Apply the previously saved personal-archive Terraform plan"
+depends = ["//infra/personal-archive:init"]
+run = "bash scripts/doppler-terraform-env.sh terraform apply -input=false .planfile"
+
+[tasks.check]
+description = "Check and plan personal-archive Terraform"
+depends = ["//infra/personal-archive:format:check", "//infra/personal-archive:lint", "//infra/personal-archive:lint:tflint", "//infra/personal-archive:plan"]
