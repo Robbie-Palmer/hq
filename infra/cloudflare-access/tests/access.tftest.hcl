@@ -5,16 +5,19 @@ mock_provider "cloudflare" {
     }
   }
 
-  mock_resource "cloudflare_zero_trust_access_service_token" {
-    defaults = {
-      client_id     = "mock-client-id"
-      client_secret = null
-    }
-  }
-
   mock_resource "cloudflare_zero_trust_access_application" {
     defaults = {
       id = "6a6fe70f-7fac-4416-8a76-914c439e4d4e"
+    }
+  }
+}
+
+mock_provider "restapi" {
+  mock_resource "restapi_object" {
+    defaults = {
+      api_data = {
+        client_id = "mock-client-id"
+      }
     }
   }
 }
@@ -27,20 +30,22 @@ override_resource {
 }
 
 override_resource {
-  target = cloudflare_zero_trust_access_service_token.preview_qa_agents
+  target = restapi_object.preview_service_token["agents"]
   values = {
-    id            = "5083f895-a6cd-430c-85c7-e422baa934de"
-    client_id     = "mock-agent-client-id"
-    client_secret = null
+    id = "5083f895-a6cd-430c-85c7-e422baa934de"
+    api_data = {
+      client_id = "mock-agent-client-id"
+    }
   }
 }
 
 override_resource {
-  target = cloudflare_zero_trust_access_service_token.preview_qa_workflow
+  target = restapi_object.preview_service_token["workflow"]
   values = {
-    id            = "c95f960c-8f05-4d9b-a172-ea48efada399"
-    client_id     = "mock-workflow-client-id"
-    client_secret = null
+    id = "c95f960c-8f05-4d9b-a172-ea48efada399"
+    api_data = {
+      client_id = "mock-workflow-client-id"
+    }
   }
 }
 
@@ -53,6 +58,7 @@ override_resource {
 
 variables {
   cloudflare_account_id   = "dcd7cd68dd892d610267ded6b1af567b"
+  cloudflare_api_token    = "test-token"
   verify_no_access_groups = false
 }
 
@@ -88,10 +94,10 @@ run "shared_access_ownership" {
 
   assert {
     condition = (
-      cloudflare_zero_trust_access_service_token.preview_qa_agents.duration == "forever" &&
-      cloudflare_zero_trust_access_service_token.preview_qa_workflow.duration == "forever"
+      jsondecode(restapi_object.preview_service_token["agents"].data).duration == "forever" &&
+      jsondecode(restapi_object.preview_service_token["workflow"].data).duration == "forever"
     )
-    error_message = "Importing the preview identities must not add an expiry or trigger rotation."
+    error_message = "The preview identities must remain non-expiring while rotation stays outside Terraform."
   }
 
   assert {

@@ -41,8 +41,8 @@ environment, and these configs:
 | `ops_drift` | Scheduled drift checks on `main` | The same read permissions as `ops_plan` |
 | `ops_apply` | Reviewed default-branch applies | The read permissions above plus write for organizations, identity providers, groups, apps, policies, and service tokens |
 
-Each config also needs an HCP token scoped to
-`personal-site-cloudflare-access`. Store values under these names:
+Each config also needs access to the HCP workspace. Store values under these
+names:
 
 - `TF_API_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
@@ -56,14 +56,29 @@ environment protections, sync all three configs:
 mise run //infra/cloudflare-access:credentials:sync
 ```
 
-The plan and drift tokens must not receive write permission. The apply token
-does not need Workers, R2, DNS, API-token management, or account settings
-permissions. HCP access is limited to this root's operators.
+The plan and drift Cloudflare tokens must not receive write permission. The
+apply token does not need Workers, R2, DNS, API-token management, or account
+settings permissions.
 
-The import API never returns an existing service-token secret. The root omits
-`client_secret_version`, so import cannot rotate either token. Existing client
-IDs and secrets stay in their current Doppler configs. The post-apply state
-check fails if a provider ever writes a service-token secret into this state.
+The HCP organization currently uses the free Personal Developer plan. That
+plan exposes only the owners team and does not support workspace team access,
+so it cannot issue a workspace-scoped API token. Until the organization moves
+to HCP Terraform Essentials or later, these configs reuse the existing
+operator user token. The dedicated Doppler configs limit distribution but not
+the token's HCP permissions. After an upgrade, replace it with separate team
+tokens that grant plan and write access only to
+`personal-site-cloudflare-access`.
+
+The import API never returns an existing service-token secret. Cloudflare
+provider v5 defaults `client_secret_version` to `1` during import, which is
+unsafe for identities that have already rotated. The root therefore owns the
+two token records through the same generic REST provider already used by this
+repository. Its payload contains only `name` and `duration`; it cannot send a
+secret or secret version, so Terraform cannot rotate a credential. Existing
+client IDs and secrets stay in their current Doppler configs. The post-apply
+state check fails if either token appears through the unsafe Cloudflare
+resource or any REST response writes a non-empty service-token secret into
+state.
 
 ## First migration
 
@@ -80,9 +95,12 @@ interrupt Access.
    states have settled.
 3. Run a plan for this root while `infra/public-platform` still owns its old
    state entries. The plan must import the application, identity provider, and
-   two service tokens. It may add only the unattached reusable policy and the
-   singleton organization state. Stop if it proposes deleting or replacing an
-   application, policy, identity provider, or service token.
+   two service tokens. The token imports use their existing IDs and the REST
+   provider's collection search. Their one-time normalization may update only
+   the already-current `name` and `duration`; it must not create, delete, or
+   send a secret version. The plan may add only the unattached reusable policy
+   and the singleton organization state. Stop if it proposes deleting or
+   replacing an application, policy, identity provider, or service token.
 4. Review the organization carefully. Cloudflare provider v5 cannot import
    the singleton organization resource. Its create operation updates the one
    organization already attached to the account. The declared name, auth

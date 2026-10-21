@@ -9,6 +9,19 @@ variable "cloudflare_account_id" {
   }
 }
 
+variable "cloudflare_api_token" {
+  description = "Scoped Cloudflare API token used by the REST provider"
+  type        = string
+  sensitive   = true
+  ephemeral   = true
+  nullable    = false
+
+  validation {
+    condition     = length(trimspace(var.cloudflare_api_token)) > 0
+    error_message = "cloudflare_api_token must be supplied through TF_VAR_cloudflare_api_token."
+  }
+}
+
 variable "pages_host" {
   description = "Cloudflare Pages hostname protected by the shared Access application"
   type        = string

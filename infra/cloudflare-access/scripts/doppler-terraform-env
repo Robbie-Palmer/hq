@@ -48,5 +48,6 @@ done
 
 set_if_unset TF_TOKEN_app_terraform_io "$TF_API_TOKEN"
 set_if_unset TF_VAR_cloudflare_account_id "$CLOUDFLARE_ACCOUNT_ID"
+set_if_unset TF_VAR_cloudflare_api_token "$CLOUDFLARE_API_TOKEN"
 
 exec "$@"

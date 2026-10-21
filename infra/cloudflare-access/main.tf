@@ -49,26 +49,6 @@ resource "cloudflare_zero_trust_access_identity_provider" "cloudflare" {
   }
 }
 
-resource "cloudflare_zero_trust_access_service_token" "preview_qa_agents" {
-  account_id = var.cloudflare_account_id
-  name       = "personal-site-preview-qa-agents"
-  duration   = "forever"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "cloudflare_zero_trust_access_service_token" "preview_qa_workflow" {
-  account_id = var.cloudflare_account_id
-  name       = "personal-site-preview-qa-workflow"
-  duration   = "forever"
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
 # This account-level policy is intentionally unattached during the ownership
 # migration. Workloads can adopt it after the imported Pages application and
 # its two existing app-scoped policies have passed recovery testing.
