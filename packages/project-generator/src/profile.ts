@@ -262,7 +262,12 @@ const layoutContractSchema = z
   .passthrough();
 
 const prerequisiteSchema = z.union([
-  z.object({ slot: slotSchema, technology: z.string().min(1).optional() }).strict(),
+  z
+    .object({
+      slot: slotSchema,
+      technology: technologySlugSchema.optional(),
+    })
+    .strict(),
   z.object({ requirement: slugSchema }).strict(),
 ]);
 

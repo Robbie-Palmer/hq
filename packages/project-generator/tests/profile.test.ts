@@ -110,7 +110,7 @@ function contracts(overrides: {
           { requirement: "instrumented-runtime" },
           { requirement: "telemetry-redaction" },
           { requirement: "bounded-exporter-failure" },
-          { slot: "project.task-runner", technology: "mise" },
+          { slot: "project.task-runner", technology: "Mise" },
         ],
       },
     ],
