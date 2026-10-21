@@ -1,0 +1,38 @@
+name: Cloudflare Access Drift
+
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-access-drift
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-cloudflare-access-drift
+    defaults:
+      run:
+        working-directory: infra/cloudflare-access
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check for Terraform drift
+        run: mise run //infra/cloudflare-access:plan:drift
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}

@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mode="${1:?Usage: doppler-terraform-env <plan|drift|apply> <command> [args...]}"
+shift
+
+case "$mode" in
+  plan) config="${DOPPLER_CLOUDFLARE_ACCESS_PLAN_CONFIG:-ops_plan}" ;;
+  drift) config="${DOPPLER_CLOUDFLARE_ACCESS_DRIFT_CONFIG:-ops_drift}" ;;
+  apply) config="${DOPPLER_CLOUDFLARE_ACCESS_APPLY_CONFIG:-ops_apply}" ;;
+  *)
+    echo "Unknown Cloudflare Access credential mode: $mode" >&2
+    exit 2
+    ;;
+esac
+
+project="${DOPPLER_PROJECT:-cloudflare-access}"
+
+if [[ "${DOPPLER_CLOUDFLARE_ACCESS_ENV_WRAPPED:-}" != "1" ]]; then
+  if command -v doppler >/dev/null 2>&1 && [[ "${CI:-}" != "true" ]]; then
+    export DOPPLER_CLOUDFLARE_ACCESS_ENV_WRAPPED=1
+    exec doppler run \
+      --project "$project" \
+      --config "$config" \
+      --preserve-env=DOPPLER_PROJECT,DOPPLER_CLOUDFLARE_ACCESS_PLAN_CONFIG,DOPPLER_CLOUDFLARE_ACCESS_DRIFT_CONFIG,DOPPLER_CLOUDFLARE_ACCESS_APPLY_CONFIG,DOPPLER_CLOUDFLARE_ACCESS_ENV_WRAPPED \
+      -- bash "$0" "$mode" "$@"
+  elif [[ "${CI:-}" != "true" ]]; then
+    echo "Cannot run Cloudflare Access Terraform locally: doppler is required." >&2
+    echo "Install and authenticate the Doppler CLI, then retry." >&2
+    exit 1
+  fi
+fi
+
+set_if_unset() {
+  local name="$1"
+  local value="${2:-}"
+  if [[ -z "${!name:-}" && -n "$value" ]]; then
+    export "$name=$value"
+  fi
+}
+
+for required_name in TF_API_TOKEN CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID; do
+  if [[ -z "${!required_name:-}" ]]; then
+    echo "Cannot run Cloudflare Access $mode: $required_name is missing." >&2
+    exit 1
+  fi
+done
+
+set_if_unset TF_TOKEN_app_terraform_io "$TF_API_TOKEN"
+set_if_unset TF_VAR_cloudflare_account_id "$CLOUDFLARE_ACCOUNT_ID"
+
+exec "$@"

@@ -166,6 +166,8 @@ Run Terraform through mise:
 ```bash
 mise run //infra/public-platform:plan
 mise run //infra/public-platform:apply
+mise run //infra/cloudflare-access:plan
+mise run //infra/cloudflare-access:apply
 mise run //infra/bootstrap:plan
 mise run //infra/bootstrap:apply
 ```
@@ -438,6 +440,9 @@ doppler secrets --project work-graph --config prd_work_graph_backup --only-names
 doppler secrets --project ai-review --config prd --only-names
 doppler secrets --project homelab --config prd_remote_development_infra --only-names
 scripts/sync-doppler-github-envs.sh production-infra-bootstrap-plan
+scripts/sync-doppler-github-envs.sh production-cloudflare-access-plan
+scripts/sync-doppler-github-envs.sh production-cloudflare-access-drift
+scripts/sync-doppler-github-envs.sh production-cloudflare-access
 scripts/sync-doppler-github-envs.sh production-remote-development-infra-plan
 scripts/sync-doppler-github-envs.sh production-remote-development-infra
 scripts/sync-doppler-github-envs.sh production-database-backup
@@ -447,6 +452,7 @@ scripts/sync-doppler-github-envs.sh production-ai-review
 mise run //:dev
 mise run //infra/public-platform:format:check
 mise run //infra/public-platform:precommit-lint
+mise run //infra/cloudflare-access:precommit-lint
 mise run //infra/bootstrap:format:check
 mise run //infra/bootstrap:precommit-lint
 CI=true mise run //workers/recipe-api:typecheck

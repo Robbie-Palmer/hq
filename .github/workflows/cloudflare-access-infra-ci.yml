@@ -1,0 +1,59 @@
+name: Cloudflare Access Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/cloudflare-access/**"
+      - ".github/workflows/cloudflare-access-infra-ci.yml"
+
+permissions: {}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    environment:
+      name: production-cloudflare-access-plan
+    defaults:
+      run:
+        working-directory: infra/cloudflare-access
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check Terraform formatting
+        run: mise run //infra/cloudflare-access:format:check
+
+      - name: Validate Terraform without credentials
+        run: mise run //infra/cloudflare-access:validate
+
+      - name: Test ownership and migration declarations
+        run: mise run //infra/cloudflare-access:test
+
+      - name: Lint Terraform
+        run: mise run //infra/cloudflare-access:lint:tflint
+
+      - name: Terraform plan with read-only credentials
+        run: mise run //infra/cloudflare-access:plan
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Add Terraform plan to PR comment
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
+        with:
+          token: ${{ github.token }}
+          planfile: .planfile
+          working-directory: ./infra/cloudflare-access
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile
