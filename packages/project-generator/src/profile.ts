@@ -60,7 +60,7 @@ const projectKindSchema = z.enum([
 
 const componentKindSchema = z.enum([
   "ui",
-  "web-feature",
+  "project-ui",
   "worker",
   "typescript-package",
   "python-pipeline",
@@ -101,18 +101,18 @@ const componentSchema = z
   })
   .strict()
   .superRefine((component, context) => {
-    if (component.kind === "web-feature" && component.mount_path === undefined) {
+    if (component.kind === "project-ui" && component.mount_path === undefined) {
       context.addIssue({
         code: "custom",
         path: ["mount_path"],
-        message: "is required for a web-feature component",
+        message: "is required for a project-ui component",
       });
     }
-    if (component.kind !== "web-feature" && component.mount_path !== undefined) {
+    if (component.kind !== "project-ui" && component.mount_path !== undefined) {
       context.addIssue({
         code: "custom",
         path: ["mount_path"],
-        message: "is only valid for a web-feature component",
+        message: "is only valid for a project-ui component",
       });
     }
     addDuplicateIssues(
@@ -239,7 +239,7 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     profile.components.flatMap(({ mount_path }) =>
       mount_path === undefined ? [] : [mount_path],
     ),
-    "web feature mount paths",
+    "project UI mount paths",
     context,
   );
   addDuplicateIssues(
@@ -255,7 +255,7 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
   );
 
   const compatibleKinds: Record<z.infer<typeof projectKindSchema>, readonly z.infer<typeof componentKindSchema>[]> = {
-    application: ["ui", "web-feature", "worker"],
+    application: ["ui", "project-ui", "worker"],
     service: ["worker", "python-pipeline"],
     library: ["typescript-package", "cpp-project"],
     "data-pipeline": ["python-pipeline"],

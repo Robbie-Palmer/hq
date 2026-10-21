@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AssetTrackerHistory } from "@/features/personal-finance-app/routes/history";
+import { AssetTrackerHistory } from "@/app/_projects/personal-finance-app/routes/history";
 
 export const metadata: Metadata = { title: "History" };
 

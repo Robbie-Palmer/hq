@@ -8,7 +8,7 @@
   "ignorePatterns": [
     "content/projects/recipe-site/designs/**",
     "e2e/**",
-    "features/**/tests/**",
+    "app/_projects/**/tests/**",
     "tests/**"
   ],
   "rules": {
@@ -31,7 +31,7 @@
         "components/projects/satellite-swarm/**",
         "components/technology/cesium/**",
         "components/ui/tech-icon-orbit.tsx",
-        "features/personal-finance-app/components/**"
+        "app/_projects/personal-finance-app/components/**"
       ],
       "rules": {
         "shadcn/no-raw-colors": "off"

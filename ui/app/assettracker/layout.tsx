@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AssetTrackerLayout as PersonalFinanceLayout } from "@/features/personal-finance-app/routes/layout";
+import { AssetTrackerLayout as PersonalFinanceLayout } from "@/app/_projects/personal-finance-app/routes/layout";
 
 export const metadata: Metadata = {
   title: {

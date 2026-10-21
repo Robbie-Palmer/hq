@@ -230,7 +230,6 @@ function analyzeWithTsmetrics(): AnalysisResult {
       "analyze",
       "app",
       "components",
-      "features",
       "--format",
       "json",
       "--config",

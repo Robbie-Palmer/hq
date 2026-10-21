@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AssetTrackerDecisions } from "@/features/personal-finance-app/routes/decisions";
+import { AssetTrackerDecisions } from "@/app/_projects/personal-finance-app/routes/decisions";
 
 export const metadata: Metadata = { title: "Decisions" };
 

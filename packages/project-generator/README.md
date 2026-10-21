@@ -47,7 +47,7 @@ profiles.
 The adapter records the complete resolved blueprint as a non-secret Copier
 answer. Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace
-packages. A hosted web feature stays inside the existing UI workspace and
+packages. A hosted project UI stays inside the existing UI workspace and
 delegates its checks to `//ui`; it does not create a nested workspace merely to
 express project ownership. Project and component catalog records become typed
 structural edits with compare-before-replace values taken from the checked-in

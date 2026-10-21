@@ -12,7 +12,7 @@ export default defineConfig({
     ...(coverageEnabled
       ? {
           include: [
-            "ui/features/**/tests/**/*.{test,spec}.{ts,tsx}",
+            "ui/app/_projects/**/tests/**/*.{test,spec}.{ts,tsx}",
             "ui/tests/**/*.{test,spec}.{ts,tsx}",
           ],
         }

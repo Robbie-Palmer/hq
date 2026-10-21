@@ -1,0 +1,62 @@
+---
+title: "ADR 042: Project-owned UI in the shared application"
+date: "2026-10-21"
+status: "Accepted"
+supersedes: "personal-engineering-platform:041-project-owned-web-features-in-shared-frontend-hosts"
+---
+
+## Context
+
+[ADR 041](/projects/personal-engineering-platform/adrs/041-project-owned-web-features-in-shared-frontend-hosts)
+separated an incubated product's code from its public route, but described the
+component as a web feature under `ui/features`. That vocabulary understates the
+boundary: Personal Finance and its peers are complete applications incubated
+inside the shared frontend, not optional features of the personal site.
+
+The source path must still give Copier one stable, project-owned subtree while
+the public route can change or gain a dedicated domain. It should not add a
+second application workspace or encode the temporary incubation stage into an
+identity that should survive promotion.
+
+## Decision
+
+Call this component kind `project-ui` and place it under
+`ui/app/_projects/<project>`. The `app` parent supplies the application context;
+the private `_projects` directory groups implementation by stable project
+identity without creating a URL segment.
+
+The shared public route remains a thin adapter. For Personal Finance,
+`ui/app/assettracker` mounts the public entry points owned by
+`ui/app/_projects/personal-finance-app`. Its project profile records
+`mount_path: /assettracker`, while its component identity and owned source path
+remain independent of that address.
+
+A project UI remains part of the existing `ui` mise and pnpm workspace. Its
+standard tasks delegate to `//ui`. The directory marks ownership while build
+and deployment boundaries remain unchanged.
+
+## Alternatives
+
+Keeping `web-feature` and `ui/features` would preserve the first contract, but
+would continue to describe full incubated applications as features and put
+application code beside, rather than within, the established application tree.
+
+Using `ui/incubated-apps` would state the current lifecycle clearly. Promotion
+would then make the durable source path misleading or force a move unrelated to
+runtime architecture.
+
+Putting product behavior directly in each public route would avoid an adapter,
+but would couple project ownership to a route slug such as `assettracker` and
+make a domain or route change a source-ownership migration.
+
+## Consequences
+
+The repository, project profile, and source tree now use project ownership
+rather than feature terminology. Incubated applications stay in one Next.js
+bundle without losing a Copier-owned boundary, and promotion does not require a
+rename merely because the product receives its own domain.
+
+The `_projects` convention is specific to the shared Next.js host. A project
+that later needs independent dependencies, configuration, release cadence, or
+failure isolation must still create a real application boundary and migrate
+its component path deliberately.

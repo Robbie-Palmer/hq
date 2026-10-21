@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AssetTrackerMortgage } from "@/features/personal-finance-app/routes/mortgage";
+import { AssetTrackerMortgage } from "@/app/_projects/personal-finance-app/routes/mortgage";
 
 export const metadata: Metadata = { title: "Mortgage planning" };
 

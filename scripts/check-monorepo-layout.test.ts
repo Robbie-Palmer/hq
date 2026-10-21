@@ -59,14 +59,14 @@ describe("monorepo layout contract", () => {
 
   it("requires component task ownership or delegation", async () => {
     const contract = structuredClone(await loadLayoutContract(repositoryRoot));
-    const webFeature = contract.component_kinds.find(
-      ({ id }) => id === "web-feature",
+    const projectUi = contract.component_kinds.find(
+      ({ id }) => id === "project-ui",
     );
-    if (!webFeature) throw new Error("Missing web-feature component kind");
-    delete webFeature.delegated_task_project;
+    if (!projectUi) throw new Error("Missing project-ui component kind");
+    delete projectUi.delegated_task_project;
 
     expect(validateLayoutContract(contract)).toContain(
-      "Component kind 'web-feature' without a mise root must delegate its tasks",
+      "Component kind 'project-ui' without a mise root must delegate its tasks",
     );
   });
 
