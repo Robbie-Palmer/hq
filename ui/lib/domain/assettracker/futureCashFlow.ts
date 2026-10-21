@@ -156,6 +156,7 @@ export const CommitmentStageSchema = z.union([
 export type CommitmentStage = z.infer<typeof CommitmentStageSchema>;
 
 const DecisionAmountShape = {
+  groupId: z.string().trim().min(1).optional(),
   earliestDate: z.iso.date().optional(),
   expectedDate: z.iso.date(),
   latestDate: z.iso.date().optional(),
@@ -219,6 +220,24 @@ export const DecisionStageSchema = z.union([
 ]);
 export type DecisionStage = z.infer<typeof DecisionStageSchema>;
 
+export const DecisionStageGroupUnresolvedCostSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  amount: z.number().positive().optional(),
+  date: z.iso.date().optional(),
+});
+export type DecisionStageGroupUnresolvedCost = z.infer<
+  typeof DecisionStageGroupUnresolvedCostSchema
+>;
+
+export const DecisionStageGroupSchema = z.object({
+  id: z.string().trim().min(1),
+  name: z.string().trim().min(1),
+  status: z.enum(["considering", "committed"]),
+  unresolvedCosts: z.array(DecisionStageGroupUnresolvedCostSchema).optional(),
+});
+export type DecisionStageGroup = z.infer<typeof DecisionStageGroupSchema>;
+
 const FutureCashFlowBaseShape = {
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
@@ -253,6 +272,7 @@ export const CashFlowDecisionSchema = z.object({
     .default("reversible"),
   dependencyIds: z.array(z.string().trim().min(1)).default([]),
   alternativeToIds: z.array(z.string().trim().min(1)).default([]),
+  groups: z.array(DecisionStageGroupSchema).optional(),
   stages: z.array(DecisionStageSchema).min(1),
 });
 export type CashFlowDecision = z.infer<typeof CashFlowDecisionSchema>;

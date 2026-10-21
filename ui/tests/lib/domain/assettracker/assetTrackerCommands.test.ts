@@ -1590,6 +1590,98 @@ describe("future cash-flow planning", () => {
     });
   });
 
+  it("persists decision stage groups when later updates omit them", () => {
+    const added = applyAddCashFlowDecision(
+      baseData(),
+      {
+        name: "Wedding",
+        labels: ["itemised-scenario"],
+        currency: "GBP",
+        groups: [
+          {
+            id: "venue",
+            name: "Venue",
+            status: "committed",
+            unresolvedCosts: [{ id: "balance", name: "Remaining balance" }],
+          },
+        ],
+        stages: [
+          {
+            name: "Deposit",
+            groupId: "venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-05-01",
+            minimumAmount: 750,
+            expectedAmount: 750,
+            maximumAmount: 750,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    const updated = applyUpdateCashFlowDecision(
+      added,
+      {
+        id: "wedding",
+        name: "Wedding",
+        labels: ["itemised-scenario"],
+        currency: "GBP",
+        stages: [
+          {
+            id: "cash-flow-1",
+            name: "Deposit",
+            groupId: "venue",
+            fromAccountId: "savings",
+            expectedDate: "2099-05-02",
+            minimumAmount: 750,
+            expectedAmount: 750,
+            maximumAmount: 750,
+          },
+        ],
+      },
+      TEST_AS_OF_DATE,
+    );
+
+    expect(updated.futureCashFlows[0]).toMatchObject({
+      groups: [
+        {
+          id: "venue",
+          name: "Venue",
+          status: "committed",
+          unresolvedCosts: [{ id: "balance", name: "Remaining balance" }],
+        },
+      ],
+      stages: [{ groupId: "venue" }],
+    });
+  });
+
+  it("rejects a decision stage that names a missing group", () => {
+    expect(() =>
+      applyAddCashFlowDecision(
+        baseData(),
+        {
+          name: "Wedding",
+          labels: ["itemised-scenario"],
+          currency: "GBP",
+          groups: [{ id: "venue", name: "Venue", status: "committed" }],
+          stages: [
+            {
+              name: "Flowers",
+              groupId: "flowers",
+              fromAccountId: "savings",
+              expectedDate: "2099-05-01",
+              minimumAmount: 500,
+              expectedAmount: 500,
+              maximumAmount: 500,
+            },
+          ],
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow("No decision stage group found with ID flowers");
+  });
+
   it("reserves retained stage IDs when inserting an earlier cost", () => {
     const added = applyAddCashFlowDecision(
       baseData(),

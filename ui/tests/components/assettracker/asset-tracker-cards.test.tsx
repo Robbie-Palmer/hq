@@ -1148,7 +1148,12 @@ describe("PortfolioGoal", () => {
       screen.getByText("3.6 months less after future cash flows"),
     ).toBeVisible();
     expect(screen.getByText("12.0 years")).toBeVisible();
-    expect(screen.getByText("Around Jul 2038")).toBeVisible();
+    expect(screen.getByText("Simple FI projection")).toBeVisible();
+    expect(
+      screen.getByText(
+        /Around Jul 2038.*dated future plans appear in Expected runway and Decision outlook/,
+      ),
+    ).toBeVisible();
     expect(
       screen.getByRole("img", {
         name: "Projected portfolio net worth against the financial independence target",
@@ -1455,7 +1460,7 @@ describe("DecisionScenarioComparison", () => {
           id: "extension:build",
           sourceDecisionId: "extension",
           sourceStageId: "build",
-          accountId: "cash",
+          accountId: "current",
           date: "2027-07-01",
           cadence: "once" as const,
           kind: "payment" as const,
@@ -1549,6 +1554,13 @@ describe("DecisionScenarioComparison", () => {
         name: "Runway effect versus committed-only",
       }),
     ).toBeVisible();
+    const fundingChecks = screen.getByRole("table", {
+      name: "Projected funding account balance and reserve coverage for each payment",
+    });
+    expect(within(fundingChecks).getAllByText("1 Jul 2027")).toHaveLength(2);
+    expect(within(fundingChecks).getByText("£20,000")).toBeVisible();
+    expect(within(fundingChecks).getByText("5.0 months")).toBeVisible();
+    expect(within(fundingChecks).getByText("Funded")).toBeVisible();
     await userEvent.click(
       screen.getByRole("button", { name: "Adopt as live forecast" }),
     );
