@@ -72,7 +72,7 @@ function isTestPath(path: string): boolean {
   const normalizedPath = path.replaceAll("\\", "/");
 
   return (
-    normalizedPath.split("/").some((segment) => segment === "tests") ||
+    normalizedPath.split("/").includes("tests") ||
     /\.(?:spec|test)\.[cm]?[jt]sx?$/u.test(normalizedPath)
   );
 }
