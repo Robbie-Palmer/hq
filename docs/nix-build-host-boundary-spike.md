@@ -1,7 +1,6 @@
 # Nix build, OCI image, and NixOS host boundary spike
 
 - Status: ADR-ready recommendation
-- Work item: `pep-nix-build-host-spike`
 - Experiment history: [pull request #1846](https://github.com/Robbie-Palmer/hq/pull/1846)
 
 ## Question

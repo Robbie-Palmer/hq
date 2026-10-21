@@ -7,79 +7,44 @@ tech_stack: ["Ente"]
 
 # Context
 
-A document drive contains files used every day, and a backup restores a large
-archive after loss. Neither answers the narrower emergency question: what does
-the owner or a trusted person need to recover the most important accounts and
-documents when the usual devices are unavailable?
+A document library and its backup do not answer the narrower emergency
+question: what does the owner or a trusted person need when the usual devices
+are unavailable?
 
-Ente Locker is designed for a small collection of identity documents, recovery
-codes, and notes. It is not a generic drive, photo library, TOTP generator, or
-daily password manager. Ente recommends using it alongside those tools. The
-existing Ente Photos subscription raises Locker's allowance to 1,000 items and
-10 GB at no extra cost.
-
-Locker currently has no bulk export. That makes it unsuitable as the only copy
-or canonical authoring system for recovery material.
-
-Locker has three distinct ways to involve another person. A shared collection
-gives another Ente user routine read-only access. A public link gives anyone
-holding its bearer URL access until the link is deleted. A trusted contact or
-two Legacy Kit sheets can recover the whole Ente account after the configured
-waiting period. Legacy recovers the account. Shared collections provide packet
-access.
+Ente Locker stores a small collection of documents, notes, and recovery codes.
+The existing paid Ente account includes 1,000 Locker items and 10 GB at no
+extra cost. Locker has [no bulk
+export](https://ente.com/help/locker/faq/getting-started), so it cannot be the
+canonical store or hold the only copy of an item.
 
 # Decision
 
 Use [Ente Locker](https://ente.com/help/locker/) as a mobile copy of a small
-recovery packet. Share a dedicated collection with a trusted Ente user when
-routine read-only access is required. Keep the canonical packet in an
-encrypted local directory covered by the Home Lab's proposed
+recovery packet. Keep the canonical packet in an encrypted local directory
+covered by the Home Lab's proposed
 [restic and B2 archive](/projects/homelab/adrs/023-restic-backblaze-personal-archive).
-Keep the minimum printed or hardware-held material needed when every cloud
-account is locked.
+Keep the Ente recovery key and the minimum material needed to unlock that
+archive outside Ente.
 
-The first packet covers:
+The packet may contain:
 
 * password-manager and primary-email recovery instructions;
-* the location and purpose of hardware security keys;
-* domain registrar and renewal instructions;
-* insurance, identity, and emergency-contact documents;
-* Ente, Proton, Doppler, and restic recovery steps; and
-* instructions that a trusted person can follow without knowing the homelab.
+* locations and purposes of hardware security keys;
+* domain, insurance, identity, and emergency-contact records; and
+* instructions a trusted person can follow without knowing the homelab.
 
-Do not store the only Ente recovery key inside Ente. Do not copy the complete
-password vault into Locker. Record a canonical source and an Ente-independent
-recovery path for every Locker item. [ADR
-001](/projects/personal-digital-infrastructure/adrs/001-proton-pass-trial)
-governs daily and agent credentials. [ADR
-000](/projects/personal-digital-infrastructure/adrs/000-filen-document-library-trial)
-governs the general document library.
+Do not store a complete password vault, live TOTP seeds, private hardware-key
+material, or the only copy of any recovery secret. Record a canonical source
+and an Ente-independent recovery path for every Locker item.
 
-Do not use a public link for the standing packet. Its decryption key is part of
-the URL, it does not identify the viewer, and removing a collection member does
-not revoke it. A short-lived link is acceptable for a harmless item only when
-the owner deletes and tests the link after use.
+Use a [shared
+collection](https://ente.com/help/locker/features/sharing/share-with-users) for
+routine read-only access by another Ente user. Do not use a public link for the
+standing packet because anyone with the URL can read it. Treat trusted contacts
+and Legacy Kits as whole-account recovery mechanisms, not packet sharing.
 
-Treat Legacy as a separate account-recovery decision. A trusted contact can
-reset the account password after a 7, 14, or 30 day wait. A Legacy Kit lets any
-holder of two of its three sheets start whole-account recovery. Blocking a kit
-attempt does not disable its sheets; deleting the kit does. Do not create a
-production kit until its wait period, sheet custody, destruction, and recovery
-key-change procedure are documented.
-
-The acceptance drill used two throwaway accounts and three harmless files. A
-clean mobile-sized session retrieved all three with byte-for-byte matches. A
-second user received read-only access, and removing that user removed the
-collection immediately. The complete Locker inventory reconciled with its
-independent sources. The separately created public link confirmed the bearer
-URL model; Ente's deletion control remains mandatory after each exceptional
-use. Review the packet every six months and after changing the password
-manager, primary email, domain registrar, backup provider, hardware keys, Ente
-recovery key, or Legacy configuration.
-
-Ente Locker has no incremental cost for the existing paid Photos account. Its
-[paid limits and export limitation](https://ente.com/help/locker/faq/getting-started)
-must be rechecked during each six-month review.
+A synthetic test confirmed file integrity, retrieval from a clean session,
+read-only collection sharing, and removal of the recipient's access.
 
 # Alternatives
 
@@ -102,12 +67,11 @@ scope is useful only while the recovery packet stays small.
 
 # Consequences
 
-Critical instructions become available on mobile and, through a shared
-collection, to a known Ente user without creating another unbounded file silo.
-Every Locker item still needs an independently recoverable source, and a
-recovery drill must use more than the owner's already logged-in phone.
+Critical instructions are available on a new device and to a known Ente user
+without making Locker another document library. Every item still needs an
+independently recoverable source.
 
-Locker adds two high-impact bearer capabilities. A leaked public URL exposes
-its item or collection until deletion. Two Legacy Kit sheets can eventually
-recover the full account. Those mechanisms need separate revocation drills and
-must not be mistaken for ordinary collection membership.
+Public links and Legacy recovery can expose more than a shared collection.
+They need separate controls and must not be mistaken for collection
+membership. Revisit this decision if the packet's canonical store changes or
+Ente changes its export, sharing, or recovery behavior.
