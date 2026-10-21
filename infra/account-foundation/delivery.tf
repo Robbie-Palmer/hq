@@ -14,19 +14,13 @@ locals {
             personal_configs = false
             configs = {
               plan = {
-                name        = "ops_plan"
-                inheritable = false
-                inherits    = []
+                name = "ops_plan"
               }
               drift = {
-                name        = "ops_drift"
-                inheritable = false
-                inherits    = []
+                name = "ops_drift"
               }
               apply = {
-                name        = "ops_apply"
-                inheritable = false
-                inherits    = []
+                name = "ops_apply"
               }
             }
           }
@@ -98,8 +92,6 @@ locals {
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config.name
-          inheritable = config.inheritable
-          inherits    = config.inherits
         }
       }
     ]
@@ -169,8 +161,6 @@ resource "doppler_config" "managed" {
   project     = doppler_project.managed[each.value.project].name
   environment = doppler_environment.managed["${each.value.project}/${each.value.environment}"].slug
   name        = each.value.name
-  inheritable = each.value.inheritable
-  inherits    = each.value.inherits
 
   lifecycle {
     prevent_destroy = true
