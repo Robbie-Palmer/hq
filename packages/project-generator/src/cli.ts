@@ -3,6 +3,13 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { initTRPC } from "@trpc/server";
+import {
+  createCli,
+  FailedToExitError,
+  type TrpcCliMeta,
+} from "trpc-cli";
+import { z } from "zod";
 import {
   parseProjectPlan,
   parseTemplateRegistry,
@@ -11,52 +18,40 @@ import {
 import {
   executeProjectPlan,
   type GenerationMode,
+  type GenerationResult,
 } from "./engine.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
 
-interface CliInput {
-  readonly mode: GenerationMode;
-  readonly planPath: string;
-  readonly repository: string;
-  readonly registryPath: string;
+interface CommandContext {
+  readonly workingDirectory: string;
 }
 
-function usage(): string {
-  return [
-    "Usage: project-generator <plan|dry-run|create|update> <plan.yaml> [options]",
-    "",
-    "Options:",
-    "  --repository <path>  Existing Git checkout to manage, defaults to cwd",
-    `  --registry <path>    Trusted template registry, defaults to ${DEFAULT_REGISTRY}`,
-  ].join("\n");
+export interface CliDependencies {
+  readonly stderr?: (text: string) => void;
+  readonly stdout?: (text: string) => void;
+  readonly workingDirectory?: string;
 }
 
-export function parseCliArguments(args: readonly string[]): CliInput {
-  const [mode, planPath, ...options] = args;
-  if (!mode || !["plan", "dry-run", "create", "update"].includes(mode)) {
-    throw new Error(usage());
-  }
-  if (!planPath || planPath.startsWith("--")) throw new Error(usage());
-  let repository = process.cwd();
-  let registryPath = DEFAULT_REGISTRY;
-  for (let index = 0; index < options.length; index += 2) {
-    const option = options[index];
-    const value = options[index + 1];
-    if (!value || (option !== "--repository" && option !== "--registry")) {
-      throw new Error(usage());
-    }
-    if (option === "--repository") repository = value;
-    else registryPath = value;
-  }
-  return {
-    mode: mode as GenerationMode,
-    planPath: path.resolve(planPath),
-    repository: path.resolve(repository),
-    registryPath: path.resolve(registryPath),
-  };
-}
+const t = initTRPC.context<CommandContext>().meta<TrpcCliMeta>().create();
+
+const projectCommandInput = z.object({
+  planPath: z
+    .string()
+    .describe("Project plan YAML path")
+    .meta({ positional: true }),
+  repository: z
+    .string()
+    .optional()
+    .describe("Existing Git checkout to manage; defaults to cwd"),
+  registry: z
+    .string()
+    .optional()
+    .describe(`Trusted template registry; defaults to ${DEFAULT_REGISTRY}`),
+});
+
+type ProjectCommandInput = z.infer<typeof projectCommandInput>;
 
 function resolveTemplateSource(
   template: TemplateSource,
@@ -76,11 +71,23 @@ function resolveTemplateSource(
   };
 }
 
-export async function main(args = process.argv.slice(2)): Promise<void> {
-  const input = parseCliArguments(args);
+async function runProjectCommand(
+  context: CommandContext,
+  input: ProjectCommandInput,
+  mode: GenerationMode,
+): Promise<GenerationResult | string> {
+  const planPath = path.resolve(context.workingDirectory, input.planPath);
+  const repository = path.resolve(
+    context.workingDirectory,
+    input.repository ?? ".",
+  );
+  const registryPath = path.resolve(
+    context.workingDirectory,
+    input.registry ?? DEFAULT_REGISTRY,
+  );
   const [planSource, registrySource] = await Promise.all([
-    readFile(input.planPath, "utf8"),
-    readFile(input.registryPath, "utf8"),
+    readFile(planPath, "utf8"),
+    readFile(registryPath, "utf8"),
   ]);
   const plan = parseProjectPlan(planSource);
   const registry = parseTemplateRegistry(registrySource);
@@ -91,15 +98,83 @@ export async function main(args = process.argv.slice(2)): Promise<void> {
     );
   }
   const result = await executeProjectPlan({
-    repository: input.repository,
-    mode: input.mode,
+    repository,
+    mode,
     plan,
-    template: resolveTemplateSource(selected, input.registryPath),
+    template: resolveTemplateSource(selected, registryPath),
   });
-  if (input.mode === "dry-run") {
-    process.stdout.write(result.diff || "No changes.\n");
-  } else {
-    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+}
+
+export const projectGeneratorRouter = t.router({
+  plan: t.procedure
+    .meta({
+      description: "Produce a machine-readable Copier project change plan",
+    })
+    .input(projectCommandInput)
+    .query(({ ctx, input }) => runProjectCommand(ctx, input, "plan")),
+  dryRun: t.procedure
+    .meta({
+      description: "Render and check a Copier project change without applying it",
+    })
+    .input(projectCommandInput)
+    .query(({ ctx, input }) => runProjectCommand(ctx, input, "dry-run")),
+  create: t.procedure
+    .meta({
+      description: "Create a Copier-managed project in the current monorepo",
+    })
+    .input(projectCommandInput)
+    .mutation(({ ctx, input }) => runProjectCommand(ctx, input, "create")),
+  update: t.procedure
+    .meta({
+      description: "Update a Copier-managed project in the current monorepo",
+    })
+    .input(projectCommandInput)
+    .mutation(({ ctx, input }) => runProjectCommand(ctx, input, "update")),
+});
+
+export async function runCli(
+  args = process.argv.slice(2),
+  dependencies: CliDependencies = {},
+): Promise<number> {
+  const stdout =
+    dependencies.stdout ?? ((text: string) => process.stdout.write(text));
+  const stderr =
+    dependencies.stderr ?? ((text: string) => process.stderr.write(text));
+  const cli = createCli({
+    router: projectGeneratorRouter,
+    context: {
+      workingDirectory: dependencies.workingDirectory ?? process.cwd(),
+    },
+    name: "project-generator",
+    version: "0.1.0",
+    description: "Safe Copier lifecycle for projects in the shared monorepo",
+    jsonInput: "auto",
+  });
+
+  try {
+    await cli.run({
+      argv: [...args],
+      prompts: false,
+      process: { exit: () => undefined as never },
+      logger: {
+        info: (value: unknown) => {
+          if (typeof value === "string") {
+            stdout(value.endsWith("\n") ? value : `${value}\n`);
+          } else {
+            stdout(`${JSON.stringify(value, null, 2)}\n`);
+          }
+        },
+        error: (value: unknown) => {
+          const message = value instanceof Error ? value.message : String(value);
+          stderr(message.endsWith("\n") ? message : `${message}\n`);
+        },
+      },
+    });
+    return 0;
+  } catch (error) {
+    if (error instanceof FailedToExitError) return error.exitCode;
+    throw error;
   }
 }
 
@@ -108,10 +183,14 @@ const invokedPath = process.argv[1]
   : undefined;
 /* v8 ignore start -- exercised by invoking the CLI through mise */
 if (invokedPath === import.meta.url) {
-  main().catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`${message}\n`);
-    process.exitCode = 1;
-  });
+  runCli()
+    .then((exitCode) => {
+      process.exitCode = exitCode;
+    })
+    .catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      process.stderr.write(`${message}\n`);
+      process.exitCode = 1;
+    });
 }
 /* v8 ignore stop */

@@ -2,8 +2,8 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { parse, stringify } from "yaml";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { main, parseCliArguments } from "../src/cli.js";
+import { afterEach, describe, expect, it } from "vitest";
+import { runCli } from "../src/cli.js";
 import {
   parseProjectPlan,
   parseTemplateRegistry,
@@ -106,8 +106,8 @@ async function commitTemplate(root: string, message: string): Promise<string> {
   return revision;
 }
 
-async function createRepository(): Promise<string> {
-  const root = await temporaryDirectory("project-repository");
+async function createGitRepositoryFixture(): Promise<string> {
+  const root = await temporaryDirectory("git-repository-fixture");
   await git(root, "init", "--quiet");
   await write(
     root,
@@ -285,7 +285,7 @@ describe("project plan contracts", () => {
 
 describe("shared manifest edits", () => {
   it("preserves unrelated content and is idempotent", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const edits = makePlan("a".repeat(40)).shared_manifest_edits;
     await expect(applySharedManifestEdits(repository, edits)).resolves.toHaveLength(
       4,
@@ -300,7 +300,7 @@ describe("shared manifest edits", () => {
   });
 
   it("requires the declared previous value before replacing a record", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const layoutPath = path.join(
       repository,
       "ui/content/projects/personal-engineering-platform/repository-layout.yaml",
@@ -345,7 +345,7 @@ describe("shared manifest edits", () => {
   });
 
   it("rejects malformed or structurally unexpected manifests", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     await writeFile(path.join(repository, "pnpm-workspace.yaml"), "packages: [\n", "utf8");
     await expect(
       applySharedManifestEdits(repository, [
@@ -369,7 +369,7 @@ describe("shared manifest edits", () => {
 
 describe("Copier engine", () => {
   it("creates a project from a dirty checkout and replans idempotently", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
     await write(repository, "notes/local.txt", "unrelated working copy edit\n");
     const plan = makePlan(template.revision);
@@ -436,7 +436,7 @@ describe("Copier engine", () => {
   });
 
   it("updates template-owned files and preserves hand-written domain code", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
     const source = templateSource(template.source);
     const initialPlan = makePlan(template.revision);
@@ -496,7 +496,7 @@ describe("Copier engine", () => {
   });
 
   it("rejects unresolved update conflicts without changing the checkout", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
     const source = templateSource(template.source);
     const initialPlan = makePlan(template.revision);
@@ -538,7 +538,7 @@ describe("Copier engine", () => {
   });
 
   it("rejects template writes outside declared ownership", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate({
       extraFile: { path: "README.md.jinja", source: "unauthorized\n" },
     });
@@ -556,7 +556,7 @@ describe("Copier engine", () => {
   });
 
   it("rejects shared-manifest ownership and explicit operation mismatches", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
     const source = templateSource(template.source);
     const plan = makePlan(template.revision);
@@ -590,7 +590,7 @@ describe("Copier engine", () => {
   });
 
   it("rejects rejection files and checks that mutate the candidate", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const rejectingTemplate = await createTemplate({
       extraFile: {
         path: "packages/{{ project_id }}/generated.rej.jinja",
@@ -619,29 +619,43 @@ describe("Copier engine", () => {
 });
 
 describe("CLI", () => {
-  it("parses supported commands and path options", () => {
-    const parsed = parseCliArguments([
-      "plan",
-      "profile.yaml",
-      "--repository",
-      "fixture",
-      "--registry",
-      "templates.yaml",
-    ]);
-    expect(parsed.mode).toBe("plan");
-    expect(parsed.planPath).toBe(path.resolve("profile.yaml"));
-    expect(parsed.repository).toBe(path.resolve("fixture"));
+  it("derives commands, positional arguments, and options from the router schemas", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const dependencies = {
+      stdout: (text: string) => stdout.push(text),
+      stderr: (text: string) => stderr.push(text),
+    };
+
+    expect(await runCli(["--help"], dependencies)).toBe(0);
+    expect(stdout.join("")).toContain("dry-run");
+    stdout.length = 0;
+
+    expect(await runCli(["create", "--help"], dependencies)).toBe(0);
+    const help = stdout.join("");
+    expect(help).toContain("Create a Copier-managed project");
+    expect(help).toContain("Project plan YAML path");
+    expect(help).toContain("--repository [string]");
+    expect(help).toContain("--registry [string]");
+    expect(stderr).toEqual([]);
   });
 
-  it("rejects incomplete invocations", () => {
-    expect(() => parseCliArguments(["delete", "profile.yaml"])).toThrow(/Usage/);
-    expect(() => parseCliArguments(["create", "profile.yaml", "--registry"])).toThrow(
-      /Usage/,
+  it("rejects unknown commands and missing option values", async () => {
+    const stderr: string[] = [];
+    const dependencies = {
+      stdout: () => undefined,
+      stderr: (text: string) => stderr.push(text),
+    };
+
+    expect(await runCli(["delete", "profile.yaml"], dependencies)).toBe(1);
+    expect(await runCli(["create", "profile.yaml", "--registry"], dependencies)).toBe(
+      1,
     );
+    expect(stderr.join(" ")).toMatch(/unknown command|argument missing/iu);
   });
 
   it("runs machine-readable plan and dry-run modes from files", async () => {
-    const repository = await createRepository();
+    const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
     const configuration = await temporaryDirectory("project-generator-config");
     const planPath = path.join(configuration, "plan.yaml");
@@ -661,38 +675,27 @@ describe("CLI", () => {
       "utf8",
     );
     const output: string[] = [];
-    const stdout = vi
-      .spyOn(process.stdout, "write")
-      .mockImplementation((chunk: string | Uint8Array) => {
-        output.push(String(chunk));
-        return true;
-      });
-    try {
-      await main([
-        "plan",
-        planPath,
-        "--repository",
-        repository,
-        "--registry",
-        registryPath,
-      ]);
-      expect(JSON.parse(output.join(""))).toMatchObject({
-        projectId: "alpha",
-        applied: false,
-      });
-      output.length = 0;
-      await main([
-        "dry-run",
-        planPath,
-        "--repository",
-        repository,
-        "--registry",
-        registryPath,
-      ]);
-      expect(output.join("")).toContain("diff --git");
-    } finally {
-      stdout.mockRestore();
-    }
+    const dependencies = {
+      workingDirectory: configuration,
+      stdout: (text: string) => output.push(text),
+      stderr: () => undefined,
+    };
+    const args = [
+      "plan.yaml",
+      "--repository",
+      path.relative(configuration, repository),
+      "--registry",
+      path.basename(registryPath),
+    ];
+
+    expect(await runCli(["plan", ...args], dependencies)).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      projectId: "alpha",
+      applied: false,
+    });
+    output.length = 0;
+    expect(await runCli(["dry-run", ...args], dependencies)).toBe(0);
+    expect(output.join("")).toContain("diff --git");
   });
 
   it("rejects a plan whose template is not allowlisted", async () => {
@@ -705,8 +708,15 @@ describe("CLI", () => {
       "schema_version: 1\ntemplates: []\n",
       "utf8",
     );
-    await expect(main(["plan", planPath, "--registry", registryPath])).rejects.toThrow(
-      /not present in the trusted registry/,
+    const stderr: string[] = [];
+    expect(
+      await runCli(["plan", planPath, "--registry", registryPath], {
+        stdout: () => undefined,
+        stderr: (text) => stderr.push(text),
+      }),
+    ).toBe(1);
+    expect(stderr.join(" ")).toContain(
+      "not present in the trusted registry",
     );
   });
 });
