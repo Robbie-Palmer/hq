@@ -48,9 +48,9 @@ names:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-Mark `CLOUDFLARE_ACCOUNT_ID` unmasked in Doppler so the sync publishes it as a
-GitHub environment variable. After the account-foundation apply creates the
-environment protections, sync all three configs:
+Keep all three values masked in Doppler. The sync publishes them as GitHub
+environment secrets after the account-foundation apply creates the environment
+protections:
 
 ```bash
 mise run //infra/cloudflare-access:credentials:sync
