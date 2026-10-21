@@ -37,6 +37,8 @@ override_resource {
 }
 
 variables {
+  enable_existing_imports = false
+
   hcp_projects = {
     canary = {
       name               = "Account foundation canary"

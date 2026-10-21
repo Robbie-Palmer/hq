@@ -68,18 +68,16 @@ required by the workflow (`bash`, `curl`, `jq`, and Doppler).
 
 ## One-time prerequisites
 
-Create these before the first apply:
+Prepare these before the first apply:
 
-- HCP Terraform workspace `personal-site-work-graph`, set to local execution.
-- Doppler project `work-graph`, with configs `prd_work_graph_infra` and
-  `prd_work_graph`. Create `prd_work_graph_backup` before enabling scheduled
-  backups. The separate project avoids coupling Work Graph access to the
-  personal-site runtime configs.
-- GitHub environments `production-work-graph-infra` and
-  `production-work-graph`. Scheduled backups also use
-  `production-work-graph-backup`. Restrict all three environments to protected
-  branches without required reviewers so merges and scheduled jobs run
-  automatically.
+- The account-foundation registry entry for `work-graph`. It owns the
+  `personal-site-work-graph` HCP workspace, the `work-graph` Doppler project
+  and config structure, and the three protected-branch GitHub environments.
+  Change those containers in `infra/account-foundation`, not in provider
+  dashboards.
+- Populate `prd_work_graph_infra`, `prd_work_graph`, and
+  `prd_work_graph_backup` with their workload values. The separate project
+  avoids coupling Work Graph access to the personal-site runtime configs.
 - A Doppler service token that can update `prd_work_graph`. Store it only as
   masked `WORK_GRAPH_DOPPLER_SERVICE_TOKEN` in `prd_work_graph_infra`.
 - `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `NEON_API_KEY`,

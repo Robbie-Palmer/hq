@@ -1,12 +1,12 @@
 # Account foundation ownership inventory
 
-Last verified against the provider APIs on 2026-10-15. This inventory is the
+Last verified against the provider APIs on 2026-10-21. This inventory is the
 input to the account-foundation work described by
 [ADR 027](../../ui/content/projects/personal-engineering-platform/adrs/027-account-foundations-as-code.mdx).
 It records resource names, non-secret IDs, settings, dependencies, and intended
 owners. It does not record secret values.
 
-The term `account-foundation` below means the planned
+The term `account-foundation` below means the
 `infra/account-foundation` Terraform root. `cloudflare-access` means the
 provider-wide `infra/cloudflare-access` root. A workload owner names
 the root that owns the resource after migration, even when that root still
@@ -40,8 +40,8 @@ themselves.
 | Provider owner accounts and billing for HCP Terraform, Doppler, GitHub, Cloudflare, Google Cloud, Neon, PostHog, and Hetzner | An API resource cannot own the legal account or billing agreement that authorizes its provider. | Provider recovery contacts, billing access, and recovery codes stay outside this repository and outside the provider they recover. |
 | Human owner login, multifactor authentication, and break-glass access for each provider | Automation must not be the only route to repair its own identity or state. | Exercise a human login before restricting dashboard writes. |
 | `Robbie-Palmer/hq`, its default branch, and repository-owner access | The repository must exist before it can declare the platform. | GitHub owner recovery remains independent of Actions and Doppler. |
-| Planned account-foundation HCP workspace in the `robbie-palmer` organization, set to local execution | The root cannot create, rename, delete, or recover its own state container. | Keep the workspace ID and HCP owner recovery with the seed. Do not grant it global remote-state access. |
-| Planned account-foundation Doppler config and its initial provider credentials | Doppler project structure cannot supply the credential used to create itself. | Store only the account-foundation credentials in the seed config. Coding-agent and pull-request jobs must not receive them. |
+| Account-foundation HCP workspace in the `robbie-palmer` organization, set to local execution | The root cannot create, rename, delete, or recover its own state container. | Keep the workspace ID and HCP owner recovery with the seed. Do not grant it global remote-state access. |
+| Account-foundation Doppler configs and their initial provider credentials | Doppler project structure cannot supply the credential used to create itself. | Store only the account-foundation credentials in the seed configs. Coding-agent and pull-request jobs must not receive them. |
 | Initial HCP, Doppler, GitHub, and provider administration credentials used by account-foundation | Revoking the credential during the apply that replaces it could strand the root. | Replace a credential only after a second credential has completed a no-change plan and the break-glass path has been tested. |
 
 Workload API tokens, R2 keys, Access service tokens, database credentials, and
@@ -50,10 +50,10 @@ listed below.
 
 ## HCP Terraform
 
-All six workspaces are in the provider-created `Default Project`
+All eight workspaces are in the provider-created `Default Project`
 (`prj-ZVLoxaAVYbBEHJwH`). They use local execution, disable auto-apply, disable
 global remote-state access, have no explicit remote-state consumers, and were
-unlocked when checked. `account-foundation` will own the project and workspace
+unlocked when checked. `account-foundation` owns the project and workspace
 containers. The workload root in the last column remains the sole owner of the
 state payload.
 
@@ -65,6 +65,8 @@ state payload.
 | `personal-site-remote-development-cluster` (`ws-ZbESd7FQxv44fJma`) | `1.16.4` | `account-foundation` | Legacy Kube-Hetzner candidate state. No checked-in root currently references it. Keep its payload frozen until a separate review proves it can be archived or assigns it to a restored workload root. |
 | `personal-site-work-graph` (`ws-k55u12qJwQPzzNks`) | `1.16.2` | `account-foundation` | `infra/work-graph`; preserve the production service and credential-safe state boundary. |
 | `personal-blog` (`ws-HjanmaPgxFzm1t8F`) | `1.13.3` | `account-foundation` | Legacy state with no checked-in root reference. Keep its payload frozen until a separate review identifies or retires it. |
+| `personal-site-cloudflare-access` (`ws-fzzZsPtRtSkedgJY`) | `1.16.4` | `account-foundation` | `infra/cloudflare-access`; the registry created this workspace. |
+| `personal-site-personal-archive` (`ws-ZwanvNqFFT5UoVyW`) | `1.16.4` | `account-foundation` | The personal archive root uses this registry-created workspace. |
 
 Import the `Default Project` first, then every workspace. Declare the observed
 settings before import and require a no-change plan. Do not change Terraform
@@ -74,14 +76,14 @@ workspace containers still have the single administrative owner shown above.
 
 ## Doppler
 
-`account-foundation` will own all four project containers, their environments,
-and the 45 config containers listed here. The workload named in the last
+`account-foundation` owns the four imported project containers, their
+environments, and the config containers listed here. The workload named in the last
 column owns the values and decides which values may be mirrored into GitHub.
 
 | Project | Existing configs | Intended state owner | Value owner |
 | --- | --- | --- | --- |
 | `ai-review` | `dev`, `dev_personal`, `stg`, `prd` | `account-foundation` | `ai-review` workload |
-| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability` | `account-foundation` | `homelab` and `infra/remote-development` workloads |
+| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability` | `account-foundation` | `homelab`, `infra/remote-development`, and the personal archive workloads |
 | `personal-site` | `dev`, `dev_personal`, `dev_agent`, `dev_bootstrap_infra`, `dev_infra`, `dev_ml_pipelines`, `dev_pages_env`, `dev_recipe_api`, `stg`, `stg_pages_env`, `stg_recipe_api`, `stg_site_ui`, `prd`, `prd_bootstrap_infra`, `prd_bootstrap_plan`, `prd_ci_repo`, `prd_database_backup`, `prd_infra`, `prd_pages_env`, `prd_recipe_api`, `prd_recipe_ingest`, `prd_site_ui`, `ops`, `ops_preview_agent_access` | `account-foundation` | The matching public-platform, bootstrap, ML pipeline, recipe, backup, or preview workload |
 | `work-graph` | `dev`, `dev_personal`, `stg`, `prd`, `prd_work_graph`, `prd_work_graph_backup`, `prd_work_graph_infra` | `account-foundation` | `infra/work-graph`, Work Graph runtime, and backup workloads |
 
@@ -90,9 +92,14 @@ or set values during the structure import. The provider's root configs such as
 `dev`, `stg`, and `prd` are included because they are part of the inherited
 config tree.
 
+The three configs named `ops_account_foundation_seed`,
+`ops_account_foundation_plan`, and `ops_account_foundation` remain manual seed
+exceptions. The import applied 84 Doppler and GitHub resources with no provider
+changes on 2026-10-21. The next plan reported no changes.
+
 ## GitHub environments
 
-`account-foundation` owns every environment container and its deployment
+`account-foundation` owns every imported environment container and its deployment
 protection policy in `Robbie-Palmer/hq`. Existing secrets and variables are
 mirrors populated from Doppler or ephemeral GitHub values. They are not an
 independent state source.
@@ -122,6 +129,11 @@ Import the environments with their current rules before tightening any policy.
 Plan and apply credentials must remain separate. A policy-hardening change is
 not part of the ownership import and needs its own review because a bad branch
 rule can stop production applies or scheduled backups.
+
+The `production-account-foundation-plan` and
+`production-account-foundation` environments remain manual seed exceptions.
+The three `production-cloudflare-access*` environments were created by the
+registry rather than imported.
 
 ## Cloudflare Access
 
@@ -201,10 +213,10 @@ provider-administration credential set above.
 2. Create the account-foundation workspace and initial Doppler config as seed
    operations. Add separate protected GitHub plan and apply environments. Do
    not expose their write credentials to pull requests or coding agents.
-3. Declare and import the HCP `Default Project`, all six workspace containers,
-   the four Doppler projects and 45 configs, and the 18 GitHub environments.
-   Preserve every observed setting and require no-change plans before any
-   policy edit.
+3. Declare and import the HCP `Default Project`, existing workspace containers,
+   the four existing Doppler projects, and the 18 existing GitHub environments.
+   This import completed without provider changes on 2026-10-21. The saved
+   state produced a no-change plan before any policy edit.
 4. Replace shared HCP and provider credentials with scoped plan and apply
    identities one root at a time. Test the new credential before revoking the
    old one. Credential changes are separate from the structure imports.

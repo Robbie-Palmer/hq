@@ -74,6 +74,13 @@ variable "hcp_roots" {
       state_consumers   = []
       import_id         = "ws-64FJmz4zhCYqNwvg"
     }
+    personal-archive = {
+      workspace_name    = "personal-site-personal-archive"
+      project           = "default"
+      terraform_version = "1.16.4"
+      tags              = {}
+      state_consumers   = []
+    }
     remote-development-cluster = {
       workspace_name    = "personal-site-remote-development-cluster"
       project           = "default"
@@ -124,4 +131,85 @@ variable "hcp_roots" {
     )
     error_message = "The account-foundation workspace is a manual seed and must never appear in the managed root registry."
   }
+}
+
+variable "additional_roots" {
+  description = "Temporary or newly onboarded roots whose HCP and delivery boundaries are declared together"
+  type = map(object({
+    hcp = object({
+      project = object({
+        name               = string
+        tags               = map(string)
+        deletion_protected = optional(bool, true)
+      })
+      workspace = object({
+        workspace_name        = string
+        terraform_version     = string
+        queue_all_runs        = optional(bool, false)
+        file_triggers_enabled = optional(bool, true)
+        tags                  = map(string)
+        state_consumers       = set(string)
+        deletion_protected    = optional(bool, true)
+      })
+    })
+    delivery = object({
+      deletion_protected = optional(bool, true)
+      imported           = optional(bool, false)
+      doppler = object({
+        project = object({
+          name        = string
+          description = string
+        })
+        environments = map(object({
+          name             = string
+          personal_configs = bool
+          configs          = set(string)
+        }))
+      })
+      github = object({
+        repository = string
+        environments = map(object({
+          name                 = string
+          can_admins_bypass    = optional(bool, true)
+          prevent_self_review  = optional(bool, false)
+          reviewer_usernames   = optional(set(string), [])
+          protected_branches   = optional(bool, false)
+          custom_branch_policy = optional(bool, false)
+          branch_patterns      = optional(map(string), {})
+        }))
+      })
+    })
+  }))
+  default = {}
+
+  validation {
+    condition = alltrue([
+      for key, root in var.additional_roots :
+      can(regex("^[a-z0-9][a-z0-9-]*$", key)) &&
+      can(regex("^[a-z0-9][a-z0-9-]{2,89}$", root.hcp.workspace.workspace_name)) &&
+      can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", root.hcp.workspace.terraform_version)) &&
+      root.hcp.project.deletion_protected == root.hcp.workspace.deletion_protected &&
+      root.hcp.workspace.deletion_protected == root.delivery.deletion_protected &&
+      root.delivery.imported == false &&
+      root.hcp.workspace.workspace_name != "personal-site-account-foundation"
+    ])
+    error_message = "Additional roots must use lowercase slug keys and workspace names, exact Terraform versions, one deletion policy across HCP and delivery, must be newly created rather than imported, and cannot manage the account-foundation seed."
+  }
+
+  validation {
+    condition = (
+      length(distinct([for root in values(var.additional_roots) : root.hcp.workspace.workspace_name])) == length(var.additional_roots) &&
+      length(setintersection(
+        toset([for root in values(var.hcp_roots) : root.workspace_name]),
+        toset([for root in values(var.additional_roots) : root.hcp.workspace.workspace_name]),
+      )) == 0
+    )
+    error_message = "HCP roots and additional roots must use unique workspace names."
+  }
+}
+
+variable "enable_existing_imports" {
+  description = "Run declarative imports for existing delivery resources; tests disable imports because mock providers cannot import"
+  type        = bool
+  default     = true
 }

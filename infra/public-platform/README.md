@@ -96,16 +96,13 @@ See the
 [PR preview environment runbook](../../docs/runbooks/preview-environments.md)
 for bootstrap, import, and recovery procedures.
 
-### Required Environment
+### Required environment
 
-Create GitHub environments that match the Doppler config boundaries:
-
-1. Go to: Settings → Environments → New environment
-2. Create `production-infra`, `production-infra-bootstrap`, `production-site-ui`,
-   `production-recipe-api`, `production-recipe-ingest`,
-   `production-database-backup`, `production-ci`, `preview-site-ui`,
-   `preview-recipe-api`, and `preview-agent-access`
-3. (Optional) Add protection rules for production deployments
+The account-foundation registry owns the GitHub environment names and
+protection rules that match these Doppler config boundaries. Change that
+structure in `infra/account-foundation/delivery.tf`, then use
+`scripts/sync-doppler-github-envs.sh` to publish workload values. Do not create
+or rename the environments in GitHub settings.
 
 PR infrastructure uses the `preview-*` environments with least-privilege
 credentials. Follow the
@@ -115,13 +112,11 @@ not copy the production Cloudflare token or production database URL into them.
 rotate the coding-agent Access secret and issue short-lived preview QA
 credentials. Restrict it to the default branch and follow the same runbook.
 
-### Terraform Cloud Workspace
+### Terraform Cloud workspace
 
-Create a workspace in Terraform Cloud for remote state:
-
-1. Go to: [Terraform Cloud workspaces](https://app.terraform.io/app/robbie-palmer/workspaces)
-2. Create a new workspace named: `personal-site`
-3. Choose "API-driven workflow"
+The account-foundation registry owns the `personal-site` HCP Terraform
+workspace and keeps it in local execution mode. Its state payload remains owned
+by this root. Do not recreate or change the workspace in HCP settings.
 
 ## Local Development
 

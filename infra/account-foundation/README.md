@@ -56,12 +56,18 @@ mise run //infra/account-foundation:credentials:sync
 The sync task does not configure protection rules. Do not run it against newly
 created environments until their branch and reviewer policy is in place.
 
-## Root delivery registry
+## Delivery registry
 
-`delivery.tf` declares the non-secret delivery structure for each managed
-root. The first managed entry is `cloudflare-access`. It owns a Doppler project,
-an `ops` environment, separate plan, drift, and apply configs, and the matching
-GitHub environments in `Robbie-Palmer/hq`.
+`delivery.tf` declares the non-secret Doppler and GitHub structure for managed
+roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
+`work-graph` containers, plus the structure created for `cloudflare-access`.
+Secret values remain with the workload that uses each config.
+
+The three `personal-site/ops` configs named `ops_account_foundation_seed`,
+`ops_account_foundation_plan`, and `ops_account_foundation` remain part of the
+manual seed. The `production-account-foundation-plan` and
+`production-account-foundation` GitHub environments are seed exceptions too.
+The root must not make its own recovery path depend on resources it can delete.
 
 The plan environment accepts pull-request branches and requires review. The
 drift environment accepts only `main` and has no reviewer gate so scheduled
@@ -120,17 +126,27 @@ these fixed settings:
 * organization-wide and project-wide state access disabled;
 * only the workspace IDs named by `state_consumers` allowed to read state.
 
-Existing projects and workspaces include their provider IDs. The import blocks
-claim those objects at their protected resource addresses. Keep an imported
-entry's name, project, Terraform version, tags, and state consumers equal to
-the observed provider values until its first no-change plan has been reviewed.
-Changing policy belongs in a later apply.
+Existing projects and workspaces include their provider IDs. Import blocks
+claim those objects at their protected resource addresses. The HCP, Doppler,
+and GitHub imports completed on 2026-10-21. The import apply recorded 84
+Doppler and GitHub objects without changing a provider resource, and the next
+plan reported no changes.
 
 Protected entries use Terraform `prevent_destroy`. A temporary canary must set
-`deletion_protected = false` on its project and root entries. Add it without an
-import ID, apply it, then remove only its root entry and apply again. Remove its
-project entry after no other root references that project. HCP's safe-delete
-path remains active because the registry never enables `force_delete`.
+one `additional_roots` entry with `deletion_protected = false` for both HCP and
+delivery. The checked-in `canary.tfvars.example` declares the complete canary.
+Review and apply it with:
+
+```bash
+mise run //infra/account-foundation:canary:plan
+mise run //infra/account-foundation:canary:apply
+```
+
+Doppler creates the environment root config automatically. The canary does not
+create a child config because the current workplace plan does not include
+config inheritance. After verification, run the ordinary plan without the
+canary variable file. It must destroy only the disposable canary resources.
+Apply that reviewed plan, then require another no-change plan.
 
 Changing `deletion_protected` moves an existing entry between resource
 addresses. Add explicit per-key `moved` blocks in the same change so Terraform
@@ -154,13 +170,14 @@ only address moves before applying the policy change.
 
 The current registry manages these workspaces in the provider-created
 `Default Project`. Existing workspaces have import IDs. The Cloudflare Access
-workspace is created from the registry:
+and personal archive workspaces were created from the registry:
 
 | Registry key | Workspace |
 | --- | --- |
 | `public-platform` | `personal-site` |
 | `bootstrap` | `personal-site-bootstrap` |
 | `cloudflare-access` | `personal-site-cloudflare-access` |
+| `personal-archive` | `personal-site-personal-archive` |
 | `remote-development` | `personal-site-remote-development` |
 | `remote-development-cluster` | `personal-site-remote-development-cluster` |
 | `work-graph` | `personal-site-work-graph` |
@@ -179,6 +196,8 @@ mise run //infra/account-foundation:test
 mise run //infra/account-foundation:credentials:sync
 mise run //infra/account-foundation:plan
 mise run //infra/account-foundation:apply
+mise run //infra/account-foundation:canary:plan
+mise run //infra/account-foundation:canary:apply
 ```
 
 `plan` uses `ops_account_foundation_plan`. `apply` consumes the saved

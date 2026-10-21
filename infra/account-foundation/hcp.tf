@@ -1,12 +1,23 @@
 locals {
   hcp_organization             = "robbie-palmer"
   account_foundation_workspace = "personal-site-account-foundation"
-  protected_hcp_projects       = { for key, project in var.hcp_projects : key => project if project.deletion_protected }
-  disposable_hcp_projects      = { for key, project in var.hcp_projects : key => project if !project.deletion_protected }
-  protected_hcp_roots          = { for key, root in var.hcp_roots : key => root if root.deletion_protected }
-  disposable_hcp_roots         = { for key, root in var.hcp_roots : key => root if !root.deletion_protected }
-  managed_hcp_projects         = merge(tfe_project.protected, tfe_project.disposable)
-  managed_hcp_workspaces       = merge(tfe_workspace.protected, tfe_workspace.disposable)
+  hcp_projects = merge(var.hcp_projects, {
+    for key, root in var.additional_roots : key => merge(root.hcp.project, { import_id = null })
+  })
+  hcp_roots = merge(var.hcp_roots, {
+    for key, root in var.additional_roots : key => merge(root.hcp.workspace, {
+      project   = key
+      import_id = null
+    })
+  })
+  hcp_project_registry_ids = concat(keys(var.hcp_projects), keys(var.additional_roots))
+  hcp_root_registry_ids    = concat(keys(var.hcp_roots), keys(var.additional_roots))
+  protected_hcp_projects   = { for key, project in local.hcp_projects : key => project if project.deletion_protected }
+  disposable_hcp_projects  = { for key, project in local.hcp_projects : key => project if !project.deletion_protected }
+  protected_hcp_roots      = { for key, root in local.hcp_roots : key => root if root.deletion_protected }
+  disposable_hcp_roots     = { for key, root in local.hcp_roots : key => root if !root.deletion_protected }
+  managed_hcp_projects     = merge(tfe_project.protected, tfe_project.disposable)
+  managed_hcp_workspaces   = merge(tfe_workspace.protected, tfe_workspace.disposable)
 }
 
 # The state workspace is a manual seed. Reading it lets plans detect accidental
@@ -17,6 +28,46 @@ data "tfe_workspace" "account_foundation_seed" {
   organization = local.hcp_organization
 
   lifecycle {
+    precondition {
+      condition     = length(distinct(local.hcp_project_registry_ids)) == length(local.hcp_project_registry_ids)
+      error_message = "Additional roots must not replace an existing HCP project registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.hcp_root_registry_ids)) == length(local.hcp_root_registry_ids)
+      error_message = "Additional roots must not replace an existing HCP root registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.delivery_root_ids)) == length(local.delivery_root_ids)
+      error_message = "Additional roots must not replace an existing delivery root registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_project_ids)) == length(local.doppler_project_ids)
+      error_message = "Every delivery root must use a unique Doppler project name."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_environment_ids)) == length(local.doppler_environment_ids)
+      error_message = "Every Doppler environment must have a unique project and environment identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_config_ids)) == length(local.doppler_config_ids)
+      error_message = "Every Doppler config must have a unique project, environment, and config identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.github_environment_ids)) == length(local.github_environment_ids)
+      error_message = "Every GitHub environment must have a unique repository and environment identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.github_branch_policy_ids)) == length(local.github_branch_policy_ids)
+      error_message = "Every GitHub branch policy must have a unique repository, environment, and branch identifier."
+    }
+
     postcondition {
       condition = (
         self.execution_mode == "local" &&
@@ -75,7 +126,7 @@ resource "tfe_workspace" "disposable" {
 }
 
 resource "tfe_workspace_settings" "managed" {
-  for_each = var.hcp_roots
+  for_each = local.hcp_roots
 
   workspace_id         = local.managed_hcp_workspaces[each.key].id
   execution_mode       = "local"
@@ -92,7 +143,7 @@ resource "tfe_workspace_settings" "managed" {
 check "root_projects_exist" {
   assert {
     condition = alltrue([
-      for root in values(var.hcp_roots) : contains(keys(var.hcp_projects), root.project)
+      for root in values(local.hcp_roots) : contains(keys(local.hcp_projects), root.project)
     ])
     error_message = "Every HCP root must reference a declared HCP project."
   }
@@ -101,8 +152,8 @@ check "root_projects_exist" {
 check "state_consumers_exist" {
   assert {
     condition = alltrue([
-      for key, root in var.hcp_roots :
-      length(setsubtract(root.state_consumers, keys(var.hcp_roots))) == 0 &&
+      for key, root in local.hcp_roots :
+      length(setsubtract(root.state_consumers, keys(local.hcp_roots))) == 0 &&
       !contains(root.state_consumers, key)
     ])
     error_message = "State consumers must reference other declared HCP roots."

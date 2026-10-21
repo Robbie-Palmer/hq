@@ -206,9 +206,10 @@ deploy credentials or privileged GCP credentials:
 - `GCP_TERRAFORM_SERVICE_ACCOUNT` (unmasked)
 - `TF_API_TOKEN`
 
-## GitHub Environments
+## GitHub environments
 
-Name GitHub environments after runtime or job boundaries:
+The account-foundation registry owns these environment names and protection
+rules. Doppler remains the source for the values synchronized into them.
 
 | GitHub environment | Doppler configs | Used by |
 | --- | --- | --- |
