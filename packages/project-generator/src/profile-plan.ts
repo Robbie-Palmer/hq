@@ -21,9 +21,16 @@ export type PinnedTemplateSource = TemplateSource & { readonly revision: string 
 function jsonRecord(value: unknown, label: string): Record<string, JsonValue> {
   const parsed = jsonValueSchema.parse(value);
   if (parsed === null || Array.isArray(parsed) || typeof parsed !== "object") {
-    throw new Error(`${label} must be a JSON object`);
+    throw new TypeError(`${label} must be a JSON object`);
   }
   return parsed;
+}
+
+function recordId(record: Record<string, JsonValue>, label: string): string {
+  if (typeof record.id !== "string" || record.id.length === 0) {
+    throw new TypeError(`${label} must have a non-empty string id`);
+  }
+  return record.id;
 }
 
 function catalogRecords(
@@ -35,7 +42,7 @@ function catalogRecords(
   );
   const records = catalog.records ?? [];
   if (!Array.isArray(records)) {
-    throw new Error("platform catalog records must be an array");
+    throw new TypeError("platform catalog records must be an array");
   }
   return records.map((record) => jsonRecord(record, "platform catalog record"));
 }
@@ -75,8 +82,12 @@ export function projectPlanFromBlueprint(input: {
       }
     : null;
   const existingCatalog = catalogRecords(contracts);
-  const catalogTargets = [
+  const systemCatalogRecord = jsonRecord(
     blueprint.catalog.system,
+    "resolved system catalog record",
+  );
+  const catalogTargets = [
+    systemCatalogRecord,
     ...blueprint.catalog.components,
   ].map((record) => jsonRecord(record, "resolved catalog record"));
   const componentRoots = blueprint.components.map(({ path }) => path);
@@ -105,14 +116,20 @@ export function projectPlanFromBlueprint(input: {
         value: {
           id: blueprint.project.id,
           kind: blueprint.project.kind,
-          catalog_record: String(blueprint.catalog.system.id),
+          catalog_record: recordId(
+            systemCatalogRecord,
+            "resolved system catalog record",
+          ),
         },
         expected: expectedProject,
       },
       ...catalogTargets.map((value) => ({
         kind: "catalog_record",
         value,
-        expected: recordById(existingCatalog, String(value.id)),
+        expected: recordById(
+          existingCatalog,
+          recordId(value, "resolved catalog record"),
+        ),
       })),
     ],
   });
