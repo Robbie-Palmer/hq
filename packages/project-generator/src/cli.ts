@@ -183,14 +183,12 @@ const invokedPath = process.argv[1]
   : undefined;
 /* v8 ignore start -- exercised by invoking the CLI through mise */
 if (invokedPath === import.meta.url) {
-  runCli()
-    .then((exitCode) => {
-      process.exitCode = exitCode;
-    })
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      process.stderr.write(`${message}\n`);
-      process.exitCode = 1;
-    });
+  try {
+    process.exitCode = await runCli();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  }
 }
 /* v8 ignore stop */
