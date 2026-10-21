@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ "$#" -ne 1 ]; then
+if [[ "$#" -ne 1 ]]; then
   echo "Usage: $0 EMPTY_TARGET_DIRECTORY" >&2
   exit 2
 fi
@@ -12,7 +12,7 @@ credentials_file=${PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS:-}
 password_file=${PERSONAL_ARCHIVE_RECOVERY_PASSWORD:-}
 restic_bin=${RESTIC_BIN:-restic}
 
-if [ ! -r "${config_file}" ] || [ ! -r "${credentials_file}" ] || [ ! -r "${password_file}" ]; then
+if [[ ! -r "${config_file}" ]] || [[ ! -r "${credentials_file}" ]] || [[ ! -r "${password_file}" ]]; then
   echo "independent recovery configuration is incomplete" >&2
   exit 1
 fi
@@ -25,7 +25,7 @@ set +a
 export RESTIC_PASSWORD_FILE="${password_file}"
 
 install -d -m 0700 "${target}"
-if [ -n "$(find "${target}" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
+if [[ -n "$(find "${target}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
   echo "restore target must be empty" >&2
   exit 1
 fi

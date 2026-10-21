@@ -12,7 +12,7 @@ cache_directory=${HOME}/.cache/restic
 bin_directory=${HOME}/.local/bin
 unit_directory=${HOME}/.config/systemd/user
 
-if [ "$#" -gt 1 ]; then
+if [[ "$#" -gt 1 ]]; then
   echo "Usage: $0 [INVENTORY_FILE]" >&2
   exit 2
 fi
@@ -20,7 +20,7 @@ fi
 for command in hostname jq restic systemctl; do
   command -v "${command}" >/dev/null 2>&1 || { echo "${command} is required" >&2; exit 1; }
 done
-[ -r "${inventory}" ] || { echo "personal archive inventory is not readable: ${inventory}" >&2; exit 1; }
+[[ -r "${inventory}" ]] || { echo "personal archive inventory is not readable: ${inventory}" >&2; exit 1; }
 
 install -d -m 0700 "${state_directory}" "${config_directory}" "${data_directory}" \
   "${cache_directory}"
@@ -78,7 +78,7 @@ install -m 0644 "${project_directory}/systemd/personal-archive-backup.service" \
 install -m 0644 "${project_directory}/systemd/personal-archive-backup.timer" \
   "${unit_directory}/personal-archive-backup.timer"
 systemctl --user daemon-reload
-if [ "${operation_mode}" = one-shot ]; then
+if [[ "${operation_mode}" = one-shot ]]; then
   systemctl --user disable --now personal-archive-backup.timer >/dev/null 2>&1 || true
 fi
 echo "installed personal archive ${operation_mode} profile; credentials remain disabled"

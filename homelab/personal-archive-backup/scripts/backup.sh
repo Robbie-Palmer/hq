@@ -4,7 +4,7 @@ set -euo pipefail
 config_file=${PERSONAL_ARCHIVE_CONFIG:-$HOME/.config/personal-archive-backup/config}
 restic_bin=${RESTIC_BIN:-restic}
 
-if [ ! -r "${config_file}" ]; then
+if [[ ! -r "${config_file}" ]]; then
   echo "personal archive configuration is not readable" >&2
   exit 1
 fi
@@ -14,14 +14,14 @@ source "${config_file}"
 for name in ARCHIVE_ID DESTINATION_PROVIDER BACKUP_SOURCES_FILE \
   BACKUP_EXCLUDES_FILE BACKUP_STATUS_FILE BACKUP_CREDENTIALS_FILE \
   BACKUP_PASSWORD_FILE BACKUP_LOCK_FILE CHECK_READ_DATA_SUBSET; do
-  if [ -z "${!name:-}" ]; then
+  if [[ -z "${!name:-}" ]]; then
     echo "personal archive configuration is missing ${name}" >&2
     exit 1
   fi
 done
 for file in "${BACKUP_SOURCES_FILE}" "${BACKUP_EXCLUDES_FILE}" \
   "${BACKUP_CREDENTIALS_FILE}" "${BACKUP_PASSWORD_FILE}"; do
-  if [ ! -r "${file}" ]; then
+  if [[ ! -r "${file}" ]]; then
     echo "personal archive input is not readable" >&2
     exit 1
   fi
@@ -31,13 +31,13 @@ set -a
 # shellcheck source=/dev/null
 source "${BACKUP_CREDENTIALS_FILE}"
 set +a
-if [ -z "${RESTIC_REPOSITORY:-}" ]; then
+if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   echo "RESTIC_REPOSITORY is not set" >&2
   exit 1
 fi
-if [ "${DESTINATION_PROVIDER}" = backblaze-b2 ]; then
+if [[ "${DESTINATION_PROVIDER}" = backblaze-b2 ]]; then
   for name in B2_BUCKET_NAME_EXPECTED REPOSITORY_PREFIX; do
-    if [ -z "${!name:-}" ]; then
+    if [[ -z "${!name:-}" ]]; then
       echo "personal archive configuration is missing ${name}" >&2
       exit 1
     fi
@@ -53,12 +53,12 @@ fi
 export RESTIC_PASSWORD_FILE="${BACKUP_PASSWORD_FILE}"
 
 mapfile -t sources < <(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "${BACKUP_SOURCES_FILE}")
-if [ "${#sources[@]}" -eq 0 ]; then
+if [[ "${#sources[@]}" -eq 0 ]]; then
   echo "personal archive has no configured sources" >&2
   exit 1
 fi
 for source_path in "${sources[@]}"; do
-  if [ ! -d "${source_path}" ]; then
+  if [[ ! -d "${source_path}" ]]; then
     echo "personal archive source is unavailable" >&2
     exit 1
   fi
@@ -81,7 +81,7 @@ finished=false
 last_success_at=null
 last_success_unix=null
 
-if [ -r "${BACKUP_STATUS_FILE}" ]; then
+if [[ -r "${BACKUP_STATUS_FILE}" ]]; then
   last_success_at=$(jq -r '.lastSuccessAt // "null"' "${BACKUP_STATUS_FILE}" 2>/dev/null || printf null)
   last_success_unix=$(jq -r '.lastSuccessUnix // "null"' "${BACKUP_STATUS_FILE}" 2>/dev/null || printf null)
 fi
@@ -92,7 +92,7 @@ write_status() {
   completed_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   completed_unix=$(date +%s)
   temporary_status="${work_directory}/status.json"
-  if [ "${state}" = success ]; then
+  if [[ "${state}" = success ]]; then
     last_success_at=${completed_at}
     last_success_unix=${completed_unix}
   fi
@@ -123,7 +123,7 @@ write_status() {
 
 cleanup() {
   local exit_code=$?
-  if [ "${finished}" != true ]; then
+  if [[ "${finished}" != true ]]; then
     write_status failed "${exit_code}" || true
   fi
   rm -rf -- "${work_directory}"
