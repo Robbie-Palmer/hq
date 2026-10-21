@@ -1,0 +1,94 @@
+[tasks.init]
+description = "Initialize Personal Finance Terraform"
+run = "bash scripts/doppler-terraform-env.sh plan terraform init -input=false"
+
+[tasks.format]
+description = "Format Personal Finance Terraform files"
+run = "terraform fmt -recursive ."
+
+[tasks."format:check"]
+description = "Check Personal Finance Terraform formatting"
+run = "terraform fmt -check -recursive ."
+
+[tasks.validate]
+description = "Validate Personal Finance Terraform without remote state or credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-finance-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks."lint:tflint"]
+description = "Lint Personal Finance Terraform"
+run = "tflint --format compact"
+
+[tasks."security:scan"]
+description = "Scan Personal Finance Terraform for high-severity configuration findings"
+run = "mise exec trivy@0.76.0 -- trivy config --exit-code 1 --severity HIGH,CRITICAL --skip-check-update --skip-version-check --skip-dirs .terraform ."
+
+[tasks.lint]
+description = "Run Personal Finance Terraform static checks"
+depends = ["validate", "lint:tflint", "security:scan"]
+
+[tasks."test:scripts"]
+description = "Test Personal Finance credential boundaries"
+run = "bash scripts/doppler-terraform-env.test.sh"
+
+[tasks."test:foundation"]
+description = "Reject workload declarations from the delivery-only baseline"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+if rg -n '^\\s*(resource|data|module|import|moved|removed)\\s+"' --glob '*.tf' .; then
+  echo "The Personal Finance delivery foundation must not declare workload resources." >&2
+  exit 1
+fi
+"""
+
+[tasks."test:terraform"]
+description = "Exercise the empty Personal Finance Terraform baseline"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-finance-terraform-test.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform test
+"""
+
+[tasks.test]
+description = "Test the Personal Finance delivery baseline"
+depends = ["test:scripts", "test:foundation", "test:terraform"]
+
+[tasks.plan]
+description = "Plan Personal Finance infrastructure with plan credentials"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .planfile"
+outputs = [".planfile"]
+
+[tasks."plan:drift"]
+description = "Check Personal Finance infrastructure drift with read-only credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+bash scripts/doppler-terraform-env.sh drift terraform init -input=false
+bash scripts/doppler-terraform-env.sh drift terraform plan -input=false -detailed-exitcode
+"""
+
+[tasks."credentials:sync"]
+description = "Sync Personal Finance configs to their protected GitHub environments"
+run = "../../scripts/sync-doppler-github-envs.sh production-personal-finance-plan production-personal-finance-drift production-personal-finance"
+
+[tasks.apply]
+description = "Apply a reviewed Personal Finance Terraform plan"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh apply terraform apply -input=false .planfile"
+
+[tasks.check]
+description = "Check and plan Personal Finance infrastructure"
+depends = ["format:check", "lint", "test", "plan"]

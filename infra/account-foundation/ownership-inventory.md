@@ -67,6 +67,7 @@ state payload.
 | `personal-blog` (`ws-HjanmaPgxFzm1t8F`) | `1.13.3` | `account-foundation` | Legacy state with no checked-in root reference. Keep its payload frozen until a separate review identifies or retires it. |
 | `personal-site-cloudflare-access` (`ws-fzzZsPtRtSkedgJY`) | `1.16.4` | `account-foundation` | `infra/cloudflare-access`; the registry created this workspace. |
 | `personal-site-personal-archive` (`ws-ZwanvNqFFT5UoVyW`) | `1.16.4` | `account-foundation` | The personal archive root uses this registry-created workspace. |
+| `personal-site-personal-finance` (`ws-mnXi1yAp8gUdHw2C`) | `1.16.4` | `account-foundation` | `infra/personal-finance`; the empty foundation does not yet own workload resources. |
 
 Import the `Default Project` first, then every workspace. Declare the observed
 settings before import and require a no-change plan. Do not change Terraform
@@ -86,6 +87,7 @@ column owns the values and decides which values may be mirrored into GitHub.
 | `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability` | `account-foundation` | `homelab`, `infra/remote-development`, and the personal archive workloads |
 | `personal-site` | `dev`, `dev_personal`, `dev_agent`, `dev_bootstrap_infra`, `dev_infra`, `dev_ml_pipelines`, `dev_pages_env`, `dev_recipe_api`, `stg`, `stg_pages_env`, `stg_recipe_api`, `stg_site_ui`, `prd`, `prd_bootstrap_infra`, `prd_bootstrap_plan`, `prd_ci_repo`, `prd_database_backup`, `prd_infra`, `prd_pages_env`, `prd_recipe_api`, `prd_recipe_ingest`, `prd_site_ui`, `ops`, `ops_preview_agent_access` | `account-foundation` | The matching public-platform, bootstrap, ML pipeline, recipe, backup, or preview workload |
 | `work-graph` | `dev`, `dev_personal`, `stg`, `prd`, `prd_work_graph`, `prd_work_graph_backup`, `prd_work_graph_infra` | `account-foundation` | `infra/work-graph`, Work Graph runtime, and backup workloads |
+| `personal-finance` | `ops`, `drift`, `apply` environment root configs | `account-foundation` | `infra/personal-finance` delivery |
 
 Import each project before its environments and configs. Do not read, export,
 or set values during the structure import. The provider's root configs such as
@@ -96,6 +98,11 @@ The three configs named `ops_account_foundation_seed`,
 `ops_account_foundation_plan`, and `ops_account_foundation` remain manual seed
 exceptions. The import applied 84 Doppler and GitHub resources with no provider
 changes on 2026-10-21. The next plan reported no changes.
+
+The Personal Finance registry uses three environments because the current
+Doppler plan does not include child-config inheritance. Doppler created the
+`ops`, `drift`, and `apply` root configs with their environments. Account
+foundation recorded the containers, and a follow-up plan reported no changes.
 
 ## GitHub environments
 
@@ -116,6 +123,9 @@ independent state source.
 | `production-infra` | None | `infra/public-platform` |
 | `production-infra-bootstrap` | None | `infra/bootstrap` apply |
 | `production-infra-bootstrap-plan` | One required reviewer | `infra/bootstrap` plan |
+| `production-personal-finance` | One required reviewer and `main` branch policy | `infra/personal-finance` apply |
+| `production-personal-finance-drift` | `main` branch policy | `infra/personal-finance` drift |
+| `production-personal-finance-plan` | One required reviewer | `infra/personal-finance` plan |
 | `production-recipe-api` | None | Recipe API workload |
 | `production-recipe-ingest` | None | Recipe ingest workload |
 | `production-remote-development-infra` | One required reviewer | `infra/remote-development` apply |
@@ -132,8 +142,9 @@ rule can stop production applies or scheduled backups.
 
 The `production-account-foundation-plan` and
 `production-account-foundation` environments remain manual seed exceptions.
-The three `production-cloudflare-access*` environments were created by the
-registry rather than imported.
+The three `production-cloudflare-access*` and three
+`production-personal-finance*` environments were created by the registry
+rather than imported.
 
 ## Cloudflare Access
 
