@@ -67,6 +67,62 @@ function timelineData(
     }));
 }
 
+function TimelineChart({
+  currency,
+  data,
+}: Readonly<{ currency: Currency; data: TimelineDatum[] }>) {
+  return (
+    <ChartContainer
+      config={chartConfig}
+      className="mt-4 aspect-auto h-64 w-full"
+      role="img"
+      aria-label="Scenario costs by due date and commitment status"
+    >
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart
+          accessibilityLayer
+          data={data}
+          margin={{ top: 4, right: 8, bottom: 4, left: 4 }}
+        >
+          <CartesianGrid vertical={false} />
+          <XAxis dataKey="label" tickLine={false} axisLine={false} />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            tickFormatter={(value: number) =>
+              formatCurrencyAxisTick(value, currency)
+            }
+          />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(value) => formatCurrency(value as number, currency)}
+          />
+          <ChartLegend content={<ChartLegendContent />} />
+          <Bar
+            dataKey="paid"
+            stackId="cost"
+            fill="var(--color-paid)"
+            isAnimationActive={false}
+          />
+          <Bar
+            dataKey="committed"
+            stackId="cost"
+            fill="var(--color-committed)"
+            isAnimationActive={false}
+          />
+          <Bar
+            dataKey="considering"
+            stackId="cost"
+            fill="var(--color-considering)"
+            radius={[3, 3, 0, 0]}
+            isAnimationActive={false}
+          />
+        </BarChart>
+      </ResponsiveContainer>
+    </ChartContainer>
+  );
+}
+
 export function ItemisedScenarioTimeline({
   currency,
   payments,
@@ -91,54 +147,7 @@ export function ItemisedScenarioTimeline({
           without a date stay with their supplier until scheduled.
         </p>
       </div>
-      <ChartContainer
-        config={chartConfig}
-        className="mt-4 aspect-auto h-64 w-full"
-        role="img"
-        aria-label="Scenario costs by due date and commitment status"
-      >
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart
-            accessibilityLayer
-            data={data}
-            margin={{ top: 4, right: 8, bottom: 4, left: 4 }}
-          >
-            <CartesianGrid vertical={false} />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} />
-            <YAxis
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(value: number) =>
-                formatCurrencyAxisTick(value, currency)
-              }
-            />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              formatter={(value) => formatCurrency(value as number, currency)}
-            />
-            <ChartLegend content={<ChartLegendContent />} />
-            <Bar
-              dataKey="paid"
-              stackId="cost"
-              fill="var(--color-paid)"
-              isAnimationActive={false}
-            />
-            <Bar
-              dataKey="committed"
-              stackId="cost"
-              fill="var(--color-committed)"
-              isAnimationActive={false}
-            />
-            <Bar
-              dataKey="considering"
-              stackId="cost"
-              fill="var(--color-considering)"
-              radius={[3, 3, 0, 0]}
-              isAnimationActive={false}
-            />
-          </BarChart>
-        </ResponsiveContainer>
-      </ChartContainer>
+      <TimelineChart currency={currency} data={data} />
       <ul className="sr-only">
         {data.map((point) => (
           <li key={point.date}>

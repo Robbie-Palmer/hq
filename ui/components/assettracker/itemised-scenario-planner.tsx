@@ -736,25 +736,20 @@ function ScenarioDetails({ planner }: Readonly<{ planner: Planner }>) {
   );
 }
 
-function CostInputs({
-  cost,
-  currency,
-  index,
-  planner,
-  update,
-}: Readonly<{
+type CostInputProps = Readonly<{
   cost: CostRow;
   currency: Currency;
   index: number;
   planner: Planner;
   update: Planner["updateCost"];
-}>) {
+}>;
+
+function CostNameAndDateInputs({
+  cost,
+  index,
+  update,
+}: Pick<CostInputProps, "cost" | "index" | "update">) {
   const label = cost.name || `Cost ${index + 1}`;
-  const paid = amountPaid(cost.actuals);
-  const isPaid = Number(cost.amount) > 0 && paid >= Number(cost.amount);
-  const fundingAccount = planner.eligibleAccounts.find(
-    (account) => account.id === cost.accountId,
-  );
   return (
     <>
       <Input
@@ -776,54 +771,103 @@ function CostInputs({
         value={cost.date}
         onChange={(event) => update(index, { date: event.target.value })}
       />
-      {isPaid ? (
-        <output
-          aria-label={`${label} final amount`}
-          className="flex h-9 items-center gap-2 px-1 text-sm"
-        >
-          <span className="font-mono font-semibold">
-            {formatCurrency(paid, currency)}
-          </span>
-          <span className="text-xs text-muted-foreground">Final</span>
-        </output>
-      ) : (
-        <Input
-          aria-label={`${label} amount`}
-          type="number"
-          min="0.01"
-          step="0.01"
-          placeholder="0"
-          required
-          value={cost.amount}
-          onChange={(event) => update(index, { amount: event.target.value })}
-        />
-      )}
-      {isPaid ? (
-        <output
-          aria-label={`${label} paid from`}
-          className="flex h-9 items-center px-1 text-sm"
-        >
-          {fundingAccount?.name ?? "Account unavailable"}
-        </output>
-      ) : (
-        <Select
-          value={cost.accountId}
-          onValueChange={(value) => planner.changeCostAccount(index, value)}
-        >
-          <SelectTrigger aria-label={`${label} pay from`} className="w-full">
-            <SelectValue placeholder="Choose account" />
-          </SelectTrigger>
-          <SelectContent>
-            {planner.eligibleAccounts
-              .filter((account) => account.currency === currency)
-              .map((account) => (
-                <SelectItem key={account.id} value={account.id}>
-                  {account.name}
-                </SelectItem>
-              ))}
-          </SelectContent>
-        </Select>
-      )}
+    </>
+  );
+}
+
+function CostAmountInput({
+  cost,
+  currency,
+  index,
+  update,
+}: Pick<CostInputProps, "cost" | "currency" | "index" | "update">) {
+  const label = cost.name || `Cost ${index + 1}`;
+  const paid = amountPaid(cost.actuals);
+  const isPaid = Number(cost.amount) > 0 && paid >= Number(cost.amount);
+  return isPaid ? (
+    <output
+      aria-label={`${label} final amount`}
+      className="flex h-9 items-center gap-2 px-1 text-sm"
+    >
+      <span className="font-mono font-semibold">
+        {formatCurrency(paid, currency)}
+      </span>
+      <span className="text-xs text-muted-foreground">Final</span>
+    </output>
+  ) : (
+    <Input
+      aria-label={`${label} amount`}
+      type="number"
+      min="0.01"
+      step="0.01"
+      placeholder="0"
+      required
+      value={cost.amount}
+      onChange={(event) => update(index, { amount: event.target.value })}
+    />
+  );
+}
+
+function CostAccountInput({
+  cost,
+  currency,
+  index,
+  planner,
+}: Pick<CostInputProps, "cost" | "currency" | "index" | "planner">) {
+  const label = cost.name || `Cost ${index + 1}`;
+  const isPaid =
+    Number(cost.amount) > 0 && amountPaid(cost.actuals) >= Number(cost.amount);
+  const fundingAccount = planner.eligibleAccounts.find(
+    (account) => account.id === cost.accountId,
+  );
+  return isPaid ? (
+    <output
+      aria-label={`${label} paid from`}
+      className="flex h-9 items-center px-1 text-sm"
+    >
+      {fundingAccount?.name ?? "Account unavailable"}
+    </output>
+  ) : (
+    <Select
+      value={cost.accountId}
+      onValueChange={(value) => planner.changeCostAccount(index, value)}
+    >
+      <SelectTrigger aria-label={`${label} pay from`} className="w-full">
+        <SelectValue placeholder="Choose account" />
+      </SelectTrigger>
+      <SelectContent>
+        {planner.eligibleAccounts
+          .filter((account) => account.currency === currency)
+          .map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.name}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function CostInputs(props: CostInputProps) {
+  return (
+    <>
+      <CostNameAndDateInputs
+        cost={props.cost}
+        index={props.index}
+        update={props.update}
+      />
+      <CostAmountInput
+        cost={props.cost}
+        currency={props.currency}
+        index={props.index}
+        update={props.update}
+      />
+      <CostAccountInput
+        cost={props.cost}
+        currency={props.currency}
+        index={props.index}
+        planner={props.planner}
+      />
     </>
   );
 }
@@ -1040,6 +1084,17 @@ function ScenarioFundingCallout({ planner }: Readonly<{ planner: Planner }>) {
   );
 }
 
+function UnresolvedCostStatus({
+  cost,
+}: Readonly<{ cost: UnresolvedCostDraft }>) {
+  return (
+    <div className="text-xs text-muted-foreground">
+      {cost.amount === "" && <span className="block">Price needed</span>}
+      {cost.date === "" && <span className="block">Date needed</span>}
+    </div>
+  );
+}
+
 function UnresolvedCostEditor({
   cost,
   group,
@@ -1086,10 +1141,7 @@ function UnresolvedCostEditor({
           })
         }
       />
-      <div className="text-xs text-muted-foreground">
-        {cost.amount === "" && <span className="block">Price needed</span>}
-        {cost.date === "" && <span className="block">Date needed</span>}
-      </div>
+      <UnresolvedCostStatus cost={cost} />
       <Button
         type="button"
         variant="ghost"
@@ -1103,147 +1155,204 @@ function UnresolvedCostEditor({
   );
 }
 
-function CostGroupEditor({
-  group,
-  groupIndex,
-  planner,
-}: Readonly<{
+type GroupEditorProps = Readonly<{
   group: CostGroup;
   groupIndex: number;
   planner: Planner;
-}>) {
-  const rows = planner.costs.flatMap((cost, index) =>
-    cost.groupId === group.id ? [{ cost, index }] : [],
+}>;
+
+type GroupRows = { cost: CostRow; index: number }[];
+
+function GroupStatusSelect({ group, planner }: GroupEditorProps) {
+  const label = group.name || `Cost group ${group.id}`;
+  return (
+    <div className="space-y-1 text-xs font-medium">
+      <span>Status</span>
+      <Select
+        value={group.status}
+        onValueChange={(value: CostGroup["status"]) =>
+          planner.updateGroup(group.id, { status: value })
+        }
+      >
+        <SelectTrigger aria-label={`${label} status`} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="committed">Committed</SelectItem>
+          <SelectItem value="considering">Under consideration</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
   );
+}
+
+function GroupCostSummary({
+  group,
+  planner,
+  rows,
+}: Omit<GroupEditorProps, "groupIndex"> & { rows: GroupRows }) {
   const total =
     rows.reduce((sum, { cost }) => sum + (Number(cost.amount) || 0), 0) +
     group.unresolvedCosts.reduce(
       (sum, cost) => sum + (Number(cost.amount) || 0),
       0,
     );
-  const hasNoCost = rows.length === 0 && group.unresolvedCosts.length === 0;
-  const label = group.name || `Cost group ${groupIndex + 1}`;
+  if (rows.length === 0 && group.unresolvedCosts.length === 0) {
+    return <span className="text-sm font-medium text-foreground">No cost</span>;
+  }
+  return (
+    <>
+      <span className="block">
+        {rows.length} {rows.length === 1 ? "payment" : "payments"}
+      </span>
+      {group.unresolvedCosts.length > 0 && (
+        <span className="block">
+          {group.unresolvedCosts.length}{" "}
+          {group.unresolvedCosts.length === 1 ? "cost needs" : "costs need"}{" "}
+          details
+        </span>
+      )}
+      <span className="font-mono text-sm font-semibold text-foreground">
+        {formatCurrency(total, planner.currency)}
+      </span>
+    </>
+  );
+}
+
+function CostGroupHeader({
+  group,
+  groupIndex,
+  planner,
+  rows,
+}: GroupEditorProps & { rows: GroupRows }) {
   const nameInputId = `scenario-cost-group-${group.id}`;
   return (
-    <section className="overflow-hidden rounded-lg border">
-      <div className="grid gap-3 border-b bg-muted/20 p-3 sm:grid-cols-[minmax(12rem,1fr)_12rem_auto] sm:items-end">
-        <label htmlFor={nameInputId} className="space-y-1 text-xs font-medium">
-          <span>Supplier or cost</span>
-          <Input
-            id={nameInputId}
-            aria-label={`Cost group ${groupIndex + 1} name`}
-            required
-            placeholder="Venue, catering, photographer..."
-            value={group.name}
-            onChange={(event) =>
-              planner.updateGroup(group.id, { name: event.target.value })
-            }
+    <div className="grid gap-3 border-b bg-muted/20 p-3 sm:grid-cols-[minmax(12rem,1fr)_12rem_auto] sm:items-end">
+      <label htmlFor={nameInputId} className="space-y-1 text-xs font-medium">
+        <span>Supplier or cost</span>
+        <Input
+          id={nameInputId}
+          aria-label={`Cost group ${groupIndex + 1} name`}
+          required
+          placeholder="Venue, catering, photographer..."
+          value={group.name}
+          onChange={(event) =>
+            planner.updateGroup(group.id, { name: event.target.value })
+          }
+        />
+      </label>
+      <GroupStatusSelect
+        group={group}
+        groupIndex={groupIndex}
+        planner={planner}
+      />
+      <div className="pb-1 text-right text-xs text-muted-foreground">
+        <GroupCostSummary group={group} planner={planner} rows={rows} />
+      </div>
+    </div>
+  );
+}
+
+function ScheduledCostRows({
+  planner,
+  rows,
+}: Readonly<{ planner: Planner; rows: GroupRows }>) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <div className="hidden grid-cols-[minmax(10rem,1fr)_9rem_8rem_minmax(10rem,12rem)_7rem_2.5rem] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
+        <span>Payment</span>
+        <span>Due date</span>
+        <span>Amount</span>
+        <span>Pay from</span>
+        <span>Paid</span>
+        <span className="sr-only">Actions</span>
+      </div>
+      <div className="divide-y">
+        {rows.map(({ cost, index }) => (
+          <CostRowEditor
+            key={cost.id ?? `new-${index}`}
+            cost={cost}
+            index={index}
+            planner={planner}
           />
-        </label>
-        <div className="space-y-1 text-xs font-medium">
-          <span>Status</span>
-          <Select
-            value={group.status}
-            onValueChange={(value: CostGroup["status"]) =>
-              planner.updateGroup(group.id, { status: value })
-            }
-          >
-            <SelectTrigger aria-label={`${label} status`} className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="committed">Committed</SelectItem>
-              <SelectItem value="considering">Under consideration</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="pb-1 text-right text-xs text-muted-foreground">
-          {hasNoCost ? (
-            <span className="text-sm font-medium text-foreground">No cost</span>
-          ) : (
-            <>
-              <span className="block">
-                {rows.length} {rows.length === 1 ? "payment" : "payments"}
-              </span>
-              {group.unresolvedCosts.length > 0 && (
-                <span className="block">
-                  {group.unresolvedCosts.length}{" "}
-                  {group.unresolvedCosts.length === 1
-                    ? "cost needs"
-                    : "costs need"}{" "}
-                  details
-                </span>
-              )}
-              <span className="font-mono text-sm font-semibold text-foreground">
-                {formatCurrency(total, planner.currency)}
-              </span>
-            </>
-          )}
-        </div>
+        ))}
       </div>
-      {rows.length > 0 && (
-        <>
-          <div className="hidden grid-cols-[minmax(10rem,1fr)_9rem_8rem_minmax(10rem,12rem)_7rem_2.5rem] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
-            <span>Payment</span>
-            <span>Due date</span>
-            <span>Amount</span>
-            <span>Pay from</span>
-            <span>Paid</span>
-            <span className="sr-only">Actions</span>
-          </div>
-          <div className="divide-y">
-            {rows.map(({ cost, index }) => (
-              <CostRowEditor
-                key={cost.id ?? `new-${index}`}
-                cost={cost}
-                index={index}
-                planner={planner}
-              />
-            ))}
-          </div>
-        </>
-      )}
-      {group.unresolvedCosts.length > 0 && (
-        <div className="border-t bg-muted/10">
-          <div className="grid gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem]">
-            <span>Cost needing details</span>
-            <span>Due date (optional)</span>
-            <span>Estimate (optional)</span>
-            <span>Missing details</span>
-            <span className="sr-only">Actions</span>
-          </div>
-          <div className="divide-y">
-            {group.unresolvedCosts.map((cost) => (
-              <UnresolvedCostEditor
-                key={cost.id}
-                cost={cost}
-                group={group}
-                planner={planner}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="flex flex-wrap gap-1 border-t px-3 py-2">
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => planner.addCost(group.id)}
-        >
-          <PlusIcon />
-          Add payment
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => planner.addUnresolvedCost(group.id)}
-        >
-          <PlusIcon />
-          Add cost needing details
-        </Button>
+    </>
+  );
+}
+
+function UnresolvedCostRows({
+  group,
+  planner,
+}: Omit<GroupEditorProps, "groupIndex">) {
+  if (group.unresolvedCosts.length === 0) return null;
+  return (
+    <div className="border-t bg-muted/10">
+      <div className="grid gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem]">
+        <span>Cost needing details</span>
+        <span>Due date (optional)</span>
+        <span>Estimate (optional)</span>
+        <span>Missing details</span>
+        <span className="sr-only">Actions</span>
       </div>
+      <div className="divide-y">
+        {group.unresolvedCosts.map((cost) => (
+          <UnresolvedCostEditor
+            key={cost.id}
+            cost={cost}
+            group={group}
+            planner={planner}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CostGroupActions({
+  group,
+  planner,
+}: Omit<GroupEditorProps, "groupIndex">) {
+  return (
+    <div className="flex flex-wrap gap-1 border-t px-3 py-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => planner.addCost(group.id)}
+      >
+        <PlusIcon />
+        Add payment
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => planner.addUnresolvedCost(group.id)}
+      >
+        <PlusIcon />
+        Add cost needing details
+      </Button>
+    </div>
+  );
+}
+
+function CostGroupEditor({ group, groupIndex, planner }: GroupEditorProps) {
+  const rows = planner.costs.flatMap((cost, index) =>
+    cost.groupId === group.id ? [{ cost, index }] : [],
+  );
+  return (
+    <section className="overflow-hidden rounded-lg border">
+      <CostGroupHeader
+        group={group}
+        groupIndex={groupIndex}
+        planner={planner}
+        rows={rows}
+      />
+      <ScheduledCostRows planner={planner} rows={rows} />
+      <UnresolvedCostRows group={group} planner={planner} />
+      <CostGroupActions group={group} planner={planner} />
     </section>
   );
 }

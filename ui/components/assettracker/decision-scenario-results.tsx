@@ -376,6 +376,27 @@ function pointOnOrAfter(
   );
 }
 
+function paymentFundingDetails(
+  comparison: DecisionScenarioComparison,
+  currency: Currency,
+  payment: DecisionScenarioAction,
+) {
+  const point = pointOnOrAfter(comparison, payment.date);
+  const account = point?.accountEffects.find(
+    ({ accountId }) => accountId === payment.accountId,
+  );
+  const shortfall = point?.expected.accountShortfalls.find(
+    ({ accountId }) => accountId === payment.accountId,
+  );
+  const check =
+    point == null
+      ? "Not checked"
+      : shortfall == null
+        ? "Funded"
+        : `Short by ${formatCurrency(Math.round(shortfall.amount), currency)}`;
+  return { account, check, point, shortfall };
+}
+
 function PaymentFundingCheckRow({
   comparison,
   currency,
@@ -385,20 +406,11 @@ function PaymentFundingCheckRow({
   currency: Currency;
   payment: DecisionScenarioAction;
 }>) {
-  const point = pointOnOrAfter(comparison, payment.date);
-  const account = point?.accountEffects.find(
-    ({ accountId }) => accountId === payment.accountId,
+  const { account, check, point, shortfall } = paymentFundingDetails(
+    comparison,
+    currency,
+    payment,
   );
-  const shortfall = point?.expected.accountShortfalls.find(
-    ({ accountId }) => accountId === payment.accountId,
-  );
-  let check = "Not checked";
-  if (point != null) {
-    check =
-      shortfall == null
-        ? "Funded"
-        : `Short by ${formatCurrency(Math.round(shortfall.amount), currency)}`;
-  }
 
   return (
     <tr>
@@ -442,6 +454,75 @@ function PaymentFundingCheckRow({
   );
 }
 
+function PaymentFundingDescription({
+  startingDate,
+}: Readonly<{ startingDate: string | undefined }>) {
+  return (
+    <div>
+      <h4 className="text-sm font-semibold">Payment funding checks</h4>
+      <p className="text-xs text-muted-foreground">
+        Checks each due payment against its funding account and emergency
+        reserve.{" "}
+        {startingDate != null &&
+          `Starting balances are from ${format(parseISO(startingDate), "d MMM yyyy")}. `}
+        The forecast is monthly, so payments in the same month share the balance
+        at the first forecast point on or after their due date.
+      </p>
+    </div>
+  );
+}
+
+const paymentFundingHeadings = [
+  "Due",
+  "Payment",
+  "Pay from",
+  "Amount",
+  "Forecast point",
+  "Source balance",
+  "Reserve",
+  "Check",
+] as const;
+
+function PaymentFundingTable({
+  comparison,
+  currency,
+  payments,
+}: Readonly<{
+  comparison: DecisionScenarioComparison;
+  currency: Currency;
+  payments: DecisionScenarioAction[];
+}>) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[54rem] text-left text-xs">
+        <caption className="sr-only">
+          Projected funding account balance and reserve coverage for each
+          payment
+        </caption>
+        <thead className="border-b bg-muted/40">
+          <tr>
+            {paymentFundingHeadings.map((heading) => (
+              <th key={heading} className="px-3 py-2 font-medium">
+                {heading}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y">
+          {payments.map((payment) => (
+            <PaymentFundingCheckRow
+              key={payment.id}
+              comparison={comparison}
+              currency={currency}
+              payment={payment}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function PaymentFundingChecks({
   comparison,
   currency,
@@ -453,57 +534,15 @@ function PaymentFundingChecks({
     ({ kind }) => kind === "payment" || kind === "asset-sale",
   );
   if (payments.length === 0) return null;
-  const startingDate = comparison.timeline[0]?.date;
 
   return (
     <section className="space-y-2" aria-label="Payment funding checks">
-      <div>
-        <h4 className="text-sm font-semibold">Payment funding checks</h4>
-        <p className="text-xs text-muted-foreground">
-          Checks each due payment against its funding account and emergency
-          reserve.{" "}
-          {startingDate != null &&
-            `Starting balances are from ${format(parseISO(startingDate), "d MMM yyyy")}. `}
-          The forecast is monthly, so payments in the same month share the
-          balance at the first forecast point on or after their due date.
-        </p>
-      </div>
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full min-w-[54rem] text-left text-xs">
-          <caption className="sr-only">
-            Projected funding account balance and reserve coverage for each
-            payment
-          </caption>
-          <thead className="border-b bg-muted/40">
-            <tr>
-              {[
-                "Due",
-                "Payment",
-                "Pay from",
-                "Amount",
-                "Forecast point",
-                "Source balance",
-                "Reserve",
-                "Check",
-              ].map((heading) => (
-                <th key={heading} className="px-3 py-2 font-medium">
-                  {heading}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {payments.map((payment) => (
-              <PaymentFundingCheckRow
-                key={payment.id}
-                comparison={comparison}
-                currency={currency}
-                payment={payment}
-              />
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <PaymentFundingDescription startingDate={comparison.timeline[0]?.date} />
+      <PaymentFundingTable
+        comparison={comparison}
+        currency={currency}
+        payments={payments}
+      />
     </section>
   );
 }
