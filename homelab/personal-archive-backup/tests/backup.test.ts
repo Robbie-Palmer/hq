@@ -4,6 +4,7 @@ import {
   chmodSync,
   mkdirSync,
   mkdtempSync,
+  readlinkSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -14,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const projectDirectory = fileURLToPath(new URL("..", import.meta.url));
+const installScript = join(projectDirectory, "scripts/install.sh");
 const backupScript = join(projectDirectory, "scripts/backup.sh");
 const restoreScript = join(projectDirectory, "scripts/restore.sh");
 const maintenanceScript = join(
@@ -227,10 +229,45 @@ test("maintenance is dry-run by default and delete-capable only when applied", (
     const applied = run(maintenanceScript, ["--apply"], fixture.environment);
     assert.equal(applied.status, 0, applied.stderr);
     calls = readFileSync(fixture.calls, "utf8");
-    assert.match(calls, /unlock --remove-all/);
     assert.match(calls, /forget .*--prune/);
-    assert.doesNotMatch(calls, /--dry-run/);
+    assert.doesNotMatch(calls, /--dry-run|unlock/);
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("repeated installation does not replace the managed restic link with a self-link", () => {
+  const directory = mkdtempSync(join(tmpdir(), "personal-archive-install-"));
+  const home = join(directory, "home");
+  const fakeBin = join(directory, "bin");
+  const fakeRestic = join(fakeBin, "restic");
+  const fakeSystemctl = join(fakeBin, "systemctl");
+  const inventory = join(
+    projectDirectory,
+    "inventories/robbie-vector-gp68hx-13vh.json",
+  );
+
+  mkdirSync(join(home, ".local/bin"), { recursive: true });
+  mkdirSync(fakeBin, { recursive: true });
+  writeFileSync(fakeRestic, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
+  writeFileSync(fakeSystemctl, "#!/usr/bin/env bash\nexit 0\n", { mode: 0o700 });
+
+  const environment = {
+    ...process.env,
+    HOME: home,
+    PATH: `${join(home, ".local/bin")}:${fakeBin}:${process.env.PATH}`,
+  };
+
+  try {
+    const first = run(installScript, [inventory], environment);
+    assert.equal(first.status, 0, first.stderr);
+    const managedRestic = join(home, ".local/bin/restic");
+    assert.equal(readlinkSync(managedRestic), fakeRestic);
+
+    const second = run(installScript, [inventory], environment);
+    assert.equal(second.status, 0, second.stderr);
+    assert.equal(readlinkSync(managedRestic), fakeRestic);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
   }
 });

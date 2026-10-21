@@ -28,8 +28,15 @@ fi
 
 [tasks.lint]
 description = "Validate personal-archive Terraform configuration"
-depends = ["//infra/personal-archive:init"]
-run = "terraform validate"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-archive-terraform-lint.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
 
 [tasks."lint:tflint"]
 description = "Lint personal-archive Terraform with TFLint"
@@ -47,8 +54,8 @@ set -euo pipefail
 validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-archive-terraform-validate.XXXXXX")"
 trap 'rm -rf "$validate_data_dir"' EXIT
 export TF_DATA_DIR="$validate_data_dir"
-bash scripts/doppler-terraform-env.sh terraform init -backend=false -input=false > /dev/null
-bash scripts/doppler-terraform-env.sh terraform validate
+terraform init -backend=false -input=false > /dev/null
+terraform validate
 """
 
 [tasks.plan]

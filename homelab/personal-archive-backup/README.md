@@ -83,13 +83,19 @@ AWS_SECRET_ACCESS_KEY=<B2 recovery application key>
 RESTIC_REPOSITORY=s3:https://s3.eu-central-003.backblazeb2.com/robbie-personal-archive/restic/robbie-vector-gp68hx-13vh-home-migration
 ```
 
-Put the restic password in a separate mode `0600` file. Restore to an empty
-directory on the 10 TB drive:
+Put the restic password in a separate mode `0600` file. Create the independent
+recovery configuration, then restore to an empty directory on the 10 TB drive:
 
 ```bash
-PERSONAL_ARCHIVE_CONFIG=/secure/home-migration.config \
-PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS=/secure/recovery.env \
-PERSONAL_ARCHIVE_RECOVERY_PASSWORD=/secure/restic-password \
+recovery_directory="${HOME}/.config/personal-archive-recovery"
+install -d -m 0700 "${recovery_directory}"
+printf '%s\n' 'ARCHIVE_ID=robbie-vector-gp68hx-13vh' \
+  >"${recovery_directory}/home-migration.config"
+chmod 0600 "${recovery_directory}/home-migration.config"
+
+PERSONAL_ARCHIVE_CONFIG="${recovery_directory}/home-migration.config" \
+PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS="${recovery_directory}/recovery.env" \
+PERSONAL_ARCHIVE_RECOVERY_PASSWORD="${recovery_directory}/restic-password" \
   bash personal-archive-backup/scripts/restore.sh \
   "/Volumes/<10TB drive>/Laptop Offload/robbie-vector-gp68hx-13vh"
 ```
@@ -128,7 +134,7 @@ Do not record credentials or full source paths here.
 | Pilot B2 usage | 302,165 bytes across 9 live objects after two backups |
 | Final migration inventory | Downloads, screenshots, mail, browser and editor state, T3 and Codex data, and local credential stores selected; rebuildable caches and source repositories excluded |
 | Final migration snapshot | Snapshot `445419d9` captured 18 source roots and passed a 100 percent repository check; restic reports 1,238,044,133 bytes of unique file data |
-| Password-manager and USB recovery copies | Pending user transfer from the local bundle |
+| Password-manager and USB recovery copies | User verified both copies; the temporary laptop transfer bundle was deleted |
 | Independent recovery-key restore | Read-only recovery key restored and verified 22,367 files without Doppler or the write key |
 | Recovery egress | The restore materialized 3,700,154,368 bytes and triggered the account's 100 percent daily download-cap alert; exact billable egress was not available from the alert |
 | Mac mini 10 TB drive copy | Pending |

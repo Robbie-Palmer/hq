@@ -27,7 +27,6 @@ flock -n 9 || { echo "a backup or maintenance run is active" >&2; exit 1; }
 mode=(--dry-run)
 if [[ "${1:-}" = --apply ]]; then
   mode=()
-  "${restic_bin}" unlock --remove-all
 fi
 
 "${restic_bin}" forget \

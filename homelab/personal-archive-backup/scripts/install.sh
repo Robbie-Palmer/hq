@@ -71,7 +71,10 @@ for legacy_script in personal-archive-backup personal-archive-backup-status \
   personal-archive-restore personal-archive-maintenance; do
   rm -f -- "${bin_directory}/${legacy_script}"
 done
-ln -sfn "$(command -v restic)" "${bin_directory}/restic"
+restic_path=$(command -v restic)
+if [[ "${restic_path}" != "${bin_directory}/restic" ]]; then
+  ln -sfn "${restic_path}" "${bin_directory}/restic"
+fi
 
 install -m 0644 "${project_directory}/systemd/personal-archive-backup.service" \
   "${unit_directory}/personal-archive-backup.service"
