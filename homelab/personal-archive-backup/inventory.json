@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "archive": {
+    "id": "linux-laptop-documents",
+    "owner": "robbie",
+    "host": "robbie-Vector-GP68HX-13VH",
+    "scope": "Non-photo, non-code documents on the Linux laptop"
+  },
+  "sources": [
+    {
+      "path": "/home/robbie/Documents",
+      "reason": "The laptop's curated document directory"
+    }
+  ],
+  "destination": {
+    "provider": "backblaze-b2",
+    "bucket": "robbie-personal-archive",
+    "repositoryPrefix": "restic/linux-laptop-documents"
+  },
+  "schedule": {
+    "onCalendar": "*-*-* 03:17:00 Europe/London",
+    "randomizedDelaySeconds": 1800,
+    "maximumAgeSeconds": 129600
+  },
+  "retention": {
+    "withinDaily": "30d",
+    "withinMonthly": "1y",
+    "withinYearly": "10y"
+  }
+}

@@ -1,0 +1,32 @@
+# Photos and video have their own Ente-backed lifecycle.
+*.avif
+*.gif
+*.heic
+*.jpeg
+*.jpg
+*.mov
+*.mp4
+*.png
+*.raw
+*.tif
+*.tiff
+*.webp
+
+# Source code and build trees belong in version control, not this archive.
+.git
+node_modules
+*.c
+*.cpp
+*.go
+*.java
+*.js
+*.jsx
+*.py
+*.rs
+*.ts
+*.tsx
+
+# Rebuildable desktop metadata.
+.DS_Store
+Thumbs.db
+~$*

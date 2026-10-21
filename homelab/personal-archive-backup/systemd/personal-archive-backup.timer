@@ -1,0 +1,11 @@
+[Unit]
+Description=Run the encrypted personal document backup every day
+
+[Timer]
+OnCalendar=*-*-* 03:17:00 Europe/London
+Persistent=true
+RandomizedDelaySec=1800
+Unit=personal-archive-backup.service
+
+[Install]
+WantedBy=timers.target

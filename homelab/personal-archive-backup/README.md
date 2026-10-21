@@ -1,0 +1,135 @@
+# Personal document archive backup
+
+This is the first, deliberately small pilot for
+[ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive). It
+backs up `/home/robbie/Documents` on the Linux laptop. Photos, source code,
+downloads, caches, and the Mac mini's external drive are outside the current
+inventory. Add the external drive as a separate archive only after this pilot
+has completed two backups, alerted on a forced failure, and passed an
+independent recovery drill.
+
+The scheduled Backblaze key is restricted to the private bucket and the
+`restic/linux-laptop-documents/` prefix. Grant it only `listBuckets`,
+`listFiles`, `readFiles`, and `writeFiles`. Do not grant `deleteFiles`, bucket
+administration, retention administration, or governance bypass. The job uses
+a local `flock` and restic's `--no-lock` mode because it cannot delete lock
+objects.
+
+Keep two other keys outside the scheduled job:
+
+- a read-only recovery key with `listBuckets`, `listFiles`, and `readFiles`;
+- a maintenance key with the scheduled capabilities plus `deleteFiles`.
+
+Restrict both keys to the same bucket and prefix. Keep the read-only key and a
+copy of the restic password outside Doppler and outside the house. Do not keep
+the maintenance key in the laptop credential file.
+
+After authorizing the official B2 CLI with the account's administrative key,
+create the bucket with Object Lock available but no default retention. Create
+the scheduled key with explicit capabilities because the web console's broad
+"Read and Write" preset also permits deletion. Each `b2 key create` command
+prints its secret only once, so capture it directly into the intended secret
+store or offline recovery material.
+
+```bash
+b2 bucket create --file-lock-enabled \
+  --default-server-side-encryption=SSE-B2 \
+  robbie-personal-archive allPrivate
+b2 key create --bucket robbie-personal-archive \
+  --name-prefix restic/linux-laptop-documents/ \
+  linux-laptop-personal-archive \
+  listBuckets,listFiles,readFiles,writeFiles
+b2 key create --bucket robbie-personal-archive \
+  --name-prefix restic/linux-laptop-documents/ \
+  personal-archive-recovery \
+  listBuckets,listFiles,readFiles
+b2 key create --bucket robbie-personal-archive \
+  --name-prefix restic/linux-laptop-documents/ \
+  personal-archive-maintenance \
+  listBuckets,listFiles,readFiles,writeFiles,deleteFiles
+```
+
+## Install the laptop job
+
+Create Doppler config `homelab/prd_personal_archive_backup` with these masked
+values:
+
+| Name | Purpose |
+| --- | --- |
+| `B2_S3_ENDPOINT` | Bucket region endpoint, without `https://` |
+| `B2_BUCKET_NAME` | `robbie-personal-archive` |
+| `B2_BACKUP_KEY_ID` | Prefix- and bucket-restricted scheduled key ID |
+| `B2_BACKUP_APPLICATION_KEY` | Scheduled key secret |
+| `RESTIC_PASSWORD` | Independent repository encryption password |
+| `HEALTHCHECKS_PING_URL` | Daily check connected to the homelab Slack channel |
+
+Enable Object Lock on the bucket at creation, but do not set default retention
+until the first two backups and a restore work. Object Lock cannot be disabled
+after it is enabled. During the retention test, use one day of governance
+retention, confirm the documented maintenance failure, wait for expiry, then
+confirm `forget` and `prune` work before choosing a longer period.
+
+Install the code and user timer, then install the credentials. The first task
+does not enable the timer. The credential task enables it only after every
+required secret is present.
+
+```bash
+mise run //homelab:personal-archive-install
+mise run //homelab:personal-archive-healthchecks-reconcile
+mise run //homelab:personal-archive-credentials
+mise run //homelab:personal-archive-backup
+mise run //homelab:personal-archive-status
+```
+
+The daily Healthchecks.io check uses a 30-hour period and six-hour grace, so a
+missing run alerts at the same 36-hour limit as the local status check. A
+failed run sends a failure ping. The local status file contains no paths,
+object-store endpoint, or credentials.
+
+## Recovery and maintenance
+
+On a clean machine, create a mode `0600` environment file containing the
+read-only key as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
+`RESTIC_REPOSITORY`. Put the independent password in a second mode `0600`
+file. Restore into an empty directory:
+
+```bash
+PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS=/secure/recovery.env \
+PERSONAL_ARCHIVE_RECOVERY_PASSWORD=/secure/restic-password \
+  personal-archive-restore /var/tmp/personal-archive-restore
+```
+
+The restore uses restic's `--verify` option, which hashes restored files and
+compares them with the encrypted repository metadata. Record the snapshot ID,
+restored byte count, and B2 download usage after each drill.
+
+Maintenance is manual and defaults to a dry run. Point it at an ephemeral
+environment file made from the delete-capable key. Use `--apply` only after
+reviewing the dry run:
+
+```bash
+PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
+  personal-archive-maintenance
+PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
+  personal-archive-maintenance --apply
+```
+
+Restic's S3 backend hides replaced objects. Configure the B2 lifecycle rule
+"Keep only the last version" after the one-day Object Lock test. Retained
+versions still consume storage until their retention expires.
+
+## Evidence log
+
+Record each live run here. Do not record credentials or full source paths.
+
+| Check | Result |
+| --- | --- |
+| Inventory | 4 PDF files, 376 KiB allocated in `Documents` on 2026-10-21 |
+| Local implementation drill | Two snapshots and a verified full restore passed; latest snapshot referenced 298,794 bytes |
+| Initial backup | Pending Backblaze login and bucket creation |
+| Incremental backup | Pending |
+| Forced-failure alert | Healthchecks.io accepted a failure and recovery ping on 2026-10-21 |
+| Clean-machine restore | Pending |
+| Object Lock maintenance test | Pending |
+| B2 stored bytes and monthly cost | Pending |
+| Restore egress | Pending |
