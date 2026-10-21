@@ -59,7 +59,7 @@ created environments until their branch and reviewer policy is in place.
 ## Root delivery registry
 
 `delivery.tf` declares the non-secret delivery structure for each managed
-root. The first canary entry is `cloudflare-access`. It owns a Doppler project,
+root. The first managed entry is `cloudflare-access`. It owns a Doppler project,
 an `ops` environment, separate plan, drift, and apply configs, and the matching
 GitHub environments in `Robbie-Palmer/hq`.
 
@@ -152,13 +152,15 @@ moved {
 Reverse the two moves when removing protection. Review a plan that reports
 only address moves before applying the policy change.
 
-The current registry imports these workspaces from the provider-created
-`Default Project`:
+The current registry manages these workspaces in the provider-created
+`Default Project`. Existing workspaces have import IDs. The Cloudflare Access
+workspace is created from the registry:
 
 | Registry key | Workspace |
 | --- | --- |
 | `public-platform` | `personal-site` |
 | `bootstrap` | `personal-site-bootstrap` |
+| `cloudflare-access` | `personal-site-cloudflare-access` |
 | `remote-development` | `personal-site-remote-development` |
 | `remote-development-cluster` | `personal-site-remote-development-cluster` |
 | `work-graph` | `personal-site-work-graph` |

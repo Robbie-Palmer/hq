@@ -7,6 +7,11 @@ Foundational IAM and identity trust resources live in
 from routine Cloudflare, Neon, PostHog, and Pages deploys because its GitHub
 identity can change project IAM.
 
+Shared Cloudflare Zero Trust organization, identity-provider, Pages Access,
+and preview service-identity resources live in
+[`../cloudflare-access`](../cloudflare-access/README.md). This root does not
+own Access resources.
+
 ## GitHub Actions Setup
 
 ### Required Secrets
@@ -30,9 +35,6 @@ Secrets and config mirrored from Doppler:
       - Account.Workers R2 Storage: Edit
       - Account.Hyperdrive: Edit
       - Account.Account Rulesets: Edit
-      - Account.Access Apps and Policies: Edit
-      - Account.Access Organizations: Read
-      - Account.Access: Service Tokens: Edit
       - Zone.DNS: Edit, scoped to `robbiepalmer.me`
       - Zone.Cache Settings: Edit, scoped to `robbiepalmer.me`
       - Zone.Transform Rules: Edit, scoped to `robbiepalmer.me`
@@ -89,8 +91,8 @@ Secrets and config mirrored from Doppler:
       variable, not a secret. Terraform requires a non-empty value and has no
       production default.
 
-The Pages preview application uses the account-restricted `Cloudflare` identity
-provider. See the
+The Pages preview application is owned by the shared Cloudflare Access root.
+See the
 [PR preview environment runbook](../../docs/runbooks/preview-environments.md)
 for bootstrap, import, and recovery procedures.
 

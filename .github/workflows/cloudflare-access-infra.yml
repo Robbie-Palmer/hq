@@ -1,0 +1,65 @@
+name: Cloudflare Access Infrastructure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "infra/cloudflare-access/**"
+      - ".github/workflows/cloudflare-access-infra.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-access-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-cloudflare-access
+    defaults:
+      run:
+        working-directory: infra/cloudflare-access
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Remove stale Terraform plan
+        run: rm -f .planfile
+
+      - name: Terraform plan with apply credentials
+        run: mise run //infra/cloudflare-access:plan
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Add Terraform plan to summary
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
+        with:
+          token: ${{ github.token }}
+          planfile: .planfile
+          working-directory: ./infra/cloudflare-access
+          skip-comment: true
+
+      - name: Terraform apply
+        run: mise run //infra/cloudflare-access:apply
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile

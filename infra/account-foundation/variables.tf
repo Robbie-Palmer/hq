@@ -59,6 +59,13 @@ variable "hcp_roots" {
       state_consumers   = []
       import_id         = "ws-DyQ4QhHWWpPsRWgv"
     }
+    cloudflare-access = {
+      workspace_name    = "personal-site-cloudflare-access"
+      project           = "default"
+      terraform_version = "1.16.4"
+      tags              = {}
+      state_consumers   = []
+    }
     remote-development = {
       workspace_name    = "personal-site-remote-development"
       project           = "default"
