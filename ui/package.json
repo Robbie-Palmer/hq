@@ -82,6 +82,7 @@
     "reading-time": "^1.5.0",
     "recharts": "^3.3.0",
     "planning-case-domain": "workspace:*",
+    "platform-contracts": "workspace:*",
     "recipe-domain": "workspace:*",
     "rehype-autolink-headings": "^7.1.0",
     "rehype-pretty-code": "^0.14.1",

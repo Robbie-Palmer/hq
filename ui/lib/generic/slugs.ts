@@ -1,4 +1,4 @@
-import { normalizeSlug } from "recipe-domain/slugs";
+import { normalizeSlug } from "ts-base/strings";
 
 export { normalizeSlug };
 

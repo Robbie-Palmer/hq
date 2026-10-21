@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isValid, parse } from "date-fns";
+import { parsePlatformManifestSource } from "platform-contracts/platform-manifest";
 import readingTime from "reading-time";
 import { parse as parseYaml } from "yaml";
 import { legacyADRAliases } from "../../content/adr-aliases";
@@ -1045,11 +1046,7 @@ export function loadBuildingPhilosophy(): string {
 export function loadPlatformManifest(): PlatformManifest | undefined {
   if (!fs.existsSync(PLATFORM_MANIFEST_PATH)) return undefined;
   const fileContent = fs.readFileSync(PLATFORM_MANIFEST_PATH, "utf-8");
-  const parsed = parseYaml(fileContent);
-  const data =
-    parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
+  const data = parsePlatformManifestSource(parseYaml(fileContent));
   const records = (value: unknown): Record<string, unknown>[] =>
     Array.isArray(value) ? (value as Record<string, unknown>[]) : [];
   const catalogData =

@@ -11,6 +11,7 @@ catalog:
         - "scripts/check-monorepo-layout.ts"
         - "packages/browser-base"
         - "packages/node-base"
+        - "packages/platform-contracts"
         - "packages/project-economics-domain"
         - "packages/project-generator"
         - "packages/ts-base"

@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install platform contract dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck platform contracts"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test platform contracts"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test platform contracts with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check platform contracts"
+depends = ["typecheck", "test"]

@@ -1,0 +1,162 @@
+---
+title: "ADR 040: Executable project profiles and resolved blueprints"
+date: "2026-10-21"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 028](/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding)
+selects Copier for creating and updating projects. [ADR 032](/projects/personal-engineering-platform/adrs/032-monorepo-project-package-layout)
+defines where project components belong and which shared manifests a generator
+may edit. The platform manifest records dated technology and policy defaults.
+The Nix and OpenTelemetry contracts define two cross-cutting structures that a
+current project template must implement.
+
+Copier still needs one bounded input describing a project and one fully
+resolved value to render. Reading project pages, ADR prose, and live provider
+state during generation would make the result depend on incidental content or
+external availability. Passing every platform default as a Copier question
+would instead copy platform policy into each project's answers and make later
+reconciliation ambiguous.
+
+The source also needs to distinguish a deliberate exception from an omitted
+field. A project can decline an inapplicable standard task, replace a selected
+technology through an ADR, or choose not to use Nix or OpenTelemetry. Those
+choices must not look like missing template behavior.
+
+## Decision
+
+Adopt version 1 of the executable project profile and resolved blueprint. The
+profile compiler lives in `packages/project-generator`; the versioned source
+contracts it consumes live in `packages/platform-contracts`. Generic slug and
+UTC-instant semantics live in `packages/ts-base` and are shared by contract
+parsers and domain consumers.
+
+The source profile is strict YAML with these top-level fields:
+
+```yaml
+schema_version: 1
+project:
+  id: sample-service
+  name: Sample service
+  kind: service
+components:
+  - id: api
+    name: Sample API
+    kind: worker
+    task_exceptions: []
+layers:
+  - layer: base
+  - layer: observability
+    slots: [observability.telemetry-protocol]
+requirements:
+  - instrumented-runtime
+  - telemetry-redaction
+  - bounded-exporter-failure
+overrides: []
+nix:
+  boundary: none
+opentelemetry:
+  enabled: true
+  runtime: typescript-worker
+```
+
+The profile owns project identity, primary kind, components, opted-in platform
+layers and preferred slots, declared operational prerequisites, justified
+overrides, task exceptions, the Nix boundary, and the OpenTelemetry runtime.
+An override names its slot, value kind, value, and accepting ADR. A task
+exception names the standard task and gives a reason. Secret values, provider
+identifiers, template revisions, and rendered file contents do not belong in
+the profile.
+
+Version 1 accepts the project and component kinds defined by the repository
+layout contract. Each primary project kind must have at least one compatible
+component: applications have a UI or Worker, services have a Worker or Python
+pipeline, libraries have a TypeScript package or C++ project, data pipelines
+have a Python pipeline, embedded systems have a C++ project, and
+infrastructure projects have a Terraform, Kubernetes, or homelab component.
+Platforms may combine any current component kinds. Additional components may
+cross those boundaries when the logical project genuinely spans them.
+
+Required slots for a selected layer resolve automatically. Preferred slots
+resolve only when the profile names them. Resolution validates layer, slot,
+component, and project kinds against the current contracts. It rejects an
+operational prerequisite that the profile has not declared, a slot
+prerequisite that cannot be resolved, a mismatched or unused override, and a
+single-cardinality slot without exactly one effective value. The explicit
+resolution instant selects accepted platform values using their inclusive
+start and exclusive end.
+
+The compiler emits blueprint schema version 1. The blueprint contains pinned
+selection IDs and values; stable project and component IDs; component and
+knowledge-graph paths; standard task declarations and reasoned exceptions;
+catalog and ownership records; allowed structural manifest edits; Nix outputs,
+systems, and task policy; OpenTelemetry resource identity, transport, data,
+cardinality, and failure policy; and manual checkpoints derived from selected
+configuration, state, check, and setup requirements.
+
+Resolution is a pure operation over the parsed profile, an explicit UTC
+instant, and four checked-in contracts: repository layout, platform, Nix, and
+OpenTelemetry. It does not read provider state, contact a network service, or
+use the current clock. Output collections are canonically ordered before JSON
+serialization, so equivalent profiles produce byte-for-byte identical
+blueprints.
+
+The source and output versions evolve independently. A reader rejects an
+unknown source version rather than guessing how to interpret it. Container
+builds, OCI publication, and portable workload packaging are reserved as
+future capability sections. Version 1 rejects every capability section with a
+specific unsupported-capability error. A later ADR and schema version must
+define the inputs, prerequisites, ownership, and output before one becomes
+executable.
+
+The profile is not the Copier receipt. The next integration step maps a
+resolved blueprint to a pinned template and writes only the non-secret Copier
+answers required to reproduce that render. The receipt remains evidence of a
+particular template application; the profile remains the project declaration.
+
+## Alternatives
+
+Using project frontmatter as the complete generator input would avoid another
+document. Frontmatter currently records human-facing project metadata and
+dated platform adoption. Adding component paths, task exceptions, and
+generation settings would couple content rendering to template execution and
+make schema changes harder to isolate.
+
+Passing the unresolved profile directly to templates would keep the compiler
+small. Every template would then need to implement temporal selection,
+prerequisite validation, path expansion, and catalog identity. Two template
+revisions could resolve the same declaration differently without an explicit
+contract change.
+
+Recording all resolved defaults in the source profile would make each project
+self-contained. It would also duplicate platform policy, obscure which values
+are deliberate overrides, and make routine default changes require hand-edits
+before the reconciliation tool could calculate an update.
+
+Discovering configuration from provider APIs could fill in more answers. It
+would make generation depend on credentials, connectivity, and mutable remote
+state. Provider discovery belongs in a separate adoption or operational check,
+not in deterministic blueprint resolution.
+
+## Consequences
+
+Copier integration receives one validated, complete, and reproducible value.
+Templates do not need to understand the platform manifest or choose current
+defaults. Reviewers can see whether a difference came from a dated platform
+selection, an ADR-backed override, or an explicit local exception.
+
+Profiles must declare operational prerequisites before selecting capabilities
+such as OpenTelemetry. This is intentional friction: choosing a technology
+does not prove that its redaction, failure, retention, or ownership conditions
+exist. Manual checkpoints remain visible in the blueprint until later tooling
+can verify or generate them safely.
+
+The shared contract package is the sole parser for repository layout, platform,
+Nix, and OpenTelemetry source contracts. Repository validators, the knowledge
+graph loader, and the profile compiler consume those parsers rather than
+maintaining parallel schema fragments. Contract tests parse the production
+files so drift is caught in CI. Adding a kind, task, runtime, or capability may
+require a new profile schema version or a backward-compatible compiler change
+before templates can use it.

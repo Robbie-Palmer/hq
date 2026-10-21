@@ -1,6 +1,9 @@
 export const isNonBlankString = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
 
+export const LOWERCASE_KEBAB_CASE_PATTERN =
+  /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 export const compareStrings = (left: string, right: string): number => {
   if (left < right) return -1;
   if (left > right) return 1;
@@ -9,6 +12,18 @@ export const compareStrings = (left: string, right: string): number => {
 
 export const normalizeWhitespace = (value: string): string =>
   value.trim().replaceAll(/\s+/g, " ");
+
+export function normalizeSlug(value: string): string {
+  return value
+    .toLowerCase()
+    .replaceAll("++", "plusplus")
+    .replaceAll("#", "sharp")
+    .replaceAll(".", "dot")
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]+/g, "")
+    .replace(/-{2,}/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
 
 export function base64UrlEncode(value: string | Uint8Array): string {
   const bytes =
