@@ -277,29 +277,29 @@ depends = ["//:install"]
 run = "pnpm exec tsx --test tests/remote-development-backup.test.ts"
 
 [tasks.personal-archive-install]
-description = "Install the Linux laptop personal archive job without enabling it"
-run = "bash scripts/install-personal-archive-backup"
+description = "Install a personal archive profile without enabling it"
+run = "bash personal-archive-backup/scripts/install.sh"
 
 [tasks.personal-archive-credentials]
 description = "Install personal archive credentials from Doppler and enable the timer"
-run = "bash scripts/install-personal-archive-backup-credentials"
+run = "bash personal-archive-backup/scripts/install-credentials.sh"
 
 [tasks.personal-archive-healthchecks-reconcile]
 description = "Create or update the personal archive Slack-backed freshness alert"
-run = "bash scripts/reconcile-personal-archive-healthchecks"
+run = "bash personal-archive-backup/scripts/reconcile-healthchecks.sh"
 
 [tasks.personal-archive-backup]
 description = "Run and verify the encrypted personal document backup"
-run = "personal-archive-backup"
+run = "personal-archive-backup.sh"
 
 [tasks.personal-archive-status]
 description = "Report personal archive freshness without exposing paths or credentials"
-run = "personal-archive-backup-status"
+run = "personal-archive-status.sh"
 
 [tasks.personal-archive-test]
 description = "Test personal archive backup, recovery, and maintenance boundaries"
 depends = ["//:install"]
-run = "pnpm exec tsx --test tests/personal-archive-backup.test.ts"
+run = "pnpm exec tsx --test personal-archive-backup/tests/backup.test.ts"
 
 [tasks.remote-kubeconfig]
 description = "Fetch the remote cluster kubeconfig over Tailscale into a gitignored file"

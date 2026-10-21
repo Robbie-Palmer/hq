@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
   "archive": {
-    "id": "linux-laptop-documents",
+    "id": "robbie-vector-gp68hx-13vh-documents",
     "owner": "robbie",
     "host": "robbie-Vector-GP68HX-13VH",
-    "scope": "Non-photo, non-code documents on the Linux laptop"
+    "scope": "Non-photo, non-code documents on robbie-Vector-GP68HX-13VH"
   },
   "sources": [
     {
@@ -15,7 +15,7 @@
   "destination": {
     "provider": "backblaze-b2",
     "bucket": "robbie-personal-archive",
-    "repositoryPrefix": "restic/linux-laptop-documents"
+    "repositoryPrefix": "restic/robbie-vector-gp68hx-13vh-documents"
   },
   "schedule": {
     "onCalendar": "*-*-* 03:17:00 Europe/London",
@@ -26,5 +26,13 @@
     "withinDaily": "30d",
     "withinMonthly": "1y",
     "withinYearly": "10y"
+  },
+  "monitoring": {
+    "name": "robbie-Vector-GP68HX-13VH personal archive",
+    "slug": "robbie-vector-gp68hx-13vh-personal-archive",
+    "tags": "homelab backup personal-archive robbie-vector-gp68hx-13vh",
+    "description": "Daily encrypted restic backup of the document archive on robbie-Vector-GP68HX-13VH",
+    "timeoutSeconds": 108000,
+    "graceSeconds": 21600
   }
 }

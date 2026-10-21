@@ -35,6 +35,21 @@ if [ -z "${RESTIC_REPOSITORY:-}" ]; then
   echo "RESTIC_REPOSITORY is not set" >&2
   exit 1
 fi
+if [ "${DESTINATION_PROVIDER}" = backblaze-b2 ]; then
+  for name in B2_BUCKET_NAME_EXPECTED REPOSITORY_PREFIX; do
+    if [ -z "${!name:-}" ]; then
+      echo "personal archive configuration is missing ${name}" >&2
+      exit 1
+    fi
+  done
+  case "${RESTIC_REPOSITORY}" in
+    s3:https://s3.*.backblazeb2.com/"${B2_BUCKET_NAME_EXPECTED}/${REPOSITORY_PREFIX}") ;;
+    *)
+      echo "RESTIC_REPOSITORY does not match the installed inventory" >&2
+      exit 1
+      ;;
+  esac
+fi
 export RESTIC_PASSWORD_FILE="${BACKUP_PASSWORD_FILE}"
 
 mapfile -t sources < <(sed -e '/^[[:space:]]*#/d' -e '/^[[:space:]]*$/d' "${BACKUP_SOURCES_FILE}")

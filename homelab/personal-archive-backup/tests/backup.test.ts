@@ -13,12 +13,12 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
-const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
-const backupScript = join(homelabDirectory, "scripts/personal-archive-backup");
-const restoreScript = join(homelabDirectory, "scripts/personal-archive-restore");
+const projectDirectory = fileURLToPath(new URL("..", import.meta.url));
+const backupScript = join(projectDirectory, "scripts/backup.sh");
+const restoreScript = join(projectDirectory, "scripts/restore.sh");
 const maintenanceScript = join(
-  homelabDirectory,
-  "scripts/personal-archive-maintenance",
+  projectDirectory,
+  "scripts/maintenance.sh",
 );
 
 interface Fixture {
@@ -68,8 +68,10 @@ function createFixture(): Fixture {
   writeFileSync(
     config,
     [
-      "ARCHIVE_ID=linux-laptop-documents",
-      "DESTINATION_PROVIDER=backblaze-b2",
+      "ARCHIVE_ID=robbie-vector-gp68hx-13vh-documents",
+      "DESTINATION_PROVIDER=local",
+      "B2_BUCKET_NAME_EXPECTED=robbie-personal-archive",
+      "REPOSITORY_PREFIX=restic/robbie-vector-gp68hx-13vh-documents",
       `BACKUP_SOURCES_FILE=${sources}`,
       `BACKUP_EXCLUDES_FILE=${excludes}`,
       `BACKUP_STATUS_FILE=${status}`,
@@ -148,7 +150,7 @@ function run(
   environment: NodeJS.ProcessEnv,
 ) {
   return spawnSync("bash", [script, ...args], {
-    cwd: homelabDirectory,
+    cwd: projectDirectory,
     encoding: "utf8",
     env: environment,
     timeout: 30_000,
@@ -190,6 +192,26 @@ test("backup failures produce safe status and a failure alert", () => {
     assert.equal(status.state, "failed");
     assert.equal(status.failedStep, "backup");
     assert.match(readFileSync(fixture.pings, "utf8"), /\/fail/);
+  } finally {
+    rmSync(fixture.directory, { force: true, recursive: true });
+  }
+});
+
+test("Backblaze credentials must match the installed inventory", () => {
+  const fixture = createFixture();
+  const config = readFileSync(fixture.config, "utf8").replace(
+    "DESTINATION_PROVIDER=local",
+    "DESTINATION_PROVIDER=backblaze-b2",
+  );
+  writeFileSync(fixture.config, config);
+  try {
+    const result = run(backupScript, [], fixture.environment);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.trim(),
+      "RESTIC_REPOSITORY does not match the installed inventory",
+    );
+    assert.equal(result.stdout, "");
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }

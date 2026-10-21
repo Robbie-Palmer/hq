@@ -1,15 +1,15 @@
 # Personal document archive backup
 
 This is the first, deliberately small pilot for
-[ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive). It
-backs up `/home/robbie/Documents` on the Linux laptop. Photos, source code,
-downloads, caches, and the Mac mini's external drive are outside the current
-inventory. Add the external drive as a separate archive only after this pilot
-has completed two backups, alerted on a forced failure, and passed an
-independent recovery drill.
+[ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive). The
+`robbie-vector-gp68hx-13vh` inventory backs up `/home/robbie/Documents` on
+`robbie-Vector-GP68HX-13VH`. Photos, source code, downloads, caches, and the
+Mac mini's external drive are outside this profile. Add the external drive as
+a separate inventory only after this pilot has completed two backups, alerted
+on a forced failure, and passed an independent recovery drill.
 
 The scheduled Backblaze key is restricted to the private bucket and the
-`restic/linux-laptop-documents/` prefix. Grant it only `listBuckets`,
+`restic/robbie-vector-gp68hx-13vh-documents/` prefix. Grant it only `listBuckets`,
 `listFiles`, `readFiles`, and `writeFiles`. Do not grant `deleteFiles`, bucket
 administration, retention administration, or governance bypass. The job uses
 a local `flock` and restic's `--no-lock` mode because it cannot delete lock
@@ -36,20 +36,26 @@ b2 bucket create --file-lock-enabled \
   --default-server-side-encryption=SSE-B2 \
   robbie-personal-archive allPrivate
 b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/linux-laptop-documents/ \
-  linux-laptop-personal-archive \
+  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
+  robbie-vector-gp68hx-13vh-personal-archive \
   listBuckets,listFiles,readFiles,writeFiles
 b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/linux-laptop-documents/ \
-  personal-archive-recovery \
+  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
+  robbie-vector-gp68hx-13vh-personal-archive-recovery \
   listBuckets,listFiles,readFiles
 b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/linux-laptop-documents/ \
-  personal-archive-maintenance \
+  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
+  robbie-vector-gp68hx-13vh-personal-archive-maintenance \
   listBuckets,listFiles,readFiles,writeFiles,deleteFiles
 ```
 
-## Install the laptop job
+If the Backblaze web console is stuck at its human-verification page, do not
+try to automate around it. If an administrative application key already
+exists, the official CLI can authenticate interactively with `b2 account
+authorize` and complete the bucket and key setup without the console. Creating
+the first administrative key still requires a working Backblaze account path.
+
+## Install an inventory profile
 
 Create Doppler config `homelab/prd_personal_archive_backup` with these masked
 values:
@@ -74,12 +80,19 @@ does not enable the timer. The credential task enables it only after every
 required secret is present.
 
 ```bash
-mise run //homelab:personal-archive-install
-mise run //homelab:personal-archive-healthchecks-reconcile
+mise run //homelab:personal-archive-install -- \
+  personal-archive-backup/inventories/robbie-vector-gp68hx-13vh.json
+mise run //homelab:personal-archive-healthchecks-reconcile -- \
+  personal-archive-backup/inventories/robbie-vector-gp68hx-13vh.json
 mise run //homelab:personal-archive-credentials
 mise run //homelab:personal-archive-backup
 mise run //homelab:personal-archive-status
 ```
+
+The scripts and tests live with this backup component under
+`personal-archive-backup/`. The two profile-aware tasks accept an inventory
+path; when omitted, they select `inventories/<lowercase-hostname>.json`. This
+keeps the mise tasks reusable when another host or archive is added.
 
 The daily Healthchecks.io check uses a 30-hour period and six-hour grace, so a
 missing run alerts at the same 36-hour limit as the local status check. A
@@ -96,7 +109,7 @@ file. Restore into an empty directory:
 ```bash
 PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS=/secure/recovery.env \
 PERSONAL_ARCHIVE_RECOVERY_PASSWORD=/secure/restic-password \
-  personal-archive-restore /var/tmp/personal-archive-restore
+  personal-archive-restore.sh /var/tmp/personal-archive-restore
 ```
 
 The restore uses restic's `--verify` option, which hashes restored files and
@@ -109,9 +122,9 @@ reviewing the dry run:
 
 ```bash
 PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
-  personal-archive-maintenance
+  personal-archive-maintenance.sh
 PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
-  personal-archive-maintenance --apply
+  personal-archive-maintenance.sh --apply
 ```
 
 Restic's S3 backend hides replaced objects. Configure the B2 lifecycle rule
