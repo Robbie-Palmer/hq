@@ -105,13 +105,6 @@ export const platformSelectionSourceSchema = z
         : ("technology" as const)),
   }))
   .superRefine((selection, context) => {
-    if (selection.technology !== undefined && selection.value !== undefined) {
-      context.addIssue({
-        code: "custom",
-        message: "selection cannot define both technology and value",
-      });
-      return;
-    }
     const requiredField = selection.kind === "technology" ? "technology" : "value";
     if (selection[requiredField] === undefined) {
       context.addIssue({

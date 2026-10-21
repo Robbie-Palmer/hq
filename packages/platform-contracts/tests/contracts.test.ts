@@ -93,8 +93,7 @@ describe("shared platform contract parsers", () => {
   it.each([
     { kind: "technology" },
     { kind: "policy" },
-    { technology: "TypeScript", value: "Public source" },
-  ])("rejects inconsistent selection fields", (selection) => {
+  ])("rejects a selection missing its kind's value", (selection) => {
     expect(() =>
       parsePlatformManifestSource({
         schema_version: 1,
@@ -114,6 +113,33 @@ describe("shared platform contract parsers", () => {
         ],
       }),
     ).toThrow(/Invalid/);
+  });
+
+  it("keeps an explicit selection kind authoritative", () => {
+    const parsed = parsePlatformManifestSource({
+      schema_version: 1,
+      project: "platform",
+      layers: [],
+      slots: [{ slug: "project.selection" }],
+      policies: [],
+      selections: [
+        {
+          id: "typescript-selection",
+          slot: "project.selection",
+          kind: "technology",
+          technology: "TypeScript",
+          value: "Public source",
+          status: "Accepted",
+          decision: "platform:001-selection",
+          effective_from: "2026-01-01T00:00:00Z",
+        },
+      ],
+    });
+
+    expect(parsed.selections[0]).toMatchObject({
+      kind: "technology",
+      technology: "typescript",
+    });
   });
 
   it.each([
