@@ -16,19 +16,18 @@ function signedMonths(value: number) {
   return `${value > 0 ? "+" : ""}${value.toFixed(1)} months`;
 }
 
-function goalDateChange(
+export function goalDateChange(
   baseline: string | null,
   expected: string | null,
 ): string {
-  if (baseline == null && expected == null) {
-    return "does not reach the FI target within the comparison horizon.";
+  if (expected == null) {
+    if (baseline == null) {
+      return "does not reach the FI target within the comparison horizon.";
+    }
+    return `moves the FI target beyond the comparison horizon, from ${format(parseISO(baseline), "MMM yyyy")} on the committed-only path.`;
   }
   if (baseline == null) {
-    if (expected == null) return "does not reach the FI target.";
     return `reaches the FI target around ${format(parseISO(expected), "MMM yyyy")}, while the committed-only path does not reach it within the comparison horizon.`;
-  }
-  if (expected == null) {
-    return `moves the FI target beyond the comparison horizon, from ${format(parseISO(baseline), "MMM yyyy")} on the committed-only path.`;
   }
   const months = differenceInCalendarMonths(
     parseISO(expected),

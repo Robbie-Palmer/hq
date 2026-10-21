@@ -90,12 +90,23 @@ function amountPaid(actuals: readonly ActualCashFlow[]): number {
 
 function legacyGroupName(stageName: string | undefined, index: number) {
   const name = stageName?.trim() || `Cost ${index + 1}`;
-  return (
-    name.replace(
-      /\s+(?:deposit|balance|instalment|installment|final(?:\s+(?:bill|instalment|installment))?|payment)(?:\b.*)?$/i,
-      "",
-    ) || name
-  );
+  const lowerName = name.toLowerCase();
+  const markers = [
+    " deposit",
+    " balance",
+    " instalment",
+    " installment",
+    " final",
+    " payment",
+  ];
+  const markerIndex = markers.reduce((earliest, marker) => {
+    const found = lowerName.indexOf(marker);
+    const nextCharacter = lowerName[found + marker.length];
+    const hasBoundary =
+      nextCharacter == null || !/[a-z0-9_]/i.test(nextCharacter);
+    return found >= 0 && hasBoundary ? Math.min(earliest, found) : earliest;
+  }, name.length);
+  return name.slice(0, markerIndex).trimEnd() || name;
 }
 
 function uniqueGroupId(name: string, usedIds: Set<string>) {
@@ -1050,14 +1061,14 @@ function ScenarioSummary({ planner }: Readonly<{ planner: Planner }>) {
         ))}
       </dl>
       {(planner.missingPriceCount > 0 || planner.missingDateCount > 0) && (
-        <p className="text-xs text-muted-foreground" role="status">
+        <output className="block text-xs text-muted-foreground">
           Needs details: {planner.missingPriceCount}{" "}
           {planner.missingPriceCount === 1 ? "cost needs" : "costs need"} a
           price · {planner.missingDateCount}{" "}
           {planner.missingDateCount === 1 ? "cost needs" : "costs need"} a due
           date. Unknown amounts are not included in the total; costs without a
           date are not plotted on the timeline.
-        </p>
+        </output>
       )}
     </div>
   );

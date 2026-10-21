@@ -388,12 +388,11 @@ function paymentFundingDetails(
   const shortfall = point?.expected.accountShortfalls.find(
     ({ accountId }) => accountId === payment.accountId,
   );
-  const check =
-    point == null
-      ? "Not checked"
-      : shortfall == null
-        ? "Funded"
-        : `Short by ${formatCurrency(Math.round(shortfall.amount), currency)}`;
+  let check = "Not checked";
+  if (point != null) check = "Funded";
+  if (shortfall != null) {
+    check = `Short by ${formatCurrency(Math.round(shortfall.amount), currency)}`;
+  }
   return { account, check, point, shortfall };
 }
 
