@@ -22,10 +22,10 @@ control plane.
 Prepare these before the first plan:
 
 1. A Hetzner Cloud project and read/write API token.
-2. The account-foundation registry entry for `remote-development`. It owns the
-   `personal-site-remote-development` HCP workspace, the `homelab` Doppler
-   structure, and both GitHub environments. Do not recreate them in provider
-   dashboards.
+2. The account-foundation `remote-development` HCP root and `homelab` delivery
+   root own the `personal-site-remote-development` HCP workspace, the `homelab`
+   Doppler structure, and both GitHub environments. Do not recreate them in
+   provider dashboards.
 3. Doppler config `homelab/prd_remote_development_infra` containing
    `HCLOUD_TOKEN` and `TF_API_TOKEN` as masked values, plus
    `SSH_PUBLIC_KEY`, `BOOTSTRAP_SSH_CIDRS`, and `BOOTSTRAP_MODE_ENABLED` as

@@ -278,18 +278,59 @@ locals {
     }
   }
 
-  root_delivery_registry = merge(local.declared_delivery_registry, {
-    for root_id, root in var.additional_roots : root_id => root.delivery
-  })
+  delivery_registry_entries = concat(
+    [for root_id, root in local.declared_delivery_registry : { root_id = root_id, root = root }],
+    [for root_id, root in var.additional_roots : { root_id = root_id, root = root.delivery }],
+  )
+  delivery_root_ids = [for entry in local.delivery_registry_entries : entry.root_id]
+  doppler_project_ids = [
+    for entry in local.delivery_registry_entries : entry.root.doppler.project.name
+  ]
+  doppler_environment_ids = flatten([
+    for entry in local.delivery_registry_entries : [
+      for environment_slug in keys(entry.root.doppler.environments) :
+      "${entry.root.doppler.project.name}/${environment_slug}"
+    ]
+  ])
+  doppler_config_ids = flatten([
+    for entry in local.delivery_registry_entries : flatten([
+      for environment_slug, environment in entry.root.doppler.environments : [
+        for config_name in environment.configs :
+        "${entry.root.doppler.project.name}/${environment_slug}/${config_name}"
+      ]
+    ])
+  ])
+  github_environment_ids = flatten([
+    for entry in local.delivery_registry_entries : [
+      for environment in values(entry.root.github.environments) :
+      "${entry.root.github.repository}/${environment.name}"
+    ]
+  ])
+  github_branch_policy_ids = flatten([
+    for entry in local.delivery_registry_entries : flatten([
+      for environment in values(entry.root.github.environments) : [
+        for branch_pattern in keys(try(environment.branch_patterns, {})) :
+        "${entry.root.github.repository}/${environment.name}/${branch_pattern}"
+      ]
+    ])
+  ])
 
-  doppler_projects = {
-    for root_id, root in local.root_delivery_registry : root.doppler.project.name => {
-      root_id     = root_id
-      name        = root.doppler.project.name
-      description = root.doppler.project.description
-      imported    = root.imported && var.enable_existing_imports
+  root_delivery_registry = merge([
+    for entry in local.delivery_registry_entries : {
+      (entry.root_id) = entry.root
     }
-  }
+  ]...)
+
+  doppler_projects = merge([
+    for root_id, root in local.root_delivery_registry : {
+      (root.doppler.project.name) = {
+        root_id     = root_id
+        name        = root.doppler.project.name
+        description = root.doppler.project.description
+        imported    = root.imported && var.enable_existing_imports
+      }
+    }
+  ]...)
 
   doppler_environments = merge([
     for root_id, root in local.root_delivery_registry : {

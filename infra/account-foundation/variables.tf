@@ -186,12 +186,25 @@ variable "additional_roots" {
     condition = alltrue([
       for key, root in var.additional_roots :
       can(regex("^[a-z0-9][a-z0-9-]*$", key)) &&
+      can(regex("^[a-z0-9][a-z0-9-]{2,89}$", root.hcp.workspace.workspace_name)) &&
+      can(regex("^[0-9]+\\.[0-9]+\\.[0-9]+$", root.hcp.workspace.terraform_version)) &&
       root.hcp.project.deletion_protected == root.hcp.workspace.deletion_protected &&
       root.hcp.workspace.deletion_protected == root.delivery.deletion_protected &&
       root.delivery.imported == false &&
       root.hcp.workspace.workspace_name != "personal-site-account-foundation"
     ])
-    error_message = "Additional roots must use lowercase slug keys, one deletion policy across HCP and delivery, must be newly created rather than imported, and cannot manage the account-foundation seed."
+    error_message = "Additional roots must use lowercase slug keys and workspace names, exact Terraform versions, one deletion policy across HCP and delivery, must be newly created rather than imported, and cannot manage the account-foundation seed."
+  }
+
+  validation {
+    condition = (
+      length(distinct([for root in values(var.additional_roots) : root.hcp.workspace.workspace_name])) == length(var.additional_roots) &&
+      length(setintersection(
+        toset([for root in values(var.hcp_roots) : root.workspace_name]),
+        toset([for root in values(var.additional_roots) : root.hcp.workspace.workspace_name]),
+      )) == 0
+    )
+    error_message = "HCP roots and additional roots must use unique workspace names."
   }
 }
 

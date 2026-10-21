@@ -10,12 +10,14 @@ locals {
       import_id = null
     })
   })
-  protected_hcp_projects  = { for key, project in local.hcp_projects : key => project if project.deletion_protected }
-  disposable_hcp_projects = { for key, project in local.hcp_projects : key => project if !project.deletion_protected }
-  protected_hcp_roots     = { for key, root in local.hcp_roots : key => root if root.deletion_protected }
-  disposable_hcp_roots    = { for key, root in local.hcp_roots : key => root if !root.deletion_protected }
-  managed_hcp_projects    = merge(tfe_project.protected, tfe_project.disposable)
-  managed_hcp_workspaces  = merge(tfe_workspace.protected, tfe_workspace.disposable)
+  hcp_project_registry_ids = concat(keys(var.hcp_projects), keys(var.additional_roots))
+  hcp_root_registry_ids    = concat(keys(var.hcp_roots), keys(var.additional_roots))
+  protected_hcp_projects   = { for key, project in local.hcp_projects : key => project if project.deletion_protected }
+  disposable_hcp_projects  = { for key, project in local.hcp_projects : key => project if !project.deletion_protected }
+  protected_hcp_roots      = { for key, root in local.hcp_roots : key => root if root.deletion_protected }
+  disposable_hcp_roots     = { for key, root in local.hcp_roots : key => root if !root.deletion_protected }
+  managed_hcp_projects     = merge(tfe_project.protected, tfe_project.disposable)
+  managed_hcp_workspaces   = merge(tfe_workspace.protected, tfe_workspace.disposable)
 }
 
 # The state workspace is a manual seed. Reading it lets plans detect accidental
@@ -26,6 +28,46 @@ data "tfe_workspace" "account_foundation_seed" {
   organization = local.hcp_organization
 
   lifecycle {
+    precondition {
+      condition     = length(distinct(local.hcp_project_registry_ids)) == length(local.hcp_project_registry_ids)
+      error_message = "Additional roots must not replace an existing HCP project registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.hcp_root_registry_ids)) == length(local.hcp_root_registry_ids)
+      error_message = "Additional roots must not replace an existing HCP root registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.delivery_root_ids)) == length(local.delivery_root_ids)
+      error_message = "Additional roots must not replace an existing delivery root registry identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_project_ids)) == length(local.doppler_project_ids)
+      error_message = "Every delivery root must use a unique Doppler project name."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_environment_ids)) == length(local.doppler_environment_ids)
+      error_message = "Every Doppler environment must have a unique project and environment identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.doppler_config_ids)) == length(local.doppler_config_ids)
+      error_message = "Every Doppler config must have a unique project, environment, and config identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.github_environment_ids)) == length(local.github_environment_ids)
+      error_message = "Every GitHub environment must have a unique repository and environment identifier."
+    }
+
+    precondition {
+      condition     = length(distinct(local.github_branch_policy_ids)) == length(local.github_branch_policy_ids)
+      error_message = "Every GitHub branch policy must have a unique repository, environment, and branch identifier."
+    }
+
     postcondition {
       condition = (
         self.execution_mode == "local" &&
@@ -122,15 +164,5 @@ check "account_foundation_seed_is_readable" {
   assert {
     condition     = data.tfe_workspace.account_foundation_seed.name == local.account_foundation_workspace
     error_message = "The manually seeded account-foundation workspace must remain readable."
-  }
-}
-
-check "additional_root_keys_are_new" {
-  assert {
-    condition = length(setintersection(
-      toset(keys(var.additional_roots)),
-      setunion(toset(keys(var.hcp_roots)), toset(keys(local.declared_delivery_registry))),
-    )) == 0
-    error_message = "Additional roots must use new registry keys instead of replacing an existing HCP or delivery declaration."
   }
 }
