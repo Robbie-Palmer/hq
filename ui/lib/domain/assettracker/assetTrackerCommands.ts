@@ -58,6 +58,7 @@ import {
   CashFlowDecisionSchema,
   type Commitment,
   CommitmentSchema,
+  DecisionStageGroupSchema,
   type FutureCashFlow,
   FutureCashFlowSchema,
   futureCashFlowAccountIds,
@@ -384,6 +385,7 @@ export type AddCommitmentInput = z.input<typeof AddCommitmentInputSchema>;
 
 const DecisionStageInputShape = {
   name: z.string().trim().min(1).optional(),
+  groupId: z.string().trim().min(1).optional(),
   earliestDate: IsoDateSchema.optional(),
   expectedDate: IsoDateSchema,
   latestDate: IsoDateSchema.optional(),
@@ -458,6 +460,7 @@ export const AddCashFlowDecisionInputSchema = z.object({
     .default("reversible"),
   dependencyIds: z.array(z.string().trim().min(1)).default([]),
   alternativeToIds: z.array(z.string().trim().min(1)).default([]),
+  groups: z.array(DecisionStageGroupSchema).optional(),
   notes: z.string().trim().min(1).optional(),
   stages: z.array(AddDecisionStageInputSchema).min(1),
 });
@@ -492,6 +495,28 @@ export const UpdateCashFlowDecisionInputSchema =
 export type UpdateCashFlowDecisionInput = z.input<
   typeof UpdateCashFlowDecisionInputSchema
 >;
+
+function requireValidDecisionStageGroups(
+  groups: readonly { id: string }[] | undefined,
+  stages: readonly { groupId?: string }[],
+) {
+  const groupIds = new Set(groups?.map(({ id }) => id) ?? []);
+  if (groupIds.size !== (groups?.length ?? 0)) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      "Decision stage group IDs must be unique",
+    );
+  }
+  const missingGroupId = stages.find(
+    ({ groupId }) => groupId != null && !groupIds.has(groupId),
+  )?.groupId;
+  if (missingGroupId != null) {
+    throw new AssetTrackerCommandError(
+      "INVALID_FUTURE_CASH_FLOW",
+      `No decision stage group found with ID ${missingGroupId}`,
+    );
+  }
+}
 
 export const SetCashFlowDecisionStatusInputSchema = z.object({
   id: z.string().trim().min(1),
@@ -1592,6 +1617,7 @@ export function applyAddCashFlowDecision(
   asOfDate: string,
 ): AssetTrackerData {
   const parsed = AddCashFlowDecisionInputSchema.parse(input);
+  requireValidDecisionStageGroups(parsed.groups, parsed.stages);
   requirePlanningCase(data, parsed.planningCaseId);
   const referencedIds = new Set(data.futureCashFlows.map(({ id }) => id));
   for (const referencedId of [
@@ -1668,6 +1694,10 @@ export function applyUpdateCashFlowDecision(
       `No cash-flow decision found with ID ${parsed.id}`,
     );
   }
+  requireValidDecisionStageGroups(
+    parsed.groups ?? current.groups,
+    parsed.stages,
+  );
   requirePlanningCase(data, parsed.planningCaseId);
   const referencedIds = new Set(data.futureCashFlows.map(({ id }) => id));
   for (const referencedId of [
@@ -1727,6 +1757,7 @@ export function applyUpdateCashFlowDecision(
   });
   const updated = CashFlowDecisionSchema.parse({
     ...parsed,
+    groups: parsed.groups ?? current.groups,
     kind: "decision",
     status: current.status,
     stages,

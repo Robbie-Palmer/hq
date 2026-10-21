@@ -2,6 +2,7 @@
 
 import { addDays, addYears, format, parseISO } from "date-fns";
 import { PlusIcon, Trash2Icon } from "lucide-react";
+import Link from "next/link";
 import { type SubmitEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,33 +19,179 @@ import {
   accountLiquidity,
   type CashFlowDecision,
   type Currency,
+  type DecisionStageGroup,
+  type DecisionStageGroupUnresolvedCost,
   formatAssetTrackerError,
   isLiability,
   settledCashFlowAmount,
 } from "@/lib/domain/assettracker";
 import { useAssetTracker } from "./asset-tracker-provider";
+import {
+  ItemisedScenarioTimeline,
+  type ScenarioTimelinePayment,
+} from "./itemised-scenario-timeline";
 
 const ITEMISED_SCENARIO_LABEL = "itemised-scenario";
 const NEW_SCENARIO = "__new__";
 
 type CostRow = {
   id?: string;
+  groupId: string;
+  accountId: string;
   name: string;
   amount: string;
   date: string;
   actuals: ActualCashFlow[];
 };
 
+type UnresolvedCostDraft = Omit<
+  DecisionStageGroupUnresolvedCost,
+  "amount" | "date"
+> & {
+  amount: string;
+  date: string;
+};
+
+type CostGroup = Omit<DecisionStageGroup, "unresolvedCosts"> & {
+  unresolvedCosts: UnresolvedCostDraft[];
+};
+
 function placeholderDate() {
   return format(addYears(parseISO(todayIsoDate()), 1), "yyyy-MM-dd");
 }
 
-function emptyRows(): CostRow[] {
-  return [{ name: "", amount: "", date: placeholderDate(), actuals: [] }];
+function emptyGroups(): CostGroup[] {
+  return [
+    {
+      id: "cost-group-1",
+      name: "",
+      status: "considering",
+      unresolvedCosts: [],
+    },
+  ];
+}
+
+function emptyRows(accountId = ""): CostRow[] {
+  return [
+    {
+      groupId: "cost-group-1",
+      accountId,
+      name: "",
+      amount: "",
+      date: placeholderDate(),
+      actuals: [],
+    },
+  ];
 }
 
 function amountPaid(actuals: readonly ActualCashFlow[]): number {
   return settledCashFlowAmount(actuals);
+}
+
+function legacyGroupName(stageName: string | undefined, index: number) {
+  const name = stageName?.trim() || `Cost ${index + 1}`;
+  const lowerName = name.toLowerCase();
+  const markers = [
+    " deposit",
+    " balance",
+    " instalment",
+    " installment",
+    " final",
+    " payment",
+  ];
+  const markerIndex = markers.reduce((earliest, marker) => {
+    const found = lowerName.indexOf(marker);
+    const nextCharacter = lowerName[found + marker.length];
+    const hasBoundary =
+      nextCharacter == null || !/[a-z0-9_]/i.test(nextCharacter);
+    return found >= 0 && hasBoundary ? Math.min(earliest, found) : earliest;
+  }, name.length);
+  return name.slice(0, markerIndex).trimEnd() || name;
+}
+
+function uniqueGroupId(name: string, usedIds: Set<string>) {
+  const root =
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "cost-group";
+  let id = root;
+  let suffix = 2;
+  while (usedIds.has(id)) {
+    id = `${root}-${suffix}`;
+    suffix += 1;
+  }
+  usedIds.add(id);
+  return id;
+}
+
+type GroupDraftContext = {
+  groupById: Map<string, CostGroup>;
+  groups: CostGroup[];
+  inferredIdByName: Map<string, string>;
+  usedIds: Set<string>;
+};
+
+function inferredStageGroup(
+  stage: CashFlowDecision["stages"][number],
+  index: number,
+  context: GroupDraftContext,
+) {
+  if (stage.groupId != null && context.groupById.has(stage.groupId)) {
+    return stage.groupId;
+  }
+  const name = legacyGroupName(stage.name, index);
+  const key = name.toLocaleLowerCase();
+  const inferredId = context.inferredIdByName.get(key);
+  if (inferredId != null) {
+    const group = context.groupById.get(inferredId);
+    if (stage.actuals.length > 0 && group?.status === "considering") {
+      group.status = "committed";
+    }
+    return inferredId;
+  }
+  const id = stage.groupId ?? uniqueGroupId(name, context.usedIds);
+  const group: CostGroup = {
+    id,
+    name,
+    status: stage.actuals.length > 0 ? "committed" : "considering",
+    unresolvedCosts: [],
+  };
+  context.groups.push(group);
+  context.groupById.set(id, group);
+  context.inferredIdByName.set(key, id);
+  return id;
+}
+
+function scenarioDraft(existing: CashFlowDecision): {
+  costs: CostRow[];
+  groups: CostGroup[];
+} {
+  const groups = (existing.groups ?? []).map((group) => ({
+    ...group,
+    unresolvedCosts: (group.unresolvedCosts ?? []).map((cost) => ({
+      ...cost,
+      amount: cost.amount == null ? "" : String(cost.amount),
+      date: cost.date ?? "",
+    })),
+  }));
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+  const inferredIdByName = new Map<string, string>();
+  const usedIds = new Set(groups.map(({ id }) => id));
+  const context = { groupById, groups, inferredIdByName, usedIds };
+  const costs = existing.stages.map((stage, index) => {
+    const groupId = inferredStageGroup(stage, index, context);
+    return {
+      id: stage.id,
+      groupId,
+      accountId: stage.direction === "payment" ? stage.fromAccountId : "",
+      name: stage.name ?? "Payment",
+      amount: String(stage.expectedAmount),
+      date: stage.expectedDate,
+      actuals: stage.actuals,
+    };
+  });
+  return { costs, groups };
 }
 
 function itemisedScenarios(
@@ -81,7 +228,10 @@ function useItemisedScenarioPlanner() {
     "";
   const [name, setName] = useState("");
   const [accountId, setAccountId] = useState(defaultAccountId);
-  const [costs, setCosts] = useState<CostRow[]>(emptyRows);
+  const [groups, setGroups] = useState<CostGroup[]>(emptyGroups);
+  const [costs, setCosts] = useState<CostRow[]>(() =>
+    emptyRows(defaultAccountId),
+  );
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -113,15 +263,9 @@ function useItemisedScenarioPlanner() {
           ? firstStage.fromAccountId
           : defaultAccountId,
       );
-      setCosts(
-        existing.stages.map((stage) => ({
-          id: stage.id,
-          name: stage.name ?? "Cost",
-          amount: String(stage.expectedAmount),
-          date: stage.expectedDate,
-          actuals: stage.actuals,
-        })),
-      );
+      const draft = scenarioDraft(existing);
+      setGroups(draft.groups);
+      setCosts(draft.costs);
       setSaved(false);
       setError(null);
       return;
@@ -144,10 +288,83 @@ function useItemisedScenarioPlanner() {
 
   const account = eligibleAccounts.find(({ id }) => id === accountId);
   const currency = account?.currency ?? tracker.baseCurrency;
-  const total = costs.reduce(
+  const scheduledTotal = costs.reduce(
     (sum, cost) => sum + (Number(cost.amount) || 0),
     0,
   );
+  const unresolvedTotal = groups.reduce(
+    (sum, group) =>
+      sum +
+      group.unresolvedCosts.reduce(
+        (groupSum, cost) => groupSum + (Number(cost.amount) || 0),
+        0,
+      ),
+    0,
+  );
+  const total = scheduledTotal + unresolvedTotal;
+  const paid = costs.reduce((sum, cost) => sum + amountPaid(cost.actuals), 0);
+  const groupStatus = new Map(groups.map((group) => [group.id, group.status]));
+  const committed =
+    costs.reduce(
+      (sum, cost) =>
+        groupStatus.get(cost.groupId) === "committed"
+          ? sum +
+            Math.max((Number(cost.amount) || 0) - amountPaid(cost.actuals), 0)
+          : sum,
+      0,
+    ) +
+    groups.reduce(
+      (sum, group) =>
+        group.status === "committed"
+          ? sum +
+            group.unresolvedCosts.reduce(
+              (groupSum, cost) => groupSum + (Number(cost.amount) || 0),
+              0,
+            )
+          : sum,
+      0,
+    );
+  const considering =
+    costs.reduce(
+      (sum, cost) =>
+        groupStatus.get(cost.groupId) === "considering"
+          ? sum +
+            Math.max((Number(cost.amount) || 0) - amountPaid(cost.actuals), 0)
+          : sum,
+      0,
+    ) +
+    groups.reduce(
+      (sum, group) =>
+        group.status === "considering"
+          ? sum +
+            group.unresolvedCosts.reduce(
+              (groupSum, cost) => groupSum + (Number(cost.amount) || 0),
+              0,
+            )
+          : sum,
+      0,
+    );
+  const unresolvedCosts = groups.flatMap((group) => group.unresolvedCosts);
+  const missingPriceCount = unresolvedCosts.filter(
+    (cost) => cost.amount === "",
+  ).length;
+  const missingDateCount = unresolvedCosts.filter(
+    (cost) => cost.date === "",
+  ).length;
+  const timelinePayments: ScenarioTimelinePayment[] = costs.flatMap((cost) => {
+    const amount = Number(cost.amount);
+    const status = groupStatus.get(cost.groupId);
+    return Number.isFinite(amount) && amount > 0 && status != null
+      ? [
+          {
+            amount,
+            date: cost.date,
+            paid: amountPaid(cost.actuals),
+            status,
+          },
+        ]
+      : [];
+  });
   const markChanged = () => setSaved(false);
   const changeName = (value: string) => {
     setName(value);
@@ -155,7 +372,17 @@ function useItemisedScenarioPlanner() {
   };
   const changeAccount = (value: string) => {
     setAccountId(value);
+    if (existing == null) {
+      setCosts((current) =>
+        current.map((cost) =>
+          cost.accountId === accountId ? { ...cost, accountId: value } : cost,
+        ),
+      );
+    }
     markChanged();
+  };
+  const changeCostAccount = (index: number, value: string) => {
+    updateCost(index, { accountId: value });
   };
   const updateCost = (index: number, change: Partial<CostRow>) => {
     markChanged();
@@ -165,17 +392,132 @@ function useItemisedScenarioPlanner() {
       ),
     );
   };
-  const addCost = () => {
+  const updateGroup = (id: string, change: Partial<CostGroup>) => {
+    markChanged();
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === id ? { ...group, ...change } : group,
+      ),
+    );
+  };
+  const addCost = (groupId: string) => {
     setCosts((current) => [
       ...current,
-      { name: "", amount: "", date: placeholderDate(), actuals: [] },
+      {
+        groupId,
+        accountId,
+        name: "",
+        amount: "",
+        date: placeholderDate(),
+        actuals: [],
+      },
     ]);
     markChanged();
   };
-  const removeCost = (index: number) => {
-    setCosts((current) =>
-      current.filter((_, candidate) => candidate !== index),
+  const addGroup = () => {
+    const usedIds = new Set(groups.map(({ id }) => id));
+    const id = uniqueGroupId("cost-group", usedIds);
+    setGroups((current) => [
+      ...current,
+      { id, name: "", status: "considering", unresolvedCosts: [] },
+    ]);
+    setCosts((current) => [
+      ...current,
+      {
+        groupId: id,
+        accountId,
+        name: "",
+        amount: "",
+        date: placeholderDate(),
+        actuals: [],
+      },
+    ]);
+    markChanged();
+  };
+  const addGroupWithMissingDetails = () => {
+    const usedGroupIds = new Set(groups.map(({ id }) => id));
+    const groupId = uniqueGroupId("cost-group", usedGroupIds);
+    const usedCostIds = new Set(
+      groups.flatMap((group) => group.unresolvedCosts.map(({ id }) => id)),
     );
+    const costId = uniqueGroupId("unresolved-cost", usedCostIds);
+    setGroups((current) => [
+      ...current,
+      {
+        id: groupId,
+        name: "",
+        status: "considering",
+        unresolvedCosts: [{ id: costId, name: "", amount: "", date: "" }],
+      },
+    ]);
+    markChanged();
+  };
+  const addUnresolvedCost = (groupId: string) => {
+    const usedIds = new Set(
+      groups.flatMap((group) => group.unresolvedCosts.map(({ id }) => id)),
+    );
+    const id = uniqueGroupId("unresolved-cost", usedIds);
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              unresolvedCosts: [
+                ...group.unresolvedCosts,
+                { id, name: "", amount: "", date: "" },
+              ],
+            }
+          : group,
+      ),
+    );
+    markChanged();
+  };
+  const updateUnresolvedCost = (
+    groupId: string,
+    id: string,
+    change: Partial<UnresolvedCostDraft>,
+  ) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              unresolvedCosts: group.unresolvedCosts.map((cost) =>
+                cost.id === id ? { ...cost, ...change } : cost,
+              ),
+            }
+          : group,
+      ),
+    );
+    markChanged();
+  };
+  const removeUnresolvedCost = (groupId: string, id: string) => {
+    setGroups((current) =>
+      current.map((group) =>
+        group.id === groupId
+          ? {
+              ...group,
+              unresolvedCosts: group.unresolvedCosts.filter(
+                (cost) => cost.id !== id,
+              ),
+            }
+          : group,
+      ),
+    );
+    markChanged();
+  };
+  const removeCost = (index: number) => {
+    const removedGroupId = costs[index]?.groupId;
+    const remaining = costs.filter((_, candidate) => candidate !== index);
+    setCosts(remaining);
+    if (
+      removedGroupId != null &&
+      !remaining.some(({ groupId }) => groupId === removedGroupId) &&
+      groups.find(({ id }) => id === removedGroupId)?.unresolvedCosts.length ===
+        0
+    ) {
+      setGroups((current) => current.filter(({ id }) => id !== removedGroupId));
+    }
     markChanged();
   };
   const startNewScenario = () => {
@@ -183,7 +525,8 @@ function useItemisedScenarioPlanner() {
     setSelectedId(NEW_SCENARIO);
     setName("");
     setAccountId(defaultAccountId);
-    setCosts(emptyRows());
+    setGroups(emptyGroups());
+    setCosts(emptyRows(defaultAccountId));
     setSaved(false);
     setError(null);
   };
@@ -211,10 +554,26 @@ function useItemisedScenarioPlanner() {
       reversibility: existing?.reversibility ?? ("partly-reversible" as const),
       dependencyIds: existing?.dependencyIds ?? [],
       alternativeToIds: existing?.alternativeToIds ?? [],
+      groups: groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        status: group.status,
+        ...(group.unresolvedCosts.length === 0
+          ? {}
+          : {
+              unresolvedCosts: group.unresolvedCosts.map((cost) => ({
+                id: cost.id,
+                name: cost.name,
+                ...(cost.amount === "" ? {} : { amount: Number(cost.amount) }),
+                ...(cost.date === "" ? {} : { date: cost.date }),
+              })),
+            }),
+      })),
       stages: costs.map((cost) => ({
         ...(cost.id == null ? {} : { id: cost.id }),
         name: cost.name,
-        fromAccountId: account.id,
+        groupId: cost.groupId,
+        fromAccountId: cost.accountId || account.id,
         expectedDate: cost.date,
         minimumAmount: Number(cost.amount),
         expectedAmount: Number(cost.amount),
@@ -259,9 +618,14 @@ function useItemisedScenarioPlanner() {
   return {
     accountId,
     addCost,
+    addGroup,
+    addGroupWithMissingDetails,
+    addUnresolvedCost,
     changeAccount,
+    changeCostAccount,
     changeName,
     costs,
+    groups,
     currency,
     eligibleAccounts,
     error,
@@ -270,9 +634,11 @@ function useItemisedScenarioPlanner() {
     paymentAmount,
     paymentDate,
     paymentFor,
+    paid,
     recordPayment,
     recordingPayment,
     removeCost,
+    removeUnresolvedCost,
     saved,
     save,
     scenarios,
@@ -285,7 +651,14 @@ function useItemisedScenarioPlanner() {
     startPayment,
     submitting,
     total,
+    missingDateCount,
+    missingPriceCount,
+    committed,
+    considering,
+    timelinePayments,
     updateCost,
+    updateGroup,
+    updateUnresolvedCost,
   };
 }
 
@@ -353,9 +726,9 @@ function ScenarioDetails({ planner }: Readonly<{ planner: Planner }>) {
         />
       </label>
       <div className="space-y-1.5 text-xs font-medium">
-        <span>Pay from</span>
+        <span>Default pay from</span>
         <Select value={planner.accountId} onValueChange={planner.changeAccount}>
-          <SelectTrigger aria-label="Pay from" className="w-full">
+          <SelectTrigger aria-label="Default pay from" className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -366,16 +739,27 @@ function ScenarioDetails({ planner }: Readonly<{ planner: Planner }>) {
             ))}
           </SelectContent>
         </Select>
+        <p className="font-normal text-muted-foreground">
+          Used for new payments. Each scheduled payment can be assigned below.
+        </p>
       </div>
     </div>
   );
 }
 
-function CostInputs({
+type CostInputProps = Readonly<{
+  cost: CostRow;
+  currency: Currency;
+  index: number;
+  planner: Planner;
+  update: Planner["updateCost"];
+}>;
+
+function CostNameAndDateInputs({
   cost,
   index,
   update,
-}: Readonly<{ cost: CostRow; index: number; update: Planner["updateCost"] }>) {
+}: Pick<CostInputProps, "cost" | "index" | "update">) {
   const label = cost.name || `Cost ${index + 1}`;
   return (
     <>
@@ -398,15 +782,102 @@ function CostInputs({
         value={cost.date}
         onChange={(event) => update(index, { date: event.target.value })}
       />
-      <Input
-        aria-label={`${label} amount`}
-        type="number"
-        min="0.01"
-        step="0.01"
-        placeholder="0"
-        required
-        value={cost.amount}
-        onChange={(event) => update(index, { amount: event.target.value })}
+    </>
+  );
+}
+
+function CostAmountInput({
+  cost,
+  currency,
+  index,
+  update,
+}: Pick<CostInputProps, "cost" | "currency" | "index" | "update">) {
+  const label = cost.name || `Cost ${index + 1}`;
+  const paid = amountPaid(cost.actuals);
+  const isPaid = Number(cost.amount) > 0 && paid >= Number(cost.amount);
+  return isPaid ? (
+    <output
+      aria-label={`${label} final amount`}
+      className="flex h-9 items-center gap-2 px-1 text-sm"
+    >
+      <span className="font-mono font-semibold">
+        {formatCurrency(paid, currency)}
+      </span>
+      <span className="text-xs text-muted-foreground">Final</span>
+    </output>
+  ) : (
+    <Input
+      aria-label={`${label} amount`}
+      type="number"
+      min="0.01"
+      step="0.01"
+      placeholder="0"
+      required
+      value={cost.amount}
+      onChange={(event) => update(index, { amount: event.target.value })}
+    />
+  );
+}
+
+function CostAccountInput({
+  cost,
+  currency,
+  index,
+  planner,
+}: Pick<CostInputProps, "cost" | "currency" | "index" | "planner">) {
+  const label = cost.name || `Cost ${index + 1}`;
+  const isPaid =
+    Number(cost.amount) > 0 && amountPaid(cost.actuals) >= Number(cost.amount);
+  const fundingAccount = planner.eligibleAccounts.find(
+    (account) => account.id === cost.accountId,
+  );
+  return isPaid ? (
+    <output
+      aria-label={`${label} paid from`}
+      className="flex h-9 items-center px-1 text-sm"
+    >
+      {fundingAccount?.name ?? "Account unavailable"}
+    </output>
+  ) : (
+    <Select
+      value={cost.accountId}
+      onValueChange={(value) => planner.changeCostAccount(index, value)}
+    >
+      <SelectTrigger aria-label={`${label} pay from`} className="w-full">
+        <SelectValue placeholder="Choose account" />
+      </SelectTrigger>
+      <SelectContent>
+        {planner.eligibleAccounts
+          .filter((account) => account.currency === currency)
+          .map((account) => (
+            <SelectItem key={account.id} value={account.id}>
+              {account.name}
+            </SelectItem>
+          ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function CostInputs(props: CostInputProps) {
+  return (
+    <>
+      <CostNameAndDateInputs
+        cost={props.cost}
+        index={props.index}
+        update={props.update}
+      />
+      <CostAmountInput
+        cost={props.cost}
+        currency={props.currency}
+        index={props.index}
+        update={props.update}
+      />
+      <CostAccountInput
+        cost={props.cost}
+        currency={props.currency}
+        index={props.index}
+        planner={props.planner}
       />
     </>
   );
@@ -417,21 +888,27 @@ function PaymentSummary({
   currency,
   onStart,
 }: Readonly<{ cost: CostRow; currency: Currency; onStart: () => void }>) {
+  const paid = amountPaid(cost.actuals);
+  const isPaid = Number(cost.amount) > 0 && paid >= Number(cost.amount);
   return (
     <div className="text-xs text-muted-foreground">
       <span className="block font-mono text-foreground">
-        {formatCurrency(amountPaid(cost.actuals), currency)}
+        {formatCurrency(paid, currency)}
       </span>
-      {cost.id != null && (
-        <Button
-          type="button"
-          variant="link"
-          size="sm"
-          className="h-auto p-0 text-xs"
-          onClick={onStart}
-        >
-          Record payment
-        </Button>
+      {isPaid ? (
+        <span>Paid in full</span>
+      ) : (
+        cost.id != null && (
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="h-auto p-0 text-xs"
+            onClick={onStart}
+          >
+            Record payment
+          </Button>
+        )
       )}
     </div>
   );
@@ -442,7 +919,7 @@ function PaymentEditor({
   planner,
 }: Readonly<{ cost: CostRow & { id: string }; planner: Planner }>) {
   return (
-    <div className="grid gap-2 rounded-md bg-muted/35 p-3 sm:col-span-5 sm:grid-cols-[8rem_10rem_auto] sm:items-end">
+    <div className="grid gap-2 rounded-md bg-muted/35 p-3 sm:col-span-6 sm:grid-cols-[8rem_10rem_auto] sm:items-end">
       <label
         htmlFor={`scenario-payment-amount-${cost.id}`}
         className="space-y-1 text-xs font-medium"
@@ -501,8 +978,14 @@ function CostRowEditor({
 }: Readonly<{ cost: CostRow; index: number; planner: Planner }>) {
   const costLabel = cost.name || `cost ${index + 1}`;
   return (
-    <div className="grid gap-2 p-3 sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem] sm:items-center">
-      <CostInputs cost={cost} index={index} update={planner.updateCost} />
+    <div className="grid gap-2 p-3 sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_minmax(10rem,12rem)_7rem_2.5rem] sm:items-center">
+      <CostInputs
+        cost={cost}
+        currency={planner.currency}
+        index={index}
+        planner={planner}
+        update={planner.updateCost}
+      />
       <PaymentSummary
         cost={cost}
         currency={planner.currency}
@@ -527,16 +1010,27 @@ function CostRowEditor({
 
 function ScenarioCostFooter({ planner }: Readonly<{ planner: Planner }>) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/20 px-3 py-3">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={planner.addCost}
-      >
-        <PlusIcon />
-        Add cost
-      </Button>
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={planner.addGroup}
+        >
+          <PlusIcon />
+          Add scheduled cost
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={planner.addGroupWithMissingDetails}
+        >
+          <PlusIcon />
+          Add cost with missing details
+        </Button>
+      </div>
       <p className="text-sm">
         Total{" "}
         <span className="font-semibold">
@@ -547,18 +1041,246 @@ function ScenarioCostFooter({ planner }: Readonly<{ planner: Planner }>) {
   );
 }
 
-function ScenarioCosts({ planner }: Readonly<{ planner: Planner }>) {
+function ScenarioSummary({ planner }: Readonly<{ planner: Planner }>) {
+  const items = [
+    ["Total estimate", planner.total],
+    ["Paid", planner.paid],
+    ["Committed remaining", planner.committed],
+    ["Under consideration", planner.considering],
+  ] as const;
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <div className="hidden grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem] gap-2 border-b bg-muted/35 px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
-        <span>Cost</span>
+    <div className="space-y-2">
+      <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map(([label, value]) => (
+          <div key={label} className="rounded-lg border p-3">
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="mt-1 font-mono text-lg font-semibold">
+              {formatCurrency(value, planner.currency)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      {(planner.missingPriceCount > 0 || planner.missingDateCount > 0) && (
+        <output className="block text-xs text-muted-foreground">
+          Needs details: {planner.missingPriceCount}{" "}
+          {planner.missingPriceCount === 1 ? "cost needs" : "costs need"} a
+          price · {planner.missingDateCount}{" "}
+          {planner.missingDateCount === 1 ? "cost needs" : "costs need"} a due
+          date. Unknown amounts are not included in the total; costs without a
+          date are not plotted on the timeline.
+        </output>
+      )}
+    </div>
+  );
+}
+
+function ScenarioFundingCallout({ planner }: Readonly<{ planner: Planner }>) {
+  if (planner.existing == null) return null;
+  return (
+    <div className="flex flex-col gap-3 rounded-lg border bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h3 className="text-sm font-semibold">Check funding health</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          The comparison projects each chosen account after income, spending,
+          scheduled payments, and investment returns. It also flags reserve
+          pressure, account shortfalls, monthly saving needs, and asset sales.
+        </p>
+      </div>
+      <Button asChild type="button" variant="outline">
+        <Link href="/assettracker/decisions?tab=compare">
+          View cash and reserve impact
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
+function UnresolvedCostStatus({
+  cost,
+}: Readonly<{ cost: UnresolvedCostDraft }>) {
+  return (
+    <div className="text-xs text-muted-foreground">
+      {cost.amount === "" && <span className="block">Price needed</span>}
+      {cost.date === "" && <span className="block">Date needed</span>}
+    </div>
+  );
+}
+
+function UnresolvedCostEditor({
+  cost,
+  group,
+  planner,
+}: Readonly<{
+  cost: UnresolvedCostDraft;
+  group: CostGroup;
+  planner: Planner;
+}>) {
+  const label = cost.name || "Cost needing details";
+  return (
+    <div className="grid gap-2 p-3 sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem] sm:items-center">
+      <Input
+        aria-label={`${group.name} unresolved cost name`}
+        placeholder="Remaining balance"
+        required
+        value={cost.name}
+        onChange={(event) =>
+          planner.updateUnresolvedCost(group.id, cost.id, {
+            name: event.target.value,
+          })
+        }
+      />
+      <Input
+        aria-label={`${label} due date`}
+        type="date"
+        value={cost.date}
+        onChange={(event) =>
+          planner.updateUnresolvedCost(group.id, cost.id, {
+            date: event.target.value,
+          })
+        }
+      />
+      <Input
+        aria-label={`${label} amount`}
+        type="number"
+        min="0.01"
+        step="0.01"
+        placeholder="Unknown"
+        value={cost.amount}
+        onChange={(event) =>
+          planner.updateUnresolvedCost(group.id, cost.id, {
+            amount: event.target.value,
+          })
+        }
+      />
+      <UnresolvedCostStatus cost={cost} />
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Remove ${label}`}
+        onClick={() => planner.removeUnresolvedCost(group.id, cost.id)}
+      >
+        <Trash2Icon />
+      </Button>
+    </div>
+  );
+}
+
+type GroupEditorProps = Readonly<{
+  group: CostGroup;
+  groupIndex: number;
+  planner: Planner;
+}>;
+
+type GroupRows = { cost: CostRow; index: number }[];
+
+function GroupStatusSelect({ group, planner }: GroupEditorProps) {
+  const label = group.name || `Cost group ${group.id}`;
+  return (
+    <div className="space-y-1 text-xs font-medium">
+      <span>Status</span>
+      <Select
+        value={group.status}
+        onValueChange={(value: CostGroup["status"]) =>
+          planner.updateGroup(group.id, { status: value })
+        }
+      >
+        <SelectTrigger aria-label={`${label} status`} className="w-full">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="committed">Committed</SelectItem>
+          <SelectItem value="considering">Under consideration</SelectItem>
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
+function GroupCostSummary({
+  group,
+  planner,
+  rows,
+}: Omit<GroupEditorProps, "groupIndex"> & { rows: GroupRows }) {
+  const total =
+    rows.reduce((sum, { cost }) => sum + (Number(cost.amount) || 0), 0) +
+    group.unresolvedCosts.reduce(
+      (sum, cost) => sum + (Number(cost.amount) || 0),
+      0,
+    );
+  if (rows.length === 0 && group.unresolvedCosts.length === 0) {
+    return <span className="text-sm font-medium text-foreground">No cost</span>;
+  }
+  return (
+    <>
+      <span className="block">
+        {rows.length} {rows.length === 1 ? "payment" : "payments"}
+      </span>
+      {group.unresolvedCosts.length > 0 && (
+        <span className="block">
+          {group.unresolvedCosts.length}{" "}
+          {group.unresolvedCosts.length === 1 ? "cost needs" : "costs need"}{" "}
+          details
+        </span>
+      )}
+      <span className="font-mono text-sm font-semibold text-foreground">
+        {formatCurrency(total, planner.currency)}
+      </span>
+    </>
+  );
+}
+
+function CostGroupHeader({
+  group,
+  groupIndex,
+  planner,
+  rows,
+}: GroupEditorProps & { rows: GroupRows }) {
+  const nameInputId = `scenario-cost-group-${group.id}`;
+  return (
+    <div className="grid gap-3 border-b bg-muted/20 p-3 sm:grid-cols-[minmax(12rem,1fr)_12rem_auto] sm:items-end">
+      <label htmlFor={nameInputId} className="space-y-1 text-xs font-medium">
+        <span>Supplier or cost</span>
+        <Input
+          id={nameInputId}
+          aria-label={`Cost group ${groupIndex + 1} name`}
+          required
+          placeholder="Venue, catering, photographer..."
+          value={group.name}
+          onChange={(event) =>
+            planner.updateGroup(group.id, { name: event.target.value })
+          }
+        />
+      </label>
+      <GroupStatusSelect
+        group={group}
+        groupIndex={groupIndex}
+        planner={planner}
+      />
+      <div className="pb-1 text-right text-xs text-muted-foreground">
+        <GroupCostSummary group={group} planner={planner} rows={rows} />
+      </div>
+    </div>
+  );
+}
+
+function ScheduledCostRows({
+  planner,
+  rows,
+}: Readonly<{ planner: Planner; rows: GroupRows }>) {
+  if (rows.length === 0) return null;
+  return (
+    <>
+      <div className="hidden grid-cols-[minmax(10rem,1fr)_9rem_8rem_minmax(10rem,12rem)_7rem_2.5rem] gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid">
+        <span>Payment</span>
         <span>Due date</span>
-        <span>Estimate</span>
+        <span>Amount</span>
+        <span>Pay from</span>
         <span>Paid</span>
         <span className="sr-only">Actions</span>
       </div>
       <div className="divide-y">
-        {planner.costs.map((cost, index) => (
+        {rows.map(({ cost, index }) => (
           <CostRowEditor
             key={cost.id ?? `new-${index}`}
             cost={cost}
@@ -567,6 +1289,96 @@ function ScenarioCosts({ planner }: Readonly<{ planner: Planner }>) {
           />
         ))}
       </div>
+    </>
+  );
+}
+
+function UnresolvedCostRows({
+  group,
+  planner,
+}: Omit<GroupEditorProps, "groupIndex">) {
+  if (group.unresolvedCosts.length === 0) return null;
+  return (
+    <div className="border-t bg-muted/10">
+      <div className="grid gap-2 border-b px-3 py-2 text-xs font-medium text-muted-foreground sm:grid-cols-[minmax(10rem,1fr)_9rem_8rem_7rem_2.5rem]">
+        <span>Cost needing details</span>
+        <span>Due date (optional)</span>
+        <span>Estimate (optional)</span>
+        <span>Missing details</span>
+        <span className="sr-only">Actions</span>
+      </div>
+      <div className="divide-y">
+        {group.unresolvedCosts.map((cost) => (
+          <UnresolvedCostEditor
+            key={cost.id}
+            cost={cost}
+            group={group}
+            planner={planner}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CostGroupActions({
+  group,
+  planner,
+}: Omit<GroupEditorProps, "groupIndex">) {
+  return (
+    <div className="flex flex-wrap gap-1 border-t px-3 py-2">
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => planner.addCost(group.id)}
+      >
+        <PlusIcon />
+        Add payment
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="sm"
+        onClick={() => planner.addUnresolvedCost(group.id)}
+      >
+        <PlusIcon />
+        Add cost needing details
+      </Button>
+    </div>
+  );
+}
+
+function CostGroupEditor({ group, groupIndex, planner }: GroupEditorProps) {
+  const rows = planner.costs.flatMap((cost, index) =>
+    cost.groupId === group.id ? [{ cost, index }] : [],
+  );
+  return (
+    <section className="overflow-hidden rounded-lg border">
+      <CostGroupHeader
+        group={group}
+        groupIndex={groupIndex}
+        planner={planner}
+        rows={rows}
+      />
+      <ScheduledCostRows planner={planner} rows={rows} />
+      <UnresolvedCostRows group={group} planner={planner} />
+      <CostGroupActions group={group} planner={planner} />
+    </section>
+  );
+}
+
+function ScenarioCosts({ planner }: Readonly<{ planner: Planner }>) {
+  return (
+    <div className="space-y-3">
+      {planner.groups.map((group, groupIndex) => (
+        <CostGroupEditor
+          key={group.id}
+          group={group}
+          groupIndex={groupIndex}
+          planner={planner}
+        />
+      ))}
       <ScenarioCostFooter planner={planner} />
     </div>
   );
@@ -588,6 +1400,12 @@ export function ItemisedScenarioPlanner() {
     <form onSubmit={planner.save} className="space-y-5">
       <ScenarioHeader planner={planner} />
       <ScenarioDetails planner={planner} />
+      <ScenarioSummary planner={planner} />
+      <ScenarioFundingCallout planner={planner} />
+      <ItemisedScenarioTimeline
+        currency={planner.currency}
+        payments={planner.timelinePayments}
+      />
       <ScenarioCosts planner={planner} />
       {planner.error != null && (
         <p className="text-sm text-destructive">{planner.error}</p>
