@@ -8,15 +8,10 @@ supersedes: "personal-engineering-platform:041-project-owned-web-features-in-sha
 ## Context
 
 [ADR 041](/projects/personal-engineering-platform/adrs/041-project-owned-web-features-in-shared-frontend-hosts)
-separated an incubated product's code from its public route, but described the
-component as a web feature under `ui/features`. That vocabulary understates the
-boundary: Personal Finance and its peers are complete applications incubated
-inside the shared frontend, not optional features of the personal site.
-
-The source path must still give Copier one stable, project-owned subtree while
-the public route can change or gain a dedicated domain. It should not add a
-second application workspace or encode the temporary incubation stage into an
-identity that should survive promotion.
+established separate ownership for products hosted by the shared frontend.
+Copier needs one stable subtree for each product while public routes and domains
+can change independently. The subtree must remain part of the existing
+application until a product needs its own runtime boundary.
 
 ## Decision
 
@@ -37,24 +32,18 @@ and deployment boundaries remain unchanged.
 
 ## Alternatives
 
-Keeping `web-feature` and `ui/features` would preserve the first contract, but
-would continue to describe full incubated applications as features and put
-application code beside, rather than within, the established application tree.
-
-Using `ui/incubated-apps` would state the current lifecycle clearly. Promotion
-would then make the durable source path misleading or force a move unrelated to
-runtime architecture.
-
 Putting product behavior directly in each public route would avoid an adapter,
 but would couple project ownership to a route slug such as `assettracker` and
 make a domain or route change a source-ownership migration.
 
+Creating a separate Next.js application for each product would give stronger
+runtime isolation. It would also duplicate build and deployment configuration
+before the products need independent operation.
+
 ## Consequences
 
-The repository, project profile, and source tree now use project ownership
-rather than feature terminology. Incubated applications stay in one Next.js
-bundle without losing a Copier-owned boundary, and promotion does not require a
-rename merely because the product receives its own domain.
+Products stay in one Next.js bundle without losing a Copier-owned boundary.
+Giving a product its own domain does not require a source move.
 
 The `_projects` convention is specific to the shared Next.js host. A project
 that later needs independent dependencies, configuration, release cadence, or
