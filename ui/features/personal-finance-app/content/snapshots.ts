@@ -1,0 +1,82 @@
+import type { BalanceSnapshot } from "@/features/personal-finance-app/domain/balanceSnapshot";
+
+export const snapshots: BalanceSnapshot[] = [
+  // Marcus Savings
+  { accountId: "marcus-savings", date: "2021-06-01", balance: 2000 },
+  { accountId: "marcus-savings", date: "2021-12-01", balance: 4500 },
+  { accountId: "marcus-savings", date: "2022-06-01", balance: 6200 },
+  { accountId: "marcus-savings", date: "2022-12-01", balance: 8100 },
+  { accountId: "marcus-savings", date: "2023-06-01", balance: 10500 },
+  { accountId: "marcus-savings", date: "2023-12-01", balance: 12800 },
+  { accountId: "marcus-savings", date: "2024-06-01", balance: 14200 },
+  { accountId: "marcus-savings", date: "2024-12-01", balance: 15500 },
+  // Vanguard Global All Cap
+  { accountId: "vanguard-global-all-cap", date: "2020-06-01", balance: 5000 },
+  { accountId: "vanguard-global-all-cap", date: "2020-12-01", balance: 6800 },
+  { accountId: "vanguard-global-all-cap", date: "2021-06-01", balance: 11200 },
+  { accountId: "vanguard-global-all-cap", date: "2021-12-01", balance: 15400 },
+  { accountId: "vanguard-global-all-cap", date: "2022-06-01", balance: 13800 },
+  { accountId: "vanguard-global-all-cap", date: "2022-12-01", balance: 16200 },
+  { accountId: "vanguard-global-all-cap", date: "2023-06-01", balance: 19500 },
+  { accountId: "vanguard-global-all-cap", date: "2023-12-01", balance: 22800 },
+  { accountId: "vanguard-global-all-cap", date: "2024-06-01", balance: 25100 },
+  { accountId: "vanguard-global-all-cap", date: "2024-12-01", balance: 28400 },
+  // Trading 212 ISA
+  { accountId: "trading-212-isa", date: "2022-06-01", balance: 3000 },
+  { accountId: "trading-212-isa", date: "2022-12-01", balance: 2700 },
+  { accountId: "trading-212-isa", date: "2023-06-01", balance: 5200 },
+  { accountId: "trading-212-isa", date: "2023-12-01", balance: 7800 },
+  { accountId: "trading-212-isa", date: "2024-06-01", balance: 9600 },
+  { accountId: "trading-212-isa", date: "2024-12-01", balance: 11400 },
+  // US Brokerage, shown in its native currency
+  { accountId: "us-brokerage", date: "2024-06-01", balance: 8000 },
+  { accountId: "us-brokerage", date: "2024-09-15", balance: 9270 },
+  { accountId: "us-brokerage", date: "2024-12-01", balance: 11000 },
+  // Coinbase BTC
+  { accountId: "coinbase-btc", date: "2021-12-01", balance: 2500 },
+  { accountId: "coinbase-btc", date: "2022-06-01", balance: 1200 },
+  { accountId: "coinbase-btc", date: "2022-12-01", balance: 900 },
+  { accountId: "coinbase-btc", date: "2023-06-01", balance: 1800 },
+  { accountId: "coinbase-btc", date: "2023-12-01", balance: 3200 },
+  { accountId: "coinbase-btc", date: "2024-06-01", balance: 4800 },
+  { accountId: "coinbase-btc", date: "2024-12-01", balance: 6100 },
+  // Nationwide Current
+  { accountId: "nationwide-current", date: "2020-06-01", balance: 3200 },
+  { accountId: "nationwide-current", date: "2020-12-01", balance: 2800 },
+  { accountId: "nationwide-current", date: "2021-06-01", balance: 3500 },
+  { accountId: "nationwide-current", date: "2021-12-01", balance: 2900 },
+  { accountId: "nationwide-current", date: "2022-06-01", balance: 3100 },
+  { accountId: "nationwide-current", date: "2022-12-01", balance: 2600 },
+  { accountId: "nationwide-current", date: "2023-06-01", balance: 3800 },
+  { accountId: "nationwide-current", date: "2023-12-01", balance: 3200 },
+  { accountId: "nationwide-current", date: "2024-06-01", balance: 2900 },
+  { accountId: "nationwide-current", date: "2024-09-15", balance: 1896 },
+  { accountId: "nationwide-current", date: "2024-12-01", balance: 3400 },
+  // Home (property)
+  { accountId: "home", date: "2023-03-01", balance: 285000 },
+  { accountId: "home", date: "2024-03-01", balance: 292000 },
+  { accountId: "home", date: "2024-12-01", balance: 298000 },
+  // Cardiff Rental (property)
+  { accountId: "cardiff-property", date: "2024-06-01", balance: 300000 },
+  { accountId: "cardiff-property", date: "2024-12-01", balance: 315000 },
+  // Home Mortgage (linked to the property)
+  { accountId: "home-mortgage", date: "2023-03-01", balance: -228000 },
+  { accountId: "home-mortgage", date: "2023-12-01", balance: -221500 },
+  { accountId: "home-mortgage", date: "2024-06-01", balance: -217200 },
+  { accountId: "home-mortgage", date: "2024-12-01", balance: -212800 },
+  // Amex Credit Card (debt)
+  { accountId: "amex-credit-card", date: "2023-06-01", balance: -1450 },
+  { accountId: "amex-credit-card", date: "2023-12-01", balance: -2100 },
+  { accountId: "amex-credit-card", date: "2024-06-01", balance: -1200 },
+  { accountId: "amex-credit-card", date: "2024-12-01", balance: -1800 },
+  // Workplace Pension
+  { accountId: "workplace-pension", date: "2024-12-01", balance: 0 },
+  // Old Mutual Pension (closed)
+  { accountId: "old-mutual-pension", date: "2020-06-01", balance: 12000 },
+  { accountId: "old-mutual-pension", date: "2020-12-01", balance: 13500 },
+  { accountId: "old-mutual-pension", date: "2021-06-01", balance: 15200 },
+  { accountId: "old-mutual-pension", date: "2021-12-01", balance: 16800 },
+  { accountId: "old-mutual-pension", date: "2022-06-01", balance: 14900 },
+  { accountId: "old-mutual-pension", date: "2022-12-01", balance: 16100 },
+  { accountId: "old-mutual-pension", date: "2023-06-01", balance: 0 },
+];

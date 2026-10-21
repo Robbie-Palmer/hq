@@ -1,5 +1,5 @@
-import { AssetTrackerApp } from "@/components/assettracker/asset-tracker-app";
+import { AssetTrackerOverview } from "@/features/personal-finance-app/routes/overview";
 
 export default function AssetTrackerPage() {
-  return <AssetTrackerApp />;
+  return <AssetTrackerOverview />;
 }

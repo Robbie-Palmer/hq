@@ -1,5 +1,1 @@
-import { AssetTrackerLoadingState } from "@/components/assettracker/asset-tracker-route-state";
-
-export default function AssetTrackerLoading() {
-  return <AssetTrackerLoadingState />;
-}
+export { AssetTrackerLoading as default } from "@/features/personal-finance-app/routes/loading";

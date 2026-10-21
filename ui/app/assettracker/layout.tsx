@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AssetTrackerLayoutClient } from "@/components/assettracker/asset-tracker-layout-client";
+import { AssetTrackerLayout as PersonalFinanceLayout } from "@/features/personal-finance-app/routes/layout";
 
 export const metadata: Metadata = {
   title: {
@@ -14,5 +14,5 @@ export default function AssetTrackerLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  return <AssetTrackerLayoutClient>{children}</AssetTrackerLayoutClient>;
+  return <PersonalFinanceLayout>{children}</PersonalFinanceLayout>;
 }

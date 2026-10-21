@@ -8,6 +8,7 @@
   "ignorePatterns": [
     "content/projects/recipe-site/designs/**",
     "e2e/**",
+    "features/**/tests/**",
     "tests/**"
   ],
   "rules": {
@@ -26,11 +27,11 @@
         "app/(site)/ideas/page.tsx",
         "app/(site)/projects/**/adrs/**/page.tsx",
         "app/satellite-swarm/**",
-        "components/assettracker/**",
         "components/experience/experience-card.tsx",
         "components/projects/satellite-swarm/**",
         "components/technology/cesium/**",
-        "components/ui/tech-icon-orbit.tsx"
+        "components/ui/tech-icon-orbit.tsx",
+        "features/personal-finance-app/components/**"
       ],
       "rules": {
         "shadcn/no-raw-colors": "off"

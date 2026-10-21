@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { PlanningRoute } from "@/components/assettracker/planning-route";
+import { AssetTrackerPlanning } from "@/features/personal-finance-app/routes/planning";
 
 export const metadata: Metadata = { title: "Financial independence" };
 
 export default function AssetTrackerPlanningPage() {
-  return <PlanningRoute />;
+  return <AssetTrackerPlanning />;
 }

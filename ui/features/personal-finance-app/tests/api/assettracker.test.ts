@@ -1,0 +1,991 @@
+import { beforeEach, describe, expect, it } from "vitest";
+import {
+  ASSET_TRACKER_STORAGE_KEY,
+  createLocalAssetTrackerApi,
+} from "@/features/personal-finance-app/api/assettracker";
+import {
+  AssetTrackerDataSchema,
+  createAssetTrackerBackup,
+} from "@/features/personal-finance-app/domain";
+import { getDemoAssetTrackerData } from "@/features/personal-finance-app/lib/demoData";
+
+describe("createLocalAssetTrackerApi", () => {
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  it("retains the existing browser storage contract", () => {
+    expect(ASSET_TRACKER_STORAGE_KEY).toBe("assettracker:data:v1");
+  });
+
+  function createApi() {
+    return createLocalAssetTrackerApi(window.localStorage);
+  }
+
+  it("loads the seed data when nothing is stored", async () => {
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(false);
+    expect(data).toEqual(getDemoAssetTrackerData());
+  });
+
+  it("persists mutations across instances", async () => {
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.accounts.find((a) => !a.closedAt)?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    await createApi().recordBalance({
+      accountId,
+      date: "2025-06-01",
+      balance: 42000,
+    });
+
+    const { data, persisted } = await createApi().load();
+    expect(persisted).toBe(true);
+    expect(data.snapshots).toContainEqual({
+      accountId,
+      date: "2025-06-01",
+      balance: 42000,
+    });
+  });
+
+  it("persists created accounts", async () => {
+    const seed = getDemoAssetTrackerData();
+    await createApi().createAccount({
+      name: "Premium Bonds",
+      provider: "NS&I",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0.04,
+      openingBalance: 5000,
+      openingDate: "2025-01-01",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.accounts).toHaveLength(seed.accounts.length + 1);
+    expect(data.accounts.map((a) => a.id)).toContain("premium-bonds");
+  });
+
+  it("persists mortgage scenarios with linked decision records", async () => {
+    const seed = getDemoAssetTrackerData();
+    await createApi().saveMortgageScenario({
+      name: "Two-year fix",
+      recordDecision: true,
+      source: {
+        mortgageAccountId: "home-mortgage",
+        propertyAccountId: "home",
+        snapshotDate: "2026-01-31",
+      },
+      assumptions: {
+        purchasePrice: 350_000,
+        availableFunds: 150_000,
+        depositAmount: 100_000,
+        initialAnnualRate: 0.04,
+        termMonths: 240,
+        repaymentType: "repayment",
+        accrualStartDate: "2026-01-31",
+        firstPaymentDate: "2026-02-28",
+        fixedPeriodEnd: "2031-02-28",
+        followOnAnnualRate: 0.055,
+        refinanceFee: 999,
+        purchaseFees: 500,
+        taxes: 7_500,
+        transactionCosts: 2_000,
+        monthlyOverpayment: 250,
+        overpaymentAllowance: 25_000,
+        overpaymentChargeRate: 0.05,
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.mortgageScenarios).toHaveLength(
+      (seed.mortgageScenarios?.length ?? 0) + 1,
+    );
+    expect(data.mortgageScenarios).toContainEqual(
+      expect.objectContaining({
+        id: "two-year-fix",
+        name: "Two-year fix",
+        decisionRecordId: "two-year-fix-decision",
+        source: {
+          mortgageAccountId: "home-mortgage",
+          propertyAccountId: "home",
+          snapshotDate: "2026-01-31",
+        },
+      }),
+    );
+    expect(data.decisionRecords).toHaveLength(
+      (seed.decisionRecords?.length ?? 0) + 1,
+    );
+    expect(data.decisionRecords).toContainEqual({
+      id: "two-year-fix-decision",
+      kind: "mortgage",
+      title: "Two-year fix",
+      scenarioId: "two-year-fix",
+      recordedAt: expect.any(String),
+      status: "recorded",
+    });
+  });
+
+  it("persists a forecast, its observation, and a later interpretation", async () => {
+    const api = createApi();
+    await api.createDecisionRecord({
+      question: "Should we invest the cash reserve?",
+      decisionDate: "2026-10-17",
+      selectedScenario: { id: "invest", label: "Invest £10,000" },
+      rationale: "The emergency fund remains funded.",
+      action: "Invest £10,000.",
+      forecast: {
+        calculationVersion: "portfolio-v1",
+        lineage: [
+          {
+            id: "fact",
+            kind: "financial-fact",
+            label: "Cash",
+            value: "£30,000",
+            source: "Bank statement",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "rate",
+            kind: "rate",
+            label: "Return",
+            value: "5%",
+            source: "Planning policy",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "tax",
+            kind: "tax-rule",
+            label: "ISA allowance",
+            value: "£20,000",
+            source: "HMRC",
+            validAt: "2026-10-17",
+          },
+          {
+            id: "assumption",
+            kind: "assumption",
+            label: "Contributions",
+            value: "£500 monthly",
+            source: "Household plan",
+            validAt: "2026-10-17",
+          },
+        ],
+        checkpoints: [
+          {
+            id: "year-one",
+            label: "Portfolio after one year",
+            dueDate: "2027-10-17",
+            expectedAmount: 16_650,
+            currency: "GBP",
+          },
+        ],
+      },
+    });
+    const tracked = (await api.load()).data.decisionRecords?.find(
+      (decision) =>
+        decision.kind === "tracked" &&
+        decision.selectedScenario.id === "invest",
+    );
+    if (tracked?.kind !== "tracked")
+      throw new Error("Expected tracked decision");
+    const originalForecast = structuredClone(tracked.forecast);
+
+    await api.recordDecisionObservation({
+      decisionId: tracked.id,
+      checkpointId: "year-one",
+      actualAmount: 15_300,
+      note: "One contribution was missed.",
+      divergenceSources: [
+        {
+          kind: "changed-reality",
+          label: "Missed contribution",
+          impactAmount: -500,
+        },
+      ],
+    });
+    await api.addDecisionInterpretation({
+      decisionId: tracked.id,
+      reason: "The contribution assumption was wrong.",
+      revisedRationale: "The investment remains affordable at £400 monthly.",
+      assumptionChanges: [
+        {
+          label: "Monthly contribution",
+          previousValue: "£500",
+          revisedValue: "£400",
+        },
+      ],
+    });
+
+    const saved = (await createApi().load()).data.decisionRecords?.find(
+      (decision) => decision.id === tracked.id,
+    );
+    if (saved?.kind !== "tracked") throw new Error("Expected tracked decision");
+    expect(saved.forecast).toEqual(originalForecast);
+    expect(saved.observations).toHaveLength(1);
+    expect(saved.interpretations).toHaveLength(1);
+  });
+
+  it("persists editable job-move scenarios through portable data", async () => {
+    const api = createApi();
+    const saved = await api.saveJobMoveScenario({
+      scenario: {
+        name: "Leave work",
+        employmentStatus: "unemployed",
+        transitionDate: "2027-04-01",
+        baseGrossPay: 0,
+        variableGrossPay: 0,
+        payFrequency: "monthly",
+        currency: "GBP",
+        jurisdiction: "England",
+        employeePensionRate: 0,
+        employeePensionMethod: "salarySacrifice",
+        employerPensionRate: 0,
+        replacedRecurringFlowIds: ["salary"],
+      },
+    });
+    const scenario = saved.jobMoveScenarios?.find(
+      ({ name }) => name === "Leave work",
+    );
+    if (scenario == null) throw new Error("Expected saved scenario");
+
+    await api.duplicateJobMoveScenario({ id: scenario.id });
+    const duplicated = (await createApi().load()).data;
+    expect(duplicated.jobMoveScenarios).toContainEqual(
+      expect.objectContaining({ name: "Leave work copy" }),
+    );
+
+    const restored = await createApi().importData(
+      JSON.parse(JSON.stringify(duplicated)),
+    );
+    expect(restored.jobMoveScenarios).toEqual(duplicated.jobMoveScenarios);
+
+    await api.deleteJobMoveScenario({ id: scenario.id });
+    expect((await createApi().load()).data.jobMoveScenarios).not.toContainEqual(
+      expect.objectContaining({ id: scenario.id }),
+    );
+  });
+
+  it("persists an atomic account-history import", async () => {
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.accounts.find((account) => !account.closedAt)?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    await createApi().importAccountHistory({
+      accountId,
+      balances: [{ date: "2025-01-31", value: 15000 }],
+      capitalFlows: [{ date: "2025-01-31", value: 500 }],
+    });
+
+    const { data } = await createApi().load();
+    expect(data.snapshots).toContainEqual({
+      accountId,
+      date: "2025-01-31",
+      balance: 15000,
+    });
+    expect(data.capitalFlows).toContainEqual({
+      accountId,
+      date: "2025-01-31",
+      amount: 500,
+    });
+  });
+
+  it("persists clearing one account history without removing the account", async () => {
+    const api = createApi();
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.snapshots[0]?.accountId;
+    if (!accountId) throw new Error("seed data has no balance history");
+
+    await api.clearAccountHistory({ accountId, kind: "balances" });
+
+    const { data } = await createApi().load();
+    expect(data.accounts.some((account) => account.id === accountId)).toBe(
+      true,
+    );
+    expect(data.snapshots.some((row) => row.accountId === accountId)).toBe(
+      false,
+    );
+    expect(data.snapshots.some((row) => row.accountId !== accountId)).toBe(
+      true,
+    );
+  });
+
+  it("rejects corrupt stored JSON without overwriting it", async () => {
+    const corrupt = "{not json";
+    window.localStorage.setItem(ASSET_TRACKER_STORAGE_KEY, corrupt);
+
+    const api = createApi();
+    await expect(api.load()).rejects.toThrow();
+    await expect(
+      api.createAccount({
+        name: "Must not replace saved data",
+        provider: "Test provider",
+        currency: "GBP",
+        assetType: "cash",
+        expectedAnnualReturn: 0,
+      }),
+    ).rejects.toThrow();
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBe(
+      corrupt,
+    );
+  });
+
+  it("rejects stored data that fails validation", async () => {
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify({ accounts: [{ id: "broken" }], snapshots: [] }),
+    );
+
+    await expect(createApi().load()).rejects.toThrow();
+  });
+
+  it("loads older saved data with no capital-flow collection", async () => {
+    const { capitalFlows: _capitalFlows, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.capitalFlows).toEqual([]);
+  });
+
+  it("loads older saved data with no income history", async () => {
+    const { incomeHistory: _incomeHistory, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.incomeHistory).toEqual([]);
+  });
+
+  it("loads older saved data with no salary history", async () => {
+    const { salaryHistory: _salaryHistory, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.salaryHistory).toEqual([]);
+  });
+
+  it("migrates old saved data to one stable local household member", async () => {
+    const seed = getDemoAssetTrackerData();
+    const {
+      forecastAssumptionSets: _forecastAssumptionSets,
+      futureCashFlows: _futureCashFlows,
+      household: _household,
+      ownership: _ownership,
+      planningCases: _planningCases,
+      ...legacy
+    } = seed;
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.household.members).toEqual([
+      { id: "primary", displayName: "Me" },
+    ]);
+    expect(data.accounts).toEqual(seed.accounts);
+    const firstAccount = data.accounts[0];
+    if (firstAccount == null) throw new Error("Seed has no account");
+    expect(data.ownership.accounts[firstAccount.id]).toEqual({
+      kind: "personal",
+      memberId: "primary",
+    });
+  });
+
+  it("persists household members, display names, scope, and account ownership", async () => {
+    const api = createApi();
+    await api.addHouseholdMember({ displayName: "Jordan" });
+    await api.renameHouseholdMember({
+      memberId: "alex",
+      displayName: "Alexandra",
+    });
+    await api.setActiveHouseholdScope({ kind: "member", memberId: "jordan" });
+    const accountId = getDemoAssetTrackerData().accounts[0]?.id;
+    if (accountId == null) throw new Error("Seed has no account");
+    await api.setAccountOwnership({
+      accountId,
+      ownership: {
+        kind: "shared",
+        shares: [
+          { memberId: "alex", share: 0.6 },
+          { memberId: "jordan", share: 0.4 },
+        ],
+      },
+    });
+
+    const { data } = await createApi().load();
+    expect(data.household).toEqual({
+      members: [
+        { id: "alex", displayName: "Alexandra" },
+        { id: "sam", displayName: "Sam" },
+        { id: "jordan", displayName: "Jordan" },
+      ],
+      activeScope: { kind: "member", memberId: "jordan" },
+    });
+    expect(data.ownership.accounts[accountId]).toEqual({
+      kind: "shared",
+      shares: [
+        { memberId: "alex", share: 0.6 },
+        { memberId: "jordan", share: 0.4 },
+      ],
+    });
+  });
+
+  it("loads older saved data with no planned expenditures", async () => {
+    const { plannedExpenditures: _plannedExpenditures, ...legacy } =
+      getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.plannedExpenditures).toEqual([]);
+  });
+
+  it("defaults the withdrawal rate in older saved settings", async () => {
+    const seed = getDemoAssetTrackerData();
+    const legacy = {
+      ...seed,
+      settings: {
+        expectedAnnualInflation: seed.settings.expectedAnnualInflation,
+      },
+    };
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify(legacy),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.settings.withdrawalRate).toBe(0.04);
+    expect(data.settings.baseCurrency).toBe("GBP");
+    expect(data.settings.valuationMaxAgeDays).toBe(7);
+  });
+
+  it("persists the household base currency", async () => {
+    await createApi().setBaseCurrency({ currency: "USD" });
+
+    const { data } = await createApi().load();
+
+    expect(data.settings.baseCurrency).toBe("USD");
+  });
+
+  it("repairs duplicate persisted income dates without hiding the portfolio", async () => {
+    const seed = getDemoAssetTrackerData();
+    window.localStorage.setItem(
+      ASSET_TRACKER_STORAGE_KEY,
+      JSON.stringify({
+        ...seed,
+        incomeHistory: [
+          { date: "2025-01-31", amount: 4_100 },
+          { date: "2025-01-31", amount: 4_200 },
+        ],
+      }),
+    );
+
+    const { data, persisted } = await createApi().load();
+
+    expect(persisted).toBe(true);
+    expect(data.accounts).toEqual(seed.accounts);
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_200, currency: "GBP" },
+    ]);
+  });
+
+  it("persists portfolio income history and the withdrawal rate", async () => {
+    const api = createApi();
+    await api.importIncomeHistory({
+      income: [{ date: "2025-01-31", amount: 4_500 }],
+    });
+    await api.setWithdrawalRate({ rate: 0.035 });
+
+    const { data } = await createApi().load();
+    expect(data.incomeHistory).toEqual([
+      { date: "2025-01-31", amount: 4_500, currency: "GBP" },
+    ]);
+    expect(data.settings.withdrawalRate).toBe(0.035);
+  });
+
+  it("persists planned expenditures", async () => {
+    const api = createApi();
+    const source = getDemoAssetTrackerData().accounts.find(
+      (account) => account.id === "nationwide-current",
+    );
+    if (!source) throw new Error("seed data has no current account");
+
+    await api.addPlannedExpenditure({
+      name: "Large purchase",
+      amount: 15_000,
+      date: "2099-08-01",
+      fromAccountId: source.id,
+    });
+
+    const { data } = await createApi().load();
+    expect(data.plannedExpenditures).toContainEqual({
+      id: "large-purchase",
+      name: "Large purchase",
+      amount: 15_000,
+      date: "2099-08-01",
+      fromAccountId: source.id,
+    });
+    expect(data.futureCashFlows).toContainEqual(
+      expect.objectContaining({
+        id: "large-purchase",
+        name: "Large purchase",
+        kind: "commitment",
+      }),
+    );
+
+    const withoutExpenditure = await api.deletePlannedExpenditure({
+      id: "large-purchase",
+    });
+    expect(withoutExpenditure.plannedExpenditures).toEqual([]);
+    expect(withoutExpenditure.futureCashFlows).not.toContainEqual(
+      expect.objectContaining({ id: "large-purchase" }),
+    );
+  });
+
+  it("persists planning cases, commitments, decisions, and actual cash flows", async () => {
+    const api = createApi();
+    const source = getDemoAssetTrackerData().accounts.find(
+      (account) =>
+        account.id === "nationwide-current" && account.currency === "GBP",
+    );
+    if (!source) throw new Error("seed data has no GBP current account");
+
+    await api.createPlanningCase({
+      name: "Summer plans",
+      labels: ["shared"],
+      targetDate: "2099-08-01",
+    });
+    await api.addCommitment({
+      name: "Firm booking",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      refundable: true,
+      stages: [
+        {
+          fromAccountId: source.id,
+          dueDate: "2099-03-01",
+          amount: 1_000,
+        },
+      ],
+    });
+    await api.addCashFlowDecision({
+      name: "Optional upgrade",
+      planningCaseId: "summer-plans",
+      labels: [],
+      currency: "GBP",
+      confidence: 0.7,
+      dependencyIds: ["firm-booking"],
+      alternativeToIds: [],
+      stages: [
+        {
+          fromAccountId: source.id,
+          expectedDate: "2099-05-01",
+          minimumAmount: 500,
+          expectedAmount: 750,
+          maximumAmount: 1_000,
+        },
+      ],
+    });
+    await api.setCashFlowDecisionStatus({
+      id: "optional-upgrade",
+      status: "selected",
+    });
+    await api.recordActualCashFlow({
+      futureCashFlowId: "firm-booking",
+      stageId: "payment-1",
+      date: "2026-01-01",
+      amount: 250,
+      direction: "payment",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.planningCases).toContainEqual(
+      expect.objectContaining({ id: "summer-plans", name: "Summer plans" }),
+    );
+    expect(data.futureCashFlows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "firm-booking",
+          kind: "commitment",
+          stages: [
+            expect.objectContaining({
+              actuals: [expect.objectContaining({ amount: 250 })],
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "optional-upgrade",
+          kind: "decision",
+          status: "selected",
+        }),
+      ]),
+    );
+  });
+
+  it("persists reusable, versioned household forecast assumptions", async () => {
+    const seed = getDemoAssetTrackerData();
+    const account = seed.accounts.find(
+      (candidate) =>
+        candidate.currency === "GBP" &&
+        candidate.closedAt == null &&
+        candidate.assetType === "cash",
+    );
+    const member = seed.household.members[0];
+    if (account == null || member == null) {
+      throw new Error("seed data has no eligible account or household member");
+    }
+    const api = createApi();
+
+    await api.createForecastAssumptionSet({ name: "Household baseline" });
+    await api.addForecastAssumption({
+      setId: "household-baseline-v1",
+      name: "Temporary take-home change",
+      kind: "income",
+      startDate: "2099-01-01",
+      endDate: "2099-06-30",
+      monthlyChange: { minimum: -600, expected: -500, maximum: -350 },
+      currency: "GBP",
+      confidence: 0.7,
+      ownership: { kind: "personal", memberId: member.id },
+      accountId: account.id,
+      source: { kind: "manual-take-home" },
+      sourceNotes: "Based on current payslips",
+    });
+    await api.versionForecastAssumptionSet({
+      id: "household-baseline-v1",
+    });
+
+    const { data } = await createApi().load();
+    expect(data.incomeHistory).toEqual(seed.incomeHistory);
+    expect(data.forecastAssumptionSets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "household-baseline-v1",
+          status: "superseded",
+          assumptions: [
+            expect.objectContaining({
+              name: "Temporary take-home change",
+              monthlyChange: {
+                minimum: -600,
+                expected: -500,
+                maximum: -350,
+              },
+              source: { kind: "manual-take-home" },
+            }),
+          ],
+        }),
+        expect.objectContaining({
+          id: "household-baseline-v2",
+          version: 2,
+          status: "active",
+          supersedesId: "household-baseline-v1",
+        }),
+      ]),
+    );
+  });
+
+  it("persists transfers and history deletions", async () => {
+    const api = createApi();
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.accounts.find((account) => !account.closedAt)?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    const transferred = await api.recordTransfer({
+      date: "2099-01-01",
+      toAccountId: accountId,
+      amount: 100,
+    });
+    expect(transferred.transfers).toContainEqual(
+      expect.objectContaining({ toAccountId: accountId, amount: 100 }),
+    );
+
+    const withoutSnapshot = await api.deleteSnapshot({
+      accountId,
+      date: "2099-01-01",
+    });
+    expect(withoutSnapshot.snapshots).not.toContainEqual(
+      expect.objectContaining({ accountId, date: "2099-01-01" }),
+    );
+
+    await api.importAccountHistory({
+      accountId,
+      capitalFlows: [{ date: "2098-01-01", value: 50 }],
+      balances: [],
+    });
+    const withoutCapitalFlow = await api.deleteCapitalFlow({
+      accountId,
+      date: "2098-01-01",
+    });
+    expect(withoutCapitalFlow.capitalFlows).not.toContainEqual(
+      expect.objectContaining({ accountId, date: "2098-01-01" }),
+    );
+
+    const withoutIncome = await api.clearIncomeHistory();
+    expect(withoutIncome.incomeHistory).toEqual([]);
+  });
+
+  it("persists account lifecycle and portfolio settings", async () => {
+    const api = createApi();
+    const accountId = getDemoAssetTrackerData().accounts.find(
+      (account) => !account.closedAt,
+    )?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    await api.setExpectedReturn({
+      accountId,
+      rate: 0.05,
+      effectiveFrom: "2099-01-01",
+    });
+    await api.setAccountLiquidity({ accountId, liquidity: "liquid" });
+    await api.setInflation({ rate: 0.025 });
+    const configured = await api.setNetWorthTarget({
+      target: 1_000_000,
+      inTodaysMoney: true,
+    });
+    expect(configured.settings).toMatchObject({
+      expectedAnnualInflation: 0.025,
+      targetNetWorth: { amount: 1_000_000, currency: "GBP" },
+      targetNetWorthIsReal: true,
+    });
+
+    await api.createAccount({
+      name: "Temporary account",
+      provider: "Test provider",
+      currency: "GBP",
+      assetType: "cash",
+      expectedAnnualReturn: 0,
+    });
+    const closed = await api.closeAccount({
+      accountId: "temporary-account",
+      closedAt: "2099-01-01",
+    });
+    expect(
+      closed.accounts.find((account) => account.id === "temporary-account"),
+    ).toMatchObject({ closedAt: "2099-01-01" });
+  });
+
+  it("persists and materializes recurring flows", async () => {
+    const api = createApi();
+    const accountId = getDemoAssetTrackerData().accounts.find(
+      (account) => !account.closedAt,
+    )?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+
+    const withFlow = await api.addRecurringFlow({
+      name: "Test income",
+      toAccountId: accountId,
+      amount: 100,
+      frequency: "monthly",
+      startDate: "2099-01-01",
+    });
+    expect(withFlow.recurringFlows).toContainEqual(
+      expect.objectContaining({ id: "test-income" }),
+    );
+
+    const materialized = await api.materializeFlow({
+      flowId: "test-income",
+      throughDate: "2099-02-01",
+    });
+    expect(
+      materialized.transfers.filter(
+        (transfer) => transfer.flowId === "test-income",
+      ),
+    ).toHaveLength(2);
+
+    const withoutFlow = await api.deleteRecurringFlow({ id: "test-income" });
+    expect(withoutFlow.recurringFlows).not.toContainEqual(
+      expect.objectContaining({ id: "test-income" }),
+    );
+  });
+
+  it("rejects importing data that fails validation", async () => {
+    await expect(
+      createApi().importData({ accounts: "nope" }),
+    ).rejects.toThrow();
+  });
+
+  it("rejects importing data with orphan snapshots", async () => {
+    await expect(
+      createApi().importData({
+        accounts: [],
+        snapshots: [{ accountId: "ghost", date: "2024-01-01", balance: 1 }],
+      }),
+    ).rejects.toThrow(/unknown account/);
+  });
+
+  it("imports and persists a valid export", async () => {
+    const exported = getDemoAssetTrackerData();
+    const imported = await createApi().importData(exported);
+
+    expect(imported).toEqual(exported);
+    const { persisted } = await createApi().load();
+    expect(persisted).toBe(true);
+  });
+
+  it("restores a complete household backup into a clean browser", async () => {
+    const data = getDemoAssetTrackerData();
+    const backup = createAssetTrackerBackup(data, "2026-10-08T16:00:00.000Z");
+
+    const restored = await createApi().restoreBackup(backup);
+    const loaded = await createApi().load();
+
+    expect(restored).toEqual(data);
+    expect(loaded.persisted).toBe(true);
+    expect(loaded.data).toEqual(data);
+    expect(loaded.data.household.members).toHaveLength(2);
+    expect(loaded.data.ownership).toEqual(data.ownership);
+  });
+
+  it("does not mutate stored data when a backup fails validation", async () => {
+    const api = createApi();
+    await api.setInflation({ rate: 0.031 });
+    const before = window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    const backup = createAssetTrackerBackup(
+      getDemoAssetTrackerData(),
+      "2026-10-08T16:00:00.000Z",
+    );
+
+    await expect(
+      api.restoreBackup({
+        ...backup,
+        summary: { ...backup.summary, accounts: 999 },
+      }),
+    ).rejects.toThrow(/summary does not match/);
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBe(before);
+  });
+
+  it("round-trips salary provenance and prior accepted facts", async () => {
+    const api = createApi();
+    const seededSalaryCount = getDemoAssetTrackerData().salaryHistory.length;
+    const original = {
+      id: "salary-fixture-2",
+      person: "Alex Example",
+      employer: "Northstar Ltd",
+      employmentId: "northstar-engineer",
+      currency: "GBP" as const,
+      jurisdiction: "UK",
+      effectiveStart: "2021-04-01",
+      effectiveEnd: "2021-09-30",
+      payFrequency: "monthly" as const,
+      amountKind: "annualSalary" as const,
+      grossPay: 48_000,
+      source: {
+        kind: "file" as const,
+        fileName: "salary.csv",
+        fingerprint: "fixture",
+        row: 2,
+      },
+      acceptedAt: "2025-01-01T00:00:00.000Z",
+    };
+    await api.importSalaryHistory({ records: [original] });
+    await api.importSalaryHistory({ records: [original] });
+    const corrected = await api.saveSalaryRecord({
+      correctsId: original.id,
+      facts: {
+        person: original.person,
+        employer: original.employer,
+        employmentId: original.employmentId,
+        currency: original.currency,
+        jurisdiction: original.jurisdiction,
+        effectiveStart: original.effectiveStart,
+        effectiveEnd: original.effectiveEnd,
+        payFrequency: original.payFrequency,
+        amountKind: original.amountKind,
+        grossPay: 50_000,
+      },
+    });
+
+    expect(corrected.salaryHistory).toHaveLength(seededSalaryCount + 2);
+    expect(corrected.salaryHistory).toContainEqual(original);
+    const restored = await createApi().importData(
+      JSON.parse(JSON.stringify(corrected)),
+    );
+    expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
+  });
+
+  it("stores an explicit no-pension answer in a rollback-compatible form", async () => {
+    const seed = getDemoAssetTrackerData();
+    const api = createApi();
+    await api.saveSalaryRecord({
+      facts: {
+        person: "Alex Example",
+        employer: "Northstar Ltd",
+        employmentId: "northstar-engineer",
+        currency: "GBP",
+        jurisdiction: "England",
+        effectiveStart: "2015-07-01",
+        payFrequency: "monthly",
+        amountKind: "annualSalary",
+        grossPay: 48_000,
+        employeePension: { arrangement: "none", basis: "unknown" },
+        employerPension: { arrangement: "none", basis: "unknown" },
+      },
+    });
+
+    const raw = window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY);
+    if (raw == null) throw new Error("Expected saved Asset Tracker data");
+    const stored = AssetTrackerDataSchema.parse(JSON.parse(raw));
+    const storedRecord = stored.salaryHistory.at(-1);
+    expect(storedRecord?.employeePension?.arrangement).toBe("unknown");
+    expect(storedRecord?.employerPension?.arrangement).toBe("unknown");
+
+    const { data } = await api.load();
+    const restored = data.salaryHistory.at(-1);
+    expect(data.salaryHistory).toHaveLength(seed.salaryHistory.length + 1);
+    expect(restored?.employeePension?.arrangement).toBe("none");
+    expect(restored?.employerPension?.arrangement).toBe("none");
+  });
+
+  it("reset clears stored data and returns the seed", async () => {
+    const api = createApi();
+    const seed = getDemoAssetTrackerData();
+    const accountId = seed.accounts.find((a) => !a.closedAt)?.id;
+    if (!accountId) throw new Error("seed data has no open account");
+    await api.recordBalance({ accountId, date: "2025-06-01", balance: 1 });
+
+    const data = await api.reset();
+
+    expect(data).toEqual(seed);
+    expect(window.localStorage.getItem(ASSET_TRACKER_STORAGE_KEY)).toBeNull();
+    const { persisted } = await createApi().load();
+    expect(persisted).toBe(false);
+  });
+
+  it("persists a blank slate instead of falling back to the demo seed", async () => {
+    const data = await createApi().clear();
+
+    expect(data.accounts).toEqual([]);
+    expect(data.snapshots).toEqual([]);
+    expect(data.capitalFlows).toEqual([]);
+
+    const loaded = await createApi().load();
+    expect(loaded.persisted).toBe(true);
+    expect(loaded.data).toEqual(data);
+  });
+});

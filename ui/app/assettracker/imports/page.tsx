@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { ImportsRoute } from "@/components/assettracker/imports-route";
+import { AssetTrackerImports } from "@/features/personal-finance-app/routes/imports";
 
 export const metadata: Metadata = { title: "Imports" };
 
 export default function AssetTrackerImportsPage() {
-  return <ImportsRoute />;
+  return <AssetTrackerImports />;
 }

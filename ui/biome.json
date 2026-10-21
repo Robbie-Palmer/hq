@@ -14,6 +14,7 @@
       "!content/projects/*/designs",
       "contexts/**",
       "e2e/**",
+      "features/**",
       "hooks/**",
       "lib/**",
       "public/**/*.js",

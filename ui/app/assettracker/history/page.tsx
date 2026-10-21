@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { HistoryRoute } from "@/components/assettracker/history-route";
+import { AssetTrackerHistory } from "@/features/personal-finance-app/routes/history";
 
 export const metadata: Metadata = { title: "History" };
 
 export default function AssetTrackerHistoryPage() {
-  return <HistoryRoute />;
+  return <AssetTrackerHistory />;
 }
