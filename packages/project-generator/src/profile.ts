@@ -242,24 +242,22 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
 export const projectProfileSchema = projectProfileFieldsSchema.superRefine(validateProfile);
 export type ProjectProfile = z.infer<typeof projectProfileSchema>;
 
-const layoutContractSchema = z
-  .object({
+const layoutContractSchema = z.looseObject({
     schema_version: z.literal(1),
-    project_kinds: z.array(z.object({ id: slugSchema }).passthrough()),
+    project_kinds: z.array(z.looseObject({ id: slugSchema })),
     component_kinds: z.array(
-      z.object({ id: slugSchema, directory: z.string().min(1) }).passthrough(),
+      z.looseObject({ id: slugSchema, directory: z.string().min(1) }),
     ),
-    task_contract: z.object({
+    task_contract: z.looseObject({
       id: slugSchema,
       required: z.array(taskNameSchema),
-    }).passthrough(),
-    knowledge_graph: z.object({
+    }),
+    knowledge_graph: z.looseObject({
       project_index: z.string().min(1),
       architecture_decisions: z.string().min(1),
       product_decisions: z.string().min(1),
-    }).passthrough(),
-  })
-  .passthrough();
+    }),
+  });
 
 const prerequisiteSchema = z.union([
   z
@@ -271,25 +269,21 @@ const prerequisiteSchema = z.union([
   z.object({ requirement: slugSchema }).strict(),
 ]);
 
-const platformContractSchema = z
-  .object({
+const platformContractSchema = z.looseObject({
     schema_version: z.literal(1),
     layers: z.array(
-      z.object({ slug: slugSchema }).passthrough(),
+      z.looseObject({ slug: slugSchema }),
     ),
     slots: z.array(
-      z
-        .object({
+      z.looseObject({
           slug: slotSchema,
           kind: z.enum(["technology", "policy"]).default("technology"),
           cardinality: z.enum(["one", "many"]).default("one"),
           opinionated: z.boolean().default(true),
-        })
-        .passthrough(),
+        }),
     ),
     policies: z.array(
-      z
-        .object({
+      z.looseObject({
           id: slugSchema,
           layer: slugSchema,
           slot: slotSchema,
@@ -297,12 +291,10 @@ const platformContractSchema = z
           effective_from: utcInstantSchema,
           effective_until: utcInstantSchema.optional(),
           prerequisites: z.array(prerequisiteSchema).default([]),
-        })
-        .passthrough(),
+        }),
     ),
     selections: z.array(
-      z
-        .object({
+      z.looseObject({
           id: slugSchema,
           slot: slotSchema,
           kind: z.enum(["technology", "policy"]).default("technology"),
@@ -312,53 +304,47 @@ const platformContractSchema = z
           decision: adrRefSchema,
           effective_from: utcInstantSchema,
           effective_until: utcInstantSchema.optional(),
-          configuration_requirements: z.array(z.object({ name: z.string().min(1) }).passthrough()).default([]),
-          state_requirements: z.array(z.object({ name: z.string().min(1) }).passthrough()).default([]),
-          operational_checks: z.array(z.object({ name: z.string().min(1), reference: z.string().min(1) }).passthrough()).default([]),
+          configuration_requirements: z.array(z.looseObject({ name: z.string().min(1) })).default([]),
+          state_requirements: z.array(z.looseObject({ name: z.string().min(1) })).default([]),
+          operational_checks: z.array(z.looseObject({ name: z.string().min(1), reference: z.string().min(1) })).default([]),
           manual_setup: z.array(z.string().min(1)).default([]),
-        })
-        .passthrough(),
+        }),
     ),
-  })
-  .passthrough();
+  });
 
-const nixContractSchema = z
-  .object({
+const nixContractSchema = z.looseObject({
     schema_version: z.literal(1),
     supported_systems: z.array(z.string().min(1)),
     outputs: z.object({
       per_system: z.record(z.string(), z.string()),
       top_level: z.record(z.string(), z.string()),
     }),
-    inputs: z.object({
+    inputs: z.looseObject({
       locked: z.boolean(),
       allow_unlocked_production_builds: z.boolean(),
-    }).passthrough(),
+    }),
     mise_tasks: z.record(z.string(), z.string()),
-  })
-  .passthrough();
+  });
 
-const otelContractSchema = z
-  .object({
+const otelContractSchema = z.looseObject({
     schema_version: z.literal(1),
-    signals: z.object({ required: z.array(z.string().min(1)) }).passthrough(),
-    resource_identity: z.object({ required: z.array(z.string().min(1)) }).passthrough(),
-    transport: z.object({
+    signals: z.looseObject({ required: z.array(z.string().min(1)) }),
+    resource_identity: z.looseObject({ required: z.array(z.string().min(1)) }),
+    transport: z.looseObject({
       runtime_defaults: z.record(
         z.string(),
         z.object({ protocol: z.string().min(1), route: z.string().min(1) }),
       ),
-    }).passthrough(),
-    semantic_conventions: z.object({ policy: z.string().min(1) }).passthrough(),
-    data_policy: z.object({ mode: z.string().min(1), unsafe_record_action: z.string().min(1) }).passthrough(),
-    cardinality: z.object({
+    }),
+    semantic_conventions: z.looseObject({ policy: z.string().min(1) }),
+    data_policy: z.looseObject({ mode: z.string().min(1), unsafe_record_action: z.string().min(1) }),
+    cardinality: z.looseObject({
       max_metric_series_per_instrument: z.number().int().positive(),
       max_attribute_count_per_record: z.number().int().positive(),
       max_attribute_value_length: z.number().int().positive(),
-    }).passthrough(),
-    processing: z.object({ failure_mode: z.string().min(1) }).passthrough(),
-  })
-  .passthrough();
+    }),
+    processing: z.looseObject({ failure_mode: z.string().min(1) }),
+  });
 
 export interface ProjectProfileContracts {
   layout: z.infer<typeof layoutContractSchema>;
@@ -424,12 +410,20 @@ function addDuplicateIssues(values: readonly string[], label: string, context: z
   if (duplicate) context.addIssue({ code: "custom", message: `duplicate ${label}: '${duplicate}'` });
 }
 
+function compareStrings(left: string, right: string): number {
+  return left.localeCompare(right, "en");
+}
+
 function parseContract<T>(source: string, schema: z.ZodType<T>, label: string): T {
   const result = schema.safeParse(parse(source));
   if (result.success) return result.data;
-  throw new Error(
-    `Invalid ${label}: ${result.error.issues.map((issue) => `${issue.path.join(".") || label}: ${issue.message}`).join("; ")}`,
-  );
+  const details = result.error.issues
+    .map((issue) => {
+      const location = issue.path.join(".") || label;
+      return `${location}: ${issue.message}`;
+    })
+    .join("; ");
+  throw new Error(`Invalid ${label}: ${details}`);
 }
 
 export function parseProjectProfile(source: string): ProjectProfile {
@@ -513,7 +507,7 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       name: component.name,
       kind: component.kind,
       path: componentPath,
-      tasks: contracts.layout.task_contract.required.toSorted().map((name) => {
+      tasks: contracts.layout.task_contract.required.toSorted(compareStrings).map((name) => {
         const reason = exceptions.get(name);
         return reason === undefined
           ? { name, disposition: "generated" as const }
@@ -763,7 +757,7 @@ function resolveSelections(
   }
   return {
     selections: state.resolved.toSorted((left, right) => left.slot.localeCompare(right.slot, "en") || left.value.localeCompare(right.value, "en")),
-    checkpoints: Array.from(state.checkpoints).toSorted(),
+    checkpoints: Array.from(state.checkpoints).toSorted(compareStrings),
   };
 }
 
@@ -789,7 +783,7 @@ export function resolveProjectProfile(
   const ownedPaths = [
     ...components.map(({ path: componentPath }) => componentPath),
     `ui/content/projects/${profile.project.id}`,
-  ].toSorted();
+  ].toSorted(compareStrings);
   const otelRuntime = profile.opentelemetry.runtime;
   const transport = otelRuntime ? contracts.opentelemetry.transport.runtime_defaults[otelRuntime] : undefined;
   if (otelRuntime && !transport) throw new Error(`OpenTelemetry runtime '${otelRuntime}' has no current transport default`);
@@ -818,7 +812,9 @@ export function resolveProjectProfile(
         kind: "system",
         name: profile.project.name,
         project: `project:${profile.project.id}`,
-        source_paths: components.map(({ path: componentPath }) => componentPath).toSorted(),
+        source_paths: components
+          .map(({ path: componentPath }) => componentPath)
+          .toSorted(compareStrings),
       },
       components: componentRecords,
     },
@@ -835,11 +831,11 @@ export function resolveProjectProfile(
       enabled: true,
       boundary: profile.nix.boundary,
       flake_path: profile.nix.flake_path,
-      supported_systems: [...contracts.nix.supported_systems].toSorted(),
+      supported_systems: [...contracts.nix.supported_systems].toSorted(compareStrings),
       locked_inputs: contracts.nix.inputs.locked,
       allow_unlocked_production_builds: contracts.nix.inputs.allow_unlocked_production_builds,
-      packages: [...profile.nix.packages].toSorted(),
-      apps: [...profile.nix.apps].toSorted(),
+      packages: [...profile.nix.packages].toSorted(compareStrings),
+      apps: [...profile.nix.apps].toSorted(compareStrings),
       outputs: contracts.nix.outputs,
       mise_tasks: contracts.nix.mise_tasks,
     },

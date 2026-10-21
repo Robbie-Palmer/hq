@@ -39,8 +39,8 @@ function profile(overrides: Record<string, unknown> = {}): ProjectProfile {
     nix: {
       boundary: "project",
       flake_path: "packages/sample-app/flake.nix",
-      packages: ["server"],
-      apps: ["serve"],
+      packages: ["server", "client"],
+      apps: ["serve", "migrate"],
     },
     opentelemetry: { enabled: true, runtime: "typescript-worker" },
     ...overrides,
@@ -263,7 +263,13 @@ describe("project profile resolution", () => {
       id: "system:sample-app/application",
       source_paths: ["ui", "workers/api"],
     });
-    expect(blueprint.nix).toMatchObject({ enabled: true, locked_inputs: true });
+    expect(blueprint.nix).toMatchObject({
+      enabled: true,
+      locked_inputs: true,
+      supported_systems: ["aarch64-darwin", "x86_64-linux"],
+      packages: ["client", "server"],
+      apps: ["migrate", "serve"],
+    });
     expect(blueprint.opentelemetry).toMatchObject({
       enabled: true,
       runtime: "typescript-worker",
