@@ -60,6 +60,7 @@ const projectKindSchema = z.enum([
 
 const componentKindSchema = z.enum([
   "ui",
+  "web-feature",
   "worker",
   "typescript-package",
   "python-pipeline",
@@ -79,6 +80,10 @@ const taskNameSchema = z.enum([
   "clean",
 ]);
 
+const webMountPathSchema = z
+  .string()
+  .regex(/^\/[a-z0-9]+(?:[a-z0-9/-]*[a-z0-9])?$/);
+
 const taskExceptionSchema = z
   .object({
     task: taskNameSchema,
@@ -91,10 +96,25 @@ const componentSchema = z
     id: slugSchema,
     kind: componentKindSchema,
     name: z.string().min(1),
+    mount_path: webMountPathSchema.optional(),
     task_exceptions: z.array(taskExceptionSchema).default([]),
   })
   .strict()
   .superRefine((component, context) => {
+    if (component.kind === "web-feature" && component.mount_path === undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["mount_path"],
+        message: "is required for a web-feature component",
+      });
+    }
+    if (component.kind !== "web-feature" && component.mount_path !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: ["mount_path"],
+        message: "is only valid for a web-feature component",
+      });
+    }
     addDuplicateIssues(
       component.task_exceptions.map(({ task }) => task),
       `component '${component.id}' task exceptions`,
@@ -216,6 +236,13 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     context,
   );
   addDuplicateIssues(
+    profile.components.flatMap(({ mount_path }) =>
+      mount_path === undefined ? [] : [mount_path],
+    ),
+    "web feature mount paths",
+    context,
+  );
+  addDuplicateIssues(
     profile.layers.map(({ layer }) => layer),
     "layers",
     context,
@@ -228,7 +255,7 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
   );
 
   const compatibleKinds: Record<z.infer<typeof projectKindSchema>, readonly z.infer<typeof componentKindSchema>[]> = {
-    application: ["ui", "worker"],
+    application: ["ui", "web-feature", "worker"],
     service: ["worker", "python-pipeline"],
     library: ["typescript-package", "cpp-project"],
     "data-pipeline": ["python-pipeline"],
@@ -312,10 +339,12 @@ export interface ResolvedProjectBlueprint {
     readonly name: string;
     readonly kind: string;
     readonly path: string;
+    readonly mount_path?: string;
     readonly tasks: readonly {
       readonly name: string;
-      readonly disposition: "generated" | "not-applicable";
+      readonly disposition: "generated" | "delegated" | "not-applicable";
       readonly reason?: string;
+      readonly target?: string;
     }[];
   }[];
   readonly repository_paths: {
@@ -395,14 +424,23 @@ function validateAgainstContracts(profile: ProjectProfile, contracts: ProjectPro
 }
 
 function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileContracts) {
-  const directories = new Map(contracts.layout.component_kinds.map((kind) => [kind.id, kind.directory]));
+  const componentKinds = new Map(
+    contracts.layout.component_kinds.map((kind) => [kind.id, kind]),
+  );
   const requiredTasks = taskNameSchema.array().parse(
     contracts.layout.task_contract.required,
   );
   const components = profile.components.map((component) => {
-    const template = directories.get(component.kind);
-    if (!template) throw new Error(`No directory template for component kind '${component.kind}'`);
-    const componentPath = substitutePath(template, { component: component.id, project: profile.project.id });
+    const componentKind = componentKinds.get(component.kind);
+    if (!componentKind) {
+      throw new Error(
+        `No directory template for component kind '${component.kind}'`,
+      );
+    }
+    const componentPath = substitutePath(componentKind.directory, {
+      component: component.id,
+      project: profile.project.id,
+    });
     const exceptions = new Map(component.task_exceptions.map((exception) => [exception.task, exception.reason]));
     return {
       id: component.id,
@@ -410,11 +448,24 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       name: component.name,
       kind: component.kind,
       path: componentPath,
+      ...(component.mount_path === undefined
+        ? {}
+        : { mount_path: component.mount_path }),
       tasks: requiredTasks.toSorted(compareStrings).map((name) => {
         const reason = exceptions.get(name);
-        return reason === undefined
-          ? { name, disposition: "generated" as const }
-          : { name, disposition: "not-applicable" as const, reason };
+        if (reason !== undefined) {
+          return { name, disposition: "not-applicable" as const, reason };
+        }
+        if (componentKind.delegated_task_project) {
+          const taskName =
+            name === "typecheck-or-compile" ? "typecheck" : name;
+          return {
+            name,
+            disposition: "delegated" as const,
+            target: `${componentKind.delegated_task_project}:${taskName}`,
+          };
+        }
+        return { name, disposition: "generated" as const };
       }),
     };
   }).toSorted((left, right) => left.id.localeCompare(right.id, "en"));
@@ -681,6 +732,9 @@ export function resolveProjectProfile(
     name: component.name,
     project: `project:${profile.project.id}`,
     source_paths: [component.path],
+    ...(component.mount_path === undefined
+      ? {}
+      : { mount_path: component.mount_path }),
     relations: [{ type: "part_of", target: `system:${profile.project.id}/${profile.project.kind}` }],
   }));
   const ownedPaths = [

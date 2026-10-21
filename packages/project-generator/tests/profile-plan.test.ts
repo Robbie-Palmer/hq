@@ -29,10 +29,37 @@ function contracts(): ProjectProfileContracts {
       ],
       projects: [],
       component_kinds: [
-        { id: "ui", directory: "ui" },
-        { id: "worker", directory: "workers/{component}" },
-        { id: "typescript-package", directory: "packages/{component}" },
-        { id: "terraform-root", directory: "infra/{component}" },
+        {
+          id: "ui",
+          directory: "ui",
+          mise_config_root: true,
+          pnpm_workspace_package: true,
+        },
+        {
+          id: "web-feature",
+          directory: "ui/features/{project}",
+          mise_config_root: false,
+          pnpm_workspace_package: false,
+          delegated_task_project: "//ui",
+        },
+        {
+          id: "worker",
+          directory: "workers/{component}",
+          mise_config_root: true,
+          pnpm_workspace_package: true,
+        },
+        {
+          id: "typescript-package",
+          directory: "packages/{component}",
+          mise_config_root: true,
+          pnpm_workspace_package: true,
+        },
+        {
+          id: "terraform-root",
+          directory: "infra/{component}",
+          mise_config_root: true,
+          pnpm_workspace_package: false,
+        },
       ],
       task_contract: {
         id: "standard",
@@ -304,6 +331,55 @@ describe("resolved profile plan adapter", () => {
         checks: [],
       }),
     ).toThrow(/must declare an immutable revision/);
+  });
+
+  it("owns a hosted feature without registering a nested workspace", () => {
+    const currentContracts = contracts();
+    const hostedFeature = parseProjectProfile(
+      stringify({
+        schema_version: 1,
+        project: {
+          id: "personal-finance-app",
+          name: "Personal Finance App",
+          kind: "application",
+        },
+        components: [
+          {
+            id: "web",
+            name: "Asset Tracker",
+            kind: "web-feature",
+            mount_path: "/assettracker",
+          },
+        ],
+        layers: [{ layer: "base" }],
+        nix: { boundary: "none" },
+        opentelemetry: { enabled: false },
+      }),
+    );
+    const blueprint = resolveProjectProfile(
+      hostedFeature,
+      currentContracts,
+      effectiveAt,
+    );
+    const plan = projectPlanFromBlueprint({
+      blueprint,
+      contracts: currentContracts,
+      template,
+    });
+
+    expect(plan.owned_paths).toContain("ui/features/personal-finance-app");
+    expect(plan.shared_manifest_edits).not.toContainEqual(
+      expect.objectContaining({
+        kind: "mise_config_root",
+        value: "ui/features/personal-finance-app",
+      }),
+    );
+    expect(plan.shared_manifest_edits).not.toContainEqual(
+      expect.objectContaining({
+        kind: "pnpm_workspace_package",
+        value: "ui/features/personal-finance-app",
+      }),
+    );
   });
 
   it("uses current registrations as compare-before-replace values", () => {

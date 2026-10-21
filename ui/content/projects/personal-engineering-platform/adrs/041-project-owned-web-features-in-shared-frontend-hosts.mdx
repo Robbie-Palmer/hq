@@ -1,0 +1,116 @@
+---
+title: "ADR 041: Project-owned web features in shared frontend hosts"
+date: "2026-10-21"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities)
+gives project components identities that do not depend on their source paths.
+[ADR 032](/projects/personal-engineering-platform/adrs/032-monorepo-project-package-layout)
+places browser application code in `ui`, and [ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+lets an executable project profile claim component paths through Copier.
+
+The shared `robbiepalmer.me` Next.js application currently hosts several
+incubated products. Personal Finance appears at `/assettracker`; other
+products can follow the same model. These products need independent ownership
+and decision histories even while they share one frontend build and deployment.
+Some may later receive their own domains without immediately becoming separate
+applications.
+
+Treating the whole `ui` directory as each product's component path would assign
+one directory to several owners. Creating a Next.js workspace for every
+incubated product would instead duplicate routing, dependencies, build
+configuration, and deployment before that isolation provides value. Scattering
+product files through the shared app would make Copier ownership unsafe and
+make later extraction harder.
+
+## Decision
+
+Add `web-feature` as a repository component kind. A web feature owns browser
+product code beneath `ui/features/<project>`, where `<project>` is the stable
+project slug. Its project profile records the route at which the shared host
+currently exposes it:
+
+```yaml
+project:
+  id: personal-finance-app
+  name: Personal Finance App
+  kind: application
+components:
+  - id: web
+    name: Asset Tracker
+    kind: web-feature
+    mount_path: /assettracker
+```
+
+The feature directory owns its product components, state adapters, domain code,
+and tests. Files in `ui/app` remain owned by the shared frontend host. A route
+there should be a thin adapter that imports the feature's public entry point;
+it must not become a second home for product behavior.
+
+The repository layout contract declares whether each component kind owns a
+mise configuration root, joins the pnpm workspace, or delegates its standard
+tasks to an existing project. A web feature is neither a nested mise root nor a
+nested pnpm package. It delegates `install`, `format`, `lint`, `typecheck`,
+`test`, `build`, and `clean` to `//ui`. Copier therefore claims the feature
+directory without introducing a workspace boundary that the runtime does not
+have.
+
+The profile requires a normalized absolute `mount_path` for a web feature and
+rejects that field for other component kinds. It rejects duplicate mount paths
+within one project profile. The resolved blueprint preserves both the source
+path and mount path in the component catalog record.
+
+Project and component identities do not contain the host or domain. Moving
+Personal Finance from `robbiepalmer.me/assettracker` to a dedicated domain does
+not change `project:personal-finance-app` or
+`component:personal-finance-app/web`. A custom domain may initially route to
+the same frontend bundle. If operational isolation later justifies a separate
+application or deployment, add that host or workload explicitly and migrate
+the route; do not rename the project or feature merely because its public URL
+changed.
+
+Personal Finance is the first adoption target. Its product source will move
+under `ui/features/personal-finance-app`, while a thin `/assettracker` adapter
+keeps its current address and behavior. This decision establishes the boundary;
+the project-specific migration is a separate reviewed change.
+
+## Alternatives
+
+Giving each hosted product ownership of `ui` would reflect the build boundary,
+but it would violate single ownership and let one Copier receipt overwrite
+another product's files.
+
+Creating a separate Next.js application for each product would give the
+strongest isolation. It would also force independent configuration, dependency,
+and deployment boundaries before the products need them. A product can still
+take that step later without changing its logical identity.
+
+Keeping product code wherever it is convenient in `ui/app` would minimize the
+first move. It would leave no project-specific path for Copier to own and would
+mix routing concerns with product implementation.
+
+Using the component slug in the directory, such as `ui/features/web`, would be
+ambiguous across projects. The project slug makes ownership visible and remains
+stable when the product changes domains.
+
+## Consequences
+
+Incubated products can remain functional in one frontend bundle while Copier
+manages their product code independently. The shared host keeps one Next.js and
+pnpm boundary, so adopting a product does not manufacture packages or build
+roots solely for ownership metadata.
+
+Shared-host checks cover every feature and may fail because of another
+project's change. That coupling already exists in the deployed bundle and is
+made explicit through task delegation. A feature needing independent release,
+runtime configuration, or failure isolation must add a real host or workload
+boundary rather than hiding one in its directory shape.
+
+The route adapter remains outside the feature-owned path because it participates
+in the shared host's routing tree. Project migrations must keep that adapter
+small and include it as an explicit shared-host change in review. The stable
+catalog identity, feature path, and profile remain valid if DNS later points a
+dedicated domain at the same bundle or at a newly separated host.

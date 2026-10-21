@@ -66,14 +66,61 @@ function contracts(overrides: {
       { id: "platform" },
     ],
     component_kinds: [
-      { id: "ui", directory: "ui" },
-      { id: "worker", directory: "workers/{component}" },
-      { id: "typescript-package", directory: "packages/{component}" },
-      { id: "python-pipeline", directory: "ml-pipelines/{component}" },
-      { id: "cpp-project", directory: "cpp/{component}" },
-      { id: "terraform-root", directory: "infra/{component}" },
-      { id: "kubernetes-component", directory: "homelab/k3s/components/{component}" },
-      { id: "homelab-system", directory: "homelab" },
+      {
+        id: "ui",
+        directory: "ui",
+        mise_config_root: true,
+        pnpm_workspace_package: true,
+      },
+      {
+        id: "web-feature",
+        directory: "ui/features/{project}",
+        mise_config_root: false,
+        pnpm_workspace_package: false,
+        delegated_task_project: "//ui",
+      },
+      {
+        id: "worker",
+        directory: "workers/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: true,
+      },
+      {
+        id: "typescript-package",
+        directory: "packages/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: true,
+      },
+      {
+        id: "python-pipeline",
+        directory: "ml-pipelines/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: false,
+      },
+      {
+        id: "cpp-project",
+        directory: "cpp/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: false,
+      },
+      {
+        id: "terraform-root",
+        directory: "infra/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: false,
+      },
+      {
+        id: "kubernetes-component",
+        directory: "homelab/k3s/components/{component}",
+        mise_config_root: true,
+        pnpm_workspace_package: false,
+      },
+      {
+        id: "homelab-system",
+        directory: "homelab",
+        mise_config_root: true,
+        pnpm_workspace_package: false,
+      },
     ],
     task_contract: {
       id: "standard",
@@ -219,6 +266,12 @@ describe("project profile contracts", () => {
     [{ capabilities: { container: { base: "alpine" } } }, /not supported by project profile schema version 1/],
     [{ project: { id: "bad", name: "Bad", kind: "data-pipeline" } }, /compatible primary component/],
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],
+    [{ components: [{ id: "feature", name: "Feature", kind: "web-feature" }] }, /required for a web-feature/],
+    [{ components: [{ id: "web", name: "Web", kind: "ui", mount_path: "/web" }] }, /only valid for a web-feature/],
+    [{ components: [
+      { id: "first", name: "First", kind: "web-feature", mount_path: "/same" },
+      { id: "second", name: "Second", kind: "web-feature", mount_path: "/same" },
+    ] }, /duplicate web feature mount paths/],
     [{ layers: [{ layer: "base" }, { layer: "base" }] }, /duplicate layers/],
     [{ requirements: ["one", "one"] }, /duplicate requirements/],
     [{ overrides: [
@@ -322,6 +375,51 @@ describe("project profile resolution", () => {
     });
     expect(blueprint.nix).toEqual({ enabled: false });
     expect(blueprint.opentelemetry).toEqual({ enabled: false });
+  });
+
+  it("resolves a project-owned feature hosted by the shared UI", () => {
+    const input = profile({
+      project: {
+        id: "personal-finance-app",
+        name: "Personal Finance App",
+        kind: "application",
+      },
+      components: [
+        {
+          id: "web",
+          name: "Asset Tracker",
+          kind: "web-feature",
+          mount_path: "/assettracker",
+        },
+      ],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(blueprint.components).toContainEqual(
+      expect.objectContaining({
+        stable_id: "component:personal-finance-app/web",
+        path: "ui/features/personal-finance-app",
+        mount_path: "/assettracker",
+      }),
+    );
+    expect(blueprint.components[0]?.tasks).toContainEqual({
+      name: "typecheck-or-compile",
+      disposition: "delegated",
+      target: "//ui:typecheck",
+    });
+    expect(blueprint.catalog.components[0]).toMatchObject({
+      id: "component:personal-finance-app/web",
+      source_paths: ["ui/features/personal-finance-app"],
+      mount_path: "/assettracker",
+    });
+    expect(blueprint.ownership.owned_paths).toContain(
+      "ui/features/personal-finance-app",
+    );
   });
 
   it.each([

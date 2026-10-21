@@ -10,12 +10,6 @@ import type {
   ResolvedProjectBlueprint,
 } from "./profile.js";
 
-const NODE_COMPONENT_KINDS = new Set([
-  "ui",
-  "worker",
-  "typescript-package",
-]);
-
 export type PinnedTemplateSource = TemplateSource & { readonly revision: string };
 
 function jsonRecord(value: unknown, label: string): Record<string, JsonValue> {
@@ -90,10 +84,13 @@ export function projectPlanFromBlueprint(input: {
     systemCatalogRecord,
     ...blueprint.catalog.components,
   ].map((record) => jsonRecord(record, "resolved catalog record"));
-  const componentRoots = blueprint.components.map(({ path }) => path);
-  const nodeWorkspaceRoots = blueprint.components
-    .filter(({ kind }) => NODE_COMPONENT_KINDS.has(kind))
-    .map(({ path }) => path);
+  const componentKinds = new Map(
+    contracts.layout.component_kinds.map((kind) => [kind.id, kind]),
+  );
+  const registeredRoots = (field: "mise_config_root" | "pnpm_workspace_package") =>
+    blueprint.components
+      .filter(({ kind }) => componentKinds.get(kind)?.[field] === true)
+      .map(({ path }) => path);
 
   return projectPlanSchema.parse({
     schema_version: 1,
@@ -106,8 +103,11 @@ export function projectPlanFromBlueprint(input: {
     },
     owned_paths: blueprint.ownership.owned_paths,
     shared_manifest_edits: [
-      ...componentRoots.map((value) => ({ kind: "mise_config_root", value })),
-      ...nodeWorkspaceRoots.map((value) => ({
+      ...registeredRoots("mise_config_root").map((value) => ({
+        kind: "mise_config_root",
+        value,
+      })),
+      ...registeredRoots("pnpm_workspace_package").map((value) => ({
         kind: "pnpm_workspace_package",
         value,
       })),
