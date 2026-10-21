@@ -156,6 +156,7 @@ const templateSourceSchema = z
   .object({
     id: z.string().regex(SLUG_PATTERN),
     source: z.string().min(1),
+    revision: z.string().regex(GIT_REVISION_PATTERN).optional(),
     checks: z
       .array(z.string().regex(MISE_TASK_PATTERN))
       .default([]),

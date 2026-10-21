@@ -20,9 +20,21 @@ import {
   type GenerationMode,
   type GenerationResult,
 } from "./engine.js";
+import {
+  projectPlanFromBlueprint,
+  requirePinnedTemplate,
+} from "./profile-plan.js";
+import {
+  parseProjectProfile,
+  parseProjectProfileContracts,
+  resolveProjectProfile,
+} from "./profile.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
+const DEFAULT_CONTRACT_DIRECTORY =
+  "ui/content/projects/personal-engineering-platform";
+const DEFAULT_TEMPLATE_ID = "monorepo-project";
 
 interface CommandContext {
   readonly workingDirectory: string;
@@ -52,6 +64,34 @@ const projectCommandInput = z.object({
 });
 
 type ProjectCommandInput = z.infer<typeof projectCommandInput>;
+
+const profileCommandInput = z.object({
+  profilePath: z
+    .string()
+    .describe("Versioned project profile YAML path")
+    .meta({ positional: true }),
+  effectiveAt: z
+    .string()
+    .describe("Explicit RFC 3339 UTC instant used to resolve platform defaults"),
+  templateId: z
+    .string()
+    .optional()
+    .describe(`Trusted template ID; defaults to ${DEFAULT_TEMPLATE_ID}`),
+  contracts: z
+    .string()
+    .optional()
+    .describe(`Platform contract directory; defaults to ${DEFAULT_CONTRACT_DIRECTORY}`),
+  repository: z
+    .string()
+    .optional()
+    .describe("Existing Git checkout to manage; defaults to cwd"),
+  registry: z
+    .string()
+    .optional()
+    .describe(`Trusted template registry; defaults to ${DEFAULT_REGISTRY}`),
+});
+
+type ProfileCommandInput = z.infer<typeof profileCommandInput>;
 
 function resolveTemplateSource(
   template: TemplateSource,
@@ -106,6 +146,59 @@ async function runProjectCommand(
   return mode === "dry-run" ? result.diff || "No changes.\n" : result;
 }
 
+async function runProfileCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+  mode: GenerationMode,
+): Promise<GenerationResult | string> {
+  const resolvePath = (value: string) =>
+    path.resolve(context.workingDirectory, value);
+  const profilePath = resolvePath(input.profilePath);
+  const repository = resolvePath(input.repository ?? ".");
+  const registryPath = resolvePath(input.registry ?? DEFAULT_REGISTRY);
+  const contractDirectory = resolvePath(
+    input.contracts ?? DEFAULT_CONTRACT_DIRECTORY,
+  );
+  const [profileSource, registrySource, layout, platform, nix, opentelemetry] =
+    await Promise.all([
+      readFile(profilePath, "utf8"),
+      readFile(registryPath, "utf8"),
+      readFile(path.join(contractDirectory, "repository-layout.yaml"), "utf8"),
+      readFile(path.join(contractDirectory, "platform.yaml"), "utf8"),
+      readFile(path.join(contractDirectory, "nix-flake-contract.yaml"), "utf8"),
+      readFile(
+        path.join(contractDirectory, "opentelemetry-contract.yaml"),
+        "utf8",
+      ),
+    ]);
+  const profile = parseProjectProfile(profileSource);
+  const contracts = parseProjectProfileContracts({
+    layout,
+    platform,
+    nix,
+    opentelemetry,
+  });
+  const blueprint = resolveProjectProfile(
+    profile,
+    contracts,
+    input.effectiveAt,
+  );
+  const registry = parseTemplateRegistry(registrySource);
+  const templateId = input.templateId ?? DEFAULT_TEMPLATE_ID;
+  const selected = registry.templates.find(({ id }) => id === templateId);
+  if (!selected) {
+    throw new Error(
+      `Template '${templateId}' is not present in the trusted registry`,
+    );
+  }
+  const template = requirePinnedTemplate(
+    resolveTemplateSource(selected, registryPath),
+  );
+  const plan = projectPlanFromBlueprint({ blueprint, contracts, template });
+  const result = await executeProjectPlan({ repository, mode, plan, template });
+  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+}
+
 export const projectGeneratorRouter = t.router({
   plan: t.procedure
     .meta({
@@ -131,6 +224,30 @@ export const projectGeneratorRouter = t.router({
     })
     .input(projectCommandInput)
     .mutation(({ ctx, input }) => runProjectCommand(ctx, input, "update")),
+  profilePlan: t.procedure
+    .meta({
+      description: "Resolve a project profile and produce a checked Copier plan",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileCommand(ctx, input, "plan")),
+  profileDryRun: t.procedure
+    .meta({
+      description: "Preview a resolved project profile without applying it",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileCommand(ctx, input, "dry-run")),
+  profileCreate: t.procedure
+    .meta({
+      description: "Create a Copier-managed project from a resolved profile",
+    })
+    .input(profileCommandInput)
+    .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "create")),
+  profileUpdate: t.procedure
+    .meta({
+      description: "Update a Copier-managed project from a resolved profile",
+    })
+    .input(profileCommandInput)
+    .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "update")),
 });
 
 export async function runCli(

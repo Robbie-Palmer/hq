@@ -251,7 +251,12 @@ export type ProjectProfile = z.infer<typeof projectProfileSchema>;
 export interface ProjectProfileContracts {
   layout: Pick<
     RepositoryLayoutContract,
-    "schema_version" | "project_kinds" | "component_kinds" | "task_contract" | "knowledge_graph"
+    | "schema_version"
+    | "project_kinds"
+    | "projects"
+    | "component_kinds"
+    | "task_contract"
+    | "knowledge_graph"
   >;
   platform: PlatformManifestSource;
   nix: {
