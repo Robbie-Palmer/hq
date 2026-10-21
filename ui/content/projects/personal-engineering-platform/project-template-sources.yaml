@@ -1,5 +1,5 @@
 schema_version: 1
 
-# The profile-integration task will add the first production template here.
+# Existing-project adoption will add the first production template here.
 # Plans select an ID from this allowlist and pin an immutable Git revision.
 templates: []

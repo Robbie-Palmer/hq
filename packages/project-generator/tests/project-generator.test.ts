@@ -64,21 +64,28 @@ async function write(
 
 async function createTemplate(options?: {
   extraFile?: { path: string; source: string };
+  profile?: boolean;
 }): Promise<{ root: string; source: string; revision: string }> {
   const root = await temporaryDirectory("project-template");
   await git(root, "init", "--quiet", "--initial-branch=main");
-  await write(
-    root,
-    "copier.yml",
-    [
-      "_min_copier_version: '9.18.2'",
-      "project_id:",
-      "  type: str",
-      "message:",
-      "  type: str",
-      "",
-    ].join("\n"),
-  );
+  const copierConfiguration = options?.profile
+    ? [
+        "_min_copier_version: '9.18.2'",
+        "project_id:",
+        "  type: str",
+        "blueprint:",
+        "  type: yaml",
+        "",
+      ].join("\n")
+    : [
+        "_min_copier_version: '9.18.2'",
+        "project_id:",
+        "  type: str",
+        "message:",
+        "  type: str",
+        "",
+      ].join("\n");
+  await write(root, "copier.yml", copierConfiguration);
   await write(
     root,
     "{{ _copier_conf.answers_file }}.jinja",
@@ -87,7 +94,7 @@ async function createTemplate(options?: {
   await write(
     root,
     "packages/{{ project_id }}/generated.txt.jinja",
-    "{{ message }}\n",
+    options?.profile ? "{{ blueprint.project.name }}\n" : "{{ message }}\n",
   );
   if (options?.extraFile) {
     await write(root, options.extraFile.path, options.extraFile.source);
@@ -629,6 +636,7 @@ describe("CLI", () => {
 
     expect(await runCli(["--help"], dependencies)).toBe(0);
     expect(stdout.join("")).toContain("dry-run");
+    expect(stdout.join("")).toContain("profile-dry-run");
     stdout.length = 0;
 
     expect(await runCli(["create", "--help"], dependencies)).toBe(0);
@@ -638,6 +646,169 @@ describe("CLI", () => {
     expect(help).toContain("--repository [string]");
     expect(help).toContain("--registry [string]");
     expect(stderr).toEqual([]);
+  });
+
+  it("resolves, previews, and applies a versioned project profile", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate({ profile: true });
+    const configuration = await temporaryDirectory("project-profile-config");
+    const contractsDirectory = path.join(configuration, "contracts");
+    const productionContracts = new URL(
+      "../../../ui/content/projects/personal-engineering-platform/",
+      import.meta.url,
+    );
+    const [nix, opentelemetry] = await Promise.all([
+      readFile(new URL("nix-flake-contract.yaml", productionContracts), "utf8"),
+      readFile(
+        new URL("opentelemetry-contract.yaml", productionContracts),
+        "utf8",
+      ),
+    ]);
+    await write(
+      contractsDirectory,
+      "repository-layout.yaml",
+      stringify({
+        schema_version: 1,
+        project_kinds: [
+          {
+            id: "library",
+            description: "Reusable code.",
+            task_profile: "standard",
+          },
+        ],
+        projects: [],
+        component_kinds: [
+          {
+            id: "typescript-package",
+            description: "TypeScript package.",
+            directory: "packages/{component}",
+          },
+        ],
+        task_contract: {
+          id: "standard",
+          required: [
+            "install",
+            "format",
+            "lint",
+            "typecheck-or-compile",
+            "test",
+            "build",
+            "clean",
+          ],
+        },
+        knowledge_graph: {
+          project_index: "ui/content/projects/{project}/index.mdx",
+          architecture_decisions:
+            "ui/content/projects/{project}/adrs/{sequence}-{slug}.mdx",
+          product_decisions:
+            "ui/content/projects/{project}/pdrs/{sequence}-{slug}.mdx",
+        },
+        shared_manifests: [],
+        workspace_policy: {
+          node_workspace: "pnpm-workspace.yaml",
+          node_lockfile: "pnpm-lock.yaml",
+          standalone_node_roots: [],
+          approved_npm_lockfiles: [],
+          local_mise_roots: [],
+        },
+      }),
+    );
+    await write(
+      contractsDirectory,
+      "platform.yaml",
+      stringify({
+        schema_version: 1,
+        project: "personal-engineering-platform",
+        catalog: { records: [] },
+        layers: [{ slug: "base" }],
+        slots: [{ slug: "project.task-runner" }],
+        policies: [
+          {
+            id: "base-task-runner",
+            layer: "base",
+            slot: "project.task-runner",
+            mode: "required",
+            decision: "personal-engineering-platform:001-mise",
+            effective_from: "2026-01-01T00:00:00Z",
+          },
+        ],
+        selections: [
+          {
+            id: "project-task-runner-mise",
+            slot: "project.task-runner",
+            technology: "mise",
+            status: "Accepted",
+            decision: "personal-engineering-platform:001-mise",
+            effective_from: "2026-01-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+    await write(contractsDirectory, "nix-flake-contract.yaml", nix);
+    await write(
+      contractsDirectory,
+      "opentelemetry-contract.yaml",
+      opentelemetry,
+    );
+    await write(
+      configuration,
+      "profile.yaml",
+      stringify({
+        schema_version: 1,
+        project: { id: "alpha", name: "Alpha package", kind: "library" },
+        components: [
+          { id: "alpha", name: "Alpha package", kind: "typescript-package" },
+        ],
+        layers: [{ layer: "base" }],
+        nix: { boundary: "none" },
+        opentelemetry: { enabled: false },
+      }),
+    );
+    await write(
+      configuration,
+      "registry.yaml",
+      stringify({
+        schema_version: 1,
+        templates: [
+          {
+            id: "monorepo-project",
+            source: template.source,
+            revision: template.revision,
+          },
+        ],
+      }),
+    );
+    const output: string[] = [];
+    const dependencies = {
+      workingDirectory: configuration,
+      stdout: (text: string) => output.push(text),
+      stderr: () => undefined,
+    };
+    const args = [
+      "profile.yaml",
+      "--effective-at",
+      "2026-10-21T00:00:00Z",
+      "--repository",
+      repository,
+      "--registry",
+      "registry.yaml",
+      "--contracts",
+      "contracts",
+    ];
+
+    expect(await runCli(["profile-plan", ...args], dependencies)).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      projectId: "alpha",
+      applied: false,
+    });
+    output.length = 0;
+    expect(await runCli(["profile-dry-run", ...args], dependencies)).toBe(0);
+    expect(output.join("")).toContain("Alpha package");
+    output.length = 0;
+    expect(await runCli(["profile-create", ...args], dependencies)).toBe(0);
+    await expect(
+      readFile(path.join(repository, "packages/alpha/generated.txt"), "utf8"),
+    ).resolves.toBe("Alpha package\n");
   });
 
   it("rejects unknown commands and missing option values", async () => {

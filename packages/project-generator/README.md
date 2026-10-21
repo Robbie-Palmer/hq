@@ -3,8 +3,8 @@
 This package runs Copier inside an existing monorepo without giving a template
 ownership of the repository. It implements the engine selected by
 [ADR 028](../../ui/content/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding.mdx).
-The resolved-profile adapter and the first production template are separate
-work.
+The resolved-profile adapter compiles the current platform contracts into the
+engine plan. The first production template remains separate work.
 
 ## Commands
 
@@ -21,10 +21,34 @@ mise //:project:update -- path/to/plan.yaml
 Git patch. `dry-run` prints the patch. `create` and `update` apply the same patch
 to the current checkout after every check passes.
 
+Use the profile commands when the source is a versioned project profile rather
+than a prebuilt engine plan:
+
+```sh
+mise //:project:profile:plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:dry-run -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:create -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:update -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+```
+
+These commands load the repository layout, platform manifest, Nix contract,
+and OpenTelemetry contract from the Personal Engineering Platform project. The
+explicit instant selects dated platform defaults. `--contracts`, `--registry`,
+`--repository`, and `--template-id` replace their repository defaults when a
+test or migration needs another input.
+
 The default template registry is
 `ui/content/projects/personal-engineering-platform/project-template-sources.yaml`.
 Plans select a template ID from that registry. They cannot provide a template
-URL or executable command.
+URL or executable command. Profile commands also require the selected registry
+entry to pin a full Git revision. Template revisions stay outside project
+profiles.
+
+The adapter records the complete resolved blueprint as a non-secret Copier
+answer. Component paths become Copier-owned paths and mise configuration roots;
+Node component paths also join the pnpm workspace. Project and component
+catalog records become typed structural edits with compare-before-replace
+values taken from the checked-in contracts.
 
 ## Plan contract
 
