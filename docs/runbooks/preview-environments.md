@@ -10,7 +10,7 @@ Cloudflare and Neon resources are provisioned by Terraform. Credentials are
 configured out of band through Doppler; their sensitive values are not stored
 in the repository.
 
-### 1. Bootstrap Pages preview protection
+### 1. Verify Pages preview protection
 
 The Pages-specific **Enable access policy** switch is not exposed by the
 Cloudflare Terraform provider. The switch creates the preview-aware Access
@@ -27,12 +27,10 @@ In Cloudflare:
 
 1. Open **Workers & Pages** -> **personal-site** -> **Settings** -> **General**.
 2. Enable the preview deployment access policy.
-3. In **Zero Trust** -> **Integrations** -> **Identity providers**, add the
-   **Cloudflare** identity provider and enable **Restrict to account members**.
-   Cloudflare names this provider `Cloudflare`. It uses your existing
-   Cloudflare login, including Google sign-in, without adding another OAuth
-   client secret. If you replace the provider, copy its UUID from the edit URL
-   into the `cloudflare_account_identity_provider_id` variable default.
+3. In **Zero Trust** -> **Integrations** -> **Identity providers**, confirm the
+   **Cloudflare** identity provider has **Restrict to account members** enabled.
+   `infra/cloudflare-access` owns this provider. Do not replace it in the
+   dashboard.
 4. In **Zero Trust** -> **Access** -> **Applications**, open the generated Pages
    preview application. Keep its human allow policy restricted to your exact
    email address. Terraform selects the `Cloudflare` login method,
@@ -42,79 +40,49 @@ In Cloudflare:
 6. Record the application audience (`AUD`) tag.
 7. Record the team domain, for example
    `https://your-team.cloudflareaccess.com`.
-8. Give the account-owned Terraform token **Access: Apps and Policies: Edit**,
-   **Access: Organizations: Read**, and **Access: Service Tokens: Edit**. Do not
-   add these permissions to a deploy token.
-9. Sync `production-infra` after updating `prd_infra`:
+8. Populate the scoped `cloudflare-access` Doppler configs described in the
+   [operator README](../../infra/cloudflare-access/README.md). Do not add Access
+   permissions to a Pages or Workers deploy token.
+9. Sync the Access environments:
 
    ```bash
-   scripts/sync-doppler-github-envs.sh production-infra
+   mise run //infra/cloudflare-access:credentials:sync
    ```
 
-The human allow policy remains outside Terraform. Terraform manages the
-application settings and a separate `Service Auth` policy for coding agents and
-preview QA.
+The shared root preserves the human allow policy and the service-auth policy by
+their existing UUIDs. It does not replace either policy during migration.
 
 ### 2. Import and apply Terraform
 
-Run the import once, after the resource declaration is ready to merge. Replace
-the placeholders with the account and application IDs from Cloudflare:
+Follow the coordinated migration in
+[`infra/cloudflare-access/README.md`](../../infra/cloudflare-access/README.md).
+The root contains declarative imports for the existing application, identity
+provider, and service identities.
 
 ```bash
-cd infra/public-platform
-mise x -- bash scripts/doppler-terraform-env terraform import \
-  cloudflare_zero_trust_access_application.pages_preview \
-  '<account-id>/<application-id>'
-```
-
-Merge the resource declaration before any other public-platform deployment.
-Terraform will delete an imported resource if the configuration being applied
-does not declare it.
-
-Then plan and apply:
-
-```bash
-cd ../..
-mise run //infra/public-platform:plan
-mise run //infra/public-platform:apply
+mise run //infra/cloudflare-access:plan
+mise run //infra/cloudflare-access:apply
+mise run //infra/cloudflare-access:state:check
 ```
 
 #### Roll back Terraform ownership
 
-Do not remove the Access application resource and run a normal apply. Once
-Terraform has imported the Pages-generated application, that would delete the
-application and its preview login gate.
-
-To return the application to dashboard ownership, remove it from Terraform
-state before merging the code that removes its resource declaration:
-
-```bash
-cd infra/public-platform
-mise x -- bash scripts/doppler-terraform-env terraform state rm \
-  cloudflare_zero_trust_access_application.pages_preview
-```
-
-Keep the Pages preview access policy enabled in Cloudflare. Merge the matching
-code change before another public-platform deployment can recreate the resource.
+Do not remove the Access application or service identities with a normal
+Terraform destroy. Use `removed` blocks with `destroy = false`, keep the Pages
+preview switch enabled, and follow the recovery sequence in the operator
+README. A rollback must preserve both service-token credentials in Doppler.
 
 ### 3. Distribute the agent credential
 
-Terraform creates a non-expiring `personal-site-preview-qa-agents` Access
+Terraform owns a non-expiring `personal-site-preview-qa-agents` Access
 service-token identity and attaches it only to the Pages preview application.
 Its secret is rotated separately below. Terraform also adds
 `CF_PAGES_HOST` and `RECIPE_API_PREVIEW_ORIGIN_TEMPLATE` to the Pages Function
 environment. The canonical `pr-<number>` alias is required for auth; random
 hash deployment URLs deliberately refuse to proxy auth to production.
 
-Read the generated credential once after the first apply:
-
-```bash
-cd infra/public-platform
-mise x -- bash scripts/doppler-terraform-env terraform output -raw preview_access_service_token_client_id
-mise x -- bash scripts/doppler-terraform-env terraform output -raw preview_access_service_token_client_secret
-```
-
-Store the values as `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` in the
+The ownership import does not return or rotate the existing secret. Keep the
+current `CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET` values in the
 dedicated `dev_agent` Doppler config. The remote operator workspace injects this
 config through a config-scoped, read-only Doppler token. Local T3 Code agents
 load it only for the documented preview command. Do not give that token or the

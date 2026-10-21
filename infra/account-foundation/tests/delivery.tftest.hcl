@@ -28,12 +28,12 @@ run "cloudflare_access_delivery_boundaries" {
 
   assert {
     condition     = doppler_project.managed["cloudflare-access"].name == "cloudflare-access"
-    error_message = "The canary must have its own Doppler project."
+    error_message = "The root must have its own Doppler project."
   }
 
   assert {
     condition     = doppler_environment.managed["cloudflare-access/ops"].slug == "ops"
-    error_message = "The canary must have an operations environment."
+    error_message = "The root must have an operations environment."
   }
 
   assert {
@@ -45,12 +45,12 @@ run "cloudflare_access_delivery_boundaries" {
       "cloudflare-access/ops/ops_drift",
       "cloudflare-access/ops/ops_apply",
     ])
-    error_message = "The canary must separate plan, drift, and apply configs."
+    error_message = "The root must separate plan, drift, and apply configs."
   }
 
   assert {
     condition     = length(github_repository_environment.managed) == 3
-    error_message = "The canary must have plan, drift, and apply GitHub environments."
+    error_message = "The root must have plan, drift, and apply GitHub environments."
   }
 
   assert {

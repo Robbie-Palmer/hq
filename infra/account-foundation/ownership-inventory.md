@@ -8,7 +8,7 @@ owners. It does not record secret values.
 
 The term `account-foundation` below means the planned
 `infra/account-foundation` Terraform root. `cloudflare-access` means the
-planned provider-wide `infra/cloudflare-access` root. A workload owner names
+provider-wide `infra/cloudflare-access` root. A workload owner names
 the root that owns the resource after migration, even when that root still
 needs to be created.
 
@@ -132,7 +132,7 @@ through import, canary, rollback, and break-glass tests.
 
 | Resource and import identity | Intended state owner | Dependency and migration note |
 | --- | --- | --- |
-| Zero Trust organization settings | `cloudflare-access` | Import before applications. Keep `is_ui_read_only` false until the complete migration passes recovery testing. |
+| Zero Trust organization settings | `cloudflare-access` | Provider v5 treats this as an account singleton and does not support import. Adopt it through the reviewed singleton update before removing old state ownership. Keep `is_ui_read_only` false until the complete migration passes recovery testing. |
 | Account-restricted `Cloudflare` identity provider (`69e998ae-23eb-45a4-b2ed-6f13bb62040b`) | `cloudflare-access` | The Pages application selects this provider. The current infrastructure token can see the reference but cannot enumerate identity-provider metadata. Use the seed owner credential for import without changing the provider. |
 | Pages application `personal-site - Cloudflare Pages` (`6a6fe70f-7fac-4416-8a76-914c439e4d4e`) | `cloudflare-access` | Cloudflare Pages originally created it. Move it from `infra/public-platform` only after the provider-wide root declares its wildcard domain and one-month session. Deleting it removes preview login protection. |
 | Pages policy `Allow personal account` (`c275b7a3-6095-4b53-a5df-f7121ce84e38`) | `cloudflare-access` | It depends on the shared account identity provider. Import the existing exact-email rule without recording the email in this inventory. |
@@ -209,9 +209,11 @@ provider-administration credential set above.
    identities one root at a time. Test the new credential before revoking the
    old one. Credential changes are separate from the structure imports.
 5. Have account-foundation create the workspace, Doppler structure, and GitHub
-   delivery boundaries for `cloudflare-access`. Import the organization,
-   identity provider, Pages application, both Pages policies, and both Pages
-   service identities. Keep dashboard write restrictions disabled.
+   delivery boundaries for `cloudflare-access`. Adopt the organization through
+   the provider's account-singleton update. Import the identity provider, Pages
+   application with both inline policy UUIDs, and both Pages service identities.
+   Add the reusable account-member policy without attaching it. Keep dashboard
+   write restrictions disabled.
 6. Move the Pages Access resources out of `infra/public-platform` only during
    a coordinated state operation. Cloudflare cannot return service-token
    secrets, so do not perform a blind remove-and-import that causes Terraform
