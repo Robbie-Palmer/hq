@@ -16,10 +16,15 @@ if [ ! -r "${BACKUP_STATUS_FILE}" ]; then
 fi
 
 now=$(date +%s)
-jq --argjson now "${now}" --argjson maximumAgeSeconds "${MAXIMUM_AGE_SECONDS}" \
+jq --arg mode "${OPERATION_MODE:-scheduled}" --argjson now "${now}" \
+  --argjson maximumAgeSeconds "${MAXIMUM_AGE_SECONDS}" \
   '.lastSuccessUnix as $lastSuccess | . + {
+    operationMode: $mode,
+    monitoringExpected: ($mode == "scheduled"),
     maximumAgeSeconds: $maximumAgeSeconds,
     ageSeconds: (if $lastSuccess == null then null else ($now - $lastSuccess) end),
-    fresh: ($lastSuccess != null and ($now - $lastSuccess) >= 0 and
-      ($now - $lastSuccess) <= $maximumAgeSeconds)
+    fresh: (if $mode == "scheduled" then
+      ($lastSuccess != null and ($now - $lastSuccess) >= 0 and
+        ($now - $lastSuccess) <= $maximumAgeSeconds)
+      else null end)
   }' "${BACKUP_STATUS_FILE}"

@@ -1,32 +1,32 @@
-# Photos and video have their own Ente-backed lifecycle.
-*.avif
-*.gif
-*.heic
-*.jpeg
-*.jpg
-*.mov
-*.mp4
-*.png
-*.raw
-*.tif
-*.tiff
-*.webp
-
-# Source code and build trees belong in version control, not this archive.
-.git
-node_modules
-*.c
-*.cpp
-*.go
-*.java
-*.js
-*.jsx
-*.py
-*.rs
-*.ts
-*.tsx
-
-# Rebuildable desktop metadata.
+# Rebuildable downloads and temporary editor files.
+*.AppImage
+*.deb
+*.iso
 .DS_Store
 Thumbs.db
 ~$*
+
+# Browser and Electron caches inside the explicitly selected profiles.
+**/Cache/**
+**/Code Cache/**
+**/DawnGraphiteCache/**
+**/DawnWebGPUCache/**
+**/GPUCache/**
+**/GPUPersistentCache/**
+**/ShaderCache/**
+**/component_crx_cache/**
+
+# Reinstallable Codex binaries, plugins, and catalogs.
+/home/robbie/.codex/.tmp/**
+/home/robbie/.codex/cache/**
+/home/robbie/.codex/packages/**
+/home/robbie/.codex/plugins/**
+
+# T3 runtime logs, browser caches, and generated catalog data.
+/home/robbie/.t3/userdata/logs/**
+/home/robbie/.t3/userdata/server-browser/**
+/home/robbie/.t3/userdata/usage-model-rates.json
+/home/robbie/.t3/userdata/usage-scan-cache-v5.json
+
+# Snap-wide caches are reproducible and much larger than the Brave profile.
+/home/robbie/snap/brave/common/.cache/**

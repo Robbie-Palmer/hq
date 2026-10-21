@@ -11,7 +11,7 @@ done
 [ -r "${config_directory}/config" ] || { echo "install the personal archive job first" >&2; exit 1; }
 # shellcheck source=/dev/null
 source "${config_directory}/config"
-for name in B2_BUCKET_NAME_EXPECTED REPOSITORY_PREFIX; do
+for name in B2_BUCKET_NAME_EXPECTED REPOSITORY_PREFIX OPERATION_MODE; do
   [ -n "${!name:-}" ] || { echo "installed configuration is missing ${name}" >&2; exit 1; }
 done
 
@@ -21,7 +21,7 @@ read_secret() {
 
 temporary_directory=$(mktemp -d)
 cleanup() {
-  unset endpoint bucket key_id application_key password ping_url
+  unset endpoint bucket key_id application_key password
   if command -v shred >/dev/null 2>&1; then
     shred --remove "${temporary_directory}/restic.env" \
       "${temporary_directory}/restic-password" 2>/dev/null || true
@@ -38,19 +38,22 @@ bucket=$(read_secret B2_BUCKET_NAME)
 key_id=$(read_secret B2_BACKUP_KEY_ID)
 application_key=$(read_secret B2_BACKUP_APPLICATION_KEY)
 password=$(read_secret RESTIC_PASSWORD)
-ping_url=$(read_secret HEALTHCHECKS_PING_URL)
 [[ ${endpoint} =~ ^s3\.[a-z0-9-]+\.backblazeb2\.com$ ]] || { echo "invalid B2 S3 endpoint" >&2; exit 1; }
 [ "${bucket}" = "${B2_BUCKET_NAME_EXPECTED}" ] || { echo "B2 bucket does not match installed inventory" >&2; exit 1; }
-[[ ${ping_url} =~ ^https://hc-ping\.com/[A-Za-z0-9_-]+/?$ ]] || { echo "invalid Healthchecks.io ping URL" >&2; exit 1; }
 for value in "${key_id}" "${application_key}" "${password}"; do
   [ -n "${value}" ] || { echo "personal archive credentials must not be empty" >&2; exit 1; }
 done
 
-printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nRESTIC_REPOSITORY=%s\nHEALTHCHECKS_PING_URL=%s\n' \
-  "${key_id}" "${application_key}" "s3:https://${endpoint}/${bucket}/${REPOSITORY_PREFIX}" "${ping_url}" \
+printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\nRESTIC_REPOSITORY=%s\n' \
+  "${key_id}" "${application_key}" "s3:https://${endpoint}/${bucket}/${REPOSITORY_PREFIX}" \
   >"${temporary_directory}/restic.env"
 printf '%s\n' "${password}" >"${temporary_directory}/restic-password"
 install -m 0600 "${temporary_directory}/restic.env" "${config_directory}/restic.env"
 install -m 0600 "${temporary_directory}/restic-password" "${config_directory}/restic-password"
-systemctl --user enable --now personal-archive-backup.timer
-echo "installed personal archive credentials and enabled the daily timer"
+if [ "${OPERATION_MODE}" = scheduled ]; then
+  systemctl --user enable --now personal-archive-backup.timer
+  echo "installed personal archive credentials and enabled the timer"
+else
+  systemctl --user disable --now personal-archive-backup.timer >/dev/null 2>&1 || true
+  echo "installed personal archive credentials; one-shot profile remains unscheduled"
+fi

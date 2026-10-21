@@ -281,19 +281,15 @@ description = "Install a personal archive profile without enabling it"
 run = "bash personal-archive-backup/scripts/install.sh"
 
 [tasks.personal-archive-credentials]
-description = "Install personal archive credentials from Doppler and enable the timer"
+description = "Install personal archive credentials from Doppler"
 run = "bash personal-archive-backup/scripts/install-credentials.sh"
 
-[tasks.personal-archive-healthchecks-reconcile]
-description = "Create or update the personal archive Slack-backed freshness alert"
-run = "bash personal-archive-backup/scripts/reconcile-healthchecks.sh"
-
 [tasks.personal-archive-backup]
-description = "Run and verify the encrypted personal document backup"
+description = "Run and verify the encrypted personal archive operation"
 run = "personal-archive-backup.sh"
 
 [tasks.personal-archive-status]
-description = "Report personal archive freshness without exposing paths or credentials"
+description = "Report personal archive state without exposing paths or credentials"
 run = "personal-archive-status.sh"
 
 [tasks.personal-archive-test]

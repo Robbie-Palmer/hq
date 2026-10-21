@@ -33,13 +33,20 @@ archive_id=$(jq -er '.archive.id' "${inventory}")
 provider=$(jq -er '.destination.provider' "${inventory}")
 bucket=$(jq -er '.destination.bucket' "${inventory}")
 repository_prefix=$(jq -er '.destination.repositoryPrefix' "${inventory}")
-maximum_age=$(jq -er '.schedule.maximumAgeSeconds' "${inventory}")
+operation_mode=$(jq -er '.operation.mode' "${inventory}")
+case "${operation_mode}" in
+  one-shot | scheduled) ;;
+  *) echo "unsupported personal archive operation mode" >&2; exit 1 ;;
+esac
+maximum_age=$(jq -er '.schedule.maximumAgeSeconds // 0' "${inventory}")
+check_read_data_subset=$(jq -er '.verification.readDataSubset // "5%"' "${inventory}")
 keep_daily=$(jq -er '.retention.withinDaily' "${inventory}")
 keep_monthly=$(jq -er '.retention.withinMonthly' "${inventory}")
 keep_yearly=$(jq -er '.retention.withinYearly' "${inventory}")
 cat >"${config_directory}/config" <<EOF
 ARCHIVE_ID=${archive_id}
 DESTINATION_PROVIDER=${provider}
+OPERATION_MODE=${operation_mode}
 B2_BUCKET_NAME_EXPECTED=${bucket}
 REPOSITORY_PREFIX=${repository_prefix}
 BACKUP_SOURCES_FILE=${data_directory}/sources.txt
@@ -49,7 +56,7 @@ BACKUP_CREDENTIALS_FILE=${config_directory}/restic.env
 BACKUP_PASSWORD_FILE=${config_directory}/restic-password
 BACKUP_LOCK_FILE=${state_directory}/backup.lock
 MAXIMUM_AGE_SECONDS=${maximum_age}
-CHECK_READ_DATA_SUBSET=5%
+CHECK_READ_DATA_SUBSET=${check_read_data_subset}
 KEEP_WITHIN_DAILY=${keep_daily}
 KEEP_WITHIN_MONTHLY=${keep_monthly}
 KEEP_WITHIN_YEARLY=${keep_yearly}
@@ -71,4 +78,7 @@ install -m 0644 "${project_directory}/systemd/personal-archive-backup.service" \
 install -m 0644 "${project_directory}/systemd/personal-archive-backup.timer" \
   "${unit_directory}/personal-archive-backup.timer"
 systemctl --user daemon-reload
-echo "installed personal archive backup; credentials and timer remain disabled"
+if [ "${operation_mode}" = one-shot ]; then
+  systemctl --user disable --now personal-archive-backup.timer >/dev/null 2>&1 || true
+fi
+echo "installed personal archive ${operation_mode} profile; credentials remain disabled"

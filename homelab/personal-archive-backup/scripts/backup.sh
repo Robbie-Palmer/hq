@@ -121,25 +121,15 @@ write_status() {
   mv -f -- "${temporary_status}" "${BACKUP_STATUS_FILE}"
 }
 
-ping_healthchecks() {
-  local suffix=${1:-}
-  [ -n "${HEALTHCHECKS_PING_URL:-}" ] || return 0
-  curl --fail --silent --show-error --retry 2 --connect-timeout 10 --max-time 30 \
-    --output /dev/null "${HEALTHCHECKS_PING_URL%/}${suffix}"
-}
-
 cleanup() {
   local exit_code=$?
   if [ "${finished}" != true ]; then
     write_status failed "${exit_code}" || true
-    ping_healthchecks /fail || true
   fi
   rm -rf -- "${work_directory}"
   exit "${exit_code}"
 }
 trap cleanup EXIT
-
-ping_healthchecks /start
 
 run_restic() {
   local log_file=$1
@@ -173,6 +163,5 @@ repository_bytes=$(jq -er '.total_size' "${work_directory}/stats.json")
 
 step=complete
 write_status success 0 "${repository_bytes}"
-ping_healthchecks
 finished=true
 echo "personal archive backup and integrity check completed"

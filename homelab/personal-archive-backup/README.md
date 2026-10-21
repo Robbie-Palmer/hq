@@ -1,149 +1,135 @@
-# Personal document archive backup
+# Personal archive migration
 
-This is the first, deliberately small pilot for
+This component implements
 [ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive). The
-`robbie-vector-gp68hx-13vh` inventory backs up `/home/robbie/Documents` on
-`robbie-Vector-GP68HX-13VH`. Photos, source code, downloads, caches, and the
-Mac mini's external drive are outside this profile. Add the external drive as
-a separate inventory only after this pilot has completed two backups, alerted
-on a forced failure, and passed an independent recovery drill.
+`robbie-vector-gp68hx-13vh` inventory is a one-shot migration before that
+laptop is wiped and rebuilt as a homelab build machine. It does not assume the
+laptop is always online, install a recurring backup schedule, or create a
+freshness alert.
 
-The scheduled Backblaze key is restricted to the private bucket and the
-`restic/robbie-vector-gp68hx-13vh-documents/` prefix. Grant it only `listBuckets`,
-`listFiles`, `readFiles`, and `writeFiles`. Do not grant `deleteFiles`, bucket
-administration, retention administration, or governance bypass. The job uses
-a local `flock` and restic's `--no-lock` mode because it cannot delete lock
-objects.
+The first `Documents`-only pilot proved the B2 repository, append-only backup
+credential, failure reporting, incremental snapshots, and verified restore.
+The final migration profile expands the source set to the user data that would
+otherwise disappear during the rebuild:
 
-Keep two other keys outside the scheduled job:
+- filed documents, downloads, and local screenshots;
+- Thunderbird, Roam Research, Brave, VS Code, T3 Code, and Codex user data;
+- SSH, GnuPG, certificate, and desktop-keyring material; and
+- small application state that is not reproducible from source control.
 
-- a read-only recovery key with `listBuckets`, `listFiles`, and `readFiles`;
-- a maintenance key with the scheduled capabilities plus `deleteFiles`.
+The profile excludes downloaded installers, browser and Electron caches, T3
+logs, T3 worktrees, and reinstallable Codex packages. It does not include
+`~/repos`. Git remains the source of truth for code. Before wiping the laptop,
+settle every dirty or unpushed repository separately.
 
-Restrict both keys to the same bucket and prefix. Keep the read-only key and a
-copy of the restic password outside Doppler and outside the house. Do not keep
-the maintenance key in the laptop credential file.
+## Credential boundary
 
-Create the bucket through the independent
+The one-shot write key is restricted to the private bucket and the
+`restic/robbie-vector-gp68hx-13vh-home-migration/` prefix. Grant it only
+`listBuckets`, `listFiles`, `readFiles`, and `writeFiles`. It cannot delete
+objects or change bucket retention.
+
+The read-only recovery key covers this laptop's archive prefixes and has only
+`listBuckets`, `listFiles`, and `readFiles`. Store that key and the restic
+password in the password manager, then copy the password-manager recovery
+material to an encrypted external USB drive. Delete the temporary local
+transfer bundle after both copies have been checked.
+
+Create maintenance credentials only for an explicit retention or pruning job.
+Revoke them when that job ends. Do not store a delete-capable key in the laptop
+backup configuration.
+
+The independent
 [`infra/personal-archive`](../../infra/personal-archive/README.md) Terraform
-root. It enables Object Lock without default retention and keeps workload key
-secrets out of Terraform state. After its reviewed plan has been applied, use
-the isolated administrative B2 CLI session to create the scheduled and recovery
-keys with explicit capabilities. The web console's broad "Read and Write"
-preset also permits deletion. Each `b2 key create` command prints its secret
-only once, so capture it directly into the intended secret store or offline
-recovery material.
+root owns the private B2 bucket, its Object Lock capability, and its lifecycle
+policy. Application keys stay outside Terraform because their secret values
+would enter Terraform state.
 
-```bash
-b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
-  robbie-vector-gp68hx-13vh-personal-archive \
-  listBuckets,listFiles,readFiles,writeFiles
-b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
-  robbie-vector-gp68hx-13vh-personal-archive-recovery \
-  listBuckets,listFiles,readFiles
-b2 key create --bucket robbie-personal-archive \
-  --name-prefix restic/robbie-vector-gp68hx-13vh-documents/ \
-  robbie-vector-gp68hx-13vh-personal-archive-maintenance \
-  listBuckets,listFiles,readFiles,writeFiles,deleteFiles
-```
+## Run the migration
 
-If the Backblaze web console is stuck at its human-verification page, do not
-try to automate around it. If an administrative application key already
-exists, the official CLI can authenticate interactively with `b2 account
-authorize` and complete the key setup without the console. Creating
-the first administrative key still requires a working Backblaze account path.
-
-## Install an inventory profile
-
-Create Doppler config `homelab/prd_personal_archive_backup` with these masked
+The Doppler config `homelab/prd_personal_archive_backup` contains these masked
 values:
 
 | Name | Purpose |
 | --- | --- |
 | `B2_S3_ENDPOINT` | Bucket region endpoint, without `https://` |
 | `B2_BUCKET_NAME` | `robbie-personal-archive` |
-| `B2_BACKUP_KEY_ID` | Prefix- and bucket-restricted scheduled key ID |
-| `B2_BACKUP_APPLICATION_KEY` | Scheduled key secret |
-| `RESTIC_PASSWORD` | Independent repository encryption password |
-| `HEALTHCHECKS_PING_URL` | Daily check connected to the homelab Slack channel |
+| `B2_BACKUP_KEY_ID` | Prefix- and bucket-restricted one-shot write key ID |
+| `B2_BACKUP_APPLICATION_KEY` | One-shot write-key secret |
+| `RESTIC_PASSWORD` | Client-side repository encryption password |
 
-Enable Object Lock on the bucket at creation, but do not set default retention
-until the first two backups and a restore work. Object Lock cannot be disabled
-after it is enabled. During the retention test, use one day of governance
-retention, confirm the documented maintenance failure, wait for expiry, then
-confirm `forget` and `prune` work before choosing a longer period.
-
-Install the code and user timer, then install the credentials. The first task
-does not enable the timer. The credential task enables it only after every
-required secret is present.
+Install the profile and credentials, then start the migration explicitly:
 
 ```bash
 mise run //homelab:personal-archive-install -- \
-  personal-archive-backup/inventories/robbie-vector-gp68hx-13vh.json
-mise run //homelab:personal-archive-healthchecks-reconcile -- \
   personal-archive-backup/inventories/robbie-vector-gp68hx-13vh.json
 mise run //homelab:personal-archive-credentials
 mise run //homelab:personal-archive-backup
 mise run //homelab:personal-archive-status
 ```
 
-The scripts and tests live with this backup component under
-`personal-archive-backup/`. The two profile-aware tasks accept an inventory
-path; when omitted, they select `inventories/<lowercase-hostname>.json`. This
-keeps the mise tasks reusable when another host or archive is added.
+The installer disables the user timer for this profile. The backup performs a
+full restic data check because this snapshot is a migration boundary rather
+than a daily job.
 
-The daily Healthchecks.io check uses a 30-hour period and six-hour grace, so a
-missing run alerts at the same 36-hour limit as the local status check. A
-failed run sends a failure ping. The local status file contains no paths,
-object-store endpoint, or credentials.
+## Recover to the Mac mini external drive
 
-## Recovery and maintenance
+Install restic on the Mac mini. Put the read-only B2 key in a mode `0600`
+environment file using the standard S3 names:
 
-On a clean machine, create a mode `0600` environment file containing the
-read-only key as `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and
-`RESTIC_REPOSITORY`. Put the independent password in a second mode `0600`
-file. Restore into an empty directory:
+```text
+AWS_ACCESS_KEY_ID=<B2 recovery key ID>
+AWS_SECRET_ACCESS_KEY=<B2 recovery application key>
+RESTIC_REPOSITORY=s3:https://s3.eu-central-003.backblazeb2.com/robbie-personal-archive/restic/robbie-vector-gp68hx-13vh-home-migration
+```
+
+Put the restic password in a separate mode `0600` file. Restore to an empty
+directory on the 10 TB drive:
 
 ```bash
+PERSONAL_ARCHIVE_CONFIG=/secure/home-migration.config \
 PERSONAL_ARCHIVE_RECOVERY_CREDENTIALS=/secure/recovery.env \
 PERSONAL_ARCHIVE_RECOVERY_PASSWORD=/secure/restic-password \
-  personal-archive-restore.sh /var/tmp/personal-archive-restore
+  bash personal-archive-backup/scripts/restore.sh \
+  "/Volumes/<10TB drive>/Laptop Offload/robbie-vector-gp68hx-13vh"
 ```
 
-The restore uses restic's `--verify` option, which hashes restored files and
-compares them with the encrypted repository metadata. Record the snapshot ID,
-restored byte count, and B2 download usage after each drill.
+The restore command uses restic's `--verify` option. Compare a fresh manifest
+of the restored files with the snapshot before treating the external drive as
+the second copy. A new B2 bucket may have little included egress because the
+allowance is based on average monthly storage. Check the account's download cap
+before a full restore; if it blocks the transfer, wait for the 00:00 GMT daily
+reset or set a small explicit paid cap for that restore.
 
-Maintenance is manual and defaults to a dry run. Point it at an ephemeral
-environment file made from the delete-capable key. Use `--apply` only after
-reviewing the dry run:
+## Wipe gate
 
-```bash
-PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
-  personal-archive-maintenance.sh
-PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS=/secure/maintenance.env \
-  personal-archive-maintenance.sh --apply
-```
+Do not wipe the laptop until all of these are true:
 
-Restic's S3 backend hides replaced objects. Configure the B2 lifecycle rule
-"Keep only the last version" after the one-day Object Lock test. Retained
-versions still consume storage until their retention expires.
+- the final migration snapshot and 100 percent repository check pass;
+- the recovery key and restic password exist in the password manager and on
+  the encrypted recovery USB drive;
+- an independent restore succeeds without Doppler or the laptop write key;
+- the restored copy on the Mac mini's 10 TB drive passes verification;
+- dirty and unpushed Git repositories have been committed, pushed, exported,
+  or deliberately discarded; and
+- the Backblaze administrative bootstrap key and temporary write or maintenance
+  keys have been revoked.
 
 ## Evidence log
 
-Record each live run here. Do not record credentials or full source paths.
+Do not record credentials or full source paths here.
 
 | Check | Result |
 | --- | --- |
-| Inventory | 4 PDF files, 376 KiB allocated in `Documents` on 2026-10-21 |
-| Local implementation drill | Two snapshots and a verified full restore passed; latest snapshot referenced 298,794 bytes |
-| Initial backup | Live B2 snapshot `f40a77a6` and repository integrity check passed on 2026-10-21 |
-| Incremental backup | Live B2 snapshot `93108e66` and repository integrity check passed on 2026-10-21 |
-| Forced-failure alert | Healthchecks.io accepted a failure and recovery ping on 2026-10-21 |
-| Live repository restore | Snapshot `93108e66` restored 4 files; restic verification and source checksum comparison passed |
-| Clean-machine restore | Pending |
+| Pilot inventory | 4 PDF files, 376 KiB allocated on 2026-10-21 |
+| Pilot snapshots | Live B2 snapshots `f40a77a6` and `93108e66` passed repository checks |
+| Pilot restore | Snapshot `93108e66` restored 4 files; restic verification and source checksum comparison passed |
+| Pilot alert | Healthchecks.io accepted a forced failure and recovery ping; the check was retired when the profile became one-shot |
+| Pilot B2 usage | 302,165 bytes across 9 live objects after two backups |
+| Final migration inventory | Downloads, screenshots, mail, browser and editor state, T3 and Codex data, and local credential stores selected; rebuildable caches and source repositories excluded |
+| Final migration snapshot | Snapshot `445419d9` captured 18 source roots and passed a 100 percent repository check; restic reports 1,238,044,133 bytes of unique file data |
+| Password-manager and USB recovery copies | Pending user transfer from the local bundle |
+| Independent recovery-key restore | Read-only recovery key restored and verified 22,367 files without Doppler or the write key |
+| Recovery egress | The restore materialized 3,700,154,368 bytes and triggered the account's 100 percent daily download-cap alert; exact billable egress was not available from the alert |
+| Mac mini 10 TB drive copy | Pending |
 | Object Lock maintenance test | Pending |
-| B2 stored bytes and monthly cost | 302,165 bytes across 9 live objects after two backups; below the current 10 GB free allowance |
-| Restore egress | About 334 KiB for the verified live restore; independent recovery drill still pending |

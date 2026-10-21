@@ -26,7 +26,6 @@ interface Fixture {
   config: string;
   status: string;
   calls: string;
-  pings: string;
   environment: NodeJS.ProcessEnv;
 }
 
@@ -42,10 +41,8 @@ function createFixture(): Fixture {
   const sources = join(directory, "sources.txt");
   const excludes = join(directory, "excludes.txt");
   const calls = join(directory, "restic-calls");
-  const pings = join(directory, "healthcheck-pings");
   const marker = join(directory, "repository-initialized");
   const fakeRestic = join(directory, "restic");
-  const fakeCurl = join(directory, "curl");
 
   mkdirSync(join(source, "records"), { recursive: true });
   writeFileSync(join(source, "records/letter.pdf"), "document\n");
@@ -60,7 +57,7 @@ function createFixture(): Fixture {
   ].join("\n");
   writeFileSync(
     credentials,
-    `${repositoryEnvironment}HEALTHCHECKS_PING_URL=https://hc-ping.com/test-check\n`,
+    repositoryEnvironment,
     { mode: 0o600 },
   );
   writeFileSync(recoveryCredentials, repositoryEnvironment, { mode: 0o600 });
@@ -70,6 +67,7 @@ function createFixture(): Fixture {
     [
       "ARCHIVE_ID=robbie-vector-gp68hx-13vh-documents",
       "DESTINATION_PROVIDER=local",
+      "OPERATION_MODE=one-shot",
       "B2_BUCKET_NAME_EXPECTED=robbie-personal-archive",
       "REPOSITORY_PREFIX=restic/robbie-vector-gp68hx-13vh-documents",
       `BACKUP_SOURCES_FILE=${sources}`,
@@ -112,23 +110,13 @@ case " $* " in
 esac
 `,
   );
-  writeFileSync(
-    fakeCurl,
-    `#!/usr/bin/env bash
-set -eu
-printf '%s\n' "\${!#}" >>"$FAKE_HEALTHCHECK_PINGS"
-test "\${FAKE_CURL_FAILURE:-0}" = 0
-`,
-  );
   chmodSync(fakeRestic, 0o700);
-  chmodSync(fakeCurl, 0o700);
 
   return {
     directory,
     config,
     status,
     calls,
-    pings,
     environment: {
       ...process.env,
       PATH: `${directory}:${process.env.PATH}`,
@@ -139,7 +127,6 @@ test "\${FAKE_CURL_FAILURE:-0}" = 0
       PERSONAL_ARCHIVE_MAINTENANCE_CREDENTIALS: maintenanceCredentials,
       FAKE_RESTIC_CALLS: calls,
       FAKE_REPOSITORY_MARKER: marker,
-      FAKE_HEALTHCHECK_PINGS: pings,
     },
   };
 }
@@ -157,7 +144,7 @@ function run(
   });
 }
 
-test("scheduled backup never runs destructive retention commands", () => {
+test("backup never runs destructive retention commands", () => {
   const fixture = createFixture();
   try {
     const result = run(backupScript, [], fixture.environment);
@@ -170,16 +157,12 @@ test("scheduled backup never runs destructive retention commands", () => {
     assert.equal(status.state, "success");
     assert.equal(status.repositoryBytes, 1234);
     assert.equal(JSON.stringify(status).includes(fixture.directory), false);
-    assert.deepEqual(readFileSync(fixture.pings, "utf8").trim().split("\n"), [
-      "https://hc-ping.com/test-check/start",
-      "https://hc-ping.com/test-check",
-    ]);
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }
 });
 
-test("backup failures produce safe status and a failure alert", () => {
+test("backup failures produce safe status", () => {
   const fixture = createFixture();
   writeFileSync(join(fixture.directory, "repository-initialized"), "ready\n");
   try {
@@ -191,7 +174,6 @@ test("backup failures produce safe status and a failure alert", () => {
     const status = JSON.parse(readFileSync(fixture.status, "utf8"));
     assert.equal(status.state, "failed");
     assert.equal(status.failedStep, "backup");
-    assert.match(readFileSync(fixture.pings, "utf8"), /\/fail/);
   } finally {
     rmSync(fixture.directory, { force: true, recursive: true });
   }
