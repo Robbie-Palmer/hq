@@ -1,9 +1,7 @@
-import {
-  LOWERCASE_KEBAB_CASE_PATTERN,
-  normalizeSlug,
-} from "ts-base/strings";
+import { LOWERCASE_KEBAB_CASE_PATTERN } from "ts-base/strings";
 
-export { LOWERCASE_KEBAB_CASE_PATTERN, normalizeSlug };
+export { LOWERCASE_KEBAB_CASE_PATTERN };
+export { normalizeSlug } from "ts-base/strings";
 
 const RECIPE_APP_ROUTE_SLUGS = new Set([
   "add",
