@@ -19,8 +19,9 @@ mock_provider "tfe" {
 }
 
 variables {
-  hcp_projects = {}
-  hcp_roots    = {}
+  hcp_projects            = {}
+  hcp_roots               = {}
+  enable_existing_imports = false
 }
 
 run "cloudflare_access_delivery_boundaries" {
@@ -40,6 +41,7 @@ run "cloudflare_access_delivery_boundaries" {
     condition = toset([
       for config in values(doppler_config.managed) :
       "${config.project}/${config.environment}/${config.name}"
+      if config.project == "cloudflare-access"
       ]) == toset([
       "cloudflare-access/ops/ops_plan",
       "cloudflare-access/ops/ops_drift",
@@ -49,7 +51,10 @@ run "cloudflare_access_delivery_boundaries" {
   }
 
   assert {
-    condition     = length(github_repository_environment.managed) == 3
+    condition = length([
+      for environment in values(github_repository_environment.managed) : environment
+      if startswith(environment.environment, "production-cloudflare-access")
+    ]) == 3
     error_message = "The root must have plan, drift, and apply GitHub environments."
   }
 
@@ -72,6 +77,7 @@ run "cloudflare_access_delivery_boundaries" {
     condition = toset([
       for policy in values(github_repository_environment_deployment_policy.managed) :
       "${policy.environment}/${policy.branch_pattern}"
+      if startswith(policy.environment, "production-cloudflare-access")
       ]) == toset([
       "production-cloudflare-access-drift/main",
       "production-cloudflare-access/main",
@@ -80,7 +86,10 @@ run "cloudflare_access_delivery_boundaries" {
   }
 
   assert {
-    condition     = length(github_repository_environment_deployment_policy.managed) == 2
+    condition = length([
+      for policy in values(github_repository_environment_deployment_policy.managed) : policy
+      if startswith(policy.environment, "production-cloudflare-access")
+    ]) == 2
     error_message = "Only the drift and apply environments may use custom branch policies."
   }
 

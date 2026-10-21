@@ -204,13 +204,14 @@ branches use the project's general branch allowance and inherit only this empty
 preview state. Keeping the preview root and credentials in a separate project
 also prevents a preview Worker or workflow from connecting to production.
 
-### 6. Create the GitHub environments
+### 6. Populate the GitHub environments
 
-Create GitHub environments named `preview-recipe-api`, `preview-site-ui`, and
-`preview-agent-access`. Populate them from Doppler by running
+The account-foundation registry owns `preview-recipe-api`, `preview-site-ui`,
+and `preview-agent-access`, including the default-branch restriction on
+`preview-agent-access`. Change their names or protection rules in
+`infra/account-foundation/delivery.tf`. Populate their values from Doppler with
 `scripts/sync-doppler-github-envs.sh`; do not use the Doppler GitHub sync
-integration on the free plan. Restrict `preview-agent-access` to the default
-branch.
+integration on the free plan.
 
 `preview-recipe-api` receives deployment and database values from
 `stg_recipe_api`, plus the shared PostHog runtime values from `stg_pages_env`.
