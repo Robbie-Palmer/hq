@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "archive": {
+    "id": "robbie-vector-gp68hx-13vh-home-migration",
+    "owner": "robbie",
+    "host": "robbie-Vector-GP68HX-13VH",
+    "scope": "Irreplaceable user data retained before robbie-Vector-GP68HX-13VH is wiped"
+  },
+  "sources": [
+    {
+      "path": "/home/robbie/Documents",
+      "reason": "Curated personal documents"
+    },
+    {
+      "path": "/home/robbie/Downloads",
+      "reason": "Downloaded records and correspondence that have not been filed elsewhere"
+    },
+    {
+      "path": "/home/robbie/Pictures",
+      "reason": "Screenshots and other local images that may not be in Ente"
+    },
+    {
+      "path": "/home/robbie/.thunderbird",
+      "reason": "Local mail profile and message state"
+    },
+    {
+      "path": "/home/robbie/.ssh",
+      "reason": "SSH configuration and keys needed to audit or recover access"
+    },
+    {
+      "path": "/home/robbie/.gnupg",
+      "reason": "Local GnuPG material"
+    },
+    {
+      "path": "/home/robbie/.pki",
+      "reason": "Locally installed certificate material"
+    },
+    {
+      "path": "/home/robbie/.config/Roam Research",
+      "reason": "Local Roam Research graph data"
+    },
+    {
+      "path": "/home/robbie/.config/Code/User",
+      "reason": "Editor settings, snippets, and local file history"
+    },
+    {
+      "path": "/home/robbie/.config/t3code-v2",
+      "reason": "T3 Code desktop state not held in the main application database"
+    },
+    {
+      "path": "/home/robbie/.t3/userdata",
+      "reason": "T3 Code conversations, attachments, settings, and encrypted secret store"
+    },
+    {
+      "path": "/home/robbie/.t3-desktop",
+      "reason": "T3 desktop metadata"
+    },
+    {
+      "path": "/home/robbie/.codex",
+      "reason": "Codex conversations, local state, configuration, and memories"
+    },
+    {
+      "path": "/home/robbie/.local/share/keyrings",
+      "reason": "Current desktop password keyring"
+    },
+    {
+      "path": "/home/robbie/.local/share/keyrings.before-password-reset",
+      "reason": "Previous desktop keyring retained for credential recovery"
+    },
+    {
+      "path": "/home/robbie/.local/share/evolution",
+      "reason": "Local calendar and mail client state"
+    },
+    {
+      "path": "/home/robbie/.riskit",
+      "reason": "Small user-owned application configuration"
+    },
+    {
+      "path": "/home/robbie/snap/brave",
+      "reason": "Brave profiles, bookmarks, and browser state"
+    }
+  ],
+  "destination": {
+    "provider": "backblaze-b2",
+    "bucket": "robbie-personal-archive",
+    "repositoryPrefix": "restic/robbie-vector-gp68hx-13vh-home-migration"
+  },
+  "operation": {
+    "mode": "one-shot"
+  },
+  "verification": {
+    "readDataSubset": "100%"
+  },
+  "retention": {
+    "withinDaily": "30d",
+    "withinMonthly": "1y",
+    "withinYearly": "10y"
+  }
+}
