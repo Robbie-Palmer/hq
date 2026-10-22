@@ -169,19 +169,19 @@ async function inventoryFiles(
     return files;
   }
   const entries = await readdir(absoluteRoot, { withFileTypes: true });
-  for (const entry of entries) {
+  const inventories = await Promise.all(entries.map(async (entry) => {
     const relativePath = relativeRoot
       ? path.posix.join(relativeRoot, entry.name)
       : entry.name;
     if (entry.isDirectory() && !entry.isSymbolicLink()) {
-      const nested = await inventoryFiles(root, relativePath);
-      for (const item of nested) files.set(...item);
-    } else {
-      files.set(
-        relativePath,
-        await adoptionDigest(path.join(root, relativePath)),
-      );
+      return inventoryFiles(root, relativePath);
     }
+    return new Map([
+      [relativePath, await adoptionDigest(path.join(root, relativePath))],
+    ]);
+  }));
+  for (const inventory of inventories) {
+    for (const item of inventory) files.set(...item);
   }
   return files;
 }
@@ -586,8 +586,12 @@ async function inventoryOwnedFiles(
   plan: ProjectPlan,
 ): Promise<Map<string, string>> {
   const files = new Map<string, string>();
-  for (const ownedPath of plan.owned_paths) {
-    const ownedFiles = await inventoryFiles(repositoryRoot, ownedPath);
+  const inventories = await Promise.all(
+    plan.owned_paths.map((ownedPath) =>
+      inventoryFiles(repositoryRoot, ownedPath),
+    ),
+  );
+  for (const ownedFiles of inventories) {
     for (const item of ownedFiles) files.set(...item);
   }
   return files;
@@ -604,41 +608,37 @@ async function classifyAdoptionPaths(
     inventoryOwnedFiles(worktreeRoot, plan),
   ]);
   renderedFiles.delete(receiptPath);
-  const paths: AdoptionPath[] = [];
-
-  for (const [relativePath, renderedDigest] of renderedFiles) {
-    if (!pathIsDeclaredOwned(relativePath, plan)) {
-      paths.push({
-        path: relativePath,
-        classification: "outside_ownership",
-        disposition: "reject_template_file",
-      });
-      continue;
-    }
-    const checkoutPath = path.join(worktreeRoot, relativePath);
-    if (!(await pathExists(checkoutPath))) {
-      paths.push({
-        path: relativePath,
-        classification: "adoptable",
-        disposition: "add_template_file",
-      });
-      continue;
-    }
-    const checkoutDigest = await adoptionDigest(checkoutPath);
-    paths.push(
-      checkoutDigest === renderedDigest
-        ? {
+  const paths: AdoptionPath[] = await Promise.all(
+    [...renderedFiles].map(async ([relativePath, renderedDigest]) => {
+      if (!pathIsDeclaredOwned(relativePath, plan)) {
+        return {
+          path: relativePath,
+          classification: "outside_ownership",
+          disposition: "reject_template_file",
+        } satisfies AdoptionPath;
+      }
+      const checkoutPath = path.join(worktreeRoot, relativePath);
+      if (!(await pathExists(checkoutPath))) {
+        return {
+          path: relativePath,
+          classification: "adoptable",
+          disposition: "add_template_file",
+        } satisfies AdoptionPath;
+      }
+      const checkoutDigest = await adoptionDigest(checkoutPath);
+      return checkoutDigest === renderedDigest
+        ? ({
             path: relativePath,
             classification: "matching",
             disposition: "already_matches",
-          }
-        : {
+          } satisfies AdoptionPath)
+        : ({
             path: relativePath,
             classification: "conflicting",
             disposition: "review_conflict",
-          },
-    );
-  }
+          } satisfies AdoptionPath);
+    }),
+  );
 
   for (const relativePath of checkoutFiles.keys()) {
     if (renderedFiles.has(relativePath)) continue;
@@ -659,7 +659,8 @@ async function classifySharedManifestEdits(
   for (const edit of edits) {
     const manifestPath = manifestPathForEdit(edit);
     try {
-      const changed = await applySharedManifestEdits(worktreeRoot, [edit]);
+      // These writes must stay serial because later edits may target the same manifest.
+      const changed = await applySharedManifestEdits(worktreeRoot, [edit]); // NOSONAR
       results.push({
         path: manifestPath,
         classification: changed.length > 0 ? "adoptable" : "matching",
