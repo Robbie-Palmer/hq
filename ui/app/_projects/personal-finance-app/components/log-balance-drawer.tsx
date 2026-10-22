@@ -1,8 +1,18 @@
 "use client";
 
 import { PenLineIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { formatAssetTrackerError } from "@/app/_projects/personal-finance-app/domain";
+import {
+  BalanceExpressionError,
+  evaluateBalanceExpression,
+} from "@/app/_projects/personal-finance-app/domain/balanceExpression";
 import {
   formatAccountCurrency,
   todayIsoDate,
@@ -51,6 +61,14 @@ export function LogBalanceDrawer({
   const [submitting, setSubmitting] = useState(false);
 
   const selectedAccount = accounts.find((a) => a.id === selectedId);
+  const evaluatedBalance = useMemo(() => {
+    if (balance.trim() === "") return null;
+    try {
+      return evaluateBalanceExpression(balance);
+    } catch {
+      return null;
+    }
+  }, [balance]);
 
   // Keep the selection valid after import/reset/close changes the open set,
   // so a stale account ID can't drive a mutation
@@ -77,16 +95,21 @@ export function LogBalanceDrawer({
     setError(null);
     setSubmitting(true);
     try {
+      const evaluated = evaluateBalanceExpression(balance);
       await recordBalance({
         accountId: selectedId,
         date,
-        balance: Number(balance),
+        balance: evaluated,
       });
       setOpen(false);
       setBalance("");
       setDate(todayIsoDate());
     } catch (err) {
-      setError(formatAssetTrackerError(err));
+      setError(
+        err instanceof BalanceExpressionError
+          ? err.message
+          : formatAssetTrackerError(err),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -154,14 +177,32 @@ export function LogBalanceDrawer({
             </label>
             <Input
               id="log-balance-amount"
-              type="number"
+              type="text"
               inputMode="decimal"
-              step="0.01"
               required
-              placeholder="0.00 (negative for debt)"
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="0.00 or 2648 + 16058"
               value={balance}
-              onChange={(e) => setBalance(e.target.value)}
+              aria-describedby="log-balance-help log-balance-result"
+              onChange={(event) => {
+                setBalance(event.target.value);
+                setError(null);
+              }}
             />
+            <p id="log-balance-help" className="text-xs text-muted-foreground">
+              Enter an amount or use +, -, *, /, and parentheses. Negative
+              balances record debt.
+            </p>
+            <p
+              id="log-balance-result"
+              aria-live="polite"
+              className="min-h-4 text-xs text-muted-foreground"
+            >
+              {evaluatedBalance != null && selectedAccount
+                ? `Result: ${formatAccountCurrency(evaluatedBalance, selectedAccount.currency)}`
+                : null}
+            </p>
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="log-balance-date" className="text-sm font-medium">
