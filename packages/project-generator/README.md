@@ -4,7 +4,10 @@ This package runs Copier inside an existing monorepo without giving a template
 ownership of the repository. It implements the engine selected by
 [ADR 028](../../ui/content/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding.mdx).
 The resolved-profile adapter compiles the current platform contracts into the
-engine plan. The first production template remains separate work.
+engine plan. The repository root is the production `monorepo-project` Copier
+template; its configuration selects `copier-templates/monorepo-project` as the
+copy root. The initial template records the resolved blueprint and receipt
+without claiming existing product files.
 
 ## Commands
 
