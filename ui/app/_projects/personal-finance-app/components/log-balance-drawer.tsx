@@ -1,7 +1,7 @@
 "use client";
 
 import { PenLineIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, type SubmitEvent, useEffect, useState } from "react";
 import { formatAssetTrackerError } from "@/app/_projects/personal-finance-app/domain";
 import {
   BalanceExpressionError,
@@ -73,7 +73,7 @@ export function LogBalanceDrawer({
     );
   }, [accountId, openAccountsKey]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedId) {
       setError("Choose an account");
