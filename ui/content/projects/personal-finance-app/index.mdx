@@ -2,8 +2,36 @@
 title: "Personal Finance App"
 description: "Data-entry-first financial planning, the missing tool between budgeting apps and advisor software"
 date: "2026-01-11"
-status: "idea"
-updated: "2026-09-27"
+status: "in_progress"
+updated: "2026-10-21"
+repo_url: "https://github.com/Robbie-Palmer/hq"
+platform_layers:
+  - layer: "governance"
+    adopted: "2026-10-21T00:00:00Z"
+    tracking: true
+    rationale: "The application uses the shared repository's publication and ownership rules."
+  - layer: "base"
+    adopted: "2026-10-21T00:00:00Z"
+    tracking: true
+    rationale: "The application uses the repository-wide development and delivery controls."
+    slots:
+      - slot: "secrets.runtime-store"
+        adopted: "2026-10-21T00:00:00Z"
+        rationale: "Doppler is the source of infrastructure and later application secrets."
+      - slot: "secrets.ci-store"
+        adopted: "2026-10-21T00:00:00Z"
+        rationale: "GitHub environments receive separate plan, drift, and apply credentials from Doppler."
+  - layer: "infrastructure"
+    adopted: "2026-10-21T00:00:00Z"
+    tracking: true
+    rationale: "The application has an independently stateful Terraform root for managed resources."
+    slots:
+      - slot: "infrastructure.provisioner"
+        adopted: "2026-10-21T00:00:00Z"
+        rationale: "Checked-in Terraform will own Personal Finance workload resources."
+      - slot: "infrastructure.state-backend"
+        adopted: "2026-10-21T00:00:00Z"
+        rationale: "HCP Terraform stores protected shared state for reviewed CI plans and applies."
 initiatives:
   - "digital-twins-for-everyday-life"
 ---

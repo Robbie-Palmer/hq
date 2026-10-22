@@ -276,6 +276,53 @@ locals {
         }
       }
     }
+    personal-finance = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "personal-finance"
+          description = "Personal Finance infrastructure delivery credentials"
+        }
+        environments = {
+          ops = {
+            name             = "Pull request plans"
+            personal_configs = false
+            configs          = []
+          }
+          drift = {
+            name             = "Drift checks"
+            personal_configs = false
+            configs          = []
+          }
+          apply = {
+            name             = "Production applies"
+            personal_configs = false
+            configs          = []
+          }
+        }
+      }
+      github = {
+        repository = "hq"
+        environments = {
+          plan = {
+            name               = "production-personal-finance-plan"
+            reviewer_usernames = ["Robbie-Palmer"]
+          }
+          drift = {
+            name                 = "production-personal-finance-drift"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+          apply = {
+            name                 = "production-personal-finance"
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+        }
+      }
+    }
   }
 
   delivery_registry_entries = concat(

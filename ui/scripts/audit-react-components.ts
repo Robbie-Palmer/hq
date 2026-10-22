@@ -68,6 +68,15 @@ interface AnalysisResult {
 
 type Analyze = () => AnalysisResult;
 
+function isTestPath(path: string): boolean {
+  const normalizedPath = path.replaceAll("\\", "/");
+
+  return (
+    normalizedPath.split("/").includes("tests") ||
+    /\.(?:spec|test)\.[cm]?[jt]sx?$/u.test(normalizedPath)
+  );
+}
+
 function componentReasons(
   metrics: FunctionMetrics,
   limits: ComponentLimits,
@@ -95,6 +104,8 @@ export function findReactComponentHotspots(
   const findings: Finding[] = [];
 
   for (const file of report.files) {
+    if (isTestPath(file.path)) continue;
+
     for (const metrics of file.functions) {
       if (
         metrics.component_responsibility <= 0 ||

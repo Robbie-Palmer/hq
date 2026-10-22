@@ -60,8 +60,14 @@ created environments until their branch and reviewer policy is in place.
 
 `delivery.tf` declares the non-secret Doppler and GitHub structure for managed
 roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
-`work-graph` containers, plus the structure created for `cloudflare-access`.
-Secret values remain with the workload that uses each config.
+`work-graph` containers, plus the structure created for `cloudflare-access`
+and `personal-finance`. Secret values remain with the workload that uses each
+config.
+
+Personal Finance uses three Doppler environments named `ops`, `drift`, and
+`apply`. Their automatically created root configs hold the separated delivery
+credentials. This avoids child-config inheritance, which the current Doppler
+workplace plan does not include.
 
 The three `personal-site/ops` configs named `ops_account_foundation_seed`,
 `ops_account_foundation_plan`, and `ops_account_foundation` remain part of the
@@ -173,8 +179,8 @@ Reverse the two moves when removing protection. Review a plan that reports
 only address moves before applying the policy change.
 
 The current registry manages these workspaces in the provider-created
-`Default Project`. Existing workspaces have import IDs. The Cloudflare Access
-and personal archive workspaces were created from the registry:
+`Default Project`. Existing workspaces have import IDs. The Cloudflare Access,
+personal archive, and Personal Finance workspaces were created from the registry:
 
 | Registry key | Workspace |
 | --- | --- |
@@ -182,10 +188,14 @@ and personal archive workspaces were created from the registry:
 | `bootstrap` | `personal-site-bootstrap` |
 | `cloudflare-access` | `personal-site-cloudflare-access` |
 | `personal-archive` | `personal-site-personal-archive` |
+| `personal-finance` | `personal-site-personal-finance` |
 | `remote-development` | `personal-site-remote-development` |
 | `remote-development-cluster` | `personal-site-remote-development-cluster` |
 | `work-graph` | `personal-site-work-graph` |
 | `personal-blog` | `personal-blog` |
+
+The Personal Finance foundation apply completed on 2026-10-21. A follow-up
+account-foundation plan reported no changes.
 
 ## Commands
 

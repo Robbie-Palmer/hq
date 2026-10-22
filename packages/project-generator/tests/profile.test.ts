@@ -73,8 +73,8 @@ function contracts(overrides: {
         pnpm_workspace_package: true,
       },
       {
-        id: "web-feature",
-        directory: "ui/features/{project}",
+        id: "project-ui",
+        directory: "ui/app/_projects/{project}",
         mise_config_root: false,
         pnpm_workspace_package: false,
         delegated_task_project: "//ui",
@@ -266,12 +266,12 @@ describe("project profile contracts", () => {
     [{ capabilities: { container: { base: "alpine" } } }, /not supported by project profile schema version 1/],
     [{ project: { id: "bad", name: "Bad", kind: "data-pipeline" } }, /compatible primary component/],
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],
-    [{ components: [{ id: "feature", name: "Feature", kind: "web-feature" }] }, /required for a web-feature/],
-    [{ components: [{ id: "web", name: "Web", kind: "ui", mount_path: "/web" }] }, /only valid for a web-feature/],
+    [{ components: [{ id: "web", name: "Web", kind: "project-ui" }] }, /required for a project-ui/],
+    [{ components: [{ id: "web", name: "Web", kind: "ui", mount_path: "/web" }] }, /only valid for a project-ui/],
     [{ components: [
-      { id: "first", name: "First", kind: "web-feature", mount_path: "/same" },
-      { id: "second", name: "Second", kind: "web-feature", mount_path: "/same" },
-    ] }, /duplicate web feature mount paths/],
+      { id: "first", name: "First", kind: "project-ui", mount_path: "/same" },
+      { id: "second", name: "Second", kind: "project-ui", mount_path: "/same" },
+    ] }, /duplicate project UI mount paths/],
     [{ layers: [{ layer: "base" }, { layer: "base" }] }, /duplicate layers/],
     [{ requirements: ["one", "one"] }, /duplicate requirements/],
     [{ overrides: [
@@ -377,7 +377,7 @@ describe("project profile resolution", () => {
     expect(blueprint.opentelemetry).toEqual({ enabled: false });
   });
 
-  it("resolves a project-owned feature hosted by the shared UI", () => {
+  it("resolves project-owned UI hosted by the shared application", () => {
     const input = profile({
       project: {
         id: "personal-finance-app",
@@ -388,7 +388,7 @@ describe("project profile resolution", () => {
         {
           id: "web",
           name: "Asset Tracker",
-          kind: "web-feature",
+          kind: "project-ui",
           mount_path: "/assettracker",
         },
       ],
@@ -403,7 +403,7 @@ describe("project profile resolution", () => {
     expect(blueprint.components).toContainEqual(
       expect.objectContaining({
         stable_id: "component:personal-finance-app/web",
-        path: "ui/features/personal-finance-app",
+        path: "ui/app/_projects/personal-finance-app",
         mount_path: "/assettracker",
       }),
     );
@@ -414,11 +414,11 @@ describe("project profile resolution", () => {
     });
     expect(blueprint.catalog.components[0]).toMatchObject({
       id: "component:personal-finance-app/web",
-      source_paths: ["ui/features/personal-finance-app"],
+      source_paths: ["ui/app/_projects/personal-finance-app"],
       mount_path: "/assettracker",
     });
     expect(blueprint.ownership.owned_paths).toContain(
-      "ui/features/personal-finance-app",
+      "ui/app/_projects/personal-finance-app",
     );
   });
 

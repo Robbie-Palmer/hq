@@ -48,6 +48,36 @@ describe("React component hotspot audit", () => {
     ).toEqual([]);
   });
 
+  it("filters test fixtures even when the analyzer reports them", () => {
+    const largeTestComponent = metrics("MockChart", { loc: 80 });
+    const largeProductionComponent = metrics("ProductionChart", { loc: 70 });
+
+    expect(
+      findReactComponentHotspots({
+        files: [
+          {
+            path: "app/_projects/example/tests/components/chart.test.tsx",
+            functions: [largeTestComponent],
+          },
+          {
+            path: "components/chart.spec.tsx",
+            functions: [largeTestComponent],
+          },
+          {
+            path: "components/production-chart.tsx",
+            functions: [largeProductionComponent],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        ...largeProductionComponent,
+        path: "components/production-chart.tsx",
+        reasons: ["70 lines (limit 60)"],
+      },
+    ]);
+  });
+
   it("records every breached limit and ranks responsibility first", () => {
     const findings = findReactComponentHotspots(
       report([

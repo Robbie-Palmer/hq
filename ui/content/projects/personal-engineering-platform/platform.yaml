@@ -40,6 +40,42 @@ catalog:
       decision_refs:
         - "personal-engineering-platform:028-copier-monorepo-scaffolding"
         - "personal-engineering-platform:032-monorepo-project-package-layout"
+    - id: "system:personal-finance-app/application"
+      kind: "system"
+      name: "Personal Finance application"
+      project: "project:personal-finance-app"
+      source_paths:
+        - "infra/personal-finance"
+        - "ui/app/assettracker"
+        - "ui/components/assettracker"
+        - "ui/lib/assettracker"
+        - "ui/lib/domain/assettracker"
+      relations:
+        - type: "part_of"
+          target: "project:personal-finance-app"
+      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
+    - id: "component:personal-finance-app/web"
+      kind: "component"
+      name: "Asset Tracker web feature"
+      project: "project:personal-finance-app"
+      source_paths:
+        - "ui/app/assettracker"
+        - "ui/components/assettracker"
+        - "ui/lib/assettracker"
+        - "ui/lib/domain/assettracker"
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
+      decision_refs: ["personal-engineering-platform:041-project-owned-web-features-in-shared-frontend-hosts"]
+    - id: "component:personal-finance-app/infrastructure"
+      kind: "component"
+      name: "Personal Finance infrastructure"
+      project: "project:personal-finance-app"
+      source_paths: ["infra/personal-finance"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
+      decision_refs: ["personal-engineering-platform:003-terraform"]
     - id: "system:recipe-site/application"
       kind: "system"
       name: "Recipe Site application"

@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { SettingsRoute } from "@/components/assettracker/settings-route";
+import { AssetTrackerSettings } from "@/app/_projects/personal-finance-app/routes/settings";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default function AssetTrackerSettingsPage() {
-  return <SettingsRoute />;
+  return <AssetTrackerSettings />;
 }

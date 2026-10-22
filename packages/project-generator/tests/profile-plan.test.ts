@@ -36,8 +36,8 @@ function contracts(): ProjectProfileContracts {
           pnpm_workspace_package: true,
         },
         {
-          id: "web-feature",
-          directory: "ui/features/{project}",
+          id: "project-ui",
+          directory: "ui/app/_projects/{project}",
           mise_config_root: false,
           pnpm_workspace_package: false,
           delegated_task_project: "//ui",
@@ -333,7 +333,7 @@ describe("resolved profile plan adapter", () => {
     ).toThrow(/must declare an immutable revision/);
   });
 
-  it("owns a hosted feature without registering a nested workspace", () => {
+  it("owns hosted project UI without registering a nested workspace", () => {
     const currentContracts = contracts();
     const hostedFeature = parseProjectProfile(
       stringify({
@@ -347,7 +347,7 @@ describe("resolved profile plan adapter", () => {
           {
             id: "web",
             name: "Asset Tracker",
-            kind: "web-feature",
+            kind: "project-ui",
             mount_path: "/assettracker",
           },
         ],
@@ -367,17 +367,17 @@ describe("resolved profile plan adapter", () => {
       template,
     });
 
-    expect(plan.owned_paths).toContain("ui/features/personal-finance-app");
+    expect(plan.owned_paths).toContain("ui/app/_projects/personal-finance-app");
     expect(plan.shared_manifest_edits).not.toContainEqual(
       expect.objectContaining({
         kind: "mise_config_root",
-        value: "ui/features/personal-finance-app",
+        value: "ui/app/_projects/personal-finance-app",
       }),
     );
     expect(plan.shared_manifest_edits).not.toContainEqual(
       expect.objectContaining({
         kind: "pnpm_workspace_package",
-        value: "ui/features/personal-finance-app",
+        value: "ui/app/_projects/personal-finance-app",
       }),
     );
   });
