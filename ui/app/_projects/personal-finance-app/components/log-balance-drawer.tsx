@@ -1,13 +1,7 @@
 "use client";
 
 import { PenLineIcon } from "lucide-react";
-import {
-  type FormEvent,
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { type FormEvent, type ReactNode, useEffect, useState } from "react";
 import { formatAssetTrackerError } from "@/app/_projects/personal-finance-app/domain";
 import {
   BalanceExpressionError,
@@ -36,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { BalanceExpressionField } from "./balance-expression-field";
 
 interface LogBalanceDrawerProps {
   /** Lock the form to one account (used from the account detail view) */
@@ -61,14 +56,6 @@ export function LogBalanceDrawer({
   const [submitting, setSubmitting] = useState(false);
 
   const selectedAccount = accounts.find((a) => a.id === selectedId);
-  const evaluatedBalance = useMemo(() => {
-    if (balance.trim() === "") return null;
-    try {
-      return evaluateBalanceExpression(balance);
-    } catch {
-      return null;
-    }
-  }, [balance]);
 
   // Keep the selection valid after import/reset/close changes the open set,
   // so a stale account ID can't drive a mutation
@@ -171,39 +158,14 @@ export function LogBalanceDrawer({
               on {selectedAccount.latestSnapshotDate}
             </p>
           )}
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="log-balance-amount" className="text-sm font-medium">
-              Balance{selectedAccount ? ` (${selectedAccount.currency})` : ""}
-            </label>
-            <Input
-              id="log-balance-amount"
-              type="text"
-              inputMode="decimal"
-              required
-              autoComplete="off"
-              spellCheck={false}
-              placeholder="0.00 or 2648 + 16058"
-              value={balance}
-              aria-describedby="log-balance-help log-balance-result"
-              onChange={(event) => {
-                setBalance(event.target.value);
-                setError(null);
-              }}
-            />
-            <p id="log-balance-help" className="text-xs text-muted-foreground">
-              Enter an amount or use +, -, *, /, and parentheses. Negative
-              balances record debt.
-            </p>
-            <p
-              id="log-balance-result"
-              aria-live="polite"
-              className="min-h-4 text-xs text-muted-foreground"
-            >
-              {evaluatedBalance != null && selectedAccount
-                ? `Result: ${formatAccountCurrency(evaluatedBalance, selectedAccount.currency)}`
-                : null}
-            </p>
-          </div>
+          <BalanceExpressionField
+            currency={selectedAccount?.currency}
+            value={balance}
+            onChange={(value) => {
+              setBalance(value);
+              setError(null);
+            }}
+          />
           <div className="flex flex-col gap-1.5">
             <label htmlFor="log-balance-date" className="text-sm font-medium">
               Date
