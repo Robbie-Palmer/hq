@@ -45,9 +45,48 @@ function sequenceValues(sequence: YAMLSeq): JsonValue[] {
   );
 }
 
-function upsertString(sequence: YAMLSeq, value: string): boolean {
+function workspacePatternMatches(pattern: string, value: string): boolean {
+  const patternSegments = pattern.split("/");
+  const valueSegments = value.split("/");
+  const matches = (
+    remainingPattern: readonly string[],
+    remainingValue: readonly string[],
+  ): boolean => {
+    const [segment, ...rest] = remainingPattern;
+    if (segment === undefined) return remainingValue.length === 0;
+    if (segment === "**") {
+      return (
+        matches(rest, remainingValue) ||
+        (remainingValue.length > 0 &&
+          matches(remainingPattern, remainingValue.slice(1)))
+      );
+    }
+    if (remainingValue.length === 0) return false;
+    return (
+      (segment === "*" || segment === remainingValue[0]) &&
+      matches(rest, remainingValue.slice(1))
+    );
+  };
+  return matches(patternSegments, valueSegments);
+}
+
+function workspaceIncludes(
+  patterns: readonly JsonValue[],
+  value: string,
+): boolean {
+  let included = false;
+  for (const candidate of patterns) {
+    if (typeof candidate !== "string") continue;
+    const excluded = candidate.startsWith("!");
+    const pattern = excluded ? candidate.slice(1) : candidate;
+    if (workspacePatternMatches(pattern, value)) included = !excluded;
+  }
+  return included;
+}
+
+function upsertWorkspacePath(sequence: YAMLSeq, value: string): boolean {
   const values = sequenceValues(sequence);
-  if (values.some((candidate) => candidate === value)) return false;
+  if (workspaceIncludes(values, value)) return false;
   sequence.flow = false;
   sequence.add(value);
   return true;
@@ -120,7 +159,7 @@ async function editYamlSequence(
   const sequence = sequenceAt(document, fieldPath, manifestPath);
   let changed = false;
   if (edit.kind === "pnpm_workspace_package") {
-    changed = upsertString(sequence, edit.value);
+    changed = upsertWorkspacePath(sequence, edit.value);
   } else if (edit.kind === "repository_project") {
     changed = upsertRecord(
       document,

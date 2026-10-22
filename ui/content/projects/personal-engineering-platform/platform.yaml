@@ -42,32 +42,40 @@ catalog:
         - "personal-engineering-platform:032-monorepo-project-package-layout"
     - id: "system:personal-finance-app/application"
       kind: "system"
-      name: "Personal Finance application"
+      name: "Personal Finance App"
       project: "project:personal-finance-app"
       source_paths:
         - "infra/personal-finance"
-        - "ui/app/assettracker"
-        - "ui/components/assettracker"
-        - "ui/lib/assettracker"
-        - "ui/lib/domain/assettracker"
-      relations:
-        - type: "part_of"
-          target: "project:personal-finance-app"
-      decision_refs: ["personal-engineering-platform:030-repository-owned-component-identities"]
-    - id: "component:personal-finance-app/web"
+        - "packages/finance-housing-indices"
+        - "packages/finance-inflation-indices"
+        - "packages/finance-tax-rules"
+        - "packages/planning-case-domain"
+        - "ui/app/_projects/personal-finance-app"
+    - id: "component:personal-finance-app/finance-housing-indices"
       kind: "component"
-      name: "Asset Tracker web feature"
+      name: "Finance housing indices"
       project: "project:personal-finance-app"
-      source_paths:
-        - "ui/app/assettracker"
-        - "ui/components/assettracker"
-        - "ui/lib/assettracker"
-        - "ui/lib/domain/assettracker"
+      source_paths: ["packages/finance-housing-indices"]
       relations:
         - type: "part_of"
           target: "system:personal-finance-app/application"
-      decision_refs: ["personal-engineering-platform:041-project-owned-web-features-in-shared-frontend-hosts"]
-    - id: "component:personal-finance-app/infrastructure"
+    - id: "component:personal-finance-app/finance-inflation-indices"
+      kind: "component"
+      name: "Finance inflation indices"
+      project: "project:personal-finance-app"
+      source_paths: ["packages/finance-inflation-indices"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
+    - id: "component:personal-finance-app/finance-tax-rules"
+      kind: "component"
+      name: "Finance tax rules"
+      project: "project:personal-finance-app"
+      source_paths: ["packages/finance-tax-rules"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
+    - id: "component:personal-finance-app/personal-finance"
       kind: "component"
       name: "Personal Finance infrastructure"
       project: "project:personal-finance-app"
@@ -75,7 +83,23 @@ catalog:
       relations:
         - type: "part_of"
           target: "system:personal-finance-app/application"
-      decision_refs: ["personal-engineering-platform:003-terraform"]
+    - id: "component:personal-finance-app/planning-case-domain"
+      kind: "component"
+      name: "Planning case domain"
+      project: "project:personal-finance-app"
+      source_paths: ["packages/planning-case-domain"]
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
+    - id: "component:personal-finance-app/web"
+      kind: "component"
+      name: "Asset Tracker"
+      project: "project:personal-finance-app"
+      source_paths: ["ui/app/_projects/personal-finance-app"]
+      mount_path: "/assettracker"
+      relations:
+        - type: "part_of"
+          target: "system:personal-finance-app/application"
     - id: "system:recipe-site/application"
       kind: "system"
       name: "Recipe Site application"
