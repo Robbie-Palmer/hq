@@ -361,6 +361,35 @@ describe("project plan contracts", () => {
 });
 
 describe("shared manifest edits", () => {
+  it("recognizes packages already registered by pnpm workspace globs", async () => {
+    const repository = await createGitRepositoryFixture();
+    const workspacePath = path.join(repository, "pnpm-workspace.yaml");
+    await writeFile(
+      workspacePath,
+      "packages:\n  - 'packages/*'\n  - '!packages/private'\n",
+      "utf8",
+    );
+
+    await expect(
+      applySharedManifestEdits(repository, [
+        { kind: "pnpm_workspace_package", value: "packages/alpha" },
+      ]),
+    ).resolves.toEqual([]);
+    await expect(
+      applySharedManifestEdits(repository, [
+        { kind: "pnpm_workspace_package", value: "packages/private" },
+      ]),
+    ).resolves.toEqual(["pnpm-workspace.yaml"]);
+    const workspace = parse(await readFile(workspacePath, "utf8")) as {
+      packages: string[];
+    };
+    expect(workspace.packages).toEqual([
+      "packages/*",
+      "!packages/private",
+      "packages/private",
+    ]);
+  });
+
   it("preserves unrelated content and is idempotent", async () => {
     const repository = await createGitRepositoryFixture();
     const edits = makePlan("a".repeat(40)).shared_manifest_edits;

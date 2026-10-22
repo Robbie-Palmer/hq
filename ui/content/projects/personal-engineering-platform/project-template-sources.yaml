@@ -1,5 +1,8 @@
 schema_version: 1
 
-# Existing-project adoption will add the first production template here.
-# Plans select an ID from this allowlist and pin an immutable Git revision.
-templates: []
+templates:
+  - id: "monorepo-project"
+    source: "https://github.com/Robbie-Palmer/hq.git"
+    revision: "6d9f9044e7d74e50270f61eccc19001b54cd317a"
+    checks:
+      - "//:layout:check"
