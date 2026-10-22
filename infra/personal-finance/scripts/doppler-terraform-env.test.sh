@@ -33,7 +33,8 @@ chmod +x "$mock_bin/doppler"
 for mode_and_config in "plan ops" "drift drift" "apply apply"; do
   read -r mode expected_config <<<"$mode_and_config"
   args_log="$work_dir/$mode-args"
-  PATH="$mock_bin:$PATH" \
+  CI=false \
+    PATH="$mock_bin:$PATH" \
     DOPPLER_ARGS_LOG="$args_log" \
     bash "$script_dir/doppler-terraform-env.sh" "$mode" true
   grep -Fxq -- "personal-finance" "$args_log"

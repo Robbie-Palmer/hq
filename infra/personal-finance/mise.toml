@@ -43,7 +43,7 @@ description = "Reject workload declarations from the delivery-only baseline"
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-if rg -n '^\\s*(resource|data|module|import|moved|removed)\\s+"' --glob '*.tf' .; then
+if grep -rEn --include='*.tf' --exclude-dir=.terraform '^[[:space:]]*((resource|data|module)[[:space:]]+"|(import|moved|removed)[[:space:]]*[{])' .; then
   echo "The Personal Finance delivery foundation must not declare workload resources." >&2
   exit 1
 fi
