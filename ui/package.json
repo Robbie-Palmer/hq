@@ -62,6 +62,7 @@
     "finance-tax-rules": "workspace:*",
     "fuse.js": "^7.1.0",
     "gray-matter": "^4.0.3",
+    "jsep": "^1.4.0",
     "konva": "^10.7.0",
     "leaflet": "^1.9.4",
     "leaflet-fullscreen": "^1.0.2",

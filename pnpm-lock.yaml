@@ -1168,6 +1168,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3(patch_hash=7576f693c6e2d9a2125de73ab4d3d3a0dfc183d54c672602b06578229d88aee4)
+      jsep:
+        specifier: ^1.4.0
+        version: 1.4.0
       konva:
         specifier: ^10.7.0
         version: 10.7.0
