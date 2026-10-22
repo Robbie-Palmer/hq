@@ -81,6 +81,13 @@ variable "hcp_roots" {
       tags              = {}
       state_consumers   = []
     }
+    personal-finance = {
+      workspace_name    = "personal-site-personal-finance"
+      project           = "default"
+      terraform_version = "1.16.4"
+      tags              = { project = "personal-finance-app" }
+      state_consumers   = []
+    }
     remote-development-cluster = {
       workspace_name    = "personal-site-remote-development-cluster"
       project           = "default"

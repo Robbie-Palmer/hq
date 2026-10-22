@@ -101,3 +101,68 @@ run "cloudflare_access_delivery_boundaries" {
     error_message = "Drift and apply must enable custom branch policies."
   }
 }
+
+run "personal_finance_delivery_boundaries" {
+  command = plan
+
+  assert {
+    condition     = doppler_project.managed["personal-finance"].name == "personal-finance"
+    error_message = "Personal Finance must have its own Doppler project."
+  }
+
+  assert {
+    condition = toset([
+      for environment in values(doppler_environment.managed) :
+      "${environment.project}/${environment.slug}"
+      if environment.project == "personal-finance"
+      ]) == toset([
+      "personal-finance/ops",
+      "personal-finance/drift",
+      "personal-finance/apply",
+    ])
+    error_message = "Personal Finance must separate plan, drift, and apply environment configs."
+  }
+
+  assert {
+    condition = length([
+      for config in values(doppler_config.managed) : config
+      if config.project == "personal-finance"
+    ]) == 0
+    error_message = "Personal Finance must use free-tier environment root configs instead of paid config inheritance."
+  }
+
+  assert {
+    condition = length([
+      for environment in values(github_repository_environment.managed) : environment
+      if startswith(environment.environment, "production-personal-finance")
+    ]) == 3
+    error_message = "Personal Finance must have plan, drift, and apply GitHub environments."
+  }
+
+  assert {
+    condition     = github_repository_environment.managed["hq/production-personal-finance-plan"].reviewers[0].users == toset([8760191])
+    error_message = "The Personal Finance plan environment must require the declared reviewer."
+  }
+
+  assert {
+    condition     = github_repository_environment.managed["hq/production-personal-finance"].reviewers[0].users == toset([8760191])
+    error_message = "The Personal Finance apply environment must require the declared reviewer."
+  }
+
+  assert {
+    condition     = length(github_repository_environment.managed["hq/production-personal-finance-drift"].reviewers) == 0
+    error_message = "The Personal Finance drift environment must run without a reviewer gate."
+  }
+
+  assert {
+    condition = toset([
+      for policy in values(github_repository_environment_deployment_policy.managed) :
+      "${policy.environment}/${policy.branch_pattern}"
+      if startswith(policy.environment, "production-personal-finance")
+      ]) == toset([
+      "production-personal-finance-drift/main",
+      "production-personal-finance/main",
+    ])
+    error_message = "Personal Finance drift and apply must be restricted to main."
+  }
+}

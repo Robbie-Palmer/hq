@@ -30,6 +30,9 @@ projects:
   - id: "recipe-site"
     kind: "application"
     catalog_record: "system:recipe-site/application"
+  - id: "personal-finance-app"
+    kind: "application"
+    catalog_record: "system:personal-finance-app/application"
 
 component_kinds:
   - id: "ui"
