@@ -61,6 +61,21 @@ function isMealType(value: unknown): value is MealType {
   return typeof value === "string" && MEAL_TYPE_IDS.has(value);
 }
 
+function isCalendarDate(value: string): boolean {
+  if (!ISO_DATE.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year === undefined || month === undefined || day === undefined)
+    return false;
+  const parsed = new Date(0);
+  parsed.setUTCHours(0, 0, 0, 0);
+  parsed.setUTCFullYear(year, month - 1, day);
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
 function hasValidSchedule(
   status: unknown,
   kind: unknown,
@@ -89,7 +104,7 @@ function parseCurrentMeal(value: unknown): MealPlanEntry | undefined {
   const mealType = value.mealType;
   const parsedMealType = isMealType(mealType) ? mealType : undefined;
   const recipeSlug = optionalText(value.recipeSlug);
-  const validDate = date === undefined || ISO_DATE.test(date);
+  const validDate = date === undefined || isCalendarDate(date);
   if (
     !id ||
     !validDate ||

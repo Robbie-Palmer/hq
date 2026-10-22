@@ -25,7 +25,8 @@ function mealPlanEvent(
   previous: MealPlanEntry | undefined,
   meal: MealPlanEntry,
 ) {
-  if (previous?.status === "candidate") return "meal_plan_queue_converted";
+  if (previous?.status === "candidate" && meal.status === "committed")
+    return "meal_plan_queue_converted";
   if (meal.status === "candidate") return "meal_plan_meal_queued";
   return "meal_plan_meal_committed";
 }
@@ -75,7 +76,8 @@ function usePlanController(plan: MealPlanEntry[], recipes: ShoppingRecipe[]) {
       elapsed_ms: Date.now() - startedAt.current,
       first_queued_meal: meal.status === "candidate" && candidates.length === 0,
       first_committed_meal:
-        meal.status === "committed" && committed.length === 0,
+        meal.status === "committed" &&
+        plan.every((entry) => entry.status !== "committed"),
       meal_kind: meal.kind,
     });
   };

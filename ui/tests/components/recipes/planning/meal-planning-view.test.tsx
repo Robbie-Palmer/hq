@@ -126,6 +126,65 @@ describe("MealPlanningView", () => {
     );
   });
 
+  it("records a candidate edit as queued rather than converted", async () => {
+    const user = userEvent.setup();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "candidate",
+          kind: "recipe",
+          status: "candidate",
+          recipeSlug: "soup",
+        },
+      ],
+    });
+    render(<MealPlanningView recipes={recipes} />);
+
+    await user.click(screen.getByRole("button", { name: "Edit Tomato soup" }));
+    await user.type(screen.getByLabelText(/Note/), "Make it spicy");
+    await user.click(screen.getByRole("button", { name: "Save idea" }));
+
+    expect(mocks.captureRecipeEvent).toHaveBeenCalledWith(
+      "meal_plan_meal_queued",
+      expect.objectContaining({ first_queued_meal: false }),
+    );
+    expect(mocks.captureRecipeEvent).not.toHaveBeenCalledWith(
+      "meal_plan_queue_converted",
+      expect.anything(),
+    );
+  });
+
+  it("does not mark a new commitment as first when an older one exists", async () => {
+    const user = userEvent.setup();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "past-meal-out",
+          kind: "eating_out",
+          status: "committed",
+          date: addDays(localDate(), -1),
+          mealType: "dinner",
+        },
+      ],
+    });
+    render(<MealPlanningView recipes={recipes} />);
+
+    await user.click(screen.getByRole("button", { name: "Plan one meal" }));
+    await user.selectOptions(screen.getByLabelText("Recipe"), "risotto");
+    await user.click(screen.getByRole("button", { name: "Save meal" }));
+
+    expect(mocks.captureRecipeEvent).toHaveBeenCalledWith(
+      "meal_plan_meal_committed",
+      expect.objectContaining({ first_committed_meal: false }),
+    );
+  });
+
   it("handles non-recipe commitments and week actions without empty slots", async () => {
     const user = userEvent.setup();
     const date = localDate();
