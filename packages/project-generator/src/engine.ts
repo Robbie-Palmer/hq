@@ -618,7 +618,18 @@ async function classifyAdoptionPaths(
         } satisfies AdoptionPath;
       }
       const checkoutPath = path.join(worktreeRoot, relativePath);
-      if (!(await pathExists(checkoutPath))) {
+      let checkoutExists: boolean;
+      try {
+        checkoutExists = await pathExists(checkoutPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOTDIR") throw error;
+        return {
+          path: relativePath,
+          classification: "conflicting",
+          disposition: "review_conflict",
+        } satisfies AdoptionPath;
+      }
+      if (!checkoutExists) {
         return {
           path: relativePath,
           classification: "adoptable",

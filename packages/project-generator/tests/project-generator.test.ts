@@ -797,6 +797,43 @@ describe("existing project adoption planner", () => {
     ).resolves.toBe("existing product implementation\n");
   });
 
+  it("reports a conflict when a file blocks a rendered descendant path", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate({
+      extraFile: {
+        path: "packages/{{ project_id }}/nested/generated.txt.jinja",
+        source: "nested template output\n",
+      },
+    });
+    await write(
+      repository,
+      "packages/alpha/nested",
+      "existing file blocks the template directory\n",
+    );
+    await commit(repository, "Add blocking alpha project file");
+
+    const { blueprint, plan } = adoptionPlan(template.revision);
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result.readyToAdopt).toBe(false);
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/nested/generated.txt",
+      classification: "conflicting",
+      disposition: "review_conflict",
+    });
+    await expect(
+      readFile(path.join(repository, "packages/alpha/nested"), "utf8"),
+    ).resolves.toBe("existing file blocks the template directory\n");
+  });
+
   it("ignores unrelated dirty-worktree files while planning adoption", async () => {
     const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
