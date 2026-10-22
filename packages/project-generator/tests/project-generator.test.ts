@@ -12,9 +12,13 @@ import {
   type ProjectPlan,
   type TemplateSource,
 } from "../src/contracts.js";
-import { executeProjectPlan } from "../src/engine.js";
+import {
+  executeProjectPlan,
+  planProjectAdoption,
+} from "../src/engine.js";
 import { applySharedManifestEdits } from "../src/manifests.js";
 import { runCommand } from "../src/process.js";
+import type { ResolvedProjectBlueprint } from "../src/profile.js";
 
 const temporaryRoots: string[] = [];
 
@@ -200,6 +204,72 @@ function templateSource(
   const template = registry.templates[0];
   if (!template) throw new Error("Missing fixture template");
   return template;
+}
+
+function adoptionBlueprint(
+  projectId = "alpha",
+): ResolvedProjectBlueprint {
+  return {
+    schema_version: 1,
+    profile_schema_version: 1,
+    effective_at: "2026-10-21T00:00:00Z",
+    project: {
+      id: projectId,
+      stable_id: `project:${projectId}`,
+      name: `${projectId} project`,
+      kind: "library",
+    },
+    components: [
+      {
+        id: projectId,
+        stable_id: `component:${projectId}/${projectId}`,
+        name: `${projectId} package`,
+        kind: "typescript-package",
+        path: `packages/${projectId}`,
+        tasks: [
+          {
+            name: "clean",
+            disposition: "not-applicable",
+            reason: "The shared workspace owns cleanup.",
+          },
+        ],
+      },
+    ],
+    repository_paths: {
+      copier_answers: `.copier/projects/${projectId}.yml`,
+      project_index: `ui/content/projects/${projectId}/index.mdx`,
+      architecture_decisions: `ui/content/projects/${projectId}/adrs/{sequence}-{slug}.mdx`,
+      product_decisions: `ui/content/projects/${projectId}/pdrs/{sequence}-{slug}.mdx`,
+    },
+    selections: [],
+    catalog: {
+      system: {
+        id: `system:${projectId}/library`,
+        kind: "system",
+        project: `project:${projectId}`,
+      },
+      components: [],
+    },
+    ownership: {
+      owned_paths: [`packages/${projectId}`],
+      structural_edits: [],
+    },
+    nix: { enabled: false },
+    opentelemetry: { enabled: false },
+    manual_checkpoints: [],
+  };
+}
+
+function adoptionPlan(revision: string, projectId = "alpha") {
+  const blueprint = adoptionBlueprint(projectId);
+  const basePlan = makePlan(revision, projectId);
+  return {
+    blueprint,
+    plan: projectPlanSchema.parse({
+      ...basePlan,
+      answers: { ...basePlan.answers, blueprint },
+    }),
+  };
 }
 
 describe("project plan contracts", () => {
@@ -625,6 +695,201 @@ describe("Copier engine", () => {
   });
 });
 
+describe("existing project adoption planner", () => {
+  it("classifies matching template files and preserves local project files", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate();
+    await write(repository, "packages/alpha/generated.txt", "alpha v1\n");
+    await write(
+      repository,
+      "packages/alpha/domain.ts",
+      "export const existingProjectCode = true;\n",
+    );
+    await commit(repository, "Add existing alpha project");
+    const { blueprint, plan } = adoptionPlan(template.revision);
+
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result).toMatchObject({
+      schemaVersion: 1,
+      projectId: "alpha",
+      effectiveAt: "2026-10-21T00:00:00Z",
+      template: {
+        id: "monorepo-project",
+        source: template.source,
+        revision: template.revision,
+      },
+      receipt: {
+        path: ".copier/projects/alpha.yml",
+        classification: "adoptable",
+        disposition: "create_after_review",
+      },
+      readyToAdopt: true,
+    });
+    expect(result.resolvedBlueprint).toEqual(blueprint);
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/generated.txt",
+      classification: "matching",
+      disposition: "already_matches",
+    });
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/domain.ts",
+      classification: "adoptable",
+      disposition: "preserve_local_file",
+    });
+    expect(result.localExceptions).toEqual({
+      overrides: [],
+      taskExceptions: [
+        {
+          componentId: "alpha",
+          task: "clean",
+          reason: "The shared workspace owns cleanup.",
+        },
+      ],
+      preservedPaths: ["packages/alpha/domain.ts"],
+    });
+    expect(result.sharedManifestEdits).toHaveLength(
+      plan.shared_manifest_edits.length,
+    );
+    await expect(
+      readFile(path.join(repository, ".copier/projects/alpha.yml"), "utf8"),
+    ).rejects.toThrow(/ENOENT/);
+    expect(await git(repository, "status", "--short")).toBe("");
+  });
+
+  it("reports a conflicting template file without overwriting it", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate();
+    await write(
+      repository,
+      "packages/alpha/generated.txt",
+      "existing product implementation\n",
+    );
+    await commit(repository, "Add divergent alpha project");
+
+    const { blueprint, plan } = adoptionPlan(template.revision);
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result.readyToAdopt).toBe(false);
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/generated.txt",
+      classification: "conflicting",
+      disposition: "review_conflict",
+    });
+    await expect(
+      readFile(path.join(repository, "packages/alpha/generated.txt"), "utf8"),
+    ).resolves.toBe("existing product implementation\n");
+  });
+
+  it("reports a conflict when a file blocks a rendered descendant path", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate({
+      extraFile: {
+        path: "packages/{{ project_id }}/nested/generated.txt.jinja",
+        source: "nested template output\n",
+      },
+    });
+    await write(
+      repository,
+      "packages/alpha/nested",
+      "existing file blocks the template directory\n",
+    );
+    await commit(repository, "Add blocking alpha project file");
+
+    const { blueprint, plan } = adoptionPlan(template.revision);
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result.readyToAdopt).toBe(false);
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/nested/generated.txt",
+      classification: "conflicting",
+      disposition: "review_conflict",
+    });
+    await expect(
+      readFile(path.join(repository, "packages/alpha/nested"), "utf8"),
+    ).resolves.toBe("existing file blocks the template directory\n");
+  });
+
+  it("ignores unrelated dirty-worktree files while planning adoption", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate();
+    await write(repository, "notes/local.txt", "unrelated work in progress\n");
+    const statusBefore = await git(repository, "status", "--short");
+
+    const { blueprint, plan } = adoptionPlan(template.revision);
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result.readyToAdopt).toBe(true);
+    expect(result.paths).toContainEqual({
+      path: "packages/alpha/generated.txt",
+      classification: "adoptable",
+      disposition: "add_template_file",
+    });
+    expect(result.paths.some(({ path: candidate }) => candidate === "notes/local.txt"))
+      .toBe(false);
+    expect(await git(repository, "status", "--short")).toBe(statusBefore);
+  });
+
+  it("rejects template output outside declared ownership", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate({
+      extraFile: { path: "README.md.jinja", source: "template readme\n" },
+    });
+
+    const { blueprint, plan } = adoptionPlan(template.revision);
+    const result = await planProjectAdoption({
+      repository,
+      plan,
+      template: {
+        ...templateSource(template.source),
+        revision: template.revision,
+      },
+      blueprint,
+    });
+
+    expect(result.readyToAdopt).toBe(false);
+    expect(result.paths).toContainEqual({
+      path: "README.md",
+      classification: "outside_ownership",
+      disposition: "reject_template_file",
+    });
+    await expect(readFile(path.join(repository, "README.md"), "utf8"))
+      .rejects.toThrow(/ENOENT/);
+  });
+});
+
 describe("CLI", () => {
   it("derives commands, positional arguments, and options from the router schemas", async () => {
     const stdout: string[] = [];
@@ -636,6 +901,7 @@ describe("CLI", () => {
 
     expect(await runCli(["--help"], dependencies)).toBe(0);
     expect(stdout.join("")).toContain("dry-run");
+    expect(stdout.join("")).toContain("profile-adoption-plan");
     expect(stdout.join("")).toContain("profile-dry-run");
     stdout.length = 0;
 
@@ -796,6 +1062,27 @@ describe("CLI", () => {
       "contracts",
     ];
 
+    expect(await runCli(["profile-adoption-plan", ...args], dependencies)).toBe(
+      0,
+    );
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      projectId: "alpha",
+      effectiveAt: "2026-10-21T00:00:00Z",
+      readyToAdopt: true,
+      template: {
+        id: "monorepo-project",
+        revision: template.revision,
+      },
+      resolvedBlueprint: {
+        project: { id: "alpha" },
+      },
+      localExceptions: {
+        overrides: [],
+        taskExceptions: [],
+        preservedPaths: [],
+      },
+    });
+    output.length = 0;
     expect(await runCli(["profile-plan", ...args], dependencies)).toBe(0);
     expect(JSON.parse(output.join(""))).toMatchObject({
       projectId: "alpha",

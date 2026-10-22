@@ -4,17 +4,21 @@ import {
   lstat,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
+  readlink,
   realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import { parse, stringify } from "yaml";
 import {
   answersPath,
   type ProjectPlan,
+  type SharedManifestEdit,
   type TemplateSource,
 } from "./contracts.js";
 import {
@@ -23,6 +27,7 @@ import {
   SHARED_MANIFEST_PATHS,
 } from "./manifests.js";
 import { runCommand } from "./process.js";
+import type { ResolvedProjectBlueprint } from "./profile.js";
 
 export type GenerationMode = "plan" | "dry-run" | "create" | "update";
 type CopierOperation = "create" | "update";
@@ -57,6 +62,63 @@ export interface GenerationResult {
   readonly diff: string;
 }
 
+export type AdoptionClassification =
+  | "matching"
+  | "adoptable"
+  | "conflicting"
+  | "outside_ownership";
+
+export interface AdoptionPath {
+  readonly path: string;
+  readonly classification: AdoptionClassification;
+  readonly disposition:
+    | "already_matches"
+    | "add_template_file"
+    | "preserve_local_file"
+    | "review_conflict"
+    | "reject_template_file";
+}
+
+export interface AdoptionSharedManifestEdit {
+  readonly path: string;
+  readonly classification: Exclude<
+    AdoptionClassification,
+    "outside_ownership"
+  >;
+  readonly edit: SharedManifestEdit;
+  readonly error?: string;
+}
+
+export interface AdoptionPlanResult {
+  readonly schemaVersion: 1;
+  readonly projectId: string;
+  readonly baseRevision: string;
+  readonly effectiveAt: string;
+  readonly template: {
+    readonly id: string;
+    readonly source: string;
+    readonly revision: string;
+  };
+  readonly resolvedBlueprint: ResolvedProjectBlueprint;
+  readonly receipt: {
+    readonly path: string;
+    readonly classification: "adoptable";
+    readonly disposition: "create_after_review";
+  };
+  readonly readyToAdopt: boolean;
+  readonly paths: readonly AdoptionPath[];
+  readonly sharedManifestEdits: readonly AdoptionSharedManifestEdit[];
+  readonly localExceptions: {
+    readonly overrides: readonly ResolvedProjectBlueprint["selections"][number][];
+    readonly taskExceptions: readonly {
+      readonly componentId: string;
+      readonly task: string;
+      readonly reason: string;
+    }[];
+    readonly preservedPaths: readonly string[];
+  };
+}
+
 function splitNullTerminated(source: string): string[] {
   return source.split("\0").filter(Boolean);
 }
@@ -71,6 +133,57 @@ async function fileDigest(filePath: string): Promise<string> {
     hash.update(await readFile(filePath));
   }
   return hash.digest("hex");
+}
+
+async function adoptionDigest(filePath: string): Promise<string> {
+  const details = await lstat(filePath);
+  const hash = createHash("sha256");
+  hash.update(String(details.mode));
+  if (details.isSymbolicLink()) {
+    hash.update("symlink\0");
+    hash.update(await readlink(filePath));
+  } else if (details.isDirectory()) {
+    hash.update("directory\0");
+  } else {
+    hash.update("file\0");
+    hash.update(await readFile(filePath));
+  }
+  return hash.digest("hex");
+}
+
+async function inventoryFiles(
+  root: string,
+  relativeRoot = "",
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  const absoluteRoot = path.join(root, relativeRoot);
+  let details: Awaited<ReturnType<typeof lstat>>;
+  try {
+    details = await lstat(absoluteRoot);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return files;
+    throw error;
+  }
+  if (!details.isDirectory() || details.isSymbolicLink()) {
+    files.set(relativeRoot, await adoptionDigest(absoluteRoot));
+    return files;
+  }
+  const entries = await readdir(absoluteRoot, { withFileTypes: true });
+  const inventories = await Promise.all(entries.map(async (entry) => {
+    const relativePath = relativeRoot
+      ? path.posix.join(relativeRoot, entry.name)
+      : entry.name;
+    if (entry.isDirectory() && !entry.isSymbolicLink()) {
+      return inventoryFiles(root, relativePath);
+    }
+    return new Map([
+      [relativePath, await adoptionDigest(path.join(root, relativePath))],
+    ]);
+  }));
+  for (const inventory of inventories) {
+    for (const item of inventory) files.set(...item);
+  }
+  return files;
 }
 
 async function captureSnapshot(
@@ -458,6 +571,252 @@ async function resolveRepositoryRoot(repository: string): Promise<string> {
   return realpath(root);
 }
 
+function pathIsDeclaredOwned(
+  relativePath: string,
+  plan: ProjectPlan,
+): boolean {
+  return plan.owned_paths.some(
+    (ownedPath) =>
+      relativePath === ownedPath || relativePath.startsWith(`${ownedPath}/`),
+  );
+}
+
+async function inventoryOwnedFiles(
+  repositoryRoot: string,
+  plan: ProjectPlan,
+): Promise<Map<string, string>> {
+  const files = new Map<string, string>();
+  const inventories = await Promise.all(
+    plan.owned_paths.map((ownedPath) =>
+      inventoryFiles(repositoryRoot, ownedPath),
+    ),
+  );
+  for (const ownedFiles of inventories) {
+    for (const item of ownedFiles) files.set(...item);
+  }
+  return files;
+}
+
+async function classifyAdoptionPaths(
+  worktreeRoot: string,
+  renderRoot: string,
+  plan: ProjectPlan,
+): Promise<AdoptionPath[]> {
+  const receiptPath = answersPath(plan.project_id);
+  const [renderedFiles, checkoutFiles] = await Promise.all([
+    inventoryFiles(renderRoot),
+    inventoryOwnedFiles(worktreeRoot, plan),
+  ]);
+  renderedFiles.delete(receiptPath);
+  const paths: AdoptionPath[] = await Promise.all(
+    [...renderedFiles].map(async ([relativePath, renderedDigest]) => {
+      if (!pathIsDeclaredOwned(relativePath, plan)) {
+        return {
+          path: relativePath,
+          classification: "outside_ownership",
+          disposition: "reject_template_file",
+        } satisfies AdoptionPath;
+      }
+      const checkoutPath = path.join(worktreeRoot, relativePath);
+      let checkoutExists: boolean;
+      try {
+        checkoutExists = await pathExists(checkoutPath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOTDIR") throw error;
+        return {
+          path: relativePath,
+          classification: "conflicting",
+          disposition: "review_conflict",
+        } satisfies AdoptionPath;
+      }
+      if (!checkoutExists) {
+        return {
+          path: relativePath,
+          classification: "adoptable",
+          disposition: "add_template_file",
+        } satisfies AdoptionPath;
+      }
+      const checkoutDigest = await adoptionDigest(checkoutPath);
+      return checkoutDigest === renderedDigest
+        ? ({
+            path: relativePath,
+            classification: "matching",
+            disposition: "already_matches",
+          } satisfies AdoptionPath)
+        : ({
+            path: relativePath,
+            classification: "conflicting",
+            disposition: "review_conflict",
+          } satisfies AdoptionPath);
+    }),
+  );
+
+  for (const relativePath of checkoutFiles.keys()) {
+    if (renderedFiles.has(relativePath)) continue;
+    paths.push({
+      path: relativePath,
+      classification: "adoptable",
+      disposition: "preserve_local_file",
+    });
+  }
+  return paths.toSorted((left, right) => left.path.localeCompare(right.path));
+}
+
+async function classifySharedManifestEdits(
+  worktreeRoot: string,
+  edits: readonly SharedManifestEdit[],
+): Promise<AdoptionSharedManifestEdit[]> {
+  const results: AdoptionSharedManifestEdit[] = [];
+  for (const edit of edits) {
+    const manifestPath = manifestPathForEdit(edit);
+    try {
+      // These writes must stay serial because later edits may target the same manifest.
+      const changed = await applySharedManifestEdits(worktreeRoot, [edit]); // NOSONAR
+      results.push({
+        path: manifestPath,
+        classification: changed.length > 0 ? "adoptable" : "matching",
+        edit,
+      });
+    } catch (error) {
+      results.push({
+        path: manifestPath,
+        classification: "conflicting",
+        edit,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  return results;
+}
+
+function localExceptions(
+  blueprint: ResolvedProjectBlueprint,
+  paths: readonly AdoptionPath[],
+): AdoptionPlanResult["localExceptions"] {
+  return {
+    overrides: blueprint.selections.filter(
+      (selection) => selection.source === "override",
+    ),
+    taskExceptions: blueprint.components.flatMap((component) =>
+      component.tasks.flatMap((task) =>
+        task.disposition === "not-applicable" && task.reason
+          ? [
+              {
+                componentId: component.id,
+                task: task.name,
+                reason: task.reason,
+              },
+            ]
+          : [],
+      ),
+    ),
+    preservedPaths: paths
+      .filter(({ disposition }) => disposition === "preserve_local_file")
+      .map(({ path: relativePath }) => relativePath),
+  };
+}
+
+export async function planProjectAdoption(input: {
+  readonly repository: string;
+  readonly plan: ProjectPlan;
+  readonly template: TemplateSource & { readonly revision: string };
+  readonly blueprint: ResolvedProjectBlueprint;
+}): Promise<AdoptionPlanResult> {
+  validateOwnedPaths(input.plan);
+  if (input.template.id !== input.plan.template_id) {
+    throw new Error(
+      `Plan selects template '${input.plan.template_id}', not '${input.template.id}'`,
+    );
+  }
+  if (input.template.revision !== input.plan.template_revision) {
+    throw new Error(
+      `Plan pins template revision '${input.plan.template_revision}', not '${input.template.revision}'`,
+    );
+  }
+  if (!isDeepStrictEqual(input.plan.answers.blueprint, input.blueprint)) {
+    throw new Error(
+      "Adoption plan answers do not contain the supplied resolved blueprint",
+    );
+  }
+  const repositoryRoot = await resolveRepositoryRoot(input.repository);
+  const snapshot = await captureSnapshot(repositoryRoot);
+  const temporaryRoot = await realpath(
+    await mkdtemp(path.join(tmpdir(), "project-adoption-planner-")),
+  );
+  let worktreeRoot: string | undefined;
+  try {
+    const prepared = await prepareWorktree(
+      repositoryRoot,
+      snapshot,
+      temporaryRoot,
+    );
+    worktreeRoot = prepared.worktreeRoot;
+    const receiptPath = answersPath(input.plan.project_id);
+    if (await pathExists(path.join(worktreeRoot, receiptPath))) {
+      throw new Error(
+        `Cannot plan adoption: Copier answers file '${receiptPath}' already exists`,
+      );
+    }
+    const renderRoot = path.join(temporaryRoot, "isolated-render");
+    await mkdir(renderRoot, { recursive: true });
+    await runCopier(
+      renderRoot,
+      temporaryRoot,
+      "create",
+      input.plan,
+      input.template,
+    );
+    const paths = await classifyAdoptionPaths(
+      worktreeRoot,
+      renderRoot,
+      input.plan,
+    );
+    const sharedManifestEdits = await classifySharedManifestEdits(
+      worktreeRoot,
+      input.plan.shared_manifest_edits,
+    );
+    const readyToAdopt =
+      !paths.some(
+        ({ classification }) =>
+          classification === "conflicting" ||
+          classification === "outside_ownership",
+      ) &&
+      !sharedManifestEdits.some(
+        ({ classification }) => classification === "conflicting",
+      );
+    return {
+      schemaVersion: 1,
+      projectId: input.plan.project_id,
+      baseRevision: snapshot.head,
+      effectiveAt: input.blueprint.effective_at,
+      template: {
+        id: input.template.id,
+        source: input.template.source,
+        revision: input.template.revision,
+      },
+      resolvedBlueprint: input.blueprint,
+      receipt: {
+        path: receiptPath,
+        classification: "adoptable",
+        disposition: "create_after_review",
+      },
+      readyToAdopt,
+      paths,
+      sharedManifestEdits,
+      localExceptions: localExceptions(input.blueprint, paths),
+    };
+  } finally {
+    if (worktreeRoot) {
+      await runCommand(
+        "git",
+        ["-C", repositoryRoot, "worktree", "remove", "--force", worktreeRoot],
+        { allowFailure: true },
+      );
+    }
+    await rm(temporaryRoot, { force: true, recursive: true });
+  }
+}
+
 export async function executeProjectPlan(input: {
   readonly repository: string;
   readonly mode: GenerationMode;
@@ -472,7 +831,9 @@ export async function executeProjectPlan(input: {
   }
   const repositoryRoot = await resolveRepositoryRoot(input.repository);
   const snapshot = await captureSnapshot(repositoryRoot);
-  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "project-generator-"));
+  const temporaryRoot = await realpath(
+    await mkdtemp(path.join(tmpdir(), "project-generator-")),
+  );
   let worktreeRoot: string | undefined;
   try {
     const prepared = await prepareWorktree(
