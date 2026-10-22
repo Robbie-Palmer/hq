@@ -17,6 +17,7 @@ import {
 } from "./contracts.js";
 import {
   executeProjectPlan,
+  planProjectAdoption,
   type GenerationMode,
   type GenerationResult,
 } from "./engine.js";
@@ -151,6 +152,20 @@ async function runProfileCommand(
   input: ProfileCommandInput,
   mode: GenerationMode,
 ): Promise<GenerationResult | string> {
+  const prepared = await prepareProfileCommand(context, input);
+  const result = await executeProjectPlan({
+    repository: prepared.repository,
+    mode,
+    plan: prepared.plan,
+    template: prepared.template,
+  });
+  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+}
+
+async function prepareProfileCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
   const resolvePath = (value: string) =>
     path.resolve(context.workingDirectory, value);
   const profilePath = resolvePath(input.profilePath);
@@ -195,8 +210,15 @@ async function runProfileCommand(
     resolveTemplateSource(selected, registryPath),
   );
   const plan = projectPlanFromBlueprint({ blueprint, contracts, template });
-  const result = await executeProjectPlan({ repository, mode, plan, template });
-  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+  return { blueprint, plan, repository, template };
+}
+
+async function runProfileAdoptionPlanCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  return planProjectAdoption(prepared);
 }
 
 export const projectGeneratorRouter = t.router({
@@ -230,6 +252,13 @@ export const projectGeneratorRouter = t.router({
     })
     .input(profileCommandInput)
     .query(({ ctx, input }) => runProfileCommand(ctx, input, "plan")),
+  profileAdoptionPlan: t.procedure
+    .meta({
+      description:
+        "Plan Copier adoption for an existing project without an answers file",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileAdoptionPlanCommand(ctx, input)),
   profileDryRun: t.procedure
     .meta({
       description: "Preview a resolved project profile without applying it",

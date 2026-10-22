@@ -26,6 +26,7 @@ than a prebuilt engine plan:
 
 ```sh
 mise //:project:profile:plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:adoption-plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:dry-run -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:create -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:update -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
@@ -36,6 +37,16 @@ and OpenTelemetry contract from the Personal Engineering Platform project. The
 explicit instant selects dated platform defaults. `--contracts`, `--registry`,
 `--repository`, and `--template-id` replace their repository defaults when a
 test or migration needs another input.
+
+`profile:adoption-plan` is for an existing project that has no Copier answers
+file. It renders the pinned template in an empty temporary directory, then
+compares that render with a snapshot of the checkout. The JSON result marks
+template files as matching, adoptable, conflicting, or outside declared
+ownership. Checkout-only files beneath an owned path are preserved as local
+files. Shared-manifest edits, resolved profile overrides, task exceptions, and
+the future receipt are listed separately. The command never changes the
+checkout and reports `readyToAdopt: false` when a template file would overwrite
+different content or escape declared ownership.
 
 The default template registry is
 `ui/content/projects/personal-engineering-platform/project-template-sources.yaml`.
