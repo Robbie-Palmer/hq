@@ -53,6 +53,27 @@ interface TokenSpan {
   end: number;
 }
 
+const VULGAR_FRACTIONS: Record<string, string> = {
+  "¼": "1/4",
+  "½": "1/2",
+  "¾": "3/4",
+  "⅐": "1/7",
+  "⅑": "1/9",
+  "⅒": "1/10",
+  "⅓": "1/3",
+  "⅔": "2/3",
+  "⅕": "1/5",
+  "⅖": "2/5",
+  "⅗": "3/5",
+  "⅘": "4/5",
+  "⅙": "1/6",
+  "⅚": "5/6",
+  "⅛": "1/8",
+  "⅜": "3/8",
+  "⅝": "5/8",
+  "⅞": "7/8",
+};
+
 function isAsciiDigit(character: string | undefined): boolean {
   return character !== undefined && character >= "0" && character <= "9";
 }
@@ -108,8 +129,20 @@ function readCompoundFractionEnd(value: string, integerEnd: number): number {
 }
 
 function readAmount(value: string, start: number): TokenSpan | undefined {
+  const leadingFraction = VULGAR_FRACTIONS[value[start] ?? ""];
+  if (leadingFraction) {
+    return { value: leadingFraction, end: start + 1 };
+  }
   if (!isAsciiDigit(value[start])) return undefined;
   const basicEnd = readBasicAmountEnd(value, start);
+  const fractionStart = skipWhitespace(value, basicEnd);
+  const trailingFraction = VULGAR_FRACTIONS[value[fractionStart] ?? ""];
+  if (trailingFraction) {
+    return {
+      value: `${value.slice(start, basicEnd)} ${trailingFraction}`,
+      end: fractionStart + 1,
+    };
+  }
   const end = readCompoundFractionEnd(value, basicEnd);
   return { value: value.slice(start, end), end };
 }
@@ -741,10 +774,20 @@ function collectStepIngredients(
       groups.push(group);
     }
 
-    mergeIngredientIntoGroup(
-      group,
-      buildGroupIngredient(slug, ingredient, annotations?.[slug]),
+    const nextIngredient = buildGroupIngredient(
+      slug,
+      ingredient,
+      annotations?.[slug],
     );
+    try {
+      mergeIngredientIntoGroup(group, nextIngredient);
+    } catch {
+      // A recipe can use the same ingredient in incompatible units or with a
+      // different preparation. Keep both authored entries instead of failing
+      // the whole import.
+      group.items.push(nextIngredient);
+      group.itemIndexByIngredient.set(slug, group.items.length - 1);
+    }
   }
   return group;
 }

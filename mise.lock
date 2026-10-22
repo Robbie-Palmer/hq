@@ -19,6 +19,11 @@ url = "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_
 url_api = "https://api.github.com/repos/rhysd/actionlint/releases/assets/384924893"
 provenance = "github-attestations"
 
+[[tools.copier]]
+version = "9.18.2"
+backend = "pypi:copier"
+specifiers = ["9.18.2"]
+
 [[tools.duckdb]]
 version = "1.5.6"
 backend = "aqua:duckdb/duckdb"

@@ -30,24 +30,49 @@ projects:
   - id: "recipe-site"
     kind: "application"
     catalog_record: "system:recipe-site/application"
+  - id: "personal-finance-app"
+    kind: "application"
+    catalog_record: "system:personal-finance-app/application"
 
 component_kinds:
   - id: "ui"
     directory: "ui"
+    mise_config_root: true
+    pnpm_workspace_package: true
+  - id: "project-ui"
+    description: "Project-owned browser code mounted into the shared frontend host."
+    directory: "ui/app/_projects/{project}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    delegated_task_project: "//ui"
   - id: "worker"
     directory: "workers/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: true
   - id: "typescript-package"
     directory: "packages/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: true
   - id: "python-pipeline"
     directory: "ml-pipelines/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: false
   - id: "cpp-project"
     directory: "cpp/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: false
   - id: "terraform-root"
     directory: "infra/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: false
   - id: "kubernetes-component"
     directory: "homelab/k3s/components/{component}"
+    mise_config_root: true
+    pnpm_workspace_package: false
   - id: "homelab-system"
     directory: "homelab"
+    mise_config_root: true
+    pnpm_workspace_package: false
 
 task_contract:
   id: "standard"

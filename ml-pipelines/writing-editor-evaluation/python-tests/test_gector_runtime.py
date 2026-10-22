@@ -162,6 +162,18 @@ Do not change `identifier` here.
 
 Read the [source](https://example.com) here.
 
+* **Decision.** Do not rewrite emphasis.
+
+* Read *The Structure of Scientific Revolutions* before editing.
+
+Do not change prose with an inline component.<br />
+
+<Mermaid
+  chart={`flowchart LR
+Source[Broken grammar are deliberate] --> Target[Diagram label]
+`}
+/>
+
 ```ts
 const broken = "are";
 ```

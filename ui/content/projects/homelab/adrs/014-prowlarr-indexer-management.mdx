@@ -44,7 +44,7 @@ Compose network, not localhost.
 
 * **Pros**: The older, lighter indexer proxy; exposes Torznab feeds fine.
 * **Cons**: The Servarr projects themselves steer people from Jackett to
-  Prowlarr now. With Jackett I'd still wire Torznab endpoints into each app
+  Prowlarr now. With Jackett, I'd still wire Torznab endpoints into each app
   by hand, and indexer health checks live in yet another UI instead of being
   pushed into the apps' own dashboards.
 * **Decision**: Rejected. Same job, more manual wiring, upstream treats it as
@@ -63,7 +63,7 @@ Compose network, not localhost.
 
 * One definition per indexer, tested in one place, synced everywhere.
 * Search debugging happens in Prowlarr's UI before touching either app.
-* App onboarding is trivial: register the app, get all indexers.
+* App onboarding is trivial: register the app, get all the indexers.
 
 ### Cons
 

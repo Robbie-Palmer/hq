@@ -2,11 +2,17 @@ import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { pathExists } from "node-base/fs";
+import {
+  parseRepositoryLayoutContract,
+  type RepositoryLayoutComponentKind as ComponentKind,
+  type RepositoryLayoutContract as LayoutContract,
+  type RepositoryLayoutNamedRecord as NamedRecord,
+  type RepositoryLayoutSharedManifest as SharedManifest,
+} from "platform-contracts/repository-layout";
 import { duplicateValues, setsEqual } from "ts-base/collections";
 import { errorMessage } from "ts-base/errors";
 import { compareStrings } from "ts-base/strings";
 import { parse } from "yaml";
-import { z } from "zod";
 
 const CONTRACT_PATH =
   "ui/content/projects/personal-engineering-platform/repository-layout.yaml";
@@ -41,56 +47,6 @@ const SHARED_MANIFEST_BOUNDARY = new Map([
   [PLATFORM_MANIFEST_PATH, ["catalog.records"]],
 ]);
 
-const namedRecordSchema = z
-  .object({
-    id: z.string(),
-    description: z.string().optional(),
-    task_profile: z.string().optional(),
-  })
-  .strict();
-const componentKindSchema = namedRecordSchema
-  .extend({ directory: z.string() })
-  .strict();
-const projectRegistrationSchema = namedRecordSchema
-  .extend({ kind: z.string(), catalog_record: z.string() })
-  .strict();
-const sharedManifestSchema = z
-  .object({ path: z.string(), allowed_edits: z.array(z.string()) })
-  .strict();
-const layoutContractSchema = z
-  .object({
-    schema_version: z.number(),
-    project_kinds: z.array(namedRecordSchema),
-    projects: z.array(projectRegistrationSchema),
-    component_kinds: z.array(componentKindSchema),
-    task_contract: z
-      .object({ id: z.string(), required: z.array(z.string()) })
-      .strict(),
-    knowledge_graph: z
-      .object({
-        project_index: z.string(),
-        architecture_decisions: z.string(),
-        product_decisions: z.string(),
-      })
-      .strict(),
-    shared_manifests: z.array(sharedManifestSchema),
-    workspace_policy: z
-      .object({
-        node_workspace: z.string(),
-        node_lockfile: z.string(),
-        standalone_node_roots: z.array(z.string()),
-        approved_npm_lockfiles: z.array(z.string()),
-        local_mise_roots: z.array(z.string()),
-      })
-      .strict(),
-  })
-  .strict();
-
-type NamedRecord = z.infer<typeof namedRecordSchema>;
-type ComponentKind = z.infer<typeof componentKindSchema>;
-type SharedManifest = z.infer<typeof sharedManifestSchema>;
-type LayoutContract = z.infer<typeof layoutContractSchema>;
-
 interface CatalogRecordDeclaration {
   id?: string;
   kind?: string;
@@ -99,17 +55,7 @@ interface CatalogRecordDeclaration {
 }
 
 export function parseLayoutContract(value: unknown): LayoutContract {
-  const result = layoutContractSchema.safeParse(value);
-  if (!result.success) {
-    const details = result.error.issues
-      .map((issue) => {
-        const field = issue.path.map(String).join(".") || "contract";
-        return `${field}: ${issue.message}`;
-      })
-      .join("; ");
-    throw new Error(`Invalid layout contract: ${details}`);
-  }
-  return result.data;
+  return parseRepositoryLayoutContract(value);
 }
 
 export async function loadLayoutContract(
@@ -150,8 +96,23 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
       .split("{")
       .slice(1)
       .map((segment) => `{${segment.split("}")[0]}}`);
-    if (placeholders.some((placeholder) => placeholder !== "{component}")) {
+    if (
+      placeholders.some(
+        (placeholder) =>
+          placeholder !== "{component}" && placeholder !== "{project}",
+      )
+    ) {
       issues.push(`Component path '${component.directory}' has an unknown placeholder`);
+    }
+    if (!component.mise_config_root && !component.delegated_task_project) {
+      issues.push(
+        `Component kind '${component.id}' without a mise root must delegate its tasks`,
+      );
+    }
+    if (component.mise_config_root && component.delegated_task_project) {
+      issues.push(
+        `Component kind '${component.id}' cannot own and delegate its mise tasks`,
+      );
     }
   }
   issues.push(

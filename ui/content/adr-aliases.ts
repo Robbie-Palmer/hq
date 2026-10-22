@@ -213,11 +213,31 @@ export const legacyADRAliases = [
       "Applied to the lab: whichever machine runs batch jobs keeps local copies of\ndatasets on its own disk as a DVC remote, so those jobs read from a local\ncache instead of re-pulling over the network each time. The same principles,\ndataset hashes pinned to git commits, stage caching via `dvc repro`, and\nmetrics surfaced in PRs, govern how datasets are managed across the ML\npipelines (`ml-pipelines/recipe-parsing/`).\n",
   },
   {
+    alias: "homelab:023-proton-drive-document-library",
+    target: "personal-digital-infrastructure:000-filen-document-library-trial",
+  },
+  {
+    alias: "homelab:024-restic-backblaze-personal-archive",
+    target: "homelab:023-restic-backblaze-personal-archive",
+  },
+  {
     alias: "homelab:024-doppler-secrets",
     target: "personal-knowledge-graph:035-doppler",
     title: "ADR 024: Doppler for homelab secrets",
     notes:
       "The homelab adopts the existing Doppler decision. The rules below cover the\nparts that differ from the recipe stack.\n\n# Project and config\n\nKeep homelab secrets in the separate Doppler project `homelab`. Production\nworkloads use its `prd` config. This prevents Ansible and K3s credentials from\ngranting access to the recipe stack.\n\nHuman-run mise commands authenticate through the local Doppler CLI. A command\nthat needs secrets uses `doppler run --project homelab --config prd` and\nallowlists the names it needs.\n\nRun this non-secret check from an operator machine:\n\n```bash\nmise run //homelab:doppler-check\n```\n\n# Ansible\n\nAnsible reads secrets from the controller environment. Every task that consumes\na secret must set `no_log: true`. Do not copy a complete Doppler config to a\nmanaged host.\n\n# Unattended workloads\n\nGive each unattended workload a read-only Doppler service token scoped to one\nconfig. Never use a personal or CLI token. Doppler documents this boundary in\nits [service-token guidance](https://docs.doppler.com/docs/service-tokens).\n\nWhen the K3s pilot needs its first secret, install the\n[Doppler Kubernetes Operator](https://docs.doppler.com/docs/doppler-k8s-operator-syncing-secrets).\nBootstrap its token through a local mise command that does not print it, then\nuse namespace-scoped `DopplerSecret` resources. Workloads receive synchronized\nKubernetes Secrets, not the Doppler token.\n\n# Homelab-specific alternatives\n\n## Ansible Vault\n\n[Ansible Vault](https://docs.ansible.com/projects/ansible/latest/vault_guide/vault.html)\ncan encrypt variables and files kept with the playbooks. It fits Ansible, but\nit only protects data at rest. A new operator machine still needs the vault\npassword through a separate recovery path, and K3s workloads need another\nsecret-distribution system. Reject it as the homelab source of truth. Ansible\ntasks still need `no_log: true` whichever store supplies their secrets.\n\n## SOPS with age\n\n[SOPS](https://getsops.io/docs/) with age would keep encrypted values beside\nthe Ansible and K3s configuration. It would also allow recovery without\nDoppler once an operator restores the age identity. It needs its own key\ndistribution and recovery procedure, plus decryption plumbing for both\nAnsible and K3s. Reconsider it if dependence on Doppler becomes unacceptable.\n\n## Plain Kubernetes Secrets\n\nKubernetes Secret manifests encode values with base64; that does not make them\nsafe to commit. Creating them manually would also leave rotation and fresh\ncluster recovery outside the declarative configuration. Use Kubernetes Secrets\nas the runtime format produced by the Doppler operator, not as the source of\ntruth.\n\n## K3s secrets encryption\n\n[K3s secrets encryption](https://docs.k3s.io/security/secrets-encryption)\nprotects Secret data in the cluster datastore and its backups. It does not\ndecide where values originate, rotate application credentials, or supply\nAnsible. Enable it as a separate defence before sensitive workloads move to\nK3s. Keep Doppler as the source of truth.\n\n## Sealed Secrets\n\n[Sealed Secrets](https://github.com/bitnami-labs/sealed-secrets) would make\nencrypted Secret manifests safe to store in Git. Its controller keeps the\nprivate sealing keys in the cluster, so disaster recovery must also back up\nand restore those keys. It does not supply Ansible. Reject it because the\nDoppler project already provides one source for both deployment paths.\n\n# Ente exception\n\nThe Ente CLI database at `~/.ente/ente-cli.db` remains outside Doppler. The\ndatabase stores an authenticated application session rather than a key-value\nsecret. Keep it local with mode `0600`, and recreate it through Ente's\ninteractive login on a replacement Mac.\n\n# Recovery and migration\n\nA new operator machine installs the Doppler CLI, signs in, checks out this\nrepository, and runs the access check above. Store Doppler account recovery\ncodes outside the homelab and repository.\n\nExisting Kubernetes Secrets keep workloads running during a Doppler outage.\nRotation and fresh cluster bootstrap wait for Doppler to recover. Keep current\ngitignored workload files until you have tested each Doppler consumer and its\nrollback path.\n",
+  },
+  {
+    alias: "homelab:025-human-and-machine-secret-boundaries",
+    target: "personal-digital-infrastructure:001-proton-pass-trial",
+  },
+  {
+    alias: "homelab:026-proton-vpn-programmable-egress",
+    target: "homelab:024-proton-vpn-programmable-egress",
+  },
+  {
+    alias: "homelab:027-ente-locker-recovery-packet",
+    target: "personal-digital-infrastructure:003-ente-locker-recovery-packet",
   },
   {
     alias: "personal-knowledge-graph:048-sonarqube",

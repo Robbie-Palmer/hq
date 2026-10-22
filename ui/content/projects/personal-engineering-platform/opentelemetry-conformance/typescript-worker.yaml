@@ -1,0 +1,44 @@
+schema_version: 1
+fixture: "typescript-worker"
+runtime: "typescript-worker"
+resource:
+  service.namespace: "recipe-site"
+  service.name: "recipe-api"
+  service.version: "git:0123456789abcdef"
+  deployment.environment.name: "production"
+  me.robbiepalmer.project.id: "recipe-site"
+instance_strategy: "opaque-runtime"
+signals: ["traces", "metrics", "logs"]
+profiles_enabled: false
+propagators: ["tracecontext", "baggage"]
+transport:
+  protocol: "http/protobuf"
+  route: "direct"
+semantic_domains: ["http", "faas"]
+sampling:
+  sampler: "parentbased_traceidratio"
+  ratio: 0.1
+batching:
+  max_queue_size: 256
+  max_export_batch_size: 64
+  schedule_delay_ms: 1000
+  export_timeout_ms: 5000
+cardinality:
+  max_active_instances: 1
+  max_metric_series_per_instrument: 500
+  max_span_name_templates: 30
+attribute_allowlist:
+  span_and_log_attributes:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "http.route"
+    - "error.type"
+  metric_dimensions:
+    - "http.request.method"
+    - "http.response.status_code"
+    - "http.route"
+    - "error.type"
+assertions:
+  - "Inbound and outbound HTTP calls preserve W3C Trace Context."
+  - "The Worker uses waitUntil for a bounded flush and never blocks the response on telemetry."
+  - "Exporter failure leaves the application response unchanged."

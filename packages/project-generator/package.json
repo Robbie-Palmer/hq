@@ -1,0 +1,27 @@
+{
+  "name": "project-generator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Safe Copier lifecycle for projects in the shared monorepo",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@trpc/server": "11.19.0",
+    "platform-contracts": "workspace:*",
+    "ts-base": "workspace:*",
+    "trpc-cli": "0.16.0",
+    "yaml": "2.9.1",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5",
+    "vitest": "^5.0.0"
+  }
+}

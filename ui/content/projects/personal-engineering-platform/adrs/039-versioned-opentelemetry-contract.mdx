@@ -1,0 +1,185 @@
+---
+title: "ADR 039: Versioned OpenTelemetry signal contract"
+date: "2026-10-20"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 023](/projects/personal-engineering-platform/adrs/023-application-observability-stack)
+selects OpenTelemetry as the telemetry protocol, and
+[ADR 036](/projects/personal-engineering-platform/adrs/036-operated-capability-contracts)
+requires redaction, bounded exporter failure, and an end-to-end check. Neither
+decision defines the records a generated project must emit. A project profile
+cannot resolve telemetry configuration until service identity, propagation,
+transport, signal handling, and data limits have one contract.
+
+The current adopters also have different runtime constraints. Recipe Site
+exports from short-lived TypeScript Workers. Agent-friendly Remote Development
+places a Collector beside Kubernetes and agent workloads. A Python service can
+use a long-running SDK and a local Collector. One exporter configuration would
+either ignore those differences or make the backend part of the application
+contract.
+
+OpenTelemetry defines stable OTLP transport for traces, metrics, and logs while
+the profiles signal remains in development. Its semantic conventions have
+mixed stability, especially for agent and generative-AI telemetry. The
+platform needs the stable vocabulary without silently adopting fields that can
+still change.
+
+## Decision
+
+Adopt version 1 of the machine-readable contract in
+`ui/content/projects/personal-engineering-platform/opentelemetry-contract.yaml`.
+The validator and four fixtures under `opentelemetry-conformance` are the
+executable acceptance check.
+
+### Identity and propagation
+
+Every resource identifies `service.namespace`, `service.name`,
+`service.version`, `deployment.environment.name`, and
+`me.robbiepalmer.project.id`. An addressable process, container, pod, or host
+also sets `service.instance.id`. An opaque serverless runtime omits it rather
+than substituting a request or deployment identifier that does not identify an
+instance. Agent and development telemetry also sets
+`me.robbiepalmer.workspace.id`.
+
+The two platform attributes use a reverse-domain namespace as recommended by
+the OpenTelemetry
+[attribute naming rules](https://opentelemetry.io/docs/specs/semconv/general/naming/).
+They remain separate from upstream semantic-convention namespaces.
+
+Use [W3C Trace Context](https://www.w3.org/TR/trace-context/) and
+[W3C Baggage](https://www.w3.org/TR/baggage/) at trusted process boundaries.
+Baggage is allowlisted to project and workspace identity. Clear it before an
+untrusted process or external service unless that destination explicitly needs
+one of those values.
+
+### Signals, transport, and collection
+
+Emit traces, metrics, and logs. Keep profiles disabled until both the OTLP
+profiles signal and the conventions the project needs are stable. OTLP uses
+protobuf for every route.
+
+TypeScript Workers export with OTLP/HTTP directly when they have one backend,
+can apply the complete data policy, and can schedule a bounded flush after the
+response. Python services and Kubernetes workloads use OTLP/gRPC to a local or
+private Collector. Agent workspaces use OTLP/HTTP to a host or cluster
+Collector because the Collector owns redaction and backend egress.
+
+A Collector becomes mandatory for protocol translation, central redaction,
+fan-out, tail sampling, persistent queues, credentials that cannot enter the
+runtime, or shared cluster egress. Otherwise direct export is allowed only when
+the project accepts loss during runtime or backend failure. OTLP itself does
+not provide an end-to-end delivery guarantee. Export failure therefore remains
+fail-open and observable through dropped-record or exporter-health metrics.
+
+These defaults follow the stable
+[OTLP exporter contract](https://opentelemetry.io/docs/specs/otel/protocol/exporter/),
+which prefers `http/protobuf` when an SDK has no compatibility reason to choose
+gRPC and requires exponential backoff with jitter for transient failures.
+
+### Semantic conventions and data limits
+
+Use only stable OpenTelemetry semantic conventions by default. Apply stable
+groups for HTTP, functions, databases, messaging, object storage, CI/CD, and
+agent or generative-AI operations when the workload performs that job. An
+unstable or release-candidate group needs a later ADR that pins its version,
+data boundary, migration plan, and removal trigger. Until then, agent telemetry
+records the stable service context but does not export CI/CD, prompt, response,
+tool arguments, or unstable agent fields.
+
+Telemetry is default-deny. Each runtime has one allowlist shared by spans and
+logs, plus a separate allowlist for metric dimensions. Spans and logs share a
+policy because they have the same data boundary and do not create metric time
+series. A project can split them in a later contract only when retention,
+indexing, or redaction requirements differ in practice.
+
+The security policy names prohibited content classes and known attribute keys
+or prefixes. Credentials, authorization headers, cookies, environment values,
+personal identifiers, prompt or response bodies, tool arguments or results,
+source, diffs, terminal output, database statements and bind values, message
+bodies, user-bearing object keys, and raw URL paths or queries never leave the
+workload. This rule applies even when instrumentation uses an unknown or custom
+attribute name. It covers resource attributes, span attributes and events, log
+attributes and bodies, metric attributes, and baggage. Only deterministic
+redaction may make a record safe; otherwise the runtime or Collector drops the
+record. The exact-key and prefix rules make known OpenTelemetry fields
+executable: the validator rejects any runtime allowlist containing one. This is
+stricter than upstream defaults. OpenTelemetry warns that captured
+[HTTP headers](https://opentelemetry.io/docs/specs/semconv/http/http-spans/),
+[database parameters](https://opentelemetry.io/docs/specs/semconv/db/sql/),
+[generative-AI messages](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/),
+and [URLs](https://opentelemetry.io/docs/specs/semconv/url/) may contain
+sensitive data.
+
+An instrument may produce at most 2,000 active metric series per service and
+environment. Each record has at most 128 attributes with 4,096 characters per
+value, and a service has at most 100 span-name templates. The metric allowlist
+also excludes IDs, raw URLs, query text, message IDs, conversations, and
+workspace IDs. An attribute may be useful on a span or log while remaining
+forbidden as a metric dimension. Projects set smaller fixture budgets where
+their runtime has tighter limits.
+
+Use parent-based ratio sampling with all traces in development and test and a
+0.1 root ratio in production unless a project records another ratio. Batching,
+queues, retries, and export timeouts stay within the contract's finite bounds.
+Use a monotonic clock for durations and the runtime's synchronized wall clock
+for timestamps. Collectors do not rewrite timestamps.
+
+For failed operations, set span status to `Error` and record `error.type` on
+the span and matching metric. Leave successful span status unset. Record an
+unhandled exception once. A handled exception that allows the operation to
+complete is not an operation error. Messages and stacks remain subject to the
+same data allowlist.
+
+### Conformance fixtures
+
+The TypeScript Worker fixture proves direct OTLP/HTTP with an opaque instance
+boundary. The Python fixture proves a long-running process using OTLP/gRPC to a
+Collector. The Kubernetes fixture proves pod identity and cluster-controlled
+egress. The agent-workspace fixture proves workspace identity, stable-only
+agent conventions, and default-deny content handling.
+
+The repository check parses the contract and every fixture. It rejects missing
+identity, signals, propagation, required runtime coverage, transport drift,
+out-of-range sampling and batching, unknown convention families, duplicate
+allowlist entries, prohibited security attributes, forbidden metric
+attributes, and budgets above the platform limits. Negative cases live in the
+validator tests rather than a second rejection list in each fixture.
+
+## Alternatives
+
+A backend-specific contract would make PostHog configuration easy to generate,
+but it would couple instrumentation to the current store. Keeping OTLP and the
+record vocabulary stable lets a project change backend or insert a Collector
+without replacing its application spans and metrics.
+
+Requiring a Collector everywhere would centralize policy. It would also add an
+always-on service to small Workers that already have one destination and a
+working bounded direct-export path. The conditional rule keeps the control
+where it is needed.
+
+Allowing every upstream convention regardless of stability would cover agent
+telemetry sooner. It would also make generated projects inherit migrations as
+those fields change. Stable-only is deliberately conservative. A project can
+adopt an unstable group through a scoped ADR when its value exceeds that cost.
+
+## Consequences
+
+The project-profile resolver can now turn the telemetry capability into
+resource attributes, transport, security rules, span-and-log attributes,
+metric dimensions, checks, and finite runtime budgets without knowing the
+eventual backend. Copier can generate one of four tested runtime shapes rather
+than an unbounded observability template.
+
+The contract is stricter than the existing shared TypeScript package. That
+package still needs a later reconciliation change before it can claim version
+1 conformance, especially for complete resource identity, baggage, metrics,
+and default-deny attributes. The fixtures describe the target; they do not
+pretend that every adopter already meets it.
+
+Stable-only conventions delay richer agent and generative-AI records. Direct
+Worker export can lose telemetry when its deferred flush is cut short. The
+bounded failure mode protects application traffic, so operators must keep a
+runtime-native fallback and test exporter health separately.

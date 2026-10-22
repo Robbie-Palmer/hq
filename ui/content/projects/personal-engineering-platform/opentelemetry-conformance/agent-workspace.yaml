@@ -1,0 +1,40 @@
+schema_version: 1
+fixture: "agent-workspace"
+runtime: "agent-workspace"
+resource:
+  service.namespace: "agent-friendly-remote-development"
+  service.name: "t3-code"
+  service.version: "git:0123456789abcdef"
+  service.instance.id: "workspace-01.t3-code.pod-01"
+  deployment.environment.name: "production"
+  me.robbiepalmer.project.id: "agent-friendly-remote-development"
+  me.robbiepalmer.workspace.id: "workspace-01"
+instance_strategy: "addressable-runtime"
+signals: ["traces", "metrics", "logs"]
+profiles_enabled: false
+propagators: ["tracecontext", "baggage"]
+transport:
+  protocol: "http/protobuf"
+  route: "collector"
+semantic_domains: ["cicd", "agent", "generative-ai"]
+sampling:
+  sampler: "parentbased_traceidratio"
+  ratio: 0.1
+batching:
+  max_queue_size: 1024
+  max_export_batch_size: 256
+  schedule_delay_ms: 2000
+  export_timeout_ms: 10000
+cardinality:
+  max_active_instances: 20
+  max_metric_series_per_instrument: 1000
+  max_span_name_templates: 100
+attribute_allowlist:
+  span_and_log_attributes:
+    - "error.type"
+  metric_dimensions:
+    - "error.type"
+assertions:
+  - "Release-candidate and development CI/CD, agent, and generative-AI fields are not emitted."
+  - "The collector drops prompt, response, source, diff, terminal, path, and environment content."
+  - "Workspace identity is a resource and baggage value, never a metric dimension."

@@ -42,7 +42,7 @@ static document. FAO's database terms also warn that some records may have third
 so a source cannot be admitted merely because a connector can parse it.
 
 Cooking Calculator helped expose this need but is not an upstream source for the catalog. As of this
-decision it has no documented public API, and its data-source page explicitly asks consumers not to
+decision, it has no documented public API, and its data-source page explicitly asks consumers not to
 scrape the site and to consult the original references.
 
 The source sync needs durable execution too. A release import spans unreliable upstream requests,
@@ -89,7 +89,7 @@ one Postgres transaction.
 
 This executor fits API calls and source files that can be streamed or processed in bounded chunks
 within Workers limits. A connector must not buffer a large upstream archive in memory. Revisit the
-executor if a useful source can only be imported through CPU-heavy processing or a full release too
+executor if a useful source can only be imported through CPU-heavy processing or a full release is too
 large to stream and batch in a Worker.
 
 ## Separate acquisition, selection, and calculation

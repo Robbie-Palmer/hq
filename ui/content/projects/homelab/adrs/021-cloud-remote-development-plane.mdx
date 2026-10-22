@@ -166,7 +166,7 @@ Expose no t3-code, K3s API, or management port to the public internet.
 Tailscale is the application access path. The Hetzner firewall may allow the
 Tailscale UDP transport port, but that does not expose the workload itself.
 
-First installation is deliberately two-stage:
+The first installation is deliberately two-stage:
 
 1. Terraform creates the host with SSH limited to explicit bootstrap CIDRs.
 2. An operator installs the NixOS flake and supplies a one-time, tagged,
@@ -290,7 +290,7 @@ Keep this ADR Proposed until the following outage exercise succeeds:
 3. Start an agent, change a repository, and push a branch or pull request.
 4. Reboot the VPS and verify its volume, Tailscale, K3s, t3-code, and agent
    authentication recover.
-5. Replace the VPS from Terraform and the NixOS flake, restore required state,
+5. Replace the VPS from Terraform and the NixOS flake, restore the required state,
    and repeat the agent workflow without depending on the home network.
 
 Accept the ADR after the workflow succeeds and the restore procedure has a

@@ -1,0 +1,60 @@
+name: Personal Finance Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/personal-finance/**"
+      - ".github/workflows/personal-finance-infra-ci.yml"
+
+permissions: {}
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+    environment:
+      name: production-personal-finance-plan
+    defaults:
+      run:
+        working-directory: infra/personal-finance
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check Terraform formatting
+        run: mise run //infra/personal-finance:format:check
+
+      - name: Validate Terraform without credentials
+        run: mise run //infra/personal-finance:validate
+
+      - name: Test the empty delivery baseline
+        run: mise run //infra/personal-finance:test
+
+      - name: Lint Terraform
+        run: mise run //infra/personal-finance:lint:tflint
+
+      - name: Scan Terraform configuration
+        run: mise run //infra/personal-finance:security:scan
+
+      - name: Terraform plan with plan credentials
+        run: mise run //infra/personal-finance:plan
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Add Terraform plan to PR comment
+        uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
+        with:
+          token: ${{ github.token }}
+          planfile: .planfile
+          working-directory: ./infra/personal-finance
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile

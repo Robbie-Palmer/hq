@@ -1,0 +1,199 @@
+schema_version: 1
+contract: "opentelemetry"
+
+signals:
+  required: ["traces", "metrics", "logs"]
+  deferred: ["profiles"]
+
+resource_identity:
+  required:
+    - "service.namespace"
+    - "service.name"
+    - "service.version"
+    - "deployment.environment.name"
+    - "me.robbiepalmer.project.id"
+  instance:
+    attribute: "service.instance.id"
+    required_when: "The runtime exposes an addressable process, container, pod, or host instance."
+    opaque_runtime: "Omit the attribute rather than inventing a request ID or deployment ID."
+  workspace:
+    attribute: "me.robbiepalmer.workspace.id"
+    required_when: "Telemetry belongs to an agent or development workspace."
+
+propagation:
+  propagators: ["tracecontext", "baggage"]
+  trust_boundary: "Clear unapproved baggage before calling an untrusted process or external service."
+  baggage_allowlist:
+    - "me.robbiepalmer.project.id"
+    - "me.robbiepalmer.workspace.id"
+
+transport:
+  default_protocol: "http/protobuf"
+  runtime_defaults:
+    typescript-worker:
+      protocol: "http/protobuf"
+      route: "direct"
+    python-service:
+      protocol: "grpc"
+      route: "collector"
+    kubernetes-workload:
+      protocol: "grpc"
+      route: "collector"
+    agent-workspace:
+      protocol: "http/protobuf"
+      route: "collector"
+  collector_required_when:
+    - "Telemetry needs central redaction or attribute transformation."
+    - "Telemetry fans out to more than one backend."
+    - "The runtime cannot hold the backend credential."
+    - "The route needs protocol translation, tail sampling, or a persistent queue."
+    - "A cluster or host needs one controlled telemetry egress point."
+  direct_export_allowed_when:
+    - "There is one destination and no protocol translation."
+    - "The SDK can apply the complete allowlist and redaction policy."
+    - "The runtime can bound queue, retry, timeout, and shutdown behavior."
+    - "The project accepts telemetry loss during runtime or backend failure."
+
+semantic_conventions:
+  policy: "stable-only"
+  domains:
+    - "http"
+    - "faas"
+    - "database"
+    - "messaging"
+    - "object-storage"
+    - "cicd"
+    - "agent"
+    - "generative-ai"
+  unstable_opt_in:
+    allowed: false
+    rule: "A later ADR must pin the convention version, data boundary, migration plan, and removal trigger."
+  custom_namespace: "me.robbiepalmer"
+
+data_policy:
+  mode: "default-deny"
+  enforcement_surfaces:
+    - "resource-attributes"
+    - "span-attributes"
+    - "span-events"
+    - "log-attributes"
+    - "log-body"
+    - "metric-attributes"
+    - "baggage"
+  prohibited_attribute_keys:
+    exact:
+      - "app.installation.id"
+      - "db.query.text"
+      - "device.id"
+      - "enduser.id"
+      - "enduser.pseudo.id"
+      - "gen_ai.completion"
+      - "gen_ai.input.messages"
+      - "gen_ai.output.messages"
+      - "gen_ai.prompt"
+      - "gen_ai.system_instructions"
+      - "gen_ai.tool.call.arguments"
+      - "gen_ai.tool.call.result"
+      - "gen_ai.tool.definitions"
+      - "http.request.header.authorization"
+      - "http.request.header.cookie"
+      - "http.request.header.proxy-authorization"
+      - "http.response.header.set-cookie"
+      - "messaging.message.body"
+      - "process.command_args"
+      - "session.id"
+      - "session.previous_id"
+      - "url.full"
+      - "url.original"
+      - "url.path"
+      - "url.query"
+      - "user.id"
+    prefixes:
+      - "db.operation.parameter."
+      - "db.query.parameter."
+      - "env."
+      - "process.environment_variable."
+  prohibited_content_classes:
+    - "credential"
+    - "authorization-header"
+    - "cookie"
+    - "environment-variable"
+    - "prompt"
+    - "model-response"
+    - "tool-arguments"
+    - "tool-result"
+    - "source-content"
+    - "diff"
+    - "terminal-output"
+    - "database-statement"
+    - "database-bind-value"
+    - "message-body"
+    - "user-data-object-key"
+    - "personal-identifier"
+    - "raw-url-path"
+    - "raw-url-query-string"
+  redaction: "deterministic-only"
+  unsafe_record_action: "drop"
+
+cardinality:
+  max_metric_series_per_instrument: 2000
+  max_attribute_count_per_record: 128
+  max_attribute_value_length: 4096
+  max_span_name_templates_per_service: 100
+  metric_attribute_value_classes:
+    low: 20
+    bounded: 200
+  forbidden_metric_attributes:
+    - "user.id"
+    - "session.id"
+    - "trace_id"
+    - "span_id"
+    - "request.id"
+    - "url.full"
+    - "db.query.text"
+    - "messaging.message.id"
+    - "gen_ai.conversation.id"
+    - "cicd.pipeline.run.id"
+    - "me.robbiepalmer.workspace.id"
+
+processing:
+  sampling:
+    sampler: "parentbased_traceidratio"
+    development_ratio: 1
+    production_ratio: 0.1
+    project_override_range: [0, 1]
+  batching:
+    required: true
+    max_queue_size: 2048
+    max_export_batch_size: 512
+    schedule_delay_ms: 5000
+    export_timeout_ms: 30000
+  retry:
+    transient_only: true
+    exponential_backoff: true
+    jitter: true
+    honor_retry_after: true
+    bounded_by_queue: true
+  failure_mode: "fail-open"
+
+time:
+  duration_clock: "monotonic"
+  timestamp_clock: "runtime wall clock synchronized by the host or provider"
+  max_observed_skew_seconds: 5
+  rewrite_timestamps_in_collector: false
+
+errors:
+  success_span_status: "unset"
+  failure_span_status: "error"
+  type_attribute: "error.type"
+  record_unhandled_exception_once: true
+  record_handled_exception_as_error: false
+  messages_and_stacks_follow_data_policy: true
+
+conformance:
+  fixture_directory: "opentelemetry-conformance"
+  required_runtimes:
+    - "typescript-worker"
+    - "python-service"
+    - "kubernetes-workload"
+    - "agent-workspace"

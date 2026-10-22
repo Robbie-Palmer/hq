@@ -1,0 +1,83 @@
+schema_version: 1
+
+project:
+  id: "personal-finance-app"
+  name: "Personal Finance App"
+  kind: "application"
+
+components:
+  - id: "web"
+    name: "Asset Tracker"
+    kind: "project-ui"
+    mount_path: "/assettracker"
+  - id: "finance-housing-indices"
+    name: "Finance housing indices"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "format"
+        reason: "Repository-wide formatting covers this package."
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "build"
+        reason: "The package exposes TypeScript source directly and has no build artifact."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+  - id: "finance-inflation-indices"
+    name: "Finance inflation indices"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "format"
+        reason: "Repository-wide formatting covers this package."
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+  - id: "finance-tax-rules"
+    name: "Finance tax rules"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "format"
+        reason: "Repository-wide formatting covers this package."
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+  - id: "planning-case-domain"
+    name: "Planning case domain"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "build"
+        reason: "The package exposes TypeScript source directly and has no build artifact."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+  - id: "personal-finance"
+    name: "Personal Finance infrastructure"
+    kind: "terraform-root"
+    task_exceptions:
+      - task: "install"
+        reason: "Terraform initialization remains an explicit environment-aware task."
+      - task: "typecheck-or-compile"
+        reason: "Terraform validation and linting replace compilation."
+      - task: "build"
+        reason: "The empty delivery baseline has no build artifact."
+      - task: "clean"
+        reason: "Terraform working data is ephemeral or operator-managed."
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

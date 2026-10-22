@@ -3,6 +3,8 @@ import {
   base64UrlEncode,
   compareStrings,
   isNonBlankString,
+  LOWERCASE_KEBAB_CASE_PATTERN,
+  normalizeSlug,
   normalizeWhitespace,
   primitiveString,
   truncateWithEllipsis,
@@ -33,6 +35,15 @@ describe("string helpers", () => {
     expect(compareStrings("b", "a")).toBe(1);
     expect(compareStrings("a", "a")).toBe(0);
     expect(compareStrings("Z", "a")).toBe(-1);
+  });
+
+  it("normalizes display names to lowercase kebab-case slugs", () => {
+    expect(normalizeSlug("  C++ / OpenAPI.Schema  ")).toBe(
+      "cplusplus-openapidotschema",
+    );
+    expect(normalizeSlug("")).toBe("");
+    expect(LOWERCASE_KEBAB_CASE_PATTERN.test("openapi-schema")).toBe(true);
+    expect(LOWERCASE_KEBAB_CASE_PATTERN.test("OpenAPI_Schema")).toBe(false);
   });
 
   it("normalizes whitespace and truncates to an exact bound", () => {

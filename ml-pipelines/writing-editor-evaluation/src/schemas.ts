@@ -21,6 +21,11 @@ const ArtifactIdSchema = z.string().regex(
   "must be a lowercase path-safe ID",
 );
 const GitCommitSchema = z.string().regex(/^[a-f0-9]{40}$/, "must be a full Git commit hash");
+const ContentSnapshotRevisionSchema = z.string().regex(
+  /^worktree:[a-f0-9]{64}$/,
+  "must identify a content-addressed worktree snapshot",
+);
+const RevisionSchema = z.union([GitCommitSchema, ContentSnapshotRevisionSchema]);
 const RepositoryPathSchema = z.string().min(1).superRefine((value, context) => {
   const segments = value.split("/");
   if (
@@ -65,7 +70,7 @@ export const CorpusSourceManifestSchema = z.object({
 export type CorpusSourceManifest = z.infer<typeof CorpusSourceManifestSchema>;
 
 export const ExtractedRevisionSchema = z.object({
-  revision: GitCommitSchema,
+  revision: RevisionSchema,
   committedAt: z.iso.datetime({ offset: true }),
   contentHash: ContentHashSchema,
   bytes: z.number().int().nonnegative(),
@@ -517,10 +522,10 @@ export const GectorProducerRunSchema = z.object({
     manifestContentHash: ContentHashSchema,
   }).strict(),
   runtime: z.object({
-    pythonVersion: z.literal("3.12.12"),
-    torchVersion: z.literal("2.11.0+cu128"),
+    pythonVersion: z.literal("3.14.7"),
+    torchVersion: z.literal("2.13.0+cu126"),
     transformersVersion: z.literal("5.17.0"),
-    cudaVersion: z.literal("12.8"),
+    cudaVersion: z.literal("12.6"),
     device: z.literal("cuda"),
     computeCapability: z.string().regex(/^\d+\.\d+$/),
     lockContentHash: ContentHashSchema,

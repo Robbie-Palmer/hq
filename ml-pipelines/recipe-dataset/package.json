@@ -4,6 +4,12 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@cooklang/cooklang": "catalog:"
+    "@cooklang/cooklang": "catalog:",
+    "cheerio": "^1.2.0",
+    "recipe-parsing": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.23.12"
   }
 }

@@ -1,0 +1,255 @@
+---
+title: "Personal Digital Infrastructure"
+description: "A controlled, portable home for personal accounts, communications, documents, photos, and recovery across every device and agent"
+date: "2026-10-18"
+status: "in_progress"
+initiatives:
+  - "digital-twins-for-everyday-life"
+tech_stack:
+  - "Ente"
+  - "Dashlane"
+  - "Doppler"
+  - "Filen"
+  - "Proton Pass"
+  - "Proton Mail"
+  - "Cloudflare Email Routing"
+---
+
+# Vision
+
+Keep the practical parts of my digital life available across Ubuntu, macOS,
+Android, browsers, terminals, and supervised agents without leaving the only
+usable copy inside one provider.
+
+This project owns the choices that cut across individual devices and services:
+where personal records live, how people and agents authenticate, how a custom
+domain reaches a mailbox, what can be recovered after losing every usual
+device, and how much the combined service portfolio costs. Capability and
+availability matter more than avoiding every GUI. A reliable GUI remains a
+valid interface when an API or CLI would make the service worse.
+
+# Why this is a separate project
+
+The [Home Lab](/projects/homelab) operates machines, local disks, scheduled
+backup jobs, VPN gateways, and monitoring. This project decides what the
+personal data and account systems must provide. A cloud document library still
+matters while the Mac mini is offline. A password manager still has to work on
+a new phone before the home network is restored.
+
+[Inbox Signal](/projects/inbox-signal) consumes mailboxes and manages the
+messages inside them. This project chooses the durable address, mailbox
+provider, alias policy, recovery path, and provider exit. Changing mail hosts
+should not require redesigning Inbox Signal.
+
+The boundary is deliberate:
+
+| Concern                                                                 | Owner                           |
+| ----------------------------------------------------------------------- | ------------------------------- |
+| Provider choice, access policy, portability, recovery, and annual cost  | Personal Digital Infrastructure |
+| Local copies, restic jobs, B2 repositories, VPN routing, and monitoring | Home Lab                        |
+| Mail classification, extraction, review, and controlled mailbox actions | Inbox Signal                    |
+
+# Current state
+
+* Ente Photos is the source of truth for photos and stores them across three
+  cloud providers. The Home Lab keeps a local export. This setup is not under
+  replacement review.
+* Personal documents from old computers and storage devices are being
+  deduplicated on one external hard drive. Google Drive and OneDrive still hold
+  historical fragments.
+* Proton Pass is the selected primary password manager. Its production import,
+  Android and browser autofill, Ubuntu desktop access, encrypted export, and
+  two-account shared vault have passed. Dashlane remains available only during
+  the rollback and recovery-check period, and its Hotspot Shield benefit still
+  supplies the current consumer VPN. Live TOTP codes remain in Authy and Google
+  Authenticator until a separate migration is verified.
+* Doppler works well for software and agent secrets, but it is not a personal
+  password manager.
+* Cloudflare manages the custom domain. Proton is available as a new, mostly
+  empty mailbox.
+
+# Requirements
+
+The portfolio should:
+
+* work on Ubuntu, macOS, Android, and ordinary browsers;
+* preserve the excellent autofill experience already observed with Dashlane;
+* let a supervised agent reach account credentials through a browser, GUI, or
+  CLI, with quick rotation when one is exposed;
+* offer repeatable imports, exports, checks, and recovery without requiring a
+  long sequence of web settings;
+* keep at least one independent copy of irreplaceable data;
+* support mobile access for documents and recovery material;
+* give each partner a private password vault and independent recovery while
+  keeping household logins in explicitly shared vaults;
+* use the custom domain without making the domain registrar the mailbox; and
+* record renewal prices and exit steps before a trial becomes a migration.
+
+# Credential model
+
+The password manager is canonical for passwords, passkeys, recovery codes, and
+interactive logins. Doppler is canonical for scoped API tokens, service
+accounts, deployment secrets, and job configuration.
+
+Store each credential according to its type. One account may have its
+interactive login in the password manager and a restricted automation token in
+Doppler. If the service only supports one interactive password, an agent may
+retrieve it through the password manager's browser, GUI, or CLI flow. A
+dedicated vault is optional. Do not copy the same password into Doppler just to
+make it available to an agent.
+
+[ADR 004](/projects/personal-digital-infrastructure/adrs/004-proton-pass-primary-password-manager)
+makes Proton Pass canonical after production import, autofill, sharing, desktop
+access, and encrypted export passed. Dashlane stays available only until the
+remaining recovery and device checks allow its safe removal. Proton rejected
+CLI access because the account is on Free. The paid CLI path remains untested,
+so supervised GUI retrieval is the current agent path.
+
+# Email and domain boundary
+
+Cloudflare Email Routing can forward inbound mail for the custom domain to the
+free Proton mailbox. That is enough while sending from an `@proton.me` address
+is acceptable. It does not turn free Proton into a custom-domain mailbox.
+Sending and replying normally as the custom domain still needs paid mailbox
+hosting or a separately operated SMTP workflow. Proton Pass Plus offers a
+middle option: custom-domain aliases can forward into Proton and initiate mail
+through the alias. That can preserve an address without providing a full
+custom-domain mailbox.
+
+[ADR 002](/projects/personal-digital-infrastructure/adrs/002-cloudflare-routed-proton-mail)
+starts with the free inbound route. Paying for Proton Mail becomes justified
+only when custom-domain outbound mail, Bridge access, or Proton's mailbox
+features solve an observed need.
+
+# Cost and capability
+
+These are public USD and EUR price observations from 18 and 20 October 2026,
+before country-specific tax. The Dashlane baseline is the $57.10 renewal quoted
+for 19 July 2026 rather than a public example price.
+
+| Portfolio                            | Recurring price used for comparison | Change from the current baseline | Capability change                                                                                                                                                                                                                        |
+| ------------------------------------ | ----------------------------------: | -------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dashlane Premium with Hotspot Shield |                         $57.10/year |                         baseline | Proven autofill and consumer VPN; no personal CLI or configurable VPN profiles                                                                                                                                                           |
+| Keep Dashlane and add Filen 200 GB   |        $57.10/year plus €23.88/year |                 plus €23.88/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                                              |
+| Proton Pass Plus and Proton VPN Plus |             $119.76/year at renewal |                 plus $62.66/year | Adds unlimited integrated TOTP, password CLI, agent vault tokens, custom-domain aliases, alias sending, Linux VPN control, WireGuard profiles, Gluetun support, and port forwarding; does not add paid Mail or substantial Drive storage |
+| Proton Unlimited                     |             $119.88/year at renewal |                 plus $62.78/year | Adds the same paid Pass and VPN, plus 500 GB shared Drive storage, paid Mail, three custom email domains, and Calendar                                                                                                                   |
+
+For a partner, the password-only comparison is simpler:
+
+| Option                     | Annual price used for comparison | Accounts | Household trade-off                                                                               |
+| -------------------------- | -------------------------------: | -------: | ------------------------------------------------------------------------------------------------- |
+| Current Dashlane Premium   |                           $57.10 |        1 | Proven autofill and Hotspot Shield for one person                                                 |
+| Dashlane Friends & Family  |                 $90 public value | Up to 10 | Private vaults and secure sharing for every member; only the plan manager receives Hotspot Shield |
+| Two Proton Pass Plus plans |                           $71.76 |        2 | Two paid accounts without family administration                                                   |
+| Proton Pass Family         |                           $59.88 |  Up to 6 | Six Plus accounts, private vaults, shared vaults, and family administration                       |
+| Unlimited plus Pass Plus   |                          $155.76 |        2 | Full Proton suite for one person and paid Pass for the other                                      |
+| Proton Duo                 |                          $179.88 |        2 | Full paid Mail, Drive, Calendar, Pass, and VPN for both people, with 2 TB of shared storage       |
+
+Pass Family is the clear paid two-person option if Proton wins the usability
+trial. It costs $11.88 less than two Plus subscriptions and only $2.78 more
+than the current one-person Dashlane renewal. A second Proton Free account can
+join a shared test vault first, so the partner trial does not require a purchase.
+Both people keep private vaults. Shared household credentials move into a
+dedicated shared vault, and neither partner sees the other's whole account.
+Free Pass displays codes for the first three 2FA items. A paid plan removes that
+limit, so integrated TOTP is a real benefit for the existing Authy and Google
+Authenticator estate. The separate Proton Authenticator app remains free and
+keeps passwords and TOTP seeds in different apps.
+
+The password manager is the partner's main benefit. Mail and Drive are extras,
+and the second VPN entitlement has no value for this comparison. That makes
+Pass Family the default paid household option, rather than Duo. If one person
+later needs the full Proton suite, Unlimited for that person plus Pass Plus for
+the partner costs $155.76 per year. Duo costs $24.12 more. Choose it only if the
+partner's Mail, Drive, Calendar, or additional shared storage proves worth that
+premium. Against Pass Family alone, Duo's suite extras cost another $120 per
+year.
+
+Dashlane Friends & Family remains a credible result if its proven autofill is
+better in daily use. Its $90 public value is only $30.12 more than Pass Family.
+That difference is small enough for usability and recovery quality to decide
+the password-manager choice.
+
+Pass Family is not a clean base for adding another paid Proton service later.
+Proton does not allow a member with Mail Plus, Drive Plus, Unlimited, Duo, or
+another paid Proton plan to join Pass Family. If one person needs Unlimited,
+use separate Unlimited and Pass Plus accounts, or compare that $155.76 pairing
+with Duo. Do not assume that Pass Family can remain as a paid add-on.
+
+For one person, separate Proton Pass Plus and VPN Plus cost twelve cents less
+per year at renewal than Unlimited. If both products pass their trials,
+Unlimited remains the rational individual purchase because it adds Drive and
+Mail for almost no extra renewal cost. This calculation does not choose the
+household password manager or make Duo the default.
+
+The introductory period tells a different story. Proton currently advertises
+VPN Plus at $83.76 for its first 24 months and Unlimited at $191.76 for its
+first 24 months. Adding two years of Pass Plus makes the separate products
+$155.52 for that period, $36.24 less than Unlimited. The bundle earns that
+difference only if Drive or paid Mail is useful during the first two years.
+
+The password-manager trial has now proved Android and browser autofill, Ubuntu
+desktop access, production import, encrypted export, and household sharing.
+That evidence selects Proton Pass independently of the VPN decision. Proton VPN
+must still prove its routing and failure behaviour before Hotspot Shield or the
+Dashlane subscription is cancelled.
+
+Sources:
+
+* [Dashlane Premium and its included VPN](https://www.dashlane.com/personal-pricing)
+* [Dashlane Friends & Family features](https://support.dashlane.com/hc/en-us/articles/360001166969-Compare-Dashlane-personal-plans)
+* [Dashlane's $90 Friends & Family public value](https://www.dashlane.com/uploads/2022/08/The-Employee-Guide-to-How-Password-Managers-Work-2026.pdf)
+* Dashlane renewal notice for $57.10 on 19 July 2026
+* [Proton Pass pricing and features](https://proton.me/pass/pricing)
+* [Proton Pass Family account and removal behaviour](https://proton.me/support/pass-family-user-guide)
+* [Proton Pass Family membership restrictions](https://proton.me/support/pass-family-add-user)
+* [Proton Duo pricing and account separation](https://proton.me/family)
+* [Proton VPN and Unlimited introductory and renewal prices](https://protonvpn.com/pricing)
+* [Filen plans](https://filen.io/pricing)
+
+# Working recommendation
+
+Do not buy Proton Unlimited to begin the evaluation. The first sequence is:
+
+1. Record the current document volume and any existing Google or Microsoft
+   storage charges. Use the confirmed $57.10 Dashlane renewal as the current
+   password-manager and VPN baseline.
+2. Finish the Proton Pass cutover using the two separate Free accounts already
+   tested. Keep each person's private items private and household logins in the
+   Shared vault. Complete recovery and remaining-device checks before cancelling
+   Dashlane. Move Google Authenticator codes into the free Proton Authenticator
+   app and re-enrol Authy accounts one at a time, with per-account verification.
+   Keep the Proton account's own TOTP outside Pass. If both people later need
+   unlimited integrated TOTP or other paid Pass features, choose Pass Family.
+   If only one person needs the wider Proton suite, compare Unlimited plus Pass
+   Plus with Duo. Pay Duo's $24.12 premium only if its partner-side extras have
+   demonstrated value.
+3. Trial Filen with a representative document set. Compare Proton Drive only
+   if Filen fails or the Proton bundle becomes justified by the password and
+   VPN results.
+4. Route custom-domain inbound mail through Cloudflare to free Proton. Keep
+   outbound mail on the Proton address at first. If Pass succeeds, compare its
+   custom-domain alias sending before buying mailbox hosting.
+5. Run the Home Lab's Proton VPN and Gluetun trial without cancelling
+   Dashlane.
+6. Choose the subscription portfolio from the trial evidence and renewal
+   prices. Avoid paying for Dashlane and a Proton bundle for a full overlapping
+   year.
+
+The provisional ceiling is $200-equivalent per year for the services under
+review: password manager, VPN, email, document cloud, and offsite document
+backup. The existing Ente photo system is not part of this replacement budget.
+Variable Backblaze B2 cost must use measured retained bytes rather than nominal
+disk capacity.
+
+# Recovery and exit
+
+Every adopted provider needs a documented export, a clean-device recovery
+test, and an independent recovery secret. [ADR
+003](/projects/personal-digital-infrastructure/adrs/003-ente-locker-recovery-packet)
+uses Ente Locker only as a mobile and trusted-contact copy of a small recovery
+packet. The canonical encrypted packet and minimum offline material remain
+recoverable without Ente.
+
+The project succeeds when losing a device, provider, subscription, or home
+server causes inconvenience rather than data loss or account lockout.

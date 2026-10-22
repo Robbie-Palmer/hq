@@ -9,3 +9,5 @@ out
 ui/node_modules
 ui/.next
 ui/out
+ml-pipelines/writing-editor-evaluation/data
+ml-pipelines/writing-editor-evaluation/outputs

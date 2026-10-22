@@ -1,0 +1,148 @@
+---
+title: "ADR 023: Restic and Backblaze B2 for the offsite non-photo archive"
+date: "2026-10-18"
+status: "Proposed"
+tech_stack: ["restic", "Backblaze B2"]
+---
+
+# Context
+
+Non-photo documents and other personal artifacts exist on a Linux laptop and
+on an external hard drive in the same home as the Mac mini. Much of the
+external-drive archive has no independent copy, so theft, fire, electrical
+damage, disk failure, ransomware, or an accidental deletion could destroy it.
+The laptop is also due to be wiped and rebuilt as a homelab build machine, so
+its remaining user data needs a final verified offload rather than an
+always-online backup schedule.
+
+Photos and code do not share this gap. Ente is the source of truth for photos,
+stores them across three cloud providers, and exports them to the external hard
+drive. GitHub and the machines that clone its repositories provide the working
+copies of code. This decision excludes both categories.
+
+A cloud drive answers synchronization and everyday access. It does not prove
+that an older independent copy can be restored after the working library is
+damaged. The lab needs a separate, encrypted, versioned, offsite backup with a
+routine that can be run and checked from the command line.
+
+# Decision
+
+Use [restic](https://restic.readthedocs.io/en/stable/) with a private
+[Backblaze B2](https://www.backblaze.com/cloud-storage) bucket for the
+non-photo, non-code personal archive. Restic
+[encrypts file content and metadata](https://restic.readthedocs.io/en/stable/070_encryption.html)
+before upload and
+[supports B2 through its S3-compatible API](https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html).
+B2 provides an independent provider, simple capacity pricing, and
+[Object Lock](https://www.backblaze.com/docs/cloud-storage-object-lock) for
+retention that an ordinary compromised client cannot immediately erase.
+
+The laptop pilot starts with its small `Documents` directory and proves
+credential separation, incremental backups, failure handling, and verified
+recovery. The final laptop run is a one-shot migration. It adds local mail,
+downloads, screenshots, browser and editor state, T3 and Codex data, and local
+credential stores while excluding caches, installed tools, and source
+repositories. It has no timer or stale-backup alert because the laptop is not
+an ongoing archive source.
+
+After the migration restore passes, copy the recovered files from B2 onto the
+10 TB external drive attached to the Mac mini. That drive becomes the local
+second copy. Add the existing external-drive archive as a separate source only
+after the B2 recovery and Object Lock tests pass.
+
+Each write credential gets only the access needed to write and check one
+repository prefix. Keep retention-changing and destructive maintenance
+credentials outside the backup configuration. Enable a short Object Lock
+retention period during the pilot and explicitly test how backup, stale-lock
+cleanup, `forget`, and `prune` behave before lengthening it. Retained old object
+versions increase cost and must not be mistaken for a failed cleanup.
+
+Manage the private bucket, its Object Lock capability, and its bucket policy in
+the independent `infra/personal-archive` Terraform root. The root uses the
+`personal-site-personal-archive` HCP Terraform workspace and protects the
+bucket from ordinary destroy plans. Object Lock is enabled at bucket creation
+without a default retention period so the pilot can test retention before it
+commits to a longer policy.
+
+Use the Backblaze administrative key only through an isolated B2 CLI bootstrap
+session. That session creates a narrow infrastructure key for Terraform and
+the bucket- and prefix-restricted workload keys after the bucket exists. Do
+not manage application keys with Terraform. The Backblaze provider returns a
+new application key's secret to Terraform, which would put scheduled and
+recovery credentials in Terraform state. Keep those credentials in Doppler or
+the independent recovery material instead.
+
+Store the restic password and the one-shot B2 write key in Doppler while the
+migration runs. Store the read-only recovery key and restic password in the
+password manager, then back up that recovery material to an encrypted USB drive
+outside the house. Losing the password makes the backup unrecoverable.
+
+Create a separate B2 application key limited to read access for this repository
+and keep it with the independent recovery material. The recovery drill must use
+that key and the independent restic password without access to Doppler or the
+source host. If Backblaze changes how application keys work, document and test
+the account-recovery and key-issuance path before retiring the stored key.
+
+Accept the decision only after it passes:
+
+* an initial full backup and a second incremental backup;
+* a controlled backup failure and retirement of the pilot-only stale alert;
+* restoration of random files and a complete representative directory into a
+  clean temporary location;
+* checksum comparison between source and restore;
+* a recovery drill using the independent credential copy;
+* a verified copy on the Mac mini's 10 TB external drive; and
+* a documented estimate based on actual stored bytes and retained versions.
+
+Backblaze currently lists B2 at
+[$6.95 per TB per month](https://www.backblaze.com/cloud-storage/pricing), with
+the first 10 GB free, free uploads and transactions, and free egress up to three
+times average monthly storage. Egress above that allowance costs $0.01 per GB.
+A new bucket's average begins near zero, so an early recovery drill may reach a
+configured daily download cap before the allowance catches up. Usage counters
+reset at 00:00 GMT. A normal full restore should eventually fit within the
+allowance, but repeated full restores in one billing month may cost extra. At
+the storage rate, 200 GB is about $1.39 per month, 500 GB about $3.48, and 1 TB
+$6.95 before retained-version growth.
+
+# Alternatives
+
+## Cloudflare R2
+
+R2 is already used by projects and costs
+[$0.015 per GB-month](https://developers.cloudflare.com/r2/pricing/) in its
+standard tier with no egress charge. At 1 TB it is roughly $15 per month, more
+than twice B2's storage price. R2 does not currently expose bucket versioning
+or Object Lock through its S3-compatible API, but it does provide
+[bucket locks](https://developers.cloudflare.com/r2/buckets/bucket-locks/)
+through its dashboard, Wrangler, and API. B2 remains the pilot choice because
+it provides an independent failure domain at less than half the storage price,
+not because R2 lacks a retention control.
+
+## The working document library as the only offsite copy
+
+The synchronized library selected by the
+[Personal Digital Infrastructure](/projects/personal-digital-infrastructure)
+project will improve availability but remains a user-facing working copy. A
+mistaken deletion, account lockout, or provider problem can affect the same
+system used every day. It complements this backup rather than replacing it.
+
+## A friend's tailnet node
+
+A trusted offsite machine avoids another storage subscription and can run
+restic's append-only server mode. It adds another person's power, broadband,
+hardware, and physical access to the recovery path. Reconsider it as a second
+offsite target after the cloud recovery drill works.
+
+# Consequences
+
+The non-photo archive gains an independent copy outside the home, encrypted
+before it leaves each source host, with predictable command-line operations
+and tested restoration. Photos and code remain outside this backup because
+their existing distribution is already acceptable.
+
+The lab must protect another recovery secret and pay for retained bytes. The
+laptop migration needs no recurring monitor, but a future Mac mini backup of
+the external archive will need its own schedule and failure reporting. Object
+Lock also makes mistakes deliberately slower to undo, so retention changes and
+pruning need more care than an ordinary bucket.

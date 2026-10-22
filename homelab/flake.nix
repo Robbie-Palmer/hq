@@ -22,17 +22,76 @@
       nixos-anywhere,
       nixpkgs,
     }:
+    let
+      supportedSystems = [
+        "x86_64-linux"
+        "aarch64-linux"
+        "x86_64-darwin"
+        "aarch64-darwin"
+      ];
+      forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
+      pkgsFor = system: import nixpkgs { inherit system; };
+    in
     {
+      lib.flakeContract = {
+        version = 1;
+        inherit supportedSystems;
+        lockOwner = "homelab";
+      };
+
+      devShells = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        {
+          default = pkgs.mkShellNoCC {
+            packages = [ pkgs.nixfmt-rfc-style ];
+          };
+        }
+      );
+
+      checks = forAllSystems (
+        system:
+        let
+          pkgs = pkgsFor system;
+        in
+        {
+          flake-contract =
+            assert self.lib.flakeContract.version == 1;
+            assert builtins.elem system self.lib.flakeContract.supportedSystems;
+            assert builtins.hasAttr system self.devShells;
+            assert self.devShells.${system} ? default;
+            assert builtins.hasAttr system self.formatter;
+            assert builtins.hasAttr "configuration-revision" self.nixosModules;
+            assert self.nixosConfigurations ? asus-desktop;
+            assert self.nixosConfigurations ? remote-development;
+            pkgs.runCommand "homelab-flake-contract-v1" { } ''
+              test ${toString self.lib.flakeContract.version} = 1
+              touch "$out"
+            '';
+        }
+      );
+
+      formatter = forAllSystems (system: (pkgsFor system).nixfmt-rfc-style);
+
       packages.x86_64-linux.nixos-anywhere = nixos-anywhere.packages.x86_64-linux.default;
+
+      apps.x86_64-linux.nixos-anywhere = {
+        type = "app";
+        program = "${self.packages.x86_64-linux.nixos-anywhere}/bin/nixos-anywhere";
+        meta.description = "Install a NixOS configuration on a remote host";
+      };
+
+      nixosModules.configuration-revision = {
+        system.configurationRevision = if self ? rev then self.rev else self.dirtyRev or null;
+      };
 
       nixosConfigurations.asus-desktop = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
           ./hosts/asus-desktop
-          {
-            system.configurationRevision =
-              if self ? rev then self.rev else self.dirtyRev or null;
-          }
+          self.nixosModules.configuration-revision
         ];
       };
 
@@ -41,10 +100,7 @@
         modules = [
           disko.nixosModules.disko
           ./hosts/remote-development
-          {
-            system.configurationRevision =
-              if self ? rev then self.rev else self.dirtyRev or null;
-          }
+          self.nixosModules.configuration-revision
         ];
       };
     };

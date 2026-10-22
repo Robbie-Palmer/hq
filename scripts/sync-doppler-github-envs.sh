@@ -46,6 +46,13 @@ load_config_entries() {
             or .key == "DOPPLER_SERVICE_TOKEN"
           )
         )
+        or (
+          (
+            $config == "ops_account_foundation_plan"
+            or $config == "ops_account_foundation"
+          )
+          and .key == "DOPPLER_TOKEN"
+        )
       ))
     | map({
         name: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
@@ -173,6 +180,14 @@ known_environments=(
   preview-agent-access
   preview-recipe-api
   preview-site-ui
+  production-account-foundation
+  production-account-foundation-plan
+  production-cloudflare-access
+  production-cloudflare-access-drift
+  production-cloudflare-access-plan
+  production-personal-finance
+  production-personal-finance-drift
+  production-personal-finance-plan
   production-recipe-api
   production-recipe-ingest
   production-site-ui
@@ -200,6 +215,14 @@ done
 sync_requested_env preview-agent-access ops_preview_agent_access
 sync_requested_env preview-recipe-api stg_recipe_api stg_pages_env
 sync_requested_env preview-site-ui stg_site_ui stg_pages_env
+sync_requested_env production-account-foundation ops_account_foundation
+sync_requested_env production-account-foundation-plan ops_account_foundation_plan
+sync_requested_env production-cloudflare-access cloudflare-access/ops_apply
+sync_requested_env production-cloudflare-access-drift cloudflare-access/ops_drift
+sync_requested_env production-cloudflare-access-plan cloudflare-access/ops_plan
+sync_requested_env production-personal-finance personal-finance/apply
+sync_requested_env production-personal-finance-drift personal-finance/drift
+sync_requested_env production-personal-finance-plan personal-finance/ops
 sync_requested_env production-recipe-api prd_recipe_api prd_site_ui prd_pages_env
 sync_requested_env production-recipe-ingest prd_recipe_ingest prd_site_ui prd_pages_env
 sync_requested_env production-site-ui prd_site_ui prd_pages_env

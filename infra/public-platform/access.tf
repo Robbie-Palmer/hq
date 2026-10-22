@@ -1,65 +1,34 @@
-# Cloudflare Pages creates the preview Access application when preview
-# protection is enabled in the dashboard. Terraform owns that application
-# after the one-time import documented in the preview environment runbook.
-resource "cloudflare_zero_trust_access_application" "pages_preview" {
-  account_id = var.cloudflare_account_id
-  name       = "${var.project_name} - Cloudflare Pages"
-  domain     = "*.${var.cf_pages_host}"
-  type       = "self_hosted"
-
-  allowed_idps              = [var.cloudflare_account_identity_provider_id]
-  auto_redirect_to_identity = true
-  session_duration          = "720h"
-
-  allow_authenticate_via_warp = false
-  app_launcher_visible        = true
-  enable_binding_cookie       = false
-  http_only_cookie_attribute  = true
-  options_preflight_bypass    = false
+# These resources moved to infra/cloudflare-access. Drop the old state entries
+# only after that root imports the live objects. destroy = false is the safety
+# boundary that prevents the public-platform apply from touching Access.
+removed {
+  from = cloudflare_zero_trust_access_policy.preview_qa_agents
 
   lifecycle {
-    prevent_destroy = true
+    destroy = false
   }
 }
 
-resource "cloudflare_zero_trust_access_service_token" "preview_qa_agents" {
-  account_id = var.cloudflare_account_id
-  name       = "personal-site-preview-qa-agents"
-  # Expiry renewal does not rotate the underlying secret. Keep the narrowly
-  # scoped identity stable and rotate its secret independently with overlap.
-  duration = "forever"
+removed {
+  from = cloudflare_zero_trust_access_application.pages_preview
 
   lifecycle {
-    create_before_destroy = true
+    destroy = false
   }
 }
 
-# Preview test requests pass through PR-controlled Pages Functions. Give the
-# workflow a separate identity whose secret is rotated before and after every
-# serialized run, so the long-lived coding-agent credential never reaches PR
-# code.
-resource "cloudflare_zero_trust_access_service_token" "preview_qa_workflow" {
-  account_id = var.cloudflare_account_id
-  name       = "personal-site-preview-qa-workflow"
-  duration   = "forever"
+removed {
+  from = cloudflare_zero_trust_access_service_token.preview_qa_agents
 
   lifecycle {
-    create_before_destroy = true
+    destroy = false
   }
 }
 
-resource "cloudflare_zero_trust_access_policy" "preview_qa_agents" {
-  account_id     = var.cloudflare_account_id
-  application_id = cloudflare_zero_trust_access_application.pages_preview.id
-  name           = "Coding agents and preview QA"
-  decision       = "non_identity"
-  # The existing human allow policy is precedence 1.
-  precedence = 2
+removed {
+  from = cloudflare_zero_trust_access_service_token.preview_qa_workflow
 
-  include {
-    service_token = [
-      cloudflare_zero_trust_access_service_token.preview_qa_agents.id,
-      cloudflare_zero_trust_access_service_token.preview_qa_workflow.id,
-    ]
+  lifecycle {
+    destroy = false
   }
 }

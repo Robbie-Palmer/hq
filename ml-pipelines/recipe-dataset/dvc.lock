@@ -42,12 +42,12 @@ stages:
       size: 1284
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 705dd95a24e71419b2c78b754412eebb
-      size: 653128
+      md5: 95d55711b47741e856de825d836ed449
+      size: 671847
     - path: ../../pnpm-workspace.yaml
       hash: md5
-      md5: 2ee9dbfda1befd2ee87f0ed86128194b
-      size: 4247
+      md5: 86f73c8dffb8a3bad017cdac0b3b3ff3
+      size: 4282
     - path: data/raw
       hash: md5
       md5: bbdbc5b73cad67fb0efa48c43c10f555.dir
@@ -55,8 +55,8 @@ stages:
       nfiles: 150
     - path: package.json
       hash: md5
-      md5: 5a9f9f579c7778a4590d1833f14b6956
-      size: 163
+      md5: 3daf3746756c5404f216e4104e1b696d
+      size: 296
     - path: snapshot.json
       hash: md5
       md5: 554e9df691a7d855470b8d4588299071
@@ -65,11 +65,23 @@ stages:
       hash: md5
       md5: 6fd915a96d4d9537a7a1154ac0f9bb0b
       size: 5080
+    - path: src/lib/extracted-recipe.mjs
+      hash: md5
+      md5: 2a598a038a071c725b1352b18f43f1ee
+      size: 9577
+    - path: src/lib/wprm.mjs
+      hash: md5
+      md5: 1b2d78b3e023cc363bbabd676eb3810e
+      size: 4819
     - path: src/stages/prepare.mjs
       hash: md5
-      md5: 94adf8ff06185f45655f1fdb48317e91
-      size: 24868
+      md5: 8ecfd00fbea9966d20826fab7c841bc4
+      size: 30948
     outs:
+    - path: outputs/extracted-recipes.jsonl
+      hash: md5
+      md5: ac2461ca68cb65b07a3e24aab5798991
+      size: 175979495
     - path: outputs/gutenberg-candidates.jsonl
       hash: md5
       md5: 9cf4dc8b1337c7a219c8edf04c97e1cd
@@ -80,15 +92,19 @@ stages:
       size: 14099848
     - path: outputs/recipes.jsonl
       hash: md5
-      md5: a81b7c9a00d084f17533a3836305af8b
-      size: 135766310
+      md5: 5590885a2b0629f40faed4c5d8c0a21f
+      size: 128559718
     - path: outputs/rejects.jsonl
       hash: md5
-      md5: fbc294451d8410d74024552b54300783
-      size: 145331
+      md5: 39d2eeae732bbca29688dd7b42264a06
+      size: 196908
   stats:
     cmd: node src/stages/stats.mjs
     deps:
+    - path: outputs/extracted-recipes.jsonl
+      hash: md5
+      md5: ac2461ca68cb65b07a3e24aab5798991
+      size: 175979495
     - path: outputs/gutenberg-candidates.jsonl
       hash: md5
       md5: 9cf4dc8b1337c7a219c8edf04c97e1cd
@@ -99,26 +115,126 @@ stages:
       size: 14099848
     - path: outputs/recipes.jsonl
       hash: md5
-      md5: a81b7c9a00d084f17533a3836305af8b
-      size: 135766310
+      md5: 5590885a2b0629f40faed4c5d8c0a21f
+      size: 128559718
     - path: outputs/rejects.jsonl
       hash: md5
-      md5: fbc294451d8410d74024552b54300783
-      size: 145331
+      md5: 39d2eeae732bbca29688dd7b42264a06
+      size: 196908
     - path: src/stages/stats.mjs
       hash: md5
-      md5: 588c6dba18f40a878f5c5972c723b836
-      size: 5213
+      md5: 0a964f92ffe409e53fe20ae669f5803a
+      size: 6512
     outs:
     - path: outputs/metrics.json
       hash: md5
-      md5: d1d2f26bd4f00a8fc36e6a83a6b0b9e0
-      size: 1258
+      md5: b9c503e27976b83271100b0755be0659
+      size: 1568
     - path: outputs/recipes-deduplicated.jsonl
       hash: md5
-      md5: 7f2cef765bf8b90a5b813e73dcc01bce
-      size: 88748069
+      md5: acada4cf5e8193d0223c5fa7995d38ca
+      size: 83009482
     - path: outputs/source-distribution.json
       hash: md5
       md5: 520ace6370c50c6f1ec2497cc210bb86
       size: 1100
+  adapt-product:
+    cmd: pnpm exec tsx src/stages/adapt-product.mjs
+    deps:
+    - path: ../../packages/recipe-domain/package.json
+      hash: md5
+      md5: b9410378e3714b867f899c3c31b99d7c
+      size: 1167
+    - path: ../../packages/recipe-domain/src
+      hash: md5
+      md5: 36f1774c649990e51be158e6837e806f.dir
+      size: 46947
+      nfiles: 17
+    - path: ../../packages/recipe-parsing/package.json
+      hash: md5
+      md5: bf4e57a04bfaf4b125450d3f01ce7e4d
+      size: 729
+    - path: ../../packages/recipe-parsing/src
+      hash: md5
+      md5: 9c1de309edd92f98226ec97debee49fb.dir
+      size: 155594
+      nfiles: 28
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 95d55711b47741e856de825d836ed449
+      size: 671847
+    - path: outputs/extracted-recipes.jsonl
+      hash: md5
+      md5: ac2461ca68cb65b07a3e24aab5798991
+      size: 175979495
+    - path: package.json
+      hash: md5
+      md5: 3daf3746756c5404f216e4104e1b696d
+      size: 296
+    - path: src/stages/adapt-product.mjs
+      hash: md5
+      md5: 74ea795f4b84d6b3fa75ea190404b2fa
+      size: 3188
+    outs:
+    - path: outputs/product-adapter-metrics.json
+      hash: md5
+      md5: b7febd59650db2128d4ef35c36e1f4eb
+      size: 766
+    - path: outputs/product-adapter-skips.jsonl
+      hash: md5
+      md5: d20d0a3aa1e5de4b2d07c491e13a7bbe
+      size: 13227109
+    - path: outputs/product-recipes.jsonl
+      hash: md5
+      md5: aacf01b036ac479d35de98887f8a64da
+      size: 364591772
+  canonicalize-product:
+    cmd: pnpm exec tsx src/stages/canonicalize-product.mjs
+    deps:
+    - path: ../../packages/recipe-domain/package.json
+      hash: md5
+      md5: b9410378e3714b867f899c3c31b99d7c
+      size: 1167
+    - path: ../../packages/recipe-domain/src
+      hash: md5
+      md5: 36f1774c649990e51be158e6837e806f.dir
+      size: 46947
+      nfiles: 17
+    - path: ../../packages/recipe-parsing/package.json
+      hash: md5
+      md5: bf4e57a04bfaf4b125450d3f01ce7e4d
+      size: 729
+    - path: ../../packages/recipe-parsing/src
+      hash: md5
+      md5: 9c1de309edd92f98226ec97debee49fb.dir
+      size: 155594
+      nfiles: 28
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 95d55711b47741e856de825d836ed449
+      size: 671847
+    - path: outputs/product-recipes.jsonl
+      hash: md5
+      md5: aacf01b036ac479d35de98887f8a64da
+      size: 364591772
+    - path: package.json
+      hash: md5
+      md5: 3daf3746756c5404f216e4104e1b696d
+      size: 296
+    - path: src/stages/canonicalize-product.mjs
+      hash: md5
+      md5: 2e9b77a5dd1e0ee10fb2ae11c23b256f
+      size: 6538
+    outs:
+    - path: outputs/product-canonicalization-decisions.jsonl
+      hash: md5
+      md5: 99990bf3ce5044284f086c5687dbed63
+      size: 26503298
+    - path: outputs/product-canonicalization-metrics.json
+      hash: md5
+      md5: 6aa4d8df75e567a1a181163ce5f211ae
+      size: 6801
+    - path: outputs/product-recipes-canonicalized.jsonl
+      hash: md5
+      md5: bf1292f18bbb2322d9669d0365631df3
+      size: 361349996

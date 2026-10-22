@@ -16,6 +16,15 @@ let equipmentItems = 0;
 let recipesWithEquipment = 0;
 let gutenbergCandidates = 0;
 let ingredientOnlyRecords = 0;
+let extractedRecipes = 0;
+let extractedCompleteRecipes = 0;
+let extractedIngredientOnlyRecipes = 0;
+let extractedWithEquipment = 0;
+let extractedWithTimers = 0;
+let extractedWithNutrition = 0;
+let extractedWithAuthors = 0;
+let extractedWithImages = 0;
+let extractedWithAlternateYields = 0;
 const seenSignatures = new Set();
 const canonicalBySignature = new Map();
 
@@ -78,6 +87,19 @@ for await (const line of createInterface({ input: createReadStream(`${outputs}/g
 for await (const line of createInterface({ input: createReadStream(`${outputs}/ingredient-only.jsonl`), crlfDelay: Infinity })) {
   if (line.trim()) ingredientOnlyRecords += 1;
 }
+for await (const line of createInterface({ input: createReadStream(`${outputs}/extracted-recipes.jsonl`), crlfDelay: Infinity })) {
+  if (!line.trim()) continue;
+  const recipe = JSON.parse(line);
+  extractedRecipes += 1;
+  if (recipe.completeness === "complete") extractedCompleteRecipes += 1;
+  if (recipe.completeness === "ingredients-only") extractedIngredientOnlyRecipes += 1;
+  if (recipe.equipment?.length) extractedWithEquipment += 1;
+  if (recipe.timers?.length) extractedWithTimers += 1;
+  if (recipe.metadata?.nutrition) extractedWithNutrition += 1;
+  if (recipe.metadata?.authors?.length) extractedWithAuthors += 1;
+  if (recipe.metadata?.images?.length) extractedWithImages += 1;
+  if (recipe.metadata?.yields?.length > 1) extractedWithAlternateYields += 1;
+}
 const duplicateTitles = [...titleCounts.values()].filter((count) => count > 1).length;
 const duplicateContent = [...signatureCounts.values()].filter((count) => count > 1).length;
 const cooklangAcceptedRecipes = [...bySource]
@@ -104,6 +126,15 @@ const metrics = {
   equipmentItems,
   gutenbergCandidates,
   ingredientOnlyRecords,
+  extractedRecipes,
+  extractedCompleteRecipes,
+  extractedIngredientOnlyRecipes,
+  extractedWithEquipment,
+  extractedWithTimers,
+  extractedWithNutrition,
+  extractedWithAuthors,
+  extractedWithImages,
+  extractedWithAlternateYields,
 };
 await writeFile(`${outputs}/metrics.json`, `${JSON.stringify(metrics, null, 2)}\n`);
 await writeFile(`${outputs}/source-distribution.json`, `${JSON.stringify([...bySource].map(([source, count]) => ({ source, count })), null, 2)}\n`);
