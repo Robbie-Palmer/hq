@@ -6,7 +6,14 @@ resources:
   - persistent-volumes.yaml
   - proton-vpn-secret.yaml
   - programmable-vpn-settings.yaml
-  - qbittorrent-vpn-scripts.yaml
+configMapGenerator:
+  - name: qbittorrent-vpn-scripts
+    files:
+      - prepare-config.sh=scripts/prepare-config.sh
+      - remove-wireguard-policy-rules.sh=scripts/remove-wireguard-policy-rules.sh
+      - set-forwarded-port.sh=scripts/set-forwarded-port.sh
+      - clear-forwarded-port.sh=scripts/clear-forwarded-port.sh
+      - check-tunnel-ready.sh=scripts/check-tunnel-ready.sh
 patches:
   - path: qbittorrent-gluetun-patch.yaml
 labels:

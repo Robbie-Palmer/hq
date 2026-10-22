@@ -33,6 +33,19 @@ function resource(resources: Resource[], kind: string, name: string): Resource {
   return match;
 }
 
+function resourceWithNamePrefix(
+  resources: Resource[],
+  kind: string,
+  namePrefix: string,
+): Resource {
+  const match = resources.find(
+    (candidate) =>
+      candidate.kind === kind && candidate.metadata.name.startsWith(`${namePrefix}-`),
+  );
+  assert.ok(match, `${kind}/${namePrefix}-* must be rendered`);
+  return match;
+}
+
 test("qBittorrent shares its pod network with a fail-closed Gluetun sidecar", () => {
   const resources = render();
   const deployment = resource(resources, "Deployment", "qbittorrent") as Resource & {
@@ -52,9 +65,11 @@ test("qBittorrent shares its pod network with a fail-closed Gluetun sidecar", ()
   const gluetun = pod.initContainers.find((container) => container.name === "gluetun") as {
     image: string;
     env: Array<Record<string, unknown>>;
+    lifecycle: { postStart: { exec: { command: string[] } } };
     restartPolicy: string;
     securityContext: { capabilities: { add: string[]; drop: string[] } };
     startupProbe: { exec: { command: string[] } };
+    volumeMounts: Array<Record<string, unknown>>;
   };
   const qbittorrent = pod.containers.find(
     (container) => container.name === "qbittorrent",
@@ -64,7 +79,12 @@ test("qBittorrent shares its pod network with a fail-closed Gluetun sidecar", ()
   assert.equal(deployment.spec.template.metadata.annotations["secrets.doppler.com/reload"], "true");
   assert.equal(gluetun.image, "ghcr.io/qdm12/gluetun:v3.41.3");
   assert.equal(gluetun.restartPolicy, "Always");
-  assert.match(gluetun.startupProbe.exec.command.join(" "), /ip link show tun0/);
+  assert.deepEqual(gluetun.startupProbe.exec.command, [
+    "/opt/homelab/check-tunnel-ready.sh",
+  ]);
+  assert.deepEqual(gluetun.lifecycle.postStart.exec.command, [
+    "/opt/homelab/remove-wireguard-policy-rules.sh",
+  ]);
   assert.deepEqual(gluetun.securityContext.capabilities.add, ["NET_ADMIN", "NET_RAW"]);
   assert.deepEqual(gluetun.securityContext.capabilities.drop, ["ALL"]);
   assert.ok(!qbittorrent.securityContext?.capabilities?.add?.includes("NET_ADMIN"));
@@ -90,8 +110,18 @@ test("qBittorrent shares its pod network with a fail-closed Gluetun sidecar", ()
   assert.equal(env.PORT_FORWARD_ONLY?.value, "on");
   assert.equal(env.VPN_PORT_FORWARDING?.value, "on");
   assert.equal(env.FIREWALL_INPUT_PORTS?.value, "8080");
-  assert.match(String(env.VPN_PORT_FORWARDING_UP_COMMAND?.value), /listen_port.*PORT/);
-  assert.match(String(env.VPN_PORT_FORWARDING_DOWN_COMMAND?.value), /listen_port.*0/);
+  assert.equal(
+    env.VPN_PORT_FORWARDING_UP_COMMAND?.value,
+    "/opt/homelab/set-forwarded-port.sh {{PORT}} {{VPN_INTERFACE}}",
+  );
+  assert.equal(
+    env.VPN_PORT_FORWARDING_DOWN_COMMAND?.value,
+    "/opt/homelab/clear-forwarded-port.sh",
+  );
+  assert.deepEqual(
+    gluetun.volumeMounts.find((volume) => volume.name === "vpn-scripts"),
+    { name: "vpn-scripts", mountPath: "/opt/homelab", readOnly: true },
+  );
 });
 
 test("the media namespace receives only the Proton WireGuard private key", () => {
@@ -128,7 +158,14 @@ test("the host starts K3s without an interactive VPN and no longer scales media 
 
 test("qBittorrent local API access is limited to the shared pod loopback", () => {
   const resources = render();
-  const scripts = resource(resources, "ConfigMap", "qbittorrent-vpn-scripts");
+  const scripts = resourceWithNamePrefix(resources, "ConfigMap", "qbittorrent-vpn-scripts");
   assert.match(scripts.data?.["prepare-config.sh"] ?? "", /WebUI\\LocalHostAuth.*false/);
   assert.match(scripts.data?.["prepare-config.sh"] ?? "", /Connection\\UPnP.*false/);
+  assert.match(scripts.data?.["set-forwarded-port.sh"] ?? "", /listen_port.*port/);
+  assert.match(scripts.data?.["clear-forwarded-port.sh"] ?? "", /listen_port.*0/);
+  assert.match(scripts.data?.["check-tunnel-ready.sh"] ?? "", /ip link show tun0/);
+  assert.match(
+    scripts.data?.["remove-wireguard-policy-rules.sh"] ?? "",
+    /ip rule del table 51820/,
+  );
 });

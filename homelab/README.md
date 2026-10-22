@@ -674,10 +674,18 @@ stored in `~/.local/share/homelab/k3s/media/.env`.
 
 ### Media automation one-time bootstrap
 
-Mount the Expansion disk. Before the first programmable VPN deployment, buy or
-start the Proton VPN trial and generate a WireGuard configuration for a P2P
-server with NAT-PMP enabled. Copy only its `PrivateKey` into Doppler through
-the CLI's interactive value prompt:
+Mount the Expansion disk. Before the first programmable VPN deployment, sign
+in at `account.protonvpn.com` and choose a paid Proton VPN plan. Proton Free
+does not include the P2P servers or port forwarding required by this setup.
+Proton describes paid plans as covered by a 30-day money-back guarantee rather
+than a free trial.
+
+In the Proton account, open **Downloads -> WireGuard configuration**. Create a
+GNU/Linux configuration, choose a server marked with the P2P double-arrow,
+enable NAT-PMP, and leave Moderate NAT disabled because Proton does not support
+it together with port forwarding. Download the generated `.conf` file and copy
+only the value after `PrivateKey =` into Doppler through the CLI's interactive
+value prompt:
 
 ```bash
 doppler secrets set PROTON_VPN_WIREGUARD_PRIVATE_KEY \
@@ -685,6 +693,16 @@ doppler secrets set PROTON_VPN_WIREGUARD_PRIVATE_KEY \
   --config prd \
   --visibility restricted
 ```
+
+Do not commit the downloaded configuration or paste the key into chat. Delete
+the local `.conf` after Doppler stores the key.
+
+The qBittorrent trial pins Gluetun to the Netherlands. A fixed nearby country
+makes exit-location checks, DNS checks, and before/after benchmarks repeatable;
+it is not required by WireGuard. Change `SERVER_COUNTRIES` in
+`k3s/overlays/home-media/programmable-vpn-settings.yaml` if another Proton P2P
+country is a better fit. The Fire TV country remains an independent choice in
+the Proton Android TV app.
 
 Keep Hotspot Shield connected for the migration. Then run these commands in
 order:

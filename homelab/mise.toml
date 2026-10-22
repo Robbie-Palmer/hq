@@ -9,6 +9,7 @@ python = "3.12.14"
 "pipx:ansible-lint" = "26.9.0"
 "aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
+"aqua:koalaman/shellcheck" = "0.11.0"
 "github:fluxcd/flux-schema" = "0.15.0"
 "aqua:restic/restic" = "0.18.0"
 
@@ -343,11 +344,15 @@ run = "kubectl kustomize k3s/overlays/home-media"
 
 [tasks.k3s-test-home-media]
 description = "Test the programmable VPN media manifests and fail-closed host scripts"
-depends = ["//:install"]
+depends = ["//:install", "k3s-lint-home-media-scripts"]
 run = '''
 pnpm exec tsc --project tsconfig.json
 pnpm exec tsx --test tests/media-vpn-manifests.test.ts
 '''
+
+[tasks.k3s-lint-home-media-scripts]
+description = "Statically analyze the home media VPN scripts"
+run = "shellcheck k3s/overlays/home-media/scripts/*.sh"
 
 [tasks.k3s-render-remote]
 description = "Render the remote-development t3-code overlay"
