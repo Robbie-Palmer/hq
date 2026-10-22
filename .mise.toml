@@ -155,6 +155,16 @@ description = "Plan Copier adoption for an existing project without a receipt"
 depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-adoption-plan"
 
+[tasks."project:profile:reconcile"]
+description = "Plan a reviewed update to newer platform defaults"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-reconcile"
+
+[tasks."project:profile:reconcile:apply"]
+description = "Apply an unchanged reviewed project reconciliation plan"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-reconcile-apply"
+
 [tasks."project:profile:dry-run"]
 description = "Preview a resolved project profile without applying it"
 depends = ["//packages/project-generator:install"]
@@ -166,7 +176,7 @@ depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-create"
 
 [tasks."project:profile:update"]
-description = "Update a Copier-managed project from a resolved profile"
+description = "Apply a reviewed project reconciliation plan"
 depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-update"
 

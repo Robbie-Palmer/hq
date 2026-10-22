@@ -931,6 +931,8 @@ describe("CLI", () => {
     expect(await runCli(["--help"], dependencies)).toBe(0);
     expect(stdout.join("")).toContain("dry-run");
     expect(stdout.join("")).toContain("profile-adoption-plan");
+    expect(stdout.join("")).toContain("profile-reconcile");
+    expect(stdout.join("")).toContain("profile-reconcile-apply");
     expect(stdout.join("")).toContain("profile-dry-run");
     stdout.length = 0;
 
@@ -941,6 +943,10 @@ describe("CLI", () => {
     expect(help).toContain("--repository [string]");
     expect(help).toContain("--registry [string]");
     expect(stderr).toEqual([]);
+
+    stdout.length = 0;
+    expect(await runCli(["profile-update", "--help"], dependencies)).toBe(0);
+    expect(stdout.join("")).toContain("--reviewed-plan <string>");
   });
 
   it("resolves, previews, and applies a versioned project profile", async () => {
@@ -1045,20 +1051,17 @@ describe("CLI", () => {
       "opentelemetry-contract.yaml",
       opentelemetry,
     );
-    await write(
-      configuration,
-      "profile.yaml",
-      stringify({
-        schema_version: 1,
-        project: { id: "alpha", name: "Alpha package", kind: "library" },
-        components: [
-          { id: "alpha", name: "Alpha package", kind: "typescript-package" },
-        ],
-        layers: [{ layer: "base" }],
-        nix: { boundary: "none" },
-        opentelemetry: { enabled: false },
-      }),
-    );
+    const baseProfile = {
+      schema_version: 1,
+      project: { id: "alpha", name: "Alpha package", kind: "library" },
+      components: [
+        { id: "alpha", name: "Alpha package", kind: "typescript-package" },
+      ],
+      layers: [{ layer: "base" }],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    };
+    await write(configuration, "profile.yaml", stringify(baseProfile));
     await write(
       configuration,
       "registry.yaml",
@@ -1069,6 +1072,7 @@ describe("CLI", () => {
             id: "monorepo-project",
             source: template.source,
             revision: template.revision,
+            checks: ["//:fixture"],
           },
         ],
       }),
@@ -1125,6 +1129,216 @@ describe("CLI", () => {
     await expect(
       readFile(path.join(repository, "packages/alpha/generated.txt"), "utf8"),
     ).resolves.toBe("Alpha package\n");
+
+    await write(
+      repository,
+      "packages/alpha/domain.ts",
+      "export const productCode = 'preserved';\n",
+    );
+    await commit(repository, "Create alpha from the old blueprint");
+    await write(
+      contractsDirectory,
+      "platform.yaml",
+      stringify({
+        schema_version: 1,
+        project: "personal-engineering-platform",
+        catalog: { records: [] },
+        layers: [{ slug: "base" }],
+        slots: [{ slug: "project.task-runner" }],
+        policies: [
+          {
+            id: "base-task-runner-old",
+            layer: "base",
+            slot: "project.task-runner",
+            mode: "required",
+            decision: "personal-engineering-platform:001-mise",
+            effective_from: "2026-01-01T00:00:00Z",
+            effective_until: "2026-11-01T00:00:00Z",
+          },
+          {
+            id: "base-task-runner-current",
+            layer: "base",
+            slot: "project.task-runner",
+            mode: "required",
+            decision: "personal-engineering-platform:002-current-runner",
+            effective_from: "2026-11-01T00:00:00Z",
+          },
+        ],
+        selections: [
+          {
+            id: "project-task-runner-mise",
+            slot: "project.task-runner",
+            technology: "mise",
+            status: "Accepted",
+            decision: "personal-engineering-platform:001-mise",
+            effective_from: "2026-01-01T00:00:00Z",
+            effective_until: "2026-11-01T00:00:00Z",
+          },
+          {
+            id: "project-task-runner-current",
+            slot: "project.task-runner",
+            technology: "current-runner",
+            status: "Accepted",
+            decision: "personal-engineering-platform:002-current-runner",
+            effective_from: "2026-11-01T00:00:00Z",
+          },
+        ],
+      }),
+    );
+    const reconciliationArgs = args.map((argument) =>
+      argument === "2026-10-21T00:00:00Z"
+        ? "2026-11-02T00:00:00Z"
+        : argument,
+    );
+    output.length = 0;
+    expect(
+      await runCli(
+        ["profile-reconcile", ...reconciliationArgs],
+        dependencies,
+      ),
+    ).toBe(0);
+    const reconciliation = JSON.parse(output.join("")) as {
+      status: string;
+      planDigest: string;
+      policyChanges: { kind: string }[];
+      defaultChanges: { kind: string }[];
+      candidate: { checks: unknown[] };
+    };
+    expect(reconciliation).toMatchObject({
+      status: "ready",
+      policyChanges: [{ kind: "replaced" }],
+      defaultChanges: [{ kind: "replaced" }],
+      candidate: {
+        checks: [{ task: "//:fixture", status: "passed" }],
+      },
+    });
+    const reviewedPlan = path.join(configuration, "reviewed-plan.json");
+    await writeFile(reviewedPlan, JSON.stringify(reconciliation), "utf8");
+    const stalePlan = path.join(configuration, "stale-plan.json");
+    await writeFile(
+      stalePlan,
+      JSON.stringify({ ...reconciliation, planDigest: "0".repeat(64) }),
+      "utf8",
+    );
+    const applyErrors: string[] = [];
+    expect(
+      await runCli(
+        [
+          "profile-reconcile-apply",
+          ...reconciliationArgs,
+          "--reviewed-plan",
+          stalePlan,
+        ],
+        {
+          ...dependencies,
+          stderr: (text: string) => applyErrors.push(text),
+        },
+      ),
+    ).toBe(1);
+    expect(applyErrors.join(" ")).toContain(
+      "Reviewed reconciliation plan does not match",
+    );
+    output.length = 0;
+    expect(
+      await runCli(
+        [
+          "profile-reconcile-apply",
+          ...reconciliationArgs,
+          "--reviewed-plan",
+          reviewedPlan,
+        ],
+        dependencies,
+      ),
+    ).toBe(0);
+    const receipt = parse(
+      await readFile(path.join(repository, ".copier/projects/alpha.yml"), "utf8"),
+    ) as { blueprint: { effective_at: string; selections: { id: string }[] } };
+    expect(receipt.blueprint.selections).toContainEqual({
+      decision: "personal-engineering-platform:002-current-runner",
+      id: "project-task-runner-current",
+      kind: "technology",
+      layer: "base",
+      slot: "project.task-runner",
+      source: "default",
+      value: "current-runner",
+    });
+    await expect(
+      readFile(path.join(repository, "packages/alpha/domain.ts"), "utf8"),
+    ).resolves.toBe("export const productCode = 'preserved';\n");
+
+    await commit(repository, "Reconcile alpha to current defaults");
+    const statusBeforeBlockedPlans = await git(repository, "status", "--short");
+    await write(
+      configuration,
+      "profile.yaml",
+      stringify({
+        ...baseProfile,
+        reconciliation: {
+          mode: "frozen",
+          frozen_at: "2026-11-02T00:00:00Z",
+          reason: "The completed fixture keeps its last accepted stack.",
+        },
+      }),
+    );
+    output.length = 0;
+    expect(
+      await runCli(
+        [
+          "profile-reconcile",
+          ...reconciliationArgs.map((argument) =>
+            argument === "2026-11-02T00:00:00Z"
+              ? "2026-12-01T00:00:00Z"
+              : argument,
+          ),
+        ],
+        dependencies,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      status: "frozen",
+      candidate: null,
+      blockedReason: "The completed fixture keeps its last accepted stack.",
+    });
+
+    await write(
+      configuration,
+      "profile.yaml",
+      stringify({
+        ...baseProfile,
+        reconciliation: {
+          mode: "tracking",
+          defer: {
+            effective_at: "2027-01-01T00:00:00Z",
+            reason: "Wait for the current migration window to close.",
+          },
+        },
+      }),
+    );
+    output.length = 0;
+    expect(
+      await runCli(
+        [
+          "profile-reconcile",
+          ...reconciliationArgs.map((argument) =>
+            argument === "2026-11-02T00:00:00Z"
+              ? "2027-01-01T00:00:00Z"
+              : argument,
+          ),
+        ],
+        dependencies,
+      ),
+    ).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      status: "deferred",
+      candidate: null,
+      deferral: {
+        effectiveAt: "2027-01-01T00:00:00Z",
+        reason: "Wait for the current migration window to close.",
+      },
+    });
+    expect(await git(repository, "status", "--short")).toBe(
+      statusBeforeBlockedPlans,
+    );
   });
 
   it("rejects unknown commands and missing option values", async () => {

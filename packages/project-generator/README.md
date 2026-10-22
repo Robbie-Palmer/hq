@@ -30,9 +30,11 @@ than a prebuilt engine plan:
 ```sh
 mise //:project:profile:plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:adoption-plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:reconcile -- path/to/profile.yaml --effective-at 2026-11-01T00:00:00Z
+mise //:project:profile:reconcile:apply -- path/to/profile.yaml --effective-at 2026-11-01T00:00:00Z --reviewed-plan path/to/reconciliation.json
 mise //:project:profile:dry-run -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:create -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
-mise //:project:profile:update -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:update -- path/to/profile.yaml --effective-at 2026-11-01T00:00:00Z --reviewed-plan path/to/reconciliation.json
 ```
 
 These commands load the repository layout, platform manifest, Nix contract,
@@ -50,6 +52,44 @@ files. Shared-manifest edits, resolved profile overrides, task exceptions, and
 the future receipt are listed separately. The command never changes the
 checkout and reports `readyToAdopt: false` when a template file would overwrite
 different content or escape declared ownership.
+
+`profile:reconcile` compares the blueprint in an existing receipt with the
+profile resolved at a later instant. Its JSON separates added, removed, and
+replaced policies and defaults. Active project overrides remain visible as
+manual decisions. The candidate includes the checked repository patch and a
+digest over the repository revision, semantic changes, template revision, and
+patch.
+
+Save and review that JSON before running `profile:reconcile:apply`. Apply
+rebuilds the plan and accepts it only when the digest still matches. A changed
+checkout, profile, contract, template, or generated patch invalidates the
+review. Receipt and typed shared-manifest edits count as automatic changes.
+Other generated files count as migrations, including every infrastructure
+path. `profile:update` is an alias for the same reviewed apply operation and
+also requires `--reviewed-plan`.
+
+Profiles track newer defaults unless they state otherwise:
+
+```yaml
+reconciliation:
+  mode: tracking
+  defer:
+    effective_at: "2026-11-01T00:00:00Z"
+    reason: "Wait for the current migration window to close."
+```
+
+The defer record applies only to that exact target instant. Remove it or choose
+a later instant to resume tracking. A completed project can stop updates:
+
+```yaml
+reconciliation:
+  mode: frozen
+  frozen_at: "2026-10-21T00:00:00Z"
+  reason: "The project is complete and keeps its last accepted stack."
+```
+
+Frozen and deferred plans report the semantic differences but do not render,
+check, or apply a candidate patch.
 
 The default template registry is
 `ui/content/projects/personal-engineering-platform/project-template-sources.yaml`.
