@@ -822,6 +822,7 @@ export async function executeProjectPlan(input: {
   readonly mode: GenerationMode;
   readonly plan: ProjectPlan;
   readonly template: TemplateSource;
+  readonly expectedDiff?: string;
 }): Promise<GenerationResult> {
   validateOwnedPaths(input.plan);
   if (input.template.id !== input.plan.template_id) {
@@ -883,6 +884,11 @@ export async function executeProjectPlan(input: {
     const patch = await createPatch(worktreeRoot, prepared.baseline);
     if (patch !== patchBeforeChecks) {
       throw new Error("A generated-project check modified the candidate changes");
+    }
+    if (input.expectedDiff !== undefined && patch !== input.expectedDiff) {
+      throw new Error(
+        "Generated changes do not match the reviewed candidate; review a new plan before applying",
+      );
     }
 
     const apply = input.mode === "create" || input.mode === "update";

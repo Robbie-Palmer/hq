@@ -594,10 +594,15 @@ export async function planProjectReconciliation(
   const policies = semanticDiff.policyChanges;
   const defaults = semanticDiff.defaultChanges;
   const overrides = semanticDiff.localOverrides;
+  const reconciliationPolicy = input.profile.reconciliation;
   const deferral =
-    input.profile.reconciliation.mode === "tracking" &&
-    input.profile.reconciliation.defer?.effective_at === input.blueprint.effective_at
-      ? input.profile.reconciliation.defer
+    reconciliationPolicy.mode === "tracking" &&
+    reconciliationPolicy.defer !== undefined &&
+    compareUtcInstants(
+      reconciliationPolicy.defer.effective_at,
+      input.blueprint.effective_at,
+    ) === 0
+      ? reconciliationPolicy.defer
       : undefined;
   let status: ReconciliationPlanResult["status"] = "ready";
   if (input.profile.reconciliation.mode === "frozen") {
@@ -687,11 +692,15 @@ export async function applyProjectReconciliation(
       "Reviewed reconciliation plan does not match the current repository, profile, contracts, or template",
     );
   }
+  if (!current.candidate) {
+    throw new Error("Ready reconciliation did not produce a candidate");
+  }
   const generation = await executeProjectPlan({
     repository: input.repository,
     mode: "update",
     plan: input.plan,
     template: input.template,
+    expectedDiff: current.candidate.diff,
   });
   return {
     schemaVersion: 1,

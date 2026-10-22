@@ -585,11 +585,31 @@ describe("Copier engine", () => {
       template_revision: revision,
       answers: { project_id: "alpha", message: "alpha v2" },
     });
+    const planned = await executeProjectPlan({
+      repository,
+      mode: "plan",
+      plan,
+      template: source,
+    });
+    await expect(
+      executeProjectPlan({
+        repository,
+        mode: "update",
+        plan,
+        template: source,
+        expectedDiff: `${planned.diff}\nunexpected change`,
+      }),
+    ).rejects.toThrow(/do not match the reviewed candidate/);
+    expect(
+      await readFile(path.join(repository, "packages/alpha/generated.txt"), "utf8"),
+    ).toBe("alpha v1\n");
+
     const updated = await executeProjectPlan({
       repository,
       mode: "update",
       plan,
       template: source,
+      expectedDiff: planned.diff,
     });
 
     expect(updated.operation).toBe("update");
@@ -1308,7 +1328,7 @@ describe("CLI", () => {
         reconciliation: {
           mode: "tracking",
           defer: {
-            effective_at: "2027-01-01T00:00:00Z",
+            effective_at: "2027-01-01T00:00:00.0Z",
             reason: "Wait for the current migration window to close.",
           },
         },
@@ -1332,7 +1352,7 @@ describe("CLI", () => {
       status: "deferred",
       candidate: null,
       deferral: {
-        effectiveAt: "2027-01-01T00:00:00Z",
+        effectiveAt: "2027-01-01T00:00:00.0Z",
         reason: "Wait for the current migration window to close.",
       },
     });
