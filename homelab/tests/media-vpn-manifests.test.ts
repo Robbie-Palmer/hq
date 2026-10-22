@@ -165,6 +165,10 @@ test("qBittorrent local API access is limited to the shared pod loopback", () =>
   assert.match(scripts.data?.["clear-forwarded-port.sh"] ?? "", /listen_port.*0/);
   assert.match(scripts.data?.["check-tunnel-ready.sh"] ?? "", /ip link show tun0/);
   assert.match(
+    scripts.data?.["check-tunnel-ready.sh"] ?? "",
+    /gluetun-entrypoint healthcheck/,
+  );
+  assert.match(
     scripts.data?.["remove-wireguard-policy-rules.sh"] ?? "",
     /ip rule del table 51820/,
   );
