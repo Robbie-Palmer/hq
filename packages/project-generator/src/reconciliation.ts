@@ -44,23 +44,19 @@ const recordedSelectionSchema = z
   })
   .strict();
 
-const recordedBlueprintSchema = z
-  .object({
+const recordedBlueprintSchema = z.looseObject({
     schema_version: z.literal(1),
     effective_at: z.string().min(1),
-    project: z.object({ id: z.string().min(1) }).passthrough(),
+    project: z.looseObject({ id: z.string().min(1) }),
     selections: z.array(recordedSelectionSchema),
     manual_checkpoints: z.array(z.string()).default([]),
-  })
-  .passthrough();
+  });
 
-const receiptSchema = z
-  .object({
+const receiptSchema = z.looseObject({
     _commit: z.string().regex(/^[0-9a-f]{40}$/),
     _src_path: z.string().min(1),
     blueprint: recordedBlueprintSchema,
-  })
-  .passthrough();
+  });
 
 export type SemanticChangeKind = "added" | "removed" | "replaced";
 export type ReconciliationDisposition =
@@ -174,7 +170,7 @@ function normalizeRecordedInstant(value: string): string {
   if (isUtcInstant(value)) return value;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.valueOf())) {
-    throw new Error(`Recorded blueprint has invalid effective_at '${value}'`);
+    throw new TypeError(`Recorded blueprint has invalid effective_at '${value}'`);
   }
   return parsed.toISOString().replace(".000Z", "Z");
 }
@@ -230,6 +226,10 @@ function compareById<T extends { readonly id: string }>(left: T, right: T): numb
   return left.id.localeCompare(right.id, "en");
 }
 
+function compareStrings(left: string, right: string): number {
+  return left.localeCompare(right, "en");
+}
+
 function policyChanges(
   previous: readonly ResolvedProfilePolicy[],
   current: readonly ResolvedProfilePolicy[],
@@ -239,7 +239,7 @@ function policyChanges(
     ...current.map(({ layer, slot }) => `${layer}\0${slot}`),
   ]);
   const changes: PolicyChange[] = [];
-  for (const key of [...keys].toSorted()) {
+  for (const key of [...keys].toSorted(compareStrings)) {
     const [layer = "", slot = ""] = key.split("\0");
     const oldPolicies = previous
       .filter((policy) => policy.layer === layer && policy.slot === slot)
@@ -306,7 +306,7 @@ function defaultChanges(
     ...newDefaults.map(({ slot }) => slot),
   ]);
   const changes: DefaultSelectionChange[] = [];
-  for (const slot of [...slots].toSorted()) {
+  for (const slot of [...slots].toSorted(compareStrings)) {
     const oldSelections = oldDefaults
       .filter((selection) => selection.slot === slot)
       .toSorted(compareById);
@@ -367,19 +367,23 @@ function localOverrideReviews(
     ...oldOverrides.map(({ slot }) => slot),
     ...newOverrides.map(({ slot }) => slot),
   ]);
-  return [...slots].toSorted().map((slot) => {
+  return [...slots].toSorted(compareStrings).map((slot) => {
     const oldOverride = oldOverrides.find((selection) => selection.slot === slot);
     const newOverride = newOverrides.find((selection) => selection.slot === slot);
-    const status =
-      oldOverride === undefined
-        ? "added"
-        : newOverride === undefined
-          ? "removed"
-          : oldOverride.id === newOverride.id &&
-              oldOverride.value === newOverride.value &&
-              oldOverride.decision === newOverride.decision
-            ? "preserved"
-            : "changed";
+    let status: LocalOverrideReview["status"];
+    if (oldOverride === undefined) {
+      status = "added";
+    } else if (newOverride === undefined) {
+      status = "removed";
+    } else if (
+      oldOverride.id === newOverride.id &&
+      oldOverride.value === newOverride.value &&
+      oldOverride.decision === newOverride.decision
+    ) {
+      status = "preserved";
+    } else {
+      status = "changed";
+    }
     return {
       disposition: "manual_decision",
       slot,
@@ -595,12 +599,12 @@ export async function planProjectReconciliation(
     input.profile.reconciliation.defer?.effective_at === input.blueprint.effective_at
       ? input.profile.reconciliation.defer
       : undefined;
-  const status =
-    input.profile.reconciliation.mode === "frozen"
-      ? "frozen"
-      : deferral
-        ? "deferred"
-        : "ready";
+  let status: ReconciliationPlanResult["status"] = "ready";
+  if (input.profile.reconciliation.mode === "frozen") {
+    status = "frozen";
+  } else if (deferral) {
+    status = "deferred";
+  }
   const blockedReason =
     input.profile.reconciliation.mode === "frozen"
       ? input.profile.reconciliation.reason

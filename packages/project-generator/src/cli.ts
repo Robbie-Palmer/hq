@@ -104,18 +104,16 @@ const reconciliationApplyInput = profileCommandInput.extend({
     .describe("Reviewed reconciliation plan JSON path"),
 });
 
-const reviewedPlanSchema = z
-  .object({
+const reviewedPlanSchema = z.looseObject({
     schemaVersion: z.literal(1),
     kind: z.literal("project_reconciliation"),
     projectId: z.string().min(1),
     status: z.literal("ready"),
     baseRevision: z.string().regex(/^[0-9a-f]{40}$/),
     targetEffectiveAt: z.string().min(1),
-    candidate: z.object({ diff: z.string() }).passthrough(),
+    candidate: z.looseObject({ diff: z.string() }),
     planDigest: z.string().regex(/^[0-9a-f]{64}$/),
-  })
-  .passthrough();
+  });
 
 function resolveTemplateSource(
   template: TemplateSource,

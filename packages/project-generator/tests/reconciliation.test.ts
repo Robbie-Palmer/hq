@@ -108,6 +108,29 @@ describe("project reconciliation semantic diff", () => {
     ]);
   });
 
+  it("classifies added, removed, and changed local overrides", () => {
+    const removed = selection("removed-old", "removed", "old", "override");
+    const changedOld = selection("changed-old", "changed", "old", "override");
+    const changedNew = selection("changed-new", "changed", "new", "override");
+    const added = selection("added-new", "added", "new", "override");
+
+    const result = diffProjectReconciliation({
+      previousPolicies: [],
+      currentPolicies: [],
+      previousDefaults: [],
+      currentDefaults: [],
+      previousSelections: [removed, changedOld],
+      currentSelections: [added, changedNew],
+    });
+
+    expect(result.localOverrides.map(({ slot, status }) => ({ slot, status })))
+      .toEqual([
+        { slot: "added", status: "added" },
+        { slot: "changed", status: "changed" },
+        { slot: "removed", status: "removed" },
+      ]);
+  });
+
   it("treats changed values under a reused id as replacements", () => {
     const oldPolicy = policy("runtime-policy", "runtime");
     const newPolicy = {
