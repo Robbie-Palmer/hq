@@ -17,13 +17,19 @@ export const repositoryLayoutComponentKindSchema =
       pnpm_workspace_package: z.boolean().default(false),
       task_ownership: z
         .enum(["generated", "inherited", "delegated"])
-        .default("generated"),
+        .optional(),
       delegated_task_project: z
         .string()
         .regex(/^\/\/[a-z0-9][a-z0-9./-]*$/)
         .optional(),
     })
-    .strict();
+    .strict()
+    .transform((component) => ({
+      ...component,
+      task_ownership:
+        component.task_ownership ??
+        (component.delegated_task_project ? "delegated" : "generated"),
+    }));
 
 export const repositoryLayoutProjectRegistrationSchema =
   repositoryLayoutNamedRecordSchema
