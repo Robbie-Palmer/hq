@@ -1146,10 +1146,11 @@
                 "missing_required_ci",
                 "missing_production_deployment",
                 "unfinished_children",
+                "unsatisfied_dependencies",
                 "unresolved_blocking_attention"
               ]
             },
-            "maxItems": 9
+            "maxItems": 10
           },
           "evidenceObservationIds": {
             "type": "array",
@@ -1211,6 +1212,9 @@
             "minItems": 1,
             "maxItems": 100
           },
+          "automaticRelease": {
+            "type": "boolean"
+          },
           "createdAt": {
             "type": "string",
             "maxLength": 30,
@@ -1222,6 +1226,7 @@
           "revision",
           "requiredCiNames",
           "productionEnvironments",
+          "automaticRelease",
           "createdAt"
         ]
       },
@@ -2939,6 +2944,10 @@
                     },
                     "minItems": 1,
                     "maxItems": 100
+                  },
+                  "automaticRelease": {
+                    "type": "boolean",
+                    "default": false
                   },
                   "createdAt": {
                     "type": "string",

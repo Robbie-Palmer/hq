@@ -324,6 +324,10 @@ const completionPolicyPutInput = z.object({
     zPutCompletionPolicyRevisionBody.shape.productionEnvironments,
     "Allowed production environments as JSON",
   ),
+  automaticRelease: optional(
+    z.boolean(),
+    "Let the system release matching unleased work",
+  ),
   createdAt: optional(
     zPutCompletionPolicyRevisionBody.shape.createdAt,
     "Policy creation timestamp; defaults to now",
@@ -1209,6 +1213,7 @@ export const workGraphRouter = t.router({
           {
             requiredCiNames: input.requiredCiNames,
             productionEnvironments: input.productionEnvironments,
+            automaticRelease: input.automaticRelease ?? false,
             createdAt: input.createdAt ?? new Date().toISOString(),
           },
         ),

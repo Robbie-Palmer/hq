@@ -120,6 +120,13 @@
       "when": 1791536948545,
       "tag": "0016_github_delivery_processing",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1792330134967,
+      "tag": "0017_policy_driven_automatic_release",
+      "breakpoints": true
     }
   ]
 }

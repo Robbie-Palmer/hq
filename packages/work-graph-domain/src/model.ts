@@ -147,6 +147,7 @@ export interface CompletionPolicyRevision {
   readonly revision: number;
   readonly requiredCiNames: readonly string[];
   readonly productionEnvironments: readonly string[];
+  readonly automaticRelease: boolean;
   readonly createdAt: string;
 }
 
