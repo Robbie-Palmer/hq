@@ -1,5 +1,5 @@
 ---
-title: "ADR 000: Trial Filen for the working document library"
+title: "ADR 000: Trial Filen for collaborative document sync"
 date: "2026-10-18"
 status: "Proposed"
 tech_stack: ["Filen"]
@@ -13,9 +13,16 @@ drive for deduplication. That drive is neither an offsite copy nor a convenient
 way to retrieve a document from Android or another computer.
 
 The replacement needs end-to-end encryption, macOS, Ubuntu, Android, and web
-access. Routine transfers, checks, and clean-machine recovery should not depend
-on many GUI steps. The cloud library will be a synchronized working copy, not
-the only copy or the independent backup.
+access. No device is authoritative. Each device may create, edit, rename, or
+delete a document, and the other devices must converge without a manual upload
+or download routine. Concurrent edits must remain recoverable as conflicts
+rather than silently overwriting either version.
+
+Supervised agents need a normal synchronized directory, a writable filesystem
+mount, or an S3-compatible endpoint. Scheduled transfer commands fail because
+they do not share sync state or resolve changes made on both sides. The cloud
+library will be a synchronized working copy, not the only copy or the
+independent backup.
 
 Filen offers encrypted storage with desktop and mobile clients. Its
 [CLI](https://docs.filen.io/docs/cli/) supports sync, mounting, WebDAV, and S3
@@ -30,33 +37,59 @@ trial.
 
 Use nested folders, large files, common office formats, scans, Unicode names,
 and deliberate duplicates. Test the macOS and Android apps, web interface, and
-Ubuntu CLI. Exercise both on-demand transfers and continuous synchronization.
+Ubuntu CLI. Exercise continuous two-way synchronization and agent writes
+through a mounted filesystem or S3 endpoint. Do not substitute scheduled
+uploads and downloads for a sync engine.
 
 Promote Filen only after the trial proves:
 
 * manifests before and after transfer match;
-* a deleted file and an earlier version can be recovered;
+* files created or changed on macOS, Ubuntu, and Android reach the other
+  devices without choosing a source device;
+* renames and deletions propagate in both directions;
+* concurrent offline edits from macOS, Ubuntu, and Android preserve every
+  version or create explicit conflict copies;
+* the client restores a deleted file and an earlier version;
 * a clean Ubuntu machine can restore the test set with documented commands;
-* Android can open, download, edit, and upload the document types used in
-  practice;
-* unattended CLI sync reports failures clearly and does not duplicate or lose
-  files after conflicts; and
+* an agent write through the mounted filesystem or S3 endpoint reaches the
+  synchronized devices;
+* unattended sync identifies failed paths and reconnects without duplicating
+  or losing files; and
 * the measured library fits the selected plan with growth headroom.
 
-Filen currently lists 200 GB at
-[€1.99 per month](https://filen.io/pricing), or €23.88 per year, and 500 GB at
-€3.99 per month, or €47.88 per year. Recheck the checkout price, tax, and
-renewal terms before accepting this decision.
+Filen currently lists 200 GiB at
+[€1.99 per month or €19.99 per year](https://filen.io/pricing), and 500 GiB at
+€3.99 per month or €39.99 per year. Recheck the checkout price, tax, and renewal
+terms before accepting this decision.
 
 # Alternatives
 
 ## Proton Drive
 
 Proton Drive provides end-to-end encrypted file storage, polished mobile
-access, and a CLI. Its Linux CLI supports transfers but does not provide the
-same continuous sync and mount options as Filen. It becomes the preferred
-second trial if Filen fails, or if paid Proton Pass and VPN trials make Proton
-Unlimited economically compelling.
+access, and a CLI. Its Linux CLI transfers files but does not run a two-way sync
+engine or expose a mounted filesystem. Wrapping upload and download commands in
+a timer would still lack shared state for deletions, renames, and concurrent
+edits. Reject Proton Drive for the working library even if Proton Unlimited is
+economically compelling for Pass, VPN, or Mail.
+
+## MEGA
+
+[MEGAcmd](https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md) provides
+continuous two-way synchronization and allows multiple devices to synchronize
+the same cloud folder. It also provides WebDAV and a writable FUSE mount on
+Linux. Trial MEGA next if Filen fails. Its Linux FUSE support is still beta and
+does not cover macOS, so the trial must use ordinary synchronized directories
+where a mount is unavailable and must verify the Android edit-and-save path.
+
+## Dropbox
+
+Dropbox has an official [Linux sync daemon and
+CLI](https://help.dropbox.com/installs/linux-commands), so agents can work in a
+normal local directory. It has a more established mobile and desktop product
+than Filen, but personal plans do not provide the same end-to-end encrypted
+storage model. Keep it as the managed fallback if both encrypted candidates
+fail their sync or Android tests.
 
 ## Cloudflare R2
 
@@ -67,15 +100,20 @@ working personal library needs a sync product.
 
 ## Google Drive or OneDrive
 
-Both have polished clients and already hold historical files. Neither is a
-preferred provider, and retaining both would preserve the fragmentation this
-decision should remove. They remain migration sources until manifests and
-recovery tests prove the move complete.
+Both have polished mobile clients and already hold historical files. Google
+does not provide [Drive for desktop on
+Linux](https://support.google.com/drive/answer/2375082), so agent access would
+depend on another client such as rclone. Dropbox is the cleaner privacy
+compromise because it supplies its own Linux sync engine. Google Drive and
+OneDrive remain migration sources until manifests and recovery tests prove the
+move complete.
 
 # Consequences
 
-The first trial costs less than Proton Drive and tests the strongest current
-Linux and CLI candidate. The Android and macOS experience remains unproven, and
-Filen's [roadmap](https://filen.io/hub/roadmap/) still includes sync-engine and
-security-audit work. A failed trial loses no sole copy and can move directly to
-the Proton Drive comparison.
+The first trial keeps end-to-end encryption while testing the broadest agent
+interface of the candidates. The Android and macOS experience remains
+unproven, and Filen's [roadmap](https://filen.io/hub/roadmap/) still includes
+sync-engine and security-audit work. A failed trial loses no sole copy and
+moves to MEGA, then Dropbox if the encrypted options cannot meet the mobile and
+sync requirements. Proton's bundle price no longer affects the document-drive
+choice.
