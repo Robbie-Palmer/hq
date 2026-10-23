@@ -14,9 +14,10 @@ way to retrieve a document from Android or another computer.
 
 The replacement needs end-to-end encryption, macOS, Ubuntu, Android, and web
 access. No device is authoritative. Each device may create, edit, rename, or
-delete a document, and the other devices must converge without a manual upload
-or download routine. Concurrent edits must remain recoverable as conflicts
-rather than silently overwriting either version.
+delete a document. The provider's cloud service must coordinate shared state so
+every device converges without a manual upload or download routine. Concurrent
+edits must remain recoverable as conflicts rather than silently overwriting
+either version.
 
 Supervised agents need a normal synchronized directory, a writable filesystem
 mount, or an S3-compatible endpoint. Scheduled transfer commands fail because
@@ -37,9 +38,9 @@ trial.
 
 Use nested folders, large files, common office formats, scans, Unicode names,
 and deliberate duplicates. Test the macOS and Android apps, web interface, and
-Ubuntu CLI. Exercise continuous two-way synchronization and agent writes
-through a mounted filesystem or S3 endpoint. Do not substitute scheduled
-uploads and downloads for a sync engine.
+Ubuntu CLI. Exercise continuous multi-device, bidirectional synchronization
+and agent writes through a mounted filesystem or S3 endpoint. Do not substitute
+scheduled uploads and downloads for a sync engine.
 
 Promote Filen only after the trial proves:
 
@@ -67,16 +68,16 @@ terms before accepting this decision.
 ## Proton Drive
 
 Proton Drive provides end-to-end encrypted file storage, polished mobile
-access, and a CLI. Its Linux CLI transfers files but does not run a two-way sync
-engine or expose a mounted filesystem. Wrapping upload and download commands in
-a timer would still lack shared state for deletions, renames, and concurrent
-edits. Reject Proton Drive for the working library even if Proton Unlimited is
-economically compelling for Pass, VPN, or Mail.
+access, and a CLI. Its Linux CLI transfers files but does not run a bidirectional
+sync engine or expose a mounted filesystem. Wrapping upload and download
+commands in a timer would still lack shared state for deletions, renames, and
+concurrent edits. Reject Proton Drive for the working library even if Proton
+Unlimited is economically compelling for Pass, VPN, or Mail.
 
 ## MEGA
 
 [MEGAcmd](https://github.com/meganz/MEGAcmd/blob/master/UserGuide.md) provides
-continuous two-way synchronization and allows multiple devices to synchronize
+continuous multi-device, bidirectional synchronization for devices connected to
 the same cloud folder. It also provides WebDAV and a writable FUSE mount on
 Linux. Trial MEGA next if Filen fails. Its Linux FUSE support is still beta and
 does not cover macOS, so the trial must use ordinary synchronized directories

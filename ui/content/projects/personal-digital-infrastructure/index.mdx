@@ -73,8 +73,9 @@ The boundary is deliberate:
 The portfolio should:
 
 * work on Ubuntu, macOS, Android, and ordinary browsers;
-* let every document device originate changes and use a two-way sync engine to
-  propagate edits, renames, and deletions without an authoritative device;
+* let every document device originate changes and use continuous multi-device,
+  bidirectional sync through shared cloud state to propagate edits, renames,
+  and deletions without an authoritative device;
 * preserve concurrent document edits as recoverable versions or explicit
   conflicts instead of silently overwriting them;
 * give supervised agents a synchronized local directory, writable filesystem
@@ -230,12 +231,13 @@ Do not buy Proton Unlimited to begin the evaluation. The first sequence is:
    If only one person needs the wider Proton suite, compare Unlimited plus Pass
    Plus with Duo. Pay Duo's $24.12 premium only if its partner-side extras have
    demonstrated value.
-3. Trial Filen with a representative document set. Require continuous two-way
-   sync between writable devices and a mounted filesystem or S3 path for
-   agents. If Filen fails, trial MEGA next. Use Dropbox as the managed fallback
-   if both encrypted candidates fail. Do not trial Proton Drive because its
-   transfer-only Linux CLI cannot coordinate multiple writers. Google Drive
-   ranks behind Dropbox because it has no official Linux sync client.
+3. Trial Filen with a representative document set. Require continuous
+   multi-device, bidirectional sync through shared cloud state and a mounted
+   filesystem or S3 path for agents. If Filen fails, trial MEGA next. Use
+   Dropbox as the managed fallback if both encrypted candidates fail. Do not
+   trial Proton Drive because its transfer-only Linux CLI cannot coordinate
+   multiple writers. Google Drive ranks behind Dropbox because it has no
+   official Linux sync client.
 4. Route custom-domain inbound mail through Cloudflare to free Proton. Keep
    outbound mail on the Proton address at first. If Pass succeeds, compare its
    custom-domain alias sending before buying mailbox hosting.
