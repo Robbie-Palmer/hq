@@ -1896,10 +1896,20 @@ describe("delivery evidence persistence", () => {
         recordId(640),
         recordId(645),
       ]),
+      mergeEvidenceUrls: [
+        "https://github.com/example/work-graph/actions/runs/40",
+        "https://github.com/example/work-graph/actions/runs/43",
+      ],
+      deploymentEvidenceUrls: [
+        "https://github.com/example/work-graph/actions/runs/42",
+        "https://github.com/example/work-graph/actions/runs/45",
+      ],
     });
+    expect(releases[0]?.data).not.toHaveProperty("mergeEvidence");
+    expect(releases[0]?.data).not.toHaveProperty("deploymentEvidence");
   });
 
-  it("rechecks stale failure, unfinished children, and unresolved attention before release", async () => {
+  it("rechecks stale failure and graph blockers before release", async () => {
     await repository.createWorkItem({ id: "guarded", title: "Guarded release" });
     const attentionLease = await repository.claimWorkItem({
       workItemId: "guarded",
@@ -1922,6 +1932,13 @@ describe("delivery evidence persistence", () => {
       title: "Unfinished child",
       parentId: "guarded",
     });
+    await repository.createWorkItem({
+      id: "blocking-dependency",
+      title: "Blocking dependency",
+    });
+    await repository.addDependency(
+      dependency("guarded", "blocking-dependency"),
+    );
     const head = commitSha("e");
     const merge = commitSha("f");
     await repository.refreshPullRequest({
@@ -2003,6 +2020,7 @@ describe("delivery evidence persistence", () => {
         reasons: expect.arrayContaining([
           "missing_production_deployment",
           "unfinished_children",
+          "unsatisfied_dependencies",
           "unresolved_blocking_attention",
         ]),
       },

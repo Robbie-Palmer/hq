@@ -222,6 +222,7 @@ export interface CompletionCandidateInput {
   readonly implementationPullRequests: readonly PullRequestSnapshot[];
   readonly evidence: readonly CurrentDeliveryEvidence[];
   readonly hasUnfinishedChildren: boolean;
+  readonly hasUnsatisfiedDependencies: boolean;
   readonly hasUnresolvedBlockingAttention: boolean;
   readonly evaluatedAt: string;
 }
@@ -337,6 +338,9 @@ export const evaluateCompletionCandidate = (
   }
 
   if (input.hasUnfinishedChildren) reasons.add("unfinished_children");
+  if (input.hasUnsatisfiedDependencies) {
+    reasons.add("unsatisfied_dependencies");
+  }
   if (input.hasUnresolvedBlockingAttention) {
     reasons.add("unresolved_blocking_attention");
   }

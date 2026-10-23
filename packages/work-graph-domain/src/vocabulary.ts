@@ -107,6 +107,7 @@ export const COMPLETION_CANDIDATE_REASONS = [
   "missing_required_ci",
   "missing_production_deployment",
   "unfinished_children",
+  "unsatisfied_dependencies",
   "unresolved_blocking_attention",
 ] as const;
 

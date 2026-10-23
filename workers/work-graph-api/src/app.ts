@@ -438,7 +438,9 @@ const completionCandidateSchema = z
       .max(MAX_INT32)
       .openapi({ format: "int32" }),
     candidate: z.boolean(),
-    reasons: z.array(z.enum(COMPLETION_CANDIDATE_REASONS)).max(9),
+    reasons: z
+      .array(z.enum(COMPLETION_CANDIDATE_REASONS))
+      .max(COMPLETION_CANDIDATE_REASONS.length),
     evidenceObservationIds: z.array(z.uuid().max(36)).max(1_000),
     evaluatedAt: timestampSchema,
   })

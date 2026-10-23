@@ -231,8 +231,9 @@ export const zCompletionCandidate = z.object({
         'missing_required_ci',
         'missing_production_deployment',
         'unfinished_children',
+        'unsatisfied_dependencies',
         'unresolved_blocking_attention'
-    ])).max(9),
+    ])).max(10),
     evidenceObservationIds: z.array(z.uuid().max(36)).max(1000),
     evaluatedAt: z.iso.datetime().max(30)
 });

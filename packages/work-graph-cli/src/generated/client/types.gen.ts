@@ -174,7 +174,7 @@ export type CompletionCandidate = {
     policyId: string;
     policyRevision: number;
     candidate: boolean;
-    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unresolved_blocking_attention'>;
+    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unsatisfied_dependencies' | 'unresolved_blocking_attention'>;
     evidenceObservationIds: Array<string>;
     evaluatedAt: string;
 };

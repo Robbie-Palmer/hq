@@ -163,6 +163,7 @@ describe("completion candidacy", () => {
         ...evidenceFor(second, 20),
       ],
       hasUnfinishedChildren: false,
+      hasUnsatisfiedDependencies: false,
       hasUnresolvedBlockingAttention: false,
       evaluatedAt: "2026-09-22T14:00:00.000Z",
     });
@@ -214,6 +215,7 @@ describe("completion candidacy", () => {
       implementationPullRequests: [pr],
       evidence: [...evidence, earlierSuccessfulCi],
       hasUnfinishedChildren: false,
+      hasUnsatisfiedDependencies: false,
       hasUnresolvedBlockingAttention: false,
       evaluatedAt: "2026-09-22T14:00:00.000Z",
     });
@@ -225,7 +227,7 @@ describe("completion candidacy", () => {
     ]);
   });
 
-  it("keeps unfinished children and unresolved attention explicit", () => {
+  it("keeps graph and attention blockers explicit", () => {
     const pr = pullRequest(1, sha("a"), sha("b"));
     const result = evaluateCompletionCandidate({
       workItemId: "delivery",
@@ -233,6 +235,7 @@ describe("completion candidacy", () => {
       implementationPullRequests: [pr],
       evidence: evidenceFor(pr, 40),
       hasUnfinishedChildren: true,
+      hasUnsatisfiedDependencies: true,
       hasUnresolvedBlockingAttention: true,
       evaluatedAt: "2026-09-22T14:00:00.000Z",
     });
@@ -240,6 +243,7 @@ describe("completion candidacy", () => {
     expect(result.candidate).toBe(false);
     expect(result.reasons).toEqual([
       "unfinished_children",
+      "unsatisfied_dependencies",
       "unresolved_blocking_attention",
     ]);
   });

@@ -1146,10 +1146,11 @@
                 "missing_required_ci",
                 "missing_production_deployment",
                 "unfinished_children",
+                "unsatisfied_dependencies",
                 "unresolved_blocking_attention"
               ]
             },
-            "maxItems": 9
+            "maxItems": 10
           },
           "evidenceObservationIds": {
             "type": "array",

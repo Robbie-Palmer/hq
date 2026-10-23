@@ -16,6 +16,7 @@ import {
   createKnowledgeScope,
   createWorkGraph,
   evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
+  getUnsatisfiedDependencies,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
@@ -2347,6 +2348,55 @@ export class WorkGraphRepository {
     }));
   }
 
+  private async listCurrentWorkItemDeliveryEvidenceInTransaction(
+    transaction: DbTransaction,
+    workItemId: string,
+  ): Promise<readonly CurrentDeliveryEvidence[]> {
+    const rows = await transaction
+      .selectDistinct({
+        observation: deliveryEvidenceObservation,
+        projectedAt: currentDeliveryEvidence.projectedAt,
+      })
+      .from(currentDeliveryEvidence)
+      .innerJoin(
+        deliveryEvidenceObservation,
+        eq(
+          deliveryEvidenceObservation.id,
+          currentDeliveryEvidence.observationId,
+        ),
+      )
+      .innerJoin(
+        workItemPullRequest,
+        and(
+          eq(
+            workItemPullRequest.repository,
+            deliveryEvidenceObservation.pullRequestRepository,
+          ),
+          eq(
+            workItemPullRequest.number,
+            deliveryEvidenceObservation.pullRequestNumber,
+          ),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemPullRequest.workItemId, workItemId),
+          eq(workItemPullRequest.role, "implementation"),
+        ),
+      )
+      .orderBy(
+        currentDeliveryEvidence.provider,
+        currentDeliveryEvidence.kind,
+        currentDeliveryEvidence.externalId,
+      );
+    return rows.map(({ observation, projectedAt }) => ({
+      ...observation,
+      providerObservedAt: observation.providerObservedAt.toISOString(),
+      ingestedAt: observation.ingestedAt.toISOString(),
+      projectedAt: projectedAt.toISOString(),
+    }));
+  }
+
   async putCompletionPolicyRevision(
     input: CompletionPolicyRevision,
   ): Promise<CompletionPolicyRevision> {
@@ -2597,10 +2647,10 @@ export class WorkGraphRepository {
         policyRevision: evaluation.policyRevision,
         completionCandidateEvaluationId: evaluation.id,
         evidenceObservationIds: [...evaluation.evidenceObservationIds],
-        mergeEvidence: evidence
+        mergeEvidenceUrls: evidence
           .filter(({ kind }) => kind === "pull_request")
           .map(({ sourceUrl }) => sourceUrl),
-        deploymentEvidence: evidence
+        deploymentEvidenceUrls: evidence
           .filter(({ kind }) => kind === "deployment")
           .map(({ sourceUrl }) => sourceUrl),
       },
@@ -2665,7 +2715,9 @@ export class WorkGraphRepository {
     transaction: DbTransaction,
     input: EvaluateCompletionCandidateInput,
   ): Promise<StoredCompletionCandidateEvaluation> {
-    const item = await this.requireGraphWorkItem(transaction, input.workItemId);
+    const graph = await this.loadSchedulingGraph(transaction);
+    const item = graph.workItems.find(({ id }) => id === input.workItemId);
+    if (!item) throw workItemNotFound(input.workItemId);
     const [assignedPolicy] = await transaction
       .select({ policy: completionPolicyRevision })
       .from(workItemCompletionPolicy)
@@ -2711,8 +2763,9 @@ export class WorkGraphRepository {
       ...stored,
       observedAt: stored.observedAt.toISOString(),
     }));
-    const evidence = await this.listCurrentDeliveryEvidenceInTransaction(
+    const evidence = await this.listCurrentWorkItemDeliveryEvidenceInTransaction(
       transaction,
+      item.id,
     );
     const [unfinishedChild] = await transaction
       .select({ id: workItem.id })
@@ -2749,6 +2802,8 @@ export class WorkGraphRepository {
       implementationPullRequests,
       evidence,
       hasUnfinishedChildren: unfinishedChild !== undefined,
+      hasUnsatisfiedDependencies:
+        getUnsatisfiedDependencies(graph, item.id).length > 0,
       hasUnresolvedBlockingAttention: blockingAttention !== undefined,
       evaluatedAt: input.evaluatedAt,
     });
