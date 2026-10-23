@@ -1,0 +1,75 @@
+schema_version: 1
+
+project:
+  id: "agentic-code-review"
+  name: "Agentic Code Review"
+  kind: "service"
+
+components:
+  - id: "ai-review-domain"
+    name: "AI review domain"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "install"
+        reason: "The shared workspace installs this package."
+      - task: "format"
+        reason: "Repository-wide formatting covers this package."
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "build"
+        reason: "The package exposes TypeScript source directly."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+  - id: "ai-review-evaluation"
+    name: "AI review evaluation"
+    kind: "python-pipeline"
+    task_exceptions:
+      - task: "install"
+        reason: "The shared workspace installs the pipeline dependencies."
+      - task: "format"
+        reason: "Repository-wide formatting covers this pipeline."
+      - task: "lint"
+        reason: "The pipeline check task owns linting."
+      - task: "typecheck-or-compile"
+        reason: "The pipeline check task validates its executable sources."
+      - task: "build"
+        reason: "The evaluation pipeline has no standalone build artifact."
+      - task: "clean"
+        reason: "DVC and the shared workspace own generated-data cleanup."
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+  - layer: "typescript"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+  - layer: "database"
+    slots:
+      - "database.olap-engine"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+  - layer: "storage"
+    slots:
+      - "storage.object-store"
+
+requirements:
+  - "runtime-derived-api-contract"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

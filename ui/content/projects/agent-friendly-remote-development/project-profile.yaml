@@ -1,0 +1,48 @@
+schema_version: 1
+
+project:
+  id: "agent-friendly-remote-development"
+  name: "Agent-friendly Remote Development"
+  kind: "infrastructure"
+
+components:
+  - id: "remote-development"
+    name: "Remote development infrastructure"
+    kind: "terraform-root"
+    task_exceptions:
+      - task: "install"
+        reason: "Terraform initialization remains environment-aware."
+      - task: "typecheck-or-compile"
+        reason: "Terraform validation and linting replace compilation."
+      - task: "test"
+        reason: "Terraform plan checks cover the infrastructure contract."
+      - task: "build"
+        reason: "Infrastructure has no standalone build artifact."
+      - task: "clean"
+        reason: "Terraform working data is ephemeral or operator-managed."
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "build-runtime"
+    slots:
+      - "build.reproducibility"
+      - "host.configuration"
+      - "network.public-ingress"
+      - "network.private-overlay"
+
+reconciliation:
+  mode: "tracking"
+  defer:
+    effective_at: "2026-10-23T00:00:00Z"
+    reason: "Wait for the profile schema to represent the NixOS host, K3s workload, and per-user workspace boundaries without flattening them into Terraform ownership."
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

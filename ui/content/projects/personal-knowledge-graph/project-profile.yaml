@@ -1,0 +1,48 @@
+schema_version: 1
+
+project:
+  id: "personal-knowledge-graph"
+  name: "Personal Knowledge Graph"
+  kind: "application"
+
+components:
+  - id: "publication"
+    name: "Personal Knowledge Graph publication"
+    kind: "project-content"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "delivery.preview-environment"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+  - layer: "storage"
+    slots:
+      - "storage.object-store"
+
+requirements:
+  - "preview-scoped-credentials"
+  - "synthetic-preview-data"
+  - "preview-cleanup"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

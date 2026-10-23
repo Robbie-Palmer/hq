@@ -1,0 +1,40 @@
+schema_version: 1
+
+project:
+  id: "wedding-planner"
+  name: "Wedding planner"
+  kind: "application"
+
+components:
+  - id: "publication"
+    name: "Wedding planner publication"
+    kind: "project-content"
+  - id: "wedding-planner-domain"
+    name: "Wedding planner domain"
+    kind: "typescript-package"
+    task_exceptions:
+      - task: "format"
+        reason: "Repository-wide formatting covers this package."
+      - task: "lint"
+        reason: "Repository-wide lint tasks cover this package."
+      - task: "build"
+        reason: "The package exposes TypeScript source directly."
+      - task: "clean"
+        reason: "The shared workspace owns cleanup."
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

@@ -1,0 +1,313 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:agent-first-writing/writing-editor-domain
+        kind: component
+        name: Writing editor domain
+        project: project:agent-first-writing
+        relations:
+          - target: system:agent-first-writing/data-pipeline
+            type: part_of
+        source_paths:
+          - packages/writing-editor-domain
+      - id: component:agent-first-writing/writing-editor-evaluation
+        kind: component
+        name: Writing editor evaluation
+        project: project:agent-first-writing
+        relations:
+          - target: system:agent-first-writing/data-pipeline
+            type: part_of
+        source_paths:
+          - ml-pipelines/writing-editor-evaluation
+    system:
+      id: system:agent-first-writing/data-pipeline
+      kind: system
+      name: Agent-first Writing Editor
+      project: project:agent-first-writing
+      source_paths:
+        - ml-pipelines/writing-editor-evaluation
+        - packages/writing-editor-domain
+  components:
+    - id: writing-editor-domain
+      kind: typescript-package
+      name: Writing editor domain
+      path: packages/writing-editor-domain
+      stable_id: component:agent-first-writing/writing-editor-domain
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: writing-editor-evaluation
+      kind: python-pipeline
+      name: Writing editor evaluation
+      path: ml-pipelines/writing-editor-evaluation
+      stable_id: component:agent-first-writing/writing-editor-evaluation
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The evaluation pipeline has no standalone build artifact.
+        - disposition: not-applicable
+          name: clean
+          reason: DVC and the shared workspace own generated-data cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this pipeline.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: The pipeline check task owns linting.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+  effective_at: 2026-10-23 00:00:00+00:00
+  manual_checkpoints: []
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - ml-pipelines/writing-editor-evaluation
+      - packages/writing-editor-domain
+      - ui/content/projects/agent-first-writing
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: agent-first-writing
+    kind: data-pipeline
+    name: Agent-first Writing Editor
+    stable_id: project:agent-first-writing
+  repository_paths:
+    architecture_decisions: ui/content/projects/agent-first-writing/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/agent-first-writing.yml
+    product_decisions: ui/content/projects/agent-first-writing/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/agent-first-writing/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:024-dvc-artifact-versioning
+      id: data-artifact-versioning-dvc-2026-09-30
+      kind: technology
+      layer: data
+      slot: data.artifact-versioning
+      source: default
+      value: dvc
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: agent-first-writing:009-primary-language-python
+      id: override-agent-first-writing-project-primary-language
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: override
+      value: python
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:001-language-defaults
+      id: python-data-validation-pydantic-2026-09-12
+      kind: technology
+      layer: python
+      slot: python.data-validation
+      source: default
+      value: pydantic
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: python-linter-formatter-ruff-2026-09-15
+      kind: technology
+      layer: python
+      slot: python.linter-formatter
+      source: default
+      value: ruff
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: python-package-manager-uv-2026-09-15
+      kind: technology
+      layer: python
+      slot: python.package-manager
+      source: default
+      value: uv
+    - decision: personal-engineering-platform:001-language-defaults
+      id: python-test-cases-pytest-cases-2026-09-12
+      kind: technology
+      layer: python
+      slot: python.test-cases
+      source: default
+      value: pytest-cases
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: python-test-runner-pytest-2026-09-15
+      kind: technology
+      layer: python
+      slot: python.test-runner
+      source: default
+      value: pytest
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-runtime-store-doppler-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.runtime-store
+      source: default
+      value: doppler
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+project_id: agent-first-writing

@@ -1,0 +1,48 @@
+schema_version: 1
+
+project:
+  id: "autonomic-satellite-swarm"
+  name: "Autonomic Satellite Swarm"
+  kind: "embedded-system"
+
+components:
+  - id: "autonomic-satellite-swarm"
+    name: "Autonomic Satellite Swarm"
+    kind: "cpp-project"
+    task_exceptions:
+      - task: "install"
+        reason: "The pinned CMake and Arduino toolchains are installed through mise."
+      - task: "format"
+        reason: "The project check task owns C++ formatting verification."
+      - task: "lint"
+        reason: "The project check task owns static analysis."
+      - task: "typecheck-or-compile"
+        reason: "The project build tasks compile host, browser, and firmware targets."
+      - task: "test"
+        reason: "The project check task runs the host and browser suites."
+      - task: "build"
+        reason: "Target-specific build tasks preserve host, browser, and firmware boundaries."
+      - task: "clean"
+        reason: "Target-specific build directories remain locally managed."
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+
+overrides:
+  - slot: "project.primary-language"
+    kind: "technology"
+    value: "c-plus-plus"
+    decision: "autonomic-satellite-swarm:001-c-plus-plus"
+
+reconciliation:
+  mode: "tracking"
+  defer:
+    effective_at: "2026-10-23T00:00:00Z"
+    reason: "Keep the research prototype on its reviewed CMake, Arduino, and WebAssembly contracts until the platform defines an embedded C++ layer."
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false
