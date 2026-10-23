@@ -6,7 +6,11 @@ import { ShoppingListBoundary } from "@/components/recipes/shopping/shopping-lis
 import { useShoppingList } from "@/hooks/use-shopping-list";
 import { captureRecipeEvent } from "@/lib/analytics/recipe-product";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
-import { localISODate, type MealPlanEntry } from "@/lib/domain/meal-plan";
+import {
+  addDays,
+  localISODate,
+  type MealPlanEntry,
+} from "@/lib/domain/meal-plan";
 import { savePlannedMeal } from "@/lib/shopping/shoppingListStore";
 import { MealPlanForm } from "./meal-plan-form";
 import {
@@ -117,6 +121,13 @@ function MealPlanningContent({
     () => new Map(recipes.map((recipe) => [recipe.slug, recipe])),
     [recipes],
   );
+  const weekEnd = addDays(localISODate(new Date()), 6);
+  const shoppingMeals =
+    controller.view === "week"
+      ? controller.committed.filter(
+          (meal) => meal.date !== undefined && meal.date <= weekEnd,
+        )
+      : controller.committed;
   useEffect(() => {
     if (controller.editing)
       editor.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
@@ -151,7 +162,7 @@ function MealPlanningContent({
         onEdit={controller.setEditing}
         onView={controller.setView}
       />
-      <ShoppingPlanAction mealCount={controller.committed.length} />
+      <ShoppingPlanAction meals={shoppingMeals} view={controller.view} />
     </div>
   );
 }

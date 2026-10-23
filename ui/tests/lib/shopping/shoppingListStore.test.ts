@@ -271,7 +271,11 @@ describe("shoppingListStore", () => {
       mealType: "dinner",
     });
 
-    expect(addCommittedMealsToShoppingList("2026-10-18")).toBe(1);
+    expect(addCommittedMealsToShoppingList("2026-10-18")).toEqual({
+      addedMealCount: 1,
+      addedRecipeCount: 1,
+      eligibleMealCount: 3,
+    });
     expect(getShoppingListSnapshot().recipes).toEqual([
       { slug: "risotto", servings: 8 },
       { slug: "soup", servings: 4 },

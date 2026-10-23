@@ -38,6 +38,12 @@ export type ShoppingListState = {
   plan: MealPlanEntry[];
 };
 
+export type AddCommittedMealsResult = {
+  addedMealCount: number;
+  addedRecipeCount: number;
+  eligibleMealCount: number;
+};
+
 export type ShoppingListChangeSource = "install" | "local" | "storage";
 
 const LEGACY_STORAGE_KEY = "recipe-shopping-list:v1";
@@ -425,10 +431,15 @@ export function removePlannedMeal(id: string): void {
   setState({ ...state, plan: state.plan.filter((meal) => meal.id !== id) });
 }
 
-export function addCommittedMealsToShoppingList(fromDate: string): number {
-  const servingsBySlug = new Map<string, number>();
+export function addCommittedMealsToShoppingList(
+  fromDate: string,
+  mealIds?: readonly string[],
+): AddCommittedMealsResult {
+  const selectedIds = mealIds ? new Set(mealIds) : undefined;
+  const mealsBySlug = new Map<string, { count: number; servings: number }>();
   for (const meal of state.plan) {
     if (
+      (selectedIds && !selectedIds.has(meal.id)) ||
       meal.status !== "committed" ||
       meal.kind !== "recipe" ||
       !meal.recipeSlug ||
@@ -437,22 +448,32 @@ export function addCommittedMealsToShoppingList(fromDate: string): number {
     ) {
       continue;
     }
-    servingsBySlug.set(
-      meal.recipeSlug,
-      (servingsBySlug.get(meal.recipeSlug) ?? 0) + (meal.servings ?? 1),
-    );
+    const current = mealsBySlug.get(meal.recipeSlug);
+    mealsBySlug.set(meal.recipeSlug, {
+      count: (current?.count ?? 0) + 1,
+      servings: (current?.servings ?? 0) + (meal.servings ?? 1),
+    });
   }
-  let added = 0;
+  let addedMealCount = 0;
+  let addedRecipeCount = 0;
   const recipes = [...state.recipes];
-  for (const [slug, servings] of servingsBySlug) {
+  for (const [slug, { count, servings }] of mealsBySlug) {
     const index = recipes.findIndex((recipe) => recipe.slug === slug);
     if (index < 0) {
       recipes.push({ slug, servings });
-      added += 1;
+      addedMealCount += count;
+      addedRecipeCount += 1;
     }
   }
-  if (added > 0) setState({ ...state, recipes });
-  return added;
+  if (addedRecipeCount > 0) setState({ ...state, recipes });
+  return {
+    addedMealCount,
+    addedRecipeCount,
+    eligibleMealCount: [...mealsBySlug.values()].reduce(
+      (total, meal) => total + meal.count,
+      0,
+    ),
+  };
 }
 
 export function toggleChecked(key: string): void {

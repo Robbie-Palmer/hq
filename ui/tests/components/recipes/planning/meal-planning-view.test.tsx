@@ -216,7 +216,7 @@ describe("MealPlanningView", () => {
     );
     expect(getShoppingListSnapshot().plan[0]).not.toHaveProperty("recipeSlug");
 
-    await user.click(screen.getByRole("button", { name: "week" }));
+    await user.click(screen.getByRole("button", { name: "Next 7 days" }));
     expect(screen.getByText("Dinner with friends")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: "Plan meal" })).toHaveLength(
       7,
@@ -338,9 +338,9 @@ describe("MealPlanningView", () => {
 
     render(<MealPlanningView recipes={recipes} />);
 
-    expect(screen.getByText("1 planned meal is ready.")).toBeInTheDocument();
+    expect(screen.getByText("1 upcoming meal is ready.")).toBeInTheDocument();
     expect(
-      screen.getByText("Only scheduled recipes are included."),
+      screen.getByText("Upcoming scheduled recipes in this view only."),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Add to shopping list" }),
@@ -348,6 +348,106 @@ describe("MealPlanningView", () => {
     expect(getShoppingListSnapshot().recipes).toEqual([
       { slug: "soup", servings: 4 },
     ]);
+  });
+
+  it("limits next-seven-days shopping to meals visible in that view", async () => {
+    const user = userEvent.setup();
+    const date = localDate();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "visible",
+          kind: "recipe",
+          status: "committed",
+          date,
+          mealType: "dinner",
+          recipeSlug: "risotto",
+          servings: 2,
+        },
+        {
+          id: "later",
+          kind: "recipe",
+          status: "committed",
+          date: addDays(date, 7),
+          mealType: "dinner",
+          recipeSlug: "risotto",
+          servings: 3,
+        },
+      ],
+    });
+
+    render(<MealPlanningView recipes={recipes} />);
+
+    expect(screen.getByText("2 upcoming meals are ready.")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Next 7 days" }));
+    expect(
+      screen.getByText("1 meal is ready in the next 7 days."),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    );
+
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "risotto", servings: 2 },
+    ]);
+    expect(
+      screen.getByRole("link", { name: "Added for 1 meal. Open Shop" }),
+    ).toBeInTheDocument();
+  });
+
+  it("confirms repeated recipes by planned meal count", async () => {
+    const user = userEvent.setup();
+    const date = localDate();
+    installShoppingListSnapshot({
+      recipes: [],
+      checked: [],
+      extras: [],
+      plan: [
+        {
+          id: "risotto-1",
+          kind: "recipe",
+          status: "committed",
+          date,
+          mealType: "dinner",
+          recipeSlug: "risotto",
+          servings: 2,
+        },
+        {
+          id: "risotto-2",
+          kind: "recipe",
+          status: "committed",
+          date: addDays(date, 1),
+          mealType: "dinner",
+          recipeSlug: "risotto",
+          servings: 3,
+        },
+      ],
+    });
+
+    render(<MealPlanningView recipes={recipes} />);
+    await user.click(screen.getByRole("button", { name: "Next 7 days" }));
+    expect(
+      screen.getByText("2 meals are ready in the next 7 days."),
+    ).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Add to shopping list" }),
+    );
+
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "risotto", servings: 5 },
+    ]);
+    expect(
+      screen.getByRole("link", { name: "Added for 2 meals. Open Shop" }),
+    ).toBeInTheDocument();
+    expect(mocks.captureRecipeEvent).toHaveBeenCalledWith(
+      "meal_plan_shopping_generated",
+      { added_recipe_count: 1, committed_meal_count: 2 },
+    );
   });
 
   it("records an abandoned plan after the form is changed", async () => {

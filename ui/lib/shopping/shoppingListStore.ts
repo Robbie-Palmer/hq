@@ -1,5 +1,6 @@
 export type { MealPlanEntry } from "@/lib/domain/meal-plan";
 export {
+  type AddCommittedMealsResult,
   addCommittedMealsToShoppingList,
   addExtra,
   addRecipe,

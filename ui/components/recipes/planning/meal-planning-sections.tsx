@@ -7,6 +7,7 @@ import { captureRecipeEvent } from "@/lib/analytics/recipe-product";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
 import { localISODate, type MealPlanEntry } from "@/lib/domain/meal-plan";
 import {
+  type AddCommittedMealsResult,
   addCommittedMealsToShoppingList,
   removePlannedMeal,
 } from "@/lib/shopping/shoppingListStore";
@@ -108,7 +109,7 @@ export function PlannedMeals({
               onClick={() => onView(option)}
               className="rounded px-3 py-1 rt-mono capitalize text-[var(--ink-3)] aria-pressed:bg-[var(--paper-warm)] aria-pressed:text-[var(--ink)]"
             >
-              {option}
+              {option === "week" ? "Next 7 days" : "Agenda"}
             </button>
           ))}
         </div>
@@ -127,30 +128,61 @@ export function PlannedMeals({
   );
 }
 
+function ShoppingGenerationLink({
+  result,
+}: Readonly<{ result: AddCommittedMealsResult }>) {
+  const label =
+    result.addedMealCount > 0
+      ? `Added for ${result.addedMealCount} ${result.addedMealCount === 1 ? "meal" : "meals"}. Open Shop`
+      : "Already on your list. Open Shop";
+  return (
+    <Link
+      href="/recipes/shopping"
+      className="text-center rt-mono text-[var(--terracotta)] underline sm:text-left"
+    >
+      {label}
+    </Link>
+  );
+}
+
 export function ShoppingPlanAction({
-  mealCount,
-}: Readonly<{ mealCount: number }>) {
-  const [generated, setGenerated] = useState<number | null>(null);
+  meals,
+  view,
+}: Readonly<{
+  meals: MealPlanEntry[];
+  view: "agenda" | "week";
+}>) {
+  const [generated, setGenerated] = useState<{
+    result: AddCommittedMealsResult;
+    scopeKey: string;
+  } | null>(null);
+  const mealCount = meals.length;
   if (mealCount === 0) return null;
+  const scopeKey = meals.map(({ id }) => id).join("|");
   const generate = () => {
-    const count = addCommittedMealsToShoppingList(localISODate(new Date()));
-    setGenerated(count);
+    const result = addCommittedMealsToShoppingList(
+      localISODate(new Date()),
+      meals.map(({ id }) => id),
+    );
+    setGenerated({ result, scopeKey });
     captureRecipeEvent("meal_plan_shopping_generated", {
-      added_recipe_count: count,
-      committed_meal_count: mealCount,
+      added_recipe_count: result.addedRecipeCount,
+      committed_meal_count: result.eligibleMealCount,
     });
   };
+  const currentResult = generated?.scopeKey === scopeKey && generated.result;
   return (
     <aside className="mt-8 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
       <div className="flex items-start gap-3">
         <ShoppingBasket className="mt-0.5 size-5 shrink-0 text-[var(--terracotta)]" />
         <div className="min-w-0">
           <p className="rt-body text-sm text-[var(--ink-2)]">
-            {mealCount} planned {mealCount === 1 ? "meal is" : "meals are"}{" "}
-            ready.
+            {mealCount} {view === "week" ? "meal" : "upcoming meal"}
+            {mealCount === 1 ? " is" : "s are"} ready
+            {view === "week" ? " in the next 7 days." : "."}
           </p>
           <p className="mt-1 rt-mono text-[0.65rem] text-[var(--ink-3)]">
-            Only scheduled recipes are included.
+            Upcoming scheduled recipes in this view only.
           </p>
         </div>
       </div>
@@ -162,14 +194,7 @@ export function ShoppingPlanAction({
         >
           Add to shopping list
         </button>
-        {generated !== null && (
-          <Link
-            href="/recipes/shopping"
-            className="text-center rt-mono text-[var(--terracotta)] underline sm:text-left"
-          >
-            {generated > 0 ? `${generated} added. Open Shop` : "Open Shop"}
-          </Link>
-        )}
+        {currentResult && <ShoppingGenerationLink result={currentResult} />}
       </div>
     </aside>
   );
