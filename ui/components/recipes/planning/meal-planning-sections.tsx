@@ -39,12 +39,10 @@ export function CandidateMeals({
   candidates,
   recipes,
   onEdit,
-  onSave,
 }: Readonly<{
   candidates: MealPlanEntry[];
   recipes: ReadonlyMap<string, ShoppingRecipe>;
   onEdit: (meal: Partial<MealPlanEntry>) => void;
-  onSave: (meal: MealPlanEntry) => void;
 }>) {
   if (candidates.length === 0) return null;
   return (
@@ -66,7 +64,6 @@ export function CandidateMeals({
             recipes={recipes}
             onEdit={onEdit}
             onRemove={removePlannedMeal}
-            onSave={onSave}
           />
         ))}
       </div>
@@ -79,14 +76,12 @@ export function PlannedMeals({
   recipes,
   view,
   onEdit,
-  onSave,
   onView,
 }: Readonly<{
   meals: MealPlanEntry[];
   recipes: ReadonlyMap<string, ShoppingRecipe>;
   view: "agenda" | "week";
   onEdit: (meal: Partial<MealPlanEntry>) => void;
-  onSave: (meal: MealPlanEntry) => void;
   onView: (view: "agenda" | "week") => void;
 }>) {
   const shared = {
@@ -94,7 +89,6 @@ export function PlannedMeals({
     recipes,
     onEdit,
     onRemove: removePlannedMeal,
-    onSave,
   };
   return (
     <section aria-labelledby="planned-meals-heading">

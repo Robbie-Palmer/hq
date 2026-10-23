@@ -29,13 +29,11 @@ export function MealPlanAgenda({
   recipes,
   onEdit,
   onRemove,
-  onSave,
 }: Readonly<{
   meals: MealPlanEntry[];
   recipes: ReadonlyMap<string, ShoppingRecipe>;
   onEdit: (meal: MealPlanEntry) => void;
   onRemove: (id: string) => void;
-  onSave: (meal: MealPlanEntry) => void;
 }>) {
   const committed = meals
     .filter(
@@ -74,7 +72,6 @@ export function MealPlanAgenda({
                 recipes={recipes}
                 onEdit={onEdit}
                 onRemove={onRemove}
-                onSave={onSave}
               />
             ))}
           </div>

@@ -23,14 +23,12 @@ export function MealPlanWeek({
   onEdit,
   onPlanDate,
   onRemove,
-  onSave,
 }: Readonly<{
   meals: MealPlanEntry[];
   recipes: ReadonlyMap<string, ShoppingRecipe>;
   onEdit: (meal: MealPlanEntry) => void;
   onPlanDate: (date: string) => void;
   onRemove: (id: string) => void;
-  onSave: (meal: MealPlanEntry) => void;
 }>) {
   const dates = Array.from({ length: 7 }, (_, index) =>
     addDays(today(), index),
@@ -54,7 +52,6 @@ export function MealPlanWeek({
                   recipes={recipes}
                   onEdit={onEdit}
                   onRemove={onRemove}
-                  onSave={onSave}
                 />
               ))}
               <button

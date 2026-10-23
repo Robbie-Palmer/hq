@@ -143,7 +143,7 @@ function ScheduleFields({
         />
       </label>
       <label className="grid gap-1 rt-body text-sm text-[var(--ink-2)]">
-        <span>Meal</span>
+        <span>Meal slot</span>
         <select
           value={form.state.mealType}
           onChange={(event) => form.setMealType(event.target.value as MealType)}
@@ -230,6 +230,7 @@ export function MealPlanForm({
   onTouched: () => void;
 }>) {
   const form = useMealPlanForm(initial);
+  const repeating = Boolean(initial?.sourceMealId);
   return (
     <form
       className="grid gap-4 rounded-xl border border-[var(--line-strong)] bg-[var(--card)] p-4 md:grid-cols-2"
@@ -239,6 +240,20 @@ export function MealPlanForm({
         onSave(toMeal(initial, form.state));
       }}
     >
+      <div className="md:col-span-2">
+        <h2 className="rt-display text-2xl">
+          {repeating
+            ? "Plan this meal again."
+            : initial?.id
+              ? "Edit meal."
+              : "Plan one meal."}
+        </h2>
+        {repeating && (
+          <p className="mt-1 rt-body text-sm text-[var(--ink-3)]">
+            Choose the day and meal slot before saving.
+          </p>
+        )}
+      </div>
       <PlanSelectors form={form} recipes={recipes} />
       <ScheduleFields form={form} />
       <DetailFields form={form} />

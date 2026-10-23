@@ -223,9 +223,19 @@ describe("MealPlanningView", () => {
     );
     await user.click(
       screen.getByRole("button", {
-        name: "Repeat Dinner with friends next week",
+        name: "Plan Dinner with friends again",
       }),
     );
+    expect(getShoppingListSnapshot().plan).toHaveLength(1);
+    expect(
+      screen.getByRole("heading", { name: "Plan this meal again." }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose the day and meal slot before saving."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Day")).toHaveValue(addDays(date, 7));
+    expect(screen.getByLabelText("Meal slot")).toHaveValue("dinner");
+    await user.click(screen.getByRole("button", { name: "Save meal" }));
     expect(getShoppingListSnapshot().plan).toEqual([
       expect.objectContaining({ date }),
       expect.objectContaining({

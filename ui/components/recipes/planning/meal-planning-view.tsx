@@ -112,15 +112,20 @@ function MealPlanningContent({
 }: Readonly<{ recipes: ShoppingRecipe[] }>) {
   const { plan } = useShoppingList();
   const controller = usePlanController(plan, recipes);
+  const editor = useRef<HTMLDivElement>(null);
   const bySlug = useMemo(
     () => new Map(recipes.map((recipe) => [recipe.slug, recipe])),
     [recipes],
   );
+  useEffect(() => {
+    if (controller.editing)
+      editor.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [controller.editing]);
   return (
     <div className="container mx-auto max-w-6xl px-4 pt-5 pb-24 md:pt-7">
       <PlanningHeader onAdd={() => controller.setEditing()} />
       {controller.editing && (
-        <div className="mb-8">
+        <div ref={editor} className="mb-8 scroll-mt-24">
           <MealPlanForm
             key={
               controller.editing.id ??
@@ -138,14 +143,12 @@ function MealPlanningContent({
         candidates={controller.candidates}
         recipes={bySlug}
         onEdit={controller.setEditing}
-        onSave={controller.save}
       />
       <PlannedMeals
         meals={plan}
         recipes={bySlug}
         view={controller.view}
         onEdit={controller.setEditing}
-        onSave={controller.save}
         onView={controller.setView}
       />
       <ShoppingPlanAction mealCount={controller.committed.length} />

@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarPlus, Copy, Pencil, Trash2 } from "lucide-react";
+import { CalendarPlus, Pencil, Trash2 } from "lucide-react";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
 import {
   addDays,
@@ -31,16 +31,14 @@ function EntryActions({
   title,
   onEdit,
   onRemove,
-  onSave,
 }: Readonly<{
   meal: MealPlanEntry;
   title: string;
   onEdit: (meal: MealPlanEntry) => void;
   onRemove: (id: string) => void;
-  onSave: (meal: MealPlanEntry) => void;
 }>) {
   const repeat = () =>
-    onSave({
+    onEdit({
       ...meal,
       id: nextMealPlanId(),
       date: meal.date ? addDays(meal.date, 7) : meal.date,
@@ -50,18 +48,21 @@ function EntryActions({
     <div className="flex shrink-0 gap-1">
       <button
         type="button"
-        aria-label={`${meal.status === "candidate" ? "Schedule" : "Repeat"} ${title}${meal.status === "committed" ? " next week" : ""}`}
+        aria-label={
+          meal.status === "candidate"
+            ? `Schedule ${title}`
+            : `Plan ${title} again`
+        }
         onClick={
           meal.status === "candidate"
             ? () => onEdit({ ...meal, status: "committed" })
             : repeat
         }
-        className="rounded p-2 text-[var(--ink-3)] hover:bg-[var(--paper-warm)] hover:text-[var(--terracotta)]"
+        className="inline-flex items-center gap-1 rounded p-2 text-[var(--ink-3)] hover:bg-[var(--paper-warm)] hover:text-[var(--terracotta)]"
       >
-        {meal.status === "candidate" ? (
-          <CalendarPlus className="size-4" />
-        ) : (
-          <Copy className="size-4" />
+        <CalendarPlus className="size-4" />
+        {meal.status === "committed" && (
+          <span className="rt-mono text-[0.65rem]">Plan again</span>
         )}
       </button>
       <button
@@ -89,13 +90,11 @@ export function MealPlanEntryCard({
   recipes,
   onEdit,
   onRemove,
-  onSave,
 }: Readonly<{
   meal: MealPlanEntry;
   recipes: ReadonlyMap<string, ShoppingRecipe>;
   onEdit: (meal: MealPlanEntry) => void;
   onRemove: (id: string) => void;
-  onSave: (meal: MealPlanEntry) => void;
 }>) {
   const title = entryTitle(meal, recipes);
   return (
@@ -117,7 +116,6 @@ export function MealPlanEntryCard({
           title={title}
           onEdit={onEdit}
           onRemove={onRemove}
-          onSave={onSave}
         />
       </div>
     </article>
