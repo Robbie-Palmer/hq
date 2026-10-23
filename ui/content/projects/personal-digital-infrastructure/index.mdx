@@ -73,6 +73,13 @@ The boundary is deliberate:
 The portfolio should:
 
 * work on Ubuntu, macOS, Android, and ordinary browsers;
+* let every document device originate changes and use continuous multi-device,
+  bidirectional sync through shared cloud state to propagate edits, renames,
+  and deletions without an authoritative device;
+* preserve concurrent document edits as recoverable versions or explicit
+  conflicts instead of silently overwriting them;
+* give supervised agents a synchronized local directory, writable filesystem
+  mount, or S3-compatible endpoint;
 * preserve the excellent autofill experience already observed with Dashlane;
 * let a supervised agent reach account credentials through a browser, GUI, or
   CLI, with quick rotation when one is exposed;
@@ -123,14 +130,14 @@ features solve an observed need.
 
 # Cost and capability
 
-These are public USD and EUR price observations from 18 and 20 October 2026,
+These are public USD and EUR price observations from 18 to 23 October 2026,
 before country-specific tax. The Dashlane baseline is the $57.10 renewal quoted
 for 19 July 2026 rather than a public example price.
 
 | Portfolio                            | Recurring price used for comparison | Change from the current baseline | Capability change                                                                                                                                                                                                                        |
 | ------------------------------------ | ----------------------------------: | -------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Dashlane Premium with Hotspot Shield |                         $57.10/year |                         baseline | Proven autofill and consumer VPN; no personal CLI or configurable VPN profiles                                                                                                                                                           |
-| Keep Dashlane and add Filen 200 GB   |        $57.10/year plus €23.88/year |                 plus €23.88/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                                              |
+| Keep Dashlane and add Filen 200 GiB  |        $57.10/year plus €19.99/year |                 plus €19.99/year | Adds encrypted document sync, Android access, Linux CLI sync, mounts, WebDAV, and S3 access                                                                                                                                              |
 | Proton Pass Plus and Proton VPN Plus |             $119.76/year at renewal |                 plus $62.66/year | Adds unlimited integrated TOTP, password CLI, agent vault tokens, custom-domain aliases, alias sending, Linux VPN control, WireGuard profiles, Gluetun support, and port forwarding; does not add paid Mail or substantial Drive storage |
 | Proton Unlimited                     |             $119.88/year at renewal |                 plus $62.78/year | Adds the same paid Pass and VPN, plus 500 GB shared Drive storage, paid Mail, three custom email domains, and Calendar                                                                                                                   |
 
@@ -224,9 +231,13 @@ Do not buy Proton Unlimited to begin the evaluation. The first sequence is:
    If only one person needs the wider Proton suite, compare Unlimited plus Pass
    Plus with Duo. Pay Duo's $24.12 premium only if its partner-side extras have
    demonstrated value.
-3. Trial Filen with a representative document set. Compare Proton Drive only
-   if Filen fails or the Proton bundle becomes justified by the password and
-   VPN results.
+3. Trial Filen with a representative document set. Require continuous
+   multi-device, bidirectional sync through shared cloud state and a mounted
+   filesystem or S3 path for agents. If Filen fails, trial MEGA next. Use
+   Dropbox as the managed fallback if both encrypted candidates fail. Do not
+   trial Proton Drive because its transfer-only Linux CLI cannot coordinate
+   multiple writers. Google Drive ranks behind Dropbox because it has no
+   official Linux sync client.
 4. Route custom-domain inbound mail through Cloudflare to free Proton. Keep
    outbound mail on the Proton address at first. If Pass succeeds, compare its
    custom-domain alias sending before buying mailbox hosting.
