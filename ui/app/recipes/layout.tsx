@@ -61,6 +61,29 @@ export const viewport: Viewport = {
   themeColor: "#c8693c",
 };
 
+function RecipeHeader() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/75">
+      <nav className="container mx-auto px-4 py-3 max-w-7xl flex flex-wrap items-center gap-x-4 gap-y-2">
+        <a
+          href="/recipes"
+          className="order-1 min-w-0 shrink whitespace-nowrap rt-display text-2xl leading-none text-foreground min-[360px]:text-3xl"
+        >
+          <span>Robbie's</span> <span className="rt-logo-accent">recipes</span>
+        </a>
+        <div className="order-2 ms-auto flex shrink-0 items-center gap-2 sm:order-3">
+          <NotificationBell />
+          <AuthButton intent="signup" compactOnMobile />
+          <AuthButton compactOnMobile />
+        </div>
+        <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
+          <RecipeSiteNav />
+        </div>
+      </nav>
+    </header>
+  );
+}
+
 export default function RecipesLayout({
   children,
 }: Readonly<{
@@ -81,25 +104,7 @@ export default function RecipesLayout({
           <div
             className={`recipe-theme recipe-surface ${fontVars} antialiased flex flex-col min-h-screen`}
           >
-            <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/75">
-              <nav className="container mx-auto px-4 py-3 max-w-7xl flex flex-wrap items-center gap-x-4 gap-y-2">
-                <a
-                  href="/recipes"
-                  className="order-1 min-w-0 shrink whitespace-nowrap rt-display text-2xl leading-none text-foreground min-[360px]:text-3xl"
-                >
-                  <span>Robbie's</span>{" "}
-                  <span className="rt-logo-accent">recipes</span>
-                </a>
-                <div className="order-2 ms-auto flex shrink-0 items-center gap-2 sm:order-3">
-                  <NotificationBell />
-                  <AuthButton intent="signup" compactOnMobile />
-                  <AuthButton compactOnMobile />
-                </div>
-                <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
-                  <RecipeSiteNav />
-                </div>
-              </nav>
-            </header>
+            <RecipeHeader />
 
             {/* A filtered ancestor becomes the containing block for fixed
             positioning. Keep the bottom navigation outside the blurred header. */}

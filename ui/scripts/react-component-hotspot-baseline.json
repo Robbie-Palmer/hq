@@ -117,14 +117,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "RecipesLayout",
-    "maximums": {
-      "lines": 70
-    },
-    "path": "app/recipes/layout.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "AccountBalanceChart",
     "maximums": {
       "lines": 121
