@@ -119,7 +119,7 @@ reviewed again before enabling another person's workspace.
 The current NixOS and K3s definitions now describe only the operator workspace.
 Its durable-data ceiling is 55 GiB, its rebuildable cache has a separate 30 GiB
 ceiling, and the filesystem keeps about 13 GiB outside both quotas. K3s state
-and container images remain on the root disk so a full cache cannot also remove
+and container images remain on the root disk, so a full cache cannot also remove
 the control plane's restart capacity.
 
 The next milestone is a parallel Kube-Hetzner evaluation. The existing VPS

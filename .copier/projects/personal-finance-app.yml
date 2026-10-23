@@ -1,0 +1,443 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:personal-finance-app/finance-housing-indices
+        kind: component
+        name: Finance housing indices
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/finance-housing-indices
+      - id: component:personal-finance-app/finance-inflation-indices
+        kind: component
+        name: Finance inflation indices
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/finance-inflation-indices
+      - id: component:personal-finance-app/finance-tax-rules
+        kind: component
+        name: Finance tax rules
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/finance-tax-rules
+      - id: component:personal-finance-app/personal-finance
+        kind: component
+        name: Personal Finance infrastructure
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - infra/personal-finance
+      - id: component:personal-finance-app/planning-case-domain
+        kind: component
+        name: Planning case domain
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/planning-case-domain
+      - id: component:personal-finance-app/web
+        kind: component
+        mount_path: /assettracker
+        name: Asset Tracker
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - ui/app/_projects/personal-finance-app
+    system:
+      id: system:personal-finance-app/application
+      kind: system
+      name: Personal Finance App
+      project: project:personal-finance-app
+      source_paths:
+        - infra/personal-finance
+        - packages/finance-housing-indices
+        - packages/finance-inflation-indices
+        - packages/finance-tax-rules
+        - packages/planning-case-domain
+        - ui/app/_projects/personal-finance-app
+  components:
+    - id: finance-housing-indices
+      kind: typescript-package
+      name: Finance housing indices
+      path: packages/finance-housing-indices
+      stable_id: component:personal-finance-app/finance-housing-indices
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly and has no build
+            artifact.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: finance-inflation-indices
+      kind: typescript-package
+      name: Finance inflation indices
+      path: packages/finance-inflation-indices
+      stable_id: component:personal-finance-app/finance-inflation-indices
+      tasks:
+        - disposition: generated
+          name: build
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: finance-tax-rules
+      kind: typescript-package
+      name: Finance tax rules
+      path: packages/finance-tax-rules
+      stable_id: component:personal-finance-app/finance-tax-rules
+      tasks:
+        - disposition: generated
+          name: build
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: personal-finance
+      kind: terraform-root
+      name: Personal Finance infrastructure
+      path: infra/personal-finance
+      stable_id: component:personal-finance-app/personal-finance
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The empty delivery baseline has no build artifact.
+        - disposition: not-applicable
+          name: clean
+          reason: Terraform working data is ephemeral or operator-managed.
+        - disposition: generated
+          name: format
+        - disposition: not-applicable
+          name: install
+          reason: Terraform initialization remains an explicit environment-aware task.
+        - disposition: generated
+          name: lint
+        - disposition: generated
+          name: test
+        - disposition: not-applicable
+          name: typecheck-or-compile
+          reason: Terraform validation and linting replace compilation.
+    - id: planning-case-domain
+      kind: typescript-package
+      name: Planning case domain
+      path: packages/planning-case-domain
+      stable_id: component:personal-finance-app/planning-case-domain
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly and has no build
+            artifact.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: generated
+          name: format
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: web
+      kind: project-ui
+      mount_path: /assettracker
+      name: Asset Tracker
+      path: ui/app/_projects/personal-finance-app
+      stable_id: component:personal-finance-app/web
+      tasks:
+        - disposition: delegated
+          name: build
+          target: //ui:build
+        - disposition: delegated
+          name: clean
+          target: //ui:clean
+        - disposition: delegated
+          name: format
+          target: //ui:format
+        - disposition: delegated
+          name: install
+          target: //ui:install
+        - disposition: delegated
+          name: lint
+          target: //ui:lint
+        - disposition: delegated
+          name: test
+          target: //ui:test
+        - disposition: delegated
+          name: typecheck-or-compile
+          target: //ui:typecheck
+  effective_at: 2026-10-21 00:00:00+00:00
+  manual_checkpoints: []
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - infra/personal-finance
+      - packages/finance-housing-indices
+      - packages/finance-inflation-indices
+      - packages/finance-tax-rules
+      - packages/planning-case-domain
+      - ui/app/_projects/personal-finance-app
+      - ui/content/projects/personal-finance-app
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: personal-finance-app
+    kind: application
+    name: Personal Finance App
+    stable_id: project:personal-finance-app
+  repository_paths:
+    architecture_decisions: ui/content/projects/personal-finance-app/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/personal-finance-app.yml
+    product_decisions: ui/content/projects/personal-finance-app/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/personal-finance-app/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-linter-tflint-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.linter
+      source: default
+      value: tflint
+    - decision: personal-engineering-platform:003-terraform
+      id: infrastructure-provisioner-terraform-2026-09-12
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.provisioner
+      source: default
+      value: terraform
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-state-backend-terraform-cloud-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.state-backend
+      source: default
+      value: terraform-cloud
+    - decision: personal-engineering-platform:001-language-defaults
+      id: project-primary-language-typescript-2026-09-12
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: default
+      value: typescript
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-ci-store-github-secrets-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.ci-store
+      source: default
+      value: github-secrets
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-runtime-store-doppler-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.runtime-store
+      source: default
+      value: doppler
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+project_id: personal-finance-app

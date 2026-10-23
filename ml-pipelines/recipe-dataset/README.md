@@ -27,8 +27,10 @@ dataset contains:
 - The pinned Open Recipes source and its current historical dump. The latest
   published dump is an empty gzip file, but it is retained for provenance.
 
-The prepared dataset contains 69,118 complete structured recipes and a
-32,012-row canonical content view. It also contains 10,464 conservative
+The prepared dataset contains 69,118 complete structured recipes and 16,644
+ingredient-only recipes in the versioned extraction model. The existing
+complete-recipe view has a 32,012-row canonical content view. The dataset also
+contains 10,464 conservative
 Gutenberg recipe-boundary candidates for future extraction evaluation. These
 candidates are not promoted as complete recipes until their boundaries and
 fields can be evaluated. Its 78 rejects comprise 71 Wikibooks records whose
@@ -36,10 +38,62 @@ source snapshot has no ingredient items and seven empty, metadata-only, or TODO
 Cooklang files; they remain in `outputs/rejects.jsonl` as parser evaluation and
 regression fixtures.
 
-Equipment is part of the normalized recipe model. The current corpus preserves
+Equipment is part of the extracted recipe model. The current corpus preserves
 6,460 equipment items across 1,815 Cooklang, FOSS, and Wikibooks recipes. Other
 adapters can populate the same field whenever their source exposes equipment
 explicitly.
+
+## Extracted recipe model
+
+`outputs/extracted-recipes.jsonl` is the adapter boundary between third-party
+datasets and the product recipe domain. Each row uses schema version 1 from
+[`src/lib/extracted-recipe.mjs`](src/lib/extracted-recipe.mjs). The model keeps
+source text intact and records structure only when the source states it:
+
+- provenance, license, checksum, retrieval date, format, and pinned revision;
+- complete or ingredient-only status;
+- named ingredient and instruction sections;
+- ingredient, equipment, and timer text, plus stated name, quantity, unit, and
+  note fields when the source supplies them;
+- cuisine, category, tags, servings and alternate yields, times, difficulty, authorship, images,
+  notes, ratings, and nutrition metadata.
+
+The extraction stage does not convert ingredients to product slugs, normalize
+units, infer equipment from prose, or coerce serving and time text into product
+types. The following `adapt-product` stage makes those decisions through the
+shared `recipe-parsing` package. `outputs/recipes.jsonl` remains the compatible
+complete-recipe view used by the current stats and deduplication stage.
+
+## Product adapter
+
+`outputs/product-recipes.jsonl` contains the product-domain adaptation report
+for every complete recipe. It includes the validated `ParsedRecipe`, its
+Cooklang representation, source provenance, diagnostics, and a list of source
+fields that the current product domain does not represent. The adapter maps
+ingredient sections, instructions, cuisine, servings, prep and cook time, and
+explicit equipment. It also maps source tags and the canonical source URL into
+Cooklang frontmatter.
+
+`outputs/product-adapter-skips.jsonl` retains ingredient-only rows rather than
+inventing instructions. `outputs/product-adapter-metrics.json` counts adapted,
+skipped, invalid, and unadaptable rows and shows how often each source field is
+not represented by the product model. The current snapshot adapts all 69,118
+complete recipes and retains 16,644 ingredient-only rows as explicit skips.
+
+The `canonicalize-product` stage then maps ingredient slugs and equipment names
+through the same deterministic registries and matching rules used by recipe
+ingestion. It writes `outputs/product-recipes-canonicalized.jsonl` for loading,
+`outputs/product-canonicalization-decisions.jsonl` for review, and
+`outputs/product-canonicalization-metrics.json` for coverage tracking. The
+decision file contains every rewritten or unresolved distinct term, occurrence
+counts, recipe counts, authored examples, and source examples. The stage does
+not call an LLM, so DVC reproduction stays deterministic.
+
+The ICN adapter parses WPRM markup instead of stripping HTML. It retains named
+yield and measurement sections and removes exact duplicate responsive tables.
+The tastyR adapter splits its comma stream only when the next item starts with a
+stated quantity. It also keeps the original ingredient string in
+`metadata.sourceMetadata.ingredientsText`.
 
 ## Kaggle duplicate structure
 
@@ -57,17 +111,22 @@ documents this duplicate/category behavior.
 
 ```text
 source catalog -> download -> data/raw
-                            -> prepare -> complete recipes + rejects
+                            -> prepare -> extracted recipes
+                                       + compatible complete recipes + rejects
                                        + ingredient-only rows
                                        + Gutenberg boundary candidates
                             -> stats -> canonical recipes + metrics + plot
+                            -> adapt-product -> product recipes + skips + metrics
+                                              -> canonicalize-product
+                                                 -> canonical product recipes
+                                                 + review decisions + metrics
 ```
 
-Each prepared row includes source dataset, record ID, URL, declared license,
-retrieval date, source checksum, and normalized-content signature. This supports
-idempotent database loading and both exact-content and title-level deduplication.
+Each extracted row includes source dataset, record ID, URL, declared license,
+retrieval date, source checksum, and content signature. This supports idempotent
+loading and both exact-content and title-level deduplication.
 The acquisition date lives in tracked `snapshot.json`; update it when refreshing
-the raw corpus so reproducing an existing snapshot remains deterministic.
+the raw corpus, so reproducing an existing snapshot remains deterministic.
 
 Run the complete pipeline from this directory:
 
@@ -81,6 +140,8 @@ Or use the project tasks while developing an individual stage:
 mise //ml-pipelines/recipe-dataset:download
 mise //ml-pipelines/recipe-dataset:prepare
 mise //ml-pipelines/recipe-dataset:stats
+mise //ml-pipelines/recipe-dataset:adapt-product
+mise //ml-pipelines/recipe-dataset:canonicalize-product
 mise //ml-pipelines/recipe-dataset:check
 mise //ml-pipelines/recipe-dataset:push
 ```

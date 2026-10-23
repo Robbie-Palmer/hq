@@ -1,0 +1,29 @@
+{
+  "name": "platform-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Versioned source contracts for the personal engineering platform",
+  "type": "module",
+  "exports": {
+    "./nix-flake": "./src/nix-flake.ts",
+    "./opentelemetry": "./src/opentelemetry.ts",
+    "./platform-manifest": "./src/platform-manifest.ts",
+    "./repository-layout": "./src/repository-layout.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "ts-base": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^5",
+    "vitest": "^5.0.0",
+    "yaml": "2.9.1"
+  }
+}

@@ -193,6 +193,9 @@ importers:
       observability:
         specifier: workspace:*
         version: link:packages/observability
+      platform-contracts:
+        specifier: workspace:*
+        version: link:packages/platform-contracts
       recipe-domain:
         specifier: workspace:*
         version: link:packages/recipe-domain
@@ -212,6 +215,9 @@ importers:
       '@types/node':
         specifier: ^24
         version: 24.19.1
+      c8:
+        specifier: 12.0.0
+        version: 12.0.0
       husky:
         specifier: ^9.1.7
         version: 9.1.7
@@ -331,6 +337,19 @@ importers:
       '@cooklang/cooklang':
         specifier: 'catalog:'
         version: 0.18.7(patch_hash=85b684e1c0e18dedb7ebd9e043c0c937dc04446f8417852c7f5af27b4b423ec7)
+      cheerio:
+        specifier: ^1.2.0
+        version: 1.2.0
+      recipe-parsing:
+        specifier: workspace:*
+        version: link:../../packages/recipe-parsing
+      zod:
+        specifier: ^4.2.1
+        version: 4.6.5
+    devDependencies:
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.15
 
   ml-pipelines/recipe-parsing:
     dependencies:
@@ -739,6 +758,47 @@ importers:
         specifier: ^5.0.0
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/planning-case-domain:
+    dependencies:
+      zod:
+        specifier: ^4.2.1
+        version: 4.6.5
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: ^5.0.0
+        version: 5.0.3(vitest@5.0.3)
+      typescript:
+        specifier: ^6.0.0
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/platform-contracts:
+    dependencies:
+      ts-base:
+        specifier: workspace:*
+        version: link:../ts-base
+      zod:
+        specifier: ^4.2.1
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24
+        version: 24.19.1
+      '@vitest/coverage-v8':
+        specifier: ^5.0.0
+        version: 5.0.3(vitest@5.0.3)
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+
   packages/project-economics-domain:
     dependencies:
       zod:
@@ -751,6 +811,43 @@ importers:
       typescript:
         specifier: ^6.0.0
         version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+
+  packages/project-generator:
+    dependencies:
+      '@trpc/server':
+        specifier: 11.19.0
+        version: 11.19.0(typescript@5.9.3)
+      platform-contracts:
+        specifier: workspace:*
+        version: link:../platform-contracts
+      trpc-cli:
+        specifier: 0.16.0
+        version: 0.16.0(@trpc/server@11.19.0(typescript@5.9.3))(zod@4.6.5)
+      ts-base:
+        specifier: workspace:*
+        version: link:../ts-base
+      yaml:
+        specifier: 2.9.1
+        version: 2.9.1
+      zod:
+        specifier: ^4.2.1
+        version: 4.6.5
+    devDependencies:
+      '@types/node':
+        specifier: ^24
+        version: 24.19.1
+      '@vitest/coverage-v8':
+        specifier: ^5.0.0
+        version: 5.0.3(vitest@5.0.3)
+      tsx:
+        specifier: ^4.23.12
+        version: 4.23.15
+      typescript:
+        specifier: ^5
+        version: 5.9.3
       vitest:
         specifier: ^5.0.0
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -779,6 +876,9 @@ importers:
       pluralize:
         specifier: ^8.0.0
         version: 8.0.0
+      ts-base:
+        specifier: workspace:*
+        version: link:../ts-base
       zod:
         specifier: ^4.2.1
         version: 4.6.5
@@ -1068,6 +1168,9 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3(patch_hash=7576f693c6e2d9a2125de73ab4d3d3a0dfc183d54c672602b06578229d88aee4)
+      jsep:
+        specifier: ^1.4.0
+        version: 1.4.0
       konva:
         specifier: ^10.7.0
         version: 10.7.0
@@ -1098,6 +1201,12 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      planning-case-domain:
+        specifier: workspace:*
+        version: link:../packages/planning-case-domain
+      platform-contracts:
+        specifier: workspace:*
+        version: link:../packages/platform-contracts
       posthog-js:
         specifier: ^1.343.0
         version: 1.434.16(@types/react@19.3.0)(react@19.3.0)

@@ -1,0 +1,364 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:wedding-planner/publication
+        kind: component
+        name: Wedding planner publication
+        project: project:wedding-planner
+        relations:
+          - target: system:wedding-planner/application
+            type: part_of
+        source_paths:
+          - ui/content/projects/wedding-planner
+      - id: component:wedding-planner/wedding-planner-domain
+        kind: component
+        name: Wedding planner domain
+        project: project:wedding-planner
+        relations:
+          - target: system:wedding-planner/application
+            type: part_of
+        source_paths:
+          - packages/wedding-planner-domain
+    system:
+      id: system:wedding-planner/application
+      kind: system
+      name: Wedding planner
+      project: project:wedding-planner
+      source_paths:
+        - packages/wedding-planner-domain
+        - ui/content/projects/wedding-planner
+  components:
+    - id: publication
+      kind: project-content
+      name: Wedding planner publication
+      path: ui/content/projects/wedding-planner
+      stable_id: component:wedding-planner/publication
+      tasks:
+        - disposition: delegated
+          name: build
+          target: //ui:build
+        - disposition: delegated
+          name: clean
+          target: //ui:clean
+        - disposition: delegated
+          name: format
+          target: //ui:format
+        - disposition: delegated
+          name: install
+          target: //ui:install
+        - disposition: delegated
+          name: lint
+          target: //ui:lint
+        - disposition: delegated
+          name: test
+          target: //ui:test
+        - disposition: delegated
+          name: typecheck-or-compile
+          target: //ui:typecheck
+    - id: wedding-planner-domain
+      kind: typescript-package
+      name: Wedding planner domain
+      path: packages/wedding-planner-domain
+      stable_id: component:wedding-planner/wedding-planner-domain
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+  effective_at: 2026-10-23 00:00:00+00:00
+  manual_checkpoints: []
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - packages/wedding-planner-domain
+      - ui/content/projects/wedding-planner
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: wedding-planner
+    kind: application
+    name: Wedding planner
+    stable_id: project:wedding-planner
+  repository_paths:
+    architecture_decisions: ui/content/projects/wedding-planner/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/wedding-planner.yml
+    product_decisions: ui/content/projects/wedding-planner/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/wedding-planner/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:001-language-defaults
+      id: project-primary-language-typescript-2026-09-12
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: default
+      value: typescript
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-dead-code-analysis-knip-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.dead-code-analysis
+      source: default
+      value: knip
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-git-hooks-husky-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.git-hooks
+      source: default
+      value: husky
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-linter-formatter-biome-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.linter-formatter
+      source: default
+      value: biome
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-package-manager-pnpm-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.package-manager
+      source: default
+      value: pnpm
+    - decision: personal-engineering-platform:001-language-defaults
+      id: typescript-schema-validation-zod-2026-09-12
+      kind: technology
+      layer: typescript
+      slot: typescript.schema-validation
+      source: default
+      value: zod
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-source-security-codeql-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.source-security
+      source: default
+      value: codeql
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-test-runner-vitest-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.test-runner
+      source: default
+      value: vitest
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-component-library-shadcn-ui-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.component-library
+      source: default
+      value: shadcnui
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-react-doctor-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: react-doctor
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-tsmetrics-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: tsmetrics
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-framework-next-js-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.framework
+      source: default
+      value: nextdotjs
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-host-cloudflare-pages-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.host
+      source: default
+      value: cloudflare-pages
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-styling-tailwind-css-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.styling
+      source: default
+      value: tailwind-css
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-ui-library-react-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.ui-library
+      source: default
+      value: react
+project_id: wedding-planner

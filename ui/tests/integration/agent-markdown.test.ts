@@ -22,6 +22,7 @@ const RECIPE_APP_PAGES = new Set([
   "notifications",
   "offline",
   "onboarding",
+  "planning",
   "profile",
   "saved",
   "settings",
@@ -231,12 +232,12 @@ describe("agent markdown generation", () => {
       'Source -->|"exact source bytes"| Rules',
       'Rules -->|"detection-only records"| Findings',
       'Findings -->|"finding IDs and published diffs"| Evidence',
-      'Source -.->|"bounded source spans"| Local',
+      'Source -->|"bounded source spans"| Local',
       'Source -.->|"wider document context"| Rewrite',
-      'Local -.->|"one-suggestion proposals"| Review',
+      'Local -->|"grouped proposals"| Review',
       'Rewrite -.->|"multi-edit proposals"| Review',
-      'Review -.->|"recorded editorial decisions"| Outcomes',
-      'Evidence -.->|"baseline comparisons"| Outcomes',
+      'Review -->|"recorded editorial decisions"| Outcomes',
+      'Evidence -->|"baseline comparisons"| Outcomes',
     ]) {
       expect(writing).toContain(relationship);
     }

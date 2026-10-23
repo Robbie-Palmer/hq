@@ -3,6 +3,7 @@ exclude:
   - "**/*.test.tsx"
   - "**/*.spec.ts"
   - "**/*.spec.tsx"
+  - "**/tests/**"
   - "**/generated/**"
 
 thresholds:

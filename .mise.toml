@@ -1,10 +1,14 @@
-experimental_monorepo_root = true
+monorepo_root = true
 
 [monorepo]
 config_roots = [
     "ui",
+    "infra/account-foundation",
     "infra/bootstrap",
+    "infra/cloudflare-access",
+    "infra/personal-finance",
     "infra/public-platform",
+    "infra/personal-archive",
     "infra/remote-development",
     "infra/work-graph",
     "backups",
@@ -28,7 +32,10 @@ config_roots = [
     "packages/recipe-db",
     "packages/observability",
     "packages/openrouter-client",
+    "packages/planning-case-domain",
     "packages/project-economics-domain",
+    "packages/project-generator",
+    "packages/platform-contracts",
     "packages/recipe-domain",
     "packages/recipe-parsing",
     "packages/ts-base",
@@ -55,6 +62,7 @@ verbose = false
 [tools]
 node = "lts"
 "github:pnpm/pnpm" = "12.8.2"
+copier = "9.18.2"
 terraform = "1.16.4"
 tflint = "0.64.0"
 actionlint = "1.7.12"
@@ -117,9 +125,64 @@ description = "Test Work Graph ticket routing and T3 profile selection"
 depends = ["//:install"]
 run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
+[tasks."project:plan"]
+description = "Produce a machine-readable Copier project change plan"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts plan"
+
+[tasks."project:dry-run"]
+description = "Render and check a Copier project change without applying it"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts dry-run"
+
+[tasks."project:create"]
+description = "Create a Copier-managed project in the current monorepo"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts create"
+
+[tasks."project:update"]
+description = "Update a Copier-managed project in the current monorepo"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts update"
+
+[tasks."project:profile:plan"]
+description = "Resolve a project profile and produce a checked Copier plan"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-plan"
+
+[tasks."project:profile:adoption-plan"]
+description = "Plan Copier adoption for an existing project without a receipt"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-adoption-plan"
+
+[tasks."project:profile:reconcile"]
+description = "Plan a reviewed update to newer platform defaults"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-reconcile"
+
+[tasks."project:profile:reconcile:apply"]
+description = "Apply an unchanged reviewed project reconciliation plan"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-reconcile-apply"
+
+[tasks."project:profile:dry-run"]
+description = "Preview a resolved project profile without applying it"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-dry-run"
+
+[tasks."project:profile:create"]
+description = "Create a Copier-managed project from a resolved profile"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-create"
+
+[tasks."project:profile:update"]
+description = "Apply a reviewed project reconciliation plan"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-update"
+
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:layout:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/project-economics-domain:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:layout:check", "//:opentelemetry-contract:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/planning-case-domain:check", "//packages/platform-contracts:check", "//packages/project-economics-domain:check", "//packages/project-generator:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/cloudflare-access:lint", "//infra/cloudflare-access:lint:tflint", "//infra/personal-finance:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/personal-archive:lint", "//infra/personal-archive:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."layout:check"]
 description = "Validate the monorepo project and package layout contract"
@@ -135,6 +198,41 @@ run = "pnpm exec vitest run scripts/check-monorepo-layout.test.ts"
 description = "Test the monorepo layout validator with coverage"
 depends = ["//:install"]
 run = "pnpm --filter ui exec vitest run --root .. scripts/check-monorepo-layout.test.ts --coverage --coverage.include=scripts/check-monorepo-layout.ts"
+
+[tasks."opentelemetry-contract:check"]
+description = "Validate the OpenTelemetry contract and runtime fixtures"
+depends = ["//:opentelemetry-contract:test"]
+run = "pnpm exec tsx scripts/check-opentelemetry-contract.ts"
+
+[tasks."opentelemetry-contract:test"]
+description = "Test OpenTelemetry contract validation"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/check-opentelemetry-contract.test.ts"
+
+[tasks."opentelemetry-contract:test:coverage"]
+description = "Test OpenTelemetry contract validation with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root .. scripts/check-opentelemetry-contract.test.ts --coverage --coverage.include=scripts/check-opentelemetry-contract.ts"
+
+[tasks."shared-cache:test"]
+description = "Test revision-safe shared task caching"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:test:coverage"]
+description = "Test shared task caching with coverage"
+depends = ["//:install"]
+run = "pnpm exec c8 --all --include=scripts/shared-task-cache.ts --reporter=json --reporter=text --check-coverage --lines=80 --functions=80 --statements=80 --branches=80 pnpm exec vitest run scripts/shared-task-cache.test.ts"
+
+[tasks."shared-cache:status"]
+description = "Report shared task cache use and reuse counters"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts status"
+
+[tasks."shared-cache:prune"]
+description = "Remove expired shared task cache entries and enforce its byte allocation"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/shared-task-cache.ts prune"
 
 [tasks."lint:typescript"]
 description = "Lint TypeScript and JavaScript outside the UI (optionally pass files as args)"
@@ -445,7 +543,10 @@ depends = [
     "//packages/finance-tax-rules:test:coverage",
     "//packages/node-base:test:coverage",
     "//packages/observability:test:coverage",
+    "//packages/planning-case-domain:test:coverage",
+    "//packages/platform-contracts:test:coverage",
     "//packages/project-economics-domain:test:coverage",
+    "//packages/project-generator:test:coverage",
     "//packages/recipe-domain:test:coverage",
     "//packages/recipe-parsing:test:coverage",
     "//packages/ts-base:test:coverage",
@@ -455,6 +556,7 @@ depends = [
     "//packages/writing-editor-domain:test:coverage",
     "//packages/wedding-planner-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
+    "//ml-pipelines/recipe-dataset:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",

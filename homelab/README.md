@@ -72,6 +72,12 @@ mise run //homelab:remote-volume-prepare
 mise run //homelab:remote-install
 ```
 
+The flake implements version 1 of the Personal Engineering Platform
+[Nix flake contract](/projects/personal-engineering-platform/adrs/038-versioned-nix-flake-contract).
+Use `mise run //homelab:nix-flake-show` to inspect its outputs,
+`mise run //homelab:nix-format` to format Nix files, and
+`mise run //homelab:nix-develop` to enter its default development shell.
+
 Before enrolling the server, define `tag:remote-development` in the tailnet
 policy and grant only the intended operator identities access to SSH, HTTPS,
 and the Kubernetes API on that tag. Generate an auth key with these settings:
@@ -443,7 +449,7 @@ service or admission alerts.
 
 ### Updates, rollback, and backups
 
-Build every NixOS change first, then switch it over the tailnet:
+Build every NixOS change first, then switch it over to the tailnet:
 
 ```bash
 mise run //homelab:remote-build

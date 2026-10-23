@@ -9,6 +9,7 @@
     "@wyrd-company/t3code-client": "0.5.0",
     "node-base": "workspace:*",
     "observability": "workspace:*",
+    "platform-contracts": "workspace:*",
     "recipe-domain": "workspace:*",
     "ts-base": "workspace:*",
     "wedding-planner-domain": "workspace:*",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.15",
     "@types/node": "^24",
+    "c8": "12.0.0",
     "husky": "^9.1.7",
     "knip": "6.39.0",
     "lint-staged": "^17.0.0",
@@ -48,6 +50,11 @@
     "ui/**/*.json": [
       "mise run //ui:format"
     ],
+    "infra/account-foundation/**/*.tf": [
+      "mise run //infra/account-foundation:format",
+      "mise run //infra/account-foundation:precommit-lint",
+      "mise run //infra/account-foundation:lint:tflint"
+    ],
     "infra/public-platform/**/*.tf": [
       "mise run //infra/public-platform:format",
       "mise run //infra/public-platform:precommit-lint",
@@ -57,6 +64,11 @@
       "mise run //infra/bootstrap:format",
       "mise run //infra/bootstrap:precommit-lint",
       "mise run //infra/bootstrap:lint:tflint"
+    ],
+    "infra/personal-archive/**/*.tf": [
+      "mise run //infra/personal-archive:format",
+      "mise run //infra/personal-archive:precommit-lint",
+      "mise run //infra/personal-archive:lint:tflint"
     ],
     "infra/remote-development/**/*.tf": [
       "mise run //infra/remote-development:format",

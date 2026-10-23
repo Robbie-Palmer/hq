@@ -35,6 +35,51 @@ describe("canonicalizeIngredientSlug", () => {
   });
 
   it.each([
+    ["active-dry-yeast", "dry-yeast"],
+    ["all-purpose-flour", "plain-flour"],
+    ["bay-leaves", "dried-bay-leaves"],
+    ["beef-broth", "beef-stock"],
+    ["chopped-fresh-cilantro", "fresh-coriander"],
+    ["red-pepper-flakes", "chilli-flakes"],
+    ["eggs-beaten", "egg"],
+    ["large-eggs-beaten", "egg"],
+    ["tomato-paste", "tomato-puree"],
+    ["salt-or-to-taste", "salt"],
+    ["heavy-whipping-cream", "heavy-cream"],
+    ["granulated-sugar", "sugar"],
+    ["warm-water", "water"],
+    ["green-onions-chopped", "spring-onion"],
+    ["8-ounce-package-cream-cheese-softened", "cream-cheese"],
+    ["skinless-boneless-chicken-breast-halves", "chicken-breast"],
+    ["stalks-celery-chopped", "celery"],
+    ["vegetable-broth", "vegetable-stock"],
+    ["quick-cooking-oats", "quick-oats"],
+    ["cider-vinegar", "apple-cider-vinegar"],
+    ["nonstick-cooking-spray", "cooking-spray"],
+    ["distilled-white-vinegar", "white-vinegar"],
+    ["dot25-ounce-package-active-dry-yeast", "dry-yeast"],
+    ["green-bell-pepper-chopped", "bell-pepper"],
+    ["ice-cubes", "ice"],
+    ["flaked-coconut", "coconut"],
+    ["powdered-sugar", "icing-sugar"],
+    ["shredded-monterey-jack-cheese", "monterey-jack-cheese"],
+    ["self-rising-flour", "self-raising-flour"],
+    ["white-sugar", "sugar"],
+    ["ground-black-pepper", "black-pepper"],
+    ["ground-cumin", "cumin"],
+    ["garlic-minced", "garlic"],
+    ["large-eggs", "egg"],
+    ["butter-softened", "butter"],
+    ["grated-parmesan-cheese", "parmesan"],
+    ["packed-brown-sugar", "brown-sugar"],
+    ["shredded-cheddar-cheese", "cheddar-cheese"],
+    ["unsweetened-cocoa-powder", "cocoa-powder"],
+    ["freshly-ground-black-pepper", "black-pepper"],
+    ["salt-to-taste", "salt"],
+    ["1-tsp-salt", "salt"],
+    ["1-tbsp-1-tsp-black-pepper", "black-pepper"],
+    ["chicken-broth", "chicken-stock"],
+    ["confectioners-sugar", "icing-sugar"],
     ["neutral-oil", "vegetable-oil"],
     ["rice-vinegar", "rice-wine-vinegar"],
   ])("maps %s to the existing canonical ingredient", (rawSlug, canonicalSlug) => {
@@ -187,6 +232,37 @@ describe("canonicalizeIngredientSlug", () => {
       ontology: new Set(["garlic"]),
     });
     expect(garlicDecision.canonicalSlug).toBe("garlic");
+  });
+
+  it("splits known combined salt and pepper ingredients", () => {
+    const result = canonicalizePredictionEntry({
+      images: ["a.jpg"],
+      predicted: {
+        title: "x",
+        description: "y",
+        cuisine: [],
+        servings: 2,
+        ingredientGroups: [
+          {
+            items: [
+              {
+                ingredient: "salt-and-freshly-ground-black-pepper-to-taste",
+              },
+            ],
+          },
+        ],
+        instructions: ["step"],
+        cookware: [],
+      },
+    }, {
+      ingredients: new Set(["salt", "black-pepper"]),
+      equipment: new Set(),
+    });
+
+    expect(result.entry.predicted.ingredientGroups[0]?.items).toEqual([
+      { ingredient: "salt" },
+      { ingredient: "black-pepper" },
+    ]);
   });
 });
 

@@ -1,0 +1,47 @@
+additional_roots = {
+  canary = {
+    hcp = {
+      project = {
+        name               = "Account foundation canary"
+        tags               = { purpose = "account-foundation-canary" }
+        deletion_protected = false
+      }
+      workspace = {
+        workspace_name     = "personal-site-account-foundation-canary"
+        terraform_version  = "1.16.4"
+        tags               = { purpose = "account-foundation-canary" }
+        state_consumers    = []
+        deletion_protected = false
+      }
+    }
+    delivery = {
+      deletion_protected = false
+      imported           = false
+      doppler = {
+        project = {
+          name        = "account-foundation-canary"
+          description = "Disposable account-foundation onboarding canary"
+        }
+        environments = {
+          ops = {
+            name             = "Operations"
+            personal_configs = false
+            # Doppler creates the root `ops` config with the environment. A
+            # child config would require the paid config-inheritance feature.
+            configs = []
+          }
+        }
+      }
+      github = {
+        repository = "hq"
+        environments = {
+          canary = {
+            name                 = "account-foundation-canary"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+        }
+      }
+    }
+  }
+}

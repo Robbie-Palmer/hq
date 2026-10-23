@@ -19,21 +19,24 @@ control plane.
 
 ## External prerequisites
 
-Create these before the first plan:
+Prepare these before the first plan:
 
 1. A Hetzner Cloud project and read/write API token.
-2. Terraform Cloud workspace `personal-site-remote-development` in the
-   `robbie-palmer` organisation, configured for local execution.
-3. Doppler project/config `homelab/prd_remote_development_infra` containing
+2. The account-foundation `remote-development` HCP root and `homelab` delivery
+   root own the `personal-site-remote-development` HCP workspace, the `homelab`
+   Doppler structure, and both GitHub environments. Do not recreate them in
+   provider dashboards.
+3. Doppler config `homelab/prd_remote_development_infra` containing
    `HCLOUD_TOKEN` and `TF_API_TOKEN` as masked values, plus
    `SSH_PUBLIC_KEY`, `BOOTSTRAP_SSH_CIDRS`, and `BOOTSTRAP_MODE_ENABLED` as
    unmasked values.
-4. GitHub environments `production-remote-development-infra-plan` and
-   `production-remote-development-infra`. Populate both from Doppler with
+4. Populate `production-remote-development-infra-plan` and
+   `production-remote-development-infra` from Doppler with
    `scripts/sync-doppler-github-envs.sh`. A dedicated read-only Hetzner token is
    preferred for the plan environment. The plan workflow skips forked pull
    requests before it can access provider credentials.
-5. Required reviewers on the apply environment.
+5. Keep the required reviewer declaration on the apply environment in the
+   account-foundation registry.
 
 `BOOTSTRAP_SSH_CIDRS` is a JSON list held as a GitHub environment variable,
 for example `["203.0.113.10/32"]`. Leave it as `[]` during normal operation.

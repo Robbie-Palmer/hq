@@ -25,8 +25,12 @@ import {
   startNewShoppingList,
 } from "@/lib/api/shopping-lists";
 import { authClient } from "@/lib/auth-client";
+import { loadOfflineShoppingListSnapshot } from "@/lib/pwa/offline-recipe-cache";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
-import { shoppingListQuery } from "@/lib/query/shopping-list-queries";
+import {
+  restoreOfflineShoppingListQuery,
+  shoppingListQuery,
+} from "@/lib/query/shopping-list-queries";
 import {
   confirmShoppingListRevision,
   getShoppingListCacheIdentity,
@@ -39,8 +43,8 @@ import {
 } from "@/lib/shopping/shoppingListStore";
 
 function shoppingListContents(): ShoppingListContents {
-  const { recipes, checked, extras } = getShoppingListSnapshot();
-  return { recipes, checked, extras };
+  const { recipes, checked, extras, plan } = getShoppingListSnapshot();
+  return { recipes, checked, extras, plan };
 }
 
 function mergeKeyedValues<T>(
@@ -107,6 +111,12 @@ function mergeLocalShoppingListChanges(
       remote.extras,
       (extra) => extra.id,
     ),
+    plan: mergeKeyedValues(
+      baseline.plan,
+      local.plan,
+      remote.plan,
+      (meal) => meal.id,
+    ),
   };
 }
 
@@ -131,22 +141,30 @@ const EMPTY_SHOPPING_LIST: ShoppingListContents = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
 
 function recoverCachedShoppingList(
   serverList: StoredShoppingList,
 ): ShoppingListContents {
   const cached = shoppingListContents();
-  const { listId, revision } = getShoppingListCacheIdentity();
+  const { listId, resourceId, revision } = getShoppingListCacheIdentity();
   const { confirmedSnapshot, hasUnsavedChanges } =
     getShoppingListCacheMetadata();
+  const hasLocalOnlyPlan =
+    JSON.stringify(cached.plan) !==
+    JSON.stringify(confirmedSnapshot?.plan ?? []);
   if (listId !== undefined && listId !== serverList.id) {
+    return serverList.snapshot;
+  }
+  if (resourceId !== undefined && resourceId !== serverList.resourceId) {
     return serverList.snapshot;
   }
   if (
     cached.recipes.length === 0 &&
     cached.checked.length === 0 &&
-    cached.extras.length === 0
+    cached.extras.length === 0 &&
+    cached.plan.length === 0
   ) {
     return serverList.snapshot;
   }
@@ -157,14 +175,16 @@ function recoverCachedShoppingList(
       serverList.snapshot,
     );
   }
-  if (revision === serverList.revision && !hasUnsavedChanges) {
+  if (
+    revision === serverList.revision &&
+    !hasUnsavedChanges &&
+    !hasLocalOnlyPlan
+  ) {
     return serverList.snapshot;
   }
-  return mergeLocalShoppingListChanges(
-    confirmedSnapshot ?? cached,
-    cached,
-    serverList.snapshot,
-  );
+  const baseline =
+    confirmedSnapshot ?? (hasLocalOnlyPlan ? { ...cached, plan: [] } : cached);
+  return mergeLocalShoppingListChanges(baseline, cached, serverList.snapshot);
 }
 
 const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);
@@ -215,6 +235,7 @@ function useShoppingListSync(
           confirmedSnapshot: serverList.snapshot,
           hasUnsavedChanges: shouldRecoverCache,
         },
+        serverList.resourceId,
       );
       pendingCacheRecovery.current = shouldRecoverCache
         ? serverList.id
@@ -270,6 +291,7 @@ function useShoppingListSync(
         confirmedSnapshot: serverList.snapshot,
         hasUnsavedChanges: hasRebasedChanges,
       },
+      serverList.resourceId,
     );
     setInstalledId(serverList.id);
   }, [installedId, queryClient, serverList, userId]);
@@ -357,6 +379,8 @@ function useShoppingListSync(
         "local",
         false,
         savedRevision.current,
+        undefined,
+        serverList?.resourceId,
       );
     }
     return () => {
@@ -364,9 +388,50 @@ function useShoppingListSync(
       if (syncTimer) clearTimeout(syncTimer);
       unsubscribe();
     };
-  }, [hasInstalledList, queryClient, userId]);
+  }, [hasInstalledList, queryClient, serverList?.resourceId, userId]);
 
   return { installedId, saveFailed };
+}
+
+function useOfflineShoppingListRestore(
+  userId: string,
+  enabled: boolean,
+): boolean {
+  const queryClient = useQueryClient();
+  const [restoredUserId, setRestoredUserId] = useState<string>();
+  useEffect(() => {
+    let disposed = false;
+    if (!enabled) {
+      setRestoredUserId(undefined);
+      return;
+    }
+    void loadOfflineShoppingListSnapshot(userId)
+      .then((snapshot) => {
+        if (
+          !disposed &&
+          snapshot &&
+          queryClient.getQueryData(recipeQueryKeys.shoppingList(userId)) ===
+            undefined
+        ) {
+          restoreOfflineShoppingListQuery(
+            queryClient,
+            userId,
+            snapshot.shoppingList,
+            snapshot.savedAt,
+          );
+        }
+      })
+      .catch(() => {
+        // Restricted storage must not prevent a network-backed list loading.
+      })
+      .finally(() => {
+        if (!disposed) setRestoredUserId(userId);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [enabled, queryClient, userId]);
+  return restoredUserId === userId;
 }
 
 export function ShoppingListBoundary({
@@ -374,9 +439,11 @@ export function ShoppingListBoundary({
 }: Readonly<{ children: ReactNode }>) {
   const { data: session } = authClient.useSession();
   const userId = session?.user.id ?? "pending";
+  const restored = useOfflineShoppingListRestore(userId, Boolean(session));
+
   const current = useQuery({
     ...shoppingListQuery(userId),
-    enabled: Boolean(session),
+    enabled: Boolean(session) && restored,
   });
   const { installedId, saveFailed } = useShoppingListSync(userId, current.data);
 
@@ -430,6 +497,7 @@ export function useStartNewShoppingList() {
         recipes: previous.recipes,
         checked: previous.checked,
         extras: previous.extras,
+        plan: previous.plan,
       });
     },
     onSuccess: (next) => {
@@ -462,6 +530,7 @@ export function useStartNewShoppingList() {
           hasUnsavedChanges:
             JSON.stringify(previous) !== JSON.stringify(recoveredSnapshot),
         },
+        current.resourceId,
       );
     },
   });
@@ -473,11 +542,13 @@ export function useStartNewShoppingList() {
     // An install updates the screen immediately without scheduling an empty
     // PUT against the list that the POST is about to archive.
     installShoppingListSnapshot(
-      { recipes: [], checked: [], extras: [] },
+      { recipes: [], checked: [], extras: [], plan: previous.plan },
       current.id,
       "install",
       false,
       current.revision,
+      undefined,
+      current.resourceId,
     );
     mutation.mutate({ current, previous });
   };

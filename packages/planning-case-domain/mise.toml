@@ -1,0 +1,27 @@
+[tasks.install]
+description = "Install planning case domain dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck the planning case domain"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the planning case domain"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the planning case domain with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the planning case domain"
+depends = ["typecheck", "test"]
+
+[tasks.format]
+description = "Format planning case domain source and tests"
+depends = ["install"]
+run = "pnpm exec biome check --write --formatter-enabled=true --indent-style=space --linter-enabled=false --assist-enabled=false src tests vitest.config.ts"

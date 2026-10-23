@@ -57,6 +57,19 @@ describe("monorepo layout contract", () => {
     );
   });
 
+  it("requires component task ownership or delegation", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    const projectUi = contract.component_kinds.find(
+      ({ id }) => id === "project-ui",
+    );
+    if (!projectUi) throw new Error("Missing project-ui component kind");
+    delete projectUi.delegated_task_project;
+
+    expect(validateLayoutContract(contract)).toContain(
+      "Component kind 'project-ui' without a mise root must delegate its tasks",
+    );
+  });
+
   it("rejects malformed paths and incomplete task profiles", async () => {
     const contract = structuredClone(await loadLayoutContract(repositoryRoot));
     contract.schema_version = 2;

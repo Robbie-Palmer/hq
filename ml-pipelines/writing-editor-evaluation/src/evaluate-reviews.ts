@@ -7,6 +7,8 @@ import { canonicalJson } from "writing-editor-domain/canonical-json";
 import { DecisionSchema } from "writing-editor-domain/decisions";
 import { ReviewReceiptSchema } from "writing-editor-domain/review-receipt";
 import {
+  applyDecisions,
+  prepareReviewRecords,
   ReviewRecordsSchema,
   validateRecordedDecisions,
 } from "writing-editor-domain/review";
@@ -20,36 +22,95 @@ const EvidencePathSchema = z.string().min(1).refine(
   "must be relative to the evidence root",
 );
 const QualityRatingSchema = z.enum(["pass", "fail", "not-assessed"]);
+const EvidenceGovernanceSchema = z.object({
+  dataClassification: z.enum(["public", "private"]),
+  consentBasis: z.string().trim().min(1),
+  consentRecordedAt: z.iso.datetime({ offset: true }),
+  retentionPolicy: z.string().trim().min(1),
+  deletionStatus: z.enum(["active", "deletion-requested"]),
+  deletionRequestedAt: z.iso.datetime({ offset: true }).optional(),
+}).strict().superRefine((governance, context) => {
+  if (governance.deletionStatus === "deletion-requested" && !governance.deletionRequestedAt) {
+    context.addIssue({
+      code: "custom",
+      message: "deletionRequestedAt is required when deletion is requested",
+      path: ["deletionRequestedAt"],
+    });
+  }
+  if (governance.deletionStatus === "active" && governance.deletionRequestedAt) {
+    context.addIssue({
+      code: "custom",
+      message: "deletionRequestedAt is only valid when deletion is requested",
+      path: ["deletionRequestedAt"],
+    });
+  }
+});
+
+const ReviewEvidenceEntrySchema = z.object({
+  artifactId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  artifactType: z.enum(["adr", "project-page"]),
+  split: z.enum(["train", "validation", "holdout"]),
+  recordsFile: EvidencePathSchema,
+  decisionsFile: EvidencePathSchema,
+  receiptFile: EvidencePathSchema,
+  sourceBeforeFile: EvidencePathSchema.optional(),
+  sourceAfterFile: EvidencePathSchema.optional(),
+  provenance: z.object({
+    scope: z.enum(["seed", "customer", "developer"]),
+    sourceDatasetId: z.string().trim().min(1),
+    sourceRevision: z.string().trim().min(1),
+    producerRunId: z.string().trim().min(1),
+    reviewMethod: z.string().trim().min(1),
+    reviewTiming: z.enum(["measured", "not-measured"]),
+  }).strict().optional(),
+  governance: EvidenceGovernanceSchema.optional(),
+  quality: z.object({
+    factualPreservation: QualityRatingSchema,
+    terminologyPreservation: QualityRatingSchema,
+    voicePreservation: QualityRatingSchema,
+    regression: z.enum(["none", "present", "not-assessed"]),
+  }).strict(),
+}).strict().superRefine((entry, context) => {
+  if (entry.provenance && entry.sourceBeforeFile === undefined) {
+    context.addIssue({
+      code: "custom",
+      message: "current evidence entries must include source snapshots",
+      path: ["sourceBeforeFile"],
+    });
+  }
+  if ((entry.sourceBeforeFile === undefined) !== (entry.sourceAfterFile === undefined)) {
+    context.addIssue({
+      code: "custom",
+      message: "sourceBeforeFile and sourceAfterFile must be provided together",
+      path: ["sourceBeforeFile"],
+    });
+  }
+});
+
+const EvidenceDeletionSchema = z.object({
+  artifactId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+  requestedAt: z.iso.datetime({ offset: true }),
+  deletedAt: z.iso.datetime({ offset: true }),
+}).strict();
 
 export const ReviewEvidenceManifestSchema = z.object({
   schemaVersion: z.literal(1),
   recordType: z.literal("writing-review-evidence-manifest"),
   cohortId: z.string().trim().min(1),
-  governance: z.object({
-    dataClassification: z.enum(["public", "private"]),
-    consentBasis: z.string().trim().min(1),
-    consentRecordedAt: z.iso.datetime({ offset: true }),
-    retentionPolicy: z.string().trim().min(1),
-    deletionStatus: z.enum(["active", "deletion-requested"]),
-  }).strict(),
-  entries: z.array(z.object({
-    artifactId: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-    artifactType: z.enum(["adr", "project-page"]),
-    split: z.enum(["train", "validation", "holdout"]),
-    recordsFile: EvidencePathSchema,
-    decisionsFile: EvidencePathSchema,
-    receiptFile: EvidencePathSchema,
-    quality: z.object({
-      factualPreservation: QualityRatingSchema,
-      terminologyPreservation: QualityRatingSchema,
-      voicePreservation: QualityRatingSchema,
-      regression: z.enum(["none", "present", "not-assessed"]),
-    }).strict(),
-  }).strict()).min(1),
+  governance: EvidenceGovernanceSchema,
+  entries: z.array(ReviewEvidenceEntrySchema).min(1),
+  deletions: z.array(EvidenceDeletionSchema).optional(),
 }).strict().superRefine((manifest, context) => {
   const ids = manifest.entries.map(({ artifactId }) => artifactId);
   if (new Set(ids).size !== ids.length) {
     context.addIssue({ code: "custom", message: "artifact IDs must be unique", path: ["entries"] });
+  }
+  const deletedIds = manifest.deletions?.map(({ artifactId }) => artifactId) ?? [];
+  if (new Set(deletedIds).size !== deletedIds.length) {
+    context.addIssue({ code: "custom", message: "deleted artifact IDs must be unique", path: ["deletions"] });
+  }
+  if (deletedIds.some((artifactId) => ids.includes(artifactId))) {
+    context.addIssue({ code: "custom", message: "deleted artifacts cannot retain evidence entries", path: ["deletions"] });
   }
 });
 
@@ -99,6 +160,8 @@ export const ReviewScorecardSchema = z.object({
   review: z.object({
     totalSeconds: z.number().nonnegative(),
     medianSeconds: z.number().nonnegative(),
+    measuredArtifacts: z.number().int().nonnegative(),
+    unmeasuredArtifacts: z.number().int().nonnegative(),
   }).strict(),
   artifacts: z.array(z.object({
     artifactId: z.string(),
@@ -130,6 +193,15 @@ export const ReviewScorecardSchema = z.object({
 }).strict();
 export type ReviewScorecard = z.infer<typeof ReviewScorecardSchema>;
 
+function readOptionalEvidence(
+  evidenceRoot: string,
+  file: string | undefined,
+  label: string,
+): string | undefined {
+  if (file === undefined) return undefined;
+  return fs.readFileSync(resolveContainedFile(evidenceRoot, file, label), "utf8");
+}
+
 export function evaluateReviews(options: {
   manifestFile: string;
   evidenceRoot: string;
@@ -138,6 +210,7 @@ export function evaluateReviews(options: {
 }): ReviewScorecard {
   const manifest = ReviewEvidenceManifestSchema.parse(readJson(options.manifestFile));
   const params = ReviewEvaluationParamsSchema.parse(readJson(options.paramsFile));
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Keep receipt and source invariants together in one validation pass.
   const artifacts = manifest.entries.map((entry) => {
     const records = ReviewRecordsSchema.parse(readJson(resolveContainedFile(
       options.evidenceRoot,
@@ -152,6 +225,17 @@ export function evaluateReviews(options: {
     const decisions = decisionsText.split("\n")
       .filter((line) => line.trim().length > 0)
       .map((line) => DecisionSchema.parse(JSON.parse(line)));
+    const sourceBefore = readOptionalEvidence(
+      options.evidenceRoot,
+      entry.sourceBeforeFile,
+      `${entry.artifactId} source before review`,
+    );
+    const sourceAfter = readOptionalEvidence(
+      options.evidenceRoot,
+      entry.sourceAfterFile,
+      `${entry.artifactId} source after review`,
+    );
+    if (sourceBefore !== undefined) prepareReviewRecords(records, sourceBefore);
     validateRecordedDecisions(decisions, records.proposals);
     if (decisions.length !== records.proposals.length) {
       throw new Error(`${entry.artifactId} has unadjudicated proposals`);
@@ -166,6 +250,15 @@ export function evaluateReviews(options: {
     }
     if (receipt.decisionsHash !== sha256(canonicalJson(decisions))) {
       throw new Error(`${entry.artifactId} receipt does not match its decisions`);
+    }
+    if (sourceBefore !== undefined && receipt.sourceBeforeHash !== sha256(sourceBefore)) {
+      throw new Error(`${entry.artifactId} receipt does not match source-before bytes`);
+    }
+    if (sourceBefore !== undefined && sourceAfter !== undefined) {
+      const applied = applyDecisions(sourceBefore, decisions);
+      if (sourceAfter !== applied || receipt.sourceAfterHash !== sha256(sourceAfter)) {
+        throw new Error(`${entry.artifactId} source-after bytes do not match its decisions`);
+      }
     }
     const recordSources = [
       ...records.findings.map(({ source }) => source),
@@ -228,6 +321,7 @@ export function evaluateReviews(options: {
       changed: count("changed"),
       rejected: count("rejected"),
       reviewSeconds: receipt.summary.reviewMilliseconds / 1_000,
+      reviewTiming: entry.provenance?.reviewTiming ?? "measured" as const,
       quality: entry.quality,
     };
   });
@@ -248,8 +342,11 @@ export function evaluateReviews(options: {
   };
   const assessedRegressions = regressions.none + regressions.present;
   const regressionRate = assessedRegressions === 0 ? 0 : regressions.present / assessedRegressions;
-  const reviewTimes = artifacts.map(({ reviewSeconds }) => reviewSeconds).sort((a, b) => a - b);
-  const medianSeconds = median(reviewTimes);
+  const measuredReviewTimes = artifacts
+    .filter(({ reviewTiming }) => reviewTiming === "measured")
+    .map(({ reviewSeconds }) => reviewSeconds)
+    .sort((a, b) => a - b);
+  const medianSeconds = median(measuredReviewTimes);
   const qualityAssessed = [
     factualPreservation,
     terminologyPreservation,
@@ -259,9 +356,11 @@ export function evaluateReviews(options: {
     actionableVolume: proposals >= params.minimumActionableProposals,
     usefulYield: usefulYield >= params.minimumUsefulYield,
     regressionRate: regressionRate <= params.maximumRegressionRate,
-    reviewTime: medianSeconds <= params.maximumMedianReviewSeconds,
+    reviewTime: measuredReviewTimes.length === artifacts.length &&
+      median(measuredReviewTimes) <= params.maximumMedianReviewSeconds,
     qualityAssessed: !params.requireAssessedQuality || qualityAssessed,
-    deletionClear: manifest.governance.deletionStatus === "active",
+    deletionClear: manifest.governance.deletionStatus === "active" &&
+      manifest.entries.every(({ governance }) => governance?.deletionStatus !== "deletion-requested"),
   };
   const body = {
     schemaVersion: 1 as const,
@@ -281,10 +380,12 @@ export function evaluateReviews(options: {
       regressions: { ...regressions, rate: regressionRate },
     },
     review: {
-      totalSeconds: sum(reviewTimes),
+      totalSeconds: sum(measuredReviewTimes),
       medianSeconds,
+      measuredArtifacts: measuredReviewTimes.length,
+      unmeasuredArtifacts: artifacts.length - measuredReviewTimes.length,
     },
-    artifacts: artifacts.map(({ quality: _quality, ...artifact }) => artifact),
+    artifacts: artifacts.map(({ quality: _quality, reviewTiming: _reviewTiming, ...artifact }) => artifact),
     gates,
     recommendation: Object.values(gates).every(Boolean)
       ? "adopt-default" as const

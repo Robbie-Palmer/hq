@@ -1,3 +1,9 @@
+import {
+  compareUtcInstants,
+  isUtcInstant,
+  previousUtcInstant as previousSharedUtcInstant,
+  UTC_INSTANT_PATTERN,
+} from "ts-base/dates";
 import { z } from "zod";
 import {
   CATALOG_SCHEMA_VERSION,
@@ -9,13 +15,10 @@ import {
   TechnologySlugSchema,
 } from "../slugs";
 
-const UTC_INSTANT_PATTERN =
-  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?Z$/;
-
 export const UtcInstantSchema = z
   .string()
   .regex(UTC_INSTANT_PATTERN, "Expected an RFC 3339 UTC instant")
-  .refine(isValidUtcInstant, "Invalid UTC instant");
+  .refine(isUtcInstant, "Invalid UTC instant");
 
 export type UtcInstant = z.infer<typeof UtcInstantSchema>;
 
@@ -95,6 +98,22 @@ export const OperationalRequirementSchema = z.enum([
   "provider-registration",
   "server-side-authorization",
   "credential-rotation",
+  "interactive-browser-server-state",
+  "runtime-derived-api-contract",
+  "committed-api-contract",
+  "published-api-baseline",
+  "committed-migration-history",
+  "serialized-migration-runner",
+  "data-classification",
+  "object-lifecycle-policy",
+  "scoped-storage-credentials",
+  "backup-key-custody",
+  "backup-retention-policy",
+  "restore-drill",
+  "preview-scoped-credentials",
+  "synthetic-preview-data",
+  "preview-cleanup",
+  "fresh-migration-baseline",
 ]);
 
 export const OperationalPrerequisiteSchema = z.object({
@@ -121,6 +140,30 @@ export const ConfigurationRequirementSchema = z.object({
   sensitive: z.boolean(),
 });
 
+export const StateRequirementSchema = z.object({
+  name: z.string().min(1),
+  owner: z.enum(["adopting-project", "platform"]),
+  lifecycle: z.enum(["durable", "ephemeral"]),
+});
+
+export const OperationalCheckSchema = z.discriminatedUnion("kind", [
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("mise-task"),
+    reference: z.string().regex(/^\/\/(?:[a-z0-9/-]+)?:[a-z0-9:-]+$/),
+  }),
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("workflow"),
+    reference: z.string().regex(/^\.github\/workflows\/[a-z0-9-]+\.ya?ml$/),
+  }),
+  z.object({
+    name: z.string().min(1),
+    kind: z.literal("procedure"),
+    reference: z.string().startsWith("/"),
+  }),
+]);
+
 const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   id: z.string().min(1),
   slot: DefaultSlotSlugSchema,
@@ -130,6 +173,8 @@ const DefaultSelectionFieldsSchema = TemporalPeriodSchema.extend({
   evidenceADRs: z.array(ADRRefSchema).min(1),
   supersedes: z.string().min(1).optional(),
   configurationRequirements: z.array(ConfigurationRequirementSchema).optional(),
+  stateRequirements: z.array(StateRequirementSchema).optional(),
+  operationalChecks: z.array(OperationalCheckSchema).optional(),
   manualSetup: z.array(z.string().min(1)).optional(),
 });
 
@@ -260,6 +305,28 @@ function validateSelectionConfiguration(
         `Selection '${selection.id}' assigns configuration '${requirement.name}' to unknown owner slot '${requirement.owner}'`,
       );
     }
+  }
+
+  const stateNames = new Set<string>();
+  for (const requirement of selection.stateRequirements ?? []) {
+    if (stateNames.has(requirement.name)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' repeats state requirement '${requirement.name}'`,
+      );
+    }
+    stateNames.add(requirement.name);
+  }
+
+  const checkNames = new Set<string>();
+  for (const check of selection.operationalChecks ?? []) {
+    if (checkNames.has(check.name)) {
+      addManifestIssue(
+        context,
+        `Selection '${selection.id}' repeats operational check '${check.name}'`,
+      );
+    }
+    checkNames.add(check.name);
   }
 }
 
@@ -726,60 +793,10 @@ export function isUseEffectiveAt(
   );
 }
 
-export function compareUtcInstants(left: string, right: string): number {
-  const leftParts = parseUtcInstant(left);
-  const rightParts = parseUtcInstant(right);
-  if (leftParts.seconds !== rightParts.seconds) {
-    return leftParts.seconds < rightParts.seconds ? -1 : 1;
-  }
-  if (leftParts.nanoseconds === rightParts.nanoseconds) return 0;
-  return leftParts.nanoseconds < rightParts.nanoseconds ? -1 : 1;
-}
+export { compareUtcInstants };
 
 export function previousUtcInstant(value: string): UtcInstant {
-  const { seconds, nanoseconds } = parseUtcInstant(value);
-  if (nanoseconds > 0) {
-    return `${seconds}.${String(nanoseconds - 1).padStart(9, "0")}Z`;
-  }
-  const previousSecond = new Date(Date.parse(`${seconds}Z`) - 1_000)
-    .toISOString()
-    .replace(".000Z", "");
-  return `${previousSecond}.999999999Z`;
-}
-
-function parseUtcInstant(value: string): {
-  seconds: string;
-  nanoseconds: number;
-} {
-  const match = UTC_INSTANT_PATTERN.exec(value);
-  if (!match || !isValidUtcInstant(value)) {
-    throw new RangeError(`Invalid RFC 3339 UTC instant: '${value}'`);
-  }
-  return {
-    seconds: match[1] ?? "",
-    nanoseconds: Number((match[2] ?? "").padEnd(9, "0")),
-  };
-}
-
-function isValidUtcInstant(value: string): boolean {
-  if (!UTC_INSTANT_PATTERN.test(value)) return false;
-  const timestamp = Date.parse(value);
-  if (Number.isNaN(timestamp)) return false;
-  const [datePart, timePart] = value.split("T");
-  const [year, month, day] = (datePart ?? "").split("-").map(Number);
-  const [hour, minute, second] = (timePart ?? "")
-    .slice(0, 8)
-    .split(":")
-    .map(Number);
-  const parsed = new Date(timestamp);
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() + 1 === month &&
-    parsed.getUTCDate() === day &&
-    parsed.getUTCHours() === hour &&
-    parsed.getUTCMinutes() === minute &&
-    parsed.getUTCSeconds() === second
-  );
+  return previousSharedUtcInstant(value) as UtcInstant;
 }
 
 function addDuplicateIssues<T>(

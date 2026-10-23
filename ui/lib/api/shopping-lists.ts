@@ -1,6 +1,7 @@
 import { apiRequest } from "@/lib/api/http";
 import type {
   ExtraItem,
+  MealPlanEntry,
   SelectedRecipeEntry,
 } from "@/lib/shopping/shoppingListStore";
 
@@ -8,6 +9,7 @@ export type ShoppingListContents = {
   recipes: SelectedRecipeEntry[];
   checked: string[];
   extras: ExtraItem[];
+  plan: MealPlanEntry[];
 };
 
 export type ShoppingListScope =

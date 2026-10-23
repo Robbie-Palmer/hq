@@ -1,0 +1,741 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`resolved profile plan adapter > maps the application plus infrastructure project into the stable engine plan 1`] = `
+"{
+  "schema_version": 1,
+  "project_id": "mixed-app",
+  "template_id": "monorepo-project",
+  "template_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "answers": {
+    "project_id": "mixed-app",
+    "blueprint": {
+      "schema_version": 1,
+      "profile_schema_version": 1,
+      "effective_at": "2026-10-21T00:00:00Z",
+      "project": {
+        "id": "mixed-app",
+        "stable_id": "project:mixed-app",
+        "name": "Mixed app",
+        "kind": "application"
+      },
+      "components": [
+        {
+          "id": "api",
+          "stable_id": "component:mixed-app/api",
+          "name": "Application worker",
+          "kind": "worker",
+          "path": "workers/api",
+          "tasks": [
+            {
+              "name": "build",
+              "disposition": "generated"
+            },
+            {
+              "name": "clean",
+              "disposition": "generated"
+            },
+            {
+              "name": "format",
+              "disposition": "generated"
+            },
+            {
+              "name": "install",
+              "disposition": "generated"
+            },
+            {
+              "name": "lint",
+              "disposition": "generated"
+            },
+            {
+              "name": "test",
+              "disposition": "generated"
+            },
+            {
+              "name": "typecheck-or-compile",
+              "disposition": "generated"
+            }
+          ]
+        },
+        {
+          "id": "edge",
+          "stable_id": "component:mixed-app/edge",
+          "name": "Edge infrastructure",
+          "kind": "terraform-root",
+          "path": "infra/edge",
+          "tasks": [
+            {
+              "name": "build",
+              "disposition": "generated"
+            },
+            {
+              "name": "clean",
+              "disposition": "generated"
+            },
+            {
+              "name": "format",
+              "disposition": "generated"
+            },
+            {
+              "name": "install",
+              "disposition": "generated"
+            },
+            {
+              "name": "lint",
+              "disposition": "generated"
+            },
+            {
+              "name": "test",
+              "disposition": "generated"
+            },
+            {
+              "name": "typecheck-or-compile",
+              "disposition": "generated"
+            }
+          ]
+        }
+      ],
+      "repository_paths": {
+        "copier_answers": ".copier/projects/mixed-app.yml",
+        "project_index": "ui/content/projects/mixed-app/index.mdx",
+        "architecture_decisions": "ui/content/projects/mixed-app/adrs/{sequence}-{slug}.mdx",
+        "product_decisions": "ui/content/projects/mixed-app/pdrs/{sequence}-{slug}.mdx"
+      },
+      "selections": [
+        {
+          "id": "observability-opentelemetry",
+          "layer": "observability",
+          "slot": "observability.telemetry-protocol",
+          "kind": "technology",
+          "value": "opentelemetry",
+          "source": "default",
+          "decision": "personal-engineering-platform:039-opentelemetry"
+        },
+        {
+          "id": "project-language-typescript",
+          "layer": "typescript",
+          "slot": "project.primary-language",
+          "kind": "technology",
+          "value": "typescript",
+          "source": "default",
+          "decision": "personal-engineering-platform:002-typescript"
+        },
+        {
+          "id": "project-task-runner-mise",
+          "layer": "base",
+          "slot": "project.task-runner",
+          "kind": "technology",
+          "value": "mise",
+          "source": "default",
+          "decision": "personal-engineering-platform:001-mise"
+        }
+      ],
+      "catalog": {
+        "system": {
+          "id": "system:mixed-app/application",
+          "kind": "system",
+          "name": "Mixed app",
+          "project": "project:mixed-app",
+          "source_paths": [
+            "infra/edge",
+            "workers/api"
+          ]
+        },
+        "components": [
+          {
+            "id": "component:mixed-app/api",
+            "kind": "component",
+            "name": "Application worker",
+            "project": "project:mixed-app",
+            "source_paths": [
+              "workers/api"
+            ],
+            "relations": [
+              {
+                "type": "part_of",
+                "target": "system:mixed-app/application"
+              }
+            ]
+          },
+          {
+            "id": "component:mixed-app/edge",
+            "kind": "component",
+            "name": "Edge infrastructure",
+            "project": "project:mixed-app",
+            "source_paths": [
+              "infra/edge"
+            ],
+            "relations": [
+              {
+                "type": "part_of",
+                "target": "system:mixed-app/application"
+              }
+            ]
+          }
+        ]
+      },
+      "ownership": {
+        "owned_paths": [
+          "infra/edge",
+          "ui/content/projects/mixed-app",
+          "workers/api"
+        ],
+        "structural_edits": [
+          ".mise.toml#monorepo.config_roots",
+          "pnpm-workspace.yaml#packages",
+          "ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records",
+          "ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects"
+        ]
+      },
+      "nix": {
+        "enabled": true,
+        "boundary": "shared",
+        "flake_path": "flake.nix",
+        "supported_systems": [
+          "aarch64-darwin",
+          "x86_64-linux"
+        ],
+        "locked_inputs": true,
+        "allow_unlocked_production_builds": false,
+        "packages": [],
+        "apps": [
+          "deploy"
+        ],
+        "outputs": {
+          "per_system": {
+            "devShells.default": "required",
+            "formatter": "required"
+          },
+          "top_level": {
+            "nixosModules": "when reusable"
+          }
+        },
+        "mise_tasks": {
+          "show": "nix-flake-show",
+          "check": "nix-flake-check"
+        }
+      },
+      "opentelemetry": {
+        "enabled": true,
+        "runtime": "typescript-worker",
+        "resource_attributes": {
+          "service.namespace": "template-required",
+          "service.name": "template-required",
+          "me.robbiepalmer.project.id": "project:mixed-app"
+        },
+        "signals": [
+          "traces",
+          "metrics",
+          "logs"
+        ],
+        "transport": {
+          "protocol": "http/protobuf",
+          "route": "direct"
+        },
+        "semantic_conventions": "stable-only",
+        "data_policy": {
+          "mode": "default-deny",
+          "unsafe_record_action": "drop"
+        },
+        "cardinality": {
+          "max_metric_series_per_instrument": 2000,
+          "max_attribute_count_per_record": 128,
+          "max_attribute_value_length": 4096
+        },
+        "failure_mode": "fail-open"
+      },
+      "manual_checkpoints": [
+        "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry"
+      ]
+    }
+  },
+  "owned_paths": [
+    "infra/edge",
+    "ui/content/projects/mixed-app",
+    "workers/api"
+  ],
+  "shared_manifest_edits": [
+    {
+      "kind": "mise_config_root",
+      "value": "workers/api"
+    },
+    {
+      "kind": "mise_config_root",
+      "value": "infra/edge"
+    },
+    {
+      "kind": "pnpm_workspace_package",
+      "value": "workers/api"
+    },
+    {
+      "kind": "repository_project",
+      "value": {
+        "id": "mixed-app",
+        "kind": "application",
+        "catalog_record": "system:mixed-app/application"
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "system:mixed-app/application",
+        "kind": "system",
+        "name": "Mixed app",
+        "project": "project:mixed-app",
+        "source_paths": [
+          "infra/edge",
+          "workers/api"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "component:mixed-app/api",
+        "kind": "component",
+        "name": "Application worker",
+        "project": "project:mixed-app",
+        "source_paths": [
+          "workers/api"
+        ],
+        "relations": [
+          {
+            "type": "part_of",
+            "target": "system:mixed-app/application"
+          }
+        ]
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "component:mixed-app/edge",
+        "kind": "component",
+        "name": "Edge infrastructure",
+        "project": "project:mixed-app",
+        "source_paths": [
+          "infra/edge"
+        ],
+        "relations": [
+          {
+            "type": "part_of",
+            "target": "system:mixed-app/application"
+          }
+        ]
+      },
+      "expected": null
+    }
+  ]
+}
+"
+`;
+
+exports[`resolved profile plan adapter > maps the package-producing project into the stable engine plan 1`] = `
+"{
+  "schema_version": 1,
+  "project_id": "package-kit",
+  "template_id": "monorepo-project",
+  "template_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "answers": {
+    "project_id": "package-kit",
+    "blueprint": {
+      "schema_version": 1,
+      "profile_schema_version": 1,
+      "effective_at": "2026-10-21T00:00:00Z",
+      "project": {
+        "id": "package-kit",
+        "stable_id": "project:package-kit",
+        "name": "Package kit",
+        "kind": "library"
+      },
+      "components": [
+        {
+          "id": "package-kit",
+          "stable_id": "component:package-kit/package-kit",
+          "name": "Package kit",
+          "kind": "typescript-package",
+          "path": "packages/package-kit",
+          "tasks": [
+            {
+              "name": "build",
+              "disposition": "generated"
+            },
+            {
+              "name": "clean",
+              "disposition": "not-applicable",
+              "reason": "The workspace owns cleanup."
+            },
+            {
+              "name": "format",
+              "disposition": "generated"
+            },
+            {
+              "name": "install",
+              "disposition": "generated"
+            },
+            {
+              "name": "lint",
+              "disposition": "generated"
+            },
+            {
+              "name": "test",
+              "disposition": "generated"
+            },
+            {
+              "name": "typecheck-or-compile",
+              "disposition": "generated"
+            }
+          ]
+        }
+      ],
+      "repository_paths": {
+        "copier_answers": ".copier/projects/package-kit.yml",
+        "project_index": "ui/content/projects/package-kit/index.mdx",
+        "architecture_decisions": "ui/content/projects/package-kit/adrs/{sequence}-{slug}.mdx",
+        "product_decisions": "ui/content/projects/package-kit/pdrs/{sequence}-{slug}.mdx"
+      },
+      "selections": [
+        {
+          "id": "project-language-typescript",
+          "layer": "typescript",
+          "slot": "project.primary-language",
+          "kind": "technology",
+          "value": "typescript",
+          "source": "default",
+          "decision": "personal-engineering-platform:002-typescript"
+        },
+        {
+          "id": "override-package-kit-project-task-runner",
+          "layer": "base",
+          "slot": "project.task-runner",
+          "kind": "technology",
+          "value": "task",
+          "source": "override",
+          "decision": "package-kit:001-task-runner"
+        }
+      ],
+      "catalog": {
+        "system": {
+          "id": "system:package-kit/library",
+          "kind": "system",
+          "name": "Package kit",
+          "project": "project:package-kit",
+          "source_paths": [
+            "packages/package-kit"
+          ]
+        },
+        "components": [
+          {
+            "id": "component:package-kit/package-kit",
+            "kind": "component",
+            "name": "Package kit",
+            "project": "project:package-kit",
+            "source_paths": [
+              "packages/package-kit"
+            ],
+            "relations": [
+              {
+                "type": "part_of",
+                "target": "system:package-kit/library"
+              }
+            ]
+          }
+        ]
+      },
+      "ownership": {
+        "owned_paths": [
+          "packages/package-kit",
+          "ui/content/projects/package-kit"
+        ],
+        "structural_edits": [
+          ".mise.toml#monorepo.config_roots",
+          "pnpm-workspace.yaml#packages",
+          "ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records",
+          "ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects"
+        ]
+      },
+      "nix": {
+        "enabled": true,
+        "boundary": "project",
+        "flake_path": "packages/package-kit/flake.nix",
+        "supported_systems": [
+          "aarch64-darwin",
+          "x86_64-linux"
+        ],
+        "locked_inputs": true,
+        "allow_unlocked_production_builds": false,
+        "packages": [
+          "default"
+        ],
+        "apps": [],
+        "outputs": {
+          "per_system": {
+            "devShells.default": "required",
+            "formatter": "required"
+          },
+          "top_level": {
+            "nixosModules": "when reusable"
+          }
+        },
+        "mise_tasks": {
+          "show": "nix-flake-show",
+          "check": "nix-flake-check"
+        }
+      },
+      "opentelemetry": {
+        "enabled": false
+      },
+      "manual_checkpoints": []
+    }
+  },
+  "owned_paths": [
+    "packages/package-kit",
+    "ui/content/projects/package-kit"
+  ],
+  "shared_manifest_edits": [
+    {
+      "kind": "mise_config_root",
+      "value": "packages/package-kit"
+    },
+    {
+      "kind": "pnpm_workspace_package",
+      "value": "packages/package-kit"
+    },
+    {
+      "kind": "repository_project",
+      "value": {
+        "id": "package-kit",
+        "kind": "library",
+        "catalog_record": "system:package-kit/library"
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "system:package-kit/library",
+        "kind": "system",
+        "name": "Package kit",
+        "project": "project:package-kit",
+        "source_paths": [
+          "packages/package-kit"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "component:package-kit/package-kit",
+        "kind": "component",
+        "name": "Package kit",
+        "project": "project:package-kit",
+        "source_paths": [
+          "packages/package-kit"
+        ],
+        "relations": [
+          {
+            "type": "part_of",
+            "target": "system:package-kit/library"
+          }
+        ]
+      },
+      "expected": null
+    }
+  ]
+}
+"
+`;
+
+exports[`resolved profile plan adapter > maps the small single-technology project into the stable engine plan 1`] = `
+"{
+  "schema_version": 1,
+  "project_id": "tiny-library",
+  "template_id": "monorepo-project",
+  "template_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "answers": {
+    "project_id": "tiny-library",
+    "blueprint": {
+      "schema_version": 1,
+      "profile_schema_version": 1,
+      "effective_at": "2026-10-21T00:00:00Z",
+      "project": {
+        "id": "tiny-library",
+        "stable_id": "project:tiny-library",
+        "name": "Tiny library",
+        "kind": "library"
+      },
+      "components": [
+        {
+          "id": "tiny-library",
+          "stable_id": "component:tiny-library/tiny-library",
+          "name": "Tiny library",
+          "kind": "typescript-package",
+          "path": "packages/tiny-library",
+          "tasks": [
+            {
+              "name": "build",
+              "disposition": "generated"
+            },
+            {
+              "name": "clean",
+              "disposition": "generated"
+            },
+            {
+              "name": "format",
+              "disposition": "generated"
+            },
+            {
+              "name": "install",
+              "disposition": "generated"
+            },
+            {
+              "name": "lint",
+              "disposition": "generated"
+            },
+            {
+              "name": "test",
+              "disposition": "generated"
+            },
+            {
+              "name": "typecheck-or-compile",
+              "disposition": "generated"
+            }
+          ]
+        }
+      ],
+      "repository_paths": {
+        "copier_answers": ".copier/projects/tiny-library.yml",
+        "project_index": "ui/content/projects/tiny-library/index.mdx",
+        "architecture_decisions": "ui/content/projects/tiny-library/adrs/{sequence}-{slug}.mdx",
+        "product_decisions": "ui/content/projects/tiny-library/pdrs/{sequence}-{slug}.mdx"
+      },
+      "selections": [
+        {
+          "id": "project-language-typescript",
+          "layer": "typescript",
+          "slot": "project.primary-language",
+          "kind": "technology",
+          "value": "typescript",
+          "source": "default",
+          "decision": "personal-engineering-platform:002-typescript"
+        },
+        {
+          "id": "project-task-runner-mise",
+          "layer": "base",
+          "slot": "project.task-runner",
+          "kind": "technology",
+          "value": "mise",
+          "source": "default",
+          "decision": "personal-engineering-platform:001-mise"
+        }
+      ],
+      "catalog": {
+        "system": {
+          "id": "system:tiny-library/library",
+          "kind": "system",
+          "name": "Tiny library",
+          "project": "project:tiny-library",
+          "source_paths": [
+            "packages/tiny-library"
+          ]
+        },
+        "components": [
+          {
+            "id": "component:tiny-library/tiny-library",
+            "kind": "component",
+            "name": "Tiny library",
+            "project": "project:tiny-library",
+            "source_paths": [
+              "packages/tiny-library"
+            ],
+            "relations": [
+              {
+                "type": "part_of",
+                "target": "system:tiny-library/library"
+              }
+            ]
+          }
+        ]
+      },
+      "ownership": {
+        "owned_paths": [
+          "packages/tiny-library",
+          "ui/content/projects/tiny-library"
+        ],
+        "structural_edits": [
+          ".mise.toml#monorepo.config_roots",
+          "pnpm-workspace.yaml#packages",
+          "ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records",
+          "ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects"
+        ]
+      },
+      "nix": {
+        "enabled": false
+      },
+      "opentelemetry": {
+        "enabled": false
+      },
+      "manual_checkpoints": []
+    }
+  },
+  "owned_paths": [
+    "packages/tiny-library",
+    "ui/content/projects/tiny-library"
+  ],
+  "shared_manifest_edits": [
+    {
+      "kind": "mise_config_root",
+      "value": "packages/tiny-library"
+    },
+    {
+      "kind": "pnpm_workspace_package",
+      "value": "packages/tiny-library"
+    },
+    {
+      "kind": "repository_project",
+      "value": {
+        "id": "tiny-library",
+        "kind": "library",
+        "catalog_record": "system:tiny-library/library"
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "system:tiny-library/library",
+        "kind": "system",
+        "name": "Tiny library",
+        "project": "project:tiny-library",
+        "source_paths": [
+          "packages/tiny-library"
+        ]
+      },
+      "expected": null
+    },
+    {
+      "kind": "catalog_record",
+      "value": {
+        "id": "component:tiny-library/tiny-library",
+        "kind": "component",
+        "name": "Tiny library",
+        "project": "project:tiny-library",
+        "source_paths": [
+          "packages/tiny-library"
+        ],
+        "relations": [
+          {
+            "type": "part_of",
+            "target": "system:tiny-library/library"
+          }
+        ]
+      },
+      "expected": null
+    }
+  ]
+}
+"
+`;

@@ -31,7 +31,7 @@ describe("isRecipeSlug", () => {
 });
 
 describe("isRecipeAppRouteSlug", () => {
-  it.each(["kitchen", "log", "offline", "saved", "shopping"])(
+  it.each(["kitchen", "log", "offline", "planning", "saved", "shopping"])(
     "reserves the app route: %s",
     (slug) => {
       expect(isRecipeAppRouteSlug(slug)).toBe(true);
@@ -52,6 +52,7 @@ describe("recipeSlugFromPathname", () => {
     "/recipes/kitchen/",
     "/recipes/log",
     "/recipes/offline",
+    "/recipes/planning",
     "/recipes/lentil-soup/edit",
     "/projects/lentil-soup",
   ])("rejects a non-recipe pathname: %s", (pathname) => {

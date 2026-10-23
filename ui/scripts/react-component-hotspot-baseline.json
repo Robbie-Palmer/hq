@@ -117,19 +117,11 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "RecipesLayout",
-    "maximums": {
-      "lines": 70
-    },
-    "path": "app/recipes/layout.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "AccountBalanceChart",
     "maximums": {
       "lines": 121
     },
-    "path": "components/assettracker/account-balance-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-balance-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -138,7 +130,7 @@
       "lines": 107,
       "renderComplexity": 13
     },
-    "path": "components/assettracker/account-detail-sheet.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-detail-sheet.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -146,7 +138,7 @@
     "maximums": {
       "lines": 62
     },
-    "path": "components/assettracker/account-detail-sheet.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-detail-sheet.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -154,7 +146,7 @@
     "maximums": {
       "lines": 68
     },
-    "path": "components/assettracker/account-detail-sheet.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-detail-sheet.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -162,7 +154,7 @@
     "maximums": {
       "lines": 60
     },
-    "path": "components/assettracker/account-flows.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-flows.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -172,7 +164,7 @@
       "renderComplexity": 15,
       "responsibility": 42
     },
-    "path": "components/assettracker/account-flows.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-flows.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -182,7 +174,7 @@
       "renderComplexity": 16,
       "responsibility": 39.5
     },
-    "path": "components/assettracker/account-history-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-history-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -190,7 +182,7 @@
     "maximums": {
       "lines": 88
     },
-    "path": "components/assettracker/account-history-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-history-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -198,7 +190,7 @@
     "maximums": {
       "lines": 146
     },
-    "path": "components/assettracker/account-projection.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-projection.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -208,7 +200,7 @@
       "nesting": 5,
       "renderComplexity": 11
     },
-    "path": "components/assettracker/account-trajectory-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/account-trajectory-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -216,7 +208,7 @@
     "maximums": {
       "lines": 82
     },
-    "path": "components/assettracker/accounts-route.tsx",
+    "path": "app/_projects/personal-finance-app/components/accounts-route.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -224,7 +216,7 @@
     "maximums": {
       "lines": 75
     },
-    "path": "components/assettracker/accounts-table.tsx",
+    "path": "app/_projects/personal-finance-app/components/accounts-table.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -234,7 +226,7 @@
       "renderComplexity": 13,
       "responsibility": 62
     },
-    "path": "components/assettracker/add-account-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/add-account-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -242,7 +234,7 @@
     "maximums": {
       "lines": 102
     },
-    "path": "components/assettracker/asset-allocation-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/asset-allocation-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -250,7 +242,7 @@
     "maximums": {
       "lines": 106
     },
-    "path": "components/assettracker/asset-allocation-history-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/asset-allocation-history-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -259,7 +251,7 @@
       "lines": 170,
       "renderComplexity": 10
     },
-    "path": "components/assettracker/asset-tracker-dashboard.tsx",
+    "path": "app/_projects/personal-finance-app/components/asset-tracker-dashboard.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -267,7 +259,7 @@
     "maximums": {
       "lines": 260
     },
-    "path": "components/assettracker/asset-tracker-provider.tsx",
+    "path": "app/_projects/personal-finance-app/components/asset-tracker-provider.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -275,7 +267,7 @@
     "maximums": {
       "lines": 67
     },
-    "path": "components/assettracker/asset-tracker-shell.tsx",
+    "path": "app/_projects/personal-finance-app/components/asset-tracker-shell.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -283,7 +275,7 @@
     "maximums": {
       "lines": 67
     },
-    "path": "components/assettracker/clear-account-history-button.tsx",
+    "path": "app/_projects/personal-finance-app/components/clear-account-history-button.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -291,7 +283,7 @@
     "maximums": {
       "lines": 72
     },
-    "path": "components/assettracker/close-account-controls.tsx",
+    "path": "app/_projects/personal-finance-app/components/close-account-controls.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -300,7 +292,7 @@
       "lines": 90,
       "renderComplexity": 12
     },
-    "path": "components/assettracker/data-controls.tsx",
+    "path": "app/_projects/personal-finance-app/components/data-controls.tsx",
     "reason": "Backup and restore work split the controls into focused child components and lowered the existing hotspot ceiling."
   },
   {
@@ -308,7 +300,7 @@
     "maximums": {
       "lines": 123
     },
-    "path": "components/assettracker/equity-projection.tsx",
+    "path": "app/_projects/personal-finance-app/components/equity-projection.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -316,7 +308,7 @@
     "maximums": {
       "lines": 99
     },
-    "path": "components/assettracker/expected-return-editor.tsx",
+    "path": "app/_projects/personal-finance-app/components/expected-return-editor.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -324,7 +316,7 @@
     "maximums": {
       "lines": 77
     },
-    "path": "components/assettracker/financial-runway-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/financial-runway-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -332,7 +324,7 @@
     "maximums": {
       "lines": 171
     },
-    "path": "components/assettracker/flow-sankey-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/flow-sankey-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -340,7 +332,7 @@
     "maximums": {
       "lines": 64
     },
-    "path": "components/assettracker/flow-sankey-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/flow-sankey-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -348,7 +340,7 @@
     "maximums": {
       "lines": 78
     },
-    "path": "components/assettracker/historical-currency-disclosure.tsx",
+    "path": "app/_projects/personal-finance-app/components/historical-currency-disclosure.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -357,7 +349,7 @@
       "lines": 204,
       "renderComplexity": 12
     },
-    "path": "components/assettracker/household-scope-control.tsx",
+    "path": "app/_projects/personal-finance-app/components/household-scope-control.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -365,7 +357,7 @@
     "maximums": {
       "lines": 88
     },
-    "path": "components/assettracker/housing-strategy-assumptions.tsx",
+    "path": "app/_projects/personal-finance-app/components/housing-strategy-assumptions.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -373,7 +365,7 @@
     "maximums": {
       "lines": 85
     },
-    "path": "components/assettracker/housing-strategy-planner.tsx",
+    "path": "app/_projects/personal-finance-app/components/housing-strategy-planner.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -381,7 +373,7 @@
     "maximums": {
       "lines": 71
     },
-    "path": "components/assettracker/housing-strategy-results.tsx",
+    "path": "app/_projects/personal-finance-app/components/housing-strategy-results.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -390,7 +382,7 @@
       "lines": 217,
       "renderComplexity": 16
     },
-    "path": "components/assettracker/income-expenditure-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/income-expenditure-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -399,7 +391,7 @@
       "lines": 141,
       "renderComplexity": 11
     },
-    "path": "components/assettracker/income-history-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/income-history-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -408,7 +400,7 @@
       "lines": 158,
       "responsibility": 30.5
     },
-    "path": "components/assettracker/log-balance-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/log-balance-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -416,7 +408,7 @@
     "maximums": {
       "lines": 94
     },
-    "path": "components/assettracker/mortgage-calculator-controls.tsx",
+    "path": "app/_projects/personal-finance-app/components/mortgage-calculator-controls.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -424,7 +416,7 @@
     "maximums": {
       "lines": 171
     },
-    "path": "components/assettracker/mortgage-calculator.tsx",
+    "path": "app/_projects/personal-finance-app/components/mortgage-calculator.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -432,7 +424,7 @@
     "maximums": {
       "lines": 86
     },
-    "path": "components/assettracker/mortgage-investment-comparison.tsx",
+    "path": "app/_projects/personal-finance-app/components/mortgage-investment-comparison.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -440,7 +432,7 @@
     "maximums": {
       "lines": 71
     },
-    "path": "components/assettracker/mortgage-investment-sensitivity.tsx",
+    "path": "app/_projects/personal-finance-app/components/mortgage-investment-sensitivity.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -448,7 +440,7 @@
     "maximums": {
       "lines": 92
     },
-    "path": "components/assettracker/mortgage-schedule.tsx",
+    "path": "app/_projects/personal-finance-app/components/mortgage-schedule.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -456,7 +448,7 @@
     "maximums": {
       "lines": 62
     },
-    "path": "components/assettracker/net-worth-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/net-worth-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -465,7 +457,7 @@
       "lines": 250,
       "nesting": 4
     },
-    "path": "components/assettracker/net-worth-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/net-worth-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -473,7 +465,7 @@
     "maximums": {
       "lines": 90
     },
-    "path": "components/assettracker/net-worth-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/net-worth-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -481,7 +473,7 @@
     "maximums": {
       "lines": 63
     },
-    "path": "components/assettracker/net-worth-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/net-worth-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -489,7 +481,7 @@
     "maximums": {
       "lines": 62
     },
-    "path": "components/assettracker/net-worth-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/net-worth-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -497,7 +489,7 @@
     "maximums": {
       "lines": 92
     },
-    "path": "components/assettracker/portfolio-fi-projection-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/portfolio-fi-projection-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -507,7 +499,7 @@
       "renderComplexity": 16,
       "responsibility": 56
     },
-    "path": "components/assettracker/portfolio-goal.tsx",
+    "path": "app/_projects/personal-finance-app/components/portfolio-goal.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -515,7 +507,7 @@
     "maximums": {
       "lines": 183
     },
-    "path": "components/assettracker/property-value-history.tsx",
+    "path": "app/_projects/personal-finance-app/components/property-value-history.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -524,7 +516,7 @@
       "lines": 122,
       "renderComplexity": 12
     },
-    "path": "components/assettracker/real-income-history-chart.tsx",
+    "path": "app/_projects/personal-finance-app/components/real-income-history-chart.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -534,7 +526,7 @@
       "renderComplexity": 12,
       "responsibility": 49
     },
-    "path": "components/assettracker/record-transfer-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/record-transfer-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -542,7 +534,7 @@
     "maximums": {
       "lines": 66
     },
-    "path": "components/assettracker/recurring-flows-manager.tsx",
+    "path": "app/_projects/personal-finance-app/components/recurring-flows-manager.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -550,7 +542,7 @@
     "maximums": {
       "lines": 64
     },
-    "path": "components/assettracker/runway-forecast.tsx",
+    "path": "app/_projects/personal-finance-app/components/runway-forecast.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -560,7 +552,7 @@
       "renderComplexity": 15,
       "responsibility": 51.5
     },
-    "path": "components/assettracker/runway-forecast.tsx",
+    "path": "app/_projects/personal-finance-app/components/runway-forecast.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -570,7 +562,7 @@
       "renderComplexity": 17,
       "responsibility": 41
     },
-    "path": "components/assettracker/salary-history-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/salary-history-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -580,7 +572,7 @@
       "renderComplexity": 19,
       "responsibility": 33
     },
-    "path": "components/assettracker/salary-history-manager.tsx",
+    "path": "app/_projects/personal-finance-app/components/salary-history-manager.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -589,7 +581,7 @@
       "lines": 241,
       "responsibility": 32.5
     },
-    "path": "components/assettracker/salary-record-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/salary-record-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -599,7 +591,7 @@
       "renderComplexity": 12,
       "responsibility": 47
     },
-    "path": "components/assettracker/spreadsheet-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/spreadsheet-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -607,7 +599,7 @@
     "maximums": {
       "lines": 68
     },
-    "path": "components/assettracker/spreadsheet-import-drawer.tsx",
+    "path": "app/_projects/personal-finance-app/components/spreadsheet-import-drawer.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -615,7 +607,7 @@
     "maximums": {
       "lines": 94
     },
-    "path": "components/assettracker/upcoming-flows.tsx",
+    "path": "app/_projects/personal-finance-app/components/upcoming-flows.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -1207,22 +1199,6 @@
       "lines": 71
     },
     "path": "components/recipes/recipe-pagination.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "RecipePwa",
-    "maximums": {
-      "lines": 73
-    },
-    "path": "components/recipes/recipe-pwa.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "OfflineRecipeCacheBoundary",
-    "maximums": {
-      "lines": 69
-    },
-    "path": "components/recipes/recipe-query-provider.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {

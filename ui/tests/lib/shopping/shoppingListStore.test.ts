@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  addCommittedMealsToShoppingList,
   addExtra,
   addRecipe,
   clearChecked,
@@ -9,8 +10,11 @@ import {
   installShoppingListSnapshot,
   markShoppingTripCompleted,
   removeExtra,
+  removePlannedMeal,
   removeRecipe,
+  savePlannedMeal,
   setRecipeServings,
+  setShoppingListOwner,
   subscribeShoppingList,
   toggleChecked,
   toggleExtra,
@@ -19,7 +23,7 @@ import {
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 // Mirrors the module's private persistence key.
-const STORAGE_KEY = "recipe-shopping-list:v1";
+const STORAGE_KEY = "recipe-shopping-list:v2:test-user";
 
 describe("shoppingListStore", () => {
   beforeEach(() => {
@@ -84,6 +88,8 @@ describe("shoppingListStore", () => {
     localStorage.setItem(
       STORAGE_KEY,
       JSON.stringify({
+        version: 2,
+        userId: "test-user",
         recipes: [{ slug: "risotto", servings: 2.6 }],
         checked: [],
         extras: [],
@@ -93,6 +99,18 @@ describe("shoppingListStore", () => {
     expect(getShoppingListSnapshot().recipes).toEqual([
       { slug: "risotto", servings: 3 },
     ]);
+  });
+
+  it("keeps shopping snapshots isolated by user", () => {
+    setShoppingListOwner("user-1");
+    addRecipe("risotto");
+
+    setShoppingListOwner("user-2");
+    expect(getShoppingListSnapshot().recipes).toEqual([]);
+    addRecipe("paella");
+
+    setShoppingListOwner("user-1");
+    expect(getShoppingListSnapshot().recipes).toEqual([{ slug: "risotto" }]);
   });
 
   it("installs a single shared storage listener regardless of subscriber count", () => {
@@ -145,16 +163,125 @@ describe("shoppingListStore", () => {
     await expect(markShoppingTripCompleted()).resolves.toBe(true);
   });
 
-  it("clearList wipes everything", () => {
+  it("starts a new shopping list without erasing the meal plan", () => {
     addRecipe("a");
     addExtra("foil");
     toggleChecked("garlic");
+    savePlannedMeal({
+      id: "meal-1",
+      kind: "recipe",
+      status: "candidate",
+      recipeSlug: "risotto",
+    });
     clearList();
     expect(getShoppingListSnapshot()).toEqual({
       recipes: [],
       checked: [],
       extras: [],
+      plan: [
+        {
+          id: "meal-1",
+          kind: "recipe",
+          status: "candidate",
+          recipeSlug: "risotto",
+        },
+      ],
     });
+  });
+
+  it("migrates the old weekly slots without losing planned recipes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-17T12:00:00Z"));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({
+        version: 2,
+        userId: "test-user",
+        recipes: [],
+        checked: [],
+        extras: [],
+        plan: [{ day: "mon", slot: "dinner", slug: "risotto" }],
+      }),
+    );
+    __resetShoppingListForTests();
+
+    expect(getShoppingListSnapshot().plan).toEqual([
+      {
+        id: "legacy-mon-dinner-risotto",
+        kind: "recipe",
+        status: "committed",
+        date: "2026-10-19",
+        mealType: "dinner",
+        recipeSlug: "risotto",
+      },
+    ]);
+    vi.useRealTimers();
+  });
+
+  it("adds only current committed recipe meals without replacing chosen servings", () => {
+    addRecipe("risotto");
+    setRecipeServings("risotto", 8);
+    savePlannedMeal({
+      id: "candidate",
+      kind: "recipe",
+      status: "candidate",
+      recipeSlug: "soup",
+    });
+    savePlannedMeal({
+      id: "past-stew",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-17",
+      mealType: "dinner",
+      recipeSlug: "stew",
+      servings: 6,
+    });
+    savePlannedMeal({
+      id: "risotto-1",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-18",
+      mealType: "dinner",
+      recipeSlug: "risotto",
+      servings: 2,
+    });
+    savePlannedMeal({
+      id: "risotto-2",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-20",
+      mealType: "dinner",
+      recipeSlug: "risotto",
+      servings: 3,
+    });
+    savePlannedMeal({
+      id: "soup",
+      kind: "recipe",
+      status: "committed",
+      date: "2026-10-19",
+      mealType: "lunch",
+      recipeSlug: "soup",
+      servings: 4,
+    });
+    savePlannedMeal({
+      id: "meal-out",
+      kind: "eating_out",
+      status: "committed",
+      date: "2026-10-19",
+      mealType: "dinner",
+    });
+
+    expect(addCommittedMealsToShoppingList("2026-10-18")).toEqual({
+      addedMealCount: 1,
+      addedRecipeCount: 1,
+      eligibleMealCount: 3,
+    });
+    expect(getShoppingListSnapshot().recipes).toEqual([
+      { slug: "risotto", servings: 8 },
+      { slug: "soup", servings: 4 },
+    ]);
+    removePlannedMeal("risotto-1");
+    expect(getShoppingListSnapshot().plan).toHaveLength(5);
   });
 
   it("syncs state from a cross-tab storage event", () => {
@@ -170,6 +297,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "x" }, { slug: "y" }],
           checked: [],
           extras: [],
@@ -182,6 +311,7 @@ describe("shoppingListStore", () => {
     expect(getShoppingListCacheIdentity()).toEqual({
       listId: "list-1",
       revision: "4",
+      resourceId: undefined,
     });
     expect(seen).toContainEqual({ count: 2, source: "storage" });
     unsub();
@@ -195,6 +325,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "foreign" }],
           checked: [],
           extras: [],
@@ -216,6 +348,8 @@ describe("shoppingListStore", () => {
       new StorageEvent("storage", {
         key: STORAGE_KEY,
         newValue: JSON.stringify({
+          version: 2,
+          userId: "test-user",
           recipes: [{ slug: "other" }],
           checked: [],
           extras: [],

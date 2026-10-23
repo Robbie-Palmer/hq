@@ -77,6 +77,21 @@ type DiscoverFeed = {
   items: Array<{ recipe: { slug: string }; author: { id: string } }>;
 };
 
+type ShoppingList = {
+  id: string;
+  scope: { type: "personal" | "household" };
+  snapshot: {
+    plan: Array<{
+      id: string;
+      kind: string;
+      status: string;
+      date?: string;
+      recipeSlug?: string;
+      sourceMealId?: string;
+    }>;
+  };
+};
+
 const env = smokeEnvSchema.parse(process.env);
 const apiURL = env.PREVIEW_API_URL;
 const READY_TIMEOUT_MS = 120_000;
@@ -256,6 +271,9 @@ if (
 // then read its members — to confirm the seeded household is reachable through
 // the API rather than merely present in the database.
 const ownerCookie = await createSessionCookie("household-owner@preview.invalid");
+const memberCookie = await createSessionCookie(
+  "household-member@preview.invalid",
+);
 const households = await expectJson<HouseholdSummary[]>(
   "/households",
   ownerCookie,
@@ -294,6 +312,37 @@ if (
   throw new Error(
     `Household should have one owner and one member, saw roles: ${memberRoles.join(", ")}`,
   );
+}
+
+const [ownerShoppingList, memberShoppingList] = await Promise.all([
+  expectJson<ShoppingList>("/shopping-lists/current", ownerCookie),
+  expectJson<ShoppingList>("/shopping-lists/current", memberCookie),
+]);
+const seededMealIds = new Set(
+  ownerShoppingList.snapshot.plan.map(({ id }) => id),
+);
+if (
+  ownerShoppingList.scope.type !== "household" ||
+  memberShoppingList.scope.type !== "household" ||
+  ownerShoppingList.id !== memberShoppingList.id ||
+  ownerShoppingList.snapshot.plan.length !== 6 ||
+  memberShoppingList.snapshot.plan.length !== 6 ||
+  ![
+    "preview-household-flatbread-idea",
+    "preview-household-curry-dinner",
+    "preview-household-curry-leftovers",
+    "preview-household-decide-together",
+    "preview-household-flatbread-dinner",
+    "preview-household-dinner-out",
+  ].every((id) => seededMealIds.has(id))
+) {
+  throw new Error("Shared household meal-plan fixture did not match");
+}
+const leftover = ownerShoppingList.snapshot.plan.find(
+  ({ id }) => id === "preview-household-curry-leftovers",
+);
+if (leftover?.sourceMealId !== "preview-household-curry-dinner") {
+  throw new Error("Household leftover did not reference its source meal");
 }
 
 // Cross-household social graph. The solo recipes cook and household owner are

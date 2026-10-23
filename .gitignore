@@ -27,6 +27,7 @@ coverage/
 lighthouse-reports/
 playwright-report/
 test-results/
+.shared-task-cache-*/
 .pnpm-approved-builds.json
 trivy-rendered-kubernetes/
 
@@ -50,6 +51,7 @@ next-env.d.ts
 *.tfstate.*
 *.tfvars.local
 .planfile
+.canary-planfile
 gha-creds-*.json
 crash.log
 crash.*.log

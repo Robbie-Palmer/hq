@@ -1,0 +1,19 @@
+[Unit]
+Description=Back up the personal document archive to Backblaze B2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/bin:/usr/bin:/bin
+ExecStart=%h/.local/bin/personal-archive-backup.sh
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.cache/restic %h/.local/state/personal-archive-backup
+
+[Install]
+WantedBy=default.target

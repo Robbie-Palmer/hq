@@ -5,7 +5,7 @@ date: "2026-02-14"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
-updated: "2026-10-15"
+updated: "2026-10-20"
 platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
@@ -42,6 +42,10 @@ platform_layers:
         rationale: "The public application and Pull Request previews need managed hosting."
       - slot: "web-app.server-state-client"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:018-tanstack-query-for-client-server-state"
+      - slot: "web-app.server-state-client"
+        adopted: "2026-10-19T00:00:00Z"
         decision: "recipe-site:018-tanstack-query-for-client-server-state"
   - layer: "backend-api"
     adopted: "2026-09-12T00:00:00Z"
@@ -53,12 +57,27 @@ platform_layers:
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
       - slot: "backend-api.http-framework"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "backend-api.http-framework"
+        adopted: "2026-10-19T00:00:00Z"
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
       - slot: "backend-api.contract-format"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:023-spectral"
+      - slot: "backend-api.contract-format"
+        adopted: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:023-spectral"
+      - slot: "backend-api.contract-generator"
+        adopted: "2026-10-19T00:00:00Z"
         decision: "recipe-site:023-spectral"
       - slot: "backend-api.relational-connection"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:004-backend-platform-for-authenticated-features"
+      - slot: "backend-api.relational-connection"
+        adopted: "2026-10-19T00:00:00Z"
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
   - layer: "identity"
     adopted: "2026-09-29T00:00:00Z"
@@ -92,6 +111,10 @@ platform_layers:
     slots:
       - slot: "api-governance.compatibility-check"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:023-spectral"
+      - slot: "api-governance.compatibility-check"
+        adopted: "2026-10-19T00:00:00Z"
         decision: "recipe-site:023-spectral"
   - layer: "database"
     adopted: "2026-09-12T00:00:00Z"
@@ -106,10 +129,20 @@ platform_layers:
         decision: "recipe-site:004-backend-platform-for-authenticated-features"
       - slot: "database.relational-access"
         adopted: "2026-09-29T00:00:00Z"
+        until: "2026-10-19T00:00:00Z"
         decision: "recipe-site:016-committed-postgres-migrations"
+      - slot: "database.relational-access"
+        adopted: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
+      - slot: "database.migration-discipline"
+        adopted: "2026-10-19T00:00:00Z"
+        decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
       - slot: "database.backup-restore"
         adopted: "2026-09-29T00:00:00Z"
         decision: "recipe-site:014-neon-database-snapshots-and-backups"
+      - slot: "database.preview-isolation"
+        adopted: "2026-10-20T00:00:00Z"
+        decision: "recipe-site:017-fresh-migration-baseline-and-isolated-preview-database-project"
   - layer: "infrastructure"
     adopted: "2026-09-12T00:00:00Z"
     tracking: true
@@ -235,7 +268,7 @@ to transcribe by hand. Recipes discovered online, from friends, or from social m
 bookmarked websites, Facebook posts) pile up across different platforms and many are lost. The barrier to entry
 is too high for casual additions.
 
-**Editing is destructive.** Adapting a recipe often means destroying the original page and rewriting entirely.
+**Editing is destructive.** Adapting a recipe often means destroying the original page and rewriting it entirely.
 There's no room for new instructions, and scoring out old text makes the page illegible. This discourages
 experimentation. Recipes need multiple attempts before settling on a final form, but the cost of each iteration
 is a full page rewrite.
@@ -356,7 +389,7 @@ includes:
 * **Database-backed recipe boxes** with public, private, and household visibility
 * **Search and tri-state filters** across cuisines, ingredients, time, and required equipment
 * **Structured Cooklang recipes** with grouped ingredients, cookware, attribution, and live editing preview
-* **Serving adjustment** that scales ingredient quantities both in the list and inside instruction text
+* **Serving adjustment** that scales ingredient quantities both in the list and inside the instruction text
 * **Configurable metric, US, and UK units**, with browser-persisted preferences
 * **Public profiles and discovery feeds**, including cook follows and a dedicated Following feed
 
@@ -368,16 +401,18 @@ includes:
 * **Ingredient checklists and equipment lists** alongside the instructions
 * **Cooking sessions and insights** recording starts, completed meals, recently cooked recipes, and variety
 
-## Shopping & Kitchen
+## Planning, Shopping & Kitchen
 
+* **Household meal plans** that start with one meal, keep unscheduled ideas separate, and record leftovers,
+  meals out, or undecided slots without filling an empty weekly grid
 * **Aggregated shopping lists** that merge recipe quantities, support free-form extras, sort into aisles, and
   subtract ingredients already in stock
 * **Pantry, fridge, and fresh-stock tracking** with recipe matching based on ingredients on hand
-* **Shared household pantry and shopping-list state** so members work from the same stock picture on every
-  device
+* **Shared household planning, pantry, and shopping state** so members work from the same plan and stock picture
+  on every device
 
-The earlier weekly meal planner was removed when the shopping journey was simplified. Shopping lists now follow
-a person or household across devices, so everyone cooks from the same up-to-date list.
+Planning and shopping have separate destinations. Committed recipe meals can add ingredients to the active list,
+while candidates, leftovers, meals out, and undecided slots stay out of shopping.
 
 ## Capture, Accounts & Collaboration
 
@@ -402,10 +437,9 @@ Discovery also stops at public recency and the explicit follow graph. The system
 similar demonstrated tastes, explain an affinity-based recommendation, suggest an emerging community, or
 deliberately trade familiarity for exploration.
 
-The personal loop is also incomplete. Meal planning is absent, shopping stops before a retailer basket, pantry
-updates are manual, leftovers are not represented, and nutrition is not derived from recipes or completed
-cooks. Closing those gaps is prerequisite work for the social graph because it both makes the product worth
-returning to and produces higher-quality outcome data.
+The personal loop is also incomplete. Shopping stops before a retailer basket, pantry updates are manual, and
+nutrition is not derived from recipes or completed cooks. Closing those gaps is prerequisite work for the
+social graph because it both makes the product worth returning to and produces higher-quality outcome data.
 
 # Roadmap
 
@@ -641,7 +675,7 @@ The physical book isn't all bad. The recipe site should preserve its strengths:
 # Product Design
 
 The product has been designed end-to-end as a mid-fidelity prototype. Every
-surface, in both desktop and mobile, rendered in a warm "paper and handwriting"
+surface, on both desktop and mobile, rendered in a warm "paper and handwriting"
 visual language (a soft paper palette with Caveat, Kalam, and JetBrains Mono
 type) that deliberately evokes the physical recipe book this replaces.
 
@@ -1073,7 +1107,7 @@ API governance, and end-to-end observability make rapid parallel delivery safer.
 than a user feature, but it explains how the product moved across cooking, ingestion, household, kitchen, and
 social tracks without waiting for artificial phase boundaries.
 
-**The physical book replacement angle.** No competitor explicitly positions as "your handwritten recipe
+**The physical book replacement angle.** No competitor explicitly positions itself as "your handwritten recipe
 book, but better in every way." The Cooklang blog
 [captures this instinct](https://cooklang.org/blog/09-cooklang-vs-paprika-vs-mealie/) through a user who
 photographed her grandmother's recipe cards "just to have a backup", then found the digital version
@@ -1142,8 +1176,8 @@ content site:
 The static shell still keeps delivery simple and public pages fast. Dynamic infrastructure was introduced only
 where ownership, identity, long-running work, or shared state required it.
 
-Active timers and unit preferences remain tied to one device. Shopping lists follow a person or household across
-devices, keeping the kitchen journey connected for everyone involved.
+Active timers and unit preferences remain tied to one device. Meal plans and shopping lists follow a person or
+household across devices, keeping the kitchen journey connected for everyone involved.
 
 ## Social Cooking Graph
 
@@ -1186,7 +1220,7 @@ This project follows my [building philosophy](/projects?tab=philosophy).
 
 The recipe site is a textbook case for several principles:
 
-* **Short feedback loops**, the static recipe list shipped first; real use then pulled cooking mode, timers,
+* **Short feedback loops.** The static recipe list shipped first; real use then pulled cooking mode, timers,
   shopping, and kitchen state forward
 * **Validate pain, not feature presence**, an import, scan, recommendation, or nutrition screen is not successful
   because it shipped; it succeeds only when it removes more work than it creates during real use

@@ -1,0 +1,101 @@
+[tasks.init]
+description = "Initialize Cloudflare Access Terraform"
+run = "bash scripts/doppler-terraform-env.sh plan terraform init -input=false"
+
+[tasks.format]
+description = "Format Cloudflare Access Terraform files"
+run = "terraform fmt -recursive ."
+
+[tasks."format:check"]
+description = "Check Cloudflare Access Terraform formatting"
+run = "terraform fmt -check -recursive ."
+
+[tasks.validate]
+description = "Validate Cloudflare Access Terraform without remote state or credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/cloudflare-access-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks."lint:tflint"]
+description = "Lint Cloudflare Access Terraform"
+run = "tflint --format compact"
+
+[tasks.lint]
+description = "Run Cloudflare Access Terraform static checks"
+depends = ["validate", "lint:tflint", "test:scripts"]
+
+[tasks.precommit-lint]
+description = "Validate Cloudflare Access Terraform without its remote backend"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/cloudflare-access-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks."test:scripts"]
+description = "Check Cloudflare Access operator scripts"
+run = "bash -n scripts/doppler-terraform-env.sh scripts/check-state-for-credentials.sh"
+
+[tasks."test:terraform"]
+description = "Test Cloudflare Access declarations with a mocked provider"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/cloudflare-access-terraform-test.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform test
+"""
+
+[tasks.test]
+description = "Test Cloudflare Access declarations and scripts"
+depends = ["test:scripts", "test:terraform"]
+
+[tasks.plan]
+description = "Plan Cloudflare Access infrastructure with read-only credentials"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .planfile"
+outputs = [".planfile"]
+
+[tasks."plan:drift"]
+description = "Check Cloudflare Access drift with read-only credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+bash scripts/doppler-terraform-env.sh drift terraform init -input=false
+bash scripts/doppler-terraform-env.sh drift terraform plan -input=false -detailed-exitcode
+"""
+
+[tasks."credentials:sync"]
+description = "Sync Cloudflare Access configs to their protected GitHub environments"
+run = "../../scripts/sync-doppler-github-envs.sh production-cloudflare-access-plan production-cloudflare-access-drift production-cloudflare-access"
+
+[tasks.apply]
+description = "Apply a reviewed Cloudflare Access Terraform plan"
+depends = ["init"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+bash scripts/doppler-terraform-env.sh apply terraform apply -input=false .planfile
+bash scripts/doppler-terraform-env.sh apply bash scripts/check-state-for-credentials.sh
+"""
+
+[tasks."state:check"]
+description = "Assert that Cloudflare Access state contains no service-token secret"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan bash scripts/check-state-for-credentials.sh"
+
+[tasks.check]
+description = "Check and plan Cloudflare Access infrastructure"
+depends = ["format:check", "lint", "test", "plan"]

@@ -33,8 +33,6 @@ stages:
       - src/freeze-cohort.ts
     outs:
       - outputs/frozen/cohort.json
-      - outputs/frozen/readiness.json
-      - outputs/frozen/readiness.md
 
   prepare_gector_model:
     cmd: bash scripts/prepare-gector-model.sh
@@ -50,6 +48,352 @@ stages:
     outs:
       - data/models/gector-2024:
           persist: true
+
+  build_current_content_corpus:
+    cmd: bash scripts/build-current-content-corpus.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - ../../ui/content
+      - current-content-params-strict.json
+      - package.json
+      - scripts/build-current-content-corpus.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/schemas.ts
+    outs:
+      - data/current-content
+
+  calibrate_current_content_gector_baseline:
+    cmd: bash scripts/run-current-content-gector.sh data/current-content/calibration-cohort.json current-content-params-baseline.json outputs/current-content/calibration/baseline
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-baseline.json
+      - data/current-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/current-content/calibration/baseline
+
+  calibrate_current_content_gector_balanced:
+    cmd: bash scripts/run-current-content-gector.sh data/current-content/calibration-cohort.json current-content-params-balanced.json outputs/current-content/calibration/balanced
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-balanced.json
+      - data/current-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/current-content/calibration/balanced
+
+  calibrate_current_content_gector_strict:
+    cmd: bash scripts/run-current-content-gector.sh data/current-content/calibration-cohort.json current-content-params-strict.json outputs/current-content/calibration/strict
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/current-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/current-content/calibration/strict
+
+  run_current_content_gector:
+    cmd: bash scripts/run-current-content-gector.sh data/current-content/cohort.json current-content-params-strict.json outputs/current-content/full
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/current-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/current-content/full
+
+  report_current_content_gector:
+    cmd: bash scripts/report-current-content-gector.sh
+    deps:
+      - ../../pnpm-lock.yaml
+      - data/current-content/manifest.json
+      - outputs/current-content/calibration/balanced/run.json
+      - outputs/current-content/calibration/baseline/run.json
+      - outputs/current-content/calibration/strict/run.json
+      - outputs/current-content/full/run.json
+      - package.json
+      - scripts/report-current-content-gector.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/report-current-content-gector.ts
+      - src/schemas.ts
+    outs:
+      - outputs/current-content/report
+
+  build_developer_content_corpus:
+    cmd: bash scripts/build-developer-content-corpus.sh
+    deps:
+      - ../../.agents
+      - ../../AGENTS.md
+      - ../../CLAUDE.md
+      - ../../CONTRIBUTING.md
+      - ../../README.md
+      - ../../SECURITY.md
+      - ../../.vale/styles/README.md
+      - ../../ai-review
+      - ../../backups
+      - ../../cpp
+      - ../../docs
+      - ../../functions
+      - ../../homelab
+      - ../../infra
+      - ../../ml-pipelines/README.md
+      - ../../ml-pipelines/ai-review-evaluation/README.md
+      - ../../ml-pipelines/recipe-dataset/README.md
+      - ../../ml-pipelines/recipe-parsing/README.md
+      - ../../ml-pipelines/wsi-analysis/README.md
+      - ../../packages
+      - ../../ui/content
+      - ../../ui/e2e
+      - ../../workers
+      - current-content-params-strict.json
+      - package.json
+      - README.md
+      - scripts/build-developer-content-corpus.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/schemas.ts
+    outs:
+      - data/developer-content
+
+  calibrate_developer_content_gector_baseline:
+    cmd: bash scripts/run-current-content-gector.sh data/developer-content/calibration-cohort.json current-content-params-baseline.json outputs/developer-content/calibration/baseline data/developer-content
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-baseline.json
+      - data/developer-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/developer-content/calibration/baseline
+
+  calibrate_developer_content_gector_balanced:
+    cmd: bash scripts/run-current-content-gector.sh data/developer-content/calibration-cohort.json current-content-params-balanced.json outputs/developer-content/calibration/balanced data/developer-content
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-balanced.json
+      - data/developer-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/developer-content/calibration/balanced
+
+  calibrate_developer_content_gector_strict:
+    cmd: bash scripts/run-current-content-gector.sh data/developer-content/calibration-cohort.json current-content-params-strict.json outputs/developer-content/calibration/strict data/developer-content
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/developer-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/developer-content/calibration/strict
+
+  run_developer_content_gector:
+    cmd: bash scripts/run-current-content-gector.sh data/developer-content/cohort.json current-content-params-strict.json outputs/developer-content/full data/developer-content
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/developer-content
+      - data/models/gector-2024
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/developer-content/full
+
+  report_developer_content_gector:
+    cmd: bash scripts/report-developer-content-gector.sh
+    deps:
+      - ../../pnpm-lock.yaml
+      - data/developer-content/manifest.json
+      - outputs/developer-content/calibration/balanced/run.json
+      - outputs/developer-content/calibration/baseline/run.json
+      - outputs/developer-content/calibration/strict/run.json
+      - outputs/developer-content/full/run.json
+      - package.json
+      - scripts/report-developer-content-gector.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/report-current-content-gector.ts
+      - src/schemas.ts
+    outs:
+      - outputs/developer-content/report
+
+  build_review_baseline:
+    cmd: bash scripts/build-review-baseline.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - package.json
+      - review-baseline-config.json
+      - scripts/build-review-baseline.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/schemas.ts
+    outs:
+      - data/review-baseline
+
+  run_review_baseline_customer_gector:
+    cmd: bash scripts/run-current-content-gector.sh data/review-baseline/customer/cohort.json current-content-params-strict.json outputs/review-baseline/customer data/review-baseline/customer
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/models/gector-2024
+      - data/review-baseline/customer
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/review-baseline/customer
+
+  run_review_baseline_developer_gector:
+    cmd: bash scripts/run-current-content-gector.sh data/review-baseline/developer/cohort.json current-content-params-strict.json outputs/review-baseline/developer data/review-baseline/developer
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - current-content-params-strict.json
+      - data/models/gector-2024
+      - data/review-baseline/developer
+      - model-manifest.json
+      - package.json
+      - pyproject.toml
+      - python/gector_runtime.py
+      - scripts/run-current-content-gector.sh
+      - src/files.ts
+      - src/match-edits.ts
+      - src/run-gector.ts
+      - src/schemas.ts
+      - uv.lock
+    outs:
+      - outputs/review-baseline/developer
 
   run_gector:
     cmd: bash scripts/run-gector.sh
@@ -120,6 +464,81 @@ stages:
       - src/schemas.ts
     outs:
       - outputs/matched/vale.json
+
+  record_gector_decisions:
+    cmd: bash scripts/record-gector-decisions.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/decisions.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/review-receipt.ts
+      - ../../packages/writing-editor-domain/src/review.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - data/corpus
+      - data/current-content
+      - data/developer-content
+      - data/review-baseline
+      - outputs/frozen/cohort.json
+      - outputs/producers/gector/run.json
+      - outputs/review-baseline/customer/run.json
+      - outputs/review-baseline/developer/run.json
+      - package.json
+      - review-decision-config.json
+      - scripts/record-gector-decisions.sh
+      - src/build-current-content-corpus.ts
+      - src/files.ts
+      - src/match-edits.ts
+      - src/record-gector-decisions.ts
+      - src/schemas.ts
+    outs:
+      - data/review-evidence/gector-broad-pilot
+
+  evaluate_gector_decisions:
+    cmd: pnpm exec tsx src/evaluate-reviews.ts --manifest data/review-evidence/gector-broad-pilot/manifest.json --evidence data/review-evidence/gector-broad-pilot --params evaluation-params.json --output outputs/review-evaluation/gector-broad-pilot-scorecard.json
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/decisions.ts
+      - ../../packages/writing-editor-domain/src/review-receipt.ts
+      - ../../packages/writing-editor-domain/src/review.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - data/review-evidence/gector-broad-pilot
+      - evaluation-params.json
+      - package.json
+      - src/evaluate-reviews.ts
+      - src/files.ts
+    metrics:
+      - outputs/review-evaluation/gector-broad-pilot-scorecard.json
+
+  finalize_cohort_readiness:
+    cmd: bash scripts/finalize-cohort-readiness.sh
+    params:
+      - cohort.requiredArtifactTypes
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/decisions.ts
+      - ../../packages/writing-editor-domain/src/review-receipt.ts
+      - ../../packages/writing-editor-domain/src/review.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - data/review-evidence/gector-broad-pilot
+      - evaluation-params.json
+      - outputs/frozen/cohort.json
+      - package.json
+      - scripts/finalize-cohort-readiness.sh
+      - src/evaluate-reviews.ts
+      - src/files.ts
+      - src/finalize-cohort-readiness.ts
+      - src/freeze-cohort.ts
+      - src/schemas.ts
+    metrics:
+      - outputs/frozen/readiness.json
+    outs:
+      - outputs/frozen/readiness.md
 
   evaluate_reviews:
     cmd: bash scripts/evaluate-reviews-dvc.sh

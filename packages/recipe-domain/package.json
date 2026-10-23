@@ -29,6 +29,7 @@
   "dependencies": {
     "entities": "^8.0.0",
     "pluralize": "^8.0.0",
+    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {

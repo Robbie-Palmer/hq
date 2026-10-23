@@ -3,7 +3,7 @@
 These Playwright tests run against a deployed pull-request preview. Each test
 gets fresh browser contexts, while API setup puts shared preview data into a
 known state before the browser assertions begin. Cleanup restores any data the
-test changes, so a retry or a later workflow run does not inherit half-finished
+test changes, so a retry or a later workflow run does not inherit a half-finished
 state.
 
 The Agent Auth test registers an agent, approves its delegated capabilities

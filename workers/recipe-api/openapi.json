@@ -369,6 +369,77 @@
               "additionalProperties": false
             },
             "maxItems": 500
+          },
+          "plan": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "recipe",
+                    "leftovers",
+                    "eating_out",
+                    "decide_later"
+                  ]
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "candidate",
+                    "committed"
+                  ]
+                },
+                "date": {
+                  "type": "string",
+                  "maxLength": 10,
+                  "format": "date"
+                },
+                "mealType": {
+                  "type": "string",
+                  "enum": [
+                    "breakfast",
+                    "lunch",
+                    "dinner",
+                    "snack"
+                  ]
+                },
+                "recipeSlug": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "servings": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1000,
+                  "format": "int32"
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "sourceMealId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "status"
+              ],
+              "additionalProperties": false
+            },
+            "maxItems": 500,
+            "default": []
           }
         },
         "required": [

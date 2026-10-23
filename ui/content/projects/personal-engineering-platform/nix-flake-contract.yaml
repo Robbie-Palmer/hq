@@ -1,0 +1,53 @@
+schema_version: 1
+contract: "nix-flake"
+
+supported_systems:
+  - "x86_64-linux"
+  - "aarch64-linux"
+  - "x86_64-darwin"
+  - "aarch64-darwin"
+
+ownership:
+  lockfile: "Each flake owns the adjacent flake.lock. Tools update it; templates never synthesize it."
+  monorepo_output: "Use an existing flake when the project shares its inputs, release cadence, and trust boundary."
+  project_flake: "Use a project flake for an independently consumed output, input policy, release cadence, or deployment boundary."
+
+inputs:
+  locked: true
+  follow_shared_nixpkgs_when_exposed: true
+  allow_unlocked_production_builds: false
+
+outputs:
+  per_system:
+    devShells.default: "required"
+    checks.flake-contract: "required"
+    formatter: "required"
+    packages: "required when the flake builds a distributable artifact"
+    apps: "required when the flake exposes an operator or developer command"
+  top_level:
+    nixosModules: "required when host behavior is reusable"
+    nixosConfigurations: "required when the flake owns a NixOS host"
+    overlays: "only when another flake must compose the packages into nixpkgs"
+
+secrets:
+  allow_values_in_store: false
+  allowed_declarations:
+    - "secret identifier"
+    - "runtime path"
+    - "provider reference"
+  materialization: "Fetch or install secret values at activation or runtime, outside derivations and generated source."
+
+cache_and_recovery:
+  optional_cache_must_not_change_output: true
+  trusted_substituters_configured_outside_project_flake: true
+  offline_build_requires_local_input_and_build_closure: true
+  retain_lockfile_and_previous_deployable_generation: true
+
+mise_tasks:
+  show: "nix-flake-show"
+  check: "nix-flake-check"
+  format: "nix-format"
+  develop: "nix-develop"
+  build: "<target>-build"
+  deploy: "<target>-deploy or <target>-rebuild"
+  rollback: "<target>-rollback or a documented native rollback command"

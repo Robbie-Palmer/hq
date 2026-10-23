@@ -28,7 +28,7 @@ found, after configuration to teach it the repo's dynamic entry points:
 
 Dead code is not just clutter: it is surface area every reviewer, scanner, AI
 agent, and dependency-update PR pays for on every pass. In an agent-heavy
-workflow the cost compounds. Agents read and preserve code that nothing uses,
+workflow, the cost compounds. Agents read and preserve code that nothing uses,
 because nothing tells them it is unreferenced.
 
 # Decision
@@ -128,5 +128,5 @@ because the alternatives are unmaintained rather than merely older.
 ## Negative
 
 * One more config file to keep truthful as the workspace graph evolves.
-* Unused-export detection deliberately deferred; the backlog remains until a
+* Unused-export detection is deliberately deferred; the backlog remains until a
   dedicated cleanup enables those categories.

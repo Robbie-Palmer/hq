@@ -2,10 +2,17 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { WifiOff } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { authClient } from "@/lib/auth-client";
-import { clearOfflineRecipeSnapshots } from "@/lib/pwa/offline-recipe-cache";
+import { clearCookingTimerStorage } from "@/lib/cooking/timerStore";
+import {
+  clearOfflineRecipeSnapshots,
+  getOfflineCacheStatus,
+  getServerOfflineCacheStatus,
+  subscribeOfflineCacheStatus,
+} from "@/lib/pwa/offline-recipe-cache";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
+import { clearShoppingListStorage } from "@/lib/shopping/shoppingListStore";
 
 const PRIVATE_RECIPE_CACHE_NAMES = ["recipe-session-v1", "recipe-images-v2"];
 
@@ -37,6 +44,8 @@ export async function clearOfflineRecipeData(): Promise<void> {
   try {
     await clearOfflineRecipeSnapshots();
   } finally {
+    clearCookingTimerStorage();
+    clearShoppingListStorage();
     await clearPrivateRecipeCaches();
     if ("serviceWorker" in navigator) {
       const message = { type: "CLEAR_RECIPE_OFFLINE_DATA" };
@@ -56,11 +65,49 @@ export async function clearOfflineRecipeData(): Promise<void> {
   }
 }
 
-export function RecipePwa() {
-  const [offline, setOffline] = useState(false);
-  const { data: session } = authClient.useSession();
-  const queryClient = useQueryClient();
+export function formatOfflineSnapshotAge(
+  savedAt: number,
+  now = Date.now(),
+): string {
+  const ageMinutes = Math.max(0, Math.floor((now - savedAt) / 60_000));
+  if (ageMinutes < 1) return "less than a minute ago";
+  if (ageMinutes < 60) {
+    return `${ageMinutes} minute${ageMinutes === 1 ? "" : "s"} ago`;
+  }
+  const ageHours = Math.floor(ageMinutes / 60);
+  if (ageHours < 24) {
+    return `${ageHours} hour${ageHours === 1 ? "" : "s"} ago`;
+  }
+  const ageDays = Math.floor(ageHours / 24);
+  return `${ageDays} day${ageDays === 1 ? "" : "s"} ago`;
+}
 
+function useAuthenticatedOfflineDataCleanup(
+  isPending: boolean,
+  userId: string | undefined,
+): void {
+  const previousUserId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (isPending) return;
+    if (userId) {
+      if (previousUserId.current && previousUserId.current !== userId) {
+        clearCookingTimerStorage();
+        clearShoppingListStorage();
+      }
+      previousUserId.current = userId;
+      return;
+    }
+    if (!previousUserId.current) return;
+    previousUserId.current = undefined;
+    void clearOfflineRecipeData().catch(() => {
+      // Server-side sign-out or account deletion still wins if local storage
+      // is unavailable.
+    });
+  }, [isPending, userId]);
+}
+
+function useOfflineConnectivity(): boolean {
+  const [offline, setOffline] = useState(false);
   useEffect(() => {
     let disposed = false;
     let latestCheck = 0;
@@ -86,7 +133,14 @@ export function RecipePwa() {
       window.removeEventListener("offline", handleOffline);
     };
   }, []);
+  return offline;
+}
 
+function useRecipeServiceWorker(
+  userId: string | undefined,
+  offline: boolean,
+): void {
+  const queryClient = useQueryClient();
   useEffect(() => {
     let disposed = false;
     if (
@@ -96,7 +150,6 @@ export function RecipePwa() {
       return;
     }
 
-    const userId = session?.user.id;
     void navigator.serviceWorker
       .register("/recipes-sw.js", { scope: "/recipes" })
       .then(() => navigator.serviceWorker.ready)
@@ -115,9 +168,43 @@ export function RecipePwa() {
     return () => {
       disposed = true;
     };
-  }, [offline, queryClient, session?.user.id]);
+  }, [offline, queryClient, userId]);
+}
 
-  if (!offline) return null;
+function offlineStatusMessage(
+  offline: boolean,
+  oldestSavedAt: number | null,
+  quotaExceeded: boolean,
+): string {
+  const messages: string[] = [];
+  if (offline) {
+    messages.push(
+      oldestSavedAt === null
+        ? "Offline. Saved data is read-only until you reconnect."
+        : `Offline. Showing saved data from ${formatOfflineSnapshotAge(oldestSavedAt)}.`,
+    );
+  }
+  if (quotaExceeded) {
+    messages.push(
+      "Offline data could not be updated because browser storage is full.",
+    );
+  }
+  return messages.join(" ");
+}
+
+export function RecipePwa() {
+  const { data: session, isPending } = authClient.useSession();
+  const userId = session?.user.id;
+  const offline = useOfflineConnectivity();
+  const cacheStatus = useSyncExternalStore(
+    subscribeOfflineCacheStatus,
+    getOfflineCacheStatus,
+    getServerOfflineCacheStatus,
+  );
+  useAuthenticatedOfflineDataCleanup(isPending, userId);
+  useRecipeServiceWorker(userId, offline);
+
+  if (!offline && !cacheStatus.quotaExceeded) return null;
 
   return (
     <output
@@ -125,7 +212,11 @@ export function RecipePwa() {
       className="rt-mono sticky top-[61px] z-40 flex items-center justify-center gap-2 border-b border-[var(--line-strong)] bg-[var(--butter-soft)] px-4 py-2 text-center text-[var(--ink-2)] sm:top-[65px]"
     >
       <WifiOff className="size-3.5" aria-hidden="true" />
-      Offline. Saved recipes are read-only until you reconnect.
+      {offlineStatusMessage(
+        offline,
+        cacheStatus.oldestSavedAt,
+        cacheStatus.quotaExceeded,
+      )}
     </output>
   );
 }
