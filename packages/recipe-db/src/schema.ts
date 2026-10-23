@@ -894,6 +894,17 @@ export type ShoppingListSnapshot = {
   recipes: Array<{ slug: string; servings?: number }>;
   checked: string[];
   extras: Array<{ id: string; text: string; checked: boolean }>;
+  plan: Array<{
+    id: string;
+    kind: "recipe" | "leftovers" | "eating_out" | "decide_later";
+    status: "candidate" | "committed";
+    date?: string;
+    mealType?: "breakfast" | "lunch" | "dinner" | "snack";
+    recipeSlug?: string;
+    servings?: number;
+    note?: string;
+    sourceMealId?: string;
+  }>;
 };
 
 /**

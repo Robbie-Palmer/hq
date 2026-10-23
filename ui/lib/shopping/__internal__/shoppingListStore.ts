@@ -13,6 +13,7 @@
 
 import { isRecord } from "ts-base/records";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
+import { type MealPlanEntry, parseMealPlan } from "@/lib/domain/meal-plan";
 
 export type SelectedRecipeEntry = {
   slug: string;
@@ -33,6 +34,14 @@ export type ShoppingListState = {
   checked: string[];
   /** Freeform extras (milk, bread…). */
   extras: ExtraItem[];
+  /** Meal candidates and dated commitments shared by the household. */
+  plan: MealPlanEntry[];
+};
+
+export type AddCommittedMealsResult = {
+  addedMealCount: number;
+  addedRecipeCount: number;
+  eligibleMealCount: number;
 };
 
 export type ShoppingListChangeSource = "install" | "local" | "storage";
@@ -46,6 +55,7 @@ const EMPTY_STATE: ShoppingListState = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
 
 let state: ShoppingListState = EMPTY_STATE;
@@ -139,7 +149,9 @@ function parseState(raw: string | null): ShoppingListState {
         })
       : [];
 
-    return { recipes, checked, extras };
+    const plan = parseMealPlan(parsed.plan);
+
+    return { recipes, checked, extras, plan };
   } catch {
     return EMPTY_STATE;
   }
@@ -408,6 +420,62 @@ export function setRecipeServings(slug: string, servings: number): void {
   });
 }
 
+export function savePlannedMeal(meal: MealPlanEntry): void {
+  const plan = state.plan.some(({ id }) => id === meal.id)
+    ? state.plan.map((current) => (current.id === meal.id ? meal : current))
+    : [...state.plan, meal];
+  setState({ ...state, plan });
+}
+
+export function removePlannedMeal(id: string): void {
+  setState({ ...state, plan: state.plan.filter((meal) => meal.id !== id) });
+}
+
+export function addCommittedMealsToShoppingList(
+  fromDate: string,
+  mealIds?: readonly string[],
+): AddCommittedMealsResult {
+  const selectedIds = mealIds ? new Set(mealIds) : undefined;
+  const mealsBySlug = new Map<string, { count: number; servings: number }>();
+  for (const meal of state.plan) {
+    if (
+      (selectedIds && !selectedIds.has(meal.id)) ||
+      meal.status !== "committed" ||
+      meal.kind !== "recipe" ||
+      !meal.recipeSlug ||
+      !meal.date ||
+      meal.date < fromDate
+    ) {
+      continue;
+    }
+    const current = mealsBySlug.get(meal.recipeSlug);
+    mealsBySlug.set(meal.recipeSlug, {
+      count: (current?.count ?? 0) + 1,
+      servings: (current?.servings ?? 0) + (meal.servings ?? 1),
+    });
+  }
+  let addedMealCount = 0;
+  let addedRecipeCount = 0;
+  const recipes = [...state.recipes];
+  for (const [slug, { count, servings }] of mealsBySlug) {
+    const index = recipes.findIndex((recipe) => recipe.slug === slug);
+    if (index < 0) {
+      recipes.push({ slug, servings });
+      addedMealCount += count;
+      addedRecipeCount += 1;
+    }
+  }
+  if (addedRecipeCount > 0) setState({ ...state, recipes });
+  return {
+    addedMealCount,
+    addedRecipeCount,
+    eligibleMealCount: [...mealsBySlug.values()].reduce(
+      (total, meal) => total + meal.count,
+      0,
+    ),
+  };
+}
+
 export function toggleChecked(key: string): void {
   const wasChecked = state.checked.includes(key);
   const checked = wasChecked
@@ -463,7 +531,7 @@ export function removeExtra(id: string): void {
 }
 
 export function clearList(): void {
-  setState({ ...EMPTY_STATE });
+  setState({ ...EMPTY_STATE, plan: state.plan });
   resetShoppingTripCompletion();
 }
 

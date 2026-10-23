@@ -2,6 +2,7 @@
 
 import {
   BookOpenText,
+  CalendarDays,
   Compass,
   History,
   Refrigerator,
@@ -17,8 +18,18 @@ const destinations = [
     icon: BookOpenText,
   },
   {
+    href: "/recipes/discover",
+    label: "Discover",
+    icon: Compass,
+  },
+  {
+    href: "/recipes/planning",
+    label: "Plan",
+    icon: CalendarDays,
+  },
+  {
     href: "/recipes/shopping",
-    label: "Shopping",
+    label: "Shop",
     icon: ShoppingBasket,
   },
   {
@@ -31,15 +42,17 @@ const destinations = [
     label: "Log",
     icon: History,
   },
-  {
-    href: "/recipes/discover",
-    label: "Discover",
-    icon: Compass,
-  },
 ] as const;
+
+function shoppingNavigationLabel(count: number): string {
+  if (count === 0) return "Shopping";
+  const recipeLabel = count === 1 ? "recipe" : "recipes";
+  return `Shopping, ${count} ${recipeLabel} selected`;
+}
 
 function getActiveDestinations(pathname: string | null) {
   const onShopping = pathname === "/recipes/shopping";
+  const onPlanning = pathname === "/recipes/planning";
   const onKitchen = pathname === "/recipes/kitchen";
   const onLog = pathname === "/recipes/log";
   const onDiscover = pathname === "/recipes/discover";
@@ -50,6 +63,7 @@ function getActiveDestinations(pathname: string | null) {
   // or utility sections.
   const onRecipes =
     !onShopping &&
+    !onPlanning &&
     !onKitchen &&
     !onLog &&
     !onDiscover &&
@@ -58,10 +72,11 @@ function getActiveDestinations(pathname: string | null) {
 
   const activeDestinations = {
     "/recipes": onRecipes,
+    "/recipes/discover": onDiscover,
+    "/recipes/planning": onPlanning,
     "/recipes/shopping": onShopping,
     "/recipes/kitchen": onKitchen,
     "/recipes/log": onLog,
-    "/recipes/discover": onDiscover,
   } satisfies Record<(typeof destinations)[number]["href"], boolean>;
   return activeDestinations;
 }
@@ -74,7 +89,7 @@ export function RecipeNavTabs() {
   return (
     <nav
       aria-label="Recipe sections"
-      className="flex max-w-full items-center gap-2 overflow-x-auto pb-1 md:gap-4"
+      className="hidden max-w-full items-center gap-2 overflow-x-auto pb-1 md:flex md:gap-4"
     >
       {destinations.map(({ href, label, icon: Icon }) => {
         const active = activeDestinations[href];
@@ -82,6 +97,11 @@ export function RecipeNavTabs() {
           <a
             key={href}
             href={href}
+            aria-label={
+              href === "/recipes/shopping"
+                ? shoppingNavigationLabel(count)
+                : undefined
+            }
             aria-current={active ? "page" : undefined}
             className="rt-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap py-1 text-base lg:text-lg"
             data-active={active || undefined}

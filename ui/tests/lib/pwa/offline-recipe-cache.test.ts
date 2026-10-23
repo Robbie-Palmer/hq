@@ -217,7 +217,7 @@ const shoppingList = {
     type: "household",
     household: { id: "household-1", name: "Home" },
   },
-  snapshot: { recipes: [], checked: [], extras: [] },
+  snapshot: { recipes: [], checked: [], extras: [], plan: [] },
   createdAt: "2026-10-17T00:00:00.000Z",
   updatedAt: "2026-10-17T00:00:00.000Z",
 } satisfies StoredShoppingList;

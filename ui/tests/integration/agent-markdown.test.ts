@@ -22,6 +22,7 @@ const RECIPE_APP_PAGES = new Set([
   "notifications",
   "offline",
   "onboarding",
+  "planning",
   "profile",
   "saved",
   "settings",

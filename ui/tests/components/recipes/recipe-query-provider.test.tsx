@@ -48,7 +48,7 @@ const shoppingList = {
   resourceId: "user-1",
   revision: "1",
   scope: { type: "personal" as const },
-  snapshot: { recipes: [], checked: [], extras: [] },
+  snapshot: { recipes: [], checked: [], extras: [], plan: [] },
   createdAt: "2026-10-18T00:00:00.000Z",
   updatedAt: "2026-10-18T00:00:00.000Z",
 } satisfies StoredShoppingList;

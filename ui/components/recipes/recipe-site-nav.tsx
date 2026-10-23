@@ -1,8 +1,10 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { RecipeMobileNav } from "@/components/recipes/recipe-mobile-nav";
 import { RecipeNavTabs } from "@/components/recipes/recipe-nav-tabs";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSelectedRecipeCount } from "@/hooks/use-shopping-list";
 import { authClient } from "@/lib/auth-client";
 
 const publicTabs = [
@@ -49,4 +51,14 @@ export function RecipeSiteNav() {
       ))}
     </nav>
   );
+}
+
+export function RecipeMobileSiteNav() {
+  const pathname = usePathname();
+  const count = useSelectedRecipeCount();
+  const { data: session, isPending } = authClient.useSession();
+
+  if (isPending || !session) return null;
+
+  return <RecipeMobileNav count={count} pathname={pathname} />;
 }

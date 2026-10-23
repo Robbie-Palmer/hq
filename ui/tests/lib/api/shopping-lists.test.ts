@@ -11,6 +11,7 @@ const snapshot: ShoppingListContents = {
   recipes: [{ slug: "mushroom-risotto", servings: 4 }],
   checked: ["garlic"],
   extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+  plan: [],
 };
 
 describe("shopping-list API client", () => {

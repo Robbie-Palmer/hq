@@ -9,7 +9,10 @@ import { RecipeAnalyticsIdentity } from "@/components/recipes/recipe-analytics-i
 import { RecipeNavigationProvider } from "@/components/recipes/recipe-page-link";
 import { RecipePwa } from "@/components/recipes/recipe-pwa";
 import { RecipeQueryProvider } from "@/components/recipes/recipe-query-provider";
-import { RecipeSiteNav } from "@/components/recipes/recipe-site-nav";
+import {
+  RecipeMobileSiteNav,
+  RecipeSiteNav,
+} from "@/components/recipes/recipe-site-nav";
 import { RecipeThemeBody } from "@/components/recipes/recipe-theme-body";
 import { TimerDock } from "@/components/recipes/timer-dock";
 import { CookModeProvider } from "@/contexts/cook-mode-context";
@@ -58,6 +61,29 @@ export const viewport: Viewport = {
   themeColor: "#c8693c",
 };
 
+function RecipeHeader() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/75">
+      <nav className="container mx-auto px-4 py-3 max-w-7xl flex flex-wrap items-center gap-x-4 gap-y-2">
+        <a
+          href="/recipes"
+          className="order-1 min-w-0 shrink whitespace-nowrap rt-display text-2xl leading-none text-foreground min-[360px]:text-3xl"
+        >
+          <span>Robbie's</span> <span className="rt-logo-accent">recipes</span>
+        </a>
+        <div className="order-2 ms-auto flex shrink-0 items-center gap-2 sm:order-3">
+          <NotificationBell />
+          <AuthButton intent="signup" compactOnMobile />
+          <AuthButton compactOnMobile />
+        </div>
+        <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
+          <RecipeSiteNav />
+        </div>
+      </nav>
+    </header>
+  );
+}
+
 export default function RecipesLayout({
   children,
 }: Readonly<{
@@ -78,31 +104,17 @@ export default function RecipesLayout({
           <div
             className={`recipe-theme recipe-surface ${fontVars} antialiased flex flex-col min-h-screen`}
           >
-            <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/75">
-              <nav className="container mx-auto px-4 py-3 max-w-7xl flex flex-wrap items-center gap-x-4 gap-y-2">
-                <a
-                  href="/recipes"
-                  className="order-1 min-w-0 shrink whitespace-nowrap rt-display text-2xl leading-none text-foreground min-[360px]:text-3xl"
-                >
-                  <span>Robbie's</span>{" "}
-                  <span className="rt-logo-accent">recipes</span>
-                </a>
-                <div className="order-2 ms-auto flex shrink-0 items-center gap-2 sm:order-3">
-                  <NotificationBell />
-                  <AuthButton intent="signup" compactOnMobile />
-                  <AuthButton compactOnMobile />
-                </div>
-                <div className="order-3 min-w-0 w-full sm:order-2 sm:flex-1">
-                  <RecipeSiteNav />
-                </div>
-              </nav>
-            </header>
+            <RecipeHeader />
+
+            {/* A filtered ancestor becomes the containing block for fixed
+            positioning. Keep the bottom navigation outside the blurred header. */}
+            <RecipeMobileSiteNav />
 
             <RecipePwa />
 
             <DietProvider>
               <EquipmentReadinessProvider>
-                <main className="relative z-0 flex-1 flex flex-col">
+                <main className="relative z-0 flex-1 flex flex-col pb-20 md:pb-0">
                   {children}
                 </main>
               </EquipmentReadinessProvider>
