@@ -65,7 +65,7 @@ test("keeps planning and shopping as independent durable destinations", async ({
       first.page.getByRole("heading", { name: "Meal plan." }),
     ).toBeVisible();
     await first.page.getByRole("button", { name: "Plan one meal" }).click();
-    const recipe = first.page.getByLabel("Recipe");
+    const recipe = first.page.getByRole("combobox", { name: /^Recipe/ });
     await recipe.selectOption({ index: 1 });
     const recipeTitle = await recipe.locator("option:checked").textContent();
     const saved = waitForListSave(first.page);
