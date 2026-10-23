@@ -195,6 +195,28 @@ const otelProfileSchema = z
     }
   });
 
+const reconciliationPolicySchema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      mode: z.literal("tracking"),
+      defer: z
+        .object({
+          effective_at: utcInstantSchema,
+          reason: z.string().min(1),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("frozen"),
+      frozen_at: utcInstantSchema,
+      reason: z.string().min(1),
+    })
+    .strict(),
+]);
+
 const unsupportedCapabilitiesSchema = z
   .record(z.string(), z.unknown())
   .superRefine((capabilities, context) => {
@@ -221,6 +243,7 @@ const projectProfileFieldsSchema = z
     layers: z.array(layerUseSchema).min(1),
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
+    reconciliation: reconciliationPolicySchema.default({ mode: "tracking" }),
     nix: nixProfileSchema,
     opentelemetry: otelProfileSchema,
     capabilities: unsupportedCapabilitiesSchema.optional(),
@@ -313,13 +336,21 @@ export interface ProjectProfileContracts {
   };
 }
 
-interface ResolvedSelection {
+export interface ResolvedSelection {
   readonly id: string;
   readonly layer: string;
   readonly slot: string;
   readonly kind: "technology" | "policy";
   readonly value: string;
   readonly source: "default" | "override";
+  readonly decision: string;
+}
+
+export interface ResolvedProfilePolicy {
+  readonly id: string;
+  readonly layer: string;
+  readonly slot: string;
+  readonly mode: "required" | "preferred";
   readonly decision: string;
 }
 
@@ -515,6 +546,24 @@ function activePolicies(
       );
     })
     .toSorted((left, right) => left.slot.localeCompare(right.slot, "en"));
+}
+
+export function resolveProjectPolicies(
+  profile: ProjectProfile,
+  contracts: ProjectProfileContracts,
+  effectiveAt: string,
+): readonly ResolvedProfilePolicy[] {
+  const instant = utcInstantSchema.parse(effectiveAt);
+  validateAgainstContracts(profile, contracts);
+  return activePolicies(profile, contracts, instant).map(
+    ({ id, layer, slot, mode, decision }) => ({
+      id,
+      layer,
+      slot,
+      mode,
+      decision,
+    }),
+  );
 }
 
 function validateOverrides(

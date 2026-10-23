@@ -30,6 +30,10 @@ import {
   parseProjectProfileContracts,
   resolveProjectProfile,
 } from "./profile.js";
+import {
+  applyProjectReconciliation,
+  planProjectReconciliation,
+} from "./reconciliation.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
@@ -93,6 +97,23 @@ const profileCommandInput = z.object({
 });
 
 type ProfileCommandInput = z.infer<typeof profileCommandInput>;
+
+const reconciliationApplyInput = profileCommandInput.extend({
+  reviewedPlan: z
+    .string()
+    .describe("Reviewed reconciliation plan JSON path"),
+});
+
+const reviewedPlanSchema = z.looseObject({
+    schemaVersion: z.literal(1),
+    kind: z.literal("project_reconciliation"),
+    projectId: z.string().min(1),
+    status: z.literal("ready"),
+    baseRevision: z.string().regex(/^[0-9a-f]{40}$/),
+    targetEffectiveAt: z.string().min(1),
+    candidate: z.looseObject({ diff: z.string() }),
+    planDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  });
 
 function resolveTemplateSource(
   template: TemplateSource,
@@ -210,7 +231,7 @@ async function prepareProfileCommand(
     resolveTemplateSource(selected, registryPath),
   );
   const plan = projectPlanFromBlueprint({ blueprint, contracts, template });
-  return { blueprint, plan, repository, template };
+  return { blueprint, contracts, plan, profile, repository, template };
 }
 
 async function runProfileAdoptionPlanCommand(
@@ -219,6 +240,37 @@ async function runProfileAdoptionPlanCommand(
 ) {
   const prepared = await prepareProfileCommand(context, input);
   return planProjectAdoption(prepared);
+}
+
+async function runProfileReconciliationCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  return planProjectReconciliation(prepared);
+}
+
+async function runProfileReconciliationApplyCommand(
+  context: CommandContext,
+  input: z.infer<typeof reconciliationApplyInput>,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  const reviewedPlanPath = path.resolve(
+    context.workingDirectory,
+    input.reviewedPlan,
+  );
+  const reviewedPlan = reviewedPlanSchema.parse(
+    JSON.parse(await readFile(reviewedPlanPath, "utf8")),
+  );
+  if (reviewedPlan.projectId !== prepared.blueprint.project.id) {
+    throw new Error(
+      `Reviewed plan is for project '${reviewedPlan.projectId}', not '${prepared.blueprint.project.id}'`,
+    );
+  }
+  return applyProjectReconciliation({
+    ...prepared,
+    reviewedPlanDigest: reviewedPlan.planDigest,
+  });
 }
 
 export const projectGeneratorRouter = t.router({
@@ -259,6 +311,21 @@ export const projectGeneratorRouter = t.router({
     })
     .input(profileCommandInput)
     .query(({ ctx, input }) => runProfileAdoptionPlanCommand(ctx, input)),
+  profileReconcile: t.procedure
+    .meta({
+      description:
+        "Plan a reviewed update from the recorded blueprint to newer platform defaults",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileReconciliationCommand(ctx, input)),
+  profileReconcileApply: t.procedure
+    .meta({
+      description: "Apply an unchanged reviewed project reconciliation plan",
+    })
+    .input(reconciliationApplyInput)
+    .mutation(({ ctx, input }) =>
+      runProfileReconciliationApplyCommand(ctx, input),
+    ),
   profileDryRun: t.procedure
     .meta({
       description: "Preview a resolved project profile without applying it",
@@ -273,10 +340,12 @@ export const projectGeneratorRouter = t.router({
     .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "create")),
   profileUpdate: t.procedure
     .meta({
-      description: "Update a Copier-managed project from a resolved profile",
+      description: "Apply a reviewed project reconciliation plan",
     })
-    .input(profileCommandInput)
-    .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "update")),
+    .input(reconciliationApplyInput)
+    .mutation(({ ctx, input }) =>
+      runProfileReconciliationApplyCommand(ctx, input),
+    ),
 });
 
 export async function runCli(

@@ -76,6 +76,9 @@ layers:
       - "infrastructure.provisioner"
       - "infrastructure.state-backend"
 
+reconciliation:
+  mode: tracking
+
 nix:
   boundary: "none"
 

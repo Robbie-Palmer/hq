@@ -258,7 +258,11 @@ describe("project profile contracts", () => {
       opentelemetry: { enabled: false },
     }));
     expect(parsed.components[0]?.task_exceptions).toEqual([]);
-    expect(parsed).toMatchObject({ requirements: [], overrides: [] });
+    expect(parsed).toMatchObject({
+      requirements: [],
+      overrides: [],
+      reconciliation: { mode: "tracking" },
+    });
   });
 
   it.each([
@@ -278,6 +282,8 @@ describe("project profile contracts", () => {
       { slot: "project.task-runner", kind: "technology", value: "mise", decision: "project:001-one" },
       { slot: "project.task-runner", kind: "technology", value: "other", decision: "project:002-two" },
     ] }, /duplicate override slots/],
+    [{ reconciliation: { mode: "tracking", defer: { effective_at: "later", reason: "Wait." } } }, /effective_at/],
+    [{ reconciliation: { mode: "frozen", frozen_at: effectiveAt } }, /reason/],
     [{ nix: { boundary: "none", packages: ["one"] } }, /no Nix boundary/],
     [{ nix: { boundary: "project" } }, /flake_path/],
     [{ opentelemetry: { enabled: true } }, /required when OpenTelemetry is enabled/],
