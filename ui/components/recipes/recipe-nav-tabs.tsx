@@ -9,7 +9,6 @@ import {
   ShoppingBasket,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { RecipeMobileNav } from "@/components/recipes/recipe-mobile-nav";
 import { useSelectedRecipeCount } from "@/hooks/use-shopping-list";
 
 const destinations = [
@@ -88,42 +87,39 @@ export function RecipeNavTabs() {
   const activeDestinations = getActiveDestinations(pathname);
 
   return (
-    <>
-      <nav
-        aria-label="Recipe sections"
-        className="hidden max-w-full items-center gap-2 overflow-x-auto pb-1 md:flex md:gap-4"
-      >
-        {destinations.map(({ href, label, icon: Icon }) => {
-          const active = activeDestinations[href];
-          return (
-            <a
-              key={href}
-              href={href}
-              aria-label={
-                href === "/recipes/shopping"
-                  ? shoppingNavigationLabel(count)
-                  : undefined
-              }
-              aria-current={active ? "page" : undefined}
-              className="rt-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap py-1 text-base lg:text-lg"
-              data-active={active || undefined}
-            >
-              <Icon aria-hidden="true" className="size-4" />
-              <span>{label}</span>
-              {href === "/recipes/shopping" && count > 0 && (
-                <span
-                  role="img"
-                  aria-label={`${count} ${count === 1 ? "recipe" : "recipes"} selected`}
-                  className="inline-flex size-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-[var(--terracotta)] px-1 text-[0.65rem] leading-none font-semibold text-white"
-                >
-                  {count}
-                </span>
-              )}
-            </a>
-          );
-        })}
-      </nav>
-      <RecipeMobileNav count={count} pathname={pathname} />
-    </>
+    <nav
+      aria-label="Recipe sections"
+      className="hidden max-w-full items-center gap-2 overflow-x-auto pb-1 md:flex md:gap-4"
+    >
+      {destinations.map(({ href, label, icon: Icon }) => {
+        const active = activeDestinations[href];
+        return (
+          <a
+            key={href}
+            href={href}
+            aria-label={
+              href === "/recipes/shopping"
+                ? shoppingNavigationLabel(count)
+                : undefined
+            }
+            aria-current={active ? "page" : undefined}
+            className="rt-tab inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap py-1 text-base lg:text-lg"
+            data-active={active || undefined}
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            <span>{label}</span>
+            {href === "/recipes/shopping" && count > 0 && (
+              <span
+                role="img"
+                aria-label={`${count} ${count === 1 ? "recipe" : "recipes"} selected`}
+                className="inline-flex size-[1.15rem] min-w-[1.15rem] items-center justify-center rounded-full bg-[var(--terracotta)] px-1 text-[0.65rem] leading-none font-semibold text-white"
+              >
+                {count}
+              </span>
+            )}
+          </a>
+        );
+      })}
+    </nav>
   );
 }

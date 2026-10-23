@@ -39,11 +39,6 @@ describe("RecipeNavTabs", () => {
       within(navigation).getByRole("link", { name: "Shopping" }),
     ).toHaveTextContent("Shop");
     expect(
-      within(
-        screen.getByRole("navigation", { name: "Primary recipe sections" }),
-      ).getByRole("link", { name: "Shopping" }),
-    ).toHaveTextContent("Shop");
-    expect(
       within(navigation).getByRole("link", {
         name: "Kitchen",
         current: "page",

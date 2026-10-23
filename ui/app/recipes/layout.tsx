@@ -9,7 +9,10 @@ import { RecipeAnalyticsIdentity } from "@/components/recipes/recipe-analytics-i
 import { RecipeNavigationProvider } from "@/components/recipes/recipe-page-link";
 import { RecipePwa } from "@/components/recipes/recipe-pwa";
 import { RecipeQueryProvider } from "@/components/recipes/recipe-query-provider";
-import { RecipeSiteNav } from "@/components/recipes/recipe-site-nav";
+import {
+  RecipeMobileSiteNav,
+  RecipeSiteNav,
+} from "@/components/recipes/recipe-site-nav";
 import { RecipeThemeBody } from "@/components/recipes/recipe-theme-body";
 import { TimerDock } from "@/components/recipes/timer-dock";
 import { CookModeProvider } from "@/contexts/cook-mode-context";
@@ -97,6 +100,10 @@ export default function RecipesLayout({
                 </div>
               </nav>
             </header>
+
+            {/* A filtered ancestor becomes the containing block for fixed
+            positioning. Keep the bottom navigation outside the blurred header. */}
+            <RecipeMobileSiteNav />
 
             <RecipePwa />
 
