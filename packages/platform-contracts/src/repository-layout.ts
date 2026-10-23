@@ -15,6 +15,9 @@ export const repositoryLayoutComponentKindSchema =
       directory: z.string(),
       mise_config_root: z.boolean().default(true),
       pnpm_workspace_package: z.boolean().default(false),
+      task_ownership: z
+        .enum(["generated", "inherited", "delegated"])
+        .default("generated"),
       delegated_task_project: z
         .string()
         .regex(/^\/\/[a-z0-9][a-z0-9./-]*$/)

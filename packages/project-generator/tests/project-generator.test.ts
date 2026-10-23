@@ -1003,6 +1003,7 @@ describe("CLI", () => {
             id: "typescript-package",
             description: "TypeScript package.",
             directory: "packages/{component}",
+            task_ownership: "generated",
           },
         ],
         task_contract: {

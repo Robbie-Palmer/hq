@@ -63,25 +63,21 @@ blueprint:
       path: packages/wedding-planner-domain
       stable_id: component:wedding-planner/wedding-planner-domain
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
-  effective_at: 2026-10-23 00:00:00+00:00
+  effective_at: 2026-10-23 14:00:00+00:00
   manual_checkpoints: []
   nix:
     enabled: false

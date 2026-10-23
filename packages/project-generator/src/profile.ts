@@ -375,7 +375,11 @@ export interface ResolvedProjectBlueprint {
     readonly mount_path?: string;
     readonly tasks: readonly {
       readonly name: string;
-      readonly disposition: "generated" | "delegated" | "not-applicable";
+      readonly disposition:
+        | "generated"
+        | "inherited"
+        | "delegated"
+        | "not-applicable";
       readonly reason?: string;
       readonly target?: string;
     }[];
@@ -439,6 +443,33 @@ function substitutePath(template: string, values: Record<string, string>): strin
   });
 }
 
+function resolveComponentTask(
+  name: z.infer<typeof taskNameSchema>,
+  componentKind: RepositoryLayoutContract["component_kinds"][number],
+  exceptionReason: string | undefined,
+): ResolvedProjectBlueprint["components"][number]["tasks"][number] {
+  if (exceptionReason !== undefined) {
+    return { name, disposition: "not-applicable", reason: exceptionReason };
+  }
+  if (componentKind.task_ownership === "inherited") {
+    return { name, disposition: "inherited" };
+  }
+  if (componentKind.task_ownership === "delegated") {
+    if (!componentKind.delegated_task_project) {
+      throw new Error(
+        `Component kind '${componentKind.id}' delegates tasks without a target project`,
+      );
+    }
+    const taskName = name === "typecheck-or-compile" ? "typecheck" : name;
+    return {
+      name,
+      disposition: "delegated",
+      target: `${componentKind.delegated_task_project}:${taskName}`,
+    };
+  }
+  return { name, disposition: "generated" };
+}
+
 function validateAgainstContracts(profile: ProjectProfile, contracts: ProjectProfileContracts): void {
   const kinds = new Set(contracts.layout.project_kinds.map(({ id }) => id));
   if (!kinds.has(profile.project.kind)) throw new Error(`Unknown current project kind '${profile.project.kind}'`);
@@ -484,22 +515,11 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       ...(component.mount_path === undefined
         ? {}
         : { mount_path: component.mount_path }),
-      tasks: requiredTasks.toSorted(compareStrings).map((name) => {
-        const reason = exceptions.get(name);
-        if (reason !== undefined) {
-          return { name, disposition: "not-applicable" as const, reason };
-        }
-        if (componentKind.delegated_task_project) {
-          const taskName =
-            name === "typecheck-or-compile" ? "typecheck" : name;
-          return {
-            name,
-            disposition: "delegated" as const,
-            target: `${componentKind.delegated_task_project}:${taskName}`,
-          };
-        }
-        return { name, disposition: "generated" as const };
-      }),
+      tasks: requiredTasks
+        .toSorted(compareStrings)
+        .map((name) =>
+          resolveComponentTask(name, componentKind, exceptions.get(name)),
+        ),
     };
   }).toSorted((left, right) => left.id.localeCompare(right.id, "en"));
   const duplicatePath = components.find((candidate, index) => components.findIndex(({ path: value }) => value === candidate.path) !== index);

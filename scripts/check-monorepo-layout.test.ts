@@ -57,7 +57,7 @@ describe("monorepo layout contract", () => {
     );
   });
 
-  it("requires component task ownership or delegation", async () => {
+  it("validates component task ownership", async () => {
     const contract = structuredClone(await loadLayoutContract(repositoryRoot));
     const projectUi = contract.component_kinds.find(
       ({ id }) => id === "project-ui",
@@ -66,7 +66,26 @@ describe("monorepo layout contract", () => {
     delete projectUi.delegated_task_project;
 
     expect(validateLayoutContract(contract)).toContain(
-      "Component kind 'project-ui' without a mise root must delegate its tasks",
+      "Component kind 'project-ui' delegates tasks without a target project",
+    );
+
+    projectUi.task_ownership = "generated";
+    expect(validateLayoutContract(contract)).toEqual(
+      expect.arrayContaining([
+        "Component kind 'project-ui' cannot generate tasks without a mise root",
+      ]),
+    );
+
+    projectUi.task_ownership = "inherited";
+    projectUi.delegated_task_project = "//ui";
+    expect(validateLayoutContract(contract)).toContain(
+      "Component kind 'project-ui' has a delegated task target but does not delegate tasks",
+    );
+
+    projectUi.task_ownership = "delegated";
+    projectUi.mise_config_root = true;
+    expect(validateLayoutContract(contract)).toContain(
+      "Component kind 'project-ui' cannot own a mise root and delegate its tasks",
     );
   });
 

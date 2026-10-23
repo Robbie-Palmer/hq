@@ -12,15 +12,6 @@ components:
   - id: "wedding-planner-domain"
     name: "Wedding planner domain"
     kind: "typescript-package"
-    task_exceptions:
-      - task: "format"
-        reason: "Repository-wide formatting covers this package."
-      - task: "lint"
-        reason: "Repository-wide lint tasks cover this package."
-      - task: "build"
-        reason: "The package exposes TypeScript source directly."
-      - task: "clean"
-        reason: "The shared workspace owns cleanup."
 
 layers:
   - layer: "governance"

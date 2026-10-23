@@ -77,24 +77,19 @@ blueprint:
       path: packages/finance-housing-indices
       stable_id: component:personal-finance-app/finance-housing-indices
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly and has no build
-            artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: finance-inflation-indices
       kind: typescript-package
@@ -102,22 +97,19 @@ blueprint:
       path: packages/finance-inflation-indices
       stable_id: component:personal-finance-app/finance-inflation-indices
       tasks:
-        - disposition: generated
+        - disposition: inherited
           name: build
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: finance-tax-rules
       kind: typescript-package
@@ -125,22 +117,19 @@ blueprint:
       path: packages/finance-tax-rules
       stable_id: component:personal-finance-app/finance-tax-rules
       tasks:
-        - disposition: generated
+        - disposition: inherited
           name: build
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: personal-finance
       kind: terraform-root
@@ -148,47 +137,39 @@ blueprint:
       path: infra/personal-finance
       stable_id: component:personal-finance-app/personal-finance
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The empty delivery baseline has no build artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: Terraform working data is ephemeral or operator-managed.
-        - disposition: generated
+        - disposition: inherited
           name: format
-        - disposition: not-applicable
+        - disposition: inherited
           name: install
-          reason: Terraform initialization remains an explicit environment-aware task.
-        - disposition: generated
+        - disposition: inherited
           name: lint
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: not-applicable
+        - disposition: inherited
           name: typecheck-or-compile
-          reason: Terraform validation and linting replace compilation.
     - id: planning-case-domain
       kind: typescript-package
       name: Planning case domain
       path: packages/planning-case-domain
       stable_id: component:personal-finance-app/planning-case-domain
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly and has no build
-            artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: generated
+        - disposition: inherited
           name: format
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: web
       kind: project-ui
@@ -218,7 +199,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-10-21 00:00:00+00:00
+  effective_at: 2026-10-23 14:00:00+00:00
   manual_checkpoints: []
   nix:
     enabled: false

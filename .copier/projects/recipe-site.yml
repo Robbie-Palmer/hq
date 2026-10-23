@@ -76,23 +76,19 @@ blueprint:
       path: workers/recipe-api
       stable_id: component:recipe-site/recipe-api
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The deployment checks build the Worker bundle.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this Worker.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The Worker check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: recipe-dataset
       kind: python-pipeline
@@ -100,50 +96,39 @@ blueprint:
       path: ml-pipelines/recipe-dataset
       stable_id: component:recipe-site/recipe-dataset
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The dataset pipeline has no standalone build artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: DVC and the shared workspace own generated-data cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this pipeline.
-        - disposition: not-applicable
+        - disposition: inherited
           name: install
-          reason: The shared workspace installs this pipeline.
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The pipeline check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: not-applicable
+        - disposition: inherited
           name: typecheck-or-compile
-          reason: The pipeline check task validates its executable sources.
     - id: recipe-db
       kind: typescript-package
       name: Recipe database package
       path: packages/recipe-db
       stable_id: component:recipe-site/recipe-db
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: not-applicable
+        - disposition: inherited
           name: test
-          reason: Database behavior is tested through the Recipe API integration suite.
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: recipe-domain
       kind: typescript-package
@@ -151,23 +136,19 @@ blueprint:
       path: packages/recipe-domain
       stable_id: component:recipe-site/recipe-domain
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: recipe-ingest
       kind: worker
@@ -175,23 +156,19 @@ blueprint:
       path: workers/recipe-ingest
       stable_id: component:recipe-site/recipe-ingest
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The deployment checks build the Worker bundle.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this Worker.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The Worker check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: recipe-parsing
       kind: typescript-package
@@ -199,25 +176,21 @@ blueprint:
       path: packages/recipe-parsing
       stable_id: component:recipe-site/recipe-parsing
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
-  effective_at: 2026-10-23 00:00:00+00:00
+  effective_at: 2026-10-23 14:00:00+00:00
   manual_checkpoints:
     - Configure AGE_RECIPIENT for
       database-backup-restore-encrypted-archives-2026-09-29
