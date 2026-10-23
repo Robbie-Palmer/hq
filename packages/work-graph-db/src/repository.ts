@@ -2348,55 +2348,6 @@ export class WorkGraphRepository {
     }));
   }
 
-  private async listCurrentWorkItemDeliveryEvidenceInTransaction(
-    transaction: DbTransaction,
-    workItemId: string,
-  ): Promise<readonly CurrentDeliveryEvidence[]> {
-    const rows = await transaction
-      .selectDistinct({
-        observation: deliveryEvidenceObservation,
-        projectedAt: currentDeliveryEvidence.projectedAt,
-      })
-      .from(currentDeliveryEvidence)
-      .innerJoin(
-        deliveryEvidenceObservation,
-        eq(
-          deliveryEvidenceObservation.id,
-          currentDeliveryEvidence.observationId,
-        ),
-      )
-      .innerJoin(
-        workItemPullRequest,
-        and(
-          eq(
-            workItemPullRequest.repository,
-            deliveryEvidenceObservation.pullRequestRepository,
-          ),
-          eq(
-            workItemPullRequest.number,
-            deliveryEvidenceObservation.pullRequestNumber,
-          ),
-        ),
-      )
-      .where(
-        and(
-          eq(workItemPullRequest.workItemId, workItemId),
-          eq(workItemPullRequest.role, "implementation"),
-        ),
-      )
-      .orderBy(
-        currentDeliveryEvidence.provider,
-        currentDeliveryEvidence.kind,
-        currentDeliveryEvidence.externalId,
-      );
-    return rows.map(({ observation, projectedAt }) => ({
-      ...observation,
-      providerObservedAt: observation.providerObservedAt.toISOString(),
-      ingestedAt: observation.ingestedAt.toISOString(),
-      projectedAt: projectedAt.toISOString(),
-    }));
-  }
-
   async putCompletionPolicyRevision(
     input: CompletionPolicyRevision,
   ): Promise<CompletionPolicyRevision> {
@@ -2763,10 +2714,21 @@ export class WorkGraphRepository {
       ...stored,
       observedAt: stored.observedAt.toISOString(),
     }));
-    const evidence = await this.listCurrentWorkItemDeliveryEvidenceInTransaction(
-      transaction,
-      item.id,
+    const implementationCommits = implementationPullRequests.flatMap(
+      ({ repository, headSha, acceptedHeadSha, mergeCommitSha }) =>
+        [headSha, acceptedHeadSha, mergeCommitSha]
+          .filter((commitSha): commitSha is string => commitSha !== null)
+          .map((commitSha) => ({ repository, commitSha })),
     );
+    const evidenceById = new Map<string, CurrentDeliveryEvidence>();
+    for (const matchingEvidence of await Promise.all(
+      implementationCommits.map((filter) =>
+        this.listCurrentDeliveryEvidenceInTransaction(transaction, filter),
+      ),
+    )) {
+      for (const item of matchingEvidence) evidenceById.set(item.id, item);
+    }
+    const evidence = [...evidenceById.values()];
     const [unfinishedChild] = await transaction
       .select({ id: workItem.id })
       .from(workItemHierarchy)
