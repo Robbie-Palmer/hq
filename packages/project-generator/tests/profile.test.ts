@@ -80,6 +80,13 @@ function contracts(overrides: {
         delegated_task_project: "//ui",
       },
       {
+        id: "project-content",
+        directory: "ui/content/projects/{project}",
+        mise_config_root: false,
+        pnpm_workspace_package: false,
+        delegated_task_project: "//ui",
+      },
+      {
         id: "worker",
         directory: "workers/{component}",
         mise_config_root: true,
@@ -120,6 +127,13 @@ function contracts(overrides: {
         directory: "homelab",
         mise_config_root: true,
         pnpm_workspace_package: false,
+      },
+      {
+        id: "homelab-subsystem",
+        directory: "homelab/{component}",
+        mise_config_root: false,
+        pnpm_workspace_package: false,
+        delegated_task_project: "//homelab",
       },
     ],
     task_contract: {
@@ -236,16 +250,28 @@ describe("project profile contracts", () => {
       "../../../ui/content/projects/personal-engineering-platform/",
       import.meta.url,
     );
-    const [layout, platform, nix, opentelemetry] = await Promise.all([
+    const [layout, platform, nix, opentelemetry, agenticCodeReview] = await Promise.all([
       readFile(new URL("repository-layout.yaml", contentRoot), "utf8"),
       readFile(new URL("platform.yaml", contentRoot), "utf8"),
       readFile(new URL("nix-flake-contract.yaml", contentRoot), "utf8"),
       readFile(new URL("opentelemetry-contract.yaml", contentRoot), "utf8"),
+      readFile(new URL("../agentic-code-review/project-profile.yaml", contentRoot), "utf8"),
     ]);
-    expect(
-      parseProjectProfileContracts({ layout, platform, nix, opentelemetry })
-        .layout.schema_version,
-    ).toBe(1);
+    const currentContracts = parseProjectProfileContracts({ layout, platform, nix, opentelemetry });
+    expect(currentContracts.layout.schema_version).toBe(1);
+
+    const blueprint = resolveProjectProfile(
+      parseProjectProfile(agenticCodeReview),
+      currentContracts,
+      "2026-10-23T00:00:00Z",
+    );
+    expect(blueprint.selections).toContainEqual(expect.objectContaining({
+      slot: "database.olap-engine",
+      value: "duckdb",
+    }));
+    expect(blueprint.selections).not.toContainEqual(expect.objectContaining({
+      slot: "database.migration-discipline",
+    }));
   });
 
   it("parses a versioned YAML profile and supplies collection defaults", () => {
@@ -426,6 +452,26 @@ describe("project profile resolution", () => {
     expect(blueprint.ownership.owned_paths).toContain(
       "ui/app/_projects/personal-finance-app",
     );
+  });
+
+  it("deduplicates project content ownership", () => {
+    const input = profile({
+      components: [{
+        id: "content",
+        name: "Project publication",
+        kind: "project-content",
+      }],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(blueprint.ownership.owned_paths).toEqual([
+      "ui/content/projects/sample-app",
+    ]);
   });
 
   it.each([

@@ -1,0 +1,922 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:recipe-site/recipe-api
+        kind: component
+        name: Recipe API
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - workers/recipe-api
+      - id: component:recipe-site/recipe-dataset
+        kind: component
+        name: Recipe dataset pipeline
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - ml-pipelines/recipe-dataset
+      - id: component:recipe-site/recipe-db
+        kind: component
+        name: Recipe database package
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - packages/recipe-db
+      - id: component:recipe-site/recipe-domain
+        kind: component
+        name: Recipe domain package
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - packages/recipe-domain
+      - id: component:recipe-site/recipe-ingest
+        kind: component
+        name: Recipe ingestion Worker
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - workers/recipe-ingest
+      - id: component:recipe-site/recipe-parsing
+        kind: component
+        name: Recipe parsing package
+        project: project:recipe-site
+        relations:
+          - target: system:recipe-site/application
+            type: part_of
+        source_paths:
+          - packages/recipe-parsing
+    system:
+      id: system:recipe-site/application
+      kind: system
+      name: Recipe Site
+      project: project:recipe-site
+      source_paths:
+        - ml-pipelines/recipe-dataset
+        - packages/recipe-db
+        - packages/recipe-domain
+        - packages/recipe-parsing
+        - workers/recipe-api
+        - workers/recipe-ingest
+  components:
+    - id: recipe-api
+      kind: worker
+      name: Recipe API
+      path: workers/recipe-api
+      stable_id: component:recipe-site/recipe-api
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The deployment checks build the Worker bundle.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this Worker.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: The Worker check task owns linting.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: recipe-dataset
+      kind: python-pipeline
+      name: Recipe dataset pipeline
+      path: ml-pipelines/recipe-dataset
+      stable_id: component:recipe-site/recipe-dataset
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The dataset pipeline has no standalone build artifact.
+        - disposition: not-applicable
+          name: clean
+          reason: DVC and the shared workspace own generated-data cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this pipeline.
+        - disposition: not-applicable
+          name: install
+          reason: The shared workspace installs this pipeline.
+        - disposition: not-applicable
+          name: lint
+          reason: The pipeline check task owns linting.
+        - disposition: generated
+          name: test
+        - disposition: not-applicable
+          name: typecheck-or-compile
+          reason: The pipeline check task validates its executable sources.
+    - id: recipe-db
+      kind: typescript-package
+      name: Recipe database package
+      path: packages/recipe-db
+      stable_id: component:recipe-site/recipe-db
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: not-applicable
+          name: test
+          reason: Database behavior is tested through the Recipe API integration suite.
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: recipe-domain
+      kind: typescript-package
+      name: Recipe domain package
+      path: packages/recipe-domain
+      stable_id: component:recipe-site/recipe-domain
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: recipe-ingest
+      kind: worker
+      name: Recipe ingestion Worker
+      path: workers/recipe-ingest
+      stable_id: component:recipe-site/recipe-ingest
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The deployment checks build the Worker bundle.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this Worker.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: The Worker check task owns linting.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+    - id: recipe-parsing
+      kind: typescript-package
+      name: Recipe parsing package
+      path: packages/recipe-parsing
+      stable_id: component:recipe-site/recipe-parsing
+      tasks:
+        - disposition: not-applicable
+          name: build
+          reason: The package exposes TypeScript source directly.
+        - disposition: not-applicable
+          name: clean
+          reason: The shared workspace owns cleanup.
+        - disposition: not-applicable
+          name: format
+          reason: Repository-wide formatting covers this package.
+        - disposition: generated
+          name: install
+        - disposition: not-applicable
+          name: lint
+          reason: Repository-wide lint tasks cover this package.
+        - disposition: generated
+          name: test
+        - disposition: generated
+          name: typecheck-or-compile
+  effective_at: 2026-10-23 00:00:00+00:00
+  manual_checkpoints:
+    - Configure AGE_RECIPIENT for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure BETTER_AUTH_SECRET for
+      identity-authentication-library-better-auth-2026-09-29
+    - Configure BETTER_AUTH_URL for
+      identity-authentication-library-better-auth-2026-09-29
+    - Configure CF_ACCESS_CLIENT_ID for
+      security-preview-access-cloudflare-access-2026-09-29
+    - Configure CF_ACCESS_CLIENT_SECRET for
+      security-preview-access-cloudflare-access-2026-09-29
+    - Configure CLOUDFLARE_SLACK_WEBHOOK_URL for
+      observability-alert-delivery-slack-2026-09-29
+    - Configure GOOGLE_CLIENT_ID for
+      identity-login-provider-google-oauth-2026-09-29
+    - Configure GOOGLE_CLIENT_SECRET for
+      identity-login-provider-google-oauth-2026-09-29
+    - Configure NEON_DATABASE_URL_UNPOOLED for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure POSTHOG_API_KEY for
+      observability-alert-evaluation-posthog-2026-09-29
+    - Configure POSTHOG_KEY for
+      observability-telemetry-protocol-opentelemetry-2026-09-29
+    - Configure POSTHOG_OTLP_BASE_URL for
+      observability-telemetry-protocol-opentelemetry-2026-09-29
+    - Configure POSTHOG_PROJECT_ID for
+      observability-alert-evaluation-posthog-2026-09-29
+    - Configure R2_ACCESS_KEY_ID for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure R2_DATABASE_BACKUPS_BUCKET_NAME for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure R2_SECRET_ACCESS_KEY for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Create the OAuth consent screen and Web application client in Google Cloud
+      Console for each stable environment, then register that environment's
+      exact callback URI.
+    - Enable the Pages preview access policy, configure the account identity
+      provider and human allowlist, then import the generated Access application
+      before Terraform manages it.
+    - Generate the age identity outside CI and the database and object-store
+      provider accounts, then keep a separate recovery copy.
+    - Provision Access application and reviewer policy for
+      security-preview-access-cloudflare-access-2026-09-29
+    - Provision Alert channel routing for
+      observability-alert-delivery-slack-2026-09-29
+    - Provision Alert definitions and named responder ownership for
+      observability-alert-evaluation-posthog-2026-09-29
+    - Provision Bucket configuration and object contents for
+      storage-object-store-cloudflare-r2-2026-09-29
+    - Provision Encrypted archives and checksums for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Provision Project instrumentation and exporter configuration for
+      observability-telemetry-protocol-opentelemetry-2026-09-29
+    - Provision Pull-request database branch for
+      database-preview-isolation-fresh-2026-10-20
+    - Provision Pull-request deployment resources for
+      delivery-preview-environment-isolated-2026-09-29
+    - Provision Restore drill evidence for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Provision Telemetry retention, redaction, and cost policy for
+      observability-application-telemetry-posthog-2026-09-29
+    - "Verify Archive decryption and structure verification: //backups:verify"
+    - "Verify Authenticated browser QA: //ui:test:e2e:preview"
+    - "Verify Authenticated preview smoke test:
+      //workers/recipe-api:preview:smoke"
+    - "Verify Correlated log ingestion smoke test:
+      /projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
+    - "Verify Declared bucket plan: //infra/public-platform:check"
+    - "Verify End-to-end trace and log smoke test:
+      /projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
+    - "Verify OpenTelemetry contract conformance:
+      //:opentelemetry-contract:check"
+    - "Verify Preview migrations and synthetic fixtures:
+      .github/workflows/preview-environment.yml"
+    - "Verify Preview workflow: .github/workflows/preview-environment.yml"
+    - "Verify Production-safe synthetic alert:
+      /projects/recipe-site/adrs/021-posthog-alerting-and-slack"
+    - "Verify Protected preview fetch: //:preview:fetch"
+    - "Verify Scheduled encrypted backup: .github/workflows/database-backup.yml"
+    - "Verify Scratch database restore drill:
+      /projects/personal-engineering-platform/adrs/017-relational-data-stack"
+    - "Verify Stateful preview smoke test: //workers/recipe-api:preview:smoke"
+    - "Verify Synthetic alert delivery:
+      /projects/recipe-site/adrs/021-posthog-alerting-and-slack"
+    - "Verify Telemetry exporter tests: //packages/observability:check"
+    - "Verify Use-case access and lifecycle check:
+      /projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-sto\
+      rage"
+    - "Verify Work Graph scheduled encrypted backup:
+      .github/workflows/work-graph-database-backup.yml"
+  nix:
+    enabled: false
+  opentelemetry:
+    cardinality:
+      forbidden_metric_attributes:
+        - user.id
+        - session.id
+        - trace_id
+        - span_id
+        - request.id
+        - url.full
+        - db.query.text
+        - messaging.message.id
+        - gen_ai.conversation.id
+        - cicd.pipeline.run.id
+        - me.robbiepalmer.workspace.id
+      max_attribute_count_per_record: 128
+      max_attribute_value_length: 4096
+      max_metric_series_per_instrument: 2000
+      max_span_name_templates_per_service: 100
+      metric_attribute_value_classes:
+        bounded: 200
+        low: 20
+    data_policy:
+      enforcement_surfaces:
+        - resource-attributes
+        - span-attributes
+        - span-events
+        - log-attributes
+        - log-body
+        - metric-attributes
+        - baggage
+      mode: default-deny
+      prohibited_attribute_keys:
+        exact:
+          - app.installation.id
+          - db.query.text
+          - device.id
+          - enduser.id
+          - enduser.pseudo.id
+          - gen_ai.completion
+          - gen_ai.input.messages
+          - gen_ai.output.messages
+          - gen_ai.prompt
+          - gen_ai.system_instructions
+          - gen_ai.tool.call.arguments
+          - gen_ai.tool.call.result
+          - gen_ai.tool.definitions
+          - http.request.header.authorization
+          - http.request.header.cookie
+          - http.request.header.proxy-authorization
+          - http.response.header.set-cookie
+          - messaging.message.body
+          - process.command_args
+          - session.id
+          - session.previous_id
+          - url.full
+          - url.original
+          - url.path
+          - url.query
+          - user.id
+        prefixes:
+          - db.operation.parameter.
+          - db.query.parameter.
+          - env.
+          - process.environment_variable.
+      prohibited_content_classes:
+        - credential
+        - authorization-header
+        - cookie
+        - environment-variable
+        - prompt
+        - model-response
+        - tool-arguments
+        - tool-result
+        - source-content
+        - diff
+        - terminal-output
+        - database-statement
+        - database-bind-value
+        - message-body
+        - user-data-object-key
+        - personal-identifier
+        - raw-url-path
+        - raw-url-query-string
+      redaction: deterministic-only
+      unsafe_record_action: drop
+    enabled: true
+    failure_mode: fail-open
+    resource_attributes:
+      deployment.environment.name: template-required
+      me.robbiepalmer.project.id: project:recipe-site
+      service.name: template-required
+      service.namespace: template-required
+      service.version: template-required
+    runtime: typescript-worker
+    semantic_conventions: stable-only
+    signals:
+      - traces
+      - metrics
+      - logs
+    transport:
+      protocol: http/protobuf
+      route: direct
+  ownership:
+    owned_paths:
+      - ml-pipelines/recipe-dataset
+      - packages/recipe-db
+      - packages/recipe-domain
+      - packages/recipe-parsing
+      - ui/content/projects/recipe-site
+      - workers/recipe-api
+      - workers/recipe-ingest
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: recipe-site
+    kind: application
+    name: Recipe Site
+    stable_id: project:recipe-site
+  repository_paths:
+    architecture_decisions: ui/content/projects/recipe-site/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/recipe-site.yml
+    product_decisions: ui/content/projects/recipe-site/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/recipe-site/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:015-api-governance
+      id: api-governance-compatibility-check-oasdiff-2026-09-29
+      kind: technology
+      layer: api-governance
+      slot: api-governance.compatibility-check
+      source: default
+      value: oasdiff
+    - decision: personal-engineering-platform:033-api-and-event-contract-standard
+      id: api-governance-contract-lifecycle-policy-2026-10-15
+      kind: policy
+      layer: api-governance
+      slot: api-governance.contract-lifecycle
+      source: default
+      value: Runtime-derived, committed, validated, compatibility-gated, indexed,
+        versioned, and published as immutable OCI artifacts
+    - decision: personal-engineering-platform:015-api-governance
+      id: api-governance-contract-linter-spectral-2026-09-29
+      kind: technology
+      layer: api-governance
+      slot: api-governance.contract-linter
+      source: default
+      value: spectral
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-contract-format-openapi-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-format
+      source: default
+      value: openapi
+    - decision: personal-engineering-platform:035-web-api-data-capability-contracts
+      id: backend-api-contract-generator-hono-zod-openapi-2026-10-19
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-generator
+      source: default
+      value: honozod-openapi
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-http-framework-hono-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.http-framework
+      source: default
+      value: hono
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: backend-api-relational-connection-hyperdrive-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.relational-connection
+      source: default
+      value: hyperdrive
+    - decision: personal-engineering-platform:002-cloudflare-workers
+      id: backend-api-runtime-cloudflare-workers-2026-09-12
+      kind: technology
+      layer: backend-api
+      slot: backend-api.runtime
+      source: default
+      value: cloudflare-workers
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:024-dvc-artifact-versioning
+      id: data-artifact-versioning-dvc-2026-09-30
+      kind: technology
+      layer: data
+      slot: data.artifact-versioning
+      source: default
+      value: dvc
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: database-backup-restore-encrypted-archives-2026-09-29
+      kind: policy
+      layer: database
+      slot: database.backup-restore
+      source: default
+      value: Encrypted PostgreSQL archives with tested restores
+    - decision: personal-engineering-platform:035-web-api-data-capability-contracts
+      id: database-migration-discipline-committed-2026-10-19
+      kind: policy
+      layer: database
+      slot: database.migration-discipline
+      source: default
+      value: Committed ordered migrations with drift checks and one serialized
+        deployment runner
+    - decision: personal-engineering-platform:036-operated-capability-contracts
+      id: database-preview-isolation-fresh-2026-10-20
+      kind: policy
+      layer: database
+      slot: database.preview-isolation
+      source: default
+      value: Fresh pull-request database from committed migrations and synthetic
+        fixtures
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: database-relational-access-drizzle-2026-09-29
+      kind: technology
+      layer: database
+      slot: database.relational-access
+      source: default
+      value: drizzle
+    - decision: personal-engineering-platform:005-database-defaults
+      id: database-relational-engine-postgresql-2026-09-12
+      kind: technology
+      layer: database
+      slot: database.relational-engine
+      source: default
+      value: postgresql
+    - decision: personal-engineering-platform:005-database-defaults
+      id: database-relational-host-neon-2026-09-12
+      kind: technology
+      layer: database
+      slot: database.relational-host
+      source: default
+      value: neon
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:018-pull-request-preview-environments
+      id: delivery-preview-environment-isolated-2026-09-29
+      kind: policy
+      layer: base
+      slot: delivery.preview-environment
+      source: default
+      value: Isolated pull-request deployments with scoped resources and automatic
+        cleanup
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:020-better-auth-and-google-oidc
+      id: identity-authentication-library-better-auth-2026-09-29
+      kind: technology
+      layer: identity
+      slot: identity.authentication-library
+      source: default
+      value: better-auth
+    - decision: personal-engineering-platform:034-identity-and-access-capability-contracts
+      id: identity-authorization-policy-server-side-resource-rules-2026-10-15
+      kind: policy
+      layer: identity
+      slot: identity.authorization-policy
+      source: default
+      value: Project-owned server-side resource and action policy
+    - decision: personal-engineering-platform:020-better-auth-and-google-oidc
+      id: identity-login-provider-google-oauth-2026-09-29
+      kind: technology
+      layer: identity
+      slot: identity.login-provider
+      source: default
+      value: google-oauth
+    - decision: personal-engineering-platform:034-identity-and-access-capability-contracts
+      id: identity-session-transport-same-origin-cookie-2026-10-15
+      kind: policy
+      layer: identity
+      slot: identity.session-transport
+      source: default
+      value: Same-origin Secure HttpOnly first-party cookie session
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-linter-tflint-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.linter
+      source: default
+      value: tflint
+    - decision: personal-engineering-platform:003-terraform
+      id: infrastructure-provisioner-terraform-2026-09-12
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.provisioner
+      source: default
+      value: terraform
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-state-backend-terraform-cloud-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.state-backend
+      source: default
+      value: terraform-cloud
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-alert-delivery-slack-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.alert-delivery
+      source: default
+      value: slack
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-alert-evaluation-posthog-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.alert-evaluation
+      source: default
+      value: posthog
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-application-telemetry-posthog-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.application-telemetry
+      source: default
+      value: posthog
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-telemetry-protocol-opentelemetry-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.telemetry-protocol
+      source: default
+      value: opentelemetry
+    - decision: personal-engineering-platform:001-language-defaults
+      id: project-primary-language-typescript-2026-09-12
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: default
+      value: typescript
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-ci-store-github-secrets-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.ci-store
+      source: default
+      value: github-secrets
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-runtime-store-doppler-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.runtime-store
+      source: default
+      value: doppler
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:019-cloudflare-access-boundaries
+      id: security-preview-access-cloudflare-access-2026-09-29
+      kind: technology
+      layer: base
+      slot: security.preview-access
+      source: default
+      value: cloudflare-access
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+    - decision: personal-engineering-platform:016-cloudflare-r2-object-storage
+      id: storage-object-store-cloudflare-r2-2026-09-29
+      kind: technology
+      layer: storage
+      slot: storage.object-store
+      source: default
+      value: cloudflare-r2
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-dead-code-analysis-knip-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.dead-code-analysis
+      source: default
+      value: knip
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-git-hooks-husky-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.git-hooks
+      source: default
+      value: husky
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-linter-formatter-biome-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.linter-formatter
+      source: default
+      value: biome
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-package-manager-pnpm-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.package-manager
+      source: default
+      value: pnpm
+    - decision: personal-engineering-platform:001-language-defaults
+      id: typescript-schema-validation-zod-2026-09-12
+      kind: technology
+      layer: typescript
+      slot: typescript.schema-validation
+      source: default
+      value: zod
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-source-security-codeql-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.source-security
+      source: default
+      value: codeql
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-test-runner-vitest-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.test-runner
+      source: default
+      value: vitest
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-component-library-shadcn-ui-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.component-library
+      source: default
+      value: shadcnui
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-react-doctor-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: react-doctor
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-tsmetrics-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: tsmetrics
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-framework-next-js-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.framework
+      source: default
+      value: nextdotjs
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-host-cloudflare-pages-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.host
+      source: default
+      value: cloudflare-pages
+    - decision: personal-engineering-platform:021-tanstack-query-for-client-server-state
+      id: web-app-server-state-client-tanstack-query-2026-09-29
+      kind: technology
+      layer: web-app
+      slot: web-app.server-state-client
+      source: default
+      value: tanstack-query
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-styling-tailwind-css-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.styling
+      source: default
+      value: tailwind-css
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-ui-library-react-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.ui-library
+      source: default
+      value: react
+project_id: recipe-site

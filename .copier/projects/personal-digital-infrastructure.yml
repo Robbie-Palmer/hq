@@ -1,0 +1,98 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:personal-digital-infrastructure/publication
+        kind: component
+        name: Personal Digital Infrastructure publication
+        project: project:personal-digital-infrastructure
+        relations:
+          - target: system:personal-digital-infrastructure/platform
+            type: part_of
+        source_paths:
+          - ui/content/projects/personal-digital-infrastructure
+    system:
+      id: system:personal-digital-infrastructure/platform
+      kind: system
+      name: Personal Digital Infrastructure
+      project: project:personal-digital-infrastructure
+      source_paths:
+        - ui/content/projects/personal-digital-infrastructure
+  components:
+    - id: publication
+      kind: project-content
+      name: Personal Digital Infrastructure publication
+      path: ui/content/projects/personal-digital-infrastructure
+      stable_id: component:personal-digital-infrastructure/publication
+      tasks:
+        - disposition: delegated
+          name: build
+          target: //ui:build
+        - disposition: delegated
+          name: clean
+          target: //ui:clean
+        - disposition: delegated
+          name: format
+          target: //ui:format
+        - disposition: delegated
+          name: install
+          target: //ui:install
+        - disposition: delegated
+          name: lint
+          target: //ui:lint
+        - disposition: delegated
+          name: test
+          target: //ui:test
+        - disposition: delegated
+          name: typecheck-or-compile
+          target: //ui:typecheck
+  effective_at: 2026-10-23 00:00:00+00:00
+  manual_checkpoints: []
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - ui/content/projects/personal-digital-infrastructure
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: personal-digital-infrastructure
+    kind: platform
+    name: Personal Digital Infrastructure
+    stable_id: project:personal-digital-infrastructure
+  repository_paths:
+    architecture_decisions: ui/content/projects/personal-digital-infrastructure/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/personal-digital-infrastructure.yml
+    product_decisions: ui/content/projects/personal-digital-infrastructure/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/personal-digital-infrastructure/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+project_id: personal-digital-infrastructure

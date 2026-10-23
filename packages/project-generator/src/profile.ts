@@ -61,6 +61,7 @@ const projectKindSchema = z.enum([
 const componentKindSchema = z.enum([
   "ui",
   "project-ui",
+  "project-content",
   "worker",
   "typescript-package",
   "python-pipeline",
@@ -68,6 +69,7 @@ const componentKindSchema = z.enum([
   "terraform-root",
   "kubernetes-component",
   "homelab-system",
+  "homelab-subsystem",
 ]);
 
 const taskNameSchema = z.enum([
@@ -278,12 +280,12 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
   );
 
   const compatibleKinds: Record<z.infer<typeof projectKindSchema>, readonly z.infer<typeof componentKindSchema>[]> = {
-    application: ["ui", "project-ui", "worker"],
+    application: ["ui", "project-ui", "project-content", "worker"],
     service: ["worker", "python-pipeline"],
     library: ["typescript-package", "cpp-project"],
     "data-pipeline": ["python-pipeline"],
     "embedded-system": ["cpp-project"],
-    infrastructure: ["terraform-root", "kubernetes-component", "homelab-system"],
+    infrastructure: ["terraform-root", "kubernetes-component", "homelab-system", "homelab-subsystem"],
     platform: componentKindSchema.options,
   };
   if (!profile.components.some(({ kind }) => compatibleKinds[profile.project.kind].includes(kind))) {
@@ -787,8 +789,10 @@ export function resolveProjectProfile(
     relations: [{ type: "part_of", target: `system:${profile.project.id}/${profile.project.kind}` }],
   }));
   const ownedPaths = [
-    ...components.map(({ path: componentPath }) => componentPath),
-    `ui/content/projects/${profile.project.id}`,
+    ...new Set([
+      ...components.map(({ path: componentPath }) => componentPath),
+      `ui/content/projects/${profile.project.id}`,
+    ]),
   ].toSorted(compareStrings);
   const otelRuntime = profile.opentelemetry.runtime;
   const transport = otelRuntime ? contracts.opentelemetry.transport.runtime_defaults[otelRuntime] : undefined;
