@@ -328,14 +328,9 @@ describe("MealPlanningView", () => {
 
     render(<MealPlanningView recipes={recipes} />);
 
+    expect(screen.getByText("1 planned meal is ready.")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        (_content, element) =>
-          element?.tagName === "P" &&
-          element.textContent.startsWith(
-            "Add ingredients from 1 planned meal.",
-          ),
-      ),
+      screen.getByText("Only scheduled recipes are included."),
     ).toBeInTheDocument();
     await user.click(
       screen.getByRole("button", { name: "Add to shopping list" }),

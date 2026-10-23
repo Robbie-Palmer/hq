@@ -147,28 +147,36 @@ export function ShoppingPlanAction({
     });
   };
   return (
-    <aside className="mt-8 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
-      <ShoppingBasket className="size-5 text-[var(--terracotta)]" />
-      <p className="rt-body min-w-0 flex-1 text-sm text-[var(--ink-2)]">
-        Add ingredients from {mealCount} planned{" "}
-        {mealCount === 1 ? "meal" : "meals"}. Meal ideas, leftovers, and meals
-        out are excluded.
-      </p>
-      <button
-        type="button"
-        onClick={generate}
-        className="rounded-md border border-[var(--terracotta)] px-3 py-2 rt-mono text-[var(--terracotta)]"
-      >
-        Add to shopping list
-      </button>
-      {generated !== null && (
-        <Link
-          href="/recipes/shopping"
-          className="rt-mono text-[var(--terracotta)] underline"
+    <aside className="mt-8 rounded-lg border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
+      <div className="flex items-start gap-3">
+        <ShoppingBasket className="mt-0.5 size-5 shrink-0 text-[var(--terracotta)]" />
+        <div className="min-w-0">
+          <p className="rt-body text-sm text-[var(--ink-2)]">
+            {mealCount} planned {mealCount === 1 ? "meal is" : "meals are"}{" "}
+            ready.
+          </p>
+          <p className="mt-1 rt-mono text-[0.65rem] text-[var(--ink-3)]">
+            Only scheduled recipes are included.
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <button
+          type="button"
+          onClick={generate}
+          className="w-full rounded-md border border-[var(--terracotta)] px-3 py-2 rt-mono text-[var(--terracotta)] sm:w-auto"
         >
-          {generated > 0 ? `${generated} added. Open Shop` : "Open Shop"}
-        </Link>
-      )}
+          Add to shopping list
+        </button>
+        {generated !== null && (
+          <Link
+            href="/recipes/shopping"
+            className="text-center rt-mono text-[var(--terracotta)] underline sm:text-left"
+          >
+            {generated > 0 ? `${generated} added. Open Shop` : "Open Shop"}
+          </Link>
+        )}
+      </div>
     </aside>
   );
 }
