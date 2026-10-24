@@ -23,6 +23,45 @@ export type LiquidityTier = z.infer<typeof LiquidityTierSchema>;
 export const TaxWrapperSchema = z.enum(["taxable", "isa", "pension"]);
 export type TaxWrapper = z.infer<typeof TaxWrapperSchema>;
 
+export const WithdrawalTaxTreatmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("tax-free") }),
+  z.object({
+    kind: z.literal("fixed-rate"),
+    rate: z.number().min(0).lt(1),
+  }),
+  z.object({
+    kind: z.literal("unsupported"),
+    reason: z.string().trim().min(1),
+  }),
+]);
+export type WithdrawalTaxTreatment = z.infer<
+  typeof WithdrawalTaxTreatmentSchema
+>;
+
+export const AccountAccessPolicySchema = z
+  .object({
+    /** First date on which the account can fund ordinary spending. */
+    accessibleFromDate: z.iso.date().optional(),
+    /** Operational delay before money can be withdrawn after the forecast starts. */
+    accessDelayMonths: z.number().int().nonnegative().default(0),
+    /** Fee deducted from each gross withdrawal. */
+    withdrawalFeeRate: z.number().min(0).lt(1).default(0),
+    /** Tax calculation supported for withdrawals from this account. */
+    taxTreatment: WithdrawalTaxTreatmentSchema.default({
+      kind: "unsupported",
+      reason: "Withdrawal tax treatment has not been configured",
+    }),
+    /** Whether a forecast may use this account for ordinary spending. */
+    canFundOrdinarySpending: z.boolean().default(true),
+  })
+  .refine(
+    (policy) =>
+      policy.taxTreatment.kind !== "fixed-rate" ||
+      policy.taxTreatment.rate + policy.withdrawalFeeRate < 1,
+    { message: "Withdrawal tax and fee rates must total less than 100%" },
+  );
+export type AccountAccessPolicy = z.infer<typeof AccountAccessPolicySchema>;
+
 /** Liabilities carry negative balances; their rate is the interest charged */
 export function isLiability(assetType: AssetType): boolean {
   return assetType === "mortgage" || assetType === "debt";
@@ -49,6 +88,8 @@ export const AccountContentSchema = z.object({
   taxWrapper: TaxWrapperSchema.optional(),
   /** How readily this account can fund spending without waiting or penalties. */
   liquidity: LiquidityTierSchema.optional(),
+  /** Retirement withdrawal rules, separate from the account's net-worth value. */
+  accessPolicy: AccountAccessPolicySchema.optional(),
   // For debt accounts this is the interest rate, compounding the (negative)
   // balance further from zero. Constrained like ExpectedReturnChange.rate —
   // a return at or below -100% can't compound.
