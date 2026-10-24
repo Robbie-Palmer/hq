@@ -82,6 +82,66 @@ export type TerminationPaymentTreatment = {
   ruleId: string;
 };
 
+type TerminationPaymentRule = Omit<
+  TerminationPaymentTreatment,
+  "componentId" | "kind" | "amountPence"
+>;
+
+const SECTION_403_CASH_RULE = {
+  destination: "cash",
+  incomeTax: "section-403-threshold",
+  employeeNationalInsurance: "none",
+  ruleId: "section-403-award",
+} satisfies TerminationPaymentRule;
+
+const PAYROLL_CASH_RULE = {
+  destination: "cash",
+  incomeTax: "payroll",
+  employeeNationalInsurance: "class-1",
+  ruleId: "payroll-earnings",
+} satisfies TerminationPaymentRule;
+
+const TERMINATION_PAYMENT_RULES = {
+  "statutory-redundancy": SECTION_403_CASH_RULE,
+  "enhanced-redundancy": SECTION_403_CASH_RULE,
+  "unpaid-wages": PAYROLL_CASH_RULE,
+  "holiday-pay": PAYROLL_CASH_RULE,
+  bonus: PAYROLL_CASH_RULE,
+  "contractual-payment-in-lieu-of-notice": PAYROLL_CASH_RULE,
+  "post-employment-notice-pay": PAYROLL_CASH_RULE,
+  "restrictive-covenant": PAYROLL_CASH_RULE,
+  "employer-pension-contribution": {
+    destination: "pension",
+    incomeTax: "exempt",
+    employeeNationalInsurance: "none",
+    ruleId: "registered-pension-contribution",
+  },
+  "employer-paid-legal-costs": {
+    destination: "employer-paid",
+    incomeTax: "exempt",
+    employeeNationalInsurance: "none",
+    ruleId: "employer-paid-legal-costs",
+  },
+  "injury-disability-award": {
+    destination: "cash",
+    incomeTax: "unsupported",
+    employeeNationalInsurance: "unsupported",
+    ruleId: "injury-disability-review-required",
+  },
+  "non-cash-benefit": {
+    destination: "non-cash",
+    incomeTax: "section-403-threshold",
+    employeeNationalInsurance: "none",
+    ruleId: "non-cash-benefit-review-required",
+  },
+  other: {
+    destination: "cash",
+    incomeTax: "unsupported",
+    employeeNationalInsurance: "unsupported",
+    ruleId: "unclassified-component",
+  },
+} satisfies Record<TerminationPaymentComponentKind, TerminationPaymentRule>;
+
 export type TerminationPaymentCalculation = {
   available: boolean;
   reasons: string[];
@@ -107,75 +167,12 @@ const sum = (amounts: readonly number[]) =>
 function treatmentFor(
   component: z.infer<typeof TerminationPaymentComponentSchema>,
 ): TerminationPaymentTreatment {
-  const base = {
+  return {
     componentId: component.id,
     kind: component.kind,
     amountPence: component.amountPence,
+    ...TERMINATION_PAYMENT_RULES[component.kind],
   };
-  switch (component.kind) {
-    case "statutory-redundancy":
-    case "enhanced-redundancy":
-      return {
-        ...base,
-        destination: "cash",
-        incomeTax: "section-403-threshold",
-        employeeNationalInsurance: "none",
-        ruleId: "section-403-award",
-      };
-    case "unpaid-wages":
-    case "holiday-pay":
-    case "bonus":
-    case "contractual-payment-in-lieu-of-notice":
-    case "post-employment-notice-pay":
-    case "restrictive-covenant":
-      return {
-        ...base,
-        destination: "cash",
-        incomeTax: "payroll",
-        employeeNationalInsurance: "class-1",
-        ruleId: "payroll-earnings",
-      };
-    case "employer-pension-contribution":
-      return {
-        ...base,
-        destination: "pension",
-        incomeTax: "exempt",
-        employeeNationalInsurance: "none",
-        ruleId: "registered-pension-contribution",
-      };
-    case "employer-paid-legal-costs":
-      return {
-        ...base,
-        destination: "employer-paid",
-        incomeTax: "exempt",
-        employeeNationalInsurance: "none",
-        ruleId: "employer-paid-legal-costs",
-      };
-    case "injury-disability-award":
-      return {
-        ...base,
-        destination: "cash",
-        incomeTax: "unsupported",
-        employeeNationalInsurance: "unsupported",
-        ruleId: "injury-disability-review-required",
-      };
-    case "non-cash-benefit":
-      return {
-        ...base,
-        destination: "non-cash",
-        incomeTax: "section-403-threshold",
-        employeeNationalInsurance: "none",
-        ruleId: "non-cash-benefit-review-required",
-      };
-    case "other":
-      return {
-        ...base,
-        destination: "cash",
-        incomeTax: "unsupported",
-        employeeNationalInsurance: "unsupported",
-        ruleId: "unclassified-component",
-      };
-  }
 }
 
 export function calculateTerminationPayment(

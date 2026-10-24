@@ -277,6 +277,15 @@ function commitmentNotes(
   ].join(" ");
 }
 
+function calculationMode(
+  manualCount: number,
+  autoCount: number,
+): "employer-net" | "reviewed-rules" | "mixed" {
+  if (manualCount > 0 && autoCount > 0) return "mixed";
+  if (manualCount > 0) return "employer-net";
+  return "reviewed-rules";
+}
+
 export function adaptRedundancyPackage(
   input: RedundancyPackage,
 ): RedundancyPackageAdapterResult {
@@ -291,7 +300,7 @@ export function adaptRedundancyPackage(
   const calculation = calculateTerminationPayment({
     effectiveDate: record.payments
       .map(({ paymentDate }) => paymentDate.value)
-      .sort()[0] as string,
+      .sort((left, right) => left.localeCompare(right))[0] as string,
     currency: record.currency.value,
     jurisdiction: record.calculationFacts.jurisdiction.value,
     residence: record.calculationFacts.residence.value,
@@ -348,12 +357,7 @@ export function adaptRedundancyPackage(
   const autoCount = record.payments.filter(
     (payment) => payment.netAmount == null && cashComponentAmount(payment) > 0,
   ).length;
-  const mode =
-    manualCount > 0 && autoCount > 0
-      ? "mixed"
-      : manualCount > 0
-        ? "employer-net"
-        : "reviewed-rules";
+  const mode = calculationMode(manualCount, autoCount);
   const source = sourceDescription(record.source);
   const commonLineage = [
     calculation.lineage.calculationVersion,
