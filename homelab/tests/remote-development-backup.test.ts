@@ -199,14 +199,11 @@ function runGit(directory: string, args: readonly string[]) {
   return result;
 }
 
-test("state export keeps T3 databases and only in-flight Git changes", () => {
+function createStateExportFixture() {
   const directory = mkdtempSync(join(tmpdir(), "workspace-state-export-"));
   const source = join(directory, "source");
   const userdata = join(source, "home/.t3/userdata");
   const workspaces = join(source, "workspaces");
-  const remote = join(directory, "remote.git");
-  const repository = join(workspaces, "repository");
-  const cleanRepository = join(workspaces, "clean-repository");
   const target = join(directory, "export");
   const fakeSqlite = join(directory, "sqlite3");
 
@@ -227,6 +224,17 @@ cp -- "$database" "$destination"
   );
   chmodSync(fakeSqlite, 0o700);
 
+  return { directory, fakeSqlite, source, target, workspaces };
+}
+
+test("state export keeps T3 databases and only in-flight Git changes", () => {
+  const { directory, fakeSqlite, source, target, workspaces } =
+    createStateExportFixture();
+  const remote = join(directory, "remote.git");
+  const repository = join(workspaces, "repository");
+  const cleanRepository = join(workspaces, "clean-repository");
+  const staleRepository = join(workspaces, "stale-repository");
+
   try {
     runGit(directory, ["init", "--bare", remote]);
     runGit(directory, ["clone", remote, repository]);
@@ -237,6 +245,15 @@ cp -- "$database" "$destination"
     runGit(repository, ["commit", "-m", "initial"]);
     runGit(repository, ["push", "--set-upstream", "origin", "HEAD"]);
     runGit(directory, ["clone", remote, cleanRepository]);
+
+    runGit(repository, ["switch", "-c", "stale-only"]);
+    writeFileSync(join(repository, "stale.txt"), "remote branch to delete\n");
+    runGit(repository, ["add", "stale.txt"]);
+    runGit(repository, ["commit", "-m", "stale remote branch"]);
+    runGit(repository, ["push", "--set-upstream", "origin", "HEAD"]);
+    runGit(directory, ["clone", "--branch", "stale-only", remote, staleRepository]);
+    runGit(repository, ["switch", "master"]);
+    runGit(repository, ["push", "origin", "--delete", "stale-only"]);
 
     writeFileSync(join(repository, "committed.txt"), "local commit\n");
     runGit(repository, ["add", "committed.txt"]);
@@ -259,15 +276,25 @@ cp -- "$database" "$destination"
     );
 
     const manifest = JSON.parse(readFileSync(join(target, "manifest.json"), "utf8"));
-    assert.equal(manifest.exportedWorktrees, 1);
+    assert.equal(manifest.exportedWorktrees, 2);
+    assert.equal(manifest.skippedWorktrees, 0);
     const exported = readdirSync(join(target, "in-flight-worktrees"));
-    assert.equal(exported.length, 1);
-    const [exportedWorktree] = exported;
-    assert.ok(exportedWorktree);
-    const stateDirectory = join(target, "in-flight-worktrees", exportedWorktree);
-    const metadata = JSON.parse(readFileSync(join(stateDirectory, "metadata.json"), "utf8"));
+    assert.equal(exported.length, 2);
+    const exportedStates = exported.map((entry) => {
+      const stateDirectory = join(target, "in-flight-worktrees", entry);
+      const metadata = JSON.parse(
+        readFileSync(join(stateDirectory, "metadata.json"), "utf8"),
+      );
+      return { metadata, stateDirectory };
+    });
+    const repositoryState = exportedStates.find(
+      ({ metadata }) => metadata.relativePath === "workspaces/repository",
+    );
+    assert.ok(repositoryState);
+    const { metadata, stateDirectory } = repositoryState;
     assert.equal(metadata.relativePath, "workspaces/repository");
     assert.equal(metadata.unpushedCommitCount, 1);
+    assert.equal(metadata.remoteRefsCurrent, true);
     assert.match(readFileSync(join(stateDirectory, "tracked.patch"), "utf8"), /\+dirty/);
 
     const tarListing = spawnSync(
@@ -277,6 +304,106 @@ cp -- "$database" "$destination"
     );
     assert.equal(tarListing.status, 0, tarListing.stderr);
     assert.match(tarListing.stdout, /^untracked\.txt$/m);
+    const bundleVerification = spawnSync(
+      "git",
+      ["bundle", "verify", join(stateDirectory, "unpushed.bundle")],
+      { cwd: repository, encoding: "utf8" },
+    );
+    assert.equal(bundleVerification.status, 0, bundleVerification.stderr);
+
+    const staleState = exportedStates.find(
+      ({ metadata: staleMetadata }) =>
+        staleMetadata.relativePath === "workspaces/stale-repository",
+    );
+    assert.ok(staleState);
+    assert.equal(staleState.metadata.unpushedCommitCount, 1);
+    assert.equal(staleState.metadata.remoteRefsCurrent, true);
+    const staleBundleVerification = spawnSync(
+      "git",
+      ["bundle", "verify", join(staleState.stateDirectory, "unpushed.bundle")],
+      { cwd: staleRepository, encoding: "utf8" },
+    );
+    assert.equal(staleBundleVerification.status, 0, staleBundleVerification.stderr);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("state export fails after recording an unreadable worktree candidate", () => {
+  const { directory, fakeSqlite, source, target, workspaces } =
+    createStateExportFixture();
+  mkdirSync(join(workspaces, "broken/.git"), { recursive: true });
+
+  try {
+    const result = run(stateExportScript, [source, target], {
+      ...process.env,
+      SQLITE_BIN: fakeSqlite,
+    });
+    assert.notEqual(result.status, 0);
+    const manifest = JSON.parse(readFileSync(join(target, "manifest.json"), "utf8"));
+    assert.equal(manifest.exportedWorktrees, 0);
+    assert.equal(manifest.skippedWorktrees, 1);
+    assert.match(result.stderr, /skipped 1 worktree/);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("state export fails when worktree discovery is incomplete", () => {
+  const { directory, fakeSqlite, source, target } = createStateExportFixture();
+  const fakeFind = join(directory, "find");
+  writeFileSync(
+    fakeFind,
+    `#!/usr/bin/env bash
+printf '%s\\0' "$1/partial/.git"
+exit 7
+`,
+  );
+  chmodSync(fakeFind, 0o700);
+
+  try {
+    const result = run(stateExportScript, [source, target], {
+      ...process.env,
+      FIND_BIN: fakeFind,
+      SQLITE_BIN: fakeSqlite,
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /worktree discovery failed/);
+    assert.equal(spawnSync("test", ["-e", join(target, "manifest.json")]).status, 1);
+  } finally {
+    rmSync(directory, { force: true, recursive: true });
+  }
+});
+
+test("state export preserves full history when remote refresh fails", () => {
+  const { directory, fakeSqlite, source, target, workspaces } =
+    createStateExportFixture();
+  const repository = join(workspaces, "offline-remote");
+
+  try {
+    runGit(directory, ["init", repository]);
+    runGit(repository, ["config", "user.name", "Backup Test"]);
+    runGit(repository, ["config", "user.email", "backup@example.test"]);
+    writeFileSync(join(repository, "tracked.txt"), "local history\n");
+    runGit(repository, ["add", "tracked.txt"]);
+    runGit(repository, ["commit", "-m", "local history"]);
+    runGit(repository, ["remote", "add", "origin", join(directory, "missing.git")]);
+
+    const result = run(stateExportScript, [source, target], {
+      ...process.env,
+      SQLITE_BIN: fakeSqlite,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stderr, /exporting complete reachable history/);
+
+    const [stateEntry] = readdirSync(join(target, "in-flight-worktrees"));
+    assert.ok(stateEntry);
+    const stateDirectory = join(target, "in-flight-worktrees", stateEntry);
+    const metadata = JSON.parse(
+      readFileSync(join(stateDirectory, "metadata.json"), "utf8"),
+    );
+    assert.equal(metadata.remoteRefsCurrent, false);
+    assert.equal(metadata.unpushedCommitCount, 1);
     const bundleVerification = spawnSync(
       "git",
       ["bundle", "verify", join(stateDirectory, "unpushed.bundle")],
