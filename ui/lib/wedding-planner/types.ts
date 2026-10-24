@@ -26,6 +26,7 @@ export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {
   hosts?: string[];
   guest_directory?: GuestDirectoryMetadata;
   playlist?: CollaborativePlaylist;
+  event_table_plans?: Record<string, TablePlan>;
   reviewed_non_couples: string[][];
   [key: string]: unknown;
 };

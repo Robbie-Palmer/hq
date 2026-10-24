@@ -112,6 +112,7 @@ export const guestProfileSchema = z.object({
   plus_one_of_guest_id: z.string().trim().min(1).nullable().default(null),
   plus_one_allowance: z.number().int().min(0).default(0),
   is_child: z.boolean().default(false),
+  requires_high_chair: z.boolean().default(false),
   relationship_groups: uniqueStrings.default([]),
   dietary_needs: uniqueStrings.default([]),
   allergies: uniqueStrings.default([]),

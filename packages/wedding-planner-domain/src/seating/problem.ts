@@ -1,30 +1,161 @@
 import { tablePairDecision, tablePlanSchema } from "./preferences";
-import { orderedGuestPair } from "../core/guests";
 import type { SeatingGuest, TableInput } from "./types";
 export type TablePair = {
   first: SeatingGuest;
   second: SeatingGuest;
   decision: "yes" | "no";
+  reason: string;
+  weight: number;
 };
 
+function explicitPairDecision(
+  first: SeatingGuest,
+  second: SeatingGuest,
+): "yes" | "no" | "unset" {
+  if (
+    first.seating_constraints?.avoid_with.includes(second.id) ||
+    second.seating_constraints?.avoid_with.includes(first.id)
+  )
+    return "no";
+  if (
+    first.seating_constraints?.prefer_with.includes(second.id) ||
+    second.seating_constraints?.prefer_with.includes(first.id)
+  )
+    return "yes";
+  return tablePairDecision(first, second);
+}
+
+function pairForGuests(
+  first: SeatingGuest,
+  second: SeatingGuest,
+): TablePair | null {
+  const decision = explicitPairDecision(first, second);
+  if (decision !== "unset")
+    return {
+      first,
+      second,
+      decision,
+      reason:
+        decision === "yes"
+          ? "They were marked as a must-sit pair"
+          : "They were marked as a cannot-sit pair",
+      weight: decision === "yes" ? 4 : 0,
+    };
+  const sameParty = Boolean(
+    (first.invitation_party_id &&
+      first.invitation_party_id === second.invitation_party_id) ||
+      (first.source_party && first.source_party === second.source_party),
+  );
+  const sharedGroup = first.relationship_groups?.find((group) =>
+    second.relationship_groups?.includes(group),
+  );
+  if (!sameParty && !sharedGroup) return null;
+  return {
+    first,
+    second,
+    decision: "yes",
+    reason: sameParty
+      ? "They are in the same invitation party"
+      : `They share the ${sharedGroup} relationship group`,
+    weight: sameParty ? 2 : 1,
+  };
+}
+
 function guestPairs(guests: SeatingGuest[]): TablePair[] {
-  return guests.flatMap((first, index) =>
-    guests.slice(index + 1).flatMap((second) => {
-      const decision = tablePairDecision(first, second);
-      return decision === "unset" ? [] : [{ first, second, decision }];
-    }),
+  const pairs: TablePair[] = [];
+  for (const [index, first] of guests.entries())
+    for (const second of guests.slice(index + 1)) {
+      const pair = pairForGuests(first, second);
+      if (pair) pairs.push(pair);
+    }
+  return pairs;
+}
+
+function findGroup(parent: Map<string, string>, id: string): string {
+  const current = parent.get(id);
+  if (!current || current === id) return id;
+  const root = findGroup(parent, current);
+  parent.set(id, root);
+  return root;
+}
+
+function joinGroups(
+  parent: Map<string, string>,
+  first: string,
+  second: string,
+) {
+  const firstRoot = findGroup(parent, first);
+  const secondRoot = findGroup(parent, second);
+  if (firstRoot === secondRoot) return;
+  const [child, root] =
+    firstRoot < secondRoot ? [secondRoot, firstRoot] : [firstRoot, secondRoot];
+  parent.set(child, root);
+}
+
+function joinPartners(parent: Map<string, string>, guests: SeatingGuest[]) {
+  for (const guest of guests) {
+    if (guest.partner_id && parent.has(guest.partner_id))
+      joinGroups(parent, guest.id, guest.partner_id);
+  }
+}
+
+function joinInvitationParties(
+  parent: Map<string, string>,
+  guests: SeatingGuest[],
+) {
+  const parties = new Map<string, string>();
+  for (const guest of guests) {
+    const party = guest.invitation_party_id || guest.source_party;
+    if (!party) continue;
+    const first = parties.get(party);
+    if (first) joinGroups(parent, first, guest.id);
+    else parties.set(party, guest.id);
+  }
+}
+
+function joinRelationshipGroups(
+  parent: Map<string, string>,
+  guests: SeatingGuest[],
+  relationshipGroups: string[],
+) {
+  for (const relationshipGroup of relationshipGroups) {
+    const members = guests.filter((guest) =>
+      guest.relationship_groups?.includes(relationshipGroup),
+    );
+    const [first, ...rest] = members;
+    if (!first) continue;
+    for (const guest of rest) joinGroups(parent, first.id, guest.id);
+  }
+}
+
+function collectGroups(
+  parent: Map<string, string>,
+  guests: SeatingGuest[],
+): SeatingGuest[][] {
+  const groups = new Map<string, SeatingGuest[]>();
+  for (const guest of guests) {
+    const key = findGroup(parent, guest.id);
+    groups.set(key, [...(groups.get(key) ?? []), guest]);
+  }
+  return [...groups.values()].sort((first, second) =>
+    (first[0]?.id ?? "").localeCompare(second[0]?.id ?? ""),
   );
 }
 
-function tableGroups(guests: SeatingGuest[]): SeatingGuest[][] {
-  const groups = new Map<string, SeatingGuest[]>();
-  for (const guest of guests) {
-    const key = guest.partner_id
-      ? `couple:${JSON.stringify(orderedGuestPair(guest.id, guest.partner_id))}`
-      : `guest:${guest.id}`;
-    groups.set(key, [...(groups.get(key) ?? []), guest]);
-  }
-  return [...groups.values()];
+function tableGroups(
+  input: TableInput,
+  guests: SeatingGuest[],
+): SeatingGuest[][] {
+  const parent = new Map(guests.map((guest) => [guest.id, guest.id]));
+  joinPartners(parent, guests);
+  if (input.plan.keep_invitation_parties_together)
+    joinInvitationParties(parent, guests);
+  joinRelationshipGroups(
+    parent,
+    guests,
+    input.plan.keep_relationship_groups_together ?? [],
+  );
+  return collectGroups(parent, guests);
 }
 
 function validateGuest(
@@ -51,12 +182,7 @@ function validateGuest(
     throw new Error(`${guest.name}: table preferences have an invalid guest`);
 }
 
-function validateInput(input: TableInput): void {
-  tablePlanSchema.parse(input.plan);
-  const ids = new Set(input.guests.map((guest) => guest.id));
-  if (ids.size !== input.guests.length)
-    throw new Error("Guest IDs must be unique");
-  for (const guest of input.guests) validateGuest(guest, input.guests, ids);
+function validateTopTableGuests(input: TableInput) {
   for (const id of input.plan.top_table_guest_ids) {
     const guest = input.guests.find((person) => person.id === id);
     if (!guest) throw new Error("The top table refers to an unknown guest");
@@ -65,8 +191,96 @@ function validateInput(input: TableInput): void {
         `Confirm ${guest.name} is attending or remove them from the top table.`,
       );
   }
+}
+
+function tableCapacities(input: TableInput): Map<string, number> {
+  return new Map<string, number>([
+    ["top", input.plan.top_table_capacity],
+    ...input.plan.table_capacities.map(
+      (capacity, index) => [`table-${index + 1}`, capacity] as const,
+    ),
+  ]);
+}
+
+function validateLockedAssignments(
+  input: TableInput,
+  capacities: Map<string, number>,
+): Set<string> {
+  const lockedGuestIds = new Set<string>();
+  for (const [guestId, lock] of Object.entries(
+    input.plan.locked_assignments ?? {},
+  )) {
+    const guest = input.guests.find((person) => person.id === guestId);
+    const capacity = capacities.get(lock.table_id);
+    if (guest?.attendance !== "yes")
+      throw new Error("Only attending guests can have locked seats");
+    if (capacity === undefined)
+      throw new Error(`${guest.name}: locked table does not exist`);
+    if (lock.seat_index !== undefined && lock.seat_index >= capacity)
+      throw new Error(
+        `${guest.name}: locked seat is outside the table capacity`,
+      );
+    lockedGuestIds.add(guestId);
+  }
+  return lockedGuestIds;
+}
+
+function validateLockedTableGuest(
+  input: TableInput,
+  tableId: string,
+  guestId: string,
+  lockedGuestIds: Set<string>,
+) {
+  const guest = input.guests.find((person) => person.id === guestId);
+  if (guest?.attendance !== "yes")
+    throw new Error("Only attending guests can be locked to a table");
+  if (lockedGuestIds.has(guestId)) {
+    const assignment = input.plan.locked_assignments?.[guestId];
+    if (assignment?.table_id !== tableId)
+      throw new Error(`${guest.name}: locked to two different tables`);
+  }
+  lockedGuestIds.add(guestId);
+}
+
+function validateLockedTable(
+  input: TableInput,
+  capacities: Map<string, number>,
+  lockedGuestIds: Set<string>,
+  tableId: string,
+  guestIds: string[],
+) {
+  const capacity = capacities.get(tableId);
+  if (capacity === undefined)
+    throw new Error(`Locked table ${tableId} does not exist`);
+  if (new Set(guestIds).size !== guestIds.length)
+    throw new Error(`Locked table ${tableId} contains a guest twice`);
+  if (guestIds.length > capacity)
+    throw new Error(`Locked table ${tableId} exceeds its capacity`);
+  for (const guestId of guestIds)
+    validateLockedTableGuest(input, tableId, guestId, lockedGuestIds);
+}
+
+function validateLockedTables(
+  input: TableInput,
+  capacities: Map<string, number>,
+  lockedGuestIds: Set<string>,
+) {
+  for (const [tableId, guestIds] of Object.entries(
+    input.plan.locked_table_guest_ids ?? {},
+  ))
+    validateLockedTable(input, capacities, lockedGuestIds, tableId, guestIds);
+}
+
+function validateTopTableCapacity(input: TableInput) {
+  const topGuests = new Set([
+    ...input.plan.top_table_guest_ids,
+    ...Object.entries(input.plan.locked_assignments ?? {})
+      .filter(([, lock]) => lock.table_id === "top")
+      .map(([guestId]) => guestId),
+    ...(input.plan.locked_table_guest_ids?.top ?? []),
+  ]);
   if (
-    input.plan.top_table_guest_ids.length + input.fixed_top_guests.length >
+    topGuests.size + input.fixed_top_guests.length >
     input.plan.top_table_capacity
   )
     throw new Error(
@@ -74,14 +288,33 @@ function validateInput(input: TableInput): void {
     );
 }
 
-export function prepareTableProblem(input: TableInput) {
-  validateInput(input);
-  const attending = input.guests.filter((guest) => guest.attendance === "yes");
-  const unknown = input.guests.filter(
-    (guest) => guest.attendance === "unknown",
-  );
-  const top = new Set(input.plan.top_table_guest_ids);
-  const otherGuests = attending.filter((guest) => !top.has(guest.id));
+function validateInput(input: TableInput): void {
+  tablePlanSchema.parse(input.plan);
+  const ids = new Set(input.guests.map((guest) => guest.id));
+  if (ids.size !== input.guests.length)
+    throw new Error("Guest IDs must be unique");
+  for (const guest of input.guests) validateGuest(guest, input.guests, ids);
+  validateTopTableGuests(input);
+  const capacities = tableCapacities(input);
+  const lockedGuestIds = validateLockedAssignments(input, capacities);
+  validateLockedTables(input, capacities, lockedGuestIds);
+  validateTopTableCapacity(input);
+}
+
+function topGuestIds(input: TableInput): Set<string> {
+  return new Set([
+    ...input.plan.top_table_guest_ids,
+    ...Object.entries(input.plan.locked_assignments ?? {})
+      .filter(([, lock]) => lock.table_id === "top")
+      .map(([guestId]) => guestId),
+    ...(input.plan.locked_table_guest_ids?.top ?? []),
+  ]);
+}
+
+function validateGuestTableCapacity(
+  input: TableInput,
+  otherGuests: SeatingGuest[],
+) {
   const capacity = input.plan.table_capacities.reduce(
     (total, seats) => total + seats,
     0,
@@ -90,26 +323,88 @@ export function prepareTableProblem(input: TableInput) {
     throw new Error(
       `${otherGuests.length} guests need seats at other tables, but there are only ${capacity}. Add tables or increase their capacities.`,
     );
-  const groups = tableGroups(otherGuests);
-  const groupIndex = new Map(
-    groups.flatMap((group, index) =>
-      group.map((guest) => [guest.id, index] as const),
-    ),
-  );
-  const pairs = guestPairs(attending);
+}
+
+function validatePairConflicts(
+  pairs: TablePair[],
+  top: Set<string>,
+  groupIndex: Map<string, number>,
+) {
   for (const pair of pairs.filter((pair) => pair.decision === "no")) {
-    if (top.has(pair.first.id) && top.has(pair.second.id))
+    const firstAtTop = top.has(pair.first.id);
+    const secondAtTop = top.has(pair.second.id);
+    if (firstAtTop && secondAtTop)
       throw new Error(
         `${pair.first.name} and ${pair.second.name} must sit apart but are both fixed at the top table.`,
       );
     if (
-      !top.has(pair.first.id) &&
-      !top.has(pair.second.id) &&
+      !firstAtTop &&
+      !secondAtTop &&
       groupIndex.get(pair.first.id) === groupIndex.get(pair.second.id)
     )
       throw new Error(
         `${pair.first.name} and ${pair.second.name} are a confirmed couple with a keep-apart rule. Change the couple or table preference.`,
       );
   }
-  return { attending, unknown, top, otherGuests, groups, groupIndex, pairs };
+}
+
+function forcedTables(input: TableInput): Map<string, string> {
+  const forced = new Map<string, string>();
+  for (const [guestId, lock] of Object.entries(
+    input.plan.locked_assignments ?? {},
+  ))
+    forced.set(guestId, lock.table_id);
+  for (const [tableId, guestIds] of Object.entries(
+    input.plan.locked_table_guest_ids ?? {},
+  ))
+    for (const guestId of guestIds) forced.set(guestId, tableId);
+  return forced;
+}
+
+function validateGroupLocks(
+  groups: SeatingGuest[][],
+  forcedTableByGuest: Map<string, string>,
+) {
+  for (const group of groups) {
+    const forced = new Set(
+      group
+        .map((guest) => forcedTableByGuest.get(guest.id))
+        .filter((tableId): tableId is string => Boolean(tableId)),
+    );
+    if (forced.size > 1)
+      throw new Error(
+        `${group.map((guest) => guest.name).join(" & ")}: grouped guests are locked to different tables`,
+      );
+  }
+}
+
+export function prepareTableProblem(input: TableInput) {
+  validateInput(input);
+  const attending = input.guests.filter((guest) => guest.attendance === "yes");
+  const unknown = input.guests.filter(
+    (guest) => guest.attendance === "unknown",
+  );
+  const top = topGuestIds(input);
+  const otherGuests = attending.filter((guest) => !top.has(guest.id));
+  validateGuestTableCapacity(input, otherGuests);
+  const groups = tableGroups(input, otherGuests);
+  const groupIndex = new Map(
+    groups.flatMap((group, index) =>
+      group.map((guest) => [guest.id, index] as const),
+    ),
+  );
+  const pairs = guestPairs(attending);
+  validatePairConflicts(pairs, top, groupIndex);
+  const forcedTableByGuest = forcedTables(input);
+  validateGroupLocks(groups, forcedTableByGuest);
+  return {
+    attending,
+    unknown,
+    top,
+    otherGuests,
+    groups,
+    groupIndex,
+    pairs,
+    forcedTableByGuest,
+  };
 }

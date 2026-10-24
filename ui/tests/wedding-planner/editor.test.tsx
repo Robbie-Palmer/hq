@@ -249,6 +249,11 @@ describe("accommodation editor", () => {
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Casey at top table" }),
     );
+    const optionalSettings = screen
+      .getByText("Add rules or pair preferences")
+      .closest("details");
+    expect(optionalSettings).not.toHaveAttribute("open");
+    fireEvent.click(screen.getByText("Add rules or pair preferences"));
     fireEvent.change(
       screen.getByRole("combobox", { name: "Table preferences for guest" }),
       { target: { value: "linen-a" } },
@@ -263,7 +268,14 @@ describe("accommodation editor", () => {
       name: "Calculated table plan",
     });
     expect(within(result).getByText("Top table")).toBeInTheDocument();
-    expect(within(result).getByText("Casey")).toBeInTheDocument();
+    expect(within(result).getAllByText("Casey")).not.toHaveLength(0);
+    for (const summary of within(result).getAllByText("Why these seats"))
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+    expect(
+      within(result)
+        .getByText("Open only if you want to tune the next calculation.")
+        .closest("details"),
+    ).not.toHaveAttribute("open");
     const saved = save.mock.lastCall?.[0];
     expect(saved?.table_plan?.top_table_guest_ids).toEqual(["casey"]);
     expect(saved?.table_plan?.table_capacities).toEqual([2, 2]);
@@ -275,12 +287,37 @@ describe("accommodation editor", () => {
       target: { value: "Wedding party" },
     });
     expect(within(result).getByText("Wedding party")).toBeInTheDocument();
-    expect(within(result).getByText("Casey")).toBeInTheDocument();
+    expect(within(result).getAllByText("Casey")).not.toHaveLength(0);
     fireEvent.click(screen.getByRole("button", { name: "Rotate table" }));
     expect(screen.getByRole("region", { name: "Calculated table plan" })).toBe(
       result,
     );
+    const followUp = screen.getByRole("region", {
+      name: "What do you want to change?",
+    });
+    for (const title of [
+      "Change the calculation",
+      "Move or lock guests",
+      "Save or send the plan",
+    ])
+      expect(
+        within(followUp).getByText(title).closest("details"),
+      ).not.toHaveAttribute("open");
+    fireEvent.click(within(followUp).getByText("Move or lock guests"));
+    const tableLock = screen.getAllByRole("button", { name: "Lock table" })[1];
+    if (!tableLock) throw new Error("Expected a guest-table lock control");
+    fireEvent.click(tableLock);
+    fireEvent.click(within(followUp).getByText("Save or send the plan"));
+    fireEvent.change(screen.getByLabelText("Saved seating plan name"), {
+      target: { value: "Venue draft" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save alternative" }));
+    expect(screen.getByText("Venue draft")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Chosen plan" }),
+    ).toBeInTheDocument();
 
+    fireEvent.click(within(followUp).getByText("Change the calculation"));
     fireEvent.change(
       screen.getByRole("combobox", { name: "Casey wedding attendance" }),
       { target: { value: "no" } },
@@ -294,6 +331,188 @@ describe("accommodation editor", () => {
     fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
     await screen.findByRole("region", { name: "Calculated table plan" });
     expect(save.mock.lastCall?.[0].table_plan?.top_table_guest_ids).toEqual([]);
+  });
+
+  it("edits advanced seating rules and prepares a calculated plan for handoff", async () => {
+    const state = sampleState();
+    for (const person of state.guests) person.attendance = "yes";
+    const firstGuest = state.guests[0];
+    if (!firstGuest) throw new Error("Expected a sample guest");
+    firstGuest.wedding_roles = ["best_man"];
+    firstGuest.relationship_groups = ["Family"];
+    state.guest_directory ??= {
+      households: [],
+      invitation_parties: [],
+      events: [],
+      custom_fields: [],
+      history: [],
+      imports: [],
+    };
+    state.guest_directory.events = [
+      {
+        id: "wedding-breakfast",
+        name: "Wedding breakfast",
+        starts_at: null,
+        location: "",
+        private_notes: [],
+      },
+    ];
+    const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();
+    const application: PlannerApplication = {
+      calculateTables: (draft) => solveTables(buildTableInput(draft)),
+      load: vi.fn().mockResolvedValue(state),
+      save,
+      calculateRooms,
+    };
+    render(<AccommodationEditor application={application} />);
+    await screen.findByText("Who shares a bed?");
+    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Top table capacity" }),
+      { target: { value: "6" } },
+    );
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Table 1 capacity" }),
+      { target: { value: "7" } },
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Casey is a child" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Casey needs a high chair" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Casey needs an accessible seat" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Seat wedding party at top table" }),
+    );
+    expect(
+      screen.getByRole("checkbox", { name: "Alex at top table" }),
+    ).toBeChecked();
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Search table guests" }),
+      {
+        target: { value: "Casey" },
+      },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Search table guests" }),
+      {
+        target: { value: "" },
+      },
+    );
+
+    fireEvent.click(screen.getByText("Add rules or pair preferences"));
+    fireEvent.change(screen.getByRole("combobox", { name: "Seating event" }), {
+      target: { value: "wedding-breakfast" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Keep invitation parties together",
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Keep Family together" }),
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Family preferred table" }),
+      { target: { value: "table-1" } },
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Best man preferred table" }),
+      { target: { value: "top" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Search table preferences" }),
+      { target: { value: "Drew" } },
+    );
+    expect(
+      screen.getByRole("group", { name: "Alex and Drew table preference" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Casey needs a high chair" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Casey needs an accessible seat" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
+    await screen.findByRole("region", { name: "Calculated table plan" });
+    const followUp = screen.getByRole("region", {
+      name: "What do you want to change?",
+    });
+    fireEvent.click(within(followUp).getByText("Move or lock guests"));
+    const assignedTable = screen.getByRole("combobox", {
+      name: "Casey assigned table",
+    });
+    const otherTable = within(assignedTable)
+      .getAllByRole("option")
+      .find(
+        (option) =>
+          option.getAttribute("value") !== assignedTable.getAttribute("value"),
+      );
+    fireEvent.change(assignedTable, {
+      target: { value: otherTable?.getAttribute("value") },
+    });
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Casey assigned seat" }),
+      { target: { value: "0" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Unlock" }));
+
+    const createObjectURL = vi.fn(() => "blob:seating-plan");
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    const now = vi
+      .spyOn(Date, "now")
+      .mockReturnValueOnce(1)
+      .mockReturnValueOnce(2);
+
+    fireEvent.click(within(followUp).getByText("Save or send the plan"));
+    for (const name of ["Venue CSV", "Caterer CSV", "Floor plan SVG"])
+      fireEvent.click(screen.getByRole("button", { name }));
+    expect(createObjectURL).toHaveBeenCalledTimes(3);
+    expect(anchorClick).toHaveBeenCalledTimes(3);
+    for (const name of ["First draft", "Second draft"]) {
+      fireEvent.change(screen.getByLabelText("Saved seating plan name"), {
+        target: { value: name },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Save alternative" }));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Choose plan" }));
+    expect(screen.getAllByRole("button", { name: "Chosen plan" })).toHaveLength(
+      1,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Delete First draft" }));
+    expect(screen.queryByText("First draft")).not.toBeInTheDocument();
+
+    await waitFor(() => expect(save).toHaveBeenCalled());
+    const saved = save.mock.lastCall?.[0];
+    if (!saved) throw new Error("Expected the plan to be saved");
+    expect(saved.guests.find((person) => person.id === "casey")).toMatchObject({
+      is_child: true,
+      requires_high_chair: false,
+      seating_constraints: { requires_accessible_seat: false },
+    });
+    expect(saved.table_plan).toMatchObject({
+      event_id: "wedding-breakfast",
+      keep_invitation_parties_together: true,
+      keep_relationship_groups_together: ["Family"],
+      relationship_group_table_preferences: { Family: ["table-1"] },
+      role_table_preferences: { best_man: ["top"] },
+    });
+    now.mockRestore();
+    anchorClick.mockRestore();
   });
 
   it.each(["layout", "attendance"])(
