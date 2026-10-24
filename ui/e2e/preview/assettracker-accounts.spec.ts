@@ -6,7 +6,33 @@ test("selects an account by URL and records a balance on mobile", async ({
   createPreviewSession,
 }) => {
   const { page } = await createPreviewSession();
-  await page.goto("/assettracker/accounts");
+  await page.goto("/assettracker");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true);
+
+  await page.getByText("Sections", { exact: true }).click();
+  await page.getByRole("link", { name: "Accounts", exact: true }).click();
+  await expect(page).toHaveURL(
+    `${previewSiteURL.origin}/assettracker/accounts`,
+  );
+  await page.getByText("Sections", { exact: true }).click();
+  await expect(
+    page.getByRole("link", { name: "Accounts", exact: true }),
+  ).toHaveAttribute("aria-current", "page");
+  await page.getByText("Sections", { exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    )
+    .toBe(true);
+
   await page.getByRole("link", { name: "Marcus Savings", exact: true }).click();
 
   await expect(page).toHaveURL(

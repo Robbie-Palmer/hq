@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,20 @@ function MutationProbe() {
       }}
     >
       Save a change
+    </button>
+  );
+}
+
+function DemoMutationProbe() {
+  const { addHouseholdMember } = useAssetTracker();
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void addHouseholdMember("Taylor");
+      }}
+    >
+      Personalise household
     </button>
   );
 }
@@ -146,6 +160,30 @@ describe("AssetTrackerLayoutClient", () => {
     expect(
       screen.getAllByRole("link", { name: "Overview" })[0],
     ).not.toHaveAttribute("aria-current");
+  });
+
+  it("identifies demo data until the household is personalised", async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AssetTrackerLayoutClient>
+        <DemoMutationProbe />
+      </AssetTrackerLayoutClient>,
+    );
+
+    expect(
+      await screen.findByRole("complementary", { name: "Demo data" }),
+    ).toHaveTextContent("These example balances and names are fictional");
+
+    await user.click(
+      screen.getByRole("button", { name: "Personalise household" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("complementary", { name: "Demo data" }),
+      ).toBeNull();
+    });
   });
 
   it("reports a browser storage failure and can retry", async () => {

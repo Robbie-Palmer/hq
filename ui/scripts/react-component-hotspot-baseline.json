@@ -263,14 +263,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "AssetTrackerShell",
-    "maximums": {
-      "lines": 67
-    },
-    "path": "app/_projects/personal-finance-app/components/asset-tracker-shell.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "ClearAccountHistoryButton",
     "maximums": {
       "lines": 67
