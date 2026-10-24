@@ -311,6 +311,7 @@ async function restorePantryItem(
         "idempotency-key": operationId,
       },
       method: "PUT",
+      retry: "transient",
     },
     200,
   );

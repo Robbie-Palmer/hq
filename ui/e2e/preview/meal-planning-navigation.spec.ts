@@ -18,7 +18,9 @@ type StoredList = {
 };
 
 async function currentList(context: BrowserContext): Promise<StoredList> {
-  return expectPreviewJSON(context, "/api/shopping-lists/current");
+  return expectPreviewJSON(context, "/api/shopping-lists/current", {
+    retry: "transient",
+  });
 }
 
 async function restoreList(
@@ -45,6 +47,7 @@ function waitForListSave(page: Page) {
 test("keeps planning and shopping as independent durable destinations", async ({
   createPreviewSession,
 }) => {
+  test.setTimeout(75_000);
   const first = await createPreviewSession("user-with-recipes");
   const original = (await currentList(first.context)).snapshot;
 

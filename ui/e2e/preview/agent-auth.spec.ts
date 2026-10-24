@@ -27,6 +27,10 @@ const requestedCapabilities = [
 ] as const;
 const jwtClockSkewSeconds = 5;
 const jwtExpirationSeconds = 60;
+type ReadCapability = Exclude<
+  (typeof requestedCapabilities)[number],
+  "recipe_import.create"
+>;
 
 type SigningIdentity = {
   kid: string;
@@ -136,22 +140,24 @@ function agentJWT(
   });
 }
 
-async function executeCapability<T>(
+async function executeReadCapability<T>(
   context: BrowserContext,
   discovery: Discovery,
   identity: SigningIdentity,
   registration: Registration,
-  capability: string,
+  capability: ReadCapability,
   arguments_: Record<string, unknown>,
 ): Promise<T> {
-  const token = agentJWT(identity, registration, discovery.issuer, capability);
   const response = await expectPreviewJSON<{ data: T }>(
     context,
     discovery.endpoints.execute,
     {
       method: "POST",
-      headers: { authorization: `Bearer ${token}` },
+      headers: () => ({
+        authorization: `Bearer ${agentJWT(identity, registration, discovery.issuer, capability)}`,
+      }),
       data: { capability, arguments: arguments_ },
+      retry: "transient",
     },
   );
   return response.data;
@@ -161,7 +167,7 @@ test.describe("deployed delegated Agent Auth", () => {
   test("approves scoped reads in the UI and enforces revocation", async ({
     createPreviewSession,
   }) => {
-    test.setTimeout(60_000);
+    test.setTimeout(90_000);
     const userSession = await createPreviewSession("user-with-recipes");
     const userContext = userSession.context;
     let agentContext: BrowserContext | undefined;
@@ -174,6 +180,7 @@ test.describe("deployed delegated Agent Auth", () => {
       const discovery = await expectPreviewJSON<Discovery>(
         agentContext,
         "/.well-known/agent-configuration",
+        { retry: "transient" },
       );
       expect(discovery.issuer).toBe(`${previewSiteURL.origin}/api/auth`);
       for (const endpoint of Object.values(discovery.endpoints)) {
@@ -276,7 +283,6 @@ test.describe("deployed delegated Agent Auth", () => {
         page.getByRole("heading", { name: "Agent access approved." }),
       ).toBeVisible();
 
-      const statusToken = hostJWT(hostIdentity, host.hostId, discovery.issuer);
       const status = await expectPreviewJSON<{
         status: string;
         agent_capability_grants: Array<{
@@ -286,7 +292,12 @@ test.describe("deployed delegated Agent Auth", () => {
       }>(
         agentContext,
         `${discovery.endpoints.status}?agent_id=${encodeURIComponent(registration.agent_id)}`,
-        { headers: { authorization: `Bearer ${statusToken}` } },
+        {
+          headers: () => ({
+            authorization: `Bearer ${hostJWT(hostIdentity, host.hostId, discovery.issuer)}`,
+          }),
+          retry: "transient",
+        },
       );
       expect(status.status).toBe("active");
       for (const capability of requestedCapabilities) {
@@ -295,7 +306,7 @@ test.describe("deployed delegated Agent Auth", () => {
         );
       }
 
-      const search = await executeCapability<{
+      const search = await executeReadCapability<{
         items: Array<{ slug: string }>;
       }>(
         agentContext,
@@ -314,7 +325,7 @@ test.describe("deployed delegated Agent Auth", () => {
       expect(visibleSlugs).not.toContain("preview-admin-soup");
       expect(visibleSlugs).not.toContain("preview-household-veggie-curry");
 
-      const recipe = await executeCapability<{
+      const recipe = await executeReadCapability<{
         recipe: { body: string | null; owned: boolean; slug: string } | null;
       }>(agentContext, discovery, agentIdentity, registration, "recipes.read", {
         slug: "preview-private-weeknight-pasta",
@@ -325,7 +336,7 @@ test.describe("deployed delegated Agent Auth", () => {
       });
       expect(recipe.recipe?.body).toContain("tomato passata");
 
-      const dataset = await executeCapability<{
+      const dataset = await executeReadCapability<{
         population: {
           sampledRecipes: number;
           visibleRecipes: number;
@@ -369,7 +380,7 @@ test.describe("deployed delegated Agent Auth", () => {
         "preview-private-weeknight-pasta",
       );
 
-      const importStatus = await executeCapability<{ imports: unknown[] }>(
+      const importStatus = await executeReadCapability<{ imports: unknown[] }>(
         agentContext,
         discovery,
         agentIdentity,
@@ -382,7 +393,7 @@ test.describe("deployed delegated Agent Auth", () => {
         /r2Key|prompt|preview|source/,
       );
 
-      const pantry = await executeCapability<{
+      const pantry = await executeReadCapability<{
         itemVersions: Record<string, string>;
         revision: string;
         scope: string;

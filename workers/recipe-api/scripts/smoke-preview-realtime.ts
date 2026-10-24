@@ -9,6 +9,7 @@ import {
   previewApiRequestURL,
 } from "./preview-api-url";
 import { createPreviewSessionCookie } from "./preview-session";
+import { retryBoundedReadiness } from "./bounded-readiness";
 
 const smokeEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
@@ -51,6 +52,7 @@ type RealtimeEvent = z.infer<typeof realtimeEventSchema>;
 
 const env = smokeEnvSchema.parse(process.env);
 const realtimeTimeoutMs = 15_000;
+const realtimeReadinessTimeoutMs = 20_000;
 
 function realtimeURL(): URL {
   const url = previewApiRequestURL(env.PREVIEW_API_URL, "/pantry/realtime");
@@ -78,12 +80,13 @@ function waitForMessage<T>(
   socket: WebSocket,
   description: string,
   parse: (value: unknown) => T | undefined,
+  timeoutMs = realtimeTimeoutMs,
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error(`Timed out waiting for ${description}`));
-    }, realtimeTimeoutMs);
+      reject(new Error(`Timed out after ${timeoutMs}ms waiting for ${description}`));
+    }, timeoutMs);
 
     const onMessage = (data: RawData) => {
       const message = parse(parseMessage(data));
@@ -116,7 +119,7 @@ function waitForMessage<T>(
   });
 }
 
-async function connectPantry(cookie: string): Promise<{
+async function connectPantryAttempt(cookie: string, attempt: number): Promise<{
   socket: WebSocket;
   resourceId: string;
 }> {
@@ -128,14 +131,26 @@ async function connectPantry(cookie: string): Promise<{
   try {
     const ready = await waitForMessage(
       socket,
-      "subscription.ready",
+      `subscription.ready on attempt ${attempt}`,
       (value) => subscriptionReadySchema.safeParse(value).data,
+      realtimeReadinessTimeoutMs,
     );
     return { socket, resourceId: ready.resourceId };
   } catch (error) {
     socket.terminate();
     throw error;
   }
+}
+
+function connectPantry(cookie: string): Promise<{
+  socket: WebSocket;
+  resourceId: string;
+}> {
+  return retryBoundedReadiness(
+    "Realtime subscription readiness",
+    (attempt) => connectPantryAttempt(cookie, attempt),
+    { attempts: 3, delayMs: 1_000 },
+  );
 }
 
 function waitForPantryEvent(

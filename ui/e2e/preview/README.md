@@ -19,6 +19,13 @@ the realtime protocol, including the event resource, revision, operation ID,
 and change kind. Keeping those checks out of this suite avoids making browser
 QA the only evidence that the backend fan-out works.
 
+Preview sign-in, Access priming, read-only capability calls, and idempotent
+fixture setup retry transport failures and transient HTTP responses at most
+three times. Each attempt has a 15-second timeout. Unsafe mutations and browser
+assertions stay outside this retry loop. Playwright's `failOnFlakyTests` setting
+remains enabled, so a whole-test retry still fails the workflow instead of
+hiding a product race.
+
 The Agent Auth test leaves a revoked test agent and host in the disposable
 preview database. The pantry and household-equipment tests restore the records
 they change. The PWA tests only change browser-local storage and network

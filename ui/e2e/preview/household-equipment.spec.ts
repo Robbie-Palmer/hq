@@ -22,6 +22,7 @@ async function setEquipmentBaseline(context: BrowserContext): Promise<void> {
   const [household] = await expectPreviewJSON<Household[]>(
     context,
     "/api/households",
+    { retry: "transient" },
   );
   if (!household) throw new Error("Household owner has no preview household");
 
@@ -30,20 +31,21 @@ async function setEquipmentBaseline(context: BrowserContext): Promise<void> {
       expectPreviewJSON(
         context,
         `/api/households/${household.id}/equipment/${slug}`,
-        { method: "PUT" },
+        { method: "PUT", retry: "transient" },
       ),
     ),
     ...absentEquipment.map((slug) =>
       expectPreviewStatus(
         context,
         `/api/households/${household.id}/equipment/${slug}`,
-        { method: "DELETE" },
+        { method: "DELETE", retry: "transient" },
         204,
       ),
     ),
     expectPreviewJSON(context, `/api/households/${household.id}/equipment`, {
       data: { recipeMatchMode: "warn" },
       method: "PATCH",
+      retry: "transient",
     }),
   ]);
   const failure = results.find((result) => result.status === "rejected");
@@ -75,6 +77,7 @@ async function expectSuccessfulResponse(
 test("manages household equipment and applies it to recipe cards", async ({
   createPreviewSession,
 }) => {
+  test.setTimeout(90_000);
   const { context, page } = await createPreviewSession("household-owner");
 
   try {
