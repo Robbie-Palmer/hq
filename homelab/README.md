@@ -10,6 +10,11 @@ All services are reachable only over the home LAN and the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet. The router
 forwards no ports, so nothing is ever public.
 
+The MSI Vector laptop is a graphical NixOS workstation and an independent
+development plane. Its full installation and commissioning runbook is in
+[`docs/vector-development.md`](docs/vector-development.md). It does not dual
+boot and it is not a worker in the Mac mini or Hetzner K3s clusters.
+
 [ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
 outage. It is an independent, single-node K3s cluster on a NixOS VPS, not a

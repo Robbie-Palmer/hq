@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: t3-code-data
+  namespace: t3-code
+spec:
+  resources:
+    requests:
+      storage: 500Gi
+  volumeName: t3-code-vector-development

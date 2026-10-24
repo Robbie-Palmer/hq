@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target=${VECTOR_DEVELOPMENT_TARGET:-root@vector-development.local}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+source "${script_dir}/vector-development-ssh"
+vector_development_prepare_ssh "${target}"
+
+ssh -t "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" \
+  tailscale up \
+    --hostname=vector-development \
+    --advertise-tags=tag:vector-development \
+    --ssh \
+    --reset
+
+ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" \
+  'tailscale status && tailscale ip -4 && systemctl restart t3-code-tailscale-serve.service'

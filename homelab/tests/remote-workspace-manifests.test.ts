@@ -49,6 +49,7 @@ const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
 const overlays = {
   home: "k3s/overlays/home",
   remote: "k3s/overlays/remote-development",
+  vector: "k3s/overlays/vector-development",
 } as const;
 const renderedOverlays = new Map<string, string>();
 
@@ -1259,6 +1260,93 @@ test("the Doppler validation catalog matches the installed operator version", ()
   assert.equal(schemaVersion[1], installedVersion[1]);
 });
 
+test("the vector overlay binds the large workspace and RTX 4080 to the laptop", () => {
+  const resources = parseResources(overlays.vector);
+  const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+  const devicePlugin = resource(
+    resources,
+    "DaemonSet",
+    "nvidia-device-plugin-daemonset",
+    "kube-system",
+  );
+  const operatorVolume = resource(
+    resources,
+    "PersistentVolume",
+    "t3-code-vector-development",
+  );
+  const cacheVolume = resource(
+    resources,
+    "PersistentVolume",
+    "t3-code-vector-development-cache",
+  );
+  const runtimeSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code",
+    "t3-code",
+  );
+  const podSpec = valueAt(deployment, ["spec", "template", "spec"]);
+  assert.ok(typeof podSpec === "object" && podSpec !== null);
+  assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
+  assert.deepEqual(valueAt(podSpec, ["nodeSelector"]), {
+    "homelab.dev/accelerator": "nvidia",
+    "homelab.dev/capability": "agent-workspace",
+    "homelab.dev/location": "home",
+    "homelab.dev/power-profile": "mains-dependent",
+  });
+
+  const containers = valueAt(podSpec, ["containers"]);
+  assert.ok(Array.isArray(containers));
+  const t3Container = containers.find(
+    (container) => container.name === "t3-code",
+  ) as Record<string, unknown> | undefined;
+  const dockerContainer = containers.find(
+    (container) => container.name === "docker",
+  ) as Record<string, unknown> | undefined;
+  assert.ok(t3Container);
+  assert.ok(dockerContainer);
+  assert.equal(valueAt(t3Container, ["resources", "limits", "cpu"]), "20");
+  assert.equal(valueAt(t3Container, ["resources", "limits", "memory"]), "40Gi");
+  assert.equal(
+    valueAt(t3Container, ["resources", "limits", "nvidia.com/gpu"]),
+    "1",
+  );
+  assert.equal(valueAt(dockerContainer, ["resources", "limits", "cpu"]), "8");
+  assert.equal(
+    valueAt(dockerContainer, ["resources", "limits", "memory"]),
+    "12Gi",
+  );
+
+  assert.equal(
+    valueAt(operatorVolume, ["spec", "local", "path"]),
+    "/srv/vector-development/t3-code",
+  );
+  assert.equal(valueAt(operatorVolume, ["spec", "capacity", "storage"]), "500Gi");
+  assert.equal(
+    valueAt(cacheVolume, ["spec", "local", "path"]),
+    "/srv/vector-development/t3-code-cache",
+  );
+  assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "250Gi");
+  assert.equal(valueAt(runtimeSecret, ["spec", "config"]), "prd_vector_development");
+  assert.match(
+    String(
+      valueAt(devicePlugin, [
+        "spec",
+        "template",
+        "spec",
+        "containers",
+        0,
+        "image",
+      ]),
+    ),
+    /^nvcr\.io\/nvidia\/k8s-device-plugin@sha256:[a-f0-9]{64}$/,
+  );
+  assert.equal(
+    valueAt(devicePlugin, ["spec", "template", "spec", "runtimeClassName"]),
+    "nvidia",
+  );
+});
+
 test("the remote overlay isolates durable data from rebuildable caches", () => {
   const resources = parseResources(overlays.remote);
 
@@ -2153,7 +2241,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   assert.ok(
     dopplerInstaller.includes(
-      'remote-development-k3s-${namespace}-${token_secret}-${doppler_config}',
+      '${token_label_prefix}-${namespace}-${token_secret}-${doppler_config}',
     ),
   );
   assert.ok(dopplerInstaller.includes("sha256sum -c -"));
