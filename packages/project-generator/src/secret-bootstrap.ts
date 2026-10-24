@@ -9,7 +9,7 @@ import { z } from "zod";
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const environmentNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 const secretNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
-const originSchema = z.string().url().refine((value) => {
+const originSchema = z.url().refine((value) => {
   const url = new URL(value);
   return (
     url.pathname === "/" &&
@@ -384,13 +384,13 @@ function validateState(
   }
   const checkpointIds = new Set(plan.checkpoints.map(({ id }) => id));
   const secretIds = new Set(plan.secrets.map(({ id }) => id));
-  const invalidCheckpoint = parsed.acknowledged_checkpoints.find(
+  const hasInvalidCheckpoint = parsed.acknowledged_checkpoints.some(
     (id, index, values) => !checkpointIds.has(id) || values.indexOf(id) !== index,
   );
-  const invalidSecret = parsed.completed_secrets.find(
+  const hasInvalidSecret = parsed.completed_secrets.some(
     (id, index, values) => !secretIds.has(id) || values.indexOf(id) !== index,
   );
-  if (invalidCheckpoint || invalidSecret) {
+  if (hasInvalidCheckpoint || hasInvalidSecret) {
     throw new Error("Bootstrap state contains an unknown or duplicate completion id");
   }
   return parsed;
@@ -436,6 +436,12 @@ export function planSecretBootstrap(input: {
     })),
     secrets: input.plan.secrets.map((secret) => {
       const checkpoint = checkpointForSecret(secret);
+      let status: "complete" | "waiting" | "ready" = "ready";
+      if (complete.has(secret.id)) {
+        status = "complete";
+      } else if (checkpoint && !acknowledged.has(checkpoint)) {
+        status = "waiting";
+      }
       return {
         id: secret.id,
         name: secret.name,
@@ -444,11 +450,7 @@ export function planSecretBootstrap(input: {
         consumers: secret.consumers.map(consumerLabel),
         rotationOwner: secret.rotation_owner,
         creation: secret.creation.mode,
-        status: complete.has(secret.id)
-          ? "complete"
-          : checkpoint && !acknowledged.has(checkpoint)
-            ? "waiting"
-            : "ready",
+        status,
       };
     }),
   };
@@ -656,7 +658,9 @@ export async function executeSecretBootstrap(
   }
   let state: SecretBootstrapState = {
     ...current,
-    acknowledged_checkpoints: [...acknowledged].toSorted(),
+    acknowledged_checkpoints: [...acknowledged].toSorted((left, right) =>
+      left.localeCompare(right),
+    ),
   };
   await input.persist(state);
   const completed = new Set(state.completed_secrets);
@@ -667,7 +671,12 @@ export async function executeSecretBootstrap(
     const value = await resolveSecretValue(input.plan, secret, input);
     await distributeSecret(input.plan, secret, value, input);
     completed.add(secret.id);
-    state = { ...state, completed_secrets: [...completed].toSorted() };
+    state = {
+      ...state,
+      completed_secrets: [...completed].toSorted((left, right) =>
+        left.localeCompare(right),
+      ),
+    };
     await input.persist(state);
   }
   return {
