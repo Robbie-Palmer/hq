@@ -34,6 +34,7 @@ export const builtInGuestFieldAccess = {
   plus_one_of_guest_id: { view: allRoles, edit: ownerRoles },
   plus_one_allowance: { view: allRoles, edit: ownerRoles },
   is_child: { view: allRoles, edit: ownerRoles },
+  requires_high_chair: { view: allRoles, edit: selfEditableRoles },
   relationship_groups: { view: ownerRoles, edit: ownerRoles },
   dietary_needs: { view: allRoles, edit: selfEditableRoles },
   allergies: { view: allRoles, edit: selfEditableRoles },
