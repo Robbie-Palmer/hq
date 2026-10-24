@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Heart,
   House,
+  LayoutDashboard,
   Music2,
   Search,
   Sparkles,
@@ -81,6 +82,7 @@ import {
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
 import { PlaylistEditor } from "./playlist-editor";
+import { ReadinessDashboard } from "./readiness-dashboard";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -138,6 +140,7 @@ function PaymentChoice({
 }
 
 const plannerSections = [
+  { id: "readiness", label: "Readiness", icon: LayoutDashboard },
   { id: "bed_groups", label: "Bed groups", icon: BedDouble },
   { id: "guests", label: "Guests", icon: Users },
   { id: "sharing", label: "Sharing map", icon: Waypoints },
@@ -783,6 +786,17 @@ export function AccommodationEditor({
               busy={tableBusy}
               onUpdate={update}
               onCalculate={calculateTablePlan}
+            />
+          )}
+          {view === "readiness" && state && (
+            <ReadinessDashboard
+              state={state}
+              onUpdate={update}
+              onNavigate={(destination, targetId) => {
+                if (targetId && destination === "guests")
+                  setSelectedId(targetId);
+                setView(destination);
+              }}
             />
           )}
           <PlaylistView view={view} state={state} onUpdate={update} />

@@ -3,7 +3,11 @@
 import { downloadTextFile } from "browser-base/downloads";
 import { ArrowRight, Download, Lock, Save, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
-import { weddingRoleLabels, weddingRolesLabel } from "wedding-planner-domain";
+import {
+  defaultWeddingReadinessPreferences,
+  weddingRoleLabels,
+  weddingRolesLabel,
+} from "wedding-planner-domain";
 import {
   compareSeatingAlternatives,
   exportAccessibleFloorPlanSvg,
@@ -774,6 +778,27 @@ function SavedPlansAndExports({
     (savedPlan) => savedPlan.id === plan.chosen_plan_id,
   );
   const wedding = editorStateToPlan(state);
+  const exportAllocation = chosen?.allocation ?? allocation;
+  const markExportCurrent = (
+    kind: NonNullable<
+      WeddingPlanDraft["readiness"]
+    >["seating_exports"][number]["kind"],
+  ) => {
+    if (!chosen) return;
+    onUpdate((draft) => {
+      draft.readiness ??= defaultWeddingReadinessPreferences();
+      draft.readiness.seating_exports = [
+        ...draft.readiness.seating_exports.filter(
+          (entry) => entry.kind !== kind,
+        ),
+        {
+          kind,
+          plan_id: chosen.id,
+          exported_at: new Date().toISOString(),
+        },
+      ];
+    });
+  };
   return (
     <Card>
       <CardHeader>
@@ -809,37 +834,40 @@ function SavedPlansAndExports({
           </Button>
           <Button
             variant="outline"
-            onClick={() =>
+            onClick={() => {
               downloadTextFile(
                 "seating-assignments.csv",
                 "text/csv;charset=utf-8",
-                exportSeatingAssignmentsCsv(allocation, wedding.guests),
-              )
-            }
+                exportSeatingAssignmentsCsv(exportAllocation, wedding.guests),
+              );
+              markExportCurrent("venue");
+            }}
           >
             <Download size={14} /> Venue CSV
           </Button>
           <Button
             variant="outline"
-            onClick={() =>
+            onClick={() => {
               downloadTextFile(
                 "catering-summary.csv",
                 "text/csv;charset=utf-8",
-                exportCateringSummaryCsv(allocation, wedding.guests),
-              )
-            }
+                exportCateringSummaryCsv(exportAllocation, wedding.guests),
+              );
+              markExportCurrent("caterer");
+            }}
           >
             <Download size={14} /> Caterer CSV
           </Button>
           <Button
             variant="outline"
-            onClick={() =>
+            onClick={() => {
               downloadTextFile(
                 "accessible-floor-plan.svg",
                 "image/svg+xml",
-                exportAccessibleFloorPlanSvg(plan, allocation),
-              )
-            }
+                exportAccessibleFloorPlanSvg(plan, exportAllocation),
+              );
+              markExportCurrent("floor_plan");
+            }}
           >
             <Download size={14} /> Floor plan SVG
           </Button>
