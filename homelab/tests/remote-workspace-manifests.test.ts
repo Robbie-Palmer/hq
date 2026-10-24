@@ -2426,11 +2426,18 @@ test("the Vector tailnet scripts avoid local DNS collisions", () => {
     "utf8",
   );
 
-  assert.ok(
-    fetchKubeconfig.includes("vector-development.tailaa0e46.ts.net"),
+  assert.match(
+    fetchKubeconfig,
+    /^tailnet_host=\$\{VECTOR_DEVELOPMENT_TAILNET_HOST:-vector-development\.tailaa0e46\.ts\.net\}$/m,
   );
-  assert.ok(rebuild.includes("root@vector-development.tailaa0e46.ts.net"));
-  assert.ok(health.includes("root@vector-development.tailaa0e46.ts.net"));
+  assert.match(
+    rebuild,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.match(
+    health,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
   assert.ok(fetchKubeconfig.includes('tls_server_name=${'));
   assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
 });
