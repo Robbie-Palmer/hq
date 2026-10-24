@@ -2414,6 +2414,7 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes("sleep-inactive-ac-timeout"));
   assert.ok(hostConfig.includes('sleep-inactive-battery-type = "nothing"'));
   assert.ok(hostConfig.includes("sleep-inactive-battery-timeout"));
+  assert.ok(hostConfig.includes('IdleAction = "ignore"'));
   assert.ok(hostConfig.includes('HandleLidSwitch = "suspend"'));
   assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
 });

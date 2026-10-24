@@ -192,6 +192,7 @@ in
       HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "ignore";
       HandleLidSwitchDocked = "ignore";
+      IdleAction = "ignore";
     };
     journald.extraConfig = ''
       SystemMaxUse=1G
