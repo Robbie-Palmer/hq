@@ -42,8 +42,9 @@ COPY --from=mise-tools /opt/t3-code-tools/ /usr/local/bin/
 COPY bindep.txt package.json package-lock.json /usr/local/lib/t3-code/
 COPY --from=agent-auth-mcp package.json package-lock.json /usr/local/lib/agent-auth-mcp/
 
-# npm omits t3's optional platform bundle when reinstalling from its lockfile,
-# so unpack the exact Linux package separately below.
+# T3's npm launcher downloads and verifies the native release archive. Run it
+# during the build so the runtime image does not need a first-start download,
+# then replace its vulnerable undici and zod copies with the fixed pins.
 RUN groupadd --gid 2000 t3code \
     && useradd --uid 2000 --gid 2000 --create-home --shell /bin/bash t3code \
     && apt-get update \
@@ -55,13 +56,24 @@ RUN groupadd --gid 2000 t3code \
     && npm ci --ignore-scripts --omit=dev --prefix /usr/local/lib/agent-auth-mcp \
     && t3_version="$(node -p \
       "require('/usr/local/lib/t3-code/package.json').dependencies.t3")" \
-    && npm pack --ignore-scripts --pack-destination /tmp \
-      "@t3code/t3-linux-x64@${t3_version}" \
-    && mkdir -p /usr/local/lib/t3-code/node_modules/@t3code/t3-linux-x64 \
-    && tar --extract --gzip \
-      --file "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
-      --directory /usr/local/lib/t3-code/node_modules/@t3code/t3-linux-x64 \
-      --strip-components=1 \
+    && T3CODE_HOME=/tmp/t3-home \
+      /usr/local/lib/t3-code/node_modules/.bin/t3 --version >/dev/null \
+    && mkdir -p /usr/local/lib/t3-code/runtime/versions \
+    && cp --archive \
+      "/tmp/t3-home/runtime/versions/${t3_version}" \
+      /usr/local/lib/t3-code/runtime/versions/ \
+    && rm --recursive --force \
+      "/usr/local/lib/t3-code/runtime/versions/${t3_version}/node_modules/undici" \
+      "/usr/local/lib/t3-code/runtime/versions/${t3_version}/node_modules/zod" \
+    && cp --archive \
+      /usr/local/lib/t3-code/node_modules/undici \
+      /usr/local/lib/t3-code/node_modules/zod \
+      "/usr/local/lib/t3-code/runtime/versions/${t3_version}/node_modules/" \
+    && chmod --recursive a+rX \
+      "/usr/local/lib/t3-code/runtime/versions/${t3_version}" \
+    && ln --symbolic \
+      "/usr/local/lib/t3-code/runtime/versions/${t3_version}/t3" \
+      /usr/local/bin/t3 \
     && ln --force \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code-linux-x64/claude \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code/bin/claude.exe \
@@ -78,12 +90,10 @@ RUN groupadd --gid 2000 t3code \
       /usr/local/lib/t3-code/node_modules/.bin/grok \
       /usr/local/lib/t3-code/node_modules/.bin/opencode \
       /usr/local/lib/t3-code/node_modules/.bin/pnpm \
-      /usr/local/lib/t3-code/node_modules/.bin/t3 \
       /usr/local/bin/ \
     && npm cache clean --force \
     && rm -f \
       /tmp/bindep-apt.txt \
-      "/tmp/t3code-t3-linux-x64-${t3_version}.tgz" \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

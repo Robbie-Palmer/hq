@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.1.0-agent-tools-18`. Its leading version matches the bundled T3
+release tag `0.1.2-agent-tools-18`. Its leading version matches the bundled T3
 release, which lets Renovate update the image references in the same pull
 request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its

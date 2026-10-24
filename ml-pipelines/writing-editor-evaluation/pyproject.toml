@@ -20,8 +20,12 @@ dev = [
 [tool.uv]
 environments = ["sys_platform == 'linux' and platform_machine == 'x86_64'"]
 package = false
-# Keep the build tool above the release that fixes CVE-2026-59890.
-override-dependencies = ["setuptools>=83.0.0"]
+# Keep transitive tools above their security-fix releases.
+override-dependencies = [
+    "certifi>=2026.10.19",
+    "filelock>=4.2.1",
+    "setuptools>=84.1.0",
+]
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu126" }
