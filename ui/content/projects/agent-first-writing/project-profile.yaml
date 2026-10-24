@@ -9,27 +9,9 @@ components:
   - id: "writing-editor-evaluation"
     name: "Writing editor evaluation"
     kind: "python-pipeline"
-    task_exceptions:
-      - task: "format"
-        reason: "Repository-wide formatting covers this pipeline."
-      - task: "lint"
-        reason: "The pipeline check task owns linting."
-      - task: "build"
-        reason: "The evaluation pipeline has no standalone build artifact."
-      - task: "clean"
-        reason: "DVC and the shared workspace own generated-data cleanup."
   - id: "writing-editor-domain"
     name: "Writing editor domain"
     kind: "typescript-package"
-    task_exceptions:
-      - task: "format"
-        reason: "Repository-wide formatting covers this package."
-      - task: "lint"
-        reason: "Repository-wide lint tasks cover this package."
-      - task: "build"
-        reason: "The package exposes TypeScript source directly."
-      - task: "clean"
-        reason: "The shared workspace owns cleanup."
 
 layers:
   - layer: "governance"

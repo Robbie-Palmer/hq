@@ -65,6 +65,52 @@ describe("shared platform contract parsers", () => {
     expect(parsed.selections[0]?.technology).toBe("typescript");
   });
 
+  it("preserves task delegation in legacy version 1 layouts", () => {
+    const parsed = parseRepositoryLayoutContract({
+      schema_version: 1,
+      project_kinds: [],
+      projects: [],
+      component_kinds: [
+        {
+          id: "project-ui",
+          directory: "ui/app/_projects/{project}",
+          mise_config_root: false,
+          delegated_task_project: "//ui",
+        },
+        {
+          id: "package",
+          directory: "packages/{component}",
+        },
+      ],
+      task_contract: { id: "standard", required: [] },
+      knowledge_graph: {
+        project_index: "projects/{project}",
+        architecture_decisions: "adrs/{project}",
+        product_decisions: "decisions/{project}",
+      },
+      shared_manifests: [],
+      workspace_policy: {
+        node_workspace: "pnpm-workspace.yaml",
+        node_lockfile: "pnpm-lock.yaml",
+        standalone_node_roots: [],
+        approved_npm_lockfiles: [],
+        local_mise_roots: [],
+      },
+    });
+
+    expect(parsed.component_kinds).toEqual([
+      expect.objectContaining({
+        id: "project-ui",
+        task_ownership: "delegated",
+        delegated_task_project: "//ui",
+      }),
+      expect.objectContaining({
+        id: "package",
+        task_ownership: "generated",
+      }),
+    ]);
+  });
+
   it("infers policy selections from their value", () => {
     const parsed = parsePlatformManifestSource({
       schema_version: 1,

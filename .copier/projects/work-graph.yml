@@ -76,48 +76,39 @@ blueprint:
       path: infra/work-graph
       stable_id: component:work-graph/work-graph
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: Infrastructure has no standalone build artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: Terraform working data is ephemeral or operator-managed.
-        - disposition: generated
+        - disposition: inherited
           name: format
-        - disposition: not-applicable
+        - disposition: inherited
           name: install
-          reason: Terraform initialization remains environment-aware.
-        - disposition: generated
+        - disposition: inherited
           name: lint
-        - disposition: not-applicable
+        - disposition: inherited
           name: test
-          reason: Terraform plan checks cover the infrastructure contract.
-        - disposition: not-applicable
+        - disposition: inherited
           name: typecheck-or-compile
-          reason: Terraform validation and linting replace compilation.
     - id: work-graph-api
       kind: worker
       name: Work Graph API
       path: workers/work-graph-api
       stable_id: component:work-graph/work-graph-api
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The deployment check builds the Worker bundle.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this Worker.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The Worker check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: work-graph-cli
       kind: typescript-package
@@ -125,22 +116,19 @@ blueprint:
       path: packages/work-graph-cli
       stable_id: component:work-graph/work-graph-cli
       tasks:
-        - disposition: generated
+        - disposition: inherited
           name: build
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: work-graph-db
       kind: typescript-package
@@ -148,24 +136,19 @@ blueprint:
       path: packages/work-graph-db
       stable_id: component:work-graph/work-graph-db
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: not-applicable
+        - disposition: inherited
           name: test
-          reason: Database behavior is verified by the integration suite.
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: work-graph-domain
       kind: typescript-package
@@ -173,23 +156,19 @@ blueprint:
       path: packages/work-graph-domain
       stable_id: component:work-graph/work-graph-domain
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: work-graph-observer
       kind: worker
@@ -197,25 +176,21 @@ blueprint:
       path: workers/work-graph-observer
       stable_id: component:work-graph/work-graph-observer
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The deployment check builds the Worker bundle.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this Worker.
-        - disposition: generated
+        - disposition: inherited
           name: install
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The Worker check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
-  effective_at: 2026-10-23 00:00:00+00:00
+  effective_at: 2026-10-23 14:00:00+00:00
   manual_checkpoints:
     - Configure AGE_RECIPIENT for
       database-backup-restore-encrypted-archives-2026-09-29

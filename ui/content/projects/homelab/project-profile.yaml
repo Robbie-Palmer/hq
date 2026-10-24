@@ -9,37 +9,18 @@ components:
   - id: "ansible"
     name: "Home Lab Ansible automation"
     kind: "homelab-subsystem"
-    task_exceptions: &homelab_task_exceptions
-      - task: "install"
-        reason: "Subsystem dependencies are installed by environment-specific tasks."
-      - task: "format"
-        reason: "Subsystem-specific tasks own formatting verification."
-      - task: "lint"
-        reason: "Subsystem-specific tasks own static validation."
-      - task: "typecheck-or-compile"
-        reason: "Nix, Ansible, and Kubernetes validation replace compilation."
-      - task: "test"
-        reason: "Subsystem checks remain environment-specific."
-      - task: "build"
-        reason: "System closures, manifests, and images have separate build tasks."
-      - task: "clean"
-        reason: "Each subsystem retains its own cleanup policy."
   - id: "hosts"
     name: "Home Lab host configurations"
     kind: "homelab-subsystem"
-    task_exceptions: *homelab_task_exceptions
   - id: "k3s"
     name: "Home Lab K3s workloads"
     kind: "homelab-subsystem"
-    task_exceptions: *homelab_task_exceptions
   - id: "personal-archive-backup"
     name: "Personal archive backup"
     kind: "homelab-subsystem"
-    task_exceptions: *homelab_task_exceptions
   - id: "remote-development-backup"
     name: "Remote development backup"
     kind: "homelab-subsystem"
-    task_exceptions: *homelab_task_exceptions
 
 layers:
   - layer: "governance"

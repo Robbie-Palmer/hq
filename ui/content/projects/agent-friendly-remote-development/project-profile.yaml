@@ -9,17 +9,6 @@ components:
   - id: "remote-development"
     name: "Remote development infrastructure"
     kind: "terraform-root"
-    task_exceptions:
-      - task: "install"
-        reason: "Terraform initialization remains environment-aware."
-      - task: "typecheck-or-compile"
-        reason: "Terraform validation and linting replace compilation."
-      - task: "test"
-        reason: "Terraform plan checks cover the infrastructure contract."
-      - task: "build"
-        reason: "Infrastructure has no standalone build artifact."
-      - task: "clean"
-        reason: "Terraform working data is ephemeral or operator-managed."
 
 layers:
   - layer: "governance"

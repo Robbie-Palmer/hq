@@ -36,24 +36,19 @@ blueprint:
       path: packages/ai-review-domain
       stable_id: component:agentic-code-review/ai-review-domain
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The package exposes TypeScript source directly.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: The shared workspace owns cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this package.
-        - disposition: not-applicable
+        - disposition: inherited
           name: install
-          reason: The shared workspace installs this package.
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: Repository-wide lint tasks cover this package.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: generated
+        - disposition: inherited
           name: typecheck-or-compile
     - id: ai-review-evaluation
       kind: python-pipeline
@@ -61,27 +56,21 @@ blueprint:
       path: ml-pipelines/ai-review-evaluation
       stable_id: component:agentic-code-review/ai-review-evaluation
       tasks:
-        - disposition: not-applicable
+        - disposition: inherited
           name: build
-          reason: The evaluation pipeline has no standalone build artifact.
-        - disposition: not-applicable
+        - disposition: inherited
           name: clean
-          reason: DVC and the shared workspace own generated-data cleanup.
-        - disposition: not-applicable
+        - disposition: inherited
           name: format
-          reason: Repository-wide formatting covers this pipeline.
-        - disposition: not-applicable
+        - disposition: inherited
           name: install
-          reason: The shared workspace installs the pipeline dependencies.
-        - disposition: not-applicable
+        - disposition: inherited
           name: lint
-          reason: The pipeline check task owns linting.
-        - disposition: generated
+        - disposition: inherited
           name: test
-        - disposition: not-applicable
+        - disposition: inherited
           name: typecheck-or-compile
-          reason: The pipeline check task validates its executable sources.
-  effective_at: 2026-10-23 00:00:00+00:00
+  effective_at: 2026-10-23 14:00:00+00:00
   manual_checkpoints:
     - Provision Bucket configuration and object contents for
       storage-object-store-cloudflare-r2-2026-09-29

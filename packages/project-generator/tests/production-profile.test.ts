@@ -104,7 +104,7 @@ describe("Personal Finance production profile", () => {
     ).toBe(false);
   });
 
-  it("pins the production template and preserves explicit local exceptions", async () => {
+  it("pins the production template and inherits local task applicability", async () => {
     const [{ blueprint, contracts }, registrySource] = await Promise.all([
       productionBlueprint(),
       readFile(new URL("project-template-sources.yaml", platformRoot), "utf8"),
@@ -138,24 +138,17 @@ describe("Personal Finance production profile", () => {
           .filter(({ disposition }) => disposition === "not-applicable")
           .map(({ name }) => `${id}:${name}`),
       ),
-    ).toEqual([
-      "finance-housing-indices:build",
-      "finance-housing-indices:clean",
-      "finance-housing-indices:format",
-      "finance-housing-indices:lint",
-      "finance-inflation-indices:clean",
-      "finance-inflation-indices:format",
-      "finance-inflation-indices:lint",
-      "finance-tax-rules:clean",
-      "finance-tax-rules:format",
-      "finance-tax-rules:lint",
-      "personal-finance:build",
-      "personal-finance:clean",
-      "personal-finance:install",
-      "personal-finance:typecheck-or-compile",
-      "planning-case-domain:build",
-      "planning-case-domain:clean",
-      "planning-case-domain:lint",
-    ]);
+    ).toEqual([]);
+    expect(
+      blueprint.components
+        .filter(({ id }) => id !== "web")
+        .flatMap(({ tasks }) => tasks)
+        .every(({ disposition }) => disposition === "inherited"),
+    ).toBe(true);
+    expect(
+      blueprint.components
+        .find(({ id }) => id === "web")
+        ?.tasks.every(({ disposition }) => disposition === "delegated"),
+    ).toBe(true);
   });
 });

@@ -34,12 +34,14 @@ function contracts(): ProjectProfileContracts {
           directory: "ui",
           mise_config_root: true,
           pnpm_workspace_package: true,
+          task_ownership: "generated",
         },
         {
           id: "project-ui",
           directory: "ui/app/_projects/{project}",
           mise_config_root: false,
           pnpm_workspace_package: false,
+          task_ownership: "delegated",
           delegated_task_project: "//ui",
         },
         {
@@ -47,18 +49,21 @@ function contracts(): ProjectProfileContracts {
           directory: "workers/{component}",
           mise_config_root: true,
           pnpm_workspace_package: true,
+          task_ownership: "inherited",
         },
         {
           id: "typescript-package",
           directory: "packages/{component}",
           mise_config_root: true,
           pnpm_workspace_package: true,
+          task_ownership: "inherited",
         },
         {
           id: "terraform-root",
           directory: "infra/{component}",
           mise_config_root: true,
           pnpm_workspace_package: false,
+          task_ownership: "inherited",
         },
       ],
       task_contract: {

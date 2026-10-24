@@ -15,12 +15,21 @@ export const repositoryLayoutComponentKindSchema =
       directory: z.string(),
       mise_config_root: z.boolean().default(true),
       pnpm_workspace_package: z.boolean().default(false),
+      task_ownership: z
+        .enum(["generated", "inherited", "delegated"])
+        .optional(),
       delegated_task_project: z
         .string()
         .regex(/^\/\/[a-z0-9][a-z0-9./-]*$/)
         .optional(),
     })
-    .strict();
+    .strict()
+    .transform((component) => ({
+      ...component,
+      task_ownership:
+        component.task_ownership ??
+        (component.delegated_task_project ? "delegated" : "generated"),
+    }));
 
 export const repositoryLayoutProjectRegistrationSchema =
   repositoryLayoutNamedRecordSchema

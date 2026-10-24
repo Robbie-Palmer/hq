@@ -23,9 +23,15 @@ function profile(overrides: Record<string, unknown> = {}): ProjectProfile {
         id: "web",
         name: "Web application",
         kind: "ui",
-        task_exceptions: [{ task: "clean", reason: "The workspace owns cleanup." }],
       },
-      { id: "api", name: "API", kind: "worker" },
+      {
+        id: "api",
+        name: "API",
+        kind: "worker",
+        task_exceptions: [
+          { task: "clean", reason: "The workspace owns cleanup." },
+        ],
+      },
     ],
     layers: [
       { layer: "base" },
@@ -71,12 +77,14 @@ function contracts(overrides: {
         directory: "ui",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "generated",
       },
       {
         id: "project-ui",
         directory: "ui/app/_projects/{project}",
         mise_config_root: false,
         pnpm_workspace_package: false,
+        task_ownership: "delegated",
         delegated_task_project: "//ui",
       },
       {
@@ -84,6 +92,7 @@ function contracts(overrides: {
         directory: "ui/content/projects/{project}",
         mise_config_root: false,
         pnpm_workspace_package: false,
+        task_ownership: "delegated",
         delegated_task_project: "//ui",
       },
       {
@@ -91,49 +100,56 @@ function contracts(overrides: {
         directory: "workers/{component}",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "inherited",
       },
       {
         id: "typescript-package",
         directory: "packages/{component}",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "inherited",
       },
       {
         id: "python-pipeline",
         directory: "ml-pipelines/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "cpp-project",
         directory: "cpp/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "terraform-root",
         directory: "infra/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "kubernetes-component",
         directory: "homelab/k3s/components/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "homelab-system",
         directory: "homelab",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "homelab-subsystem",
         directory: "homelab/{component}",
         mise_config_root: false,
         pnpm_workspace_package: false,
-        delegated_task_project: "//homelab",
+        task_ownership: "inherited",
       },
     ],
     task_contract: {
@@ -333,10 +349,18 @@ describe("project profile resolution", () => {
       "component:sample-app/api",
       "component:sample-app/web",
     ]);
-    expect(blueprint.components[1]?.tasks).toContainEqual({
+    expect(blueprint.components[0]?.tasks).toContainEqual({
       name: "clean",
       disposition: "not-applicable",
       reason: "The workspace owns cleanup.",
+    });
+    expect(blueprint.components[1]?.tasks).toContainEqual({
+      name: "build",
+      disposition: "generated",
+    });
+    expect(blueprint.components[0]?.tasks).toContainEqual({
+      name: "build",
+      disposition: "inherited",
     });
     expect(blueprint.repository_paths).toEqual({
       copier_answers: ".copier/projects/sample-app.yml",
@@ -452,6 +476,63 @@ describe("project profile resolution", () => {
     expect(blueprint.ownership.owned_paths).toContain(
       "ui/app/_projects/personal-finance-app",
     );
+  });
+
+  it("inherits task applicability from an ancestor mise project", () => {
+    const input = profile({
+      project: {
+        id: "home-lab",
+        name: "Home Lab",
+        kind: "infrastructure",
+      },
+      components: [
+        {
+          id: "hosts",
+          name: "Host configurations",
+          kind: "homelab-subsystem",
+        },
+      ],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(blueprint.components[0]?.tasks).toHaveLength(7);
+    expect(
+      blueprint.components[0]?.tasks.every(
+        ({ disposition }) => disposition === "inherited",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects delegated task ownership without a target project", () => {
+    const malformedContracts = contracts();
+    const projectUi = malformedContracts.layout.component_kinds.find(
+      ({ id }) => id === "project-ui",
+    );
+    if (!projectUi) throw new Error("Missing project-ui component kind");
+    delete projectUi.delegated_task_project;
+    const input = profile({
+      components: [
+        {
+          id: "web",
+          name: "Web application",
+          kind: "project-ui",
+          mount_path: "/web",
+        },
+      ],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    expect(() =>
+      resolveProjectProfile(input, malformedContracts, effectiveAt),
+    ).toThrow(/delegates tasks without a target project/);
   });
 
   it("deduplicates project content ownership", () => {
