@@ -32,15 +32,11 @@ function Field({
   );
 }
 
-export function AccountPanel({
-  user,
-}: Readonly<{
-  user: { name: string; email: string; image?: string | null };
-}>) {
-  const [name, setName] = useState(user.name);
+function useAccountNameAutosave(initialName: string) {
+  const [name, setName] = useState(initialName);
   const [saveState, setSaveState] = useState<SaveStatusState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const savedName = useRef(user.name);
+  const savedName = useRef(initialName);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saving = useRef(false);
   const pending = useRef<string | null>(null);
@@ -101,6 +97,23 @@ export function AccountPanel({
     timer.current = setTimeout(() => void save(value), 800);
   }
 
+  return {
+    errorMsg,
+    name,
+    onNameBlur: () => void save(name),
+    onNameChange,
+    saveState,
+  };
+}
+
+export function AccountPanel({
+  user,
+}: Readonly<{
+  user: { name: string; email: string; image?: string | null };
+}>) {
+  const { errorMsg, name, onNameBlur, onNameChange, saveState } =
+    useAccountNameAutosave(user.name);
+
   return (
     <div>
       <PanelHead
@@ -125,7 +138,7 @@ export function AccountPanel({
         <Input
           value={name}
           onChange={(event) => onNameChange(event.target.value)}
-          onBlur={() => void save(name)}
+          onBlur={onNameBlur}
           aria-label="Display name"
           className="max-w-sm bg-[var(--card)]"
         />
