@@ -24,6 +24,32 @@ let
   ];
   t3CodeDesktop = pkgs.callPackage ../../packages/t3-code-desktop.nix { };
   nvidiaContainerTools = lib.getOutput "tools" config.hardware.nvidia-container-toolkit.package;
+  dataLayoutScript = pkgs.writeShellApplication {
+    name = "vector-development-data-layout";
+    runtimeInputs = [ pkgs.coreutils ];
+    text = builtins.readFile ./scripts/create-data-layout.bash;
+  };
+  projectQuotaScript = pkgs.writeShellApplication {
+    name = "vector-development-project-quotas";
+    runtimeInputs = with pkgs; [
+      coreutils
+      e2fsprogs
+      findutils
+      gawk
+      gnugrep
+      quota
+      util-linux
+    ];
+    text = builtins.readFile ./scripts/apply-project-quotas.bash;
+  };
+  tailscaleServeScript = pkgs.writeShellApplication {
+    name = "vector-development-tailscale-serve";
+    runtimeInputs = with pkgs; [
+      jq
+      tailscale
+    ];
+    text = builtins.readFile ./scripts/configure-tailscale-serve.bash;
+  };
 in
 {
   imports = [
@@ -96,7 +122,12 @@ in
       xkb.layout = "gb";
     };
     libinput.enable = true;
-    printing.enable = true;
+    printing = {
+      enable = true;
+      clientConf = ''
+        ServerName raspberrypi.tailaa0e46.ts.net
+      '';
+    };
     fwupd.enable = true;
     power-profiles-daemon.enable = true;
     pipewire = {
@@ -222,10 +253,9 @@ in
       '';
     };
     systemPackages = with pkgs; [
-      chromium
+      brave
       curl
       e2fsprogs
-      firefox
       git
       gh
       htop
@@ -236,7 +266,6 @@ in
       less
       libva-utils
       lsof
-      neovim
       pciutils
       quota
       ripgrep
@@ -259,24 +288,15 @@ in
     wantedBy = [ "multi-user.target" ];
     before = [ "k3s.service" ];
     serviceConfig = {
+      ExecStart = "${dataLayoutScript}/bin/vector-development-data-layout";
       Type = "oneshot";
       RemainAfterExit = true;
     };
-    script = ''
-      install -d -m 0755 ${dataMount}
-      install -d -m 2770 -o t3code -g t3code ${operatorDataPath}
-      install -d -m 0750 -o t3code -g t3code ${operatorDataPath}/home
-      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.t3
-      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.codex
-      install -d -m 0700 -o t3code -g t3code ${operatorDataPath}/home/.codex-personal
-      install -d -m 0750 -o t3code -g t3code ${operatorDataPath}/workspaces
-      install -d -m 2770 -o t3code -g t3code ${cacheDataPath}
-      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/home-cache
-      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/mise
-      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/pnpm
-      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/arduino15
-      install -d -m 0750 -o t3code -g t3code ${cacheDataPath}/shared-task-cache
-    '';
+    environment = {
+      VECTOR_DATA_MOUNT = dataMount;
+      VECTOR_OPERATOR_DATA_PATH = operatorDataPath;
+      VECTOR_CACHE_DATA_PATH = cacheDataPath;
+    };
   };
 
   systemd.services.vector-development-project-quotas = {
@@ -285,54 +305,26 @@ in
     requires = [ "vector-development-data-layout.service" ];
     before = [ "k3s.service" ];
     wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [
-      coreutils
-      e2fsprogs
-      findutils
-      gawk
-      gnugrep
-      quota
-      util-linux
-    ];
     serviceConfig = {
+      ExecStart = "${projectQuotaScript}/bin/vector-development-project-quotas";
       Type = "oneshot";
       RemainAfterExit = true;
       StateDirectory = "vector-development";
       StateDirectoryMode = "0700";
     };
-    script = ''
-      findmnt --noheadings --output OPTIONS / | tr ',' '\n' | grep -Fx prjquota >/dev/null
-      if ! quotaon --project --print-state / | grep -F ' is on' >/dev/null; then
-        quotaon --project /
-      fi
-
-      quota_state="${projectQuotaLayoutVersion}:$(findmnt --noheadings --output UUID / | tr -d ' ')"
-      quota_state_file=/var/lib/vector-development/project-quota-layout
-      if [ "$(cat "$quota_state_file" 2>/dev/null || true)" != "$quota_state" ]; then
-        find ${operatorDataPath} -xdev ! -type l -exec chattr -p ${operatorProjectId} {} +
-        find ${cacheDataPath} -xdev ! -type l -exec chattr -p ${cacheProjectId} {} +
-      fi
-      chattr +P ${operatorDataPath}
-      setquota --project ${operatorProjectId} 0 ${operatorBlockHardLimit} 0 ${operatorInodeHardLimit} /
-      chattr +P ${cacheDataPath}
-      setquota --project ${cacheProjectId} 0 ${cacheBlockHardLimit} 0 ${cacheInodeHardLimit} /
-      repquota --project --verbose --no-names --output=csv / | awk -F, '
-        $1 == "#${operatorProjectId}" {
-          operator_found = 1
-          if ($6 != "${operatorBlockHardLimitKiB}" || $10 != "${operatorInodeHardLimit}") exit 1
-        }
-        $1 == "#${cacheProjectId}" {
-          cache_found = 1
-          if ($6 != "${cacheBlockHardLimitKiB}" || $10 != "${cacheInodeHardLimit}") exit 1
-        }
-        END { if (!operator_found || !cache_found) exit 1 }'
-      quota_state_tmp="$(mktemp "$quota_state_file.XXXXXX")"
-      trap 'rm -f -- "$quota_state_tmp"' EXIT
-      printf '%s\n' "$quota_state" >"$quota_state_tmp"
-      chmod 0600 "$quota_state_tmp"
-      mv -f -- "$quota_state_tmp" "$quota_state_file"
-      trap - EXIT
-    '';
+    environment = {
+      VECTOR_PROJECT_QUOTA_LAYOUT_VERSION = projectQuotaLayoutVersion;
+      VECTOR_OPERATOR_DATA_PATH = operatorDataPath;
+      VECTOR_OPERATOR_PROJECT_ID = operatorProjectId;
+      VECTOR_OPERATOR_BLOCK_HARD_LIMIT = operatorBlockHardLimit;
+      VECTOR_OPERATOR_BLOCK_HARD_LIMIT_KIB = operatorBlockHardLimitKiB;
+      VECTOR_OPERATOR_INODE_HARD_LIMIT = operatorInodeHardLimit;
+      VECTOR_CACHE_DATA_PATH = cacheDataPath;
+      VECTOR_CACHE_PROJECT_ID = cacheProjectId;
+      VECTOR_CACHE_BLOCK_HARD_LIMIT = cacheBlockHardLimit;
+      VECTOR_CACHE_BLOCK_HARD_LIMIT_KIB = cacheBlockHardLimitKiB;
+      VECTOR_CACHE_INODE_HARD_LIMIT = cacheInodeHardLimit;
+    };
   };
 
   systemd.services.k3s = {
@@ -360,24 +352,8 @@ in
       "tailscaled.service"
     ];
     wantedBy = [ "multi-user.target" ];
-    path = [
-      pkgs.jq
-      pkgs.tailscale
-    ];
-    script = ''
-      if tailscale status --json | jq --exit-status '.BackendState == "Running"' >/dev/null; then
-        tailscale serve reset
-        tailscale serve --bg --https=443 http://127.0.0.1:30773
-        tailscale serve --bg --https=3000 http://127.0.0.1:31000
-        tailscale serve --bg --https=3001 http://127.0.0.1:31001
-        tailscale serve --bg --https=3002 http://127.0.0.1:31002
-        tailscale serve --bg --https=3003 http://127.0.0.1:31003
-        tailscale serve --bg --https=3004 http://127.0.0.1:31004
-      else
-        echo "Tailscale is not enrolled; Serve will be configured after enrollment"
-      fi
-    '';
     serviceConfig = {
+      ExecStart = "${tailscaleServeScript}/bin/vector-development-tailscale-serve";
       Type = "oneshot";
       RemainAfterExit = true;
       Restart = "on-failure";

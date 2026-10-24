@@ -1201,6 +1201,50 @@ test("every rendered overlay passes the pinned Kubernetes and Doppler schemas", 
   }
 });
 
+test("the Vector and Hetzner workspaces share one OpenCode profile", () => {
+  const expectedProfile = readFileSync(
+    new URL(
+      "../k3s/components/t3-code-operator-profile/opencode.json",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  for (const overlay of [overlays.remote, overlays.vector]) {
+    const resources = parseResources(overlay);
+    const profiles = resources.filter(
+      ({ kind, metadata }) =>
+        kind === "ConfigMap" &&
+        metadata.namespace === "t3-code" &&
+        metadata.name.startsWith("t3-code-operator-profile-"),
+    );
+    assert.equal(profiles.length, 1);
+    const profile = profiles[0]!;
+    assert.equal(valueAt(profile, ["data", "opencode.json"]), expectedProfile);
+
+    const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+    const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
+    assert.ok(Array.isArray(containers));
+    const t3Container = containers.find(({ name }) => name === "t3-code");
+    assert.ok(t3Container);
+    const environment = valueAt(t3Container, ["env"]);
+    assert.ok(Array.isArray(environment));
+    const openCodeConfig = environment.find(
+      ({ name }) => name === "OPENCODE_CONFIG_CONTENT",
+    );
+    assert.deepEqual(openCodeConfig, {
+      name: "OPENCODE_CONFIG_CONTENT",
+      valueFrom: {
+        configMapKeyRef: {
+          key: "opencode.json",
+          name: profile.metadata.name,
+          optional: false,
+        },
+      },
+    });
+  }
+});
+
 test("Flux Schema evaluates the DopplerSecret CEL authentication rule", () => {
   const invalidDopplerSecret = `
 apiVersion: secrets.doppler.com/v1alpha1
@@ -1353,6 +1397,7 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
   assert.deepEqual(kindCounts(resources), {
     ClusterRole: 1,
     ClusterRoleBinding: 1,
+    ConfigMap: 1,
     Deployment: 2,
     DopplerSecret: 3,
     Namespace: 2,
@@ -1964,6 +2009,7 @@ test("the default remote overlay contains only the operator workspace", () => {
   assert.deepEqual(kindCounts(resources), {
     ClusterRole: 1,
     ClusterRoleBinding: 1,
+    ConfigMap: 1,
     Deployment: 2,
     DopplerSecret: 3,
     Namespace: 2,

@@ -27,13 +27,14 @@ Collector; the image does not contain a PostHog token. OTLP export does not
 disable the rotating local trace at
 `/data/home/.t3/userdata/logs/server.trace.ndjson`.
 
-The deployment enables the OpenCode and Grok providers in T3's persisted
-settings, enables thread continuation after a server restart, and adds a
-`codex2` instance backed by a separate `auth.json`. It
-defaults new Codex threads and every Codex provider catalog to GPT-5.6-Sol with
-high reasoning while keeping the other cached models available. The
-remote-development overlay declares OpenRouter's GLM 5.3 Flash
-model through `OPENCODE_CONFIG_CONTENT`. Doppler injects
+The image's bootstrap script is the shared T3 provider policy for every
+environment built from this image. It enables the OpenCode and Grok providers,
+enables thread continuation after a server restart, and adds a `codex2`
+instance backed by a separate `auth.json`. It defaults new Codex threads and
+every Codex provider catalog to GPT-5.6-Sol with high reasoning while keeping
+the other cached models available. The shared operator Kustomize component
+declares OpenRouter's GLM 5.3 Flash model for the Hetzner and Vector workspaces
+through `OPENCODE_CONFIG_CONTENT`. Doppler injects
 `OPENROUTER_API_KEY`; the key never appears in the OpenCode configuration or
 image. Grok's device-login state lives under `/data/home/.grok`.
 

@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
 date: "2026-08-02"
-updated: "2026-10-18"
+updated: "2026-10-24"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -366,7 +366,6 @@ Monitor["Netdata<br/>Child node"]
 Print["CUPS<br/>Print server"]
 end
 
-
 DNS -->|"Syncs config"| Primary["Primary DNS<br/>Mac mini"]
 Monitor -->|"Sends metrics"| Hub["Netdata parent<br/>Mac mini"]
 Print --> Printer["Canon MX3100"]
@@ -376,20 +375,20 @@ class DNS,Monitor,Print service
 `}
 />
 
-### Proposed devices and remote development
+### Development planes and proposed devices
 
-The Mac mini already sends jobs to the Asus desktop over the tailnet. It will
-wake the 4080 laptop for GPU jobs and run browser tests on the phone lab. The
-View 20 will check the live hosts over cellular so it can still report a home
-power or internet failure. An independent cloud development plane remains
-reachable when every device at home is offline.
+The Mac mini sends jobs to the Asus desktop over the tailnet. The Vector laptop
+adds a graphical development plane with 64 GB of RAM and an RTX 4080, while the
+Hetzner plane provides off-site continuity. The proposed phone lab will run
+browser tests, and the View 20 will check the live hosts over cellular so it
+can report a home power or internet failure.
 
 <Mermaid
   chart={`flowchart TB
 Mini["Mac mini<br/>Home hub"]
 Pi["Raspberry Pi<br/>Fallback host"]
 Worker["Asus desktop<br/>NixOS and GTX 1050"]
-Laptop["Laptop<br/>RTX 4080 compute"]
+Laptop["Vector laptop<br/>NixOS, GNOME, RTX 4080"]
 Cache[("1TB DVC cache")]
 Phones["Phone lab<br/>Android and iOS QA"]
 Watchdog["View 20<br/>Cellular watchdog"]
@@ -398,7 +397,7 @@ Slack["Slack"]
 GitHub["GitHub<br/>Branches and PRs"]
 
 Mini -->|"GPU jobs"| Worker
-Mini -->|"GPU jobs"| Laptop
+Laptop -->|"Local t3-code"| GitHub
 Worker --> Cache
 Mini -->|"Browser tests"| Phones
 Watchdog -->|"Checks"| Mini
@@ -408,10 +407,12 @@ Remote -->|"Cloud t3-code"| GitHub
 Mini -->|"Home t3-code"| GitHub
 
 classDef live fill:#0f766e,color:#fff,stroke:#115e59
+classDef accepted fill:#dbeafe,color:#1e3a8a,stroke:#2563eb
 classDef proposed fill:#fef3c7,color:#78350f,stroke:#d97706,stroke-dasharray:5 5
 classDef data fill:#4338ca,color:#fff,stroke:#3730a3
 class Mini,Pi,Worker live
-class Laptop,Phones,Watchdog,Remote proposed
+class Laptop accepted
+class Phones,Watchdog,Remote proposed
 class Cache data
 `}
 />
@@ -540,12 +541,14 @@ pinned nixpkgs channel and deployed with `nixos-rebuild`.
   adapters. The NixOS config already carries the WoL link policy for that
   day. Until then, the box stays awake and is managed over Tailscale.
 
-## Future 4080 laptop
+## Vector development workstation, accepted
 
-I have an idle laptop with a 4080 GPU in it. Once the NixOS box proves out
-the wake-on-demand pattern, the laptop is a natural candidate for a second,
-much faster compute node, particularly for heavier inference or training that
-the 1050 can't handle.
+[ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+turns the MSI Vector into a graphical NixOS workstation and an independent
+single-node K3s development plane. Its 64 GB of RAM and RTX 4080 complement the
+lighter everyday Mac, the continuity-focused Hetzner server, and the older GTX
+1050 batch worker. GNOME, Brave, the T3 Code client, and network printing keep
+the machine useful at its own screen.
 
 ## Phone device lab, proposed
 
@@ -579,7 +582,7 @@ workloads and layering on the rest:
 | 6     | Jellyfin media server for the Fire TV Stick                   | Live     |
 | 7     | Physical Android and iOS device lab                           | Proposed |
 | 8     | Cellular watchdog on the View 20                              | Proposed |
-| 9     | Second compute node (idle 4080 laptop)                        | Idea     |
+| 9     | Graphical NixOS development plane on the 4080 laptop          | Accepted |
 | 10    | Automated media acquisition (arr stack behind the VPN gate)   | Live     |
 | 11    | Trakt watchlist recommendation loop into Jellyfin             | Live     |
 | 12    | Off-site t3-code environment on an independent NixOS/K3s VPS  | Proposed |

@@ -270,6 +270,9 @@ run = "bash scripts/vector-development-health"
 description = "Syntax-check vector-development commissioning scripts"
 run = '''
 bash -n \
+  hosts/vector-development/scripts/create-data-layout.bash \
+  hosts/vector-development/scripts/apply-project-quotas.bash \
+  hosts/vector-development/scripts/configure-tailscale-serve.bash \
   scripts/vector-development-ssh \
   scripts/install-vector-development \
   scripts/set-vector-development-password \

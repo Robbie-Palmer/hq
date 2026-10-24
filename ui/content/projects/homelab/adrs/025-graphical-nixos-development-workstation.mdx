@@ -1,0 +1,111 @@
+---
+title: "ADR 025: Graphical NixOS development workstation on the Vector laptop"
+date: "2026-10-24"
+status: "Accepted"
+---
+
+# Context
+
+Agentic development is exhausting the memory and CPU available on the Mac mini
+and the Hetzner development server. GPU work has only the Asus desktop's GTX
+1050 with 2 GB of VRAM. An idle MSI Vector GP68HX has 64 GB of RAM, a 1 TB
+NVMe SSD, and an RTX 4080 laptop GPU with 12 GB of VRAM, making it the strongest
+development machine already owned.
+
+The Vector also remains useful as an ordinary household computer. Family and
+friends need a familiar graphical login and browser, and local development
+benefits from the T3 Code desktop client. The existing NixOS hosts establish a
+declarative approach for host configuration, while the Hetzner environment
+establishes an independent single-node K3s and T3 Code development plane.
+
+The laptop has hybrid Intel and NVIDIA graphics. Its desktop, power, suspend,
+external-display, and on-demand GPU paths need laptop-specific validation even
+though the Asus host has already proved the NixOS NVIDIA driver and container
+toolkit on a GTX 1050.
+
+# Decision
+
+Install graphical NixOS with GNOME on the complete internal NVMe SSD. Encrypt
+the root filesystem with LUKS2 and use ext4 project quotas to separate durable
+T3 Code state from rebuildable caches.
+
+Run the GNOME desktop on the Intel GPU and expose the RTX 4080 through PRIME
+offload for host applications. Install the NVIDIA container toolkit and device
+plugin so K3s workloads can request the GPU explicitly.
+
+Provide Brave and the packaged T3 Code desktop client on the host. Point the
+laptop's CUPS client at the Raspberry Pi print server. Household accounts are
+standard GNOME users, while the operator account has the administrative and
+development groups.
+
+Run an independent single-node K3s development plane on the laptop. Its T3 Code
+workspace receives the larger CPU, memory, cache, and GPU limits appropriate to
+this hardware. Tailscale publishes the T3 service and browser-QA ports to the
+tailnet. Git branches and pull requests carry work between this plane and the
+Hetzner plane.
+
+Build the same T3 runtime image in both environments. Keep model choices,
+reasoning defaults, enabled providers, additional provider instances, and the
+OpenCode model catalog in shared declarations. Each environment retains its
+own OAuth sessions, provider credentials, encryption key, T3 database, and
+workspace volume.
+
+Pin the host to the current stable NixOS input and upgrade it through reviewed
+flake changes. Preserve `system.stateVersion` across package-channel upgrades.
+
+# Alternatives
+
+## Keep Ubuntu and add the Nix package manager
+
+GNOME and Brave would remain familiar, and Nix could provide project shells
+and user tools. GPU drivers, K3s, system users, boot configuration, power
+policy, and services would still be managed through Ubuntu's separate tools.
+That splits the machine's reproducibility at the exact layer that differs most
+from an ordinary browsing laptop.
+
+## Use Arch Linux or Omarchy
+
+These provide a capable development desktop and recent packages. They add a
+second host-management model to the fleet and offer less value here than the
+existing NixOS modules, flake checks, deployment scripts, and rollback path.
+
+## Run NixOS as a headless worker
+
+This matches the Asus host but gives up the laptop's useful screen, keyboard,
+browser, and local T3 Code client. GNOME costs some reserved capacity, which is
+acceptable on a 64 GB machine.
+
+## Join an existing K3s cluster
+
+A shared cluster would offer one scheduler, but the laptop suspends and moves
+between networks. Its availability should not affect the Mac mini or Hetzner
+control planes. Independent clusters also preserve the already tested T3 Code
+connection model.
+
+## Use the laptop primarily as a Nix remote builder
+
+A Nix remote builder accepts derivations over SSH and returns completed Nix
+store outputs. It is useful for accelerating Nix builds, including Linux
+outputs requested from macOS, but it is narrower than the required interactive
+development, agent, container, and GPU workloads. Remote-builder access can be
+added later if measured Nix build demand justifies its privileged trust path.
+
+# Consequences
+
+GNOME, Brave, printing, Bluetooth, audio, and ordinary user sessions should
+feel close to Ubuntu for household use. The visible differences are mostly
+branding, the software-installation path, and the fact that declared system
+settings return to their repository state after a rebuild.
+
+System changes now have one reviewable source and a rollback generation. The
+same image and agent profile drive both development planes, while credentials
+and mutable state remain isolated.
+
+GPU acceptance must cover PRIME offload, container allocation, suspend and
+resume, lid behavior, battery use, and external displays. Closing the lid on
+battery suspends the host; closing it on external power leaves remote work
+running.
+
+Full reboots require the local LUKS passphrase. The Hetzner plane remains the
+continuity environment for unattended work. Durable T3 Code state on the
+Vector needs its own tested backup policy before it becomes irreplaceable.
