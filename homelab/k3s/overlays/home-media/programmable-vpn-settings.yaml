@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: programmable-vpn-settings
+  namespace: media
+data:
+  # Pin one nearby country so exit-location checks and before/after benchmarks
+  # stay repeatable. PORT_FORWARD_ONLY narrows this to Proton P2P servers.
+  SERVER_COUNTRIES: Netherlands
+  DNS_UPSTREAM_RESOLVERS: quad9

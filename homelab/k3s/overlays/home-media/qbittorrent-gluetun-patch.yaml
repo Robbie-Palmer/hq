@@ -1,0 +1,119 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent
+  namespace: media
+spec:
+  replicas: 1
+  template:
+    metadata:
+      annotations:
+        secrets.doppler.com/reload: "true"
+    spec:
+      initContainers:
+        - name: prepare-vpn-config
+          image: lscr.io/linuxserver/qbittorrent:5.2.3-libtorrentv1
+          imagePullPolicy: IfNotPresent
+          command: ["/opt/homelab/prepare-config.sh"]
+          securityContext:
+            runAsUser: 501
+            runAsGroup: 20
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: vpn-scripts
+              mountPath: /opt/homelab
+              readOnly: true
+        - name: gluetun
+          image: ghcr.io/qdm12/gluetun:v3.41.3
+          imagePullPolicy: IfNotPresent
+          # A native sidecar init container starts before qBittorrent and keeps
+          # running for the pod lifetime. The startup probe closes the brief
+          # pre-firewall race that ordinary concurrent containers would leave.
+          restartPolicy: Always
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/opt/homelab/remove-wireguard-policy-rules.sh"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["NET_ADMIN", "NET_RAW"]
+              drop: ["ALL"]
+          env:
+            - name: TZ
+              value: Europe/Dublin
+            - name: VPN_SERVICE_PROVIDER
+              value: protonvpn
+            - name: VPN_TYPE
+              value: wireguard
+            - name: WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: proton-vpn
+                  key: PROTON_VPN_WIREGUARD_PRIVATE_KEY
+            - name: SERVER_COUNTRIES
+              valueFrom:
+                configMapKeyRef:
+                  name: programmable-vpn-settings
+                  key: SERVER_COUNTRIES
+            - name: PORT_FORWARD_ONLY
+              value: "on"
+            - name: VPN_PORT_FORWARDING
+              value: "on"
+            - name: VPN_PORT_FORWARDING_PROVIDER
+              value: protonvpn
+            - name: VPN_PORT_FORWARDING_UP_COMMAND
+              value: /opt/homelab/set-forwarded-port.sh {{PORT}} {{VPN_INTERFACE}}
+            - name: VPN_PORT_FORWARDING_DOWN_COMMAND
+              value: /opt/homelab/clear-forwarded-port.sh
+            - name: FIREWALL_INPUT_PORTS
+              value: "8080"
+            - name: DNS_UPSTREAM_RESOLVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: programmable-vpn-settings
+                  key: DNS_UPSTREAM_RESOLVERS
+          readinessProbe:
+            exec:
+              command: ["/gluetun-entrypoint", "healthcheck"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+          startupProbe:
+            exec:
+              command: ["/opt/homelab/check-tunnel-ready.sh"]
+            failureThreshold: 30
+            periodSeconds: 2
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["/gluetun-entrypoint", "healthcheck"]
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: tun
+              mountPath: /dev/net/tun
+            - name: vpn-scripts
+              mountPath: /opt/homelab
+              readOnly: true
+      volumes:
+        - name: tun
+          hostPath:
+            path: /dev/net/tun
+            type: CharDevice
+        - name: vpn-scripts
+          configMap:
+            name: qbittorrent-vpn-scripts
+            defaultMode: 0555

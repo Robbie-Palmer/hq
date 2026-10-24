@@ -9,6 +9,7 @@ python = "3.12.14"
 "pipx:ansible-lint" = "26.9.0"
 "aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
+"aqua:koalaman/shellcheck" = "0.11.0"
 "github:fluxcd/flux-schema" = "0.15.0"
 "aqua:restic/restic" = "0.18.0"
 
@@ -341,6 +342,18 @@ run = "kubectl kustomize k3s/overlays/home"
 description = "Render the home media overlay"
 run = "kubectl kustomize k3s/overlays/home-media"
 
+[tasks.k3s-test-home-media]
+description = "Test the programmable VPN media manifests and fail-closed host scripts"
+depends = ["//:install", "k3s-lint-home-media-scripts"]
+run = '''
+pnpm exec tsc --project tsconfig.json
+pnpm exec tsx --test tests/media-vpn-manifests.test.ts
+'''
+
+[tasks.k3s-lint-home-media-scripts]
+description = "Statically analyze the home media VPN scripts"
+run = "shellcheck k3s/overlays/home-media/scripts/*.sh"
+
 [tasks.k3s-render-remote]
 description = "Render the remote-development t3-code overlay"
 run = "kubectl kustomize k3s/overlays/remote-development"
@@ -398,7 +411,7 @@ bash scripts/apply-kustomize-overlay \
 '''
 
 [tasks.k3s-deploy-home-media]
-description = "Apply the home media overlay and reconcile its VPN gate"
+description = "Apply the home media overlay and reconcile its deployments"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
 gate="$HOME/.local/bin/homelab-media-k3s-gate"
@@ -433,6 +446,23 @@ description = "Run a restic snapshot of the media app configs (also runs nightly
 run = '''
 bash k3s/overlays/home-media/backup-media-config.sh
 '''
+
+[tasks.media-vpn-doppler-install]
+description = "Install the Doppler operator and its read-only media VPN token"
+run = '''
+export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
+export DOPPLER_KUBE_CONTEXT="${HOME_KUBE_CONTEXT:-colima-homelab-k3s}"
+export DOPPLER_KUBE_LOCATION=home
+bash scripts/install-doppler-operator media:doppler-token:homelab:prd
+'''
+
+[tasks.media-vpn-verify]
+description = "Verify Proton egress, DNS, port forwarding, and optional fail-closed recovery"
+run = "bash k3s/scripts/verify-programmable-vpn.sh"
+
+[tasks.media-vpn-benchmark]
+description = "Sample qBittorrent throughput and K3s resource use into a CSV"
+run = "bash k3s/scripts/benchmark-programmable-vpn.sh"
 
 [tasks.k3s-deploy-remote]
 description = "Apply the remote overlay after an exact context check"
