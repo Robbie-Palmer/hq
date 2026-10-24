@@ -115,12 +115,11 @@ The library applies these boundaries:
 - Doppler configs are empty administrative containers. This module does not
   copy values into them or GitHub.
 
-Work Graph ticket `pep-secret-identity-bootstrap` tracks items 1 through 4
-below. It will automate the steps provider APIs support and represent the rest
+The [secret and identity bootstrap](../../docs/runbooks/project-secret-bootstrap.md)
+automates items 1 through 4 where provider APIs allow it and records the rest
 as resumable checkpoints. The fifth item stays with the relevant capability
-module. Add it to Terraform when the pinned provider supports it; until then,
-the bootstrap workflow must record the manual provider action. Every step is
-tracked, but provider limitations mean not every step can run unattended.
+module. Add it to Terraform when the pinned provider supports it. Until then,
+record the manual provider action in the bootstrap plan.
 
 1. Seed the account-foundation state and its administrator credentials.
 2. Configure provider authentication for the protected plan and apply paths.
