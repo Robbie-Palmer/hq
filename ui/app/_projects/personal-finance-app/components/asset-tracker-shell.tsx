@@ -191,10 +191,26 @@ function AssetTrackerMobileNavigation() {
   );
 }
 
-export function AssetTrackerShell({
+function AssetTrackerDemoNotice() {
+  return (
+    <aside
+      aria-label="Demo data"
+      className="mx-auto w-full max-w-screen-2xl border-b bg-muted/40 px-4 py-3 text-sm sm:px-6 md:border-x"
+    >
+      <p className="font-medium">Demo household</p>
+      <p className="text-muted-foreground">
+        These example balances and names are fictional. Your changes stay in
+        this browser.
+      </p>
+    </aside>
+  );
+}
+
+function AssetTrackerShellBody({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const { localDataError, localDataStatus, retryLocalData } = useAssetTracker();
+  const { hasLocalChanges, localDataError, localDataStatus, retryLocalData } =
+    useAssetTracker();
   let content = children;
   if (localDataStatus === "loading") {
     content = <AssetTrackerLoadingState />;
@@ -207,6 +223,30 @@ export function AssetTrackerShell({
     );
   }
 
+  return (
+    <>
+      {localDataStatus === "ready" && !hasLocalChanges && (
+        <AssetTrackerDemoNotice />
+      )}
+      <div className="mx-auto grid w-full max-w-screen-2xl flex-1 md:grid-cols-[13rem_minmax(0,1fr)]">
+        <aside className="hidden border-r px-3 py-6 md:block">
+          <AssetTrackerNavigation className="sticky top-6" showGroupLabels />
+        </aside>
+        <main
+          id="asset-tracker-content"
+          aria-busy={localDataStatus === "loading"}
+          className="min-w-0 px-4 py-6 sm:px-6 sm:py-8"
+        >
+          {content}
+        </main>
+      </div>
+    </>
+  );
+}
+
+export function AssetTrackerShell({
+  children,
+}: Readonly<{ children: ReactNode }>) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <a
@@ -236,19 +276,7 @@ export function AssetTrackerShell({
       </header>
 
       <AssetTrackerMobileNavigation />
-
-      <div className="mx-auto grid w-full max-w-screen-2xl flex-1 md:grid-cols-[13rem_minmax(0,1fr)]">
-        <aside className="hidden border-r px-3 py-6 md:block">
-          <AssetTrackerNavigation className="sticky top-6" showGroupLabels />
-        </aside>
-        <main
-          id="asset-tracker-content"
-          aria-busy={localDataStatus === "loading"}
-          className="min-w-0 px-4 py-6 sm:px-6 sm:py-8"
-        >
-          {content}
-        </main>
-      </div>
+      <AssetTrackerShellBody>{children}</AssetTrackerShellBody>
 
       <footer className="border-t px-4 py-6">
         <p className="text-center text-sm text-muted-foreground">
