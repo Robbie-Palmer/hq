@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsv } from "../src/csv";
+import { parseCsv, stringifyCsv } from "../src/csv";
 
 describe("parseCsv", () => {
   it("keeps quoted commas, quotes, and line breaks in their fields", () => {
@@ -22,5 +22,30 @@ describe("parseCsv", () => {
     expect(() => parseCsv('one,"two')).toThrow(
       "CSV contains an unterminated quoted field",
     );
+  });
+});
+
+describe("stringifyCsv", () => {
+  it("quotes RFC 4180 fields and preserves primitive values", () => {
+    expect(
+      stringifyCsv(
+        [
+          ["name", "note", "enabled", "count", "blank"],
+          ['Belfast, East', 'line one\nline "two"', true, 2, null],
+        ],
+        { trailingLineEnding: true },
+      ),
+    ).toBe(
+      'name,note,enabled,count,blank\r\n"Belfast, East","line one\nline ""two""",true,2,\r\n',
+    );
+  });
+
+  it("supports Unix lines and spreadsheet-formula escaping", () => {
+    expect(
+      stringifyCsv([["value"], ["=SUM(A1:A2)"], ["safe"]], {
+        lineEnding: "\n",
+        escapeSpreadsheetFormulas: true,
+      }),
+    ).toBe("value\n'=SUM(A1:A2)\nsafe");
   });
 });

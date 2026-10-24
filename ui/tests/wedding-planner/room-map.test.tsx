@@ -13,6 +13,7 @@ vi.mock("next/dynamic", () => ({ default: () => () => null }));
 
 const allocation: TableAllocation = {
   status: "optimal",
+  score: { earned: 0, possible: 0 },
   tables: [
     {
       id: "top",
@@ -20,6 +21,8 @@ const allocation: TableAllocation = {
       capacity: 2,
       fixed_guests: ["Alex", "Blair"],
       guest_ids: [],
+      seats: [],
+      locked: false,
     },
     {
       id: "table-1",
@@ -27,11 +30,15 @@ const allocation: TableAllocation = {
       capacity: 8,
       fixed_guests: [],
       guest_ids: [],
+      seats: [],
+      locked: false,
     },
   ],
   preferences_met: 0,
   preferences_total: 0,
   unmet_preferences: [],
+  unsatisfied_preferences: [],
+  explanations: [],
   warnings: [],
 };
 
@@ -69,6 +76,9 @@ function Editor() {
       />
       <output data-testid="saved-layout">
         {JSON.stringify(state.table_plan?.table_layout)}
+      </output>
+      <output data-testid="saved-table-plan">
+        {JSON.stringify(state.table_plan)}
       </output>
     </>
   );
@@ -119,6 +129,38 @@ describe("table room map", () => {
         "table-1"
       ],
     ).toEqual({ name: "Dublin", shape: "long" });
+  });
+
+  it("marks seat features and places fixed venue elements", () => {
+    render(<Editor />);
+    fireEvent.change(screen.getByLabelText("Accessible seat numbers"), {
+      target: { value: "1, 2" },
+    });
+    fireEvent.change(screen.getByLabelText("High-chair seat numbers"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Fixed venue element name"), {
+      target: { value: "Main stage" },
+    });
+    fireEvent.change(screen.getByLabelText("Fixed venue element type"), {
+      target: { value: "stage" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add fixed element" }));
+    fireEvent.change(screen.getByLabelText("Main stage Horizontal position"), {
+      target: { value: "650" },
+    });
+    const saved = JSON.parse(
+      screen.getByTestId("saved-table-plan").textContent || "{}",
+    );
+    expect(saved.table_layout.top).toMatchObject({
+      accessible_seat_indexes: [0, 1],
+      high_chair_seat_indexes: [1],
+    });
+    expect(saved.venue_elements[0]).toMatchObject({
+      name: "Main stage",
+      kind: "stage",
+      x: 650,
+    });
   });
 });
 

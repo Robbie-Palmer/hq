@@ -15,6 +15,8 @@ export function tableAppearance(
     x: index === 0 ? 500 : 170 + ((index - 1) % 3) * 330,
     y: index === 0 ? 110 : 330 + Math.floor((index - 1) / 3) * 230,
     rotation: 0,
+    accessible_seat_indexes: [],
+    high_chair_seat_indexes: [],
     ...plan.table_layout?.[id],
   };
 }

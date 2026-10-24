@@ -1,6 +1,7 @@
 "use client";
 
 import { Stage } from "react-konva";
+import type { VenueElement } from "wedding-planner-domain/seating";
 import type { TableAppearance } from "@/lib/wedding-planner/room-layout";
 import { RoomScene } from "./room-canvas/room-scene";
 import { SeatTooltip, useSeatTooltip } from "./room-canvas/seat-tooltip";
@@ -11,12 +12,14 @@ import { ViewControls } from "./room-canvas/view-controls";
 
 export default function TableRoomCanvas({
   tables,
+  venueElements = [],
   height,
   selectedId,
   onSelect,
   onChange,
 }: Readonly<{
   tables: RoomTable[];
+  venueElements?: VenueElement[];
   height: number;
   selectedId: string;
   onSelect: (id: string) => void;
@@ -41,6 +44,7 @@ export default function TableRoomCanvas({
           <Stage ref={viewport.stage} {...viewport.stageProps}>
             <RoomScene
               tables={tables}
+              venueElements={venueElements}
               selectedId={selectedId}
               height={height}
               palette={palette}

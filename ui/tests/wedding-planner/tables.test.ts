@@ -327,6 +327,123 @@ describe("table allocation", () => {
       "exceeds the top table capacity",
     );
   });
+
+  it("reproduces the same scored assignment for the same input", async () => {
+    const plan = input(
+      [
+        guest("a", { attendance: "yes", prefer_table_with: ["c"] }),
+        guest("b", { attendance: "yes", prefer_table_with: ["d"] }),
+        guest("c", { attendance: "yes" }),
+        guest("d", { attendance: "yes" }),
+      ],
+      [2, 2],
+    );
+    const first = await solveTables(structuredClone(plan));
+    const second = await solveTables(structuredClone(plan));
+    expect(second).toEqual(first);
+    expect(first.score).toEqual({ earned: 8, possible: 8 });
+    expect(first.explanations).toHaveLength(4);
+  });
+
+  it("lists a shared relationship group once per guest explanation", async () => {
+    const plan = input(
+      ["a", "b", "c"].map((id) =>
+        guest(id, {
+          attendance: "yes",
+          relationship_groups: ["Family"],
+        }),
+      ),
+      [3],
+    );
+
+    const allocation = await solveTables(plan);
+
+    expect(allocation.explanations).toHaveLength(3);
+    for (const explanation of allocation.explanations)
+      expect(explanation.factors).toEqual([
+        "They share the Family relationship group",
+      ]);
+  });
+
+  it("keeps manual seat and table locks while placing late guests", async () => {
+    const plan = input(
+      [
+        guest("a", { attendance: "yes" }),
+        guest("b", { attendance: "yes" }),
+        guest("c", { attendance: "yes" }),
+      ],
+      [2, 2],
+    );
+    plan.plan.locked_assignments = {
+      a: { table_id: "table-2", seat_index: 1 },
+    };
+    plan.plan.locked_table_guest_ids = { "table-1": ["b"] };
+    const first = await solveTables(plan);
+    expect(tableFor(first, "a")).toBe("table-2");
+    expect(
+      first.tables
+        .find((table) => table.id === "table-2")
+        ?.seats.find((seat) => seat.guest_id === "a"),
+    ).toMatchObject({ index: 1, locked: true });
+    expect(tableFor(first, "b")).toBe("table-1");
+
+    plan.guests.push(input([guest("late", { attendance: "yes" })]).guests[0]!);
+    const changed = await solveTables(plan);
+    expectFits(changed, ["a", "b", "c", "late"]);
+    expect(tableFor(changed, "a")).toBe("table-2");
+    expect(tableFor(changed, "b")).toBe("table-1");
+  });
+
+  it("enforces accessible and high-chair seat capacity", async () => {
+    const person = guest("a", {
+      attendance: "yes",
+      requires_high_chair: true,
+      seating_constraints: {
+        prefer_with: [],
+        avoid_with: [],
+        requires_accessible_seat: true,
+        notes: "",
+      },
+    });
+    const plan = input([person], [1]);
+    await expect(solveTables(plan)).rejects.toThrow("No table plan fits");
+    plan.plan.table_layout = {
+      "table-1": {
+        accessible_seat_indexes: [0],
+        high_chair_seat_indexes: [0],
+      },
+    };
+    const result = await solveTables(plan);
+    expect(result.tables[1]?.seats[0]).toMatchObject({
+      guest_id: "a",
+      accessible: true,
+      high_chair: true,
+    });
+  });
+
+  it("supports hard invitation-party grouping and soft role table preferences", async () => {
+    const plan = input(
+      [
+        guest("a", {
+          attendance: "yes",
+          invitation_party_id: "family-a",
+          wedding_roles: ["best_man"],
+        }),
+        guest("b", {
+          attendance: "yes",
+          invitation_party_id: "family-a",
+        }),
+        guest("c", { attendance: "yes" }),
+      ],
+      [1, 2],
+    );
+    plan.plan.keep_invitation_parties_together = true;
+    plan.plan.role_table_preferences = { best_man: ["table-2"] };
+    const result = await solveTables(plan);
+    expect(tableFor(result, "a")).toBe("table-2");
+    expect(tableFor(result, "b")).toBe("table-2");
+    expect(result.score).toEqual({ earned: 4, possible: 4 });
+  });
 });
 
 describe("shared table state", () => {

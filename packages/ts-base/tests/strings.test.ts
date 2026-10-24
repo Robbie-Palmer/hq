@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   base64UrlEncode,
   compareStrings,
+  escapeXml,
   isNonBlankString,
   LOWERCASE_KEBAB_CASE_PATTERN,
   normalizeSlug,
@@ -51,6 +52,12 @@ describe("string helpers", () => {
     expect(truncateWithEllipsis("123456", 5)).toBe("12...");
     expect(truncateWithEllipsis("12345", 5)).toBe("12345");
     expect(() => truncateWithEllipsis("value", 2)).toThrow(RangeError);
+  });
+
+  it("escapes XML text and attribute characters", () => {
+    expect(escapeXml(`<tag title="A & B">It's ready</tag>`)).toBe(
+      "&lt;tag title=&quot;A &amp; B&quot;&gt;It&apos;s ready&lt;/tag&gt;",
+    );
   });
 });
 
