@@ -413,6 +413,9 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     codex2Home,
     ".sqlite-maintenance.lock",
   );
+  const codex2TemporaryDirectory = join(codex2Home, ".tmp");
+  const primaryGoals = join(codexHome, "goals_1.sqlite");
+  const codex2Goals = join(codex2Home, "goals_1.sqlite");
   const settingsPath = join(t3Home, "userdata/settings.json");
   const configPath = join(codexHome, "config.toml");
   const catalogPath = join(codexHome, "model-catalog.json");
@@ -421,6 +424,9 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     mkdirSync(join(t3Home, "userdata"), { recursive: true });
     mkdirSync(codexHome, { recursive: true });
     mkdirSync(codex2Home, { recursive: true });
+    mkdirSync(codex2TemporaryDirectory, { recursive: true });
+    writeFileSync(primaryGoals, "primary goals\n");
+    writeFileSync(codex2Goals, "stale secondary goals\n");
     writeFileSync(codex2MaintenanceLock, "stale shadow lock\n");
     writeFileSync(
       settingsPath,
@@ -470,6 +476,8 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     const firstSettings = readFileSync(settingsPath, "utf8");
     const firstCatalog = readFileSync(catalogPath, "utf8");
     assert.equal(existsSync(codex2MaintenanceLock), false);
+    assert.equal(existsSync(codex2TemporaryDirectory), false);
+    assert.equal(existsSync(codex2Goals), false);
     const primaryMaintenanceLock = join(
       codexHome,
       ".sqlite-maintenance.lock",
@@ -675,7 +683,7 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
   }
 });
 
-test("the Codex provider login preserves a valid maintenance-lock symlink", () => {
+test("the Codex provider login reconciles shared shadow-home entries", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "codex-provider-"));
   const testHome = join(temporaryDirectory, "home");
   const binDirectory = join(temporaryDirectory, "bin");
@@ -692,7 +700,12 @@ test("the Codex provider login preserves a valid maintenance-lock symlink", () =
       '{"providerInstances":{}}\n',
     );
     writeFileSync(maintenanceLock, "active lock\n");
-    writeFileSync(join(binDirectory, "codex"), "#!/usr/bin/env bash\nexit 0\n");
+    mkdirSync(join(primaryHome, ".tmp"));
+    writeFileSync(join(primaryHome, "goals_1.sqlite"), "primary goals\n");
+    writeFileSync(
+      join(binDirectory, "codex"),
+      '#!/usr/bin/env bash\nset -eu\nrm -f "$CODEX_HOME/.tmp" "$CODEX_HOME/goals_1.sqlite"\nmkdir -p "$CODEX_HOME/.tmp"\nprintf "stale goals\\n" >"$CODEX_HOME/goals_1.sqlite"\n',
+    );
     chmodSync(join(binDirectory, "codex"), 0o755);
 
     run(
@@ -713,6 +726,15 @@ test("the Codex provider login preserves a valid maintenance-lock symlink", () =
     const shadowLock = join(shadowHome, ".sqlite-maintenance.lock");
     assert.equal(lstatSync(shadowLock).isSymbolicLink(), true);
     assert.equal(readFileSync(shadowLock, "utf8"), "active lock\n");
+    assert.equal(lstatSync(join(shadowHome, ".tmp")).isSymbolicLink(), true);
+    assert.equal(
+      lstatSync(join(shadowHome, "goals_1.sqlite")).isSymbolicLink(),
+      true,
+    );
+    assert.equal(
+      readFileSync(join(shadowHome, "goals_1.sqlite"), "utf8"),
+      "primary goals\n",
+    );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -1258,6 +1280,18 @@ test("the Vector and Hetzner workspaces share one OpenCode profile", () => {
     assert.ok(Array.isArray(containers));
     const t3Container = containers.find(({ name }) => name === "t3-code");
     assert.ok(t3Container);
+    const volumeMounts = valueAt(t3Container, ["volumeMounts"]);
+    assert.ok(Array.isArray(volumeMounts));
+    assert.deepEqual(
+      volumeMounts.find(
+        ({ mountPath }) => mountPath === "/home/robbie/repos",
+      ),
+      {
+        mountPath: "/home/robbie/repos",
+        name: "data",
+        subPath: "workspaces",
+      },
+    );
     const environment = valueAt(t3Container, ["env"]);
     assert.ok(Array.isArray(environment));
     const openCodeConfig = environment.find(
@@ -1780,6 +1814,19 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
         3,
       ]),
     ).includes("/data/home/.t3/worktrees"),
+  );
+  assert.ok(
+    String(
+      valueAt(operatorDeployment, [
+        "spec",
+        "template",
+        "spec",
+        "initContainers",
+        0,
+        "command",
+        3,
+      ]),
+    ).includes("rm -rf /data/home/.codex-personal/.tmp"),
   );
   assert.deepEqual(
     valueAt(operatorDeployment, [
