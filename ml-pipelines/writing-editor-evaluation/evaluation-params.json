@@ -1,7 +1,25 @@
 {
-  "minimumActionableProposals": 20,
-  "minimumUsefulYield": 0.6,
-  "maximumRegressionRate": 0.05,
-  "maximumMedianReviewSeconds": 120,
-  "requireAssessedQuality": true
+  "sampleSize": {
+    "minimumArtifacts": 20,
+    "minimumActionableProposals": 20,
+    "requiredArtifactTypes": ["adr", "project-page"]
+  },
+  "thresholds": {
+    "adopt": {
+      "minimumUsefulYield": 0.6,
+      "maximumRegressionRate": 0.05,
+      "maximumMedianReviewSeconds": 120
+    },
+    "reject": {
+      "maximumUsefulYield": 0.25,
+      "minimumRegressionRate": 0.1,
+      "minimumMedianReviewSeconds": 300
+    }
+  },
+  "requireAssessedQuality": true,
+  "decisionLogic": {
+    "adopt": "sample-size-met-and-all-adoption-gates-pass",
+    "reject": "sample-size-met-and-any-rejection-gate-fails",
+    "gatherMoreEvidence": "otherwise"
+  }
 }

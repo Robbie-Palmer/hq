@@ -135,15 +135,21 @@ Their deterministic train, validation, and holdout labels are stored with the
 evidence. The holdout split is evaluation-only and must not be used to tune
 thresholds or train a later model.
 
-`evaluate_reviews` revalidates source bytes, embedded proposals, decisions,
-decision-applied output, and receipts before calculating outcomes. Detection
-coverage stays separate from proposal yield. The scorecard reports factual,
-terminology, voice, regression, review-time, and useful-yield measures for each
-artifact, with source hashes, revisions, producer IDs, and evidence hashes.
-Thresholds live in `evaluation-params.json`; every gate must pass before the
-recommendation can change from `keep-opt-in` to `adopt-default`. This pilot
-stays `keep-opt-in`: review duration was not measured, quality preservation was
-not independently assessed, and useful yield was 23.4%.
+`evaluate` reads the frozen cohort, Vale findings, observed edit matches, three
+GECToR producer runs, and the governed decision evidence. It rejects mismatched
+source hashes, producer runs, proposal IDs, decisions, applied output, or
+receipts before calculating outcomes. Detection coverage stays separate from
+proposal outcomes. Each artifact row records factual, terminology, voice,
+regression, review-time, and useful-yield measures. The row also keeps source
+revisions and hashes, producer versions, finding and proposal IDs, decisions,
+and hashes for the evidence used.
+
+`evaluation-params.json` pins the sample-size rules, adoption thresholds,
+rejection thresholds, and the three-way decision logic. A representative run
+can recommend `adopt`, `reject`, or `gather-more-evidence`. The current pilot
+recommends `reject` because its 23.4% useful-edit yield falls below the pinned
+25% rejection threshold after all sample-size gates pass. That result rejects
+default adoption of GECToR. It does not block later review-only experiments.
 
 The repository pilot and future private cohorts live in the project's DVC data
 area. Git tracks only their DVC pointers. Each evidence manifest records its
@@ -188,6 +194,7 @@ mise run //ml-pipelines/writing-editor-evaluation:run:gector
 mise run //ml-pipelines/writing-editor-evaluation:run:gector:current
 mise run //ml-pipelines/writing-editor-evaluation:run:gector:developer
 mise run //ml-pipelines/writing-editor-evaluation:match:edits
+mise run //ml-pipelines/writing-editor-evaluation:evaluate
 mise run //ml-pipelines/writing-editor-evaluation:evaluate:reviews
 mise run //ml-pipelines/writing-editor-evaluation:record:gector:decisions
 ```

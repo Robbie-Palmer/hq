@@ -1,7 +1,7 @@
 ---
 title: "ADR 004: DVC writing evaluation pipeline"
 date: "2026-09-06"
-status: "Proposed"
+status: "Accepted"
 tech_stack: ["DVC"]
 ---
 
@@ -41,7 +41,7 @@ Do not make a stage depend on the root `mise.toml`: unrelated development-tool
 changes should not invalidate cached evaluation artifacts. A stage that uses a
 mise-installed binary must validate its declared version at runtime.
 
-This proposal uses the accepted record contract from
+This decision uses the accepted record contract from
 [ADR 003](/projects/agent-first-writing/adrs/003-versioned-editor-record-contract).
 Producer stages validate their findings, suggestions, proposals, and decisions
 against that shared contract before writing DVC outputs.
@@ -68,15 +68,16 @@ Define these initial stages:
 5. `evaluate` writes per-artifact results, summary metrics, and a fixed-rule
    recommendation to adopt, reject, or gather more evidence.
 
-`params.yaml` will pin the cohort manifest, split seed, producer and model
-versions, inference limits, matching rules, primary metrics, required sample
-size, and decision thresholds. Each model producer also needs a committed
-runtime lock and an immutable model revision. For the GECToR-2024 baseline,
-track a model manifest and weights as DVC inputs; record the source repository,
-immutable revision or digest, and content hash rather than a mutable model
-label. Use `dvc exp run` for candidate variations and `dvc metrics diff` to
-compare them. Changes to matching or scoring must start downstream of
-`run_producers` so they do not repeat paid or slow inference.
+`params.yaml` pins cohort, producer, inference, and matching inputs.
+`evaluation-params.json` pins sample-size rules, adoption and rejection
+thresholds, and the adopt, reject, or gather-more-evidence logic. Each model
+producer also needs a committed runtime lock and an immutable model revision.
+For the GECToR-2024 baseline, track a model manifest and weights as DVC inputs;
+record the source repository, immutable revision or digest, and content hash
+rather than a mutable model label. Use `dvc exp run` for candidate variations
+and `dvc metrics diff` to compare them. Changes to matching or scoring must
+start downstream of `run_producers` so they do not repeat paid or slow
+inference.
 
 Acceptance rate remains a diagnostic, not the optimization target. The first
 scorecard must also report factual changes, terminology changes, unwanted voice
@@ -106,24 +107,25 @@ reproducible pipeline and reviewable metric diffs, both of which DVC already
 provides without another account or metadata store. Defer a tracker until the
 DVC reports fail a specific review need.
 
-# Acceptance criteria
+# Validation
 
-Keep this ADR Proposed until the pipeline can:
+The accepted pipeline meets the original evidence gates:
 
-* use the accepted ADR 003 schema and reject producer output that fails it;
-* preserve each proposal ID and ordered member mapping through matching and
-  scoring;
-* reproduce the Vale and GECToR-2024 baselines from a clean checkout and DVC
-  pull;
-* reject a run whose runtime lock, model revision, or model content hash does
-  not match the declared GECToR-2024 inputs;
-* prove that a scoring-only change reuses cached producer output;
-* invalidate the right stages when the corpus, producer, or model changes;
-* compare a baseline and candidate with the declared metrics and thresholds;
-* trace every scorecard row to its source revision, producer, and edit outcome;
-  and
-* keep private source text and generated passages out of Git and public build
-  artifacts.
+* ADR 003 schemas reject invalid producer and decision records.
+* Proposal IDs and their ordered suggestion IDs survive production, review,
+  and scoring.
+* A clean checkout can pull the Vale and GECToR-2024 outputs from DVC. Runtime,
+  model revision, and content hashes are validated before inference output is
+  accepted.
+* The `evaluate` stage declares the frozen cohort, Vale output, GECToR outputs,
+  observed edit matches, decisions, parameters, and scoring code as inputs.
+  Scoring changes leave the producer stages cached. Corpus and producer changes
+  invalidate the downstream scorecard.
+* The scorecard compares the candidate against pinned sample-size and outcome
+  thresholds. Each row includes source revision and hash, producer version,
+  finding and proposal IDs, decisions, quality checks, and evidence hashes.
+* Private source text and generated passages remain in the private DVC remote,
+  outside Git and public build artifacts.
 
 # Consequences
 

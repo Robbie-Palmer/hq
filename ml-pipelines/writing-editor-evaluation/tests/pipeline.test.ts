@@ -14,6 +14,7 @@ import {
   FrozenCohortSchema,
 } from "../src/schemas";
 
+const projectRoot = path.resolve(import.meta.dirname, "..");
 const ARTIFACTS = [
   ["adr-alpha", "adr", "docs/adrs/alpha.md"],
   ["adr-beta", "adr", "docs/adrs/beta.md"],
@@ -48,6 +49,16 @@ function git(repository: string, ...args: string[]): string {
 function writeJson(file: string, value: unknown): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function dvcStage(definition: string, name: string): string {
+  const lines = definition.split("\n");
+  const start = lines.indexOf(`  ${name}:`);
+  if (start < 0) throw new Error(`missing DVC stage ${name}`);
+  const next = lines.findIndex((line, index) =>
+    index > start && /^ {2}\S.*:$/.test(line)
+  );
+  return lines.slice(start, next < 0 ? undefined : next).join("\n");
 }
 
 function createRepository(root: string): {
@@ -474,5 +485,28 @@ describe("writing editor evaluation pipeline", () => {
       output: path.join(temporary, "frozen"),
       outputRoot: temporary,
     })).toThrow(/sum to 1/);
+  });
+
+  it("keeps scoring changes downstream of cached producer output", () => {
+    const definition = fs.readFileSync(path.join(projectRoot, "dvc.yaml"), "utf8");
+    const evaluate = dvcStage(definition, "evaluate");
+    for (const dependency of [
+      "outputs/frozen/cohort.json",
+      "outputs/producers/vale.json",
+      "outputs/producers/gector/run.json",
+      "outputs/matched/vale.json",
+      "data/review-evidence/gector-broad-pilot",
+      "evaluation-params.json",
+      "src/evaluate-reviews.ts",
+    ]) {
+      expect(evaluate).toContain(dependency);
+    }
+
+    const gector = dvcStage(definition, "run_gector");
+    const vale = dvcStage(definition, "run_vale");
+    expect(gector).not.toContain("evaluation-params.json");
+    expect(gector).not.toContain("src/evaluate-reviews.ts");
+    expect(vale).not.toContain("evaluation-params.json");
+    expect(vale).not.toContain("src/evaluate-reviews.ts");
   });
 });
