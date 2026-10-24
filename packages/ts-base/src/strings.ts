@@ -13,6 +13,15 @@ export const compareStrings = (left: string, right: string): number => {
 export const normalizeWhitespace = (value: string): string =>
   value.trim().replaceAll(/\s+/g, " ");
 
+export function escapeXml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&apos;");
+}
+
 export function normalizeSlug(value: string): string {
   return value
     .toLowerCase()

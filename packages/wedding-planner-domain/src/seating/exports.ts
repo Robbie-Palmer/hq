@@ -1,3 +1,5 @@
+import { stringifyCsv } from "ts-base/csv";
+import { escapeXml } from "ts-base/strings";
 import type { WeddingGuest } from "../core/guests";
 import type {
   TableAllocation,
@@ -6,50 +8,44 @@ import type {
   VenueElement,
 } from "./types";
 
-function csvValue(value: string | number | boolean): string {
-  const text = String(value);
-  return /[",\r\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-}
-
-function csv(rows: (string | number | boolean)[][]): string {
-  return `${rows.map((row) => row.map(csvValue).join(",")).join("\r\n")}\r\n`;
-}
-
 export function exportSeatingAssignmentsCsv(
   allocation: TableAllocation,
   guests: WeddingGuest[],
 ): string {
   const byId = new Map(guests.map((guest) => [guest.id, guest]));
-  return csv([
+  return stringifyCsv(
     [
-      "Table",
-      "Seat",
-      "Guest",
-      "Accessible seat",
-      "High chair",
-      "Locked",
-      "Dietary needs",
-      "Allergies",
+      [
+        "Table",
+        "Seat",
+        "Guest",
+        "Accessible seat",
+        "High chair",
+        "Locked",
+        "Dietary needs",
+        "Allergies",
+      ],
+      ...allocation.tables.flatMap((table) =>
+        table.seats.flatMap((seat) => {
+          if (!seat.guest_id) return [];
+          const guest = byId.get(seat.guest_id);
+          return [
+            [
+              table.name,
+              seat.index + 1,
+              guest?.name ?? seat.guest_id,
+              seat.accessible,
+              seat.high_chair,
+              seat.locked || table.locked,
+              guest?.dietary_needs.join("; ") ?? "",
+              guest?.allergies.join("; ") ?? "",
+            ],
+          ];
+        }),
+      ),
     ],
-    ...allocation.tables.flatMap((table) =>
-      table.seats.flatMap((seat) => {
-        if (!seat.guest_id) return [];
-        const guest = byId.get(seat.guest_id);
-        return [
-          [
-            table.name,
-            seat.index + 1,
-            guest?.name ?? seat.guest_id,
-            seat.accessible,
-            seat.high_chair,
-            seat.locked || table.locked,
-            guest?.dietary_needs.join("; ") ?? "",
-            guest?.allergies.join("; ") ?? "",
-          ],
-        ];
-      }),
-    ),
-  ]);
+    { trailingLineEnding: true },
+  );
 }
 
 export function exportCateringSummaryCsv(
@@ -70,23 +66,17 @@ export function exportCateringSummaryCsv(
         (counts.get(`Allergy: ${allergy}`) ?? 0) + 1,
       );
   }
-  return csv([
-    ["Category", "Count"],
-    ...[...counts].sort(([first], [second]) => first.localeCompare(second)),
-  ]);
-}
-
-function xml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&apos;");
+  return stringifyCsv(
+    [
+      ["Category", "Count"],
+      ...[...counts].sort(([first], [second]) => first.localeCompare(second)),
+    ],
+    { trailingLineEnding: true },
+  );
 }
 
 function venueElementSvg(element: VenueElement): string {
-  return `<g transform="translate(${element.x} ${element.y}) rotate(${element.rotation})"><rect x="${-element.width / 2}" y="${-element.height / 2}" width="${element.width}" height="${element.height}" fill="#f4f1ea" stroke="#574f43" stroke-width="2"/><text text-anchor="middle" dominant-baseline="middle" font-size="13">${xml(element.name)}</text></g>`;
+  return `<g transform="translate(${element.x} ${element.y}) rotate(${element.rotation})"><rect x="${-element.width / 2}" y="${-element.height / 2}" width="${element.width}" height="${element.height}" fill="#f4f1ea" stroke="#574f43" stroke-width="2"/><text text-anchor="middle" dominant-baseline="middle" font-size="13">${escapeXml(element.name)}</text></g>`;
 }
 
 function tablePosition(
@@ -128,7 +118,7 @@ function tableSvg(
   const appearance = plan.table_layout?.[table.id];
   const { x, y } = tablePosition(appearance, index);
   const shape = appearance?.shape ?? (index === 0 ? "long" : "round");
-  return `<g transform="translate(${x} ${y}) rotate(${appearance?.rotation ?? 0})">${tableShapeSvg(shape)}<text text-anchor="middle" y="-4" font-size="13" font-weight="700">${xml(table.name)}</text><text text-anchor="middle" y="14" font-size="10">${xml(tableDetails(table))}</text></g>`;
+  return `<g transform="translate(${x} ${y}) rotate(${appearance?.rotation ?? 0})">${tableShapeSvg(shape)}<text text-anchor="middle" y="-4" font-size="13" font-weight="700">${escapeXml(table.name)}</text><text text-anchor="middle" y="14" font-size="10">${escapeXml(tableDetails(table))}</text></g>`;
 }
 
 export function exportAccessibleFloorPlanSvg(

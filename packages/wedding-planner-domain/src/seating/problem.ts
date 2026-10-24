@@ -1,3 +1,4 @@
+import { DisjointSet } from "ts-base/collections";
 import { tablePairDecision, tablePlanSchema } from "./preferences";
 import type { SeatingGuest, TableInput } from "./types";
 export type TablePair = {
@@ -71,36 +72,15 @@ function guestPairs(guests: SeatingGuest[]): TablePair[] {
   return pairs;
 }
 
-function findGroup(parent: Map<string, string>, id: string): string {
-  const current = parent.get(id);
-  if (!current || current === id) return id;
-  const root = findGroup(parent, current);
-  parent.set(id, root);
-  return root;
-}
-
-function joinGroups(
-  parent: Map<string, string>,
-  first: string,
-  second: string,
-) {
-  const firstRoot = findGroup(parent, first);
-  const secondRoot = findGroup(parent, second);
-  if (firstRoot === secondRoot) return;
-  const [child, root] =
-    firstRoot < secondRoot ? [secondRoot, firstRoot] : [firstRoot, secondRoot];
-  parent.set(child, root);
-}
-
-function joinPartners(parent: Map<string, string>, guests: SeatingGuest[]) {
+function joinPartners(groups: DisjointSet<string>, guests: SeatingGuest[]) {
   for (const guest of guests) {
-    if (guest.partner_id && parent.has(guest.partner_id))
-      joinGroups(parent, guest.id, guest.partner_id);
+    if (guest.partner_id && groups.has(guest.partner_id))
+      groups.union(guest.id, guest.partner_id);
   }
 }
 
 function joinInvitationParties(
-  parent: Map<string, string>,
+  groups: DisjointSet<string>,
   guests: SeatingGuest[],
 ) {
   const parties = new Map<string, string>();
@@ -108,13 +88,13 @@ function joinInvitationParties(
     const party = guest.invitation_party_id || guest.source_party;
     if (!party) continue;
     const first = parties.get(party);
-    if (first) joinGroups(parent, first, guest.id);
+    if (first) groups.union(first, guest.id);
     else parties.set(party, guest.id);
   }
 }
 
 function joinRelationshipGroups(
-  parent: Map<string, string>,
+  groups: DisjointSet<string>,
   guests: SeatingGuest[],
   relationshipGroups: string[],
 ) {
@@ -124,38 +104,34 @@ function joinRelationshipGroups(
     );
     const [first, ...rest] = members;
     if (!first) continue;
-    for (const guest of rest) joinGroups(parent, first.id, guest.id);
+    for (const guest of rest) groups.union(first.id, guest.id);
   }
-}
-
-function collectGroups(
-  parent: Map<string, string>,
-  guests: SeatingGuest[],
-): SeatingGuest[][] {
-  const groups = new Map<string, SeatingGuest[]>();
-  for (const guest of guests) {
-    const key = findGroup(parent, guest.id);
-    groups.set(key, [...(groups.get(key) ?? []), guest]);
-  }
-  return [...groups.values()].sort((first, second) =>
-    (first[0]?.id ?? "").localeCompare(second[0]?.id ?? ""),
-  );
 }
 
 function tableGroups(
   input: TableInput,
   guests: SeatingGuest[],
 ): SeatingGuest[][] {
-  const parent = new Map(guests.map((guest) => [guest.id, guest.id]));
-  joinPartners(parent, guests);
+  const groups = new DisjointSet(guests.map((guest) => guest.id));
+  joinPartners(groups, guests);
   if (input.plan.keep_invitation_parties_together)
-    joinInvitationParties(parent, guests);
+    joinInvitationParties(groups, guests);
   joinRelationshipGroups(
-    parent,
+    groups,
     guests,
     input.plan.keep_relationship_groups_together ?? [],
   );
-  return collectGroups(parent, guests);
+  const byId = new Map(guests.map((guest) => [guest.id, guest]));
+  return groups
+    .groups()
+    .map((ids) =>
+      ids
+        .map((id) => byId.get(id))
+        .filter((guest): guest is SeatingGuest => Boolean(guest)),
+    )
+    .sort((first, second) =>
+      (first[0]?.id ?? "").localeCompare(second[0]?.id ?? ""),
+    );
 }
 
 function validateGuest(

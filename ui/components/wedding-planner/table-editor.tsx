@@ -1,5 +1,6 @@
 "use client";
 
+import { downloadTextFile } from "browser-base/downloads";
 import { ArrowRight, Download, Lock, Save, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { weddingRoleLabels, weddingRolesLabel } from "wedding-planner-domain";
@@ -754,15 +755,6 @@ function SeatingLocks({
   );
 }
 
-function downloadText(name: string, type: string, content: string) {
-  const url = URL.createObjectURL(new Blob([content], { type }));
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = name;
-  anchor.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
 function SavedPlansAndExports({
   state,
   plan,
@@ -818,7 +810,7 @@ function SavedPlansAndExports({
           <Button
             variant="outline"
             onClick={() =>
-              downloadText(
+              downloadTextFile(
                 "seating-assignments.csv",
                 "text/csv;charset=utf-8",
                 exportSeatingAssignmentsCsv(allocation, wedding.guests),
@@ -830,7 +822,7 @@ function SavedPlansAndExports({
           <Button
             variant="outline"
             onClick={() =>
-              downloadText(
+              downloadTextFile(
                 "catering-summary.csv",
                 "text/csv;charset=utf-8",
                 exportCateringSummaryCsv(allocation, wedding.guests),
@@ -842,7 +834,7 @@ function SavedPlansAndExports({
           <Button
             variant="outline"
             onClick={() =>
-              downloadText(
+              downloadTextFile(
                 "accessible-floor-plan.svg",
                 "image/svg+xml",
                 exportAccessibleFloorPlanSvg(plan, allocation),

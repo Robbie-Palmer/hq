@@ -1,3 +1,4 @@
+import { stringifyCsv } from "ts-base/csv";
 import type { WeddingRole } from "../../core/guests";
 import type { GuestDirectory } from "../../guest-directory";
 
@@ -74,9 +75,7 @@ export function exportJoyCsv(
     ];
   });
 
-  return [headers, ...rows]
-    .map((row) => row.map(csvValue).join(","))
-    .join("\r\n");
+  return stringifyCsv([headers, ...rows]);
 }
 
 function joyTagsForGuest(
@@ -109,8 +108,4 @@ function addMappedTag(
     );
   const tag = mapping[value];
   if (tag) tags.add(tag);
-}
-
-function csvValue(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }
