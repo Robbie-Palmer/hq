@@ -2417,4 +2417,6 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes('IdleAction = "ignore"'));
   assert.ok(hostConfig.includes('HandleLidSwitch = "suspend"'));
   assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
+  assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
+  assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
 });

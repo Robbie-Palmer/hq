@@ -323,6 +323,23 @@ in
     }
   ];
 
+  system.activationScripts.vectorDevelopmentRefreshGnomePower = lib.stringAfter
+    [
+      "etc"
+      "users"
+    ]
+    ''
+      if ${pkgs.systemd}/bin/systemctl --quiet is-active user@1000.service \
+        && test -S /run/user/1000/bus; then
+        ${pkgs.util-linux}/bin/runuser -u robbie -- \
+          ${pkgs.coreutils}/bin/env \
+            XDG_RUNTIME_DIR=/run/user/1000 \
+            DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+            ${pkgs.systemd}/bin/systemctl --user restart \
+              org.gnome.SettingsDaemon.Power.target || true
+      fi
+    '';
+
   systemd.services.vector-development-data-layout = {
     description = "Create vector-development data directories";
     wantedBy = [ "multi-user.target" ];

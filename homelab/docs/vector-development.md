@@ -124,5 +124,6 @@ mise run //homelab:vector-rebuild
 
 GNOME automatic suspend is disabled on both battery and external power. Closing
 the lid on battery still suspends the laptop. On external power or while docked,
-closing the lid leaves the machine running. A full reboot requires the LUKS
-passphrase at the laptop.
+closing the lid leaves the machine running. Host activation refreshes the active
+GNOME power daemon so a logged-in session cannot retain the old idle timeout
+after a rebuild. A full reboot requires the LUKS passphrase at the laptop.
