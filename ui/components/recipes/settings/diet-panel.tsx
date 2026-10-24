@@ -1,22 +1,12 @@
 "use client";
 
-import {
-  Check,
-  Leaf,
-  LoaderCircle,
-  Plus,
-  Search,
-  TriangleAlert,
-  X,
-} from "lucide-react";
+import { Check, Leaf, LoaderCircle, Plus, Search, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { SaveStatus } from "@/components/recipes/settings/save-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  type DietEditorSaveState,
-  useDietProfileEditor,
-} from "@/hooks/use-diet-profile-editor";
+import { useDietProfileEditor } from "@/hooks/use-diet-profile-editor";
 import type {
   DietGroupOption,
   DietIngredientOption,
@@ -97,51 +87,6 @@ function EmptyCatalogMessage({ children }: Readonly<{ children: ReactNode }>) {
     <div className="rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] px-4 py-3">
       <p className="rt-body text-sm text-[var(--ink-3)]">{children}</p>
     </div>
-  );
-}
-
-function Status({
-  state,
-  error,
-}: Readonly<{
-  state: DietEditorSaveState;
-  error: string | null;
-}>) {
-  const content = {
-    idle: {
-      icon: <span className="size-2 rounded-full bg-[var(--sage)]" />,
-      text: "ready to save",
-      className: "text-[var(--sage)]",
-    },
-    saving: {
-      icon: (
-        <LoaderCircle className="size-3.5 animate-spin text-[var(--ink-3)]" />
-      ),
-      text: "saving...",
-      className: "text-[var(--ink-3)]",
-    },
-    saved: {
-      icon: <Check className="size-3.5 text-[var(--sage)]" />,
-      text: "saved",
-      className: "text-[var(--sage)]",
-    },
-    error: {
-      icon: <TriangleAlert className="size-3.5 text-[var(--destructive)]" />,
-      text: error ?? "Couldn't save your diet profile.",
-      className: "text-[var(--destructive)]",
-    },
-  }[state];
-
-  return (
-    <>
-      {content.icon}
-      <span
-        role={state === "error" ? "alert" : undefined}
-        className={cn("rt-mono", content.className)}
-      >
-        {content.text}
-      </span>
-    </>
   );
 }
 
@@ -684,9 +629,10 @@ export function DietPanel() {
               Save diet profile
             </Button>
             <div className="flex items-center gap-2" aria-live="polite">
-              <Status
+              <SaveStatus
                 state={dirty && saveState === "saved" ? "idle" : saveState}
-                error={error}
+                error={error ?? "Couldn't save your diet profile."}
+                idleText="ready to save"
               />
             </div>
           </div>

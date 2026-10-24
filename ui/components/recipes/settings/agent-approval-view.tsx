@@ -19,6 +19,11 @@ import {
   getAgentHost,
 } from "@/lib/api/agents";
 import { authClient } from "@/lib/auth-client";
+import {
+  readBrowserStorage,
+  removeBrowserStorage,
+  writeBrowserStorageJson,
+} from "@/lib/browser/storage";
 
 type ApprovalIntent = {
   agentId: string;
@@ -49,16 +54,12 @@ function isProvider(value: unknown): value is Provider {
 }
 
 function clearStoredReauthentication() {
-  try {
-    globalThis.sessionStorage.removeItem(REAUTH_STORAGE_KEY);
-  } catch {
-    // The in-memory approval state still lets the user retry this page.
-  }
+  removeBrowserStorage("sessionStorage", REAUTH_STORAGE_KEY);
 }
 
 function readStoredReauthentication(): PendingReauthentication | null {
   try {
-    const raw = globalThis.sessionStorage.getItem(REAUTH_STORAGE_KEY);
+    const raw = readBrowserStorage("sessionStorage", REAUTH_STORAGE_KEY);
     clearStoredReauthentication();
     if (!raw) return null;
     const value = JSON.parse(raw) as Partial<PendingReauthentication>;
@@ -117,15 +118,7 @@ function readApprovalPageState(): ApprovalPageState {
 }
 
 function storePendingReauthentication(value: PendingReauthentication): boolean {
-  try {
-    globalThis.sessionStorage.setItem(
-      REAUTH_STORAGE_KEY,
-      JSON.stringify(value),
-    );
-    return true;
-  } catch {
-    return false;
-  }
+  return writeBrowserStorageJson("sessionStorage", REAUTH_STORAGE_KEY, value);
 }
 
 function dateLabel(value: string | null): string {
