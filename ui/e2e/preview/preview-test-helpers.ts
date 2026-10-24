@@ -7,6 +7,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { requiredEnv } from "node-base/env";
+import { requestWithTransientRetries } from "./transient-request";
 
 export const previewSiteURL = new URL(requiredEnv("PREVIEW_SITE_URL"));
 export const previewReadinessTimeoutMs = 30_000;
@@ -67,21 +68,46 @@ export function previewURL(input: string): string {
 
 type PreviewRequestOptions = {
   data?: unknown;
-  headers?: Record<string, string>;
+  headers?:
+    | Record<string, string>
+    | (() => Promise<Record<string, string>> | Record<string, string>);
   method?: string;
+  retry?: "transient";
 };
+
+async function previewRequestAttempt(
+  context: BrowserContext,
+  input: string,
+  options: PreviewRequestOptions,
+  timeout?: number,
+): Promise<APIResponse> {
+  const requestHeaders =
+    typeof options.headers === "function"
+      ? await options.headers()
+      : options.headers;
+  return context.request.fetch(previewURL(input), {
+    data: options.data,
+    failOnStatusCode: false,
+    headers: { origin: previewSiteURL.origin, ...requestHeaders },
+    method: options.method,
+    timeout,
+  });
+}
 
 export function previewRequest(
   context: BrowserContext,
   input: string,
   options: PreviewRequestOptions = {},
 ): Promise<APIResponse> {
-  return context.request.fetch(previewURL(input), {
-    data: options.data,
-    failOnStatusCode: false,
-    headers: { origin: previewSiteURL.origin, ...options.headers },
-    method: options.method,
-  });
+  if (options.retry !== "transient") {
+    return previewRequestAttempt(context, input, options);
+  }
+
+  const path = new URL(input, previewSiteURL).pathname;
+  return requestWithTransientRetries(
+    `${options.method ?? "GET"} ${path}`,
+    (timeout) => previewRequestAttempt(context, input, options, timeout),
+  );
 }
 
 export async function expectPreviewJSON<T>(
@@ -129,17 +155,29 @@ async function createPreviewContext(browser: Browser): Promise<BrowserContext> {
   try {
     // Send the service-token headers only to the canonical preview origin. The
     // resulting Access cookie authenticates later page, API, and WebSocket use.
-    const accessResponse = await context.request.get(previewURL("/recipes"), {
-      headers: accessHeaders,
-      maxRedirects: 0,
-    });
-    const responseURL = new URL(accessResponse.url());
-    if (!accessResponse.ok() || responseURL.origin !== previewSiteURL.origin) {
-      throw new Error(
-        `Cloudflare Access did not authorize the preview (${accessResponse.status()} ${accessResponse.url()})`,
-      );
+    const accessResponse = await requestWithTransientRetries(
+      "GET /recipes Cloudflare Access priming",
+      (timeout) =>
+        context.request.get(previewURL("/recipes"), {
+          failOnStatusCode: false,
+          headers: accessHeaders,
+          maxRedirects: 0,
+          timeout,
+        }),
+    );
+    try {
+      const responseURL = new URL(accessResponse.url());
+      if (
+        !accessResponse.ok() ||
+        responseURL.origin !== previewSiteURL.origin
+      ) {
+        throw new Error(
+          `Cloudflare Access did not authorize the preview (${accessResponse.status()} ${accessResponse.url()})`,
+        );
+      }
+    } finally {
+      await accessResponse.dispose();
     }
-    await accessResponse.dispose();
     return context;
   } catch (error) {
     await context.close();
@@ -154,7 +192,7 @@ async function signInPreviewScenario(
   await expectPreviewStatus(
     page.context(),
     "/api/auth/preview/sign-in",
-    { data: { scenario }, method: "POST" },
+    { data: { scenario }, method: "POST", retry: "transient" },
     200,
   );
   await page.goto("/recipes");

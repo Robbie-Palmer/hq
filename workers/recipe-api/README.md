@@ -133,6 +133,9 @@ Realtime verification is layered. Unit tests cover the room and Worker route,
 the preview deployment runs `preview:smoke:realtime` with independent owner and
 member sessions against the deployed Worker, and the Access-authenticated
 Playwright suite covers visible two-browser convergence and reconnect recovery.
+The deployed smoke test gives each subscription three 20-second readiness
+attempts. It reports every failed attempt, but does not retry pantry mutations
+or protocol assertions.
 
 ## Rate limiting
 
