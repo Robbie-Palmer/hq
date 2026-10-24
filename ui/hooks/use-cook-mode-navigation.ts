@@ -32,6 +32,12 @@ function trapFocus(event: KeyboardEvent, container: HTMLElement | null): void {
   }
 }
 
+function stepOffsetForKey(key: string): number {
+  if (key === "ArrowRight") return 1;
+  if (key === "ArrowLeft") return -1;
+  return 0;
+}
+
 function handleCookModeKeyDown(
   event: KeyboardEvent,
   options: {
@@ -49,8 +55,7 @@ function handleCookModeKeyDown(
     return;
   }
   if (isEditableTarget(event.target)) return;
-  const stepOffset =
-    event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+  const stepOffset = stepOffsetForKey(event.key);
   if (stepOffset !== 0) {
     event.preventDefault();
     options.goTo(options.clampedStep + stepOffset);

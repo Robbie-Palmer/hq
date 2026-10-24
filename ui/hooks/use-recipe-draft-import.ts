@@ -93,8 +93,8 @@ export function useRecipeDraftImport(
   applyImportedRecipe: (recipe: ImportedRecipeDraft) => void,
 ) {
   const [method, setMethod] = useState<RecipeAddMethod>("write");
-  const [recipeUrl, setRecipeUrlState] = useState("");
-  const [recipeFile, setRecipeFileState] = useState<File | null>(null);
+  const [recipeUrl, setRecipeUrl] = useState("");
+  const [recipeFile, setRecipeFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
   const [urlImportSuccess, setUrlImportSuccess] = useState(false);
@@ -135,7 +135,7 @@ export function useRecipeDraftImport(
       const recipe = await fetchUrlRecipeDraft(url, request.controller.signal);
       if (requestIsStale(requestRef.current, request)) return;
       applyImportedRecipe(recipe);
-      setRecipeUrlState(recipe.url ?? url);
+      setRecipeUrl(recipe.url ?? url);
       setUrlImportSuccess(true);
       setImportedFileName(null);
     } catch (error) {
@@ -179,16 +179,16 @@ export function useRecipeDraftImport(
     setMethod(nextMethod);
   }
 
-  function setRecipeFile(file: File | null) {
+  function updateRecipeFile(file: File | null) {
     invalidateRequest();
-    setRecipeFileState(file);
+    setRecipeFile(file);
     setImportError(null);
     setImportedFileName(null);
   }
 
-  function setRecipeUrl(url: string) {
+  function updateRecipeUrl(url: string) {
     invalidateRequest();
-    setRecipeUrlState(url);
+    setRecipeUrl(url);
     setImportError(null);
   }
 
@@ -209,8 +209,8 @@ export function useRecipeDraftImport(
     recipeUrl,
     resetImportResult,
     selectMethod,
-    setRecipeFile,
-    setRecipeUrl,
+    setRecipeFile: updateRecipeFile,
+    setRecipeUrl: updateRecipeUrl,
     urlImportSuccess,
   };
 }
