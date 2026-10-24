@@ -8,6 +8,7 @@
     "./dataset": "./src/data.ts",
     "./historical-salary": "./src/historicalSalaryApi.ts",
     "./household-tax": "./src/householdTax.ts",
+    "./termination-payment": "./src/terminationPayment.ts",
     "./gov-uk-monitor": "./src/govUkMonitor.ts",
     "./validation": "./src/validationApi.ts"
   },

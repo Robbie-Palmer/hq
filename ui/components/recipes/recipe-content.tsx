@@ -149,11 +149,7 @@ function buildCookUrl(open: boolean, step: number): string {
   const url = new URL(globalThis.location.href);
   if (open) {
     url.searchParams.set("cook", "1");
-    if (step > 0) {
-      url.searchParams.set("step", String(step + 1));
-    } else {
-      url.searchParams.delete("step");
-    }
+    url.searchParams.set("step", String(step + 1));
   } else {
     url.searchParams.delete("cook");
     url.searchParams.delete("step");
