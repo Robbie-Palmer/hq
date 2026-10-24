@@ -1,0 +1,103 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target=${VECTOR_DEVELOPMENT_TARGET:?Set VECTOR_DEVELOPMENT_TARGET to root@ followed by the live ISO address}
+identity_file=${VECTOR_DEVELOPMENT_IDENTITY_FILE:-${HOME}/.ssh/id_ed25519}
+nix_image="nixos/nix@sha256:c7cc6c8cb5d81bed19997247629604708fda95c99c43ac362daa05b6a68e8a24"
+expected_serial=23304R801651
+expected_model="WD PC SN560 SDDPNQE-1T00-1032"
+expected_disk=/dev/disk/by-id/nvme-eui.e8238fa6bf530001001b448b4a0a7d9e
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+homelab_dir=$(cd -- "${script_dir}/.." && pwd)
+secret_dir=$(mktemp -d)
+secret_file=${secret_dir}/vector-development-luks.key
+
+source "${script_dir}/vector-development-ssh"
+vector_development_prepare_ssh "${target}"
+
+cleanup() {
+  if [ -f "${secret_file}" ]; then
+    shred --remove "${secret_file}" 2>/dev/null || rm -f "${secret_file}"
+  fi
+  rmdir "${secret_dir}" 2>/dev/null || true
+}
+trap cleanup EXIT
+
+for command in docker ssh; do
+  if ! command -v "${command}" >/dev/null 2>&1; then
+    echo "${command} is required" >&2
+    exit 1
+  fi
+done
+
+if [ ! -r "${identity_file}" ]; then
+  echo "cannot read SSH identity ${identity_file}" >&2
+  exit 1
+fi
+
+if [ "${VECTOR_DEVELOPMENT_INSTALL:-}" != WIPE ]; then
+  echo "This operation erases the laptop's entire internal NVMe drive." >&2
+  echo "Retry with VECTOR_DEVELOPMENT_INSTALL=WIPE after checking the verified Restic backup." >&2
+  exit 1
+fi
+
+ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" -i "${identity_file}" "${target}" \
+  "EXPECTED_DISK='${expected_disk}' EXPECTED_SERIAL='${expected_serial}' EXPECTED_MODEL='${expected_model}' bash -se" <<'REMOTE'
+set -euo pipefail
+test "$(id -u)" = 0
+grep -q '^NAME=NixOS$' /etc/os-release
+test -b "${EXPECTED_DISK}"
+disk=$(readlink -f "${EXPECTED_DISK}")
+test "$(lsblk --nodeps --noheadings --output SERIAL "${disk}" | xargs)" = "${EXPECTED_SERIAL}"
+test "$(lsblk --nodeps --noheadings --output MODEL "${disk}" | xargs)" = "${EXPECTED_MODEL}"
+size=$(lsblk --bytes --nodeps --noheadings --output SIZE "${disk}" | xargs)
+test "${size}" -ge 990000000000
+test "${size}" -le 1010000000000
+if lsblk --noheadings --output MOUNTPOINTS "${disk}" | grep -q '[^[:space:]]'; then
+  echo "the target NVMe or one of its partitions is mounted" >&2
+  exit 1
+fi
+echo "installation guard matched ${EXPECTED_MODEL}, serial ${EXPECTED_SERIAL}, ${size} bytes"
+REMOTE
+
+printf 'Type WIPE %s to continue: ' "${expected_serial}" >&2
+read -r confirmation
+if [ "${confirmation}" != "WIPE ${expected_serial}" ]; then
+  echo "confirmation did not match; no disk changes were made" >&2
+  exit 1
+fi
+
+umask 077
+printf 'New full-disk encryption passphrase: ' >&2
+IFS= read -r -s passphrase
+printf '\nRepeat the passphrase: ' >&2
+IFS= read -r -s passphrase_confirmation
+printf '\n' >&2
+if [ -z "${passphrase}" ] || [ "${passphrase}" != "${passphrase_confirmation}" ]; then
+  echo "passphrases were empty or did not match" >&2
+  exit 1
+fi
+printf '%s' "${passphrase}" >"${secret_file}"
+unset passphrase passphrase_confirmation
+
+docker run --rm \
+  --network host \
+  -e "NIX_CONFIG=experimental-features = nix-command flakes" \
+  -v personal-site-nix-store:/nix \
+  -v "${homelab_dir}:/workspace" \
+  -v "${identity_file}:/run/vector-development-identity:ro" \
+  -v "${VECTOR_DEVELOPMENT_KNOWN_HOSTS_FILE}:/run/vector-development-known-hosts" \
+  -v "${secret_file}:/run/vector-development-luks.key:ro" \
+  -w /workspace \
+  "${nix_image}" \
+  nix run .#nixos-anywhere -- \
+    --flake .#vector-development \
+    --target-host "${target}" \
+    -i /run/vector-development-identity \
+    --disk-encryption-keys /tmp/vector-development-luks.key /run/vector-development-luks.key \
+    --copy-host-keys \
+    --ssh-option UserKnownHostsFile=/run/vector-development-known-hosts \
+    --ssh-option StrictHostKeyChecking=yes \
+    --build-on local
+
+echo "NixOS is installed. Enter the disk passphrase on the laptop when it reboots."

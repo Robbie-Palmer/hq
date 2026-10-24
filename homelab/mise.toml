@@ -214,8 +214,17 @@ description = "Show the Nix flake outputs without building them"
 run = "bash scripts/nix-command flake show"
 
 [tasks.nix-format]
-description = "Format the homelab Nix flake"
-run = "bash scripts/nix-command fmt -- flake.nix"
+description = "Format all homelab Nix declarations"
+run = '''
+bash scripts/nix-command develop --command nixfmt \
+  flake.nix \
+  hosts/vector-development/*.nix \
+  packages/*.nix
+'''
+
+[tasks.nix-update-nixpkgs]
+description = "Update the locked stable nixpkgs inputs selected by the flake"
+run = "bash scripts/nix-command flake update nixpkgs nixpkgs2605"
 
 [tasks.nix-develop]
 description = "Enter the default Nix development shell"
@@ -224,6 +233,93 @@ run = "bash scripts/nix-command develop"
 [tasks.remote-build]
 description = "Build the remote-development NixOS system"
 run = "bash scripts/nix-command build --no-link .#nixosConfigurations.remote-development.config.system.build.toplevel"
+
+# ---------------------------------------------------------------------------
+# vector-development NixOS laptop and independent K3s workload
+# ---------------------------------------------------------------------------
+
+[tasks.vector-build]
+description = "Build the vector-development NixOS system"
+run = "bash scripts/nix-command build --no-link .#nixosConfigurations.vector-development.config.system.build.toplevel"
+
+[tasks.vector-install]
+description = "Guard, wipe, and install vector-development from a NixOS live ISO"
+run = "bash scripts/install-vector-development"
+
+[tasks.vector-password]
+description = "Set the local GNOME and sudo password without exposing it to the shell"
+run = "bash scripts/set-vector-development-password"
+
+[tasks.vector-tailscale-enrol]
+description = "Interactively enroll vector-development in Tailscale"
+run = "bash scripts/enrol-vector-development-tailscale"
+
+[tasks.vector-kubeconfig]
+description = "Fetch the vector-development kubeconfig over Tailscale"
+run = "bash scripts/fetch-vector-development-kubeconfig"
+
+[tasks.vector-rebuild]
+description = "Build and switch vector-development over the tailnet"
+run = "bash scripts/rebuild-vector-development"
+
+[tasks.vector-health]
+description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
+run = "bash scripts/vector-development-health"
+
+[tasks.vector-static-check]
+description = "Syntax-check vector-development commissioning scripts"
+run = '''
+bash -n \
+  scripts/vector-development-ssh \
+  scripts/install-vector-development \
+  scripts/set-vector-development-password \
+  scripts/enrol-vector-development-tailscale \
+  scripts/fetch-vector-development-kubeconfig \
+  scripts/rebuild-vector-development \
+  scripts/vector-development-health
+grep -F 'VECTOR_DEVELOPMENT_INSTALL:-' scripts/install-vector-development >/dev/null
+grep -F 'nvme-eui.e8238fa6bf530001001b448b4a0a7d9e' scripts/install-vector-development >/dev/null
+grep -F '23304R801651' scripts/install-vector-development >/dev/null
+'''
+
+[tasks.k3s-render-vector]
+description = "Render the vector-development T3 Code and NVIDIA overlay"
+run = "kubectl kustomize k3s/overlays/vector-development"
+
+[tasks.k3s-dry-run-vector]
+description = "Server-side dry run of the vector overlay after exact context and location checks"
+run = '''
+export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-development.yaml}"
+bash scripts/apply-kustomize-overlay \
+  k3s/overlays/vector-development \
+  "${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
+  home \
+  dry-run
+'''
+
+[tasks.k3s-deploy-vector]
+description = "Apply the vector overlay after exact context and location checks"
+run = '''
+export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-development.yaml}"
+bash scripts/apply-kustomize-overlay \
+  k3s/overlays/vector-development \
+  "${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
+  home \
+  apply
+'''
+
+[tasks.doppler-operator-install-vector]
+description = "Install the Doppler operator and vector-development scoped tokens"
+run = '''
+export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-development.yaml}"
+EXPECTED_KUBE_CONTEXT="${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
+EXPECTED_KUBE_LOCATION=home \
+DOPPLER_TOKEN_LABEL_PREFIX=vector-development-k3s \
+  bash scripts/install-doppler-operator \
+    "t3-code:doppler-token:homelab:prd_vector_development" \
+    "t3-code:doppler-agent-token:personal-site:dev_agent" \
+    "t3-code:doppler-work-graph-token:work-graph:prd_work_graph"
+'''
 
 [tasks.remote-otelcol-validate]
 description = "Validate the pinned remote-development OpenTelemetry Collector configuration"

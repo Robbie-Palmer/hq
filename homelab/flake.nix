@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
+    nixpkgs2605.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     disko = {
       url = "github:nix-community/disko";
@@ -21,6 +22,7 @@
       disko,
       nixos-anywhere,
       nixpkgs,
+      nixpkgs2605,
     }:
     let
       supportedSystems = [
@@ -66,6 +68,7 @@
             assert builtins.hasAttr "configuration-revision" self.nixosModules;
             assert self.nixosConfigurations ? asus-desktop;
             assert self.nixosConfigurations ? remote-development;
+            assert self.nixosConfigurations ? vector-development;
             pkgs.runCommand "homelab-flake-contract-v1" { } ''
               test ${toString self.lib.flakeContract.version} = 1
               touch "$out"
@@ -100,6 +103,15 @@
         modules = [
           disko.nixosModules.disko
           ./hosts/remote-development
+          self.nixosModules.configuration-revision
+        ];
+      };
+
+      nixosConfigurations.vector-development = nixpkgs2605.lib.nixosSystem {
+        system = "x86_64-linux";
+        modules = [
+          disko.nixosModules.disko
+          ./hosts/vector-development
           self.nixosModules.configuration-revision
         ];
       };
