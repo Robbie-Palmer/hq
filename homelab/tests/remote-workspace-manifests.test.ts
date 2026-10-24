@@ -2473,7 +2473,9 @@ test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", (
   assert.ok(wake.includes("VECTOR_DEVELOPMENT_LUKS_REMOTE_KEY"));
   assert.ok(wake.includes("StrictHostKeyChecking=yes"));
   assert.ok(wake.includes("VECTOR_DEVELOPMENT_INITRD_HOST_PUBLIC_KEY"));
-  assert.ok(wake.includes('sock.sendto(packet, ("255.255.255.255", 9))'));
+  assert.ok(wake.includes("for port in (7, 9)"));
+  assert.ok(wake.includes("wake_attempt % 5"));
+  assert.ok(wake.includes("for health_attempt in $(seq 1 12)"));
   assert.ok(shutdown.includes('test "$(hostname)" = vector-development'));
   assert.ok(shutdown.includes("systemctl poweroff"));
 

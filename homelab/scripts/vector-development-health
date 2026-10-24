@@ -46,7 +46,16 @@ k3s kubectl get node vector-development --output=json \
 if k3s kubectl --namespace kube-system get daemonset nvidia-device-plugin-daemonset >/dev/null 2>&1; then
   k3s kubectl --namespace kube-system rollout status \
     daemonset/nvidia-device-plugin-daemonset --timeout=120s
-  test "$(k3s kubectl get node vector-development --output=jsonpath='{.status.allocatable.nvidia\.com/gpu}')" = 1
+  gpu_allocatable=
+  for _ in $(seq 1 30); do
+    gpu_allocatable=$(
+      k3s kubectl get node vector-development \
+        --output=jsonpath='{.status.allocatable.nvidia\.com/gpu}'
+    )
+    [ "${gpu_allocatable}" = 1 ] && break
+    sleep 2
+  done
+  test "${gpu_allocatable}" = 1
 fi
 if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
   k3s kubectl --namespace t3-code rollout status deployment/t3-code --timeout=180s
