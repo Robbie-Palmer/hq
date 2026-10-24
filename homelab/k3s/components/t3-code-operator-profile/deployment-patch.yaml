@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: t3-code
+  namespace: t3-code
+spec:
+  template:
+    spec:
+      containers:
+        - name: t3-code
+          env:
+            - name: OPENCODE_CONFIG_CONTENT
+              valueFrom:
+                configMapKeyRef:
+                  name: t3-code-operator-profile
+                  key: opencode.json
+                  optional: false

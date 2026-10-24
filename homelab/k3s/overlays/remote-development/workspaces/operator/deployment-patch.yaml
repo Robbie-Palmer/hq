@@ -78,20 +78,6 @@ spec:
               value: "10000"
             - name: OTEL_RESOURCE_ATTRIBUTES
               value: deployment.environment.name=remote-development,workspace.id=operator
-            - name: OPENCODE_CONFIG_CONTENT
-              value: |
-                {
-                  "$schema": "https://opencode.ai/config.json",
-                  "provider": {
-                    "openrouter": {
-                      "models": {
-                        "z-ai/glm-5.3-flash": {
-                          "name": "GLM 5.3 Flash"
-                        }
-                      }
-                    }
-                  }
-                }
             - name: CF_ACCESS_CLIENT_ID
               valueFrom:
                 secretKeyRef:

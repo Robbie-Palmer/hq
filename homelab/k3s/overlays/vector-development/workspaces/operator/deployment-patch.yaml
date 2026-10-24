@@ -60,20 +60,6 @@ spec:
               value: "107374182400"
             - name: SHARED_TASK_CACHE_MAX_AGE_SECONDS
               value: "1209600"
-            - name: OPENCODE_CONFIG_CONTENT
-              value: |
-                {
-                  "$schema": "https://opencode.ai/config.json",
-                  "provider": {
-                    "openrouter": {
-                      "models": {
-                        "z-ai/glm-5.3-flash": {
-                          "name": "GLM 5.3 Flash"
-                        }
-                      }
-                    }
-                  }
-                }
             - name: CF_ACCESS_CLIENT_ID
               valueFrom:
                 secretKeyRef:

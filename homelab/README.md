@@ -11,9 +11,9 @@ All services are reachable only over the home LAN and the
 forwards no ports, so nothing is ever public.
 
 The MSI Vector laptop is a graphical NixOS workstation and an independent
-development plane. Its full installation and commissioning runbook is in
-[`docs/vector-development.md`](docs/vector-development.md). It does not dual
-boot and it is not a worker in the Mac mini or Hetzner K3s clusters.
+development plane. [ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+records its architecture, and its installation and commissioning runbook is in
+[`docs/vector-development.md`](docs/vector-development.md).
 
 [ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
