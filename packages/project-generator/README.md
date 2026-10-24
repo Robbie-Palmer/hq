@@ -68,6 +68,18 @@ Other generated files count as migrations, including every infrastructure
 path. `profile:update` is an alias for the same reviewed apply operation and
 also requires `--reviewed-plan`.
 
+Secret and identity bootstrap uses a separate versioned contract. Run
+`mise //:project:secret-bootstrap:plan -- <plan.yaml>` to inspect a redacted
+handoff, then `mise //:project:secret-bootstrap:apply -- <plan.yaml>` to resume
+it. A manual provider action must be acknowledged with
+`--acknowledge <checkpoint-id>` before the command moves its dependent value.
+See the [runbook](../../docs/runbooks/project-secret-bootstrap.md) and the
+[example plan](../../infra/project-modules/examples/secret-bootstrap.yaml).
+
+Keeping this contract separate matters. Project profiles and Copier receipts
+stay deterministic and non-secret, while the resume file records only plan,
+checkpoint, and completion IDs.
+
 Profiles track newer defaults unless they state otherwise:
 
 ```yaml
