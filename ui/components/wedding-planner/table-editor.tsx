@@ -5,6 +5,7 @@ import { ArrowRight, Download, Lock, Save, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import {
   defaultWeddingReadinessPreferences,
+  type WeddingPlan,
   weddingRoleLabels,
   weddingRolesLabel,
 } from "wedding-planner-domain";
@@ -759,6 +760,86 @@ function SeatingLocks({
   );
 }
 
+type SeatingExportKind = NonNullable<
+  WeddingPlanDraft["readiness"]
+>["seating_exports"][number]["kind"];
+type SavedSeatingPlan = NonNullable<TablePlan["saved_plans"]>[number];
+
+function markSeatingExportCurrent(
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void,
+  chosen: SavedSeatingPlan | undefined,
+  kind: SeatingExportKind,
+) {
+  if (!chosen) return;
+  onUpdate((draft) => {
+    draft.readiness ??= defaultWeddingReadinessPreferences();
+    draft.readiness.seating_exports = [
+      ...draft.readiness.seating_exports.filter((entry) => entry.kind !== kind),
+      { kind, plan_id: chosen.id, exported_at: new Date().toISOString() },
+    ];
+  });
+}
+
+function downloadSeatingExport(
+  kind: SeatingExportKind,
+  plan: TablePlan,
+  allocation: TableAllocation,
+  guests: WeddingPlan["guests"],
+) {
+  if (kind === "venue") {
+    downloadTextFile(
+      "seating-assignments.csv",
+      "text/csv;charset=utf-8",
+      exportSeatingAssignmentsCsv(allocation, guests),
+    );
+  } else if (kind === "caterer") {
+    downloadTextFile(
+      "catering-summary.csv",
+      "text/csv;charset=utf-8",
+      exportCateringSummaryCsv(allocation, guests),
+    );
+  } else {
+    downloadTextFile(
+      "accessible-floor-plan.svg",
+      "image/svg+xml",
+      exportAccessibleFloorPlanSvg(plan, allocation),
+    );
+  }
+}
+
+const seatingExportLabels: Record<SeatingExportKind, string> = {
+  venue: "Venue CSV",
+  caterer: "Caterer CSV",
+  floor_plan: "Floor plan SVG",
+};
+
+function SeatingExportButtons({
+  plan,
+  allocation,
+  guests,
+  chosen,
+  onUpdate,
+}: Readonly<{
+  plan: TablePlan;
+  allocation: TableAllocation;
+  guests: WeddingPlan["guests"];
+  chosen: SavedSeatingPlan | undefined;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+}>) {
+  return (["venue", "caterer", "floor_plan"] as const).map((kind) => (
+    <Button
+      key={kind}
+      variant="outline"
+      onClick={() => {
+        downloadSeatingExport(kind, plan, allocation, guests);
+        markSeatingExportCurrent(onUpdate, chosen, kind);
+      }}
+    >
+      <Download size={14} /> {seatingExportLabels[kind]}
+    </Button>
+  ));
+}
+
 function SavedPlansAndExports({
   state,
   plan,
@@ -779,26 +860,6 @@ function SavedPlansAndExports({
   );
   const wedding = editorStateToPlan(state);
   const exportAllocation = chosen?.allocation ?? allocation;
-  const markExportCurrent = (
-    kind: NonNullable<
-      WeddingPlanDraft["readiness"]
-    >["seating_exports"][number]["kind"],
-  ) => {
-    if (!chosen) return;
-    onUpdate((draft) => {
-      draft.readiness ??= defaultWeddingReadinessPreferences();
-      draft.readiness.seating_exports = [
-        ...draft.readiness.seating_exports.filter(
-          (entry) => entry.kind !== kind,
-        ),
-        {
-          kind,
-          plan_id: chosen.id,
-          exported_at: new Date().toISOString(),
-        },
-      ];
-    });
-  };
   return (
     <Card>
       <CardHeader>
@@ -832,45 +893,13 @@ function SavedPlansAndExports({
           >
             <Save size={14} /> Save alternative
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              downloadTextFile(
-                "seating-assignments.csv",
-                "text/csv;charset=utf-8",
-                exportSeatingAssignmentsCsv(exportAllocation, wedding.guests),
-              );
-              markExportCurrent("venue");
-            }}
-          >
-            <Download size={14} /> Venue CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              downloadTextFile(
-                "catering-summary.csv",
-                "text/csv;charset=utf-8",
-                exportCateringSummaryCsv(exportAllocation, wedding.guests),
-              );
-              markExportCurrent("caterer");
-            }}
-          >
-            <Download size={14} /> Caterer CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              downloadTextFile(
-                "accessible-floor-plan.svg",
-                "image/svg+xml",
-                exportAccessibleFloorPlanSvg(plan, exportAllocation),
-              );
-              markExportCurrent("floor_plan");
-            }}
-          >
-            <Download size={14} /> Floor plan SVG
-          </Button>
+          <SeatingExportButtons
+            plan={plan}
+            allocation={exportAllocation}
+            guests={wedding.guests}
+            chosen={chosen}
+            onUpdate={onUpdate}
+          />
         </div>
         {!!eventPlans?.length && (
           <div className="table-guest-list">
