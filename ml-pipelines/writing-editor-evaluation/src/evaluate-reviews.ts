@@ -584,7 +584,100 @@ function evaluateReviewEntry(
     };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Keep aggregate metrics and their three-way decision gates visibly aligned.
+type EvaluatedArtifact = ReturnType<typeof evaluateReviewEntry>;
+
+function aggregateArtifacts(artifacts: EvaluatedArtifact[]) {
+  const proposals = sum(artifacts.map(({ proposals: count }) => count));
+  const accepted = sum(artifacts.map(({ accepted: count }) => count));
+  const changed = sum(artifacts.map(({ changed: count }) => count));
+  const rejected = sum(artifacts.map(({ rejected: count }) => count));
+  const factualPreservation = qualityCounts(
+    artifacts.map(({ quality }) => quality.factualPreservation),
+  );
+  const terminologyPreservation = qualityCounts(
+    artifacts.map(({ quality }) => quality.terminologyPreservation),
+  );
+  const voicePreservation = qualityCounts(
+    artifacts.map(({ quality }) => quality.voicePreservation),
+  );
+  const regressions = {
+    none: artifacts.filter(({ quality }) => quality.regression === "none").length,
+    present: artifacts.filter(({ quality }) => quality.regression === "present").length,
+    notAssessed: artifacts.filter(({ quality }) => quality.regression === "not-assessed").length,
+  };
+  const assessedRegressions = regressions.none + regressions.present;
+  const measuredReviewTimes = artifacts
+    .filter(({ reviewTiming }) => reviewTiming === "measured")
+    .map(({ reviewSeconds }) => reviewSeconds)
+    .sort((a, b) => a - b);
+  const qualityMetrics = [factualPreservation, terminologyPreservation, voicePreservation];
+  return {
+    proposals,
+    accepted,
+    changed,
+    rejected,
+    usefulYield: proposals === 0 ? 0 : (accepted + changed) / proposals,
+    factualPreservation,
+    terminologyPreservation,
+    voicePreservation,
+    regressions,
+    regressionRate: assessedRegressions === 0 ? 0 : regressions.present / assessedRegressions,
+    measuredReviewTimes,
+    medianSeconds: median(measuredReviewTimes),
+    qualityAssessed: qualityMetrics.every(({ notAssessed }) => notAssessed === 0) &&
+      regressions.notAssessed === 0,
+    qualityPreserved: qualityMetrics.every(({ fail }) => fail === 0) && regressions.present === 0,
+    reviewTimeAssessed: measuredReviewTimes.length === artifacts.length,
+    regressionsAssessed: assessedRegressions === artifacts.length,
+  };
+}
+
+function buildGates(options: {
+  artifacts: EvaluatedArtifact[];
+  aggregate: ReturnType<typeof aggregateArtifacts>;
+  manifest: z.infer<typeof ReviewEvidenceManifestSchema>;
+  params: z.infer<typeof ReviewEvaluationParamsSchema>;
+}): ReviewScorecard["gates"] {
+  const { artifacts, aggregate, manifest, params } = options;
+  const presentArtifactTypes = new Set(artifacts.map(({ artifactType }) => artifactType));
+  const deletionClear = manifest.governance.deletionStatus === "active" &&
+    manifest.entries.every(({ governance }) => governance?.deletionStatus !== "deletion-requested");
+  return {
+    sampleSize: {
+      artifacts: artifacts.length >= params.sampleSize.minimumArtifacts,
+      actionableVolume: aggregate.proposals >= params.sampleSize.minimumActionableProposals,
+      artifactTypes: params.sampleSize.requiredArtifactTypes.every((type) =>
+        presentArtifactTypes.has(type)
+      ),
+    },
+    adoption: {
+      usefulYield: aggregate.usefulYield >= params.thresholds.adopt.minimumUsefulYield,
+      regressionRate: aggregate.regressionsAssessed &&
+        aggregate.regressionRate <= params.thresholds.adopt.maximumRegressionRate,
+      reviewTime: aggregate.reviewTimeAssessed &&
+        aggregate.medianSeconds <= params.thresholds.adopt.maximumMedianReviewSeconds,
+      qualityAssessed: !params.requireAssessedQuality || aggregate.qualityAssessed,
+      qualityPreserved: aggregate.qualityPreserved,
+      deletionClear,
+    },
+    rejection: {
+      usefulYield: aggregate.usefulYield <= params.thresholds.reject.maximumUsefulYield,
+      regressionRate: aggregate.regressionsAssessed &&
+        aggregate.regressionRate >= params.thresholds.reject.minimumRegressionRate,
+      reviewTime: aggregate.reviewTimeAssessed &&
+        aggregate.medianSeconds >= params.thresholds.reject.minimumMedianReviewSeconds,
+      qualityFailed: !aggregate.qualityPreserved,
+    },
+  };
+}
+
+function recommendationFor(gates: ReviewScorecard["gates"]): ReviewScorecard["recommendation"] {
+  if (!Object.values(gates.sampleSize).every(Boolean)) return "gather-more-evidence";
+  if (Object.values(gates.rejection).some(Boolean)) return "reject";
+  if (Object.values(gates.adoption).every(Boolean)) return "adopt";
+  return "gather-more-evidence";
+}
+
 export function evaluateReviews(options: {
   manifestFile: string;
   evidenceRoot: string;
@@ -600,76 +693,9 @@ export function evaluateReviews(options: {
   const artifacts = manifest.entries.map((entry) =>
     evaluateReviewEntry(entry, options.evidenceRoot, pipeline)
   );
-  const proposals = sum(artifacts.map(({ proposals: count }) => count));
-  const accepted = sum(artifacts.map(({ accepted: count }) => count));
-  const changed = sum(artifacts.map(({ changed: count }) => count));
-  const rejected = sum(artifacts.map(({ rejected: count }) => count));
-  const usefulYield = proposals === 0 ? 0 : (accepted + changed) / proposals;
-  const factualPreservation = qualityCounts(artifacts.map(({ quality }) => quality.factualPreservation));
-  const terminologyPreservation = qualityCounts(
-    artifacts.map(({ quality }) => quality.terminologyPreservation),
-  );
-  const voicePreservation = qualityCounts(artifacts.map(({ quality }) => quality.voicePreservation));
-  const regressions = {
-    none: artifacts.filter(({ quality }) => quality.regression === "none").length,
-    present: artifacts.filter(({ quality }) => quality.regression === "present").length,
-    notAssessed: artifacts.filter(({ quality }) => quality.regression === "not-assessed").length,
-  };
-  const assessedRegressions = regressions.none + regressions.present;
-  const regressionRate = assessedRegressions === 0 ? 0 : regressions.present / assessedRegressions;
-  const measuredReviewTimes = artifacts
-    .filter(({ reviewTiming }) => reviewTiming === "measured")
-    .map(({ reviewSeconds }) => reviewSeconds)
-    .sort((a, b) => a - b);
-  const medianSeconds = median(measuredReviewTimes);
-  const qualityAssessed = [
-    factualPreservation,
-    terminologyPreservation,
-    voicePreservation,
-  ].every(({ notAssessed }) => notAssessed === 0) && regressions.notAssessed === 0;
-  const qualityPreserved = [
-    factualPreservation,
-    terminologyPreservation,
-    voicePreservation,
-  ].every(({ fail }) => fail === 0) && regressions.present === 0;
-  const reviewTimeAssessed = measuredReviewTimes.length === artifacts.length;
-  const regressionsAssessed = assessedRegressions === artifacts.length;
-  const deletionClear = manifest.governance.deletionStatus === "active" &&
-    manifest.entries.every(({ governance }) => governance?.deletionStatus !== "deletion-requested");
-  const presentArtifactTypes = new Set(artifacts.map(({ artifactType }) => artifactType));
-  const gates = {
-    sampleSize: {
-      artifacts: artifacts.length >= params.sampleSize.minimumArtifacts,
-      actionableVolume: proposals >= params.sampleSize.minimumActionableProposals,
-      artifactTypes: params.sampleSize.requiredArtifactTypes.every((type) =>
-        presentArtifactTypes.has(type)
-      ),
-    },
-    adoption: {
-      usefulYield: usefulYield >= params.thresholds.adopt.minimumUsefulYield,
-      regressionRate: regressionsAssessed &&
-        regressionRate <= params.thresholds.adopt.maximumRegressionRate,
-      reviewTime: reviewTimeAssessed &&
-        medianSeconds <= params.thresholds.adopt.maximumMedianReviewSeconds,
-      qualityAssessed: !params.requireAssessedQuality || qualityAssessed,
-      qualityPreserved,
-      deletionClear,
-    },
-    rejection: {
-      usefulYield: usefulYield <= params.thresholds.reject.maximumUsefulYield,
-      regressionRate: regressionsAssessed &&
-        regressionRate >= params.thresholds.reject.minimumRegressionRate,
-      reviewTime: reviewTimeAssessed &&
-        medianSeconds >= params.thresholds.reject.minimumMedianReviewSeconds,
-      qualityFailed: !qualityPreserved,
-    },
-  };
-  const sampleSizeMet = Object.values(gates.sampleSize).every(Boolean);
-  const recommendation = sampleSizeMet && Object.values(gates.rejection).some(Boolean)
-    ? "reject" as const
-    : sampleSizeMet && Object.values(gates.adoption).every(Boolean)
-    ? "adopt" as const
-    : "gather-more-evidence" as const;
+  const aggregate = aggregateArtifacts(artifacts);
+  const gates = buildGates({ artifacts, aggregate, manifest, params });
+  const recommendation = recommendationFor(gates);
   const detectionCoverage = pipeline
     ? {
       artifacts: pipeline.valeRun.summary.artifacts,
@@ -704,18 +730,24 @@ export function evaluateReviews(options: {
       : {}),
     governance: manifest.governance,
     detectionCoverage,
-    proposalOutcomes: { proposals, accepted, changed, rejected, usefulYield },
+    proposalOutcomes: {
+      proposals: aggregate.proposals,
+      accepted: aggregate.accepted,
+      changed: aggregate.changed,
+      rejected: aggregate.rejected,
+      usefulYield: aggregate.usefulYield,
+    },
     quality: {
-      factualPreservation,
-      terminologyPreservation,
-      voicePreservation,
-      regressions: { ...regressions, rate: regressionRate },
+      factualPreservation: aggregate.factualPreservation,
+      terminologyPreservation: aggregate.terminologyPreservation,
+      voicePreservation: aggregate.voicePreservation,
+      regressions: { ...aggregate.regressions, rate: aggregate.regressionRate },
     },
     review: {
-      totalSeconds: sum(measuredReviewTimes),
-      medianSeconds,
-      measuredArtifacts: measuredReviewTimes.length,
-      unmeasuredArtifacts: artifacts.length - measuredReviewTimes.length,
+      totalSeconds: sum(aggregate.measuredReviewTimes),
+      medianSeconds: aggregate.medianSeconds,
+      measuredArtifacts: aggregate.measuredReviewTimes.length,
+      unmeasuredArtifacts: artifacts.length - aggregate.measuredReviewTimes.length,
     },
     artifacts: artifacts.map(({ reviewTiming: _reviewTiming, ...artifact }) => artifact),
     gates,
@@ -761,6 +793,7 @@ function median(values: number[]): number {
     : ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2;
 }
 
+/* v8 ignore start -- exercised by the mise and DVC command wrappers */
 function main(): void {
   const { values } = parseArgs({ options: {
     manifest: { type: "string" },
@@ -789,7 +822,7 @@ function main(): void {
       candidate["producer-run"],
     ];
     if (pipelineFields.some((value) => value !== undefined) &&
-      pipelineFields.some((value) => value === undefined)) {
+      pipelineFields.includes(undefined)) {
       context.addIssue({
         code: "custom",
         message: "cohort, vale, matches, and producer-run must be provided together",
@@ -814,3 +847,4 @@ function main(): void {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) main();
+/* v8 ignore stop */
