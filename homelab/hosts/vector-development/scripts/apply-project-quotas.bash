@@ -6,7 +6,7 @@ fi
 
 quota_state="${VECTOR_PROJECT_QUOTA_LAYOUT_VERSION}:$(findmnt --noheadings --output UUID / | tr -d ' ')"
 quota_state_file=/var/lib/vector-development/project-quota-layout
-if [ "$(cat "${quota_state_file}" 2>/dev/null || true)" != "${quota_state}" ]; then
+if [[ "$(cat "${quota_state_file}" 2>/dev/null || true)" != "${quota_state}" ]]; then
   find "${VECTOR_OPERATOR_DATA_PATH}" -xdev ! -type l -exec chattr -p "${VECTOR_OPERATOR_PROJECT_ID}" {} +
   find "${VECTOR_CACHE_DATA_PATH}" -xdev ! -type l -exec chattr -p "${VECTOR_CACHE_PROJECT_ID}" {} +
 fi
