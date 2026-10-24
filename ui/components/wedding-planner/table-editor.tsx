@@ -492,10 +492,10 @@ function ConstraintSetup({
     });
   const groups = [
     ...new Set(state.guests.flatMap((guest) => guest.relationship_groups)),
-  ].sort();
+  ].sort((first, second) => first.localeCompare(second));
   const roles = [
     ...new Set(state.guests.flatMap((guest) => guest.wedding_roles ?? [])),
-  ].sort();
+  ].sort((first, second) => first.localeCompare(second));
   const tableOptions = [
     { id: "top", name: plan.table_layout?.top?.name || "Top table" },
     ...plan.table_capacities.map((_, index) => ({
@@ -713,7 +713,7 @@ function SeatingLocks({
                 <select
                   className="editor-select"
                   aria-label={`${names.get(guestId) ?? guestId} assigned seat`}
-                  value={lock?.seat_index === undefined ? "" : lock.seat_index}
+                  value={lock?.seat_index ?? ""}
                   onChange={(event) =>
                     onUpdate((draft) =>
                       lockGuestSeat(
@@ -933,6 +933,28 @@ type PreferenceReviewItem = {
   count: number;
 };
 
+function preferenceGroup(description: string): {
+  key: string;
+  title: string;
+} | null {
+  const relationshipGroup = /^They share the (.+) relationship group$/.exec(
+    description,
+  )?.[1];
+  if (relationshipGroup)
+    return {
+      key: `relationship:${relationshipGroup}`,
+      title: `${relationshipGroup} group`,
+    };
+  const tableChoice = /^Preferred table for the (.+) (group|role)$/.exec(
+    description,
+  );
+  if (!tableChoice) return null;
+  return {
+    key: `table:${tableChoice[1]}:${tableChoice[2]}`,
+    title: `${tableChoice[1]} ${tableChoice[2]} table choice`,
+  };
+}
+
 function preferenceReviewItems(
   allocation: TableAllocation,
   names: Map<string, string>,
@@ -943,29 +965,16 @@ function preferenceReviewItems(
   >();
   const individual: PreferenceReviewItem[] = [];
   for (const preference of allocation.unsatisfied_preferences) {
-    const relationshipGroup = /^They share the (.+) relationship group$/.exec(
-      preference.description,
-    )?.[1];
-    const tableChoice = /^Preferred table for the (.+) (group|role)$/.exec(
-      preference.description,
-    );
-    const groupingKey = relationshipGroup
-      ? `relationship:${relationshipGroup}`
-      : tableChoice
-        ? `table:${tableChoice[1]}:${tableChoice[2]}`
-        : null;
-    if (groupingKey) {
-      const title = relationshipGroup
-        ? `${relationshipGroup} group`
-        : `${tableChoice?.[1]} ${tableChoice?.[2]} table choice`;
-      const item = grouped.get(groupingKey) ?? {
-        title,
+    const group = preferenceGroup(preference.description);
+    if (group) {
+      const item = grouped.get(group.key) ?? {
+        title: group.title,
         guestIds: new Set<string>(),
         count: 0,
       };
       for (const guestId of preference.guest_ids) item.guestIds.add(guestId);
       item.count += 1;
-      grouped.set(groupingKey, item);
+      grouped.set(group.key, item);
       continue;
     }
     const guestNames = preference.guest_ids.map(
@@ -986,7 +995,7 @@ function preferenceReviewItems(
       detail: `${item.count} preferences across ${item.guestIds.size} guests`,
       guestNames: [...item.guestIds]
         .map((guestId) => names.get(guestId) ?? guestId)
-        .sort(),
+        .sort((first, second) => first.localeCompare(second)),
       count: item.count,
     })),
     ...individual,
@@ -1011,8 +1020,8 @@ function TableSeatList({
   );
   return (
     <ul className="table-seat-list">
-      {table.fixed_guests.map((name, position) => (
-        <li key={`host-${position}`}>
+      {table.fixed_guests.map((name) => (
+        <li key={`${table.id}:host:${name}`}>
           <span className="table-seat-number">Host</span>
           <strong>{name}</strong>
         </li>
@@ -1367,6 +1376,9 @@ export function TableEditor({
   const unknown = state.guests.filter(
     (guest) => !guest.attendance || guest.attendance === "unknown",
   ).length;
+  let calculateLabel = "Calculate tables";
+  if (busy) calculateLabel = "Calculating tables…";
+  else if (allocation) calculateLabel = "Recalculate tables";
   return (
     <>
       <div className="page-heading">
@@ -1374,12 +1386,7 @@ export function TableEditor({
           <h2>Tables</h2>
         </div>
         <Button onClick={onCalculate} disabled={busy}>
-          {busy
-            ? "Calculating tables…"
-            : allocation
-              ? "Recalculate tables"
-              : "Calculate tables"}{" "}
-          <ArrowRight size={16} />
+          {calculateLabel} <ArrowRight size={16} />
         </Button>
       </div>
       <div className="progress-strip">

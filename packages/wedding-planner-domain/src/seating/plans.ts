@@ -71,7 +71,7 @@ export function compareSeatingAlternatives(
         (guestId) =>
           firstAssignments.get(guestId) !== secondAssignments.get(guestId),
       )
-      .sort(),
+      .sort((firstId, secondId) => firstId.localeCompare(secondId)),
     unsatisfied_change:
       second.unsatisfied_preferences.length -
       first.unsatisfied_preferences.length,
