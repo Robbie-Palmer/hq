@@ -17,7 +17,8 @@ fi
 # shellcheck source=/dev/null
 source "${config_file}"
 
-for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_CREDENTIALS_FILE BACKUP_PASSWORD_FILE; do
+for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_STAGING_DIRECTORY \
+  BACKUP_CREDENTIALS_FILE BACKUP_PASSWORD_FILE; do
   if [ -z "${!name:-}" ]; then
     echo "workspace backup configuration is missing ${name}" >&2
     exit 1
@@ -35,6 +36,7 @@ fi
 
 # shellcheck source=/dev/null
 set -a
+# shellcheck source=/dev/null
 source "${BACKUP_CREDENTIALS_FILE}"
 set +a
 if [ -z "${RESTIC_REPOSITORY:-}" ]; then
@@ -57,10 +59,19 @@ fi
   --target="${target}"
 
 restored_source="${target}${BACKUP_SOURCE}"
-if [ ! -d "${restored_source}/home/.t3" ] \
-  || [ ! -d "${restored_source}/workspaces" ]; then
-  echo "restored workspace is missing required durable paths" >&2
+restored_userdata="${restored_source}/home/.t3/userdata"
+restored_export="${target}${BACKUP_STAGING_DIRECTORY}"
+if [ ! -r "${restored_export}/t3-databases/statev2.sqlite" ] \
+  || [ ! -r "${restored_export}/t3-databases/server-owner.sqlite" ] \
+  || [ ! -r "${restored_export}/manifest.json" ]; then
+  echo "restored workspace is missing required T3 state" >&2
   exit 1
 fi
 
-echo "workspace restore completed and required durable paths are present"
+install -d -m 0700 "${restored_userdata}"
+install -m 0600 "${restored_export}/t3-databases/statev2.sqlite" \
+  "${restored_userdata}/statev2.sqlite"
+install -m 0600 "${restored_export}/t3-databases/server-owner.sqlite" \
+  "${restored_userdata}/server-owner.sqlite"
+
+echo "workspace restore completed; T3 state and in-flight worktree exports are present"

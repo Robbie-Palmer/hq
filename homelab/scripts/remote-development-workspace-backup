@@ -3,6 +3,7 @@ set -euo pipefail
 
 config_file=${WORKSPACE_BACKUP_CONFIG:-/etc/remote-development-workspace-backup/config}
 restic_bin=${RESTIC_BIN:-restic}
+state_export_bin=${WORKSPACE_STATE_EXPORT_BIN:-remote-development-workspace-state-export}
 
 if [ ! -r "${config_file}" ]; then
   echo "workspace backup configuration is not readable" >&2
@@ -12,8 +13,9 @@ fi
 # shellcheck source=/dev/null
 source "${config_file}"
 
-for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_EXCLUDES_FILE BACKUP_STATUS_FILE \
-  BACKUP_PASSWORD_FILE KEEP_HOURLY KEEP_DAILY KEEP_WEEKLY KEEP_MONTHLY; do
+for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_STAGING_DIRECTORY \
+  BACKUP_EXCLUDES_FILE BACKUP_STATUS_FILE BACKUP_PASSWORD_FILE \
+  CHECK_READ_DATA_SUBSET KEEP_WITHIN KEEP_LAST; do
   if [ -z "${!name:-}" ]; then
     echo "workspace backup configuration is missing ${name}" >&2
     exit 1
@@ -40,6 +42,18 @@ export RESTIC_PASSWORD_FILE="${BACKUP_PASSWORD_FILE}"
 
 status_directory=$(dirname -- "${BACKUP_STATUS_FILE}")
 install -d -m 0700 "${status_directory}"
+case "${BACKUP_STAGING_DIRECTORY}" in
+  "${status_directory}"/*) ;;
+  *)
+    echo "workspace backup staging directory must be below the status directory" >&2
+    exit 1
+    ;;
+esac
+exec 9>"${status_directory}/backup.lock"
+if ! flock -n 9; then
+  echo "another workspace backup is running" >&2
+  exit 1
+fi
 work_directory=$(mktemp -d "${status_directory}/run.XXXXXX")
 chmod 0700 "${work_directory}"
 started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -49,6 +63,7 @@ last_success_at=null
 last_success_unix=null
 
 cleanup() {
+  rm -rf -- "${BACKUP_STAGING_DIRECTORY}"
   rm -rf -- "${work_directory}"
 }
 trap cleanup EXIT
@@ -125,13 +140,26 @@ else
   fi
 fi
 
+step=stage
+rm -rf -- "${BACKUP_STAGING_DIRECTORY}"
+if "${state_export_bin}" "${BACKUP_SOURCE}" "${BACKUP_STAGING_DIRECTORY}" \
+  >"${work_directory}/stage.log" 2>&1; then
+  :
+else
+  status=$?
+  write_status failed "${status}"
+  echo "workspace state export failed" >&2
+  exit "${status}"
+fi
+
 step=backup
 if run_restic "${work_directory}/backup.log" backup \
   --exclude-file="${BACKUP_EXCLUDES_FILE}" \
   --host="${WORKSPACE_ID}" \
   --tag=remote-development \
   --tag="workspace:${WORKSPACE_ID}" \
-  "${BACKUP_SOURCE}"; then
+  "${BACKUP_SOURCE}/home/.t3/userdata" \
+  "${BACKUP_STAGING_DIRECTORY}"; then
   :
 else
   status=$?
@@ -141,7 +169,8 @@ else
 fi
 
 step=check
-if run_restic "${work_directory}/check.log" check --read-data-subset=5%; then
+if run_restic "${work_directory}/check.log" check \
+  --read-data-subset="${CHECK_READ_DATA_SUBSET}"; then
   :
 else
   status=$?
@@ -154,10 +183,8 @@ step=retention
 if run_restic "${work_directory}/retention.log" forget \
   --host="${WORKSPACE_ID}" \
   --tag="workspace:${WORKSPACE_ID}" \
-  --keep-hourly="${KEEP_HOURLY}" \
-  --keep-daily="${KEEP_DAILY}" \
-  --keep-weekly="${KEEP_WEEKLY}" \
-  --keep-monthly="${KEEP_MONTHLY}" \
+  --keep-within="${KEEP_WITHIN}" \
+  --keep-last="${KEEP_LAST}" \
   --prune; then
   :
 else
