@@ -15,20 +15,18 @@ esac
 
 project="${DOPPLER_PROJECT:-homelab}"
 
-if [[ "${DOPPLER_TAILNET_ENV_WRAPPED:-}" != "1" ]]; then
-  if [[ "${CI:-}" != "true" ]]; then
-    if ! command -v doppler >/dev/null 2>&1; then
-      echo "Cannot run tailnet Terraform locally: doppler is required." >&2
-      echo "Install and authenticate the Doppler CLI, then retry." >&2
-      exit 1
-    fi
-    export DOPPLER_TAILNET_ENV_WRAPPED=1
-    exec doppler run \
-      --project "$project" \
-      --config "$config" \
-      --preserve-env=CI,DOPPLER_PROJECT,DOPPLER_TAILNET_PLAN_CONFIG,DOPPLER_TAILNET_APPLY_CONFIG,DOPPLER_TAILNET_ENV_WRAPPED \
-      -- bash "$0" "$mode" "$@"
+if [[ "${DOPPLER_TAILNET_ENV_WRAPPED:-}" != "1" && "${CI:-}" != "true" ]]; then
+  if ! command -v doppler >/dev/null 2>&1; then
+    echo "Cannot run tailnet Terraform locally: doppler is required." >&2
+    echo "Install and authenticate the Doppler CLI, then retry." >&2
+    exit 1
   fi
+  export DOPPLER_TAILNET_ENV_WRAPPED=1
+  exec doppler run \
+    --project "$project" \
+    --config "$config" \
+    --preserve-env=CI,DOPPLER_PROJECT,DOPPLER_TAILNET_PLAN_CONFIG,DOPPLER_TAILNET_APPLY_CONFIG,DOPPLER_TAILNET_ENV_WRAPPED \
+    -- bash "$0" "$mode" "$@"
 fi
 
 for required_name in \
@@ -42,7 +40,15 @@ for required_name in \
   fi
 done
 
-export TF_TOKEN_app_terraform_io="${TF_TOKEN_app_terraform_io:-$TF_API_TOKEN}"
+set_if_unset() {
+  local name="$1"
+  local value="${2:-}"
+  if [[ -z "${!name:-}" && -n "$value" ]]; then
+    export "$name=$value"
+  fi
+}
+
+set_if_unset TF_TOKEN_app_terraform_io "$TF_API_TOKEN"
 
 map_prefixed_values() {
   local prefix="$1"
