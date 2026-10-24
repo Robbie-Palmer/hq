@@ -26,30 +26,40 @@ async function setEquipmentBaseline(context: BrowserContext): Promise<void> {
   );
   if (!household) throw new Error("Household owner has no preview household");
 
-  const results = await Promise.allSettled([
-    ...managedEquipment.map((slug) =>
-      expectPreviewJSON(
-        context,
-        `/api/households/${household.id}/equipment/${slug}`,
-        { method: "PUT", retry: "transient" },
-      ),
+  const operations = [
+    ...managedEquipment.map(
+      (slug) => () =>
+        expectPreviewJSON(
+          context,
+          `/api/households/${household.id}/equipment/${slug}`,
+          { method: "PUT", retry: "transient" },
+        ),
     ),
-    ...absentEquipment.map((slug) =>
-      expectPreviewStatus(
-        context,
-        `/api/households/${household.id}/equipment/${slug}`,
-        { method: "DELETE", retry: "transient" },
-        204,
-      ),
+    ...absentEquipment.map(
+      (slug) => () =>
+        expectPreviewStatus(
+          context,
+          `/api/households/${household.id}/equipment/${slug}`,
+          { method: "DELETE", retry: "transient" },
+          204,
+        ),
     ),
-    expectPreviewJSON(context, `/api/households/${household.id}/equipment`, {
-      data: { recipeMatchMode: "warn" },
-      method: "PATCH",
-      retry: "transient",
-    }),
-  ]);
-  const failure = results.find((result) => result.status === "rejected");
-  if (failure?.status === "rejected") throw failure.reason;
+    () =>
+      expectPreviewJSON(context, `/api/households/${household.id}/equipment`, {
+        data: { recipeMatchMode: "warn" },
+        method: "PATCH",
+        retry: "transient",
+      }),
+  ];
+  let firstFailure: unknown;
+  for (const operation of operations) {
+    try {
+      await operation();
+    } catch (error) {
+      firstFailure ??= error;
+    }
+  }
+  if (firstFailure) throw firstFailure;
 }
 
 function waitForEquipmentRequest(page: Page, method: string, slug?: string) {

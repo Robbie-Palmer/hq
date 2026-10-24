@@ -26,6 +26,12 @@ assertions stay outside this retry loop. Playwright's `failOnFlakyTests` setting
 remains enabled, so a whole-test retry still fails the workflow instead of
 hiding a product race.
 
+Realtime readiness also gets three bounded attempts. An unready socket is
+closed so the application reconnects, while event and UI assertions remain
+single-shot. CI uses two workers because the suite shares one preview API and
+Durable Object namespace; higher concurrency turns fixture setup into a load
+test of the preview tier.
+
 The Agent Auth test leaves a revoked test agent and host in the disposable
 preview database. The pantry and household-equipment tests restore the records
 they change. The PWA tests only change browser-local storage and network
