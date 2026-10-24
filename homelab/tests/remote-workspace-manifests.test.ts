@@ -1403,6 +1403,26 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   );
   assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "250Gi");
   assert.equal(valueAt(runtimeSecret, ["spec", "config"]), "prd_vector_development");
+
+  const devicePluginContainers = valueAt(devicePlugin, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+  ]);
+  assert.ok(Array.isArray(devicePluginContainers));
+  const devicePluginContainer = devicePluginContainers.find(
+    (container) => container.name === "nvidia-device-plugin",
+  ) as Record<string, unknown> | undefined;
+  assert.ok(devicePluginContainer);
+  const devicePluginEnvironment = valueAt(devicePluginContainer, ["env"]);
+  assert.ok(Array.isArray(devicePluginEnvironment));
+  assert.deepEqual(
+    devicePluginEnvironment.find(
+      (variable) => variable.name === "DEVICE_ID_STRATEGY",
+    ),
+    { name: "DEVICE_ID_STRATEGY", value: "index" },
+  );
   assert.match(
     String(
       valueAt(devicePlugin, [
@@ -2343,4 +2363,57 @@ test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
     /command -v nvidia-container-runtime/,
     "the tools output is intentionally not linked into the global system PATH",
   );
+});
+
+test("the Vector tailnet scripts avoid local DNS collisions", () => {
+  const fetchKubeconfig = readFileSync(
+    new URL("../scripts/fetch-vector-development-kubeconfig", import.meta.url),
+    "utf8",
+  );
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development", import.meta.url),
+    "utf8",
+  );
+  const health = readFileSync(
+    new URL("../scripts/vector-development-health", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(
+    fetchKubeconfig.includes("vector-development.tailaa0e46.ts.net"),
+  );
+  assert.ok(rebuild.includes("root@vector-development.tailaa0e46.ts.net"));
+  assert.ok(health.includes("root@vector-development.tailaa0e46.ts.net"));
+  assert.ok(fetchKubeconfig.includes('tls_server_name=${'));
+  assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
+});
+
+test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    hostConfig,
+    /systemd\.services\.k3s[\s\S]*path = \[[\s\S]*nvidiaContainerTools[\s\S]*pkgs\.runc[\s\S]*\];/,
+  );
+  assert.ok(hostConfig.includes('mode = "cdi"'));
+  assert.ok(hostConfig.includes('runtimes = ["${lib.getExe pkgs.runc}"]'));
+  assert.ok(hostConfig.includes('"--kubelet-arg=node-ip=0.0.0.0"'));
+});
+
+test("the Vector stays awake while serving workloads", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("autoSuspend = false"));
+  assert.ok(hostConfig.includes('sleep-inactive-ac-type = "nothing"'));
+  assert.ok(hostConfig.includes("sleep-inactive-ac-timeout"));
+  assert.ok(hostConfig.includes('sleep-inactive-battery-type = "nothing"'));
+  assert.ok(hostConfig.includes("sleep-inactive-battery-timeout"));
+  assert.ok(hostConfig.includes('HandleLidSwitch = "suspend"'));
+  assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
 });

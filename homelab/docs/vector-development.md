@@ -106,9 +106,11 @@ the local HTTP endpoint.
 
 ## Connect and operate
 
-The T3 Code desktop application appears in GNOME. Create the laptop pairing URL
-inside the running pod with the laptop's MagicDNS name as `--base-url`, using
-the same process as `remote-development`.
+The T3 Code desktop application appears in GNOME. Create a pairing URL inside
+the running pod with `t3 pair`. The command prints the pod address; replace only
+that origin with `https://vector-development.tailaa0e46.ts.net` before opening
+the URL on another tailnet client. Keep the fragment containing the one-time
+token unchanged.
 
 Brave runs directly on the host. GNOME applications send print jobs to the
 `canon-mg3100` queue served by CUPS on
@@ -120,6 +122,7 @@ Deploy later host changes from another tailnet member:
 mise run //homelab:vector-rebuild
 ```
 
-Closing the lid on battery suspends the laptop. On external power or while
-docked, closing the lid leaves the machine running. A full reboot requires the
-LUKS passphrase at the laptop.
+GNOME automatic suspend is disabled on both battery and external power. Closing
+the lid on battery still suspends the laptop. On external power or while docked,
+closing the lid leaves the machine running. A full reboot requires the LUKS
+passphrase at the laptop.

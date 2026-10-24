@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-target=${VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development}
+target=${VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development.tailaa0e46.ts.net}
 identity_file=${VECTOR_DEVELOPMENT_IDENTITY_FILE:-${HOME}/.ssh/id_ed25519}
 nix_image="nixos/nix@sha256:c7cc6c8cb5d81bed19997247629604708fda95c99c43ac362daa05b6a68e8a24"
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)

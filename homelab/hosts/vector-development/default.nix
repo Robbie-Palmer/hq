@@ -111,7 +111,10 @@ in
   };
 
   services = {
-    displayManager.gdm.enable = true;
+    displayManager.gdm = {
+      enable = true;
+      autoSuspend = false;
+    };
     desktopManager.gnome.enable = true;
     xserver = {
       enable = true;
@@ -169,6 +172,7 @@ in
         "traefik"
       ];
       extraFlags = [
+        "--kubelet-arg=node-ip=0.0.0.0"
         "--secrets-encryption"
         "--write-kubeconfig-mode=0640"
       ];
@@ -243,6 +247,24 @@ in
 
   environment = {
     etc = {
+      "nvidia-container-runtime/config.toml".text = ''
+        disable-require = true
+        supported-driver-capabilities = "compat32,compute,display,graphics,ngx,utility,video"
+        [nvidia-container-cli]
+        environment = []
+        ldconfig = "@${lib.getExe' pkgs.glibc "ldconfig"}"
+        load-kmods = true
+        no-cgroups = false
+        path = "${lib.getExe' pkgs.libnvidia-container "nvidia-container-cli"}"
+        [nvidia-container-runtime]
+        mode = "cdi"
+        runtimes = ["${lib.getExe pkgs.runc}"]
+        [nvidia-container-runtime-hook]
+        path = "${nvidiaContainerTools}/bin/nvidia-container-runtime-hook"
+        skip-mode-detection = false
+        [nvidia-ctk]
+        path = "${lib.getExe' config.hardware.nvidia-container-toolkit.package "nvidia-ctk"}"
+      '';
       projects.text = ''
         ${operatorProjectId}:${operatorDataPath}
         ${cacheProjectId}:${cacheDataPath}
@@ -282,6 +304,23 @@ in
     enable = true;
     binfmt = true;
   };
+
+  programs.dconf.profiles.user.databases = [
+    {
+      settings."org/gnome/settings-daemon/plugins/power" = {
+        sleep-inactive-ac-timeout = lib.gvariant.mkInt32 0;
+        sleep-inactive-ac-type = "nothing";
+        sleep-inactive-battery-timeout = lib.gvariant.mkInt32 0;
+        sleep-inactive-battery-type = "nothing";
+      };
+      locks = [
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-timeout"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-ac-type"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-timeout"
+        "/org/gnome/settings-daemon/plugins/power/sleep-inactive-battery-type"
+      ];
+    }
+  ];
 
   systemd.services.vector-development-data-layout = {
     description = "Create vector-development data directories";
@@ -338,7 +377,10 @@ in
       "vector-development-data-layout.service"
       "vector-development-project-quotas.service"
     ];
-    path = [ nvidiaContainerTools ];
+    path = [
+      nvidiaContainerTools
+      pkgs.runc
+    ];
   };
 
   systemd.services.t3-code-tailscale-serve = {
