@@ -47,6 +47,20 @@ const RedundancyGrossComponentSchema = z.object({
   amount: EvidencedMoneySchema,
 });
 
+function cashGrossAmount(
+  components: readonly z.infer<typeof RedundancyGrossComponentSchema>[],
+) {
+  return components.reduce(
+    (total, component) =>
+      component.kind === "employer-pension-contribution" ||
+      component.kind === "employer-paid-legal-costs" ||
+      component.kind === "non-cash-benefit"
+        ? total
+        : total + component.amount.value,
+    0,
+  );
+}
+
 const RedundancyDeductionSchema = z.object({
   id: z.string().trim().min(1),
   label: z.string().trim().min(1),
@@ -92,6 +106,22 @@ const RedundancyPaymentSchema = z
         path: ["pensionDestinationAccountId"],
         message: "Employer pension contributions need a destination account",
       });
+    }
+    if (payment.netAmount != null) {
+      const cashGross = cashGrossAmount(payment.grossComponents);
+      if (cashGross <= 0) {
+        context.addIssue({
+          code: "custom",
+          path: ["netAmount"],
+          message: "A manual net amount requires at least one cash component",
+        });
+      } else if (payment.netAmount.value > cashGross + 0.005) {
+        context.addIssue({
+          code: "custom",
+          path: ["netAmount"],
+          message: "Net amount cannot exceed the cash gross components",
+        });
+      }
     }
   });
 
@@ -210,16 +240,7 @@ function sourceDescription(source: RedundancyPackage["source"]): string {
 }
 
 function cashComponentAmount(payment: RedundancyPackage["payments"][number]) {
-  return sum(
-    payment.grossComponents
-      .filter(
-        ({ kind }) =>
-          kind !== "employer-pension-contribution" &&
-          kind !== "employer-paid-legal-costs" &&
-          kind !== "non-cash-benefit",
-      )
-      .map(({ amount }) => amount.value),
-  );
+  return cashGrossAmount(payment.grossComponents);
 }
 
 function amountBreakdown(
@@ -333,18 +354,41 @@ export function adaptRedundancyPackage(
       amount: component.amount.value,
     })),
   );
+  const overDeductedPaymentIds = new Set(
+    record.payments
+      .filter((payment) => {
+        const gross = cashComponentAmount(payment);
+        const deductions = sum(
+          payment.deductions.map(({ amount }) => amount.value),
+        );
+        return gross > 0 && gross <= deductions;
+      })
+      .map(({ id }) => id),
+  );
   const manualNetRequiredForPaymentIds = record.payments
-    .filter(
-      (payment) =>
-        cashComponentAmount(payment) > 0 && payment.netAmount == null,
-    )
+    .filter((payment) => {
+      if (payment.netAmount != null || cashComponentAmount(payment) <= 0) {
+        return false;
+      }
+      return !calculation.available || overDeductedPaymentIds.has(payment.id);
+    })
     .map(({ id }) => id);
-  if (!calculation.available && manualNetRequiredForPaymentIds.length > 0) {
+  if (manualNetRequiredForPaymentIds.length > 0) {
+    const reasons = [...calculation.reasons];
+    if (
+      manualNetRequiredForPaymentIds.some((id) =>
+        overDeductedPaymentIds.has(id),
+      )
+    ) {
+      reasons.push(
+        "Known deductions equal or exceed a payment's cash components and need a manual net amount.",
+      );
+    }
     return {
       available: false,
       record,
       treatments,
-      reasons: calculation.reasons,
+      reasons,
       lineage: calculation.lineage,
       manualNetRequiredForPaymentIds,
       futureCashFlows: [],

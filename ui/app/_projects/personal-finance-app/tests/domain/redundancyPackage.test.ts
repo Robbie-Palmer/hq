@@ -60,6 +60,54 @@ function packageRecord(
 }
 
 describe("redundancy package adapter", () => {
+  it("rejects manual net amounts that cannot describe a cash payment", () => {
+    const basePayment = {
+      id: "payment-1",
+      paymentDate: observed("2026-12-01"),
+      destinationAccountId: observed("current"),
+      deductions: [],
+    };
+
+    expect(() =>
+      packageRecord({
+        payments: [
+          {
+            ...basePayment,
+            grossComponents: [
+              {
+                id: "award",
+                label: "Enhanced award",
+                kind: "enhanced-redundancy",
+                amount: observed(10_000),
+              },
+            ],
+            netAmount: observed(10_001),
+          },
+        ],
+      }),
+    ).toThrow("Net amount cannot exceed the cash gross components");
+
+    expect(() =>
+      packageRecord({
+        payments: [
+          {
+            ...basePayment,
+            pensionDestinationAccountId: observed("workplace-pension"),
+            grossComponents: [
+              {
+                id: "pension",
+                label: "Employer pension contribution",
+                kind: "employer-pension-contribution",
+                amount: observed(10_000),
+              },
+            ],
+            netAmount: observed(9_000),
+          },
+        ],
+      }),
+    ).toThrow("A manual net amount requires at least one cash component");
+  });
+
   it("uses an employer-provided net amount without waiting for tax support", () => {
     const record = packageRecord({
       payments: [
@@ -227,6 +275,58 @@ describe("redundancy package adapter", () => {
         netAmount: 19_400,
       },
     });
+  });
+
+  it("requires a manual net when one payment's deductions consume its cash", () => {
+    const record = packageRecord({
+      payments: [
+        {
+          id: "payment-1",
+          paymentDate: observed("2026-12-01"),
+          destinationAccountId: observed("current"),
+          grossComponents: [
+            {
+              id: "award-1",
+              label: "First award",
+              kind: "enhanced-redundancy",
+              amount: observed(100),
+            },
+          ],
+          deductions: [
+            {
+              id: "deduction-1",
+              label: "Employer deduction",
+              kind: "other",
+              amount: observed(100),
+            },
+          ],
+        },
+        {
+          id: "payment-2",
+          paymentDate: observed("2027-01-15"),
+          destinationAccountId: observed("savings"),
+          grossComponents: [
+            {
+              id: "award-2",
+              label: "Second award",
+              kind: "enhanced-redundancy",
+              amount: observed(100),
+            },
+          ],
+          deductions: [],
+        },
+      ],
+    });
+
+    const result = adaptRedundancyPackage(record);
+
+    expect(result.available).toBe(false);
+    if (result.available) throw new Error("Expected a manual-net requirement");
+    expect(result.manualNetRequiredForPaymentIds).toEqual(["payment-1"]);
+    expect(result.futureCashFlows).toEqual([]);
+    expect(result.reasons).toContain(
+      "Known deductions equal or exceed a payment's cash components and need a manual net amount.",
+    );
   });
 
   it("separates employer pension contributions from the cash receipt", () => {
