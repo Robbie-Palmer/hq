@@ -1,0 +1,6 @@
+outs:
+- md5: fbfb33910d17e55cbe952696c2234d7b.dir
+  size: 13922
+  nfiles: 13
+  hash: md5
+  path: deterministic-pilot-post-hardening

@@ -201,6 +201,16 @@ rejection threshold. Its generated files are never copied over the source
 documents. The holdout decisions remain evaluation-only and are excluded from
 future training or threshold tuning.
 
+A six-artifact native Vale pilot then reviewed three project pages and three
+ADRs outside the frozen fixture. Its first pass accepted one `utilize` to `use`
+edit and rejected three attempts to replace the Work Graph term `expedite`.
+Removing that unsafe replacement and a noun-triggered `features` rule reduced
+the same cohort from 11 findings to 5 and from four proposals to none. The
+remaining evidence supports one narrow next experiment: local replacements for
+context-sensitive `leverage`, `facilitate`, and `optimize` findings. The model
+must return one span replacement or abstain, and it stays outside the default
+editing loop until it passes the existing adoption gates.
+
 # First useful release
 
 The first release should work on content in this repository before becoming a

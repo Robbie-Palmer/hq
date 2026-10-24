@@ -80,11 +80,15 @@ mise //packages/writing-editor-domain:review -- \
   --records ../../path/to/evidence/records.json \
   --decisions ../../path/to/evidence/decisions.jsonl \
   --receipt ../../path/to/evidence/receipt.json \
-  --config ../../.vale.ini
+  --config ../../.vale.ini \
+  --measure-session
 ```
 
 Every Unslop rule has an explicit safety classification. Ambiguous rules emit
 findings only; only allowlisted exact replacements become proposals. The
 command writes the decision before atomically replacing the source, then emits
 a receipt that binds the records and decisions to the before and after content
-hashes. It still never commits or publishes changes.
+hashes. `--measure-session` pauses after detection-only findings when there are
+no proposals, then stores the full review interval in the receipt. Proposal
+prompts already provide that review boundary. The command still never commits
+or publishes changes.

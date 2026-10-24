@@ -2,4 +2,4 @@ message: "Fancy way to say 'is' — use 'is' or 'has' instead"
 extends: existence
 level: warning
 ignorecase: true
-raw: '(?:serves as|stands as|boasts|features|offers up)'
+raw: '\b(?:serves as|stands as|boasts|offers up)\b'
