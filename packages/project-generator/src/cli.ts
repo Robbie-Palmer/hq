@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { initTRPC } from "@trpc/server";
@@ -34,6 +34,13 @@ import {
   applyProjectReconciliation,
   planProjectReconciliation,
 } from "./reconciliation.js";
+import {
+  executeSecretBootstrap,
+  parseSecretBootstrapPlan,
+  planSecretBootstrap,
+  secretBootstrapStateSchema,
+  type SecretBootstrapState,
+} from "./secret-bootstrap.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
@@ -97,6 +104,23 @@ const profileCommandInput = z.object({
 });
 
 type ProfileCommandInput = z.infer<typeof profileCommandInput>;
+
+const secretBootstrapCommandInput = z.object({
+  planPath: z
+    .string()
+    .describe("Versioned secret bootstrap plan YAML path")
+    .meta({ positional: true }),
+  state: z
+    .string()
+    .optional()
+    .describe("Resume-state JSON path; defaults to .project-bootstrap/<project>.json"),
+  acknowledge: z
+    .array(z.string())
+    .optional()
+    .describe("Manual checkpoint IDs completed by the operator"),
+});
+
+type SecretBootstrapCommandInput = z.infer<typeof secretBootstrapCommandInput>;
 
 const reconciliationApplyInput = profileCommandInput.extend({
   reviewedPlan: z
@@ -273,7 +297,94 @@ async function runProfileReconciliationApplyCommand(
   });
 }
 
+async function readBootstrapState(
+  statePath: string,
+): Promise<SecretBootstrapState | undefined> {
+  try {
+    return secretBootstrapStateSchema.parse(
+      JSON.parse(await readFile(statePath, "utf8")),
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function prepareSecretBootstrapCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const planPath = path.resolve(context.workingDirectory, input.planPath);
+  const plan = parseSecretBootstrapPlan(await readFile(planPath, "utf8"));
+  const statePath = path.resolve(
+    context.workingDirectory,
+    input.state ?? `.project-bootstrap/${plan.project_id}.json`,
+  );
+  return {
+    plan,
+    statePath,
+    state: await readBootstrapState(statePath),
+  };
+}
+
+async function runSecretBootstrapPlanCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return planSecretBootstrap({
+    plan: prepared.plan,
+    state: prepared.state,
+    acknowledge: input.acknowledge,
+  });
+}
+
+async function writeBootstrapState(
+  statePath: string,
+  state: SecretBootstrapState,
+): Promise<void> {
+  await mkdir(path.dirname(statePath), { recursive: true, mode: 0o700 });
+  const temporaryPath = `${statePath}.${process.pid}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await rename(temporaryPath, statePath);
+}
+
+async function runSecretBootstrapApplyCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return executeSecretBootstrap({
+    plan: prepared.plan,
+    state: prepared.state,
+    acknowledge: input.acknowledge,
+    environment: process.env,
+    persist: (state) => writeBootstrapState(prepared.statePath, state),
+  });
+}
+
 export const projectGeneratorRouter = t.router({
+  secretBootstrapPlan: t.procedure
+    .meta({
+      description: "Show a redacted secret and identity bootstrap plan",
+    })
+    .input(secretBootstrapCommandInput)
+    .query(({ ctx, input }) => runSecretBootstrapPlanCommand(ctx, input)),
+  secretBootstrapApply: t.procedure
+    .meta({
+      description: "Resume a reviewed secret and identity bootstrap plan",
+    })
+    .input(secretBootstrapCommandInput)
+    .mutation(({ ctx, input }) => runSecretBootstrapApplyCommand(ctx, input)),
   plan: t.procedure
     .meta({
       description: "Produce a machine-readable Copier project change plan",
