@@ -78,6 +78,50 @@ describe("projectRetirementCapital", () => {
     });
   });
 
+  it("merges partial policies with wrapper and liquidity defaults", () => {
+    const partialPolicy = AccountAccessPolicySchema.parse({
+      accessDelayMonths: 1,
+    });
+    const result = projectRetirementCapital(
+      scenario([
+        account({
+          id: "isa",
+          name: "ISA",
+          balance: 2_000,
+          accessPolicy: partialPolicy,
+        }),
+        account({
+          id: "property",
+          name: "Property",
+          balance: 100_000,
+          assetType: "property",
+          liquidity: "illiquid",
+          accessPolicy: AccountAccessPolicySchema.parse({}),
+        }),
+      ]),
+    );
+
+    expect(result.points[0]?.restrictions).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          accountId: "isa",
+          reason: "not-yet-accessible",
+        }),
+        expect.objectContaining({
+          accountId: "property",
+          reason: "ordinary-spending-disabled",
+        }),
+      ]),
+    );
+    expect(result.points[1]?.withdrawals).toEqual([
+      expect.objectContaining({
+        accountId: "isa",
+        tax: 0,
+        netSpendingCash: 1_000,
+      }),
+    ]);
+  });
+
   it("starts pension withdrawals on the configured access date", () => {
     const result = projectRetirementCapital(
       scenario([
@@ -238,7 +282,7 @@ describe("projectRetirementCapital", () => {
             retainedHousingValue: 0,
             tax: 0,
             fees: 10_000,
-            liabilitySettlements: [{ accountId: "mortgage", amount: 100_000 }],
+            liabilitySettlements: [{ accountId: "mortgage", amount: 110_000 }],
           },
         ],
       }),
@@ -254,7 +298,12 @@ describe("projectRetirementCapital", () => {
       accessibleCapital: 199_000,
       restrictedCapital: 0,
       totalNetWorth: 199_000,
-      housingReleases: [{ netReleasedCapital: 200_000 }],
+      housingReleases: [
+        {
+          liabilitySettlements: [{ accountId: "mortgage", amount: 100_000 }],
+          netReleasedCapital: 200_000,
+        },
+      ],
     });
   });
 

@@ -123,6 +123,11 @@ type ResolvedAccess = {
   feeRate: number;
 };
 
+type ResolvedAccountAccessPolicy = AccountAccessPolicy & {
+  taxTreatment: WithdrawalTaxTreatment;
+  canFundOrdinarySpending: boolean;
+};
+
 const roundMoney = (amount: number): number =>
   Math.round((amount + Number.EPSILON) * 100) / 100;
 
@@ -132,7 +137,7 @@ function taxWrapper(account: RetirementCapitalAccount): TaxWrapper {
 
 function defaultAccessPolicy(
   account: RetirementCapitalAccount,
-): AccountAccessPolicy {
+): ResolvedAccountAccessPolicy {
   const wrapper = taxWrapper(account);
   const taxTreatment: WithdrawalTaxTreatment =
     wrapper === "isa"
@@ -149,6 +154,20 @@ function defaultAccessPolicy(
       !isLiability(account.assetType) &&
       account.assetType !== "property" &&
       accountLiquidity(account) !== "illiquid",
+  };
+}
+
+function accountAccessPolicy(
+  account: RetirementCapitalAccount,
+): ResolvedAccountAccessPolicy {
+  const defaults = defaultAccessPolicy(account);
+  return {
+    ...defaults,
+    ...account.accessPolicy,
+    taxTreatment: account.accessPolicy?.taxTreatment ?? defaults.taxTreatment,
+    canFundOrdinarySpending:
+      account.accessPolicy?.canFundOrdinarySpending ??
+      defaults.canFundOrdinarySpending,
   };
 }
 
@@ -175,7 +194,7 @@ function resolveAccess(
   scenarioStartDate: string,
   date: string,
 ): ResolvedAccess {
-  const policy = account.accessPolicy ?? defaultAccessPolicy(account);
+  const policy = accountAccessPolicy(account);
   if (!selectedAccountIds.has(account.id)) {
     return {
       accessible: false,
@@ -382,10 +401,9 @@ function applyHousingReleases(
         `Housing release "${release.id}" references a missing account`,
       );
     }
-    const settlementTotal = release.liabilitySettlements.reduce(
-      (sum, settlement) => sum + settlement.amount,
-      0,
-    );
+    let settlementTotal = 0;
+    const appliedSettlements: RetirementHousingRelease["liabilitySettlements"] =
+      [];
     for (const settlement of release.liabilitySettlements) {
       const liability = states.get(settlement.accountId);
       if (liability == null) {
@@ -393,10 +411,16 @@ function applyHousingReleases(
           `Housing release "${release.id}" references a missing liability`,
         );
       }
-      liability.balance = Math.min(
-        roundMoney(liability.balance + settlement.amount),
-        0,
+      const appliedAmount = Math.min(
+        settlement.amount,
+        Math.max(-liability.balance, 0),
       );
+      liability.balance = roundMoney(liability.balance + appliedAmount);
+      settlementTotal += appliedAmount;
+      appliedSettlements.push({
+        accountId: settlement.accountId,
+        amount: appliedAmount,
+      });
     }
     const netReleasedCapital = roundMoney(
       release.grossProceeds -
@@ -407,7 +431,11 @@ function applyHousingReleases(
     );
     property.balance = release.retainedHousingValue;
     destination.balance = roundMoney(destination.balance + netReleasedCapital);
-    return { ...release, netReleasedCapital };
+    return {
+      ...release,
+      liabilitySettlements: appliedSettlements,
+      netReleasedCapital,
+    };
   });
 }
 

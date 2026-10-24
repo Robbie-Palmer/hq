@@ -47,16 +47,13 @@ export const AccountAccessPolicySchema = z
     /** Fee deducted from each gross withdrawal. */
     withdrawalFeeRate: z.number().min(0).lt(1).default(0),
     /** Tax calculation supported for withdrawals from this account. */
-    taxTreatment: WithdrawalTaxTreatmentSchema.default({
-      kind: "unsupported",
-      reason: "Withdrawal tax treatment has not been configured",
-    }),
+    taxTreatment: WithdrawalTaxTreatmentSchema.optional(),
     /** Whether a forecast may use this account for ordinary spending. */
-    canFundOrdinarySpending: z.boolean().default(true),
+    canFundOrdinarySpending: z.boolean().optional(),
   })
   .refine(
     (policy) =>
-      policy.taxTreatment.kind !== "fixed-rate" ||
+      policy.taxTreatment?.kind !== "fixed-rate" ||
       policy.taxTreatment.rate + policy.withdrawalFeeRate < 1,
     { message: "Withdrawal tax and fee rates must total less than 100%" },
   );
