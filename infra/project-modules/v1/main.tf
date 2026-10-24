@@ -49,28 +49,30 @@ locals {
   ]
 }
 
-check "configuration_matches_resolved_profile" {
-  assert {
-    condition     = length(local.configuration_mismatches) == 0
-    error_message = "Capability configuration must be supplied exactly when selected by the resolved profile. Mismatches: ${join(", ", local.configuration_mismatches)}."
-  }
-}
+resource "terraform_data" "profile_guard" {
+  lifecycle {
+    precondition {
+      condition     = length(local.configuration_mismatches) == 0
+      error_message = "Capability configuration must be supplied exactly when selected by the resolved profile. Mismatches: ${join(", ", local.configuration_mismatches)}."
+    }
 
-check "preview_database_configuration_is_isolated" {
-  assert {
-    condition = !local.selected.neon_preview || try(
-      local.selected.neon &&
-      var.neon.preview_project_name != null &&
-      var.neon.preview_project_name != var.neon.project_name,
-      false,
-    )
-    error_message = "database.preview-isolation requires a separate Neon preview project."
+    precondition {
+      condition = !local.selected.neon_preview || try(
+        local.selected.neon &&
+        var.neon.preview_project_name != null &&
+        var.neon.preview_project_name != var.neon.project_name,
+        false,
+      )
+      error_message = "database.preview-isolation requires a separate Neon preview project."
+    }
   }
 }
 
 module "terraform_state" {
   for_each = local.selected.terraform_state && local.supplied.terraform_state ? { selected = var.terraform_state } : {}
   source   = "./modules/terraform-state"
+
+  depends_on = [terraform_data.profile_guard]
 
   organization      = each.value.organization
   project_name      = each.value.project_name
@@ -83,6 +85,8 @@ module "delivery" {
   for_each = local.selected.delivery && local.supplied.delivery ? { selected = var.delivery } : {}
   source   = "./modules/delivery"
 
+  depends_on = [terraform_data.profile_guard]
+
   project_id                  = var.resolved_profile.project.id
   doppler_project_name        = each.value.doppler_project_name
   doppler_project_description = each.value.doppler_project_description
@@ -93,6 +97,8 @@ module "delivery" {
 module "cloudflare_pages" {
   for_each = local.selected.cloudflare_pages && local.supplied.cloudflare_pages ? { selected = var.cloudflare_pages } : {}
   source   = "./modules/cloudflare-pages"
+
+  depends_on = [terraform_data.profile_guard]
 
   account_id           = each.value.account_id
   name                 = each.value.name
@@ -110,6 +116,8 @@ module "cloudflare_worker" {
   for_each = local.selected.cloudflare_worker && local.supplied.cloudflare_worker ? { selected = var.cloudflare_worker } : {}
   source   = "./modules/cloudflare-worker"
 
+  depends_on = [terraform_data.profile_guard]
+
   account_id         = each.value.account_id
   name               = each.value.name
   content            = each.value.content
@@ -122,6 +130,8 @@ module "cloudflare_access" {
   for_each = local.selected.cloudflare_access && local.supplied.cloudflare_access ? { selected = var.cloudflare_access } : {}
   source   = "./modules/cloudflare-access"
 
+  depends_on = [terraform_data.profile_guard]
+
   account_id       = each.value.account_id
   name             = each.value.name
   domain           = each.value.domain
@@ -133,6 +143,8 @@ module "cloudflare_r2" {
   for_each = local.selected.cloudflare_r2 && local.supplied.cloudflare_r2 ? { selected = var.cloudflare_r2 } : {}
   source   = "./modules/cloudflare-r2"
 
+  depends_on = [terraform_data.profile_guard]
+
   account_id = each.value.account_id
   buckets    = each.value.buckets
 }
@@ -141,6 +153,8 @@ module "cloudflare_dns" {
   for_each = local.selected.cloudflare_dns && local.supplied.cloudflare_dns ? { selected = var.cloudflare_dns } : {}
   source   = "./modules/cloudflare-dns"
 
+  depends_on = [terraform_data.profile_guard]
+
   zone_id = each.value.zone_id
   records = each.value.records
 }
@@ -148,6 +162,8 @@ module "cloudflare_dns" {
 module "neon" {
   for_each = local.selected.neon && local.supplied.neon ? { selected = var.neon } : {}
   source   = "./modules/neon"
+
+  depends_on = [terraform_data.profile_guard]
 
   org_id                    = each.value.org_id
   project_name              = each.value.project_name
@@ -163,6 +179,8 @@ module "neon" {
 module "telemetry" {
   for_each = local.selected.telemetry && local.supplied.telemetry ? { selected = var.telemetry } : {}
   source   = "./modules/telemetry"
+
+  depends_on = [terraform_data.profile_guard]
 
   project_id            = var.resolved_profile.project.id
   dashboard_name        = each.value.dashboard_name

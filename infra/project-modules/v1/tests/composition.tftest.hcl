@@ -131,7 +131,7 @@ run "state_delivery_and_runtime_capabilities_compose" {
       environments = {
         plan = {
           doppler_environment_name = "Plan"
-          doppler_configs          = ["plan"]
+          doppler_configs          = ["plan", "plan_ci"]
           github_environment_name  = "stateful-service-plan"
           reviewer_usernames       = ["reviewer"]
         }
@@ -158,6 +158,11 @@ run "state_delivery_and_runtime_capabilities_compose" {
       length(module.cloudflare_r2) == 0
     )
     error_message = "The bootstrap scope must plan state and delivery containers without application resources."
+  }
+
+  assert {
+    condition     = length(module.delivery["selected"].resource_ids.doppler_configs) == 1
+    error_message = "Delivery composition must leave environment root configs provider-owned and create only named branch configs."
   }
 }
 
@@ -250,7 +255,7 @@ run "configuration_cannot_enable_an_unselected_capability" {
     }
   }
 
-  expect_failures = [check.configuration_matches_resolved_profile]
+  expect_failures = [terraform_data.profile_guard]
 }
 
 run "selected_capability_requires_configuration" {
@@ -269,5 +274,59 @@ run "selected_capability_requires_configuration" {
     }
   }
 
-  expect_failures = [check.configuration_matches_resolved_profile]
+  expect_failures = [terraform_data.profile_guard]
+}
+
+run "preview_database_requires_a_distinct_project" {
+  command = plan
+
+  variables {
+    resolved_profile = {
+      schema_version = 1
+      project = {
+        id   = "invalid-preview-database"
+        name = "Invalid preview database"
+      }
+      selections = [
+        { slot = "database.relational-host", value = "neon" },
+        { slot = "database.preview-isolation", value = "fresh" },
+      ]
+    }
+    neon = {
+      org_id               = "org-example"
+      project_name         = "shared-database"
+      database_name        = "application"
+      role_name            = "application_owner"
+      region_id            = "aws-us-east-1"
+      pg_version           = 17
+      preview_project_name = "shared-database"
+    }
+  }
+
+  expect_failures = [terraform_data.profile_guard]
+}
+
+run "alternative_preview_access_provider_is_not_selected" {
+  command = plan
+
+  variables {
+    resolved_profile = {
+      schema_version = 1
+      project = {
+        id   = "alternative-preview-access"
+        name = "Alternative preview access"
+      }
+      selections = [
+        { slot = "security.preview-access", value = "private-overlay" },
+      ]
+    }
+  }
+
+  assert {
+    condition = (
+      !contains(output.selected_capabilities, "security.preview-access") &&
+      length(module.cloudflare_access) == 0
+    )
+    error_message = "An alternative preview-access technology must not instantiate Cloudflare Access."
+  }
 }

@@ -19,6 +19,11 @@ variable "hostname" {
   type     = string
   default  = null
   nullable = true
+
+  validation {
+    condition     = (var.zone_id == null) == (var.hostname == null)
+    error_message = "zone_id and hostname must be supplied together."
+  }
 }
 
 resource "cloudflare_workers_script" "worker" {
@@ -44,13 +49,6 @@ resource "cloudflare_workers_domain" "worker" {
 
   lifecycle {
     prevent_destroy = true
-  }
-}
-
-check "domain_configuration_is_complete" {
-  assert {
-    condition     = (var.zone_id == null) == (var.hostname == null)
-    error_message = "zone_id and hostname must be supplied together."
   }
 }
 

@@ -19,7 +19,7 @@ resource ownership rule in a way that requires callers to migrate state.
 | `delivery.ci=github-actions` | Doppler project, environments and empty configs; protected GitHub environments | `bootstrap` |
 | `web-app.host=cloudflare-pages` | Cloudflare Pages project | `application` |
 | `backend-api.runtime=cloudflare-workers` | Bootstrap Worker and optional custom domain | `application` |
-| `security.preview-access` | Access application and reviewer policy | `application` |
+| `security.preview-access=cloudflare-access` | Access application and reviewer policy | `application` |
 | `storage.object-store=cloudflare-r2` | Project-owned R2 buckets | `application` |
 | `network.public-ingress` | Project-owned DNS records | `application` |
 | `database.relational-host=neon` | Production Neon project | `application` |

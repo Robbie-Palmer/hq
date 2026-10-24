@@ -43,6 +43,7 @@ locals {
         environment = environment_slug
         name        = config_name
       }
+      if config_name != environment_slug
     }]
   ])...)
   reviewer_usernames = toset(flatten([
@@ -133,6 +134,9 @@ output "resource_ids" {
     }
     github_environments = {
       for key, environment in github_repository_environment.project : key => environment.id
+    }
+    doppler_configs = {
+      for key, config in doppler_config.project : key => config.id
     }
   }
 }
