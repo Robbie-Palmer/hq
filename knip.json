@@ -39,7 +39,8 @@
         "@xai-official/grok",
         "opencode-ai",
         "pnpm",
-        "t3"
+        "t3",
+        "undici"
       ]
     },
     "packages/agent-auth-mcp": {},
