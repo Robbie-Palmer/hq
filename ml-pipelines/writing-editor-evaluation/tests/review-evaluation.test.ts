@@ -45,7 +45,9 @@ function temporaryDirectory(): string {
 function writeReviewEvidenceFixture(): string {
   const directory = temporaryDirectory();
   const documentId = "fixture.md";
-  const revision = "fixture:v1";
+  const revision = "1".repeat(40);
+  const datasetId = `dataset:v1:${"2".repeat(64)}`;
+  const producerRunId = `producer-run:v1:${"3".repeat(64)}`;
   const sourceBefore = "Utilize this. Optimize that.";
   const sourceAfter = "Use this. Optimize that.";
   const source = sourceReference(documentId, revision, sourceBefore);
@@ -92,7 +94,7 @@ function writeReviewEvidenceFixture(): string {
       deletionStatus: "active",
     },
     entries: [{
-      artifactId: "fixture-adr",
+      artifactId: "seed-fixture-adr",
       artifactType: "adr",
       split: "validation",
       recordsFile: "records.json",
@@ -102,9 +104,9 @@ function writeReviewEvidenceFixture(): string {
       sourceAfterFile: "source-after.md",
       provenance: {
         scope: "seed",
-        sourceDatasetId: "fixture-dataset",
+        sourceDatasetId: datasetId,
         sourceRevision: revision,
-        producerRunId: "fixture-run",
+        producerRunId,
         reviewMethod: "fixture review",
         reviewTiming: "measured",
       },
@@ -131,6 +133,176 @@ function writeReviewEvidenceFixture(): string {
   fs.writeFileSync(path.join(directory, "source-before.md"), sourceBefore);
   fs.writeFileSync(path.join(directory, "source-after.md"), sourceAfter);
   return directory;
+}
+
+function writePipelineEvidenceFixture(directory: string) {
+  const records = JSON.parse(fs.readFileSync(path.join(directory, "records.json"), "utf8"));
+  const manifest = JSON.parse(fs.readFileSync(path.join(directory, "manifest.json"), "utf8"));
+  const sourceBefore = fs.readFileSync(path.join(directory, "source-before.md"), "utf8");
+  const sourceAfter = fs.readFileSync(path.join(directory, "source-after.md"), "utf8");
+  const entry = manifest.entries[0];
+  const proposal = records.proposals[0];
+  const finding = records.findings[0];
+  const cohortId = `cohort:v1:${"4".repeat(64)}`;
+  const publishedRevision = "5".repeat(40);
+  const cohortFile = path.join(directory, "cohort.json");
+  fs.writeFileSync(cohortFile, JSON.stringify({
+    schemaVersion: 1,
+    recordType: "writing-editor-frozen-cohort",
+    cohortId,
+    datasetId: entry.provenance.sourceDatasetId,
+    frozenAt: "2026-01-01T00:00:00.000Z",
+    seed: "fixture",
+    splitRatios: { train: 0.6, validation: 0.2, holdout: 0.2 },
+    entries: [{
+      artifactId: "fixture-adr",
+      artifactType: "adr",
+      path: records.documentId,
+      outcomeStatus: "unrecorded",
+      split: "validation",
+      source: {
+        revision: records.revision,
+        committedAt: "2026-01-01T00:00:00.000Z",
+        contentHash: sha256(sourceBefore),
+        bytes: Buffer.byteLength(sourceBefore),
+        file: "fixture-adr/source.md",
+      },
+      published: {
+        revision: publishedRevision,
+        committedAt: "2026-01-02T00:00:00.000Z",
+        contentHash: sha256(sourceAfter),
+        bytes: Buffer.byteLength(sourceAfter),
+        file: "fixture-adr/published.md",
+      },
+    }],
+  }));
+
+  const producerRunFile = path.join(directory, "gector-run.json");
+  fs.writeFileSync(producerRunFile, JSON.stringify({
+    schemaVersion: 1,
+    recordType: "writing-editor-gector-producer-run",
+    runId: entry.provenance.producerRunId,
+    cohortId,
+    producer: proposal.suggestions[0].producer,
+    model: {
+      checkpointContentHash: `sha256:${"6".repeat(64)}`,
+      manifestContentHash: `sha256:${"7".repeat(64)}`,
+    },
+    runtime: {
+      pythonVersion: "3.14.7",
+      torchVersion: "2.13.0+cu126",
+      transformersVersion: "5.17.0",
+      cudaVersion: "12.6",
+      device: "cuda",
+      computeCapability: "8.9",
+      lockContentHash: `sha256:${"8".repeat(64)}`,
+      adapterRevision: 1,
+    },
+    parameters: {
+      batchSize: 1,
+      iterations: 1,
+      maxTokens: 50,
+      minTokens: 1,
+      minErrorProbability: 0.9,
+      minTokenProbability: 0,
+      additionalConfidence: 0.1,
+    },
+    artifacts: [{
+      artifactId: "fixture-adr",
+      artifactType: "adr",
+      split: "validation",
+      source: proposal.suggestions[0].source,
+      generated: {
+        file: "fixture-adr/generated.md",
+        contentHash: sha256(sourceAfter),
+        correctedLines: [1],
+        iterationUpdates: 1,
+      },
+      suggestionIds: proposal.suggestionIds,
+      suggestions: proposal.suggestions,
+      proposalIds: [proposal.proposalId],
+      proposals: [proposal],
+    }],
+    summary: { artifacts: 1, artifactsWithSuggestions: 1, suggestions: 1, proposals: 1 },
+  }));
+
+  const valeRunId = `producer-run:v1:${"9".repeat(64)}`;
+  const valeRunFile = path.join(directory, "vale-run.json");
+  fs.writeFileSync(valeRunFile, JSON.stringify({
+    schemaVersion: 1,
+    recordType: "writing-editor-vale-producer-run",
+    runId: valeRunId,
+    cohortId,
+    producer: finding.producer,
+    vale: { binaryVersion: "3.24.0", ruleSetHash: `sha256:${"a".repeat(64)}` },
+    artifacts: [{
+      artifactId: "fixture-adr",
+      artifactType: "adr",
+      split: "validation",
+      source: finding.source,
+      findingIds: [finding.findingId],
+      findings: [{
+        severity: "warning",
+        valeMatch: finding.span.sourceText,
+        location: { line: 1, startColumn: 15, endColumn: 22 },
+        finding,
+      }],
+    }],
+    summary: {
+      artifacts: 1,
+      artifactsWithFindings: 1,
+      findings: 1,
+      bySeverity: { error: 0, warning: 1, suggestion: 0 },
+      byCheck: [{ check: finding.producer.provenance.ruleId, count: 1 }],
+    },
+  }));
+
+  const editMatchRunFile = path.join(directory, "edit-matches.json");
+  fs.writeFileSync(editMatchRunFile, JSON.stringify({
+    schemaVersion: 1,
+    recordType: "writing-editor-edit-match-run",
+    runId: `edit-match-run:v1:${"b".repeat(64)}`,
+    cohortId,
+    producerRunId: valeRunId,
+    algorithm: {
+      id: "jsdiff-character-overlap",
+      version: "jsdiff@9.0.0+matcher.1",
+      maxEditLength: 1000,
+    },
+    artifacts: [{
+      artifactId: "fixture-adr",
+      artifactType: "adr",
+      split: "validation",
+      source: finding.source,
+      published: {
+        documentId: records.documentId,
+        revision: publishedRevision,
+        contentHash: sha256(sourceAfter),
+      },
+      hunkIds: [],
+      hunks: [],
+      findingIds: [finding.findingId],
+      matches: [{
+        findingId: finding.findingId,
+        status: "unchanged",
+        hunkIds: [],
+        publishedSpan: {
+          startByte: finding.span.startByte,
+          endByte: finding.span.endByte,
+          text: finding.span.sourceText,
+        },
+        reason: null,
+      }],
+    }],
+    summary: {
+      artifacts: 1,
+      findings: 1,
+      editHunks: 0,
+      byStatus: { changed: 0, unchanged: 1, "manual-adjudication-required": 0 },
+    },
+  }));
+
+  return { cohortFile, valeRunFile, editMatchRunFile, producerRunFile };
 }
 
 function tamperReceipt(
@@ -161,7 +333,7 @@ describe("review evidence scorecard", () => {
     expect(ReviewEvidenceManifestSchema.parse(manifest).entries).toHaveLength(1);
   });
 
-  it("keeps a one-proposal cohort opt-in until the volume gate is met", () => {
+  it("asks for more evidence until the sample-size gates are met", () => {
     const scorecard = evaluateReviews({
       manifestFile: path.join(evidenceRoot, "manifest.json"),
       evidenceRoot,
@@ -169,7 +341,11 @@ describe("review evidence scorecard", () => {
     });
 
     expect(ReviewScorecardSchema.parse(scorecard)).toEqual(scorecard);
-    expect(scorecard.detectionCoverage).toEqual({ artifacts: 1, findings: 1 });
+    expect(scorecard.detectionCoverage).toEqual({
+      artifacts: 1,
+      findings: 1,
+      observedEdits: null,
+    });
     expect(scorecard.proposalOutcomes).toEqual({
       proposals: 1,
       accepted: 1,
@@ -178,23 +354,90 @@ describe("review evidence scorecard", () => {
       usefulYield: 1,
     });
     expect(scorecard.gates).toMatchObject({
-      actionableVolume: false,
-      usefulYield: true,
-      regressionRate: true,
-      qualityAssessed: true,
+      sampleSize: {
+        artifacts: false,
+        actionableVolume: false,
+        artifactTypes: false,
+      },
+      adoption: {
+        usefulYield: true,
+        regressionRate: true,
+        qualityAssessed: true,
+      },
     });
-    expect(scorecard.recommendation).toBe("keep-opt-in");
+    expect(scorecard.artifacts[0]).toMatchObject({
+      usefulEditYield: 1,
+      quality: {
+        factualPreservation: "pass",
+        terminologyPreservation: "pass",
+        voicePreservation: "pass",
+        regression: "none",
+      },
+      proposalEvidence: [{ outcome: "accepted" }],
+    });
+    expect(scorecard.recommendation).toBe("gather-more-evidence");
+  });
+
+  it("binds scorecard rows to cohort, producer, and observed-edit evidence", () => {
+    const pipeline = writePipelineEvidenceFixture(evidenceRoot);
+    const scorecard = evaluateReviews({
+      manifestFile: path.join(evidenceRoot, "manifest.json"),
+      evidenceRoot,
+      paramsFile: path.join(projectRoot, "evaluation-params.json"),
+      pipelineEvidence: {
+        cohortFile: pipeline.cohortFile,
+        valeRunFile: pipeline.valeRunFile,
+        editMatchRunFile: pipeline.editMatchRunFile,
+        rewriteProducerRunFiles: [pipeline.producerRunFile],
+      },
+    });
+
+    expect(scorecard.pipelineInputs).toMatchObject({
+      valeProducerRunId: `producer-run:v1:${"9".repeat(64)}`,
+      editMatchRunId: `edit-match-run:v1:${"b".repeat(64)}`,
+    });
+    expect(scorecard.detectionCoverage).toEqual({
+      artifacts: 1,
+      findings: 1,
+      observedEdits: { changed: 0, unchanged: 1, manualAdjudicationRequired: 0 },
+    });
+    expect(scorecard.artifacts[0]).toMatchObject({
+      artifactId: "seed-fixture-adr",
+      findings: 1,
+      findingEvidence: expect.arrayContaining([expect.objectContaining({
+        observedEdit: { status: "unchanged", hunkIds: [] },
+      })]),
+      proposalEvidence: [expect.objectContaining({ outcome: "accepted" })],
+    });
   });
 
   it("can recommend adoption only when every configured gate passes", () => {
     const temporary = temporaryDirectory();
     const paramsFile = path.join(temporary, "params.json");
     fs.writeFileSync(paramsFile, JSON.stringify({
-      minimumActionableProposals: 1,
-      minimumUsefulYield: 1,
-      maximumRegressionRate: 0,
-      maximumMedianReviewSeconds: 120,
+      sampleSize: {
+        minimumArtifacts: 1,
+        minimumActionableProposals: 1,
+        requiredArtifactTypes: ["adr"],
+      },
+      thresholds: {
+        adopt: {
+          minimumUsefulYield: 1,
+          maximumRegressionRate: 0,
+          maximumMedianReviewSeconds: 120,
+        },
+        reject: {
+          maximumUsefulYield: 0.5,
+          minimumRegressionRate: 0.1,
+          minimumMedianReviewSeconds: 300,
+        },
+      },
       requireAssessedQuality: true,
+      decisionLogic: {
+        adopt: "sample-size-met-and-all-adoption-gates-pass",
+        reject: "sample-size-met-and-any-rejection-gate-fails",
+        gatherMoreEvidence: "otherwise",
+      },
     }));
 
     const scorecard = evaluateReviews({
@@ -203,8 +446,49 @@ describe("review evidence scorecard", () => {
       paramsFile,
     });
 
-    expect(Object.values(scorecard.gates).every(Boolean)).toBe(true);
-    expect(scorecard.recommendation).toBe("adopt-default");
+    expect(Object.values(scorecard.gates.sampleSize).every(Boolean)).toBe(true);
+    expect(Object.values(scorecard.gates.adoption).every(Boolean)).toBe(true);
+    expect(Object.values(scorecard.gates.rejection).every((value) => !value)).toBe(true);
+    expect(scorecard.recommendation).toBe("adopt");
+  });
+
+  it("rejects a representative sample when a rejection threshold fails", () => {
+    const temporary = temporaryDirectory();
+    const paramsFile = path.join(temporary, "params.json");
+    fs.writeFileSync(paramsFile, JSON.stringify({
+      sampleSize: {
+        minimumArtifacts: 1,
+        minimumActionableProposals: 1,
+        requiredArtifactTypes: ["adr"],
+      },
+      thresholds: {
+        adopt: {
+          minimumUsefulYield: 0.5,
+          maximumRegressionRate: 0,
+          maximumMedianReviewSeconds: 0.001,
+        },
+        reject: {
+          maximumUsefulYield: 0.25,
+          minimumRegressionRate: 0.1,
+          minimumMedianReviewSeconds: 0.002,
+        },
+      },
+      requireAssessedQuality: true,
+      decisionLogic: {
+        adopt: "sample-size-met-and-all-adoption-gates-pass",
+        reject: "sample-size-met-and-any-rejection-gate-fails",
+        gatherMoreEvidence: "otherwise",
+      },
+    }));
+
+    const scorecard = evaluateReviews({
+      manifestFile: path.join(evidenceRoot, "manifest.json"),
+      evidenceRoot,
+      paramsFile,
+    });
+
+    expect(scorecard.gates.rejection.reviewTime).toBe(true);
+    expect(scorecard.recommendation).toBe("reject");
   });
 
   it("rejects evidence when the receipt no longer binds the decision log", () => {
@@ -247,8 +531,8 @@ describe("review evidence scorecard", () => {
       paramsFile: path.join(projectRoot, "evaluation-params.json"),
     });
 
-    expect(scorecard.gates.deletionClear).toBe(false);
-    expect(scorecard.recommendation).toBe("keep-opt-in");
+    expect(scorecard.gates.adoption.deletionClear).toBe(false);
+    expect(scorecard.recommendation).toBe("gather-more-evidence");
   });
 
   it("finalizes frozen readiness only from validated seed evidence", () => {

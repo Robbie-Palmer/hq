@@ -61,7 +61,7 @@ export function finalizeCohortReadiness(options: {
       throw new Error("seed outcomes do not match the frozen cohort source");
     }
   }
-  const recorded = scorecard.gates.deletionClear
+  const recorded = scorecard.gates.adoption.deletionClear
     ? new Set(seedOutcomes.artifactIds.map((artifactId) => artifactId.slice(5)))
     : new Set<string>();
   const report = cohortReadiness(

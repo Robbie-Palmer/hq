@@ -495,8 +495,8 @@ stages:
     outs:
       - data/review-evidence/gector-broad-pilot
 
-  evaluate_gector_decisions:
-    cmd: pnpm exec tsx src/evaluate-reviews.ts --manifest data/review-evidence/gector-broad-pilot/manifest.json --evidence data/review-evidence/gector-broad-pilot --params evaluation-params.json --output outputs/review-evaluation/gector-broad-pilot-scorecard.json
+  evaluate:
+    cmd: bash scripts/evaluate.sh
     deps:
       - ../../packages/writing-editor-domain/package.json
       - ../../packages/writing-editor-domain/src/canonical-json.ts
@@ -507,11 +507,19 @@ stages:
       - ../../pnpm-lock.yaml
       - data/review-evidence/gector-broad-pilot
       - evaluation-params.json
+      - outputs/frozen/cohort.json
+      - outputs/matched/vale.json
+      - outputs/producers/gector/run.json
+      - outputs/producers/vale.json
+      - outputs/review-baseline/customer/run.json
+      - outputs/review-baseline/developer/run.json
       - package.json
+      - scripts/evaluate.sh
       - src/evaluate-reviews.ts
       - src/files.ts
+      - src/schemas.ts
     metrics:
-      - outputs/review-evaluation/gector-broad-pilot-scorecard.json
+      - outputs/evaluation/scorecard.json
 
   finalize_cohort_readiness:
     cmd: bash scripts/finalize-cohort-readiness.sh

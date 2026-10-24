@@ -81,10 +81,15 @@ description = "Validate review outcomes and produce the evidence-gated scorecard
 depends = ["install", "review-evidence:pull"]
 run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro evaluate_reviews"
 
+[tasks.evaluate]
+description = "Produce the full cohort, producer, edit, and decision scorecard"
+depends = ["install"]
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro --single-item evaluate"
+
 [tasks."record:gector:decisions"]
 description = "Record governed decisions for seed and broad GECToR proposals"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro finalize_cohort_readiness evaluate_gector_decisions"
+run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro finalize_cohort_readiness evaluate"
 
 [tasks."review-evidence:pull"]
 description = "Pull the governed writing-review evidence from DVC"
