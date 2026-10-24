@@ -14,14 +14,15 @@
     "passwordFile": "/var/lib/remote-development-backup/restic-password"
   },
   "schedule": {
-    "onCalendar": "*-*-* 03:47:00 UTC",
-    "randomizedDelaySeconds": 2700,
-    "maximumAgeSeconds": 129600
+    "onCalendar": "*-*-* 00,06,12,18:17:00 UTC",
+    "randomizedDelaySeconds": 900,
+    "maximumAgeSeconds": 28800
+  },
+  "integrity": {
+    "readDataSubset": "1%"
   },
   "retention": {
-    "hourly": 24,
-    "daily": 14,
-    "weekly": 8,
-    "monthly": 12
+    "within": "14d",
+    "minimumSnapshots": 8
   }
 }
