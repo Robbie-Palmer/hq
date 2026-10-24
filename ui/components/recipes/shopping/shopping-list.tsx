@@ -17,23 +17,15 @@ import { ShoppingCheckbox } from "@/components/recipes/shopping/shopping-checkbo
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  useKitchenStockActions,
-  useKitchenStockQuery,
-} from "@/hooks/use-kitchen-stock";
-import { useShoppingList } from "@/hooks/use-shopping-list";
-import { useUnitPreference } from "@/hooks/use-unit-preference";
-import { captureRecipeValue } from "@/lib/analytics/recipe-product";
+  type ShoppingListView,
+  useShoppingListView,
+} from "@/hooks/use-shopping-list-view";
 import type { DietIngredientOption } from "@/lib/api/diet";
 import type { ShoppingRecipe } from "@/lib/api/shopping";
 import type { MeasurementPreference } from "@/lib/domain/recipe";
 import type { IngredientSlug } from "@/lib/domain/recipe/ingredient";
 import type { KitchenLocation } from "@/lib/domain/recipe/kitchen";
-import {
-  aggregateShoppingList,
-  type SelectedRecipe,
-  type ShoppingLine,
-} from "@/lib/domain/shopping/aggregate";
-import { aisleName, compareAisles } from "@/lib/domain/shopping/aisles";
+import type { ShoppingLine } from "@/lib/domain/shopping/aggregate";
 import {
   formatShoppingName,
   formatShoppingQuantities,
@@ -41,13 +33,9 @@ import {
 import {
   addExtra,
   clearChecked,
-  markShoppingTripCompleted,
   removeExtra,
   toggleChecked,
-  toggleExtra,
 } from "@/lib/shopping/shoppingListStore";
-
-type ListView = "aisle" | "recipe" | "flat";
 
 const INGREDIENT_SUGGESTION_LIMIT = 7;
 
@@ -61,30 +49,11 @@ const LOCATION_META: Record<
   fresh: { label: "fresh", icon: Sprout },
 };
 
-const VIEWS: { id: ListView; label: string }[] = [
+const VIEWS: { id: ShoppingListView; label: string }[] = [
   { id: "aisle", label: "by aisle" },
   { id: "recipe", label: "by recipe" },
   { id: "flat", label: "just ingredients" },
 ];
-
-function byName(a: ShoppingLine, b: ShoppingLine): number {
-  return a.name.localeCompare(b.name);
-}
-
-/**
- * Sink handled items (ticked off, or already in the kitchen) to the bottom of a
- * list (keeping each partition's existing order), like a notes app — so
- * attention stays on what's still to buy. Un-handling returns an item to its
- * sorted place.
- */
-function doneLast(
-  lines: ShoppingLine[],
-  isDone: (line: ShoppingLine) => boolean,
-): ShoppingLine[] {
-  const todo = lines.filter((line) => !isDone(line));
-  const done = lines.filter((line) => isDone(line));
-  return [...todo, ...done];
-}
 
 /**
  * Marks a line whose quantity was summed across several recipes. The layers
@@ -466,174 +435,9 @@ export function ShoppingList({
   ingredientCatalog?: DietIngredientOption[];
   recipes: ShoppingRecipe[];
 }>) {
-  const state = useShoppingList();
-  const pantry = useKitchenStockQuery();
-  const stock = pantry.data?.stock ?? {};
-  const stockActions = useKitchenStockActions();
-  const [system] = useUnitPreference();
-  const [view, setView] = useState<ListView>("flat");
+  const list = useShoppingListView(recipes);
 
-  const bySlug = useMemo(() => {
-    const map = new Map<string, ShoppingRecipe>();
-    for (const recipe of recipes) map.set(recipe.slug, recipe);
-    return map;
-  }, [recipes]);
-
-  const selected = useMemo<SelectedRecipe[]>(() => {
-    return state.recipes.flatMap((entry) => {
-      const recipe = bySlug.get(entry.slug);
-      if (!recipe) return [];
-      const servings = entry.servings ?? recipe.servings;
-      return [{ recipe, scale: servings / recipe.servings }];
-    });
-  }, [state.recipes, bySlug]);
-
-  const aggregated = useMemo(() => aggregateShoppingList(selected), [selected]);
-
-  const checkedSet = useMemo(() => new Set(state.checked), [state.checked]);
-
-  // An ingredient already in the kitchen (any location) is pulled out of the
-  // aisle/recipe groups and gathered into the "already have" section, so the
-  // main list stays focused on what's still to buy. Ticked items just sink.
-  const locationOf = (line: ShoppingLine): KitchenLocation | undefined =>
-    stock[line.ingredient];
-  const inKitchen = (line: ShoppingLine): boolean =>
-    Boolean(stock[line.ingredient]);
-
-  const groupLines = (lines: ShoppingLine[]): ShoppingLine[] =>
-    doneLast(
-      lines.filter((line) => !inKitchen(line)),
-      (line) => checkedSet.has(line.ingredient),
-    );
-
-  const flatLines = useMemo(() => [...aggregated].sort(byName), [aggregated]);
-  const flatItems = useMemo(() => {
-    const items = [
-      ...flatLines
-        .filter((line) => !stock[line.ingredient])
-        .map((line) => ({
-          kind: "ingredient" as const,
-          id: line.ingredient,
-          name: formatShoppingName(line),
-          checked: checkedSet.has(line.ingredient),
-          line,
-        })),
-      ...state.extras.map((extra) => ({
-        kind: "extra" as const,
-        id: extra.id,
-        name: extra.text,
-        checked: extra.checked,
-        extra,
-      })),
-    ].sort((a, b) => a.name.localeCompare(b.name));
-
-    return [
-      ...items.filter((item) => !item.checked),
-      ...items.filter((item) => item.checked),
-    ];
-  }, [flatLines, checkedSet, state.extras, stock]);
-
-  const haveLines = useMemo(
-    () => aggregated.filter((line) => stock[line.ingredient]).sort(byName),
-    [aggregated, stock],
-  );
-  const inKitchenCount = haveLines.length;
-
-  const aisleGroups = useMemo(() => {
-    const groups = new Map<string, ShoppingLine[]>();
-    for (const line of aggregated) {
-      const list = groups.get(line.aisle) ?? [];
-      list.push(line);
-      groups.set(line.aisle, list);
-    }
-    return [...groups.entries()]
-      .sort(([a], [b]) => compareAisles(a, b))
-      .map(([id, lines]) => ({
-        id,
-        name: aisleName(id),
-        lines: [...lines].sort(byName),
-      }));
-  }, [aggregated]);
-
-  const recipeGroups = useMemo(() => {
-    return selected.map(({ recipe, scale }) => {
-      const lines = aggregateShoppingList([{ recipe, scale }]);
-      lines.sort(byName);
-      return {
-        recipe,
-        servings: Math.round(recipe.servings * scale),
-        lines,
-      };
-    });
-  }, [selected]);
-
-  const tickedCount =
-    aggregated.filter((l) => checkedSet.has(l.ingredient)).length +
-    state.extras.filter((e) => e.checked).length;
-  const itemCount = aggregated.length + state.extras.length;
-  const handledItemCount =
-    aggregated.filter(
-      (line) => inKitchen(line) || checkedSet.has(line.ingredient),
-    ).length + state.extras.filter((extra) => extra.checked).length;
-  const recordCompletedShop = async (itemWillBeChecked: boolean) => {
-    if (
-      itemWillBeChecked &&
-      itemCount > 0 &&
-      handledItemCount + 1 === itemCount &&
-      (await markShoppingTripCompleted())
-    ) {
-      captureRecipeValue("shopping_trip_completed", {
-        item_count: itemCount,
-        recipe_count: selected.length,
-      });
-    }
-  };
-  const handleIngredientToggle = (line: ShoppingLine) => {
-    const itemWillBeChecked = !checkedSet.has(line.ingredient);
-    toggleChecked(line.ingredient);
-    void recordCompletedShop(itemWillBeChecked);
-  };
-  const handleExtraToggle = (id: string, checked: boolean) => {
-    toggleExtra(id);
-    void recordCompletedShop(!checked);
-  };
-
-  const servingCount = recipeGroups.reduce(
-    (total, group) => total + group.servings,
-    0,
-  );
-  const recipeLabel = selected.length === 1 ? "recipe" : "recipes";
-  const servingLabel = servingCount === 1 ? "serving" : "servings";
-  const stats = [
-    selected.length > 0 ? `${selected.length} ${recipeLabel}` : null,
-    selected.length > 0 ? `${servingCount} ${servingLabel}` : null,
-    `${itemCount} ${itemCount === 1 ? "item" : "items"}`,
-    inKitchenCount > 0 ? `${inKitchenCount} in kitchen` : null,
-    `${tickedCount} ticked`,
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  const hasTicked = tickedCount > 0;
-
-  // In aisle view, once every (still-to-buy) item in a section is ticked off,
-  // the whole section is done: its header gets struck through and the section
-  // sinks below the aisles that still have shopping left, keeping attention on
-  // what remains. Ordering is stable within each partition.
-  const aisleSections = aisleGroups
-    .map((group) => {
-      const lines = groupLines(group.lines);
-      const done =
-        lines.length > 0 &&
-        lines.every((line) => checkedSet.has(line.ingredient));
-      return { group, lines, done };
-    })
-    .filter((section) => section.lines.length > 0);
-  const orderedAisleSections = [
-    ...aisleSections.filter((section) => !section.done),
-    ...aisleSections.filter((section) => section.done),
-  ];
-
-  if (selected.length === 0 && state.extras.length === 0) {
+  if (list.selected.length === 0 && list.extras.length === 0) {
     return (
       <div className="rounded-xl border-[1.25px] border-dashed border-[var(--line-strong)] bg-[var(--card)] p-6 sm:p-10">
         <div className="text-center">
@@ -647,9 +451,9 @@ export function ShoppingList({
         </div>
         <div className="flex justify-center">
           <ExtrasSection
-            extras={state.extras}
+            extras={list.extras}
             ingredientCatalog={ingredientCatalog}
-            onToggle={handleExtraToggle}
+            onToggle={list.handleExtraToggle}
             showItems={false}
           />
         </div>
@@ -660,16 +464,16 @@ export function ShoppingList({
   return (
     <div className="rounded-xl border-[1.25px] border-[var(--line-strong)] bg-[var(--card)] p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="rt-mono text-[var(--ink-3)]">{stats}</p>
+        <p className="rt-mono text-[var(--ink-3)]">{list.stats}</p>
         <div className="flex flex-wrap gap-1.5">
           {VIEWS.map((v) => (
             <Badge
               key={v.id}
-              variant={view === v.id ? "default" : "secondary"}
+              variant={list.view === v.id ? "default" : "secondary"}
               interactive
-              active={view === v.id}
+              active={list.view === v.id}
               className="cursor-pointer"
-              onClick={() => setView(v.id)}
+              onClick={() => list.setView(v.id)}
             >
               {v.label}
             </Badge>
@@ -677,13 +481,13 @@ export function ShoppingList({
         </div>
       </div>
 
-      {pantry.isPending && (
+      {list.pantry.isPending && (
         <output className="rt-body mt-3 block rounded-md border border-[var(--line)] bg-[var(--paper-warm)] px-3 py-2 text-sm text-[var(--ink-3)]">
           Checking your pantry before sorting the shopping list…
         </output>
       )}
 
-      {pantry.error && !pantry.data && (
+      {list.pantry.error && !list.pantry.data && (
         <p
           className="rt-body mt-3 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-3 py-2 text-sm text-[var(--berry)]"
           role="alert"
@@ -693,7 +497,7 @@ export function ShoppingList({
         </p>
       )}
 
-      {stockActions.error && (
+      {list.stockActions.error && (
         <p
           className="rt-body mt-3 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-3 py-2 text-sm text-[var(--berry)]"
           role="alert"
@@ -703,7 +507,7 @@ export function ShoppingList({
         </p>
       )}
 
-      {hasTicked && (
+      {list.hasTicked && (
         <button
           type="button"
           onClick={clearChecked}
@@ -714,40 +518,40 @@ export function ShoppingList({
       )}
 
       <div
-        className={`mt-3 ${pantry.isPending ? "pointer-events-none opacity-50" : ""}`}
-        aria-busy={pantry.isPending}
-        inert={pantry.isPending ? true : undefined}
+        className={`mt-3 ${list.pantry.isPending ? "pointer-events-none opacity-50" : ""}`}
+        aria-busy={list.pantry.isPending}
+        inert={list.pantry.isPending ? true : undefined}
       >
-        {view === "flat" && (
+        {list.view === "flat" && (
           <div>
             <div className="rt-mono text-[var(--ink-3)] mb-1">
               Just ingredients · A–Z
             </div>
-            {flatItems.map((item) =>
+            {list.flatItems.map((item) =>
               item.kind === "ingredient" ? (
                 <ItemRow
                   key={item.id}
                   line={item.line}
-                  system={system}
+                  system={list.system}
                   checked={item.checked}
-                  kitchenLocation={locationOf(item.line)}
-                  onToggle={handleIngredientToggle}
+                  kitchenLocation={list.locationOf(item.line)}
+                  onToggle={list.handleIngredientToggle}
                   showRecipes
-                  onRemoveFromStock={stockActions.removeFromStock}
+                  onRemoveFromStock={list.stockActions.removeFromStock}
                 />
               ) : (
                 <ExtraItemRow
                   key={item.id}
                   extra={item.extra}
-                  onToggle={handleExtraToggle}
+                  onToggle={list.handleExtraToggle}
                 />
               ),
             )}
           </div>
         )}
 
-        {view === "aisle" &&
-          orderedAisleSections.map(({ group, lines, done }) => (
+        {list.view === "aisle" &&
+          list.orderedAisleSections.map(({ group, lines, done }) => (
             <div key={group.id}>
               <SectionHeading title={group.name} done={done} />
               <div className="mt-1">
@@ -755,21 +559,21 @@ export function ShoppingList({
                   <ItemRow
                     key={line.ingredient}
                     line={line}
-                    system={system}
-                    checked={checkedSet.has(line.ingredient)}
-                    kitchenLocation={locationOf(line)}
-                    onToggle={handleIngredientToggle}
+                    system={list.system}
+                    checked={list.checkedSet.has(line.ingredient)}
+                    kitchenLocation={list.locationOf(line)}
+                    onToggle={list.handleIngredientToggle}
                     showRecipes
-                    onRemoveFromStock={stockActions.removeFromStock}
+                    onRemoveFromStock={list.stockActions.removeFromStock}
                   />
                 ))}
               </div>
             </div>
           ))}
 
-        {view === "recipe" &&
-          recipeGroups.map((group) => {
-            const lines = groupLines(group.lines);
+        {list.view === "recipe" &&
+          list.recipeGroups.map((group) => {
+            const lines = list.groupLines(group.lines);
             if (lines.length === 0) return null;
             return (
               <div key={group.recipe.slug}>
@@ -782,12 +586,12 @@ export function ShoppingList({
                     <ItemRow
                       key={line.ingredient}
                       line={line}
-                      system={system}
-                      checked={checkedSet.has(line.ingredient)}
-                      kitchenLocation={locationOf(line)}
-                      onToggle={handleIngredientToggle}
+                      system={list.system}
+                      checked={list.checkedSet.has(line.ingredient)}
+                      kitchenLocation={list.locationOf(line)}
+                      onToggle={list.handleIngredientToggle}
                       showRecipes={false}
-                      onRemoveFromStock={stockActions.removeFromStock}
+                      onRemoveFromStock={list.stockActions.removeFromStock}
                     />
                   ))}
                 </div>
@@ -796,7 +600,7 @@ export function ShoppingList({
           })}
       </div>
 
-      {pantry.error && pantry.data && (
+      {list.pantry.error && list.pantry.data && (
         <p
           className="rt-body mt-4 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-3 py-2 text-sm text-[var(--berry)]"
           role="alert"
@@ -806,7 +610,7 @@ export function ShoppingList({
         </p>
       )}
 
-      {haveLines.length > 0 && (
+      {list.haveLines.length > 0 && (
         <div className="mt-6">
           <div className="mt-5 flex items-baseline justify-between border-b border-[var(--line)] pb-1">
             <h3 className="rt-display text-2xl text-[var(--terracotta)]">
@@ -816,7 +620,7 @@ export function ShoppingList({
               href="/recipes/kitchen"
               className="inline-flex items-center gap-1 rt-mono text-[var(--ink-3)] transition-colors hover:text-[var(--terracotta)]"
             >
-              {haveLines.length} in the kitchen
+              {list.haveLines.length} in the kitchen
               <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
@@ -825,16 +629,16 @@ export function ShoppingList({
             the list if you don't actually have it.
           </p>
           <div className="mt-1">
-            {haveLines.map((line) => (
+            {list.haveLines.map((line) => (
               <ItemRow
                 key={line.ingredient}
                 line={line}
-                system={system}
-                checked={checkedSet.has(line.ingredient)}
-                kitchenLocation={locationOf(line)}
-                onToggle={handleIngredientToggle}
+                system={list.system}
+                checked={list.checkedSet.has(line.ingredient)}
+                kitchenLocation={list.locationOf(line)}
+                onToggle={list.handleIngredientToggle}
                 showRecipes={false}
-                onRemoveFromStock={stockActions.removeFromStock}
+                onRemoveFromStock={list.stockActions.removeFromStock}
               />
             ))}
           </div>
@@ -842,10 +646,10 @@ export function ShoppingList({
       )}
 
       <ExtrasSection
-        extras={state.extras}
+        extras={list.extras}
         ingredientCatalog={ingredientCatalog}
-        onToggle={handleExtraToggle}
-        showItems={view !== "flat"}
+        onToggle={list.handleExtraToggle}
+        showItems={list.view !== "flat"}
       />
     </div>
   );

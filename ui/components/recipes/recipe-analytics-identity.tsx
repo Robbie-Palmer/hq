@@ -3,26 +3,23 @@
 import posthog from "posthog-js";
 import { useEffect, useRef } from "react";
 import { authClient } from "@/lib/auth-client";
+import {
+  readBrowserStorage,
+  removeBrowserStorage,
+  writeBrowserStorage,
+} from "@/lib/browser/storage";
 
 const IDENTIFIED_USER_STORAGE_KEY = "recipe-posthog-identified-user:v1";
 
 function readPersistedUserId(): string | null {
-  try {
-    return localStorage.getItem(IDENTIFIED_USER_STORAGE_KEY);
-  } catch {
-    return null;
-  }
+  return readBrowserStorage("localStorage", IDENTIFIED_USER_STORAGE_KEY);
 }
 
 function persistUserId(userId: string | null): void {
-  try {
-    if (userId) {
-      localStorage.setItem(IDENTIFIED_USER_STORAGE_KEY, userId);
-    } else {
-      localStorage.removeItem(IDENTIFIED_USER_STORAGE_KEY);
-    }
-  } catch {
-    // Identity cleanup remains best-effort when storage is unavailable.
+  if (userId) {
+    writeBrowserStorage("localStorage", IDENTIFIED_USER_STORAGE_KEY, userId);
+  } else {
+    removeBrowserStorage("localStorage", IDENTIFIED_USER_STORAGE_KEY);
   }
 }
 

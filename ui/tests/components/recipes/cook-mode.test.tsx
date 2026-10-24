@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CookMode, type CookStep } from "@/components/recipes/cook-mode";
@@ -36,6 +36,11 @@ const steps: CookStep[] = [
   },
 ];
 
+const navigationSteps: CookStep[] = [
+  { key: "0:prepare", tokens: null, text: "Prepare the ingredients" },
+  { key: "1:cook", tokens: null, text: "Cook until tender" },
+];
+
 function renderCookMode(onComplete = vi.fn()) {
   return render(
     <CookModeProvider>
@@ -54,6 +59,34 @@ function renderCookMode(onComplete = vi.fn()) {
         onComplete={onComplete}
       />
       <ActiveStepProbe />
+    </CookModeProvider>,
+    { container: document.body },
+  );
+}
+
+function renderNavigableCookMode({
+  onExit = vi.fn(),
+  onStepChange = vi.fn(),
+}: {
+  onExit?: () => void;
+  onStepChange?: (step: number) => void;
+} = {}) {
+  return render(
+    <CookModeProvider>
+      <CookMode
+        recipeSlug="vegetables"
+        recipeTitle="Vegetables"
+        servings={2}
+        steps={navigationSteps}
+        ingredientGroups={[]}
+        annotations={new Map()}
+        scale={1}
+        system={preferenceForSystem("metric")}
+        step={0}
+        onStepChange={onStepChange}
+        onExit={onExit}
+        onComplete={vi.fn()}
+      />
     </CookModeProvider>,
     { container: document.body },
   );
@@ -151,5 +184,73 @@ describe("CookMode timer", () => {
       screen.getByRole("dialog", { name: "Save leftovers from Pasta" }),
     ).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
+  });
+});
+
+describe("CookMode navigation", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseCookingTimer.mockReturnValue(undefined);
+  });
+
+  it("moves between steps with arrow keys and horizontal swipes", async () => {
+    const user = userEvent.setup();
+    const onStepChange = vi.fn();
+    renderNavigableCookMode({ onStepChange });
+
+    await user.keyboard("{ArrowRight}");
+    expect(onStepChange).toHaveBeenLastCalledWith(1);
+
+    await user.keyboard("{ArrowLeft}");
+    expect(onStepChange).toHaveBeenLastCalledWith(0);
+
+    const main = screen.getByText("Prepare the ingredients").closest("main");
+    if (!main) throw new Error("Cook mode main content was not rendered.");
+    fireEvent.touchStart(main, {
+      touches: [{ clientX: 200, clientY: 20 }],
+    });
+    fireEvent.touchEnd(main, {
+      changedTouches: [{ clientX: 100, clientY: 24 }],
+    });
+
+    expect(onStepChange).toHaveBeenLastCalledWith(1);
+  });
+
+  it("closes the ingredient sheet before Escape exits cook mode", async () => {
+    const user = userEvent.setup();
+    const onExit = vi.fn();
+    renderNavigableCookMode({ onExit });
+
+    await user.click(screen.getByRole("button", { name: "Show ingredients" }));
+    expect(
+      screen.getAllByRole("button", { name: "Close ingredients" }),
+    ).not.toHaveLength(0);
+
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("button", { name: "Close ingredients" }),
+    ).toBeNull();
+    expect(onExit).not.toHaveBeenCalled();
+
+    await user.keyboard("{Escape}");
+    expect(onExit).toHaveBeenCalledOnce();
+  });
+
+  it("wraps focus from the last control to the first control", async () => {
+    const user = userEvent.setup();
+    renderNavigableCookMode();
+    const dialog = screen.getByRole("dialog", {
+      name: "Cook mode: Vegetables",
+    });
+    const buttons = dialog.querySelectorAll<HTMLButtonElement>(
+      "button:not([disabled])",
+    );
+    buttons[buttons.length - 1]?.focus();
+
+    await user.tab();
+
+    expect(
+      screen.getByRole("button", { name: "Exit cook mode" }),
+    ).toHaveFocus();
   });
 });

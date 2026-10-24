@@ -1,47 +1,14 @@
 "use client";
 
-import { Check, LoaderCircle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { RecipeAvatar } from "@/components/recipes/recipe-avatar";
+import {
+  SaveStatus,
+  type SaveStatusState,
+} from "@/components/recipes/settings/save-status";
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { PanelHead } from "./panel-head";
-
-type SaveState = "idle" | "saving" | "saved" | "error";
-
-function renderSaveStatus(state: SaveState, errorMsg: string | null) {
-  switch (state) {
-    case "saving":
-      return (
-        <>
-          <LoaderCircle className="size-3.5 animate-spin text-[var(--ink-3)]" />
-          <span className="rt-mono text-[var(--ink-3)]">saving…</span>
-        </>
-      );
-    case "saved":
-      return (
-        <>
-          <Check className="size-3.5 text-[var(--sage)]" />
-          <span className="rt-mono text-[var(--sage)]">saved</span>
-        </>
-      );
-    case "error":
-      return (
-        <span role="alert" className="rt-mono text-[var(--destructive)]">
-          {errorMsg}
-        </span>
-      );
-    default:
-      return (
-        <>
-          <span className="size-2 rounded-full bg-[var(--sage)]" />
-          <span className="rt-mono text-[var(--sage)]">
-            changes save automatically
-          </span>
-        </>
-      );
-  }
-}
 
 function Field({
   label,
@@ -71,7 +38,7 @@ export function AccountPanel({
   user: { name: string; email: string; image?: string | null };
 }>) {
   const [name, setName] = useState(user.name);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
+  const [saveState, setSaveState] = useState<SaveStatusState>("idle");
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const savedName = useRef(user.name);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -174,7 +141,12 @@ export function AccountPanel({
       </Field>
 
       <div className="mt-4 flex items-center gap-2" aria-live="polite">
-        {renderSaveStatus(saveState, errorMsg)}
+        <SaveStatus
+          state={saveState}
+          error={errorMsg}
+          savingText="saving…"
+          showErrorIcon={false}
+        />
       </div>
     </div>
   );
