@@ -1,0 +1,39 @@
+[tasks.format]
+description = "Format the versioned project infrastructure modules"
+run = "terraform -chdir=v1 fmt -recursive ."
+
+[tasks."format:check"]
+description = "Check project infrastructure module formatting"
+run = "terraform -chdir=v1 fmt -check -recursive ."
+
+[tasks.validate]
+description = "Validate the project infrastructure composition without credentials"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform -chdir=v1 init -backend=false -input=false > /dev/null
+terraform -chdir=v1 validate
+"""
+
+[tasks.test]
+description = "Test capability composition with mocked providers"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-terraform-test.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform -chdir=v1 init -backend=false -input=false > /dev/null
+terraform -chdir=v1 test
+"""
+
+[tasks.lint]
+description = "Check and test the versioned project infrastructure modules"
+depends = ["format:check", "validate", "test"]
+
+[tasks.check]
+description = "Check the versioned project infrastructure modules"
+depends = ["lint"]
