@@ -1,5 +1,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import { spawn } from "node:child_process";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { parse } from "yaml";
 import { z } from "zod";
 
@@ -489,25 +492,32 @@ function providerEnvironment(
   return {
     PATH: process.env.PATH ?? "",
     HOME: process.env.HOME ?? "",
-    TMPDIR: process.env.TMPDIR ?? "/tmp",
     NO_COLOR: "1",
     [tokenName]: token,
   };
 }
 
-export const runBootstrapCommand: BootstrapCommandRunner = (input) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(input.command, [...input.args], {
-      env: { ...input.environment },
-      stdio: ["pipe", "ignore", "ignore"],
+export const runBootstrapCommand: BootstrapCommandRunner = async (input) => {
+  const privateTempDirectory = await mkdtemp(
+    path.join(tmpdir(), "project-secret-bootstrap-"),
+  );
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(input.command, [...input.args], {
+        env: { ...input.environment, TMPDIR: privateTempDirectory },
+        stdio: ["pipe", "ignore", "ignore"],
+      });
+      child.once("error", () => reject(new Error(`Failed to start '${input.command}'`)));
+      child.once("exit", (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`Provider command '${input.command}' failed with exit code ${code ?? "unknown"}`));
+      });
+      child.stdin.end(input.stdin);
     });
-    child.once("error", () => reject(new Error(`Failed to start '${input.command}'`)));
-    child.once("exit", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`Provider command '${input.command}' failed with exit code ${code ?? "unknown"}`));
-    });
-    child.stdin.end(input.stdin);
-  });
+  } finally {
+    await rm(privateTempDirectory, { recursive: true, force: true });
+  }
+};
 
 async function writeDopplerSecret(
   plan: SecretBootstrapPlan,

@@ -488,7 +488,10 @@ describe("provider command boundary", () => {
     await expect(
       runBootstrapCommand({
         command: process.execPath,
-        args: ["-e", "process.stdin.resume(); process.stdin.on('end', () => process.exit(0))"],
+        args: [
+          "-e",
+          "const fs = require('node:fs'); const directory = process.env.TMPDIR; if (!directory || (fs.statSync(directory).mode & 0o077) !== 0) process.exit(9); process.stdin.resume(); process.stdin.on('end', () => process.exit(0));",
+        ],
         stdin: "sensitive",
         environment: { PATH: process.env.PATH ?? "" },
       }),
