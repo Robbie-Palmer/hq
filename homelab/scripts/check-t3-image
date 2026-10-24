@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.1.0-agent-tools-18
+image=ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
 package_json="${script_dir}/../images/t3-code/package.json"
@@ -22,6 +22,15 @@ package_version() {
   ' "$package_json" "$1"
 }
 
+override_version() {
+  node -e '
+    const manifest = require(process.argv[1]);
+    const version = manifest.overrides?.[process.argv[2]];
+    if (typeof version !== "string") process.exit(1);
+    process.stdout.write(version);
+  ' "$package_json" "$1"
+}
+
 claude_version="$(package_version @anthropic-ai/claude-code)"
 agent_auth_version="$(package_version @auth/agent-cli)"
 codex_version="$(package_version @openai/codex)"
@@ -34,7 +43,9 @@ image_manifest_mise_version="$(mise_tool_version github:jdx/mise)"
 opencode_version="$(package_version opencode-ai)"
 pnpm_version="$(package_version pnpm)"
 t3_version="$(package_version t3)"
+undici_version="$(package_version undici)"
 vale_version="$(mise_tool_version vale)"
+zod_version="$(override_version zod)"
 if [[ ! "$image_mise_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   echo "Unable to read the pinned mise image version from $dockerfile" >&2
   exit 1
@@ -75,7 +86,9 @@ docker run --rm \
   --env "EXPECTED_OPENCODE_VERSION=${opencode_version}" \
   --env "EXPECTED_PNPM_VERSION=${pnpm_version}" \
   --env "EXPECTED_T3_VERSION=${t3_version}" \
+  --env "EXPECTED_UNDICI_VERSION=${undici_version}" \
   --env "EXPECTED_VALE_VERSION=${vale_version}" \
+  --env "EXPECTED_ZOD_VERSION=${zod_version}" \
   --env "EXPECTED_DOCKER_VERSION=${docker_version}" \
   --env 'AGENT_AUTH_ENCRYPTION_KEY=image-check-only' \
   --env 'CONFIGURE_RECIPE_AGENT_MCP=true' \
@@ -99,6 +112,8 @@ docker run --rm \
     test "$(vale --version)" = "vale version $EXPECTED_VALE_VERSION"
     test "$(pnpm --version)" = "$EXPECTED_PNPM_VERSION"
     test "$(t3 --version)" = "t3 v$EXPECTED_T3_VERSION"
+    test "$(node -p "require(\"/usr/local/lib/t3-code/runtime/versions/$EXPECTED_T3_VERSION/node_modules/undici/package.json\").version")" = "$EXPECTED_UNDICI_VERSION"
+    test "$(node -p "require(\"/usr/local/lib/t3-code/runtime/versions/$EXPECTED_T3_VERSION/node_modules/zod/package.json\").version")" = "$EXPECTED_ZOD_VERSION"
     test "$MISE_TRUSTED_CONFIG_PATHS" = "/data/workspaces:/data/home/.t3/worktrees"
     test "$(docker --version | cut -d, -f1)" = "Docker version $EXPECTED_DOCKER_VERSION"
     test "$(docker buildx version | cut -d" " -f1-3)" = "github.com/docker/buildx v0.37.2 2d379c0c3f22da0d2759d132a0ec81ca949098f0"
