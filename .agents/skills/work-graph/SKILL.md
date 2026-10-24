@@ -20,6 +20,33 @@ Never print, copy, or persist the Cloudflare Access values. Codex sessions use
 their thread ID as worker provenance. `WORK_GRAPH_WORKER_ID` overrides it; other
 clients must set that variable to use the implicit active-lease workflow.
 
+## Compact invocations
+
+Treat an explicit `$work-graph` invocation as a request to select or identify the
+ticket, claim it, and carry it through its normal implementation and verification
+workflow. A user can narrow or override that scope in the rest of the prompt.
+Do not infer permission to merge, deploy, or release without the usual authority
+and evidence.
+
+- `$work-graph <ticket-id>` targets that exact ticket. Inspect it before claiming.
+  If it cannot be claimed, report why instead of substituting another ticket.
+- `$work-graph project <project-id>` selects the highest-priority ready ticket in
+  that project, then claims and executes it.
+- `$work-graph initiative <initiative-id>` does the same within an initiative.
+- `$work-graph next` selects the highest-priority ready ticket without a scope
+  filter.
+- `$work-graph no-conflicts` selects a ready ticket that is unlikely to overlap
+  active work. Inspect active tickets, their notes and metadata, relevant
+  dependencies, current worktrees, and likely files before claiming. Prefer the
+  highest-priority candidate with no expected code or operational overlap.
+- Selection arguments can be combined, for example `$work-graph project
+  personal-finance no-conflicts`. Apply the scope filter before comparing
+  candidates for overlap.
+
+Conflict avoidance is a best-effort judgment, not a guarantee. If every useful
+candidate has material overlap or the available evidence is too weak, stop and
+report the candidates and risks instead of claiming one.
+
 ## Normal loop
 
 1. Run `work-graph ready`. Inspect a candidate with `work-graph show <ticket>`.
