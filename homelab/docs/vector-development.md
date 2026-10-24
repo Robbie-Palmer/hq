@@ -126,4 +126,52 @@ GNOME automatic suspend is disabled on both battery and external power. Closing
 the lid on battery still suspends the laptop. On external power or while docked,
 closing the lid leaves the machine running. Host activation refreshes the active
 GNOME power daemon so a logged-in session cannot retain the old idle timeout
-after a rebuild. A full reboot requires the LUKS passphrase at the laptop.
+after a rebuild.
+
+## Remote power and encrypted boot
+
+[ADR 026](/projects/homelab/adrs/026-vault-assisted-vector-remote-boot)
+keeps full-disk encryption while making a deliberate remote boot possible.
+The wired adapter accepts a magic packet and the initrd exposes SSH on port
+2222. That SSH service has a separate host key and accepts only a forced
+command that answers the pending LUKS request. It cannot provide a shell,
+forward ports, or allocate a terminal.
+
+The laptop must be connected to AC power and wired Ethernet. In UEFI setup,
+enable Wake-on-LAN and disable ErP if it prevents the network adapter receiving
+standby power. Reserve the laptop's wired MAC address in DHCP so its address
+does not change.
+
+Provision the host-control Doppler secrets, initrd host key, and extra LUKS
+keyslot once. The task discovers the wired address and MAC from the host,
+generates a random 32-byte key directly into Doppler, and checks the exact LUKS
+UUID before changing a keyslot. It prompts for the existing LUKS passphrase;
+the passphrase is entered directly into `cryptsetup` and is not stored.
+
+```bash
+mise run //homelab:vector-remote-boot-provision
+mise run //homelab:vector-rebuild
+```
+
+The secrets use `homelab/prd_remote_development_host`, the existing
+controller-only host config. They do not use `prd_vector_development`, because
+that config is injected into the Vector workload. Anyone running the power
+tasks needs Doppler access to the host config, the matching SSH private key,
+and local network access. Wake and shutdown are explicit:
+
+```bash
+mise run //homelab:vector-wake
+mise run //homelab:vector-shutdown
+```
+
+`vector-wake` pins the initrd host public key from Doppler before sending the
+LUKS key over SSH. It then waits for the normal host SSH service and runs the
+full Vector health check. `vector-shutdown` checks the remote hostname and
+requires `vector-development` to be typed before it powers off the laptop.
+GNOME login is not required for K3s, Tailscale, or T3 Code to start.
+
+Keep the original LUKS passphrase. It remains the local recovery path if the
+Mac mini, Doppler, DHCP, Ethernet, or initrd SSH is unavailable. To revoke the
+remote path, remove its LUKS keyslot before deleting or rotating the Doppler
+secret. Test the replacement key with `cryptsetup open --test-passphrase`
+before removing the old slot.

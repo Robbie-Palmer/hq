@@ -22,6 +22,57 @@ let
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM10tppAS+3nlXzecNqk+YUuzwN2KtT5//gwoUqhDt36 robbiepalmer@live.co.uk"
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIj4+tNshoonWcOZFnSV0YcXgKuGqfcmn5HyIvLCfdQe robbiepalmer@live.co.uk"
   ];
+  initrdUnlockKeys = map (key: ''restrict,command="/bin/vector-remote-unlock" ${key}'') operatorKeys;
+  initrdHostKey = "/etc/secrets/initrd/vector-development_ssh_host_ed25519_key";
+  remoteUnlockScript = pkgs.writeShellScript "vector-remote-unlock" ''
+    set -eu
+
+    request=
+    attempts=0
+    while [ "$attempts" -lt 60 ]; do
+      for candidate in /run/systemd/ask-password/ask.*; do
+        [ -f "$candidate" ] || continue
+        request_id=
+        while IFS='=' read -r field value; do
+          if [ "$field" = Id ]; then
+            request_id=$value
+            break
+          fi
+        done < "$candidate"
+        case "$request_id" in
+          cryptsetup:*)
+            if [ -n "$request" ]; then
+              echo "more than one LUKS password request is pending" >&2
+              exit 1
+            fi
+            request=$candidate
+            ;;
+        esac
+      done
+      [ -z "$request" ] || break
+      attempts=$((attempts + 1))
+      sleep 1
+    done
+
+    if [ -z "$request" ]; then
+      echo "the Vector LUKS password request is not available" >&2
+      exit 1
+    fi
+
+    socket=
+    while IFS='=' read -r field value; do
+      if [ "$field" = Socket ]; then
+        socket=$value
+        break
+      fi
+    done < "$request"
+    if [ -z "$socket" ] || [ ! -S "$socket" ]; then
+      echo "the Vector LUKS password socket is not available" >&2
+      exit 1
+    fi
+
+    exec /bin/systemd-reply-password 1 "$socket"
+  '';
   t3CodeDesktop = pkgs.callPackage ../../packages/t3-code-desktop.nix { };
   nvidiaContainerTools = lib.getOutput "tools" config.hardware.nvidia-container-toolkit.package;
   dataLayoutScript = pkgs.writeShellApplication {
@@ -59,7 +110,31 @@ in
 
   networking = {
     hostName = "vector-development";
-    networkmanager.enable = true;
+    networkmanager = {
+      enable = true;
+      # NetworkManager.conf requires the numeric NMSettingWiredWakeOnLan flag.
+      settings = {
+        connection."ethernet.wake-on-lan" = 64;
+        main.no-auto-default = "*";
+      };
+      ensureProfiles.profiles.vector-development-wired = {
+        connection = {
+          id = "vector-development-wired";
+          type = "ethernet";
+          interface-name = "enp58s0";
+          autoconnect = true;
+          autoconnect-priority = 100;
+          down-on-poweroff = 0;
+        };
+        "802-3-ethernet"."wake-on-lan" = 64;
+        ipv4.method = "auto";
+        ipv6.method = "auto";
+      };
+    };
+    interfaces.enp58s0.wakeOnLan = {
+      enable = true;
+      policy = [ "magic" ];
+    };
     firewall = {
       enable = true;
       checkReversePath = "loose";
@@ -72,6 +147,37 @@ in
   };
 
   boot = {
+    initrd = {
+      network.ssh = {
+        enable = true;
+        port = 2222;
+        hostKeys = [ initrdHostKey ];
+        authorizedKeys = initrdUnlockKeys;
+        extraConfig = ''
+          AllowAgentForwarding no
+          AllowTcpForwarding no
+          GatewayPorts no
+          PermitRootLogin prohibit-password
+          PermitTTY no
+          PermitTunnel no
+          X11Forwarding no
+        '';
+      };
+      systemd = {
+        extraBin = {
+          systemd-reply-password = "${pkgs.systemd}/lib/systemd/systemd-reply-password";
+          vector-remote-unlock = remoteUnlockScript;
+        };
+        network = {
+          enable = true;
+          networks."10-vector-development-wired" = {
+            matchConfig.Name = "enp58s0";
+            networkConfig.DHCP = "ipv4";
+            dhcpV4Config.ClientIdentifier = "mac";
+          };
+        };
+      };
+    };
     loader.systemd-boot = {
       enable = true;
       configurationLimit = 10;
@@ -279,6 +385,7 @@ in
       brave
       curl
       e2fsprogs
+      ethtool
       git
       gh
       htop
@@ -323,22 +430,23 @@ in
     }
   ];
 
-  system.activationScripts.vectorDevelopmentRefreshGnomePower = lib.stringAfter
-    [
-      "etc"
-      "users"
-    ]
-    ''
-      if ${pkgs.systemd}/bin/systemctl --quiet is-active user@1000.service \
-        && test -S /run/user/1000/bus; then
-        ${pkgs.util-linux}/bin/runuser -u robbie -- \
-          ${pkgs.coreutils}/bin/env \
-            XDG_RUNTIME_DIR=/run/user/1000 \
-            DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
-            ${pkgs.systemd}/bin/systemctl --user restart \
-              org.gnome.SettingsDaemon.Power.target || true
-      fi
-    '';
+  system.activationScripts.vectorDevelopmentRefreshGnomePower =
+    lib.stringAfter
+      [
+        "etc"
+        "users"
+      ]
+      ''
+        if ${pkgs.systemd}/bin/systemctl --quiet is-active user@1000.service \
+          && test -S /run/user/1000/bus; then
+          ${pkgs.util-linux}/bin/runuser -u robbie -- \
+            ${pkgs.coreutils}/bin/env \
+              XDG_RUNTIME_DIR=/run/user/1000 \
+              DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus \
+              ${pkgs.systemd}/bin/systemctl --user restart \
+                org.gnome.SettingsDaemon.Power.target || true
+        fi
+      '';
 
   systemd.services.vector-development-data-layout = {
     description = "Create vector-development data directories";

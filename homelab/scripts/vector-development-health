@@ -14,6 +14,12 @@ test "$(id -u robbie)" = 1000
 test "$(id -u t3code)" = 2000
 findmnt --noheadings --output OPTIONS / | tr ',' '\n' | grep -Fx prjquota >/dev/null
 findmnt --noheadings --output SOURCE / | grep -Fx /dev/mapper/vector-development-root >/dev/null
+test "$(cryptsetup luksUUID /dev/disk/by-partlabel/disk-root-root)" = 526bbc1a-bafd-45df-92c7-c668dd3ffde4
+test "$(cryptsetup luksDump --dump-json-metadata /dev/disk/by-partlabel/disk-root-root | jq '.keyslots | length')" -ge 2
+test -s /etc/secrets/initrd/vector-development_ssh_host_ed25519_key
+test "$(stat -c %a /etc/secrets/initrd/vector-development_ssh_host_ed25519_key)" = 600
+ethtool enp58s0 | grep -Eq '^[[:space:]]*Supports Wake-on:.*g'
+ethtool enp58s0 | grep -Eq '^[[:space:]]*Wake-on: g$'
 awk '$1 == "/dev/zram0" { found = 1 } END { if (!found) exit 1 }' /proc/swaps
 systemctl is-active --quiet display-manager.service
 systemctl is-active --quiet NetworkManager.service
@@ -53,5 +59,5 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
     | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
   curl --fail --silent --show-error http://127.0.0.1:30773/ >/dev/null
 fi
-echo "desktop, encrypted storage, NVIDIA, Tailscale, and the independent K3s server are healthy"
+echo "desktop, encrypted remote boot, NVIDIA, Tailscale, and the independent K3s server are healthy"
 REMOTE

@@ -9,6 +9,7 @@
 
   boot.initrd.availableKernelModules = [
     "nvme"
+    "r8169"
     "thunderbolt"
     "vmd"
     "xhci_pci"

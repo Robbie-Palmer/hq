@@ -266,6 +266,18 @@ run = "bash scripts/rebuild-vector-development"
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
 run = "bash scripts/vector-development-health"
 
+[tasks.vector-remote-boot-provision]
+description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
+run = "bash scripts/provision-vector-development-remote-boot"
+
+[tasks.vector-wake]
+description = "Wake, remotely unlock, and verify vector-development"
+run = "bash scripts/wake-vector-development"
+
+[tasks.vector-shutdown]
+description = "Guard and power off vector-development"
+run = "bash scripts/shutdown-vector-development"
+
 [tasks.vector-static-check]
 description = "Syntax-check vector-development commissioning scripts"
 run = '''
@@ -279,7 +291,10 @@ bash -n \
   scripts/enrol-vector-development-tailscale \
   scripts/fetch-vector-development-kubeconfig \
   scripts/rebuild-vector-development \
-  scripts/vector-development-health
+  scripts/vector-development-health \
+  scripts/provision-vector-development-remote-boot \
+  scripts/wake-vector-development \
+  scripts/shutdown-vector-development
 grep -F 'VECTOR_DEVELOPMENT_INSTALL:-' scripts/install-vector-development >/dev/null
 grep -F 'nvme-eui.e8238fa6bf530001001b448b4a0a7d9e' scripts/install-vector-development >/dev/null
 grep -F '23304R801651' scripts/install-vector-development >/dev/null

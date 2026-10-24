@@ -2420,3 +2420,65 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
   assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
 });
+
+test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const hardwareConfig = readFileSync(
+    new URL(
+      "../hosts/vector-development/hardware-configuration.nix",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const provision = readFileSync(
+    new URL(
+      "../scripts/provision-vector-development-remote-boot",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const wake = readFileSync(
+    new URL("../scripts/wake-vector-development", import.meta.url),
+    "utf8",
+  );
+  const shutdown = readFileSync(
+    new URL("../scripts/shutdown-vector-development", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("interfaces.enp58s0.wakeOnLan"));
+  assert.ok(hostConfig.includes('policy = [ "magic" ]'));
+  assert.ok(hostConfig.includes('"ethernet.wake-on-lan" = 64'));
+  assert.ok(hostConfig.includes("ensureProfiles.profiles.vector-development-wired"));
+  assert.ok(hostConfig.includes("down-on-poweroff = 0"));
+  assert.ok(hardwareConfig.includes('"r8169"'));
+  assert.ok(hostConfig.includes("network.ssh"));
+  assert.ok(hostConfig.includes("port = 2222"));
+  assert.ok(hostConfig.includes('restrict,command="/bin/vector-remote-unlock"'));
+  assert.ok(hostConfig.includes("AllowTcpForwarding no"));
+  assert.ok(hostConfig.includes("PermitTTY no"));
+  assert.ok(hostConfig.includes("systemd-reply-password"));
+  assert.ok(hostConfig.includes('matchConfig.Name = "enp58s0"'));
+  assert.ok(hostConfig.includes('ClientIdentifier = "mac"'));
+
+  assert.ok(provision.includes("prd_remote_development_host"));
+  assert.ok(provision.includes("526bbc1a-bafd-45df-92c7-c668dd3ffde4"));
+  assert.ok(provision.includes("openssl rand -hex 32"));
+  assert.ok(provision.includes("cryptsetup luksAddKey"));
+  assert.ok(provision.includes("cryptsetup open --test-passphrase"));
+  assert.ok(provision.includes("/run/vector-development-remote-unlock.key"));
+  assert.ok(wake.includes("VECTOR_DEVELOPMENT_LUKS_REMOTE_KEY"));
+  assert.ok(wake.includes("StrictHostKeyChecking=yes"));
+  assert.ok(wake.includes("VECTOR_DEVELOPMENT_INITRD_HOST_PUBLIC_KEY"));
+  assert.ok(wake.includes('sock.sendto(packet, ("255.255.255.255", 9))'));
+  assert.ok(shutdown.includes('test "$(hostname)" = vector-development'));
+  assert.ok(shutdown.includes("systemctl poweroff"));
+
+  for (const script of [provision, wake]) {
+    assert.ok(!script.includes("192.168.1.151"));
+    assert.ok(!script.includes("d8:43:ae:06:28:77"));
+  }
+});
