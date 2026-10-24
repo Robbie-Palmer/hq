@@ -262,7 +262,9 @@ cp -- "$database" "$destination"
     assert.equal(manifest.exportedWorktrees, 1);
     const exported = readdirSync(join(target, "in-flight-worktrees"));
     assert.equal(exported.length, 1);
-    const stateDirectory = join(target, "in-flight-worktrees", exported[0]);
+    const [exportedWorktree] = exported;
+    assert.ok(exportedWorktree);
+    const stateDirectory = join(target, "in-flight-worktrees", exportedWorktree);
     const metadata = JSON.parse(readFileSync(join(stateDirectory, "metadata.json"), "utf8"));
     assert.equal(metadata.relativePath, "workspaces/repository");
     assert.equal(metadata.unpushedCommitCount, 1);
