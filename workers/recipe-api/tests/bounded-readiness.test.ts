@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { retryBoundedReadiness } from "../scripts/bounded-readiness";
+import { retryBoundedReadiness } from "../src/preview-readiness";
 
 describe("bounded preview readiness", () => {
   it("retries with bounded linear delays", async () => {
@@ -48,5 +48,33 @@ describe("bounded preview readiness", () => {
       }),
     ).rejects.toThrow("Readiness attempts must be a positive integer");
     expect(operation).not.toHaveBeenCalled();
+
+    await expect(
+      retryBoundedReadiness("Realtime subscription", operation, {
+        delayMs: -1,
+      }),
+    ).rejects.toThrow("Readiness delay must be a non-negative integer");
+    expect(operation).not.toHaveBeenCalled();
+  });
+
+  it("uses the default timer when no wait function is injected", async () => {
+    vi.useFakeTimers();
+    try {
+      const operation = vi
+        .fn<(attempt: number) => Promise<string>>()
+        .mockRejectedValueOnce(new Error("warming"))
+        .mockResolvedValueOnce("ready");
+
+      const readiness = retryBoundedReadiness(
+        "Realtime subscription",
+        operation,
+        { warn: vi.fn() },
+      );
+      await vi.advanceTimersByTimeAsync(1_000);
+
+      await expect(readiness).resolves.toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

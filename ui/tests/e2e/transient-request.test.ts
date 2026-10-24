@@ -100,4 +100,36 @@ describe("preview transient request retries", () => {
       "GET /limited exhausted transient retries (attempt 1: HTTP 429; attempt 2: HTTP 503)",
     );
   });
+
+  it("validates attempt bounds before making a request", async () => {
+    const request = vi.fn(async () => response(200));
+
+    await expect(
+      requestWithTransientRetries("GET /ready", request, { attempts: 0 }),
+    ).rejects.toThrow("Preview request attempts must be a positive integer");
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("uses the default timer when no wait function is injected", async () => {
+    vi.useFakeTimers();
+    try {
+      const request = vi
+        .fn<
+          (timeoutMs: number, attempt: number) => Promise<PreviewRetryResponse>
+        >()
+        .mockResolvedValueOnce(response(503))
+        .mockResolvedValueOnce(response(200));
+
+      const result = requestWithTransientRetries("GET /ready", request, {
+        warn: vi.fn(),
+      });
+      await vi.advanceTimersByTimeAsync(500);
+
+      await expect(result).resolves.toMatchObject({
+        status: expect.any(Function),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

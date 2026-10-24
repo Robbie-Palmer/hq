@@ -4,12 +4,12 @@
 // pantry mutations are fanned out through the shared Durable Object room.
 import WebSocket, { type RawData } from "ws";
 import { z } from "zod";
+import { retryBoundedReadiness } from "../src/preview-readiness";
 import {
   previewApiOriginSchema,
   previewApiRequestURL,
 } from "./preview-api-url";
 import { createPreviewSessionCookie } from "./preview-session";
-import { retryBoundedReadiness } from "./bounded-readiness";
 
 const smokeEnvSchema = z.object({
   DATABASE_URL: z.string().min(1),
