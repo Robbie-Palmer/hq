@@ -7,6 +7,7 @@ nix_image="nixos/nix@sha256:c7cc6c8cb5d81bed19997247629604708fda95c99c43ac362daa
 expected_serial=23304R801651
 expected_model="WD PC SN560 SDDPNQE-1T00-1032"
 expected_disk=/dev/disk/by-id/nvme-eui.e8238fa6bf530001001b448b4a0a7d9e
+expected_size=1024209543168
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 secret_dir=$(mktemp -d)
@@ -42,7 +43,7 @@ if [ "${VECTOR_DEVELOPMENT_INSTALL:-}" != WIPE ]; then
 fi
 
 ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" -i "${identity_file}" "${target}" \
-  "EXPECTED_DISK='${expected_disk}' EXPECTED_SERIAL='${expected_serial}' EXPECTED_MODEL='${expected_model}' bash -se" <<'REMOTE'
+  "EXPECTED_DISK='${expected_disk}' EXPECTED_SERIAL='${expected_serial}' EXPECTED_MODEL='${expected_model}' EXPECTED_SIZE='${expected_size}' bash -se" <<'REMOTE'
 set -euo pipefail
 test "$(id -u)" = 0
 grep -q '^NAME=NixOS$' /etc/os-release
@@ -51,8 +52,7 @@ disk=$(readlink -f "${EXPECTED_DISK}")
 test "$(lsblk --nodeps --noheadings --output SERIAL "${disk}" | xargs)" = "${EXPECTED_SERIAL}"
 test "$(lsblk --nodeps --noheadings --output MODEL "${disk}" | xargs)" = "${EXPECTED_MODEL}"
 size=$(lsblk --bytes --nodeps --noheadings --output SIZE "${disk}" | xargs)
-test "${size}" -ge 990000000000
-test "${size}" -le 1010000000000
+test "${size}" = "${EXPECTED_SIZE}"
 if lsblk --noheadings --output MOUNTPOINTS "${disk}" | grep -q '[^[:space:]]'; then
   echo "the target NVMe or one of its partitions is mounted" >&2
   exit 1

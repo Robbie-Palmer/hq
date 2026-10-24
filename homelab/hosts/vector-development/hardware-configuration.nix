@@ -13,7 +13,9 @@
     "vmd"
     "xhci_pci"
   ];
-  boot.initrd.kernelModules = [ ];
+  # The quota-enabled root filesystem is mounted in stage 1, before the full
+  # kernel module tree is available.
+  boot.initrd.kernelModules = [ "quota_v2" ];
   boot.kernelModules = [ "kvm-intel" ];
   boot.extraModulePackages = [ ];
 

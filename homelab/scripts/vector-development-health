@@ -22,7 +22,14 @@ systemctl is-active --quiet k3s.service
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader \
   | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
 test "$(cat /sys/module/nvidia_drm/parameters/modeset)" = Y
-test -x "$(command -v nvidia-container-runtime)"
+containerd_config=/var/lib/rancher/k3s/agent/etc/containerd/config.toml
+nvidia_runtime=$(
+  sed -n 's/^[[:space:]]*BinaryName = "\([^"]*\/nvidia-container-runtime\)"/\1/p' \
+    "${containerd_config}" \
+    | head -n 1
+)
+test -n "${nvidia_runtime}"
+test -x "${nvidia_runtime}"
 k3s kubectl get node vector-development --output=json \
   | jq -e '
       (.status.conditions | any(.type == "Ready" and .status == "True"))

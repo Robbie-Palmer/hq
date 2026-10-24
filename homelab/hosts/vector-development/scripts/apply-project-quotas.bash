@@ -1,5 +1,6 @@
 findmnt --noheadings --output OPTIONS / | tr ',' '\n' | grep -Fx prjquota >/dev/null
-if ! quotaon --project --print-state / | grep -F ' is on' >/dev/null; then
+quota_status="$(quotaon --project --print-state / 2>&1 || true)"
+if ! grep -F ' is on' <<<"${quota_status}" >/dev/null; then
   quotaon --project /
 fi
 

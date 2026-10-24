@@ -283,6 +283,7 @@ bash -n \
 grep -F 'VECTOR_DEVELOPMENT_INSTALL:-' scripts/install-vector-development >/dev/null
 grep -F 'nvme-eui.e8238fa6bf530001001b448b4a0a7d9e' scripts/install-vector-development >/dev/null
 grep -F '23304R801651' scripts/install-vector-development >/dev/null
+grep -F '1024209543168' scripts/install-vector-development >/dev/null
 '''
 
 [tasks.k3s-render-vector]

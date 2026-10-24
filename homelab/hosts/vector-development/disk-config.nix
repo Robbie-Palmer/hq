@@ -26,6 +26,12 @@
             content = {
               type = "filesystem";
               format = "ext4";
+              extraArgs = [
+                "-O"
+                "project,quota"
+                "-E"
+                "quotatype=prjquota"
+              ];
               mountpoint = "/";
               mountOptions = [
                 "noatime"

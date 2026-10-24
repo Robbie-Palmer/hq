@@ -53,6 +53,37 @@ const overlays = {
 } as const;
 const renderedOverlays = new Map<string, string>();
 
+test("the Vector root filesystem and initrd support project quotas", () => {
+  const diskConfig = readFileSync(
+    new URL("../hosts/vector-development/disk-config.nix", import.meta.url),
+    "utf8",
+  );
+  const hardwareConfig = readFileSync(
+    new URL(
+      "../hosts/vector-development/hardware-configuration.nix",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const quotaScript = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/apply-project-quotas.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(diskConfig.includes('"project,quota"'));
+  assert.ok(diskConfig.includes('"quotatype=prjquota"'));
+  assert.ok(diskConfig.includes('"prjquota"'));
+  assert.ok(hardwareConfig.includes('boot.initrd.kernelModules = [ "quota_v2" ]'));
+  assert.ok(
+    quotaScript.includes(
+      'quota_status="$(quotaon --project --print-state / 2>&1 || true)"',
+    ),
+  );
+});
+
 test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
   const healthCheck = readFileSync(
     new URL("../scripts/remote-development-health", import.meta.url),
@@ -2294,4 +2325,22 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(dopplerInstaller.includes("| tr -d '\\r\\n'"));
   assert.ok(dopplerInstaller.includes("--from-file=serviceToken=/dev/stdin"));
   assert.ok(!dopplerInstaller.includes("token_file"));
+});
+
+test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
+  const healthCheck = readFileSync(
+    new URL("../scripts/vector-development-health", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    healthCheck,
+    /containerd_config=\/var\/lib\/rancher\/k3s\/agent\/etc\/containerd\/config\.toml/,
+  );
+  assert.match(healthCheck, /test -x "\$\{nvidia_runtime\}"/);
+  assert.doesNotMatch(
+    healthCheck,
+    /command -v nvidia-container-runtime/,
+    "the tools output is intentionally not linked into the global system PATH",
+  );
 });
