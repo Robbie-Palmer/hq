@@ -31,26 +31,31 @@ export async function retryBoundedReadiness<T>(
 
   const wait = options.wait ?? defaultWait;
   const warn = options.warn ?? console.warn;
-  const failures: string[] = [];
-
-  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+  const runAttempt = async (
+    attempt: number,
+    failures: readonly string[],
+  ): Promise<T> => {
     try {
       return await operation(attempt);
     } catch (error) {
-      failures.push(`attempt ${attempt}: ${errorSummary(error)}`);
+      const nextFailures = [
+        ...failures,
+        `attempt ${attempt}: ${errorSummary(error)}`,
+      ];
       if (attempt === attempts) {
         throw new Error(
-          `${description} failed after ${attempts} attempts (${failures.join("; ")})`,
+          `${description} failed after ${attempts} attempts (${nextFailures.join("; ")})`,
           { cause: error },
         );
       }
       const nextDelayMs = delayMs * attempt;
       warn(
-        `${description} was not ready; retrying after ${nextDelayMs}ms (${failures.at(-1)})`,
+        `${description} was not ready; retrying after ${nextDelayMs}ms (${nextFailures.at(-1)})`,
       );
       await wait(nextDelayMs);
+      return runAttempt(attempt + 1, nextFailures);
     }
-  }
+  };
 
-  throw new Error(`${description} retry loop ended without a result`);
+  return runAttempt(1, []);
 }
