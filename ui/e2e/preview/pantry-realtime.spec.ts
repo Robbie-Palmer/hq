@@ -61,7 +61,7 @@ async function createScenarioSession(
   return session;
 }
 
-function waitForPantrySubscription(page: Page): Promise<WebSocket> {
+function waitForPantrySubscriptionAttempt(page: Page): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     let settled = false;
     const listeners = new Map<
@@ -128,6 +128,29 @@ function waitForPantrySubscription(page: Page): Promise<WebSocket> {
 
     page.on("websocket", onWebSocket);
   });
+}
+
+async function waitForPantrySubscription(page: Page): Promise<WebSocket> {
+  const failures: string[] = [];
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      return await waitForPantrySubscriptionAttempt(page);
+    } catch (error) {
+      const summary = error instanceof Error ? error.message : String(error);
+      failures.push(`attempt ${attempt}: ${summary}`);
+      if (attempt === 3) break;
+
+      console.warn(
+        `Pantry WebSocket was not ready; reconnecting (${failures.at(-1)})`,
+      );
+      await disconnectPantrySocket(page).catch(() => undefined);
+    }
+  }
+
+  throw new Error(
+    `Pantry WebSocket readiness failed after 3 attempts (${failures.join("; ")})`,
+  );
 }
 
 function waitForSocketClose(socket: WebSocket): Promise<void> {
@@ -311,6 +334,7 @@ async function restorePantryItem(
         "idempotency-key": operationId,
       },
       method: "PUT",
+      retry: "transient",
     },
     200,
   );
