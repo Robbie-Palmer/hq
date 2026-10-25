@@ -5,8 +5,8 @@ mode="${1:?Usage: doppler-terraform-env.sh <plan|apply> <command> [args...]}"
 shift
 
 case "$mode" in
-  plan) config="${DOPPLER_TAILNET_PLAN_CONFIG:-prd_tailnet_infra_plan}" ;;
-  apply) config="${DOPPLER_TAILNET_APPLY_CONFIG:-prd_tailnet_infra}" ;;
+  plan) config="${DOPPLER_TAILNET_PLAN_CONFIG:-prd_tailnet_values_infra_plan}" ;;
+  apply) config="${DOPPLER_TAILNET_APPLY_CONFIG:-prd_tailnet_values_infra}" ;;
   *)
     echo "Unknown tailnet credential mode: $mode" >&2
     exit 2
