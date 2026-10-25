@@ -3,6 +3,7 @@ import {
   differenceInCalendarMonths,
   format,
   isAfter,
+  max,
   parseISO,
 } from "date-fns";
 import {
@@ -184,10 +185,6 @@ function restriction(
   };
 }
 
-function laterDate(first: string, second: string): string {
-  return first >= second ? first : second;
-}
-
 function resolveAccess(
   account: RetirementCapitalAccount,
   selectedAccountIds: ReadonlySet<string>,
@@ -238,7 +235,10 @@ function resolveAccess(
   const accessibleFromDate =
     policy.accessibleFromDate == null
       ? delayedDate
-      : laterDate(delayedDate, policy.accessibleFromDate);
+      : format(
+          max([parseISO(delayedDate), parseISO(policy.accessibleFromDate)]),
+          "yyyy-MM-dd",
+        );
   if (date < accessibleFromDate) {
     return {
       accessible: false,
