@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { InitiativeSlugSchema, ProjectSlugSchema } from "../slugs";
+import {
+  IdeaSlugSchema,
+  InitiativeSlugSchema,
+  ProjectSlugSchema,
+} from "../slugs";
 
 export type { InitiativeSlug } from "../slugs";
 
@@ -42,3 +46,9 @@ export const InitiativeSchema = z.object({
 });
 
 export type Initiative = z.infer<typeof InitiativeSchema>;
+
+export const InitiativeRelationsSchema = z.object({
+  ideas: z.array(IdeaSlugSchema).default([]),
+});
+
+export type InitiativeRelations = z.infer<typeof InitiativeRelationsSchema>;

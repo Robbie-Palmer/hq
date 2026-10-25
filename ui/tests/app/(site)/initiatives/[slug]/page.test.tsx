@@ -30,6 +30,13 @@ const fixture = {
     "pathology-viewer": "Made model outputs inspectable.",
   },
   content: "## Goal\n\nImprove patient-specific decisions.",
+  ideas: [
+    {
+      slug: "digital-twins",
+      title: "Digital Twins",
+      description: "Models connected to real counterparts.",
+    },
+  ],
   projects: [
     {
       slug: "pathology-viewer",
@@ -85,6 +92,10 @@ describe("initiative page", () => {
       screen.getByRole("heading", { name: "Personalized Medicine" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Inactive")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Digital Twins" })).toHaveAttribute(
+      "href",
+      "/ideas/digital-twins",
+    );
     const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
     expect(
       within(breadcrumb).getByRole("link", { name: "Initiatives" }),

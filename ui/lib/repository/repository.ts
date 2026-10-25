@@ -34,6 +34,8 @@ import {
 } from "../domain/idea/idea";
 import {
   type Initiative,
+  type InitiativeRelations,
+  InitiativeRelationsSchema,
   InitiativeSchema,
   type InitiativeSlug,
 } from "../domain/initiative/initiative";
@@ -422,13 +424,15 @@ export function validateBlogPost(
 
 interface InitiativeLoadResult {
   entities: Map<InitiativeSlug, Initiative>;
+  relations: Map<InitiativeSlug, InitiativeRelations>;
 }
 
 export function loadInitiatives(): InitiativeLoadResult {
   const entities = new Map<InitiativeSlug, Initiative>();
+  const relations = new Map<InitiativeSlug, InitiativeRelations>();
 
   if (!fs.existsSync(INITIATIVES_DIR)) {
-    return { entities };
+    return { entities, relations };
   }
 
   const files = fs
@@ -460,9 +464,14 @@ export function loadInitiatives(): InitiativeLoadResult {
       throw new Error(`Initiative ${slug} failed validation`);
     }
     entities.set(slug, validation.data);
+
+    const initiativeRelations = InitiativeRelationsSchema.parse({
+      ideas: (data.ideas ?? []).map(normalizeSlug),
+    });
+    relations.set(slug, initiativeRelations);
   }
 
-  return { entities };
+  return { entities, relations };
 }
 
 export function validateInitiative(
@@ -1154,6 +1163,7 @@ interface ValidationInput {
   ideas?: Map<IdeaSlug, Idea>;
   ideaRelations?: Map<IdeaSlug, IdeaRelations>;
   initiatives: Map<InitiativeSlug, Initiative>;
+  initiativeRelations?: Map<InitiativeSlug, InitiativeRelations>;
   adrs: Map<ADRRef, ADR>;
   projects: Map<ProjectSlug, Project>;
   blogRelations: Map<BlogSlug, BlogRelations>;
@@ -1842,6 +1852,12 @@ export function validateReferentialIntegrity(
     });
   });
 
+  input.initiativeRelations?.forEach((relations, initiativeSlug) => {
+    relations.ideas.forEach((ideaSlug) => {
+      checkIdea(ideaSlug, `Initiative[${initiativeSlug}]`, "ideas");
+    });
+  });
+
   input.blogRelations.forEach((relations, blogSlug) => {
     relations.technologies.forEach((techSlug) => {
       checkTech(techSlug, `BlogPost[${blogSlug}]`, "technologies");
@@ -2171,6 +2187,15 @@ function addProductDecisionRelationData(
   }
 }
 
+function addInitiativeRelationData(
+  relations: RelationData,
+  loaders: LoaderResults,
+): void {
+  for (const [slug, initiativeRels] of loaders.initiatives.relations) {
+    relations.initiativeIdeas.set(slug, initiativeRels.ideas);
+  }
+}
+
 function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
   const relations = createEmptyRelationData();
 
@@ -2184,6 +2209,8 @@ function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
     relations.projectInitiatives.set(slug, projectRels.initiatives);
     relations.projectIdeas.set(slug, projectRels.ideas);
   }
+
+  addInitiativeRelationData(relations, loaders);
 
   for (const [slug, blogRels] of loaders.blogs.relations) {
     relations.blogTechnologies.set(slug, blogRels.technologies);
@@ -2244,6 +2271,7 @@ function buildDomainRepository(): DomainRepository {
     ideas: ideasResult.entities,
     ideaRelations: ideasResult.relations,
     initiatives: initiativesResult.entities,
+    initiativeRelations: initiativesResult.relations,
     adrs: adrsResult.entities,
     projects: projectsResult.entities,
     blogRelations: blogsResult.relations,

@@ -5,6 +5,7 @@ import {
   FileText,
   FolderKanban,
   GitBranch,
+  Goal,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -113,6 +114,7 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
   const hasReferences =
     idea.relatedContent.technologies.length > 0 ||
     idea.relatedContent.projects.length > 0 ||
+    idea.relatedContent.initiatives.length > 0 ||
     idea.relatedContent.blogs.length > 0 ||
     idea.relatedContent.adrs.length > 0 ||
     productDecisions.length > 0;
@@ -179,6 +181,23 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
                       href={`/projects/${project.slug}`}
                       title={project.title}
                       description={project.status.replace("_", " ")}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+            {idea.relatedContent.initiatives.length > 0 && (
+              <div className="space-y-3">
+                <h3 className="flex items-center gap-2 text-lg font-medium">
+                  <Goal className="size-5" /> Initiatives
+                </h3>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {idea.relatedContent.initiatives.map((initiative) => (
+                    <RelatedCard
+                      key={initiative.slug}
+                      href={`/initiatives/${initiative.slug}`}
+                      title={initiative.title}
+                      description={initiative.status}
                     />
                   ))}
                 </div>

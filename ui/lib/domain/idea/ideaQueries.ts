@@ -3,6 +3,7 @@ import {
   getContentReferencingIdeaByType,
   getIdeasForADR,
   getIdeasForBlog,
+  getIdeasForInitiative,
   getIdeasForProject,
   getProjectForADR,
   getRelatedIdeas,
@@ -10,6 +11,7 @@ import {
 } from "@/lib/repository";
 import { toADRListItemView } from "../adr/adrViews";
 import { toBlogListItemView } from "../blog/blogViews";
+import type { InitiativeSlug } from "../initiative";
 import { toProjectListItemView } from "../project/projectViews";
 import type { ADRRef, BlogSlug, ProjectSlug } from "../slugs";
 import { toTechnologyDetailView } from "../technology/technologyViews";
@@ -57,6 +59,16 @@ export function getIdeaLinksForBlog(
   return resolveIdeaLinks(repository, getIdeasForBlog(repository.graph, slug));
 }
 
+export function getIdeaLinksForInitiative(
+  repository: DomainRepository,
+  slug: InitiativeSlug,
+): IdeaLinkView[] {
+  return resolveIdeaLinks(
+    repository,
+    getIdeasForInitiative(repository.graph, slug),
+  );
+}
+
 export function getIdeaLinksForADR(
   repository: DomainRepository,
   adrRef: ADRRef,
@@ -91,6 +103,12 @@ export function getRelatedContentForIdea(
         Boolean(project),
       )
       .map(toProjectListItemView),
+    initiatives: references.initiatives
+      .map((initiativeSlug) => repository.initiatives.get(initiativeSlug))
+      .filter((initiative): initiative is NonNullable<typeof initiative> =>
+        Boolean(initiative),
+      )
+      .sort((a, b) => a.title.localeCompare(b.title)),
     blogs: references.blogs
       .map((blogSlug) => repository.blogs.get(blogSlug))
       .filter((blog): blog is NonNullable<typeof blog> => Boolean(blog))

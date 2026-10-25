@@ -57,7 +57,12 @@ describe("sitemap", () => {
       "https://robbiepalmer.me/ideas/incommensurability",
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/postpositivism");
-    expect(ideaUrls).toHaveLength(39);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/knowledge-graphs",
+    );
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/data-provenance");
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/digital-twins");
+    expect(ideaUrls).toHaveLength(42);
   });
 
   it("excludes legacy ADR aliases", () => {

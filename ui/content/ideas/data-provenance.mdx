@@ -1,0 +1,82 @@
+---
+title: "Data Provenance"
+description: "A record of where data came from, who or what changed it, and how a result was produced."
+source_url: "https://www.ibm.com/think/topics/data-provenance"
+related_ideas:
+  - "knowledge-graphs"
+  - "commit-log"
+  - "write-ahead-log"
+  - "feature-stores"
+---
+
+Data provenance records the history behind a piece of data. It connects a result to its sources,
+the processes that transformed them, and the people or systems responsible for those processes.
+The record helps someone judge whether the result is authentic, reproduce it, or find the cause of
+an error.
+
+[IBM's introduction](https://www.ibm.com/think/topics/data-provenance) describes provenance as a
+historical record of origins and changes. It also makes a useful distinction from data lineage.
+Lineage usually follows how data moves and changes through a pipeline. Provenance asks the broader
+question of why a particular value or artefact exists in its present form.
+
+## Record the derivation, not only the latest value
+
+Suppose a report contains a converted total. The number alone cannot answer which source records
+were included, which exchange rate applied, which calculation ran, or whether someone later
+corrected an input. Provenance links the output to those specific inputs and activities.
+
+The W3C PROV model organises this history around entities, activities, and agents. An entity might
+be a dataset or report. An activity might import, clean, classify, or calculate it. An agent might
+be a person, organisation, or software service associated with the activity. Relations between
+them express generation, use, attribution, and derivation.
+
+A practical provenance record commonly needs:
+
+* stable identities for inputs and outputs;
+* the operation and version that produced an output;
+* the responsible person or system;
+* the relevant times and execution context;
+* links to earlier records rather than copies of unexplained values.
+
+The exact detail depends on the decision the record must support. Reproducing a scientific result
+may require code, parameters, and environment details. Auditing an imported transaction may instead
+need the provider, original identifier, receipt time, and later corrections.
+
+## Nearby ideas are not substitutes
+
+Metadata describes data, and provenance is one kind of metadata. A catalogue can record an owner,
+format, and description without recording how one value was derived from another.
+
+Version history preserves successive states. It does not necessarily explain the activity that
+created each state or the inputs used. An audit log records actions, but a list of actions may not
+form a navigable chain from an output back to its evidence.
+
+[Commit logs](/ideas/commit-log) and [write-ahead logs](/ideas/write-ahead-log) preserve ordered
+records for storage and recovery. They can supply provenance evidence, but their primary job is not
+to explain meaning. Event sourcing is an application architecture in which events reconstruct
+state. A system can keep provenance without adopting that architecture.
+
+## Trust still has to be earned
+
+Provenance can reveal a broken source or an unexpected transformation. It cannot make either one
+correct. A detailed history built from unverified assertions may only explain how a bad result was
+produced.
+
+Capture should therefore happen close to the activity, use identifiers that survive movement
+between systems, and resist silent rewriting. Access controls matter because provenance can expose
+people, source locations, and processing details. Retention should match the lifetime of the claims
+or decisions that depend on it.
+
+## Questions it prompts
+
+* Which decisions require an explanation or exact reproduction later?
+* Can an output identify the precise input versions and transformations that produced it?
+* Where can provenance be captured automatically, and where is a human assertion unavoidable?
+* How are corrections represented without erasing the earlier record?
+* Who may inspect provenance, and how long should the system retain it?
+
+## Sources
+
+* IBM. ["What is data provenance?"](https://www.ibm.com/think/topics/data-provenance).
+* Gil, Yolanda, and Simon Miles, eds. [*PROV Model Primer*](https://www.w3.org/TR/prov-primer/).
+  W3C Working Group Note, 2013.

@@ -1,6 +1,7 @@
 import { Rss } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { IdeaBadges } from "@/components/ideas/idea-badges";
 import { InitiativeStatusBadge } from "@/components/initiatives/initiative-status-badge";
 import { Markdown } from "@/components/markdown";
 import { Mermaid } from "@/components/mermaid";
@@ -101,6 +102,7 @@ export default async function InitiativePage({ params }: Readonly<PageProps>) {
             </a>
           </Button>
           <div className="flex flex-wrap gap-2">
+            <IdeaBadges ideas={initiative.ideas} />
             {initiative.projects.map((project) => (
               <Badge key={project.slug} variant="outline" asChild>
                 <Link href={`/projects/${project.slug}`}>{project.title}</Link>

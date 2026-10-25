@@ -18,6 +18,7 @@ export {
   getContentUsingTechnologyByType,
   getIdeasForADR,
   getIdeasForBlog,
+  getIdeasForInitiative,
   getIdeasForProductDecision,
   getIdeasForProject,
   getIdeasForTechnology,

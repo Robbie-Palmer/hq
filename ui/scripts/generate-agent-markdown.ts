@@ -248,6 +248,17 @@ function buildInitiativePages(
     description: initiative.description,
     facts: [["Projects", String(initiative.projects.length)]],
     content: [
+      ...(initiative.ideas.length > 0
+        ? [
+            "## Ideas",
+            "",
+            ...initiative.ideas.map(
+              (idea) =>
+                `- [${idea.title}](${markdownUrl(routePath("ideas", idea.slug))}): ${idea.description}`,
+            ),
+            "",
+          ]
+        : []),
       convert(initiative.content).trim(),
       "",
       "## Projects advancing this goal",
@@ -1039,6 +1050,7 @@ function buildIdeaPages(
     if (
       references.technologies.length > 0 ||
       references.projects.length > 0 ||
+      references.initiatives.length > 0 ||
       references.blogs.length > 0 ||
       references.adrs.length > 0 ||
       references.productDecisions.length > 0
@@ -1054,6 +1066,10 @@ function buildIdeaPages(
         ...references.projects.map(
           (project) =>
             `- Project: [${project.title}](${markdownUrl(routePath("projects", project.slug))})`,
+        ),
+        ...references.initiatives.map(
+          (initiative) =>
+            `- Initiative: [${initiative.title}](${markdownUrl(routePath("initiatives", initiative.slug))})`,
         ),
         ...references.blogs.map(
           (post) =>
