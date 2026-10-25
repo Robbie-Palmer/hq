@@ -13,6 +13,18 @@ type Event = {
   timestamp?: number;
   $workers?: { requestId?: string };
 };
+type RouteUsage = {
+  method: string;
+  route: string;
+  requests: number;
+  databaseQueries: number;
+  databaseResultRows: number;
+  databaseResultBytesEstimated: number;
+  responseBytes: number;
+  durationMs: number;
+  firstObservedAt?: number;
+  lastObservedAt?: number;
+};
 type Pool = {
   avg: {
     currentPoolSize: number;
@@ -82,11 +94,14 @@ export async function diagnose(
     }
     return result;
   }
-  async function logs(statusKey: string): Promise<Event[]> {
+  async function logs(
+    queryId: string,
+    filters: Array<Record<string, unknown>>,
+  ): Promise<Event[]> {
     const result = await post(
       `/accounts/${config.accountId}/workers/observability/telemetry/query`,
       {
-        queryId: "work-graph-production-errors",
+        queryId,
         timeframe: { from: start.getTime(), to: end.getTime() },
         view: "events",
         limit: 2000,
@@ -99,8 +114,7 @@ export async function diagnose(
               type: "string",
               operation: "eq",
             },
-            { key: statusKey, value: 500, type: "number", operation: "gte" },
-            { key: statusKey, value: 600, type: "number", operation: "lt" },
+            ...filters,
           ],
         },
       },
@@ -111,8 +125,26 @@ export async function diagnose(
       throw new Error("Unexpected Cloudflare events response");
     return events;
   }
-  const invocations = await logs("$workers.event.response.status");
-  const records = await logs("status");
+  const statusFilters = (statusKey: string) => [
+    { key: statusKey, value: 500, type: "number", operation: "gte" },
+    { key: statusKey, value: 600, type: "number", operation: "lt" },
+  ];
+  const invocations = await logs(
+    "work-graph-production-invocation-errors",
+    statusFilters("$workers.event.response.status"),
+  );
+  const records = await logs(
+    "work-graph-production-application-errors",
+    statusFilters("status"),
+  );
+  const usageEvents = await logs("work-graph-production-route-usage", [
+    {
+      key: "event",
+      value: "request_usage",
+      type: "string",
+      operation: "eq",
+    },
+  ]);
   const metrics = await post("/graphql", {
     query: poolQuery,
     variables: {
@@ -176,12 +208,83 @@ export async function diagnose(
     record.invocationId = event.$workers?.requestId;
     return record;
   });
+  const usageByRoute = [
+    ...usageEvents.reduce((routes, event) => {
+      const source =
+        typeof event.source === "string"
+          ? (JSON.parse(event.source) as Record<string, unknown>)
+          : event.source;
+      const method = source.method;
+      const route = source.route;
+      const metricKeys = [
+        "databaseQueryCount",
+        "databaseResultRowCount",
+        "databaseResultBytesEstimated",
+        "responseBytes",
+        "durationMs",
+      ] as const;
+      if (
+        typeof method !== "string" ||
+        typeof route !== "string" ||
+        metricKeys.some(
+          (key) =>
+            typeof source[key] !== "number" ||
+            !Number.isFinite(source[key]) ||
+            source[key] < 0,
+        )
+      ) {
+        throw new Error("Unexpected Work Graph usage event");
+      }
+      const key = `${method} ${route}`;
+      const current = routes.get(key) ?? {
+        method,
+        route,
+        requests: 0,
+        databaseQueries: 0,
+        databaseResultRows: 0,
+        databaseResultBytesEstimated: 0,
+        responseBytes: 0,
+        durationMs: 0,
+      };
+      current.requests += 1;
+      current.databaseQueries += source.databaseQueryCount as number;
+      current.databaseResultRows += source.databaseResultRowCount as number;
+      current.databaseResultBytesEstimated +=
+        source.databaseResultBytesEstimated as number;
+      current.responseBytes += source.responseBytes as number;
+      current.durationMs += source.durationMs as number;
+      if (typeof event.timestamp === "number") {
+        current.firstObservedAt = Math.min(
+          current.firstObservedAt ?? event.timestamp,
+          event.timestamp,
+        );
+        current.lastObservedAt = Math.max(
+          current.lastObservedAt ?? event.timestamp,
+          event.timestamp,
+        );
+      }
+      routes.set(key, current);
+      return routes;
+    }, new Map<string, RouteUsage>()).values(),
+  ].sort(
+    (left, right) =>
+      right.databaseResultBytesEstimated -
+        left.databaseResultBytesEstimated ||
+      right.databaseQueries - left.databaseQueries ||
+      `${left.method} ${left.route}`.localeCompare(
+        `${right.method} ${right.route}`,
+      ),
+  );
   return {
     from: start.toISOString(),
     to: end.toISOString(),
     http5xxInvocations: invocations.length,
-    truncated: invocations.length === 2000 || records.length === 2000,
+    truncated:
+      invocations.length === 2000 ||
+      records.length === 2000 ||
+      usageEvents.length === 2000,
     errors,
+    usageByRoute,
     hyperdrivePools: pools,
     hyperdriveQueryErrors: queryErrors,
     unhealthy:
