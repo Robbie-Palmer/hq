@@ -9,6 +9,7 @@ import { z } from "zod";
 import { normalizeSlug } from "@/lib/generic/slugs";
 import {
   type Account,
+  AccountAccessPolicySchema,
   AccountContentSchema,
   type AccountId,
   AccountIdSchema,
@@ -167,6 +168,7 @@ export const CreateAccountInputSchema = z.object({
   currency: CurrencySchema,
   assetType: AssetTypeSchema,
   liquidity: LiquidityTierSchema.optional(),
+  accessPolicy: AccountAccessPolicySchema.optional(),
   expectedAnnualReturn: AnnualRateSchema,
   /** e.g. the property a mortgage is secured on */
   linkedAccountId: AccountIdSchema.optional(),
@@ -774,6 +776,7 @@ export function applyCreateAccount(
     currency: parsed.currency,
     assetType: parsed.assetType,
     liquidity: parsed.liquidity,
+    accessPolicy: parsed.accessPolicy,
     expectedAnnualReturn: parsed.expectedAnnualReturn,
     linkedAccountId: parsed.linkedAccountId,
     mortgageTerms: parsed.mortgageTerms,
