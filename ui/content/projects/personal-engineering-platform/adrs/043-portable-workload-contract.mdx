@@ -1,0 +1,123 @@
+---
+title: "ADR 043: Portable workload intent with target-specific packaging"
+date: "2026-10-24"
+status: "Accepted"
+tech_stack: ["Score", "Zod", "Docker", "Kubernetes", "Kustomize", "Helm"]
+---
+
+## Context
+
+[ADR 013](/projects/personal-engineering-platform/adrs/013-build-runtime-standards)
+separates workload packaging from orchestration and deployment targets.
+[ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+reserves workload capabilities for a later profile version. The missing
+contract must cover Cloudflare serverless workloads, NixOS services, local
+containers, K3s, and Kubernetes without making Kubernetes a prerequisite for
+every project.
+
+The spike used one container service with an image, HTTP port, liveness and
+readiness checks, CPU and memory bounds, literal configuration, a secret-bearing
+PostgreSQL dependency, ingress, OTLP settings, and an ordered migration. The
+package-owned `portable-workload-v0.yaml` fixture was projected to
+`score-v1b1.yaml`, then rendered with `score-compose` 0.49.0 and `score-k8s`
+0.22.0. A platform-contract test keeps the two fixtures aligned. The generated
+manifests, implementation state, and credentials are not repository inputs.
+
+## Decision
+
+Use a small, versioned, repository-owned workload contract as the source for a
+future project-profile capability. Keep it inside `packages/platform-contracts`
+and parse it with the existing Zod boundary when that standard is implemented.
+The fixture under `packages/platform-contracts/tests/fixtures/workload` records
+version 0 evidence and does not define the accepted schema.
+
+The contract owns portable intent: runtime family, artifact identity, process,
+ports, health checks, resource bounds, configuration and secret references,
+dependencies, ingress intent, telemetry contract, ordered migrations, and the
+requested deployment targets. It never owns secret values, generated resource
+names, provider identifiers, namespaces, Kubernetes object shapes, or release
+state.
+
+For a container workload, allow the compiler to emit Score `v1b1` as an
+intermediate format. Score has a focused
+[workload schema](https://docs.score.dev/docs/score-specification/score-spec-reference/)
+and reference implementations for
+[Compose and Kubernetes](https://docs.score.dev/docs/score-implementation/).
+Do not make a handwritten Score file the project source. Resource types are
+implementation-defined, the two implementations support different semantics,
+and their local state carries generated identity and credentials.
+
+Keep Kubernetes in an optional deployment-target layer. After a Kubernetes
+renderer produces ordinary resources, use Kustomize overlays for
+environment-specific changes. A project may package a Helm application chart
+when it needs a distributable Kubernetes application or Helm's release,
+upgrade, rollback, and hook behavior. The platform will not require a shared
+Helm library chart or starter.
+
+Do not select Open Application Model, KubeVela, or Devfile. Do not add CUE to
+the source-contract toolchain. Revisit CUE only if the target generators need
+cross-field unification that becomes awkward in TypeScript and Zod.
+
+## Candidate results
+
+| Candidate                            | Semantic fit and gaps                                                                                                                                                                                          | Extension pressure                                                                                                                                                                        | Validation                                                                                                                             | Upgrade behavior                                                                                                                                  | Operational weight                                                                                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Score                                | Best fit for portable container intent. It models containers, ports, probes, bounds, dependencies, and ordered start. It cannot describe a Cloudflare Worker or a complete deployment policy.                  | Resource types and outputs belong to each implementation. Platform security, scaling, placement, and rollout controls need provisioners, annotations, patches, or a surrounding contract. | Published JSON Schema and implementation validation give clear structural failures. Cross-resource policy still needs platform checks. | Re-rendering was byte-stable with retained state. Removing state changes generated names and credentials. Score has no release or rollback model. | Low for the specification. Each target implementation and its provisioner set still need pinning and ownership. |
+| Open Application Model with KubeVela | Components, traits, policies, and workflows cover rich application delivery, but the concrete system is a Kubernetes API and controller. It does not solve serverless or host targets without another adapter. | New capabilities require CUE-backed definitions and often CRDs. The platform team owns those definitions and their compatibility.                                                         | CUE validates definition parameters and rendered resources. Admission adds cluster-side validation.                                    | Application and definition revisions are controller concerns. Controller and CRD upgrades become part of every workload path.                     | High. It adds KubeVela controllers, CRDs, definitions, workflows, and their recovery path.                      |
+| Devfile                              | Strong for reproducible development workspaces, commands, events, and starter projects. Its own schema describes a cloud-native development environment, not a production release contract.                    | Production dependencies, secret delivery, ingress, migrations, and rollout policy would become implementation-specific attributes.                                                        | Versioned JSON Schema is useful for workspace records. Free-form attributes weaken a production contract.                              | Parent and schema versions help workspace reuse, but there is no deployment release lifecycle.                                                    | Low to moderate for development. It would duplicate rather than replace production packaging.                   |
+| Helm application chart               | Complete Kubernetes package with dependencies, values, hooks, tests, and release history. It has no non-Kubernetes target.                                                                                     | Portable concepts become values and Go templates. Platform policy is easy to hide in chart-specific helpers.                                                                              | `values.schema.json` is optional. Rendered objects get Kubernetes validation only after templates run.                                 | Strongest candidate for Kubernetes application upgrades and rollback. Chart and application versions are separate.                                | Moderate. Projects own templates, chart releases, hook behavior, and cluster release state.                     |
+| Helm library chart                   | Reuses chart helpers but cannot be installed alone. It inherits the parent chart's context and couples consumers to template internals.                                                                        | Each exception adds helper inputs or overrides. Changes can affect every dependent application chart.                                                                                     | Same optional values schema and rendered-manifest checks as application charts.                                                        | Dependency versions are explicit, but consumers must update and re-render their charts.                                                           | Moderate and shared. A platform library becomes a compatibility product.                                        |
+| Helm starter                         | Useful only for copying an initial chart. The current `helm create --starter` command has no continuing relationship with the copy.                                                                            | Every generated chart can diverge, so fixes need Copier-style reconciliation outside Helm.                                                                                                | Only the copied chart's checks apply.                                                                                                  | No built-in update path.                                                                                                                          | Low initially, followed by permanent drift cost.                                                                |
+| Kustomize component                  | Good for optional Kubernetes features and overlays. It starts from Kubernetes objects, so it is not a portable workload schema or package manager.                                                             | Patches depend on target resource kinds, names, and fields. The component API remains `v1alpha1`.                                                                                         | Build-time structure is checked, then rendered objects rely on Kubernetes schemas or separate validators.                              | Deterministic re-rendering, with no release history or rollback state.                                                                            | Low. It is built into `kubectl`, but overlay ownership still matters.                                           |
+| CUE                                  | Excellent at constraints, unification, validation, and emitting concrete YAML or JSON. It can express the internal contract and generators, but it does not supply deployment semantics.                       | Target mappings and every resource provider still need code or CUE templates. This repository would add another language and module lifecycle.                                            | Strongest standalone validation candidate, including cross-field constraints and concrete-output checks.                               | Schema and modules can be versioned, but deployment upgrades remain external.                                                                     | Moderate for this repository because Zod already owns the checked-in contract boundary.                         |
+| Small internal contract              | Covers serverless, host, and container runtime families while exposing only the stable fields the platform is prepared to support. It has no outside renderer ecosystem by itself.                             | The platform owns adapters, compatibility tests, and migrations. Unsupported target features must fail rather than escape through arbitrary fields.                                       | Zod can produce path-specific errors and share TypeScript types with the profile compiler. Target conformance tests remain necessary.  | Source and output versions can evolve independently, matching the profile and blueprint model.                                                    | Low at runtime, moderate in repository maintenance.                                                             |
+
+The comparison follows the primary descriptions of
+[KubeVela applications](https://kubevela.io/docs/next/getting-started/core-concept/),
+[Devfile 2.3](https://devfile.io/docs/2.3.0/create-devfiles),
+[Helm charts](https://helm.sh/docs/topics/charts/),
+[Helm library charts](https://helm.sh/docs/topics/library_charts/),
+[Helm starters](https://helm.sh/docs/helm/helm_create/),
+[Kustomize](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/),
+and [CUE validation](https://cuelang.org/docs/tour/basics/validation/).
+
+## Prototype findings
+
+Both Score implementations accepted the same workload. Kubernetes retained all
+resource bounds and probes, converted the migration to an init container,
+stored the database password in a Secret, and produced an HTTPRoute. Compose
+retained the migration completion dependency and built a local PostgreSQL
+service and route, but it ignored CPU and memory bounds and HTTP probes with
+warnings. It also placed the generated database password in local Compose
+state and environment values.
+
+This is useful divergence. Score preserves enough shared intent to justify an
+adapter, while proving that target capability checks cannot stop at schema
+validation. A project asking for a required probe or resource limit must fail
+resolution for a target that ignores it. Silent degradation is not an
+acceptable production render.
+
+Score's provisioner state made repeated renders byte-identical. A fresh state
+directory generated different database names, credentials, and route names.
+The platform must therefore separate deterministic compilation from stateful
+resource provisioning. Provisioners may resolve reviewed references during
+deployment, but generated credentials and identity never enter the blueprint
+or repository.
+
+## Consequences
+
+The workload-definition standard can start with the version 0 field set and
+turn it into a strict version 1 schema. It must define required-versus-preferred
+target semantics, reject unsupported required capabilities, and test each
+adapter against the same conformance fixtures.
+
+Projects can use Compose for local container development, K3s or Kubernetes for
+cluster deployment, NixOS for host services, and Cloudflare for serverless work
+without pretending those targets have identical controls. Kubernetes projects
+may add Kustomize overlays or a Helm application chart after rendering without
+leaking those formats into the portable profile.
+
+The platform now owns a modest adapter layer. That cost is deliberate. It is
+smaller than operating KubeVela for every workload and safer than making
+implementation-defined Score resources or Helm values the permanent project
+contract.

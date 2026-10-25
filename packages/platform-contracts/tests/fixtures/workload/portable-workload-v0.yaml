@@ -1,0 +1,60 @@
+# Evidence fixture for ADR 043. Version 0 is not the accepted production schema.
+schema_version: 0
+workload:
+  id: representative-service
+  runtime:
+    kind: container
+    image: docker.io/library/busybox:1.37.0
+    command: ["httpd", "-f", "-p", "8080"]
+  ports:
+    - name: http
+      container_port: 8080
+      protocol: http
+  health:
+    liveness:
+      http:
+        path: /
+        port: http
+    readiness:
+      http:
+        path: /
+        port: http
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  configuration:
+    APP_ENV:
+      literal: prototype
+    DATABASE_URL:
+      connection_string:
+        dependency: database
+        scheme: postgresql
+    OTEL_EXPORTER_OTLP_ENDPOINT:
+      literal: http://otel-collector.telemetry.svc:4318
+  secrets:
+    - dependency: database
+      output: password
+      usage: DATABASE_URL
+  dependencies:
+    database:
+      kind: postgres
+      version: "17"
+  ingress:
+    port: http
+    path: /
+  telemetry:
+    contract_version: 1
+    transport: otlp-http-protobuf
+  migrations:
+    image: docker.io/library/busybox:1.37.0
+    command: ["sh", "-c", "echo applying migrations to ${DATABASE_URL}"]
+    dependency: database
+deployment_targets:
+  - kind: docker-compose
+    purpose: local-development
+  - kind: kubernetes
+    environment: k3s
