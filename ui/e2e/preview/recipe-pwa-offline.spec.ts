@@ -18,6 +18,11 @@ type OfflineReadiness = {
   snapshotReadError: string | null;
 };
 
+type ShoppingOutboxEntry = {
+  commandId: string;
+  outcome: string;
+};
+
 async function waitForServiceWorkerControl(page: Page): Promise<void> {
   await page.evaluate((readinessTimeoutMs) => {
     return new Promise<void>((resolve, reject) => {
@@ -232,6 +237,69 @@ async function clearOfflineRecipeSnapshots(page: Page): Promise<void> {
   );
 }
 
+async function readShoppingOutbox(page: Page): Promise<ShoppingOutboxEntry[]> {
+  return page.evaluate(
+    () =>
+      new Promise<ShoppingOutboxEntry[]>((resolve, reject) => {
+        const request = indexedDB.open("robbies-recipes");
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const database = request.result;
+          if (!database.objectStoreNames.contains("shopping-command-outbox")) {
+            database.close();
+            resolve([]);
+            return;
+          }
+          const entries = database
+            .transaction("shopping-command-outbox")
+            .objectStore("shopping-command-outbox")
+            .getAll();
+          entries.onerror = () => {
+            database.close();
+            reject(entries.error);
+          };
+          entries.onsuccess = () => {
+            resolve(
+              entries.result.map((entry: ShoppingOutboxEntry) => ({
+                commandId: entry.commandId,
+                outcome: entry.outcome,
+              })),
+            );
+            database.close();
+          };
+        };
+      }),
+  );
+}
+
+async function addShoppingExtra(page: Page, item: string): Promise<void> {
+  const saved = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/shopping-lists/current" &&
+      response.request().method() === "PUT" &&
+      response.ok(),
+  );
+  await page
+    .getByRole("combobox", { name: "Add a shopping-list item" })
+    .fill(item);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await saved;
+  await expect(
+    page.getByRole("button", { name: item, exact: true }),
+  ).toHaveAttribute("aria-pressed", "false");
+}
+
+async function removeShoppingExtra(page: Page, item: string): Promise<void> {
+  const saved = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/shopping-lists/current" &&
+      response.request().method() === "PUT" &&
+      response.ok(),
+  );
+  await page.getByRole("button", { name: `Remove ${item}` }).click();
+  await saved;
+}
+
 async function expectOfflineDestination(page: Page, path: string) {
   await expect(page).toHaveURL(`${previewSiteURL.origin}${path}`);
   await expect(
@@ -345,5 +413,88 @@ test.describe("deployed recipe PWA offline navigation", () => {
     await expect(
       page.getByText("Your shopping list could not be loaded."),
     ).toHaveCount(0);
+  });
+
+  test("keeps an unacknowledged checklist change through an offline reload", async ({
+    createPreviewSession,
+  }, testInfo) => {
+    const { context, page } = await createPreviewSession("household-owner");
+    const item = `Offline queue item ${testInfo.parallelIndex.toString()}-${Date.now().toString()}`;
+    await prepareOfflineRecipeSession(page);
+    await page.getByRole("link", { name: "Shopping", exact: true }).click();
+    await addShoppingExtra(page, item);
+
+    await context.setOffline(true);
+    await page.getByRole("button", { name: item, exact: true }).click();
+    await expect(page.getByRole("status")).toContainText(
+      "1 offline shopping-list change is waiting to sync.",
+    );
+    await expect.poll(() => readShoppingOutbox(page)).toHaveLength(1);
+    const [queued] = await readShoppingOutbox(page);
+    if (!queued) throw new Error("The checklist command was not queued");
+
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: item, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => readShoppingOutbox(page)).toEqual([queued]);
+
+    const synced = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname ===
+          "/api/shopping-lists/current/commands" &&
+        response.request().method() === "POST" &&
+        response.ok(),
+    );
+    await context.setOffline(false);
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await synced;
+    await expect.poll(() => readShoppingOutbox(page)).toEqual([]);
+
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: item, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await removeShoppingExtra(page, item);
+  });
+
+  test("replays the same command when its acknowledgement is lost", async ({
+    createPreviewSession,
+  }, testInfo) => {
+    const { page } = await createPreviewSession("household-owner");
+    const item = `Lost acknowledgement item ${testInfo.parallelIndex.toString()}-${Date.now().toString()}`;
+    const deliveries: string[] = [];
+    await prepareOfflineRecipeSession(page);
+    await page.getByRole("link", { name: "Shopping", exact: true }).click();
+    await addShoppingExtra(page, item);
+
+    await page.route(
+      "**/api/shopping-lists/current/commands",
+      async (route) => {
+        const body = route.request().postDataJSON() as { commandId: string };
+        deliveries.push(body.commandId);
+        if (deliveries.length === 1) {
+          const response = await route.fetch();
+          expect(response.ok()).toBe(true);
+          await route.abort("connectionfailed");
+          return;
+        }
+        await route.continue();
+      },
+    );
+
+    await page.getByRole("button", { name: item, exact: true }).click();
+    await expect
+      .poll(async () => (await readShoppingOutbox(page))[0]?.outcome)
+      .toBe("retry");
+    await page.reload();
+
+    await expect.poll(() => deliveries).toHaveLength(2);
+    expect(deliveries[1]).toBe(deliveries[0]);
+    await expect.poll(() => readShoppingOutbox(page)).toEqual([]);
+    await expect(
+      page.getByRole("button", { name: item, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await removeShoppingExtra(page, item);
   });
 });

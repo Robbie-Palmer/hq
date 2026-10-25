@@ -929,6 +929,24 @@ const updateShoppingListBodySchema = z
   })
   .strict();
 
+const shoppingListChecklistCommandSchema = z
+  .object({
+    type: z.literal("set_checked"),
+    itemType: z.enum(["ingredient", "extra"]),
+    itemId: z.string().trim().min(1).max(200),
+    checked: z.boolean(),
+  })
+  .strict();
+
+const shoppingListCommandBodySchema = z
+  .object({
+    commandId: z.uuid().max(36),
+    listId: z.uuid().max(36),
+    baseRevision: z.string().regex(/^\d+$/).max(30),
+    command: shoppingListChecklistCommandSchema,
+  })
+  .strict();
+
 const createShoppingListBodySchema = z
   .object({
     previousListId: z.uuid().max(36),
@@ -1058,6 +1076,10 @@ export const routeMetadata = {
   },
   "PUT /shopping-lists/current": {
     requestBodySchema: updateShoppingListBodySchema,
+    successResponseSchema: shoppingListResponseSchema,
+  },
+  "POST /shopping-lists/current/commands": {
+    requestBodySchema: shoppingListCommandBodySchema,
     successResponseSchema: shoppingListResponseSchema,
   },
   "POST /shopping-lists": {
@@ -2026,6 +2048,155 @@ async function currentShoppingList(db: Db, userId: string) {
       (await findActiveShoppingList(tx, scope)) ??
       (await createShoppingList(tx, scope));
     return shoppingListResponse(list, scope);
+  });
+}
+
+type ShoppingListChecklistCommand = z.infer<
+  typeof shoppingListChecklistCommandSchema
+>;
+
+function sameChecklistCommand(
+  left: ShoppingListChecklistCommand,
+  right: ShoppingListChecklistCommand,
+): boolean {
+  return (
+    left.type === right.type &&
+    left.itemType === right.itemType &&
+    left.itemId === right.itemId &&
+    left.checked === right.checked
+  );
+}
+
+function applyShoppingListChecklistCommand(
+  snapshot: ShoppingListSnapshot,
+  command: ShoppingListChecklistCommand,
+): ShoppingListSnapshot | null {
+  if (command.itemType === "ingredient") {
+    const checked = new Set(snapshot.checked);
+    if (command.checked) checked.add(command.itemId);
+    else checked.delete(command.itemId);
+    return { ...snapshot, checked: [...checked] };
+  }
+  if (!snapshot.extras.some(({ id }) => id === command.itemId)) return null;
+  return {
+    ...snapshot,
+    extras: snapshot.extras.map((extra) =>
+      extra.id === command.itemId
+        ? { ...extra, checked: command.checked }
+        : extra,
+    ),
+  };
+}
+
+type ShoppingCommandResult =
+  | { status: "applied"; response: ShoppingListResponse }
+  | { status: "conflict"; message: string };
+
+function matchesShoppingCommandReceipt(
+  receipt: typeof schema.shoppingListCommandReceipt.$inferSelect,
+  resourceId: string,
+  input: z.infer<typeof shoppingListCommandBodySchema>,
+): boolean {
+  return (
+    receipt.resourceId === resourceId &&
+    receipt.listId === input.listId &&
+    receipt.baseRevision === BigInt(input.baseRevision) &&
+    sameChecklistCommand(receipt.command, input.command)
+  );
+}
+
+function matchesShoppingCommandBase(
+  current: typeof schema.shoppingList.$inferSelect | undefined,
+  input: z.infer<typeof shoppingListCommandBodySchema>,
+): current is typeof schema.shoppingList.$inferSelect {
+  return (
+    current !== undefined &&
+    current.id === input.listId &&
+    current.revision === BigInt(input.baseRevision)
+  );
+}
+
+async function applyShoppingCommand(
+  db: Db,
+  userId: string,
+  input: z.infer<typeof shoppingListCommandBodySchema>,
+): Promise<ShoppingCommandResult> {
+  return db.transaction(async (tx) => {
+    const scope = await lockPantryScope(tx, userId);
+    const resourceId = pantryResourceId(scope);
+    const [receipt] = await tx
+      .select()
+      .from(schema.shoppingListCommandReceipt)
+      .where(
+        and(
+          eq(schema.shoppingListCommandReceipt.actorUserId, userId),
+          eq(schema.shoppingListCommandReceipt.commandId, input.commandId),
+        ),
+      )
+      .limit(1);
+    const current = await findActiveShoppingList(tx, scope);
+    if (receipt) {
+      if (!matchesShoppingCommandReceipt(receipt, resourceId, input)) {
+        return {
+          status: "conflict",
+          message: "The command ID was already used for another change",
+        };
+      }
+      if (!current || current.id !== receipt.listId) {
+        return {
+          status: "conflict",
+          message: "The shopping trip changed after this command was saved",
+        };
+      }
+      return { status: "applied", response: shoppingListResponse(current, scope) };
+    }
+    if (!matchesShoppingCommandBase(current, input)) {
+      return {
+        status: "conflict",
+        message: "The shopping list changed while this command was offline",
+      };
+    }
+    const snapshot = applyShoppingListChecklistCommand(
+      current.snapshot,
+      input.command,
+    );
+    if (!snapshot) {
+      return {
+        status: "conflict",
+        message: "The shopping-list item no longer exists",
+      };
+    }
+    const [updated] = await tx
+      .update(schema.shoppingList)
+      .set({
+        snapshot,
+        revision: sql`${schema.shoppingList.revision} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(schema.shoppingList.id, current.id),
+          eq(schema.shoppingList.revision, current.revision),
+        ),
+      )
+      .returning();
+    if (!updated) {
+      return {
+        status: "conflict",
+        message: "The shopping list changed while this command was saved",
+      };
+    }
+    await tx.insert(schema.shoppingListCommandReceipt).values({
+      commandId: input.commandId,
+      actorUserId: userId,
+      resourceId,
+      listId: current.id,
+      baseRevision: current.revision,
+      command: input.command,
+      resultRevision: updated.revision,
+      resultSnapshot: updated.snapshot,
+    });
+    return { status: "applied", response: shoppingListResponse(updated, scope) };
   });
 }
 
@@ -4297,6 +4468,26 @@ registerRoute("put", "/shopping-lists/current", async (c) => {
         );
       }
       return c.json(response);
+    },
+  );
+});
+
+registerRoute("post", "/shopping-lists/current/commands", async (c) => {
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "POST /shopping-lists/current/commands mutation failed",
+    async ({ db, session }) => {
+      const body = await parseJsonBody(c, shoppingListCommandBodySchema);
+      if (!body.success) return body.response;
+      const result = await applyShoppingCommand(db, session.user.id, body.data);
+      if (result.status === "conflict") {
+        return c.json({ error: result.message }, 409);
+      }
+      return c.json(result.response);
     },
   );
 });

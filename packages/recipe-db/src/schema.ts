@@ -907,6 +907,13 @@ export type ShoppingListSnapshot = {
   }>;
 };
 
+export type ShoppingListChecklistCommand = {
+  type: "set_checked";
+  itemType: "ingredient" | "extra";
+  itemId: string;
+  checked: boolean;
+};
+
 /**
  * One durable shopping trip. Active lists are mutable; starting a new list
  * keeps the previous list's final snapshot as history.
@@ -953,6 +960,37 @@ export const shoppingList = pgTable(
     index("shopping_list_household_history_idx").on(
       table.organizationId,
       table.createdAt.desc(),
+    ),
+  ],
+);
+
+/**
+ * Receipt for a replay-safe shopping-list command issued by one signed-in
+ * actor. The command result is kept so a retry after a lost acknowledgement
+ * can return the same canonical projection without applying the command again.
+ */
+export const shoppingListCommandReceipt = pgTable(
+  "shopping_list_command_receipt",
+  {
+    commandId: uuid().notNull(),
+    actorUserId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    resourceId: text().notNull(),
+    listId: uuid()
+      .notNull()
+      .references(() => shoppingList.id, { onDelete: "cascade" }),
+    baseRevision: bigint({ mode: "bigint" }).notNull(),
+    command: jsonb().$type<ShoppingListChecklistCommand>().notNull(),
+    resultRevision: bigint({ mode: "bigint" }).notNull(),
+    resultSnapshot: jsonb().$type<ShoppingListSnapshot>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.actorUserId, table.commandId] }),
+    index("shopping_list_command_receipt_list_idx").on(
+      table.listId,
+      table.createdAt,
     ),
   ],
 );

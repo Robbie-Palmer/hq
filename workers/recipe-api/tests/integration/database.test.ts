@@ -1773,6 +1773,74 @@ describe("recipe API PostgreSQL integration", () => {
     });
   });
 
+  it("applies a shopping checklist command exactly once", async () => {
+    const owner = await createUser("Offline shopper", "offline@example.test");
+    const currentResponse = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current",
+    );
+    const current = (await currentResponse.json()) as {
+      id: string;
+      revision: string;
+    };
+    const request = {
+      commandId: "019a1d20-1111-7111-8111-111111111111",
+      listId: current.id,
+      baseRevision: current.revision,
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: "garlic",
+        checked: true,
+      },
+    };
+
+    const applied = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current/commands",
+      { method: "POST", body: request },
+    );
+    expect(applied.status).toBe(200);
+    expect(await applied.json()).toMatchObject({
+      id: current.id,
+      revision: "1",
+      snapshot: { checked: ["garlic"] },
+    });
+
+    const replayed = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current/commands",
+      { method: "POST", body: request },
+    );
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toMatchObject({
+      revision: "1",
+      snapshot: { checked: ["garlic"] },
+    });
+    expect(
+      await db
+        .select()
+        .from(schema.shoppingListCommandReceipt)
+        .where(eq(schema.shoppingListCommandReceipt.actorUserId, owner.id)),
+    ).toHaveLength(1);
+
+    const stale = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current/commands",
+      {
+        method: "POST",
+        body: {
+          ...request,
+          commandId: "019a1d20-2222-7222-8222-222222222222",
+        },
+      },
+    );
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({
+      error: "The shopping list changed while this command was offline",
+    });
+  });
+
   it("persists household membership and preserves notification snapshots", async () => {
     const owner = await createUser("Household Owner", "owner@example.test");
     const invitee = await createUser("Household Member", "member@example.test");

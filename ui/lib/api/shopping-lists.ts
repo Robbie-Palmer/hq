@@ -26,6 +26,20 @@ export type StoredShoppingList = {
   updatedAt: string;
 };
 
+export type ShoppingListChecklistCommand = {
+  type: "set_checked";
+  itemType: "ingredient" | "extra";
+  itemId: string;
+  checked: boolean;
+};
+
+export type ShoppingListCommandRequest = {
+  commandId: string;
+  listId: string;
+  baseRevision: string;
+  command: ShoppingListChecklistCommand;
+};
+
 export function getCurrentShoppingList(
   signal?: AbortSignal,
 ): Promise<StoredShoppingList> {
@@ -44,6 +58,16 @@ export function saveCurrentShoppingList(
     method: "PUT",
     json: { listId, revision, snapshot },
     fallbackMessage: "Shopping list could not be saved.",
+  });
+}
+
+export function applyShoppingListCommand(
+  request: ShoppingListCommandRequest,
+): Promise<StoredShoppingList> {
+  return apiRequest("/api/shopping-lists/current/commands", {
+    method: "POST",
+    json: request,
+    fallbackMessage: "The offline shopping-list change could not be saved.",
   });
 }
 

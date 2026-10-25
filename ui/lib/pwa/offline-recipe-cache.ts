@@ -2,9 +2,10 @@ import type { RecipeBootstrap } from "@/lib/api/recipe-bootstrap";
 import type { StoredShoppingList } from "@/lib/api/shopping-lists";
 
 const DATABASE_NAME = "robbies-recipes";
-const DATABASE_VERSION = 2;
+const DATABASE_VERSION = 3;
 const LEGACY_SNAPSHOT_STORE = "recipe-snapshots";
 const SNAPSHOT_STORE = "offline-snapshots";
+const COMMAND_OUTBOX_STORE = "shopping-command-outbox";
 const SNAPSHOT_VERSION = 2;
 const RECIPE_SNAPSHOT_KIND = "recipes";
 const SHOPPING_SNAPSHOT_KIND = "shopping-list";
@@ -122,6 +123,9 @@ function openDatabase(): Promise<IDBDatabase> {
       }
       if (!database.objectStoreNames.contains(SNAPSHOT_STORE)) {
         database.createObjectStore(SNAPSHOT_STORE, { keyPath: "key" });
+      }
+      if (!database.objectStoreNames.contains(COMMAND_OUTBOX_STORE)) {
+        database.createObjectStore(COMMAND_OUTBOX_STORE, { keyPath: "key" });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -327,8 +331,15 @@ export async function clearOfflineRecipeSnapshots(): Promise<void> {
     if (typeof indexedDB === "undefined") return;
     const database = await openDatabase();
     try {
-      const transaction = database.transaction(SNAPSHOT_STORE, "readwrite");
-      await requestResult(transaction.objectStore(SNAPSHOT_STORE).clear());
+      const transaction = database.transaction(
+        [SNAPSHOT_STORE, COMMAND_OUTBOX_STORE],
+        "readwrite",
+      );
+      await Promise.all([
+        requestResult(transaction.objectStore(SNAPSHOT_STORE).clear()),
+        requestResult(transaction.objectStore(COMMAND_OUTBOX_STORE).clear()),
+        transactionDone(transaction),
+      ]);
     } finally {
       database.close();
     }
