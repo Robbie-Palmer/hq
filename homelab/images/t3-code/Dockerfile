@@ -1,6 +1,6 @@
 FROM ghcr.io/jdx/mise:2026.10.0@sha256:5253aad873240675097e6229786dff87d54a9ac9d52917e42903de37511f74b3 AS mise-bootstrap
 
-FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS mise-tools
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS mise-tools
 
 COPY --from=mise-bootstrap /usr/local/bin/mise /usr/local/bin/mise
 
@@ -31,7 +31,7 @@ RUN export MISE_CACHE_DIR=/tmp/mise-cache \
 
 FROM docker:29.8.2-cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c AS docker-cli
 
-FROM node:24.21.0-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
 LABEL org.opencontainers.image.description="Pinned t3-code runtime for the remote development K3s cluster"
