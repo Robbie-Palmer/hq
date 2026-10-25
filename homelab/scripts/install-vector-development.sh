@@ -20,7 +20,7 @@ vector_development_prepare_ssh "${target}"
 
 cleanup() {
   for sensitive_file in "${secret_file}" "${initrd_host_key}"; do
-    if [ -f "${sensitive_file}" ]; then
+    if [[ -f ${sensitive_file} ]]; then
       shred --remove "${sensitive_file}" 2>/dev/null || rm -f "${sensitive_file}"
     fi
   done
@@ -40,12 +40,12 @@ for command in docker ssh ssh-keygen; do
   fi
 done
 
-if [ ! -r "${identity_file}" ]; then
+if [[ ! -r ${identity_file} ]]; then
   echo "cannot read SSH identity ${identity_file}" >&2
   exit 1
 fi
 
-if [ "${VECTOR_DEVELOPMENT_INSTALL:-}" != WIPE ]; then
+if [[ ${VECTOR_DEVELOPMENT_INSTALL:-} != WIPE ]]; then
   echo "This operation erases the laptop's entire internal NVMe drive." >&2
   echo "Retry with VECTOR_DEVELOPMENT_INSTALL=WIPE after checking the verified Restic backup." >&2
   exit 1
@@ -71,7 +71,7 @@ REMOTE
 
 printf 'Type WIPE %s to continue: ' "${expected_serial}" >&2
 read -r confirmation
-if [ "${confirmation}" != "WIPE ${expected_serial}" ]; then
+if [[ ${confirmation} != "WIPE ${expected_serial}" ]]; then
   echo "confirmation did not match; no disk changes were made" >&2
   exit 1
 fi
@@ -82,7 +82,7 @@ IFS= read -r -s passphrase
 printf '\nRepeat the passphrase: ' >&2
 IFS= read -r -s passphrase_confirmation
 printf '\n' >&2
-if [ -z "${passphrase}" ] || [ "${passphrase}" != "${passphrase_confirmation}" ]; then
+if [[ -z ${passphrase} || ${passphrase} != "${passphrase_confirmation}" ]]; then
   echo "passphrases were empty or did not match" >&2
   exit 1
 fi

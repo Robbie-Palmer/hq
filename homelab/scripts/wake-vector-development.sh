@@ -16,7 +16,9 @@ for command in doppler python3 ssh; do
 done
 
 secret() {
-  doppler secrets get "$1" \
+  local name=$1
+
+  doppler secrets get "${name}" \
     --project "${doppler_project}" \
     --config "${doppler_config}" \
     --plain
@@ -47,7 +49,10 @@ fi
 printf '[%s]:%s %s\n' "${address}" "${port}" "${host_public_key}" >"${known_hosts}"
 
 port_open() {
-  python3 - "$1" "$2" <<'PY'
+  local host=$1
+  local port=$2
+
+  python3 - "${host}" "${port}" <<'PY'
 import socket
 import sys
 
@@ -86,7 +91,7 @@ for wake_attempt in $(seq 1 60); do
   if port_open "${address}" "${port}"; then
     break
   fi
-  if [ $((wake_attempt % 5)) -eq 0 ]; then
+  if ((wake_attempt % 5 == 0)); then
     send_magic_packet
     echo "resent the Vector magic packet (${wake_attempt}/60)"
   fi

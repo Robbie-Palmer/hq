@@ -15,7 +15,7 @@ source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 cleanup() {
-  if [ -f "${temporary}" ]; then
+  if [[ -f ${temporary} ]]; then
     shred --remove "${temporary}" 2>/dev/null || rm -f "${temporary}"
   fi
 }
@@ -38,17 +38,17 @@ client_certificate=$(KUBECONFIG=${temporary} kubectl config view --minify --raw 
   --output=jsonpath='{.users[0].user.client-certificate-data}')
 client_key=$(KUBECONFIG=${temporary} kubectl config view --minify --raw \
   --output=jsonpath='{.users[0].user.client-key-data}')
-if [ -z "${new_ca}" ] || [ -z "${client_certificate}" ] || [ -z "${client_key}" ]; then
+if [[ -z ${new_ca} || -z ${client_certificate} || -z ${client_key} ]]; then
   echo "downloaded kubeconfig did not contain the required credentials" >&2
   exit 1
 fi
 
-if [ -f "${kubeconfig}" ]; then
+if [[ -f ${kubeconfig} ]]; then
   previous_ca=$(KUBECONFIG=${kubeconfig} kubectl config view --minify --raw \
     --output=jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-  if [ -n "${previous_ca}" ] \
-    && [ "${previous_ca}" != "${new_ca}" ] \
-    && [ "${VECTOR_DEVELOPMENT_ACCEPT_NEW_KUBE_CA:-0}" != 1 ]; then
+  if [[ -n ${previous_ca} \
+    && ${previous_ca} != "${new_ca}" \
+    && ${VECTOR_DEVELOPMENT_ACCEPT_NEW_KUBE_CA:-0} != 1 ]]; then
     echo "vector-development Kubernetes CA changed; refusing to replace kubeconfig" >&2
     echo "verify the rebuild, then retry with VECTOR_DEVELOPMENT_ACCEPT_NEW_KUBE_CA=1" >&2
     exit 1

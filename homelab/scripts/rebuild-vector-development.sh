@@ -10,7 +10,7 @@ homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
-if [ ! -r "${identity_file}" ]; then
+if [[ ! -r ${identity_file} ]]; then
   echo "cannot read SSH identity ${identity_file}" >&2
   exit 1
 fi
@@ -31,6 +31,6 @@ docker run --rm \
     --build-host "${target}" \
     --target-host "${target}"
 
-if [ "${VECTOR_DEVELOPMENT_SKIP_HEALTH:-0}" != 1 ]; then
+if [[ ${VECTOR_DEVELOPMENT_SKIP_HEALTH:-0} != 1 ]]; then
   "${script_dir}/vector-development-health.sh"
 fi

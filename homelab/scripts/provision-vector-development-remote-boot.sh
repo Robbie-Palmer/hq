@@ -14,7 +14,7 @@ source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 cleanup() {
-  if [ "${remote_key_uploaded}" = 1 ]; then
+  if [[ ${remote_key_uploaded} == 1 ]]; then
     ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" \
       "rm -f '${remote_key_file}'" >/dev/null 2>&1 || true
   fi
@@ -93,7 +93,7 @@ set -euo pipefail
 test "$(hostname)" = vector-development
 key=/etc/secrets/initrd/vector-development_ssh_host_ed25519_key
 install -d -m 700 /etc/secrets/initrd
-if [ ! -s "${key}" ]; then
+if [[ ! -s ${key} ]]; then
   ssh-keygen -q -t ed25519 -N '' -f "${key}"
 fi
 chown root:root "${key}" "${key}.pub"
@@ -110,7 +110,7 @@ ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" \
       --no-interactive \
       --silent >/dev/null
 
-if [ "${VECTOR_DEVELOPMENT_PREPARE_ONLY:-0}" = 1 ]; then
+if [[ ${VECTOR_DEVELOPMENT_PREPARE_ONLY:-0} == 1 ]]; then
   echo "the scoped Doppler config and dedicated initrd host key are ready"
   exit 0
 fi

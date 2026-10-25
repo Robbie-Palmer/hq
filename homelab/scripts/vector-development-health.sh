@@ -52,7 +52,7 @@ if k3s kubectl --namespace kube-system get daemonset nvidia-device-plugin-daemon
       k3s kubectl get node vector-development \
         --output=jsonpath='{.status.allocatable.nvidia\.com/gpu}'
     )
-    [ "${gpu_allocatable}" = 1 ] && break
+    [[ ${gpu_allocatable} == 1 ]] && break
     sleep 2
   done
   test "${gpu_allocatable}" = 1
