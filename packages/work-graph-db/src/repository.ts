@@ -16,6 +16,7 @@ import {
   createKnowledgeScope,
   createWorkGraph,
   evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
+  getWorkItemSchedulingOwner,
   getUnsatisfiedDependencies,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
@@ -382,6 +383,19 @@ export interface ListEventsInput {
   readonly lifecycle?: TerminalWorkItemState;
   readonly afterSequence?: number;
   readonly limit?: number;
+}
+
+export interface AnalyticsExportScope {
+  readonly initiativeId: string | null;
+  readonly projectId: string | null;
+  readonly workItemId: string;
+}
+
+export interface AnalyticsExportBatch {
+  readonly capturedAt: string;
+  readonly events: readonly StoredEvent[];
+  readonly scopes: readonly AnalyticsExportScope[];
+  readonly sourceUpperWatermark: number;
 }
 
 export interface WorkItemDependencyCursor {
@@ -3581,6 +3595,75 @@ export class WorkGraphRepository {
       )
       .orderBy(event.sequence);
     return input.limit === undefined ? query : query.limit(input.limit);
+  }
+
+  async readAnalyticsExportBatch(input: {
+    readonly afterSequence: number;
+    readonly limit: number;
+  }): Promise<AnalyticsExportBatch> {
+    if (!Number.isSafeInteger(input.afterSequence) || input.afterSequence < 0) {
+      throw new Error("The analytics checkpoint must be a nonnegative integer.");
+    }
+    if (!Number.isSafeInteger(input.limit) || input.limit <= 0) {
+      throw new Error("The analytics batch limit must be a positive integer.");
+    }
+
+    return this.db.transaction(
+      async (transaction) => {
+        const [watermark] = await transaction
+          .select({
+            sequence: sql<number>`coalesce(max(${event.sequence}), 0)::integer`,
+          })
+          .from(event);
+        const sourceUpperWatermark = watermark?.sequence ?? 0;
+        const events =
+          sourceUpperWatermark <= input.afterSequence
+            ? []
+            : await transaction
+                .select()
+                .from(event)
+                .where(
+                  and(
+                    gt(event.sequence, input.afterSequence),
+                    lte(event.sequence, sourceUpperWatermark),
+                  ),
+                )
+                .orderBy(event.sequence)
+                .limit(input.limit);
+
+        const scopes = [] as AnalyticsExportScope[];
+        if (events.length > 0) {
+          const graph = await this.loadSchedulingGraph(transaction);
+          scopes.push(
+            ...graph.workItems
+              .map((item) => {
+                const owner = getWorkItemSchedulingOwner(graph, item);
+                return {
+                  workItemId: item.id,
+                  projectId: owner.schedulingProjectId,
+                  initiativeId: owner.schedulingInitiativeId,
+                };
+              })
+              .sort((left, right) =>
+                left.workItemId < right.workItemId
+                  ? -1
+                  : left.workItemId > right.workItemId
+                    ? 1
+                    : 0,
+              ),
+          );
+        }
+        const capturedAt = await readDatabaseClock(transaction);
+
+        return {
+          capturedAt: capturedAt.toISOString(),
+          events,
+          scopes,
+          sourceUpperWatermark,
+        };
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
   }
 
   async listAttentionRequests(

@@ -34,6 +34,19 @@ resource "cloudflare_r2_bucket" "database_backups" {
   }
 }
 
+# Redacted analytics exports are isolated from recovery archives. Worker
+# bindings grant the extractor access without issuing an S3 credential, while
+# report readers use a separate bucket-scoped read-only credential.
+resource "cloudflare_r2_bucket" "private_analytics" {
+  account_id = var.cloudflare_account_id
+  name       = var.r2_private_analytics_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
 check "work_graph_hostname_in_zone" {
   assert {
     condition     = var.work_graph_hostname != var.domain_name && endswith(var.work_graph_hostname, ".${var.domain_name}")
@@ -168,6 +181,11 @@ resource "cloudflare_workers_script" "work_graph" {
   hyperdrive_config_binding {
     binding = "HYPERDRIVE"
     id      = data.external.resource_metadata.result.hyperdrive_id
+  }
+
+  r2_bucket_binding {
+    name        = "ANALYTICS"
+    bucket_name = cloudflare_r2_bucket.private_analytics.name
   }
 
   lifecycle {

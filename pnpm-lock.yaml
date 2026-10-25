@@ -1592,6 +1592,9 @@ importers:
       hono:
         specifier: ^4.7.11
         version: 4.13.10
+      ts-base:
+        specifier: workspace:*
+        version: link:../../packages/ts-base
       work-graph-db:
         specifier: workspace:*
         version: link:../../packages/work-graph-db

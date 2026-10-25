@@ -9,7 +9,8 @@ const fakes = vi.hoisted(() => ({
   repositoryConstructor: vi.fn(),
 }));
 
-vi.mock("work-graph-db", () => ({
+vi.mock("work-graph-db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("work-graph-db")>()),
   closeDb: fakes.closeDb,
   createDatabaseQueryMetrics: fakes.createDatabaseQueryMetrics,
   createDb: fakes.createDb,
@@ -27,6 +28,7 @@ vi.mock("../src/app", () => ({
 import worker from "../src/index";
 
 type WorkerRequest = Parameters<typeof worker.fetch>[0];
+type ScheduleController = Parameters<typeof worker.scheduled>[0];
 
 const connectionString =
   "postgresql://work_graph_owner:unused@db.invalid:5432/work_graph";
@@ -148,6 +150,36 @@ describe("Given database cleanup fails after the app completes", () => {
     expect(response.headers.get("x-request-id")).toBe("app-request-id");
     expect(await response.json()).toEqual({ outcome: "app response" });
     expect(JSON.stringify(log.mock.calls)).not.toContain("private details");
+    log.mockRestore();
+  });
+});
+
+describe("Given scheduled analytics startup fails", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.createDatabaseQueryMetrics.mockReturnValue(databaseMetrics);
+    fakes.closeDb.mockResolvedValue(undefined);
+  });
+
+  it.each(["database", "binding"])("sanitizes a %s failure", async (phase) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const secret = "postgresql://owner:SECRET@db.invalid/database";
+    if (phase === "database") {
+      fakes.createDb.mockImplementation(() => {
+        throw new Error(secret);
+      });
+    } else {
+      fakes.createDb.mockReturnValue(db);
+    }
+
+    await expect(
+      worker.scheduled({} as ScheduleController, env),
+    ).rejects.toThrow("analytics export failed");
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({ exceptionClass: "analytics_export_error" }),
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET");
+    expect(fakes.closeDb).toHaveBeenCalledTimes(phase === "binding" ? 1 : 0);
     log.mockRestore();
   });
 });
