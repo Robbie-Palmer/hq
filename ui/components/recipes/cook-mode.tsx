@@ -66,6 +66,19 @@ function timerCircleBackground(state: CookingTimer["state"] | "idle"): string {
   return "var(--card)";
 }
 
+function timerStatusLabel(state: CookingTimer["state"] | "idle"): string {
+  switch (state) {
+    case "idle":
+      return "tap start when you're ready";
+    case "running":
+      return "running";
+    case "paused":
+      return "paused";
+    case "completed":
+      return "time's up!";
+  }
+}
+
 function CookCompletionControls({
   recipeTitle,
   servings,
@@ -573,7 +586,76 @@ function IngredientReference({
 }
 
 /** Large timer control for the current step, bound to the global store. */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function TimerResetButton({
+  timerId,
+  label,
+}: Readonly<{ timerId: string; label: string }>) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={() => dismissTimer(timerId)}
+      aria-label={`Reset ${label} timer`}
+    >
+      <RotateCcw className="size-4" />
+      Reset
+    </Button>
+  );
+}
+
+function CookModeTimerActions({
+  state,
+  timerId,
+  label,
+  onStart,
+}: Readonly<{
+  state: CookingTimer["state"] | "idle";
+  timerId: string;
+  label: string;
+  onStart: () => void;
+}>) {
+  if (state === "idle") {
+    return (
+      <Button
+        size="sm"
+        onClick={onStart}
+        className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        <Play className="size-4" />
+        Start
+      </Button>
+    );
+  }
+  if (state === "completed") {
+    return (
+      <Button
+        size="sm"
+        onClick={() => dismissTimer(timerId)}
+        className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        Dismiss
+      </Button>
+    );
+  }
+  const isRunning = state === "running";
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => (isRunning ? pauseTimer(timerId) : resumeTimer(timerId))}
+      >
+        {isRunning ? <Pause className="size-4" /> : <Play className="size-4" />}
+        {isRunning ? "Pause" : "Resume"}
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => extendTimer(timerId)}>
+        +1 min
+      </Button>
+      <TimerResetButton timerId={timerId} label={label} />
+    </>
+  );
+}
+
 function CookModeTimer({
   timerId,
   label,
@@ -658,74 +740,15 @@ function CookModeTimer({
       <div className="flex flex-col items-center gap-2 sm:items-start">
         <div className="rt-body text-[var(--ink-2)]">{label}</div>
         <div className="rt-mono text-[var(--ink-3)]">
-          {state === "idle" && "tap start when you're ready"}
-          {state === "running" && "running"}
-          {state === "paused" && "paused"}
-          {state === "completed" && "time's up!"}
+          {timerStatusLabel(state)}
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          {state === "idle" && (
-            <Button
-              size="sm"
-              onClick={start}
-              className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-            >
-              <Play className="size-4" />
-              Start
-            </Button>
-          )}
-          {(state === "running" || state === "paused") && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  state === "running"
-                    ? pauseTimer(timerId)
-                    : resumeTimer(timerId)
-                }
-              >
-                {state === "running" ? (
-                  <>
-                    <Pause className="size-4" />
-                    Pause
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-4" />
-                    Resume
-                  </>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => extendTimer(timerId)}
-              >
-                +1 min
-              </Button>
-            </>
-          )}
-          {state === "completed" && (
-            <Button
-              size="sm"
-              onClick={() => dismissTimer(timerId)}
-              className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-            >
-              Dismiss
-            </Button>
-          )}
-          {(state === "running" || state === "paused") && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => dismissTimer(timerId)}
-              aria-label={`Reset ${label} timer`}
-            >
-              <RotateCcw className="size-4" />
-              Reset
-            </Button>
-          )}
+          <CookModeTimerActions
+            state={state}
+            timerId={timerId}
+            label={label}
+            onStart={start}
+          />
         </div>
       </div>
     </div>
