@@ -1974,3 +1974,213 @@ stages:
       hash: md5
       md5: 287fc6722418ede62d4901c2e3428c0c
       size: 431244
+  prepare_punctuation_model:
+    cmd: bash scripts/prepare-punctuation-model.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-model-manifest.json
+      hash: md5
+      md5: 8d7a88b692c4eb2406e58d4156be0195
+      size: 5778
+    - path: scripts/prepare-punctuation-model.sh
+      hash: md5
+      md5: 069ccffb5e40697355b22a1e004e8669
+      size: 86
+      isexec: true
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/prepare-gector-model.ts
+      hash: md5
+      md5: e4f6aa4f517d642ec0ac28339750ffe3
+      size: 20924
+    - path: src/prepare-punctuation-model.ts
+      hash: md5
+      md5: fbe9a8b1b115a0ff316a6513bdad8530
+      size: 8958
+    outs:
+    - path: data/models/punctuation-restoration-small
+      hash: md5
+      md5: 4a197c50be09c273494e3eca7ab1a73a.dir
+      size: 597003049
+      nfiles: 6
+  run_punctuation_candidate:
+    cmd: bash scripts/run-punctuation-candidate.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: data/models/punctuation-restoration-small
+      hash: md5
+      md5: 4a197c50be09c273494e3eca7ab1a73a.dir
+      size: 597003049
+      nfiles: 6
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: 5afbefc3c5a09ef6602325a778dff985.dir
+      size: 5600107
+      nfiles: 832
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-experiment.json
+      hash: md5
+      md5: 682b4552c2414ad79ac020b95b4df683
+      size: 1598
+    - path: punctuation-model-manifest.json
+      hash: md5
+      md5: 8d7a88b692c4eb2406e58d4156be0195
+      size: 5778
+    - path: pyproject.toml
+      hash: md5
+      md5: ab6587b4675427cd002a60eb793c33d4
+      size: 1213
+    - path: python/punctuation_runtime.py
+      hash: md5
+      md5: 3d7fa02a2f660252d6262f645ac706fd
+      size: 14605
+    - path: scripts/adapt-punctuation-candidate.sh
+      hash: md5
+      md5: 54e1484cd66771dac34d774232b7d466
+      size: 406
+      isexec: true
+    - path: scripts/run-punctuation-candidate.sh
+      hash: md5
+      md5: 7825cfcfef954b2a23eb8de324eeb441
+      size: 498
+      isexec: true
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/prepare-punctuation-model.ts
+      hash: md5
+      md5: fbe9a8b1b115a0ff316a6513bdad8530
+      size: 8958
+    - path: src/run-punctuation-candidate.ts
+      hash: md5
+      md5: eb402db0038eb4bac1d854f859cf8458
+      size: 13495
+    - path: uv.lock
+      hash: md5
+      md5: cee6a8d7c79f50b508e64cbce64e07ec
+      size: 61624
+    outs:
+    - path: outputs/punctuation-candidate/run
+      hash: md5
+      md5: d9d01a21efa8c378d96b2b3bb7554cb1.dir
+      size: 239288
+      nfiles: 2
+  evaluate_punctuation_candidate:
+    cmd: bash scripts/evaluate-punctuation-candidate.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: data/review-evidence/deterministic-pilot-post-hardening
+      hash: md5
+      md5: fbfb33910d17e55cbe952696c2234d7b.dir
+      size: 13922
+      nfiles: 13
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: 5afbefc3c5a09ef6602325a778dff985.dir
+      size: 5600107
+      nfiles: 832
+    - path: outputs/punctuation-candidate/run/run.json
+      hash: md5
+      md5: 724a97689c72e2205d28ab241a582058
+      size: 176370
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-experiment.json
+      hash: md5
+      md5: 682b4552c2414ad79ac020b95b4df683
+      size: 1598
+    - path: scripts/evaluate-punctuation-candidate.sh
+      hash: md5
+      md5: 6ac94d850da8a0a24a78a3c2e1bb97ab
+      size: 438
+      isexec: true
+    - path: src/evaluate-punctuation-candidate.ts
+      hash: md5
+      md5: b7bcb2ce7662bc841c606990b9da9c6c
+      size: 14052
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/run-punctuation-candidate.ts
+      hash: md5
+      md5: eb402db0038eb4bac1d854f859cf8458
+      size: 13495
+    outs:
+    - path: outputs/punctuation-candidate/evaluation.json
+      hash: md5
+      md5: 89e8d51eabd69bdc2995000213fc0d41
+      size: 1668
+    - path: outputs/punctuation-candidate/report.md
+      hash: md5
+      md5: 78d43ace15d7e53dbbe31871a324a570
+      size: 1265

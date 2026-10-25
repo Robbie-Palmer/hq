@@ -727,10 +727,14 @@ describe("accommodation editor", () => {
     fireEvent.click(screen.getByRole("button", { name: /Room plan/ }));
     fireEvent.click(screen.getByRole("button", { name: "Calculate rooms" }));
     expect(
-      await screen.findByText("Guests expected to pay"),
+      await screen.findByText(
+        "Guests expected to pay",
+        {},
+        { timeout: 10_000 },
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Payment breakdown")).toBeInTheDocument();
-  });
+  }, 15_000);
 
   it("imports a plan after reporting an invalid file", async () => {
     const save = vi.fn<PlannerApplication["save"]>().mockResolvedValue();

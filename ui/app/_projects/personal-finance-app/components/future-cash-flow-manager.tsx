@@ -774,7 +774,10 @@ function FutureCashFlowRecord({
   model: FlowManager;
 }>) {
   return (
-    <li className="space-y-2 p-3 text-sm">
+    <li
+      id={`cash-flow-${record.id}`}
+      className="scroll-mt-24 space-y-2 p-3 text-sm"
+    >
       <RecordHeader record={record} model={model} />
       <StageList record={record} model={model} />
       <DecisionRelationships record={record} model={model} />

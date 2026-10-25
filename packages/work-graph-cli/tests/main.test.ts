@@ -1,3 +1,6 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import type { Fetch } from "../src/client.js";
 import { EXIT_CODES } from "../src/errors.js";
@@ -1303,28 +1306,58 @@ describe("Given agent-facing Work Graph commands", () => {
       evidenceObservationIds: [],
       evaluatedAt: "2026-09-22T12:00:00.000Z",
     };
-    const test = harness(({ url }) => {
-      if (url.pathname.endsWith("/evidence")) {
-        return response({ items: [], nextCursor: null });
-      }
-      if (url.pathname.endsWith("/completion-candidate")) {
-        return response({ candidate });
-      }
-      return response({ ...activeWorkItem(), id: "work/a b" });
-    });
+    const test = harness(() =>
+      response({
+        ...activeWorkItem(),
+        id: "work/a b",
+        deliveryEvidence: { items: [], nextCursor: null },
+        completionCandidate: candidate,
+      }),
+    );
     await test.run(["show", "work/a b"]);
-    expect(test.requests[0]?.url.pathname).toBe("/root/api/work-items/work%2Fa%20b");
+    expect(test.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/details",
+    );
     expect(test.requests[0]?.method).toBe("GET");
-    expect(test.requests.map(({ url }) => url.pathname)).toEqual([
-      "/root/api/work-items/work%2Fa%20b",
-      "/root/api/work-items/work%2Fa%20b/evidence",
-      "/root/api/work-items/work%2Fa%20b/completion-candidate",
-    ]);
+    expect(test.requests).toHaveLength(1);
     expect(JSON.parse(test.stdout[0] ?? "null")).toMatchObject({
       id: "work/a b",
       deliveryEvidence: { items: [], nextCursor: null },
       completionCandidate: candidate,
     });
+  });
+
+  it("reuses cached terminal details until refresh is requested", async () => {
+    const cacheDirectory = await mkdtemp(
+      join(tmpdir(), "work-graph-cli-cache-test-"),
+    );
+    const terminalDetails = {
+      ...activeWorkItem(),
+      lifecycle: "released",
+      stage: "released",
+      currentLease: null,
+      deliveryEvidence: { items: [], nextCursor: null },
+      completionCandidate: null,
+    };
+    const test = harness(() => response(terminalDetails), {
+      WORK_GRAPH_API_URL: API_URL,
+      WORK_GRAPH_CACHE_DIR: cacheDirectory,
+    });
+
+    try {
+      await test.run(["show", "item-1"]);
+      await test.run(["show", "item-1"]);
+      await test.run(["show", "item-1", "--refresh"]);
+
+      expect(test.requests).toHaveLength(2);
+      expect(test.stdout.map((output) => JSON.parse(output))).toEqual([
+        terminalDetails,
+        terminalDetails,
+        terminalDetails,
+      ]);
+    } finally {
+      await rm(cacheDirectory, { force: true, recursive: true });
+    }
   });
 
   it("records a fenced note with a generated ID", async () => {

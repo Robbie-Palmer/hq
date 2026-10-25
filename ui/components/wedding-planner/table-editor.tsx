@@ -3,7 +3,12 @@
 import { downloadTextFile } from "browser-base/downloads";
 import { ArrowRight, Download, Lock, Save, Trash2 } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
-import { weddingRoleLabels, weddingRolesLabel } from "wedding-planner-domain";
+import {
+  defaultWeddingReadinessPreferences,
+  type WeddingPlan,
+  weddingRoleLabels,
+  weddingRolesLabel,
+} from "wedding-planner-domain";
 import {
   compareSeatingAlternatives,
   exportAccessibleFloorPlanSvg,
@@ -755,6 +760,86 @@ function SeatingLocks({
   );
 }
 
+type SeatingExportKind = NonNullable<
+  WeddingPlanDraft["readiness"]
+>["seating_exports"][number]["kind"];
+type SavedSeatingPlan = NonNullable<TablePlan["saved_plans"]>[number];
+
+function markSeatingExportCurrent(
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void,
+  chosen: SavedSeatingPlan | undefined,
+  kind: SeatingExportKind,
+) {
+  if (!chosen) return;
+  onUpdate((draft) => {
+    draft.readiness ??= defaultWeddingReadinessPreferences();
+    draft.readiness.seating_exports = [
+      ...draft.readiness.seating_exports.filter((entry) => entry.kind !== kind),
+      { kind, plan_id: chosen.id, exported_at: new Date().toISOString() },
+    ];
+  });
+}
+
+function downloadSeatingExport(
+  kind: SeatingExportKind,
+  plan: TablePlan,
+  allocation: TableAllocation,
+  guests: WeddingPlan["guests"],
+) {
+  if (kind === "venue") {
+    downloadTextFile(
+      "seating-assignments.csv",
+      "text/csv;charset=utf-8",
+      exportSeatingAssignmentsCsv(allocation, guests),
+    );
+  } else if (kind === "caterer") {
+    downloadTextFile(
+      "catering-summary.csv",
+      "text/csv;charset=utf-8",
+      exportCateringSummaryCsv(allocation, guests),
+    );
+  } else {
+    downloadTextFile(
+      "accessible-floor-plan.svg",
+      "image/svg+xml",
+      exportAccessibleFloorPlanSvg(plan, allocation),
+    );
+  }
+}
+
+const seatingExportLabels: Record<SeatingExportKind, string> = {
+  venue: "Venue CSV",
+  caterer: "Caterer CSV",
+  floor_plan: "Floor plan SVG",
+};
+
+function SeatingExportButtons({
+  plan,
+  allocation,
+  guests,
+  chosen,
+  onUpdate,
+}: Readonly<{
+  plan: TablePlan;
+  allocation: TableAllocation;
+  guests: WeddingPlan["guests"];
+  chosen: SavedSeatingPlan | undefined;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+}>) {
+  return (["venue", "caterer", "floor_plan"] as const).map((kind) => (
+    <Button
+      key={kind}
+      variant="outline"
+      onClick={() => {
+        downloadSeatingExport(kind, plan, allocation, guests);
+        markSeatingExportCurrent(onUpdate, chosen, kind);
+      }}
+    >
+      <Download size={14} /> {seatingExportLabels[kind]}
+    </Button>
+  ));
+}
+
 function SavedPlansAndExports({
   state,
   plan,
@@ -774,6 +859,7 @@ function SavedPlansAndExports({
     (savedPlan) => savedPlan.id === plan.chosen_plan_id,
   );
   const wedding = editorStateToPlan(state);
+  const exportAllocation = chosen?.allocation ?? allocation;
   return (
     <Card>
       <CardHeader>
@@ -807,42 +893,13 @@ function SavedPlansAndExports({
           >
             <Save size={14} /> Save alternative
           </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadTextFile(
-                "seating-assignments.csv",
-                "text/csv;charset=utf-8",
-                exportSeatingAssignmentsCsv(allocation, wedding.guests),
-              )
-            }
-          >
-            <Download size={14} /> Venue CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadTextFile(
-                "catering-summary.csv",
-                "text/csv;charset=utf-8",
-                exportCateringSummaryCsv(allocation, wedding.guests),
-              )
-            }
-          >
-            <Download size={14} /> Caterer CSV
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() =>
-              downloadTextFile(
-                "accessible-floor-plan.svg",
-                "image/svg+xml",
-                exportAccessibleFloorPlanSvg(plan, allocation),
-              )
-            }
-          >
-            <Download size={14} /> Floor plan SVG
-          </Button>
+          <SeatingExportButtons
+            plan={plan}
+            allocation={exportAllocation}
+            guests={wedding.guests}
+            chosen={chosen}
+            onUpdate={onUpdate}
+          />
         </div>
         {!!eventPlans?.length && (
           <div className="table-guest-list">

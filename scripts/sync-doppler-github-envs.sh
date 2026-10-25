@@ -65,6 +65,67 @@ load_config_entries() {
   ' <<<"$secrets_json"
 }
 
+filter_entries_for_environment() {
+  local github_env="$1"
+  local entries_json="$2"
+
+  case "$github_env" in
+    production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
+      jq -c '
+        map(select(
+          .name == "TF_API_TOKEN"
+          or .name == "TAILSCALE_OAUTH_CLIENT_ID"
+          or .name == "TAILSCALE_OAUTH_CLIENT_SECRET"
+          or .name == "TAILSCALE_TAILNET"
+          or (.name | startswith("TAILNET_USER_LOGIN_"))
+          or (.name | startswith("TAILNET_PRIVATE_ADDRESS_"))
+        ))
+      ' <<<"$entries_json"
+      ;;
+    *)
+      printf '%s\n' "$entries_json"
+      ;;
+  esac
+}
+
+validate_entries_for_environment() {
+  local github_env="$1"
+  local entries_json="$2"
+  local invalid_visibility
+  local missing_names
+
+  case "$github_env" in
+    production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
+      missing_names=$(jq -r '
+        [
+          "TF_API_TOKEN",
+          "TAILSCALE_OAUTH_CLIENT_ID",
+          "TAILSCALE_OAUTH_CLIENT_SECRET",
+          "TAILSCALE_TAILNET",
+          "TAILNET_PRIVATE_ADDRESS_LAB_HOST",
+          "TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS",
+          "TAILNET_USER_LOGIN_OPERATOR"
+        ] - [.[].name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$missing_names" ]]; then
+        echo "Refusing to sync incomplete tailnet values to '$github_env': $missing_names" >&2
+        exit 1
+      fi
+
+      invalid_visibility=$(jq -r '
+        [.[] | select(.visibility == "unmasked") | .name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$invalid_visibility" ]]; then
+        echo "Refusing to sync unmasked tailnet values to '$github_env': $invalid_visibility" >&2
+        exit 1
+      fi
+      ;;
+    *) ;;
+  esac
+}
+
 sync_env() {
   local github_env="$1"
   shift
@@ -83,6 +144,9 @@ sync_env() {
       <(printf '%s\n' "$entries_json") \
       <(printf '%s\n' "$config_entries_json"))
   done
+
+  entries_json=$(filter_entries_for_environment "$github_env" "$entries_json")
+  validate_entries_for_environment "$github_env" "$entries_json"
 
   local duplicate_names
   duplicate_names=$(jq -r '
@@ -191,6 +255,9 @@ known_environments=(
   production-recipe-api
   production-recipe-ingest
   production-site-ui
+  production-tailnet-infra
+  production-tailnet-infra-drift
+  production-tailnet-infra-plan
   production-infra
   production-infra-bootstrap
   production-infra-bootstrap-plan
@@ -226,6 +293,9 @@ sync_requested_env production-personal-finance-plan personal-finance/ops
 sync_requested_env production-recipe-api prd_recipe_api prd_site_ui prd_pages_env
 sync_requested_env production-recipe-ingest prd_recipe_ingest prd_site_ui prd_pages_env
 sync_requested_env production-site-ui prd_site_ui prd_pages_env
+sync_requested_env production-tailnet-infra homelab/prd_tailnet_values_infra
+sync_requested_env production-tailnet-infra-drift homelab/prd_tailnet_values_infra_plan
+sync_requested_env production-tailnet-infra-plan homelab/prd_tailnet_values_infra_plan
 sync_requested_env production-infra prd_infra
 sync_requested_env production-infra-bootstrap prd_bootstrap_infra
 sync_requested_env production-infra-bootstrap-plan prd_bootstrap_plan

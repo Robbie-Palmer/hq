@@ -4,7 +4,7 @@ import type { KnowledgeScope, WorkGraph, WorkItem } from "./model";
 
 const RANK_FUSION_OFFSET = 10;
 
-interface PriorityPathSegment {
+export interface PriorityPathSegment {
   readonly id: string;
   readonly rank: number | null;
 }
@@ -100,6 +100,15 @@ export interface WorkItemPriorityProjection {
   readonly ticketRank: number;
 }
 
+export interface WorkItemPriorityCandidate {
+  readonly expedited: boolean;
+  readonly initiativeRank: number;
+  readonly path: readonly PriorityPathSegment[];
+  readonly projectRank: number;
+  readonly ticketRank: number;
+  readonly workItemId: string;
+}
+
 const comparePathSegment = (
   left: PriorityPathSegment,
   right: PriorityPathSegment,
@@ -125,6 +134,46 @@ const comparePriorityKey = (left: PriorityKey, right: PriorityKey): number => {
     if (comparison !== 0) return comparison;
   }
   return left.path.length - right.path.length;
+};
+
+const candidatePriorityKey = (
+  candidate: WorkItemPriorityCandidate,
+): PriorityKey => ({
+  expedited: candidate.expedited,
+  path: candidate.path,
+  score:
+    reciprocalRank(candidate.initiativeRank) +
+    reciprocalRank(candidate.projectRank) +
+    reciprocalRank(candidate.ticketRank),
+});
+
+export const projectWorkItemPriorityFromCandidates = (
+  workItemId: string,
+  candidates: readonly WorkItemPriorityCandidate[],
+): WorkItemPriorityProjection => {
+  const target = candidates.find(
+    (candidate) => candidate.workItemId === workItemId,
+  );
+  if (!target) {
+    throw new Error(`Work item ${workItemId} has no priority candidate.`);
+  }
+  const effective = candidates.reduce((highest, candidate) =>
+    comparePriorityKey(
+      candidatePriorityKey(candidate),
+      candidatePriorityKey(highest),
+    ) < 0
+      ? candidate
+      : highest,
+  );
+  return {
+    initiativeRank: target.initiativeRank,
+    projectRank: target.projectRank,
+    ticketRank: target.ticketRank,
+    expedited: target.expedited,
+    effectiveExpedited: effective.expedited,
+    donatedFromWorkItemId:
+      effective.workItemId === workItemId ? null : effective.workItemId,
+  };
 };
 
 const compareRanked = (

@@ -19,8 +19,10 @@ import {
   type ExitCode,
   usageError,
 } from "./errors.js";
+import type { WorkItemDetailsCache } from "./details-cache.js";
 
 export interface CliDependencies {
+  detailsCache?: WorkItemDetailsCache;
   environment?: NodeJS.ProcessEnv;
   fetch?: Fetch;
   inspectPullRequest?: CommandContext["inspectPullRequest"];
@@ -174,6 +176,7 @@ export const runCli = async (
   const cli = createCli({
     router: workGraphRouter,
     context: createCommandContext({
+      detailsCache: dependencies.detailsCache,
       environment: dependencies.environment,
       fetch: dependencies.fetch,
       inspectPullRequest: dependencies.inspectPullRequest,

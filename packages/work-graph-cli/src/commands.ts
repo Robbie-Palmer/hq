@@ -5,6 +5,10 @@ import { z } from "zod";
 import { WorkGraphClient, type Fetch } from "./client.js";
 import { resolveClientConfig } from "./config.js";
 import { renderCriticalPath } from "./critical-path.js";
+import {
+  createWorkItemDetailsCache,
+  type WorkItemDetailsCache,
+} from "./details-cache.js";
 import { usageError } from "./errors.js";
 import {
   inspectGitHubPullRequest,
@@ -83,6 +87,7 @@ import {
 export type UuidFactory = () => string;
 
 export interface CommandContext {
+  detailsCache: WorkItemDetailsCache;
   environment: NodeJS.ProcessEnv;
   fetch?: Fetch;
   inspectPullRequest: PullRequestInspector;
@@ -230,7 +235,9 @@ const jsonArray = <Schema extends z.ZodArray>(
       return result.data;
     });
 
-const resolveClient = (context: CommandContext): WorkGraphClient => {
+const resolveClientConnection = (
+  context: CommandContext,
+): { cacheNamespace: string; client: WorkGraphClient } => {
   const rawOptions = getCliContext()?.program.opts() ?? {};
   const parsed = globalOptionsSchema.safeParse(rawOptions);
   if (!parsed.success) throw usageError(z.prettifyError(parsed.error));
@@ -242,8 +249,14 @@ const resolveClient = (context: CommandContext): WorkGraphClient => {
     },
     context.environment,
   );
-  return new WorkGraphClient(config, context.fetch);
+  return {
+    cacheNamespace: config.apiUrl.href,
+    client: new WorkGraphClient(config, context.fetch),
+  };
 };
+
+const resolveClient = (context: CommandContext): WorkGraphClient =>
+  resolveClientConnection(context).client;
 
 const workerIdentity = (environment: NodeJS.ProcessEnv): string | undefined => {
   if (environment.WORK_GRAPH_WORKER_ID) {
@@ -1719,23 +1732,29 @@ export const workGraphRouter = t.router({
           zGetWorkItemPath.shape.workItemId,
           "Ticket ID",
         ),
+        refresh: z
+          .boolean()
+          .default(false)
+          .describe("Bypass the local cache for a terminal ticket"),
       }),
     )
     .query(async ({ ctx, input }) => {
-      const client = resolveClient(ctx);
-      const workItem = await client.getWorkItem(input.workItemId);
-      const [deliveryEvidence, completion] = await Promise.all([
-        client.listWorkItemEvidence(input.workItemId, {
-          currentOnly: "true",
-          limit: 100,
-        }),
-        client.getWorkItemCompletionCandidate(input.workItemId),
-      ]);
-      return {
-        ...workItem,
-        deliveryEvidence,
-        completionCandidate: completion.candidate,
-      };
+      const { cacheNamespace, client } = resolveClientConnection(ctx);
+      if (!input.refresh) {
+        const cached = await ctx.detailsCache.read(
+          cacheNamespace,
+          input.workItemId,
+        );
+        if (cached !== undefined) return cached;
+      }
+
+      const details = await client.getWorkItemDetails(input.workItemId);
+      if (details.lifecycle === "open") {
+        await ctx.detailsCache.remove(cacheNamespace, input.workItemId);
+      } else {
+        await ctx.detailsCache.write(cacheNamespace, input.workItemId, details);
+      }
+      return details;
     }),
   note: command
     .meta({ description: "Record progress or handoff notes on claimed work" })
@@ -1953,6 +1972,8 @@ export const createCommandContext = (
 ): CommandContext => {
   const environment = context.environment ?? process.env;
   return {
+    detailsCache:
+      context.detailsCache ?? createWorkItemDetailsCache(environment),
     environment,
     fetch: context.fetch,
     inspectPullRequest:

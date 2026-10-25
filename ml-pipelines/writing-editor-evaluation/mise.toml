@@ -71,6 +71,26 @@ description = "Prepare and push the pinned GECToR-2024 checkpoint to DVC"
 depends = ["install"]
 run = "bash scripts/publish-gector-model.sh"
 
+[tasks."model:prepare:punctuation"]
+description = "Download and verify the pinned punctuation-restoration checkpoint"
+depends = ["install"]
+run = "bash scripts/prepare-punctuation-model.sh"
+
+[tasks."run:punctuation"]
+description = "Run the pre-registered missing-comma candidate"
+depends = ["install", "runtime:sync"]
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro --single-item run_punctuation_candidate"
+
+[tasks."adapt:punctuation"]
+description = "Adapt captured punctuation inference into ADR-003 records"
+depends = ["install"]
+run = "bash scripts/adapt-punctuation-candidate.sh"
+
+[tasks."evaluate:punctuation"]
+description = "Evaluate the missing-comma candidate against governed decisions"
+depends = ["install"]
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro --single-item evaluate_punctuation_candidate"
+
 [tasks."match:edits"]
 description = "Align Vale findings with observed published edits"
 depends = ["install"]

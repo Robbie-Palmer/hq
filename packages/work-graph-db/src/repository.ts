@@ -27,8 +27,10 @@ import {
   normalizeWorkItemSelectionScope,
   orderWorkItemsByPriority,
   projectCriticalPath as projectDomainCriticalPath,
+  projectWorkItemPriorityFromCandidates,
   projectWorkItemPriorities,
   projectWorkItemStage,
+  projectWorkItemStageFromFacts,
   resolveWorkItemContext as resolveDomainWorkItemContext,
   validatePostReleaseNote,
   validateKnowledgeScopeRelationships,
@@ -54,6 +56,7 @@ import {
   type WorkItemContext,
   type WorkItemDependency,
   type WorkItemPriorityProjection,
+  type WorkItemPriorityCandidate,
   type WorkItemPullRequest,
   type WorkStage,
   type WorkItemReference,
@@ -411,6 +414,39 @@ export interface WorkItemReadModel extends WorkItem {
   readonly priority: WorkItemPriorityProjection;
 }
 
+interface PriorityLineageRow extends Record<string, unknown> {
+  readonly candidateId: string;
+  readonly depth: number;
+  readonly expediteReason: string | null;
+  readonly expedited: boolean;
+  readonly id: string;
+  readonly lifecycle: WorkItem["lifecycle"];
+  readonly parentId: string | null;
+  readonly priorityRank: number | null;
+  readonly rank: number | null;
+  readonly schedulingInitiativeId: string | null;
+  readonly schedulingProjectId: string | null;
+  readonly title: string;
+}
+
+interface TicketRankRow extends Record<string, unknown> {
+  readonly ticketRank: number;
+  readonly workItemId: string;
+}
+
+interface PriorityScopeRow {
+  readonly id: string;
+  readonly kind: KnowledgeScope["kind"];
+  readonly rank: number | null;
+}
+
+interface ReadinessFactsRow extends Record<string, unknown> {
+  readonly currentTime: string;
+  readonly hasUnfinishedDirectChildren: boolean;
+  readonly hasUnresolvedBlockingAttention: boolean;
+  readonly hasUnsatisfiedDependencies: boolean;
+}
+
 export interface PriorityMoveInput {
   readonly higherThanId?: string;
   readonly lowerThanId?: string;
@@ -468,6 +504,93 @@ const compareStoredRanks = (
   }
   if (right.rank === null) return -1;
   return left.rank - right.rank || left.id.localeCompare(right.id);
+};
+
+const medianRank = (count: number): number => Math.floor(count / 2) + 1;
+
+const priorityScopeRank = (
+  scopes: readonly PriorityScopeRow[],
+  kind: KnowledgeScope["kind"],
+  id: string | null,
+): number => {
+  const matching = scopes
+    .filter((scope) => scope.kind === kind)
+    .sort(compareStoredRanks);
+  const index =
+    id === null ? -1 : matching.findIndex((scope) => scope.id === id);
+  return index === -1 ? medianRank(matching.length) : index + 1;
+};
+
+const priorityCandidatesFromRows = (
+  rows: readonly PriorityLineageRow[],
+  scopes: readonly PriorityScopeRow[],
+  ticketRanks: ReadonlyMap<string, number>,
+): readonly WorkItemPriorityCandidate[] => {
+  const rowsByCandidate = new Map<string, PriorityLineageRow[]>();
+  for (const row of rows) {
+    const lineage = rowsByCandidate.get(row.candidateId) ?? [];
+    lineage.push(row);
+    rowsByCandidate.set(row.candidateId, lineage);
+  }
+
+  return [...rowsByCandidate].map(([candidateId, unorderedLineage]) => {
+    const lineage = [...unorderedLineage].sort(
+      (left, right) => left.depth - right.depth,
+    );
+    const target = lineage[0];
+    if (!target) {
+      throw new Error(`Priority candidate ${candidateId} has no work item.`);
+    }
+    const owner =
+      lineage.find(({ priorityRank }) => priorityRank !== null) ?? target;
+    const ticketRank = ticketRanks.get(owner.id);
+    if (ticketRank === undefined) {
+      throw new Error(`Priority owner ${owner.id} has no ticket rank.`);
+    }
+    return {
+      workItemId: candidateId,
+      initiativeRank: priorityScopeRank(
+        scopes,
+        "initiative",
+        owner.schedulingInitiativeId,
+      ),
+      projectRank: priorityScopeRank(
+        scopes,
+        "project",
+        owner.schedulingProjectId,
+      ),
+      ticketRank,
+      expedited: lineage.some(({ expedited }) => expedited),
+      path: lineage
+        .toReversed()
+        .map(({ id, rank }) => ({ id, rank })),
+    };
+  });
+};
+
+const priorityOwnerIdsFromRows = (
+  rows: readonly PriorityLineageRow[],
+): readonly string[] => {
+  const rowsByCandidate = new Map<string, PriorityLineageRow[]>();
+  for (const row of rows) {
+    const lineage = rowsByCandidate.get(row.candidateId) ?? [];
+    lineage.push(row);
+    rowsByCandidate.set(row.candidateId, lineage);
+  }
+  return [
+    ...new Set(
+      [...rowsByCandidate.values()].map((lineage) => {
+        const ordered = [...lineage].sort(
+          (left, right) => left.depth - right.depth,
+        );
+        const target = ordered[0];
+        if (!target) throw new Error("Priority candidate has no work item.");
+        return (
+          ordered.find(({ priorityRank }) => priorityRank !== null) ?? target
+        ).id;
+      }),
+    ),
+  ];
 };
 
 const knowledgeScopeNotFound = (id: string) =>
@@ -1682,11 +1805,78 @@ export class WorkGraphRepository {
 
   async getWorkItem(workItemId: string): Promise<WorkItemReadModel> {
     requireIdentifier(workItemId, "invalid_work_item_id");
-    const found = (await this.listWorkItems()).find(
-      (item) => item.id === workItemId,
+    return this.db.transaction(
+      async (transaction) => {
+        const lineageRows = await this.loadPriorityLineageRows(
+          transaction,
+          workItemId,
+        );
+        const target = lineageRows.find(
+          (row) => row.candidateId === workItemId && row.depth === 0,
+        );
+        if (!target) throw workItemNotFound(workItemId);
+
+        const scopes = await transaction
+          .select({
+            id: knowledgeScope.id,
+            kind: knowledgeScope.kind,
+            rank: knowledgeScope.rank,
+          })
+          .from(knowledgeScope);
+        const ticketRanks = await this.loadTicketRanks(
+          transaction,
+          priorityOwnerIdsFromRows(lineageRows),
+        );
+        const currentLease = await this.findCurrentLease(
+          transaction,
+          workItemId,
+        );
+        const readiness = await this.loadReadinessFacts(
+          transaction,
+          workItemId,
+          lineageRows
+            .filter((row) => row.candidateId === workItemId)
+            .map(({ id }) => id),
+        );
+        const candidates = priorityCandidatesFromRows(
+          lineageRows,
+          scopes,
+          ticketRanks,
+        );
+
+        return {
+          id: target.id,
+          title: target.title,
+          lifecycle: target.lifecycle,
+          parentId: target.parentId,
+          rank: target.rank,
+          priorityRank: target.priorityRank,
+          schedulingInitiativeId: target.schedulingInitiativeId,
+          schedulingProjectId: target.schedulingProjectId,
+          expedited: target.expedited,
+          expediteReason: target.expediteReason,
+          currentLease,
+          stage: projectWorkItemStageFromFacts({
+            lifecycle: target.lifecycle,
+            currentLease: currentLease
+              ? { expiresAt: currentLease.expiresAt.getTime() }
+              : null,
+            now: new Date(readiness.currentTime).getTime(),
+            hasUnfinishedDirectChildren:
+              readiness.hasUnfinishedDirectChildren,
+            hasUnsatisfiedDependencies:
+              readiness.hasUnsatisfiedDependencies,
+            hasUnresolvedBlockingAttention:
+              readiness.hasUnresolvedBlockingAttention,
+          }),
+          priority: projectWorkItemPriorityFromCandidates(
+            workItemId,
+            candidates,
+          ),
+        };
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
     );
-    if (!found) throw workItemNotFound(workItemId);
-    return found;
   }
 
   async resolveWorkItemContext(
@@ -2223,6 +2413,7 @@ export class WorkGraphRepository {
     input: ListWorkItemDeliveryEvidenceInput,
   ): Promise<readonly StoredWorkItemDeliveryEvidence[]> {
     requireIdentifier(input.workItemId, "invalid_work_item_id");
+    await this.requireWorkItemExists(this.db, input.workItemId);
     const query = this.db
       .select({
         observation: deliveryEvidenceObservation,
@@ -2816,7 +3007,9 @@ export class WorkGraphRepository {
   async getCompletionCandidate(
     workItemId: string,
   ): Promise<StoredCompletionCandidateEvaluation | null> {
+    requireIdentifier(workItemId, "invalid_work_item_id");
     return this.db.transaction(async (transaction) => {
+      await this.requireWorkItemExists(transaction, workItemId);
       const [projection] = await transaction
         .select({ id: workItemCompletionCandidate.evaluationId })
         .from(workItemCompletionCandidate)
@@ -4766,6 +4959,18 @@ export class WorkGraphRepository {
     return stored;
   }
 
+  private async requireWorkItemExists(
+    database: Db | DbTransaction,
+    workItemId: string,
+  ): Promise<void> {
+    const [stored] = await database
+      .select({ id: workItem.id })
+      .from(workItem)
+      .where(eq(workItem.id, workItemId))
+      .limit(1);
+    if (!stored) throw workItemNotFound(workItemId);
+  }
+
   private async requireStoredRankedChildren(
     transaction: DbTransaction,
     parentWorkItemId: string,
@@ -4857,6 +5062,175 @@ export class WorkGraphRepository {
       .from(knowledgeScope)
       .orderBy(knowledgeScope.kind, knowledgeScope.rank, knowledgeScope.id);
     return rows.map(toKnowledgeScope);
+  }
+
+  /**
+   * Resolve only the work-item lineages that can affect one item's effective
+   * priority. The reverse dependency closure stays in PostgreSQL so a point
+   * read does not transfer the complete scheduling graph to the worker.
+   */
+  private async loadPriorityLineageRows(
+    transaction: DbTransaction,
+    workItemId: string,
+  ): Promise<readonly PriorityLineageRow[]> {
+    return transaction.execute<PriorityLineageRow>(sql`
+      with recursive
+        all_lineage(descendant_id, ancestor_id) as (
+          select candidate.id, candidate.id
+          from work_items candidate
+          union all
+          select lineage.descendant_id, hierarchy.parent_work_item_id
+          from all_lineage lineage
+          inner join work_item_hierarchy hierarchy
+            on hierarchy.child_work_item_id = lineage.ancestor_id
+        ),
+        effective_waits(waiting_id, blocker_id) as (
+          select distinct waiting.id, dependency.blocker_work_item_id
+          from work_items waiting
+          inner join all_lineage lineage
+            on lineage.descendant_id = waiting.id
+          inner join work_item_dependencies dependency
+            on dependency.dependent_work_item_id = lineage.ancestor_id
+          inner join work_items blocker
+            on blocker.id = dependency.blocker_work_item_id
+          where waiting.lifecycle = 'open'
+            and blocker.lifecycle = 'open'
+        ),
+        reverse_reachable(work_item_id) as (
+          select ${workItemId}::text
+          union
+          select waits.waiting_id
+          from reverse_reachable reachable
+          inner join effective_waits waits
+            on waits.blocker_id = reachable.work_item_id
+        ),
+        candidate_lineage(candidate_id, work_item_id, depth) as (
+          select reachable.work_item_id, candidate.id, 0
+          from reverse_reachable reachable
+          inner join work_items candidate
+            on candidate.id = reachable.work_item_id
+          union all
+          select
+            lineage.candidate_id,
+            hierarchy.parent_work_item_id,
+            lineage.depth + 1
+          from candidate_lineage lineage
+          inner join work_item_hierarchy hierarchy
+            on hierarchy.child_work_item_id = lineage.work_item_id
+        )
+      select
+        lineage.candidate_id as "candidateId",
+        lineage.depth as "depth",
+        candidate.id as "id",
+        candidate.title as "title",
+        candidate.lifecycle as "lifecycle",
+        candidate.expedited as "expedited",
+        candidate.expedite_reason as "expediteReason",
+        hierarchy.parent_work_item_id as "parentId",
+        hierarchy.rank as "rank",
+        priority.rank as "priorityRank",
+        priority.scheduling_initiative_id as "schedulingInitiativeId",
+        priority.scheduling_project_id as "schedulingProjectId"
+      from candidate_lineage lineage
+      inner join work_items candidate on candidate.id = lineage.work_item_id
+      left join work_item_hierarchy hierarchy
+        on hierarchy.child_work_item_id = candidate.id
+      left join work_item_priority_contexts priority
+        on priority.work_item_id = candidate.id
+      order by lineage.candidate_id, lineage.depth
+    `);
+  }
+
+  private async loadTicketRanks(
+    transaction: DbTransaction,
+    ownerIds: readonly string[],
+  ): Promise<ReadonlyMap<string, number>> {
+    if (ownerIds.length === 0) return new Map();
+    const ownerValues = sql.join(
+      ownerIds.map((id) => sql`(${id})`),
+      sql`, `,
+    );
+    const rows = await transaction.execute<TicketRankRow>(sql`
+      with owners(work_item_id) as (values ${ownerValues})
+      select
+        owners.work_item_id as "workItemId",
+        case
+          when priority.rank is not null then (
+            select count(*) + 1
+            from work_item_priority_contexts peer
+            where peer.rank is not null
+              and peer.scheduling_project_id is not distinct from priority.scheduling_project_id
+              and (
+                peer.rank < priority.rank
+                or (peer.rank = priority.rank and peer.work_item_id < priority.work_item_id)
+              )
+          )
+          else (
+            select floor(count(*) / 2.0) + 1
+            from work_item_priority_contexts peer
+            where peer.rank is not null
+              and peer.scheduling_project_id is not distinct from priority.scheduling_project_id
+          )
+        end::integer as "ticketRank"
+      from owners
+      left join work_item_priority_contexts priority
+        on priority.work_item_id = owners.work_item_id
+    `);
+    return new Map(rows.map((row) => [row.workItemId, row.ticketRank]));
+  }
+
+  private async findCurrentLease(
+    transaction: DbTransaction,
+    workItemId: string,
+  ): Promise<StoredLease | null> {
+    const [current] = await transaction
+      .select()
+      .from(lease)
+      .where(and(eq(lease.workItemId, workItemId), isNull(lease.endedAt)))
+      .limit(1);
+    return current ?? null;
+  }
+
+  private async loadReadinessFacts(
+    transaction: DbTransaction,
+    workItemId: string,
+    lineageIds: readonly string[],
+  ): Promise<ReadinessFactsRow> {
+    const lineageValues = sql.join(
+      lineageIds.map((id) => sql`${id}`),
+      sql`, `,
+    );
+    const [facts] = await transaction.execute<ReadinessFactsRow>(sql`
+      select
+        clock_timestamp() as "currentTime",
+        exists (
+          select 1
+          from work_item_hierarchy hierarchy
+          inner join work_items child
+            on child.id = hierarchy.child_work_item_id
+          where hierarchy.parent_work_item_id = ${workItemId}
+            and child.lifecycle = 'open'
+        ) as "hasUnfinishedDirectChildren",
+        exists (
+          select 1
+          from work_item_dependencies dependency
+          inner join work_items blocker
+            on blocker.id = dependency.blocker_work_item_id
+          where dependency.dependent_work_item_id in (${lineageValues})
+            and blocker.lifecycle = 'open'
+        ) as "hasUnsatisfiedDependencies",
+        exists (
+          select 1
+          from attention_requests request
+          left join attention_resolutions resolution
+            on resolution.attention_request_id = request.id
+          where request.work_item_id = ${workItemId}
+            and request.blocking = true
+            and resolution.id is null
+        ) as "hasUnresolvedBlockingAttention"
+    `);
+    if (!facts) throw new Error("Reading work-item readiness returned no row.");
+    return facts;
   }
 
   private async requireSelectionScopes(
