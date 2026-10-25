@@ -82,6 +82,15 @@ locals {
               "prd_vector_development",
             ]
           }
+          prd_tailnet_values = {
+            name             = "Production Tailnet Values"
+            personal_configs = false
+            configs = [
+              "prd_tailnet_values",
+              "prd_tailnet_values_infra",
+              "prd_tailnet_values_infra_plan",
+            ]
+          }
         }
       }
       github = {
@@ -93,6 +102,24 @@ locals {
           }
           remote-development-plan = {
             name = "production-remote-development-infra-plan"
+          }
+          tailnet-apply = {
+            name                 = "production-tailnet-infra"
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-drift = {
+            name                 = "production-tailnet-infra-drift"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-plan = {
+            name               = "production-tailnet-infra-plan"
+            reviewer_usernames = ["Robbie-Palmer"]
+            imported           = false
           }
         }
       }
@@ -416,7 +443,7 @@ locals {
         root_id    = root_id
         purpose    = purpose
         repository = root.github.repository
-        imported   = root.imported && var.enable_existing_imports
+        imported   = try(environment.imported, root.imported) && var.enable_existing_imports
       })
     }
   ]...)

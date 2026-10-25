@@ -71,6 +71,11 @@ account token: provider-generated credentials must not enter Terraform state.
 The [Vector commissioning guide](../../homelab/docs/vector-development.md)
 describes the guarded token bootstrap and runtime health check.
 
+The tailnet baseline capture created its three Doppler configs before this
+registry adopted them. Account foundation imports those containers without
+reading their values. New GitHub environments can set `imported = false` so
+the same imported root creates their branch and reviewer policy.
+
 Personal Finance uses three Doppler environments named `ops`, `drift`, and
 `apply`. Their automatically created root configs hold the separated delivery
 credentials. This avoids child-config inheritance, which the current Doppler

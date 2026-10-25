@@ -65,17 +65,21 @@ source merely to discover an address because it also returns machine and node
 metadata. Put an address in Doppler when a global DNS setting genuinely needs
 one.
 
-Use two Doppler configs under the existing `homelab` project:
+Use one shared Doppler config and two inherited delivery configs under the
+existing `homelab` project:
 
-* `prd_tailnet` owns sensitive policy inputs, the Terraform Cloud credential,
-  and the read-only Tailscale credential used by plan and drift checks; and
-* `prd_tailnet_apply` inherits the shared inputs and replaces the read-only
-  Tailscale credential with the policy and DNS write credential used to apply.
+* `prd_tailnet_values` owns only sensitive policy inputs;
+* `prd_tailnet_values_infra_plan` inherits those inputs and adds the Terraform
+  Cloud credential plus the read-only Tailscale credential used by plan and
+  drift checks; and
+* `prd_tailnet_values_infra` inherits the shared inputs and adds the Terraform
+  Cloud credential plus the policy and DNS write credential used to apply.
 
 The repository's Doppler-to-GitHub sync publishes the appropriate config into
 `production-tailnet-infra-plan`, `production-tailnet-infra-drift`, and
-`production-tailnet-infra`. Plan and drift use `prd_tailnet`; apply uses
-`prd_tailnet_apply`. Local mise tasks select the same config. Provider
+`production-tailnet-infra`. Plan and drift use
+`prd_tailnet_values_infra_plan`; apply uses `prd_tailnet_values_infra`. Local
+mise tasks select the same configs. Provider
 credentials use the standard `TAILSCALE_OAUTH_CLIENT_ID`,
 `TAILSCALE_OAUTH_CLIENT_SECRET`, and `TAILSCALE_TAILNET` environment variables;
 the policy inputs map to `TF_VAR_*` variables in a root-specific wrapper.
@@ -248,8 +252,9 @@ behavior into state.
   checks, README, and Doppler wrapper.
 * No committed file contains a real user login, private tailnet address,
   OAuth secret, or rendered policy.
-* Sensitive inputs come from the two scoped homelab Doppler configs and sync
-  only to the matching protected GitHub environments.
+* Sensitive inputs come from the shared values config and its two scoped
+  delivery configs, then sync only to the matching protected GitHub
+  environments.
 * Automatic pull-request checks need no secrets. The real plan rejects forks,
   requires environment approval, and uses a read-only Tailscale credential.
 * A default-branch-only scheduled workflow performs read-only drift detection

@@ -1,0 +1,67 @@
+name: Tailnet Infrastructure CI
+
+on:
+  pull_request:
+    paths:
+      - "infra/tailnet/**"
+      - "scripts/sync-doppler-github-envs.sh"
+      - ".github/workflows/tailnet-infra-ci.yml"
+
+permissions: {}
+
+jobs:
+  static-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: infra/tailnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Run secretless Terraform checks
+        run: mise run //infra/tailnet:check
+
+  terraform-plan:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: static-checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    environment:
+      name: production-tailnet-infra-plan
+    defaults:
+      run:
+        working-directory: infra/tailnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Remove stale Terraform plan
+        run: rm -f .planfile
+
+      - name: Plan with read-only tailnet credentials
+        run: mise run //infra/tailnet:plan
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+          TAILNET_PRIVATE_ADDRESS_LAB_HOST: ${{ secrets.TAILNET_PRIVATE_ADDRESS_LAB_HOST }}
+          TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS: ${{ secrets.TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS }}
+          TAILNET_USER_LOGIN_OPERATOR: ${{ secrets.TAILNET_USER_LOGIN_OPERATOR }}
+
+      - name: Remove Terraform plan
+        if: ${{ always() }}
+        run: rm -f .planfile

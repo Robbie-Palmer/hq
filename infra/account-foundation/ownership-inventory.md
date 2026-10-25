@@ -81,10 +81,10 @@ workspace containers still have the single administrative owner shown above.
 environments, and the config containers listed here. The workload named in the last
 column owns the values and decides which values may be mirrored into GitHub.
 
-| Project | Existing configs | Intended state owner | Value owner |
+| Project | Managed configs | Intended state owner | Value owner |
 | --- | --- | --- | --- |
 | `ai-review` | `dev`, `dev_personal`, `stg`, `prd` | `account-foundation` | `ai-review` workload |
-| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability`, `prd_vector_development` | `account-foundation` | `homelab`, `infra/remote-development`, the Vector workstation, and the personal archive workloads |
+| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability`, the `prd_tailnet_values` environment and its three configs, `prd_vector_development` | `account-foundation` | `homelab`, `infra/remote-development`, `infra/tailnet`, the Vector workstation, and the personal archive workloads |
 | `personal-site` | `dev`, `dev_personal`, `dev_agent`, `dev_bootstrap_infra`, `dev_infra`, `dev_ml_pipelines`, `dev_pages_env`, `dev_recipe_api`, `stg`, `stg_pages_env`, `stg_recipe_api`, `stg_site_ui`, `prd`, `prd_bootstrap_infra`, `prd_bootstrap_plan`, `prd_ci_repo`, `prd_database_backup`, `prd_infra`, `prd_pages_env`, `prd_recipe_api`, `prd_recipe_ingest`, `prd_site_ui`, `ops`, `ops_preview_agent_access` | `account-foundation` | The matching public-platform, bootstrap, ML pipeline, recipe, backup, or preview workload |
 | `work-graph` | `dev`, `dev_personal`, `stg`, `prd`, `prd_work_graph`, `prd_work_graph_backup`, `prd_work_graph_infra` | `account-foundation` | `infra/work-graph`, Work Graph runtime, and backup workloads |
 | `personal-finance` | `ops`, `drift`, `apply` environment root configs | `account-foundation` | `infra/personal-finance` delivery |
@@ -138,6 +138,9 @@ independent state source.
 | `production-remote-development-infra` | One required reviewer | `infra/remote-development` apply |
 | `production-remote-development-infra-plan` | None | `infra/remote-development` plan |
 | `production-site-ui` | None | Site deployment workload |
+| `production-tailnet-infra` | One required reviewer and `main` branch policy | `infra/tailnet` apply |
+| `production-tailnet-infra-drift` | `main` branch policy | `infra/tailnet` drift |
+| `production-tailnet-infra-plan` | One required reviewer | `infra/tailnet` plan |
 | `production-work-graph` | Protected branches | Work Graph runtime |
 | `production-work-graph-backup` | Protected branches | Work Graph backup workload |
 | `production-work-graph-infra` | Protected branches | `infra/work-graph` |
