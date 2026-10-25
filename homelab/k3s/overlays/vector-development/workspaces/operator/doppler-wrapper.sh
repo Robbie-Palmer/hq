@@ -27,6 +27,8 @@ for ((index = 0; index < ${#arguments[@]}; index++)); do
     --project=*|-p=*)
       project=${argument#*=}
       ;;
+    *)
+      ;;
   esac
 done
 
