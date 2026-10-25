@@ -276,10 +276,8 @@ function accommodationReadiness(
   );
   const unresolvedPayments = plan.accommodation.inventory.properties.filter(
     (property) =>
-      property.booking.status === "booked" &&
-      property.booking.payer.kind === "couple" &&
-      (property.booking.commitment_id == null ||
-        property.booking.payment_ids.length === 0),
+      property.booking.cancellation_state !== "not_cancelled" &&
+      property.booking.refund_state === "pending",
   );
   const conflicts = audit.issues.filter((item) => item.kind !== "unmet_need");
   const unmetNeeds = audit.issues.filter((item) => item.kind === "unmet_need");
@@ -334,7 +332,7 @@ function accommodationReadiness(
           check_id: "accommodation_bookings",
           area: "accommodation",
           title: property.name,
-          detail: "Booked stay is missing a commitment or payment link",
+          detail: "Refund is still pending",
           href: `wedding:inventory:${property.id}`,
         }),
       ),

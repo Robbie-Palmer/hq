@@ -143,31 +143,6 @@ function propertyBookingFields({
             </Select>
           </Field>
         )}
-        <Field
-          label="Commitment ID"
-          hint="Links to the finance ledger. Do not copy the amount here."
-        >
-          <Input
-            aria-label={`${property.name} commitment ID`}
-            value={property.booking.commitment_id ?? ""}
-            onChange={(event) =>
-              change((item) => {
-                item.booking.commitment_id = event.target.value.trim() || null;
-              })
-            }
-          />
-        </Field>
-        <Field label="Payment IDs" hint="Comma-separated finance ledger IDs">
-          <Input
-            aria-label={`${property.name} payment IDs`}
-            value={property.booking.payment_ids.join(", ")}
-            onChange={(event) =>
-              change((item) => {
-                item.booking.payment_ids = parseStringList(event.target.value);
-              })
-            }
-          />
-        </Field>
         <Field label="Cancellation">
           <Select
             label={`${property.name} cancellation state`}

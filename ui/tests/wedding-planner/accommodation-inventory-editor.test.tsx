@@ -144,6 +144,12 @@ describe("accommodation inventory editor", () => {
       screen.getByLabelText("Harbour Hotel confirmation details"),
       { target: { value: "Call reception on arrival" } },
     );
+    expect(
+      screen.queryByLabelText("Harbour Hotel commitment ID"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Harbour Hotel payment IDs"),
+    ).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Harbour Hotel payer"), {
       target: { value: "guest" },
     });
@@ -155,12 +161,6 @@ describe("accommodation inventory editor", () => {
     });
     fireEvent.change(screen.getByLabelText("Harbour Hotel payer record"), {
       target: { value: "household-one" },
-    });
-    fireEvent.change(screen.getByLabelText("Harbour Hotel commitment ID"), {
-      target: { value: "new-commitment" },
-    });
-    fireEvent.change(screen.getByLabelText("Harbour Hotel payment IDs"), {
-      target: { value: "payment-one, payment-two" },
     });
     fireEvent.change(
       screen.getByLabelText("Harbour Hotel cancellation state"),
@@ -223,8 +223,6 @@ describe("accommodation inventory editor", () => {
         booking: {
           status: "booked",
           payer: { kind: "household", id: "household-one" },
-          commitment_id: "new-commitment",
-          payment_ids: ["payment-one", "payment-two"],
           cancellation_state: "requested",
           refund_state: "pending",
         },
