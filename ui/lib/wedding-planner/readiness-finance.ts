@@ -76,13 +76,8 @@ function expectedStageAmount(
   record: FutureCashFlow,
   stage: FutureCashFlow["stages"][number],
 ): number {
-  return record.kind === "commitment"
-    ? "amount" in stage
-      ? stage.amount
-      : 0
-    : "expectedAmount" in stage
-      ? stage.expectedAmount
-      : 0;
+  if (record.kind === "commitment") return "amount" in stage ? stage.amount : 0;
+  return "expectedAmount" in stage ? stage.expectedAmount : 0;
 }
 
 function includedRecord(record: FutureCashFlow): boolean {

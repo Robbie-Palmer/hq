@@ -29,6 +29,14 @@ const checklistStatuses: Array<{
 
 type StatusUpdate = (itemId: string, status: ChecklistStatus) => void;
 
+function checklistScheduleLabel(item: PlanningChecklistItem): string {
+  if (item.schedule?.kind === "due_date")
+    return ` · Due ${item.schedule.dueDate}`;
+  if (item.schedule?.kind === "date_range")
+    return ` · ${item.schedule.startsOn} to ${item.schedule.endsOn}`;
+  return "";
+}
+
 function ChecklistItem({
   item,
   updateStatus,
@@ -36,12 +44,7 @@ function ChecklistItem({
   item: PlanningChecklistItem;
   updateStatus: StatusUpdate;
 }>) {
-  const schedule =
-    item.schedule?.kind === "due_date"
-      ? ` · Due ${item.schedule.dueDate}`
-      : item.schedule?.kind === "date_range"
-        ? ` · ${item.schedule.startsOn} to ${item.schedule.endsOn}`
-        : "";
+  const schedule = checklistScheduleLabel(item);
   return (
     <li
       className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-center"

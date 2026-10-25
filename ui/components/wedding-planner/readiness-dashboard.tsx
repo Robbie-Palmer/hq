@@ -94,14 +94,10 @@ function internalDestination(href: string): {
 } | null {
   if (!href.startsWith("wedding:")) return null;
   const [, section, targetId] = href.split(":");
-  const view =
-    section === "guests"
-      ? "guests"
-      : section === "inventory"
-        ? "inventory"
-        : section === "tables"
-          ? "tables"
-          : null;
+  let view: PlannerDestination | null = null;
+  if (section === "guests") view = "guests";
+  else if (section === "inventory") view = "inventory";
+  else if (section === "tables") view = "tables";
   return view ? { view, ...(targetId ? { targetId } : {}) } : null;
 }
 
