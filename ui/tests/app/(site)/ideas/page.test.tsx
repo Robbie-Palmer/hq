@@ -218,9 +218,7 @@ describe("ideas pages", () => {
     );
 
     expect(screen.queryByRole("link", { name: /Read the source/ })).toBeNull();
-    expect(
-      screen.getByText(/has no technology or published-content references/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/has no related references/)).toBeInTheDocument();
   });
 
   it("uses the not-found boundary for an unknown idea", async () => {
