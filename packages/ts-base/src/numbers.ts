@@ -64,10 +64,10 @@ export function formatFraction(
   const whole = rounded / scale;
   const prefix = negative && rounded !== BigInt(0) ? "-" : "";
   if (decimalPlaces === 0) return `${prefix}${whole}`;
-  const remainder = (rounded % scale)
+  let remainder = (rounded % scale)
     .toString()
-    .padStart(decimalPlaces, "0")
-    .replace(/0+$/, "");
+    .padStart(decimalPlaces, "0");
+  while (remainder.endsWith("0")) remainder = remainder.slice(0, -1);
   return remainder
     ? `${prefix}${whole}.${remainder}`
     : `${prefix}${whole}`;
@@ -79,5 +79,7 @@ export function compareDecimals(left: string, right: string): number {
   const difference =
     leftFraction.numerator * rightFraction.denominator -
     rightFraction.numerator * leftFraction.denominator;
-  return difference < BigInt(0) ? -1 : difference > BigInt(0) ? 1 : 0;
+  if (difference < BigInt(0)) return -1;
+  if (difference > BigInt(0)) return 1;
+  return 0;
 }

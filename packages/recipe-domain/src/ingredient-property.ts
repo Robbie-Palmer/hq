@@ -179,7 +179,7 @@ export function reconcileIngredientProperty(input: {
   const first = observations[0];
   if (!first) throw new Error("Ingredient property candidates are missing");
   const expectedIdentity = ingredientPropertyKey(first.value);
-  const incompatible = observations.find(
+  const incompatible = observations.some(
     (observation) =>
       observation.ingredientSlug !== first.ingredientSlug ||
       observation.preparationState !== first.preparationState ||
