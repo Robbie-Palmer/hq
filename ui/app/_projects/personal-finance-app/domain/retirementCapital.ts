@@ -15,6 +15,14 @@ import {
   type TaxWrapper,
   type WithdrawalTaxTreatment,
 } from "./account";
+import {
+  projectRetirementIncome,
+  type RetirementIncomeOverride,
+  RetirementIncomeOverrideSchema,
+  type RetirementIncomeProjection,
+  type RetirementIncomeStream,
+  RetirementIncomeStreamSchema,
+} from "./retirementIncome";
 
 export type RetirementCapitalAccount = Pick<
   Account,
@@ -53,6 +61,8 @@ export type RetirementCapitalScenario = {
   /** Only listed accounts may fund spending, in this exact order. */
   withdrawalOrder: string[];
   housingReleases?: RetirementHousingRelease[];
+  incomeStreams?: RetirementIncomeStream[];
+  incomeOverrides?: RetirementIncomeOverride[];
 };
 
 export type RetirementWithdrawal = {
@@ -84,6 +94,8 @@ export type AppliedHousingRelease = RetirementHousingRelease & {
 export type RetirementCapitalForecastPoint = {
   date: string;
   spendingRequired: number;
+  retirementIncome: RetirementIncomeProjection;
+  portfolioSpendingRequired: number;
   withdrawals: RetirementWithdrawal[];
   grossWithdrawal: number;
   tax: number;
@@ -376,6 +388,33 @@ function validateScenario(scenario: RetirementCapitalScenario): void {
       scenario.endDate,
     );
   }
+  validateRetirementIncome(scenario);
+}
+
+function validateRetirementIncome(scenario: RetirementCapitalScenario): void {
+  const incomeStreamIds = new Set<string>();
+  for (const stream of scenario.incomeStreams ?? []) {
+    RetirementIncomeStreamSchema.parse(stream);
+    if (incomeStreamIds.has(stream.id)) {
+      throw new Error("Retirement income stream IDs must be unique");
+    }
+    incomeStreamIds.add(stream.id);
+  }
+  const overriddenStreamIds = new Set<string>();
+  for (const override of scenario.incomeOverrides ?? []) {
+    RetirementIncomeOverrideSchema.parse(override);
+    if (!incomeStreamIds.has(override.streamId)) {
+      throw new Error(
+        `Unknown retirement income stream override "${override.streamId}"`,
+      );
+    }
+    if (overriddenStreamIds.has(override.streamId)) {
+      throw new Error(
+        `Retirement income stream "${override.streamId}" has more than one override`,
+      );
+    }
+    overriddenStreamIds.add(override.streamId);
+  }
 }
 
 function applyMonthlyReturns(
@@ -555,6 +594,15 @@ function projectRetirementMonth(input: {
 }): RetirementCapitalForecastPoint {
   if (input.applyReturns) applyMonthlyReturns(input.states, input.date);
   const housingReleases = applyHousingReleases(input.releases, input.states);
+  const retirementIncome = projectRetirementIncome({
+    date: input.date,
+    streams: input.scenario.incomeStreams ?? [],
+    overrides: input.scenario.incomeOverrides,
+  });
+  const portfolioSpendingRequired = Math.max(
+    input.monthlySpending - retirementIncome.netAmount,
+    0,
+  );
   const { withdrawals, spendingShortfall } = withdrawSpending({
     accountsById: input.accountsById,
     states: input.states,
@@ -562,7 +610,7 @@ function projectRetirementMonth(input: {
     selectedAccountIds: input.selectedAccountIds,
     scenarioStartDate: input.scenario.startDate,
     date: input.date,
-    spendingRequired: input.monthlySpending,
+    spendingRequired: portfolioSpendingRequired,
   });
   const position = capitalPosition(
     input.scenario.accounts,
@@ -574,6 +622,8 @@ function projectRetirementMonth(input: {
   return {
     date: input.date,
     spendingRequired: roundMoney(input.monthlySpending),
+    retirementIncome,
+    portfolioSpendingRequired: roundMoney(portfolioSpendingRequired),
     withdrawals,
     grossWithdrawal: sumWithdrawals(withdrawals, "grossWithdrawal"),
     tax: sumWithdrawals(withdrawals, "tax"),

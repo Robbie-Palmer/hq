@@ -157,6 +157,49 @@ describe("projectRetirementCapital", () => {
     ]);
   });
 
+  it("uses dated retirement income before portfolio withdrawals", () => {
+    const result = projectRetirementCapital(
+      scenario([account({ id: "isa", name: "ISA", balance: 10_000 })], {
+        endDate: "2035-02-01",
+        incomeStreams: [
+          {
+            id: "db-pension",
+            name: "Defined-benefit pension",
+            kind: "defined-benefit-pension",
+            ownerId: "primary",
+            amount: 750,
+            amountBasis: "net",
+            frequency: "monthly",
+            currency: "GBP",
+            startDate: "2035-02-01",
+            inflation: { kind: "level" },
+            survivorTreatment: {
+              kind: "percentage",
+              survivorOwnerId: "partner",
+              percentage: 0.5,
+            },
+            provenance: { kind: "manual-estimate" },
+            taxTreatment: { kind: "already-net" },
+            interactingBenefits: [],
+          },
+        ],
+      }),
+    );
+
+    expect(result.points[0]).toMatchObject({
+      spendingRequired: 1_000,
+      portfolioSpendingRequired: 1_000,
+      netSpendingCash: 1_000,
+    });
+    expect(result.points[1]).toMatchObject({
+      spendingRequired: 1_000,
+      retirementIncome: { netAmount: 750 },
+      portfolioSpendingRequired: 250,
+      grossWithdrawal: 250,
+      netSpendingCash: 250,
+    });
+  });
+
   it("uses the explicit taxable-to-ISA-to-pension order and itemises deductions", () => {
     const result = projectRetirementCapital(
       scenario(
