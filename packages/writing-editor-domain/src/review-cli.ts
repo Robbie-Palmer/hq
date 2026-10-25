@@ -12,7 +12,7 @@ import { type Decision, DecisionSchema } from "./decisions";
 import {
   prepareReviewRecords,
   renderFinding,
-  renderProposalDiff,
+  renderProposalReview,
   ReviewRecordsSchema,
   validateRecordedDecisions,
 } from "./review";
@@ -69,7 +69,7 @@ export async function main(
       existingDecisions,
       decide: async (proposal) => {
         io.output.write(
-          `${renderProposalDiff(proposal, source, input.displayPath)}\n`,
+          `${renderProposalReview(proposal, source, input.displayPath)}\n`,
         );
         return promptForDecision(prompts, io.output);
       },
