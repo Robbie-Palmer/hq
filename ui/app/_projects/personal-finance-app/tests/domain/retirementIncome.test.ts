@@ -12,6 +12,12 @@ const lineage = {
   ruleId: "uk-income-tax-2026-27",
 };
 
+const propertyTaxLineage = {
+  calculationVersion: "1",
+  ruleDatasetVersion: "2026.10.3",
+  ruleId: "uk-property-income-tax-scenario",
+};
+
 function stream(
   overrides: Partial<RetirementIncomeStream> &
     Pick<RetirementIncomeStream, "id" | "name" | "ownerId">,
@@ -162,7 +168,13 @@ describe("projectRetirementIncome", () => {
           id: "rent",
           name: "Rental income",
           ownerId: "alex",
-          kind: "other",
+          kind: "rental-income",
+          rentalIncome: {
+            annualOperatingExpenses: 2_000,
+            annualAllowableExpenses: 2_000,
+            annualResidentialFinanceCosts: 0,
+            expenseTreatment: { kind: "actual-expenses" },
+          },
           taxTreatment: {
             kind: "unsupported",
             reason: "Property expenses need a separate calculation",
@@ -186,6 +198,108 @@ describe("projectRetirementIncome", () => {
     ]);
   });
 
+  it("taxes rental profit after allowable expenses and records cash costs", () => {
+    const result = projectRetirementIncome({
+      date: "2035-01-01",
+      streams: [
+        stream({
+          id: "rental",
+          name: "Rental property",
+          ownerId: "alex",
+          kind: "rental-income",
+          amount: 24_000,
+          rentalIncome: {
+            annualOperatingExpenses: 4_000,
+            annualAllowableExpenses: 4_000,
+            annualResidentialFinanceCosts: 6_000,
+            expenseTreatment: { kind: "actual-expenses" },
+          },
+          taxTreatment: {
+            kind: "fixed-rate",
+            rate: 0.2,
+            lineage: propertyTaxLineage,
+          },
+        }),
+      ],
+    });
+
+    expect(result.streams[0]).toMatchObject({
+      grossAmount: 2_000,
+      taxableAmount: 1_666.67,
+      cashDeductions: 833.33,
+      taxAmount: 333.33,
+      netAmount: 833.34,
+    });
+    expect(result.issues).toEqual([
+      expect.objectContaining({ code: "property-finance-cost-relief" }),
+    ]);
+  });
+
+  it("supports a versioned property-allowance election", () => {
+    const result = projectRetirementIncome({
+      date: "2035-01-01",
+      streams: [
+        stream({
+          id: "rental",
+          name: "Rental property",
+          ownerId: "alex",
+          kind: "rental-income",
+          amount: 12_000,
+          rentalIncome: {
+            annualOperatingExpenses: 400,
+            annualAllowableExpenses: 400,
+            annualResidentialFinanceCosts: 0,
+            expenseTreatment: {
+              kind: "property-allowance",
+              annualAllowance: 1_000,
+              lineage: propertyTaxLineage,
+            },
+          },
+          taxTreatment: {
+            kind: "fixed-rate",
+            rate: 0.2,
+            lineage: propertyTaxLineage,
+          },
+        }),
+      ],
+    });
+
+    expect(result.streams[0]).toMatchObject({
+      grossAmount: 1_000,
+      taxableAmount: 916.67,
+      cashDeductions: 33.33,
+      taxAmount: 183.33,
+      netAmount: 783.34,
+    });
+  });
+
+  it("requires one aggregate property-business stream per owner", () => {
+    const rental = stream({
+      id: "rental-one",
+      name: "Rental property",
+      ownerId: "alex",
+      kind: "rental-income",
+      rentalIncome: {
+        annualOperatingExpenses: 0,
+        annualAllowableExpenses: 0,
+        annualResidentialFinanceCosts: 0,
+        expenseTreatment: { kind: "actual-expenses" },
+      },
+      taxTreatment: {
+        kind: "fixed-rate",
+        rate: 0.2,
+        lineage: propertyTaxLineage,
+      },
+    });
+
+    expect(() =>
+      projectRetirementIncome({
+        date: "2035-01-01",
+        streams: [rental, { ...rental, id: "rental-two" }],
+      }),
+    ).toThrow("must be combined into one property-business stream");
+  });
+
   it("validates survivor treatment and amount basis", () => {
     expect(() =>
       RetirementIncomeStreamSchema.parse({
@@ -199,5 +313,15 @@ describe("projectRetirementIncome", () => {
         survivorTreatment: { kind: "percentage" },
       }),
     ).toThrow("Percentage survivor treatment needs an owner and percentage");
+    expect(() =>
+      RetirementIncomeStreamSchema.parse({
+        ...stream({
+          id: "rent",
+          name: "Rental property",
+          ownerId: "alex",
+          kind: "rental-income",
+        }),
+      }),
+    ).toThrow("Rental income needs a property-profit tax basis");
   });
 });

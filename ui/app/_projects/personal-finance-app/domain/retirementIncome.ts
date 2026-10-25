@@ -60,6 +60,31 @@ export type RetirementIncomeTaxTreatment = z.infer<
   typeof RetirementIncomeTaxTreatmentSchema
 >;
 
+export const RentalIncomeTaxBasisSchema = z
+  .object({
+    annualOperatingExpenses: z.number().nonnegative(),
+    annualAllowableExpenses: z.number().nonnegative(),
+    annualResidentialFinanceCosts: z.number().nonnegative().default(0),
+    expenseTreatment: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("actual-expenses") }),
+      z.object({
+        kind: z.literal("property-allowance"),
+        annualAllowance: z.number().nonnegative(),
+        lineage: VersionedTaxLineageSchema,
+      }),
+    ]),
+  })
+  .superRefine((basis, context) => {
+    if (basis.annualAllowableExpenses > basis.annualOperatingExpenses) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Rental allowable expenses cannot exceed recorded operating expenses",
+      });
+    }
+  });
+export type RentalIncomeTaxBasis = z.infer<typeof RentalIncomeTaxBasisSchema>;
+
 export const RetirementIncomeStreamSchema = z
   .object({
     id: z.string().trim().min(1),
@@ -68,6 +93,7 @@ export const RetirementIncomeStreamSchema = z
       "state-pension",
       "defined-benefit-pension",
       "annuity",
+      "rental-income",
       "other",
     ]),
     ownerId: z.string().trim().min(1),
@@ -87,6 +113,7 @@ export const RetirementIncomeStreamSchema = z
       .optional(),
     provenance: RetirementIncomeProvenanceSchema,
     taxTreatment: RetirementIncomeTaxTreatmentSchema,
+    rentalIncome: RentalIncomeTaxBasisSchema.optional(),
     interactingBenefits: z.array(z.string().trim().min(1)).default([]),
   })
   .superRefine((stream, context) => {
@@ -116,6 +143,24 @@ export const RetirementIncomeStreamSchema = z
           "A gross retirement income amount needs an explicit tax treatment",
       });
     }
+    if (stream.kind === "rental-income" && stream.rentalIncome == null) {
+      context.addIssue({
+        code: "custom",
+        message: "Rental income needs a property-profit tax basis",
+      });
+    }
+    if (stream.kind === "rental-income" && stream.amountBasis !== "gross") {
+      context.addIssue({
+        code: "custom",
+        message: "Rental income must record gross rent before property costs",
+      });
+    }
+    if (stream.kind !== "rental-income" && stream.rentalIncome != null) {
+      context.addIssue({
+        code: "custom",
+        message: "Only rental income can have a property-profit tax basis",
+      });
+    }
     const survivor = stream.survivorTreatment;
     if (
       survivor?.kind === "percentage" &&
@@ -143,7 +188,11 @@ export type RetirementIncomeOverride = z.infer<
 
 export type RetirementIncomeIssue = {
   streamId: string;
-  code: "unsupported-tax" | "interacting-benefit" | "unsupported-currency";
+  code:
+    | "unsupported-tax"
+    | "interacting-benefit"
+    | "unsupported-currency"
+    | "property-finance-cost-relief";
   detail: string;
 };
 
@@ -153,6 +202,8 @@ export type ProjectedRetirementIncome = {
   ownerId: string;
   sourceLabel: "Verified entitlement" | "Manual estimate";
   grossAmount: number | null;
+  taxableAmount: number | null;
+  cashDeductions: number;
   taxAmount: number | null;
   netAmount: number;
   taxLineage: z.infer<typeof VersionedTaxLineageSchema> | null;
@@ -225,6 +276,29 @@ export function retirementIncomeSourceLabel(
     : "Manual estimate";
 }
 
+function rentalAmounts(
+  stream: RetirementIncomeStream,
+  grossAmount: number,
+): { taxableAmount: number; cashDeductions: number } {
+  if (stream.kind !== "rental-income" || stream.rentalIncome == null) {
+    return { taxableAmount: grossAmount, cashDeductions: 0 };
+  }
+  const basis = stream.rentalIncome;
+  const annualTaxDeduction =
+    basis.expenseTreatment.kind === "actual-expenses"
+      ? basis.annualAllowableExpenses
+      : basis.expenseTreatment.annualAllowance;
+  return {
+    taxableAmount: roundMoney(
+      Math.max(grossAmount - annualTaxDeduction / 12, 0),
+    ),
+    cashDeductions: roundMoney(
+      (basis.annualOperatingExpenses + basis.annualResidentialFinanceCosts) /
+        12,
+    ),
+  };
+}
+
 function projectStream(input: {
   stream: RetirementIncomeStream;
   date: string;
@@ -234,11 +308,24 @@ function projectStream(input: {
   issues: RetirementIncomeIssue[];
 } {
   const { stream, date, baseCurrency } = input;
-  const issues = stream.interactingBenefits.map((benefit) => ({
-    streamId: stream.id,
-    code: "interacting-benefit" as const,
-    detail: `${benefit} may change this income or the household tax position`,
-  }));
+  const issues: RetirementIncomeIssue[] = stream.interactingBenefits.map(
+    (benefit) => ({
+      streamId: stream.id,
+      code: "interacting-benefit",
+      detail: `${benefit} may change this income or the household tax position`,
+    }),
+  );
+  if (
+    stream.kind === "rental-income" &&
+    (stream.rentalIncome?.annualResidentialFinanceCosts ?? 0) > 0
+  ) {
+    issues.push({
+      streamId: stream.id,
+      code: "property-finance-cost-relief",
+      detail:
+        "Residential finance-cost tax reduction depends on the household tax position and is not included",
+    });
+  }
   if (stream.currency !== baseCurrency) {
     return {
       stream: null,
@@ -275,9 +362,14 @@ function projectStream(input: {
     ),
   );
   const grossAmount = stream.amountBasis === "gross" ? amount : null;
+  const amounts = rentalAmounts(stream, amount);
+  const taxableAmount =
+    stream.amountBasis === "gross" ? amounts.taxableAmount : null;
   let taxAmount: number | null = null;
   if (stream.taxTreatment.kind === "fixed-rate") {
-    taxAmount = roundMoney(amount * stream.taxTreatment.rate);
+    taxAmount = roundMoney(
+      (taxableAmount ?? amount) * stream.taxTreatment.rate,
+    );
   } else if (stream.amountBasis === "gross") {
     taxAmount = 0;
   }
@@ -288,8 +380,10 @@ function projectStream(input: {
       ownerId: stream.ownerId,
       sourceLabel: retirementIncomeSourceLabel(stream.provenance),
       grossAmount,
+      taxableAmount,
+      cashDeductions: amounts.cashDeductions,
       taxAmount,
-      netAmount: roundMoney(amount - (taxAmount ?? 0)),
+      netAmount: roundMoney(amount - amounts.cashDeductions - (taxAmount ?? 0)),
       taxLineage:
         stream.taxTreatment.kind === "fixed-rate" ||
         stream.taxTreatment.kind === "tax-free"
@@ -310,12 +404,28 @@ function sumKnownAmounts(
   );
 }
 
+function validateRentalBusinesses(
+  streams: readonly RetirementIncomeStream[],
+): void {
+  const rentalOwnerIds = new Set<string>();
+  for (const stream of streams) {
+    if (stream.kind !== "rental-income") continue;
+    if (rentalOwnerIds.has(stream.ownerId)) {
+      throw new Error(
+        `Rental properties for owner "${stream.ownerId}" must be combined into one property-business stream`,
+      );
+    }
+    rentalOwnerIds.add(stream.ownerId);
+  }
+}
+
 export function projectRetirementIncome(input: {
   date: string;
   streams: readonly RetirementIncomeStream[];
   overrides?: readonly RetirementIncomeOverride[];
   baseCurrency?: RetirementIncomeStream["currency"];
 }): RetirementIncomeProjection {
+  validateRentalBusinesses(input.streams);
   const overrides = new Map(
     (input.overrides ?? []).map((override) => [override.streamId, override]),
   );
