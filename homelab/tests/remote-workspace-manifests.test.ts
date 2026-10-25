@@ -1238,7 +1238,7 @@ spec:
   ]);
 });
 
-test("the Doppler validation catalog matches the installed operator version", () => {
+test("the Doppler installer pins its schema version and enforces HTTPS", () => {
   const installer = readFileSync(
     new URL("../scripts/install-doppler-operator.sh", import.meta.url),
     "utf8",
@@ -1257,6 +1257,9 @@ test("the Doppler validation catalog matches the installed operator version", ()
   assert.ok(installedVersion, "the Doppler Operator URL must pin a version");
   assert.ok(schemaVersion, "the Doppler schema catalog must pin a version");
   assert.equal(schemaVersion[1], installedVersion[1]);
+  assert.match(installer, /--proto '=https'/);
+  assert.match(installer, /--proto-redir '=https'/);
+  assert.match(installer, /--tlsv1\.2/);
 });
 
 test("the remote overlay isolates durable data from rebuildable caches", () => {
