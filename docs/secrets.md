@@ -30,6 +30,10 @@ The Work Graph is another deliberate exception. Its runtime, infrastructure,
 and database-backup credentials live in Doppler project `work-graph`, keeping
 its database and recovery access outside the personal-site credential boundary.
 
+Cloudflare token-management authority is the narrowest exception. Its one
+operations config lives in Doppler project `cloudflare-token-bootstrap`, apart
+from every deployment and infrastructure credential it can create or replace.
+
 ## Config Layout
 
 Configs are split by environment and runtime/control boundary:
@@ -45,6 +49,7 @@ Configs are split by environment and runtime/control boundary:
 | `stg_site_ui` | PR preview UI deploy credentials | `preview-site-ui` |
 | `stg_recipe_api` | PR preview Worker/API automation config | `preview-recipe-api` |
 | `ops_preview_agent_access` | Access credential rotation and preview Playwright QA | `preview-agent-access` |
+| `cloudflare-token-bootstrap/ops_provisioner` | Account-owned Cloudflare API token provisioning authority | `production-cloudflare-token-bootstrap` |
 | `prd_pages_env` | Shared production runtime env vars | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_site_ui` | Production UI deploy credentials | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_recipe_api` | Production Worker/API/DB/OAuth config | `production-recipe-api` |
@@ -77,6 +82,7 @@ an individual Cloudflare user. Keep these boundaries separate:
 | `personal-site-production-deploy` | `prd_site_ui` | Production Pages/Workers deploys plus read-only R2, Hyperdrive, and Images access |
 | `ai-review-staging-deploy` | `ai-review/stg` | Staging AI-review Worker deployment and read-only R2 access |
 | `ai-review-production-deploy` | `ai-review/prd` | Production AI-review Worker deployment and read-only R2 access |
+| `cloudflare-account-token-provisioner` | `cloudflare-token-bootstrap/ops_provisioner` | Account API Tokens Write for one account; creates downstream tokens but cannot deploy or change account settings |
 
 Never copy the Terraform token into UI, Worker, AI-review, preview, or legacy
 configs. Roll each token independently, update its owning Doppler config, sync

@@ -180,6 +180,10 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "personal-site",
     "computedVisibility": "unmasked"
   },
+  "DOPPLER_BOOTSTRAP_TOKEN": {
+    "computed": "fixture-project-bootstrap-token",
+    "computedVisibility": "masked"
+  },
   "DOPPLER_TOKEN": {
     "computed": "fixture-doppler-token",
     "computedVisibility": "masked"
@@ -229,5 +233,19 @@ for github_environment in \
     exit 1
   fi
 done
+
+: > "$work_dir/github-calls"
+SYNC_TEST_DIRECTORY="$work_dir" \
+  PATH="$mock_bin:$PATH" \
+  bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+    production-cloudflare-token-bootstrap
+
+grep -Fxq -- \
+  "secret set DOPPLER_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+if grep -Fq -- "DOPPLER_TOKEN" "$work_dir/github-calls"; then
+  echo "The token-bootstrap sync exported the config-reader credential." >&2
+  exit 1
+fi
 
 echo "Account-foundation bootstrap boundary tests passed."

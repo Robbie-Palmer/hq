@@ -271,6 +271,32 @@ run "vector_agent_secret_access_is_scoped" {
   }
 }
 
+run "cloudflare_token_bootstrap_is_restricted" {
+  command = plan
+
+  assert {
+    condition = (
+      doppler_project.managed["cloudflare-token-bootstrap"].name == "cloudflare-token-bootstrap" &&
+      doppler_config.managed["cloudflare-token-bootstrap/ops/ops_provisioner"].name == "ops_provisioner"
+    )
+    error_message = "Cloudflare token authority must have a separately managed Doppler project and config."
+  }
+
+  assert {
+    condition = (
+      github_repository_environment.managed["hq/production-cloudflare-token-bootstrap"].can_admins_bypass == false &&
+      github_repository_environment.managed["hq/production-cloudflare-token-bootstrap"].reviewers[0].users == toset([8760191]) &&
+      github_repository_environment.managed["hq/production-cloudflare-token-bootstrap"].deployment_branch_policy[0].custom_branch_policies == true
+    )
+    error_message = "Cloudflare token provisioning must require a reviewer and the main branch."
+  }
+
+  assert {
+    condition     = github_repository_environment_deployment_policy.managed["hq/production-cloudflare-token-bootstrap/main"].branch_pattern == "main"
+    error_message = "Cloudflare token provisioning must be restricted to main."
+  }
+}
+
 run "vector_agent_secret_bindings" {
   command = apply
 

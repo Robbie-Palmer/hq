@@ -36,7 +36,7 @@ const checkpointSchema = z
   })
   .strict();
 
-const sourceSchema = z.discriminatedUnion("mode", [
+const sourceSchema = z.union([
   z
     .object({
       mode: z.literal("manual"),
@@ -53,7 +53,29 @@ const sourceSchema = z.discriminatedUnion("mode", [
   z
     .object({
       mode: z.literal("extension"),
-      extension: slugSchema,
+      extension: z.literal("cloudflare-account-token"),
+      checkpoint: slugSchema.optional(),
+      token_name: z.string().min(1).max(120),
+      permission_groups: z
+        .array(
+          z
+            .object({
+              id: z.string().regex(/^[0-9a-f]{32}$/),
+              name: z.string().min(1),
+            })
+            .strict(),
+        )
+        .min(1),
+      expires_on: z.iso.datetime().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("extension"),
+      extension: slugSchema.refine(
+        (value) => value !== "cloudflare-account-token",
+        "cloudflare-account-token requires its token policy fields",
+      ),
       checkpoint: slugSchema.optional(),
     })
     .strict(),
@@ -97,6 +119,13 @@ const identitiesSchema = z
         token_env: environmentNameSchema,
         account_id_env: environmentNameSchema,
         workers: z.array(slugSchema).min(1),
+      })
+      .strict()
+      .optional(),
+    cloudflare_token_provisioner: z
+      .object({
+        token_env: environmentNameSchema,
+        account_id_env: environmentNameSchema,
       })
       .strict()
       .optional(),
@@ -166,6 +195,7 @@ function validateSecretScopes(
   const githubEnvironments = new Set(plan.identities.github.environments);
   const cloudflareWorkers = new Set(plan.identities.cloudflare?.workers ?? []);
   for (const [index, secret] of plan.secrets.entries()) {
+    validateCloudflareTokenSource(plan, secret, index, context);
     addDuplicateIssues(
       secret.consumers.map((consumer) =>
         consumer.kind === "github-environment"
@@ -201,6 +231,40 @@ function validateSecretScopes(
       );
     }
   }
+}
+
+function validateCloudflareTokenSource(
+  plan: BootstrapPlanShape,
+  secret: BootstrapPlanShape["secrets"][number],
+  index: number,
+  context: z.RefinementCtx,
+): void {
+  if (
+    secret.creation.mode !== "extension" ||
+    secret.creation.extension !== "cloudflare-account-token" ||
+    !("permission_groups" in secret.creation)
+  ) {
+    return;
+  }
+  if (!plan.identities.cloudflare_token_provisioner) {
+    context.addIssue({
+      code: "custom",
+      path: ["secrets", index, "creation"],
+      message: "requires a separate Cloudflare token-provisioner identity",
+    });
+  }
+  if (!secret.sensitive) {
+    context.addIssue({
+      code: "custom",
+      path: ["secrets", index, "sensitive"],
+      message: "must be true for a generated Cloudflare API token",
+    });
+  }
+  addDuplicateIssues(
+    secret.creation.permission_groups.map(({ id }) => id),
+    `Cloudflare permission-group ids for secret '${secret.id}'`,
+    context,
+  );
 }
 
 export const secretBootstrapPlanSchema = z
@@ -245,7 +309,11 @@ export const secretBootstrapPlanSchema = z
       context,
     );
     validateSecretScopes(plan, context);
-    if (plan.identities.cloudflare && !plan.provider_origins.cloudflare) {
+    if (
+      (plan.identities.cloudflare ||
+        plan.identities.cloudflare_token_provisioner) &&
+      !plan.provider_origins.cloudflare
+    ) {
       context.addIssue({
         code: "custom",
         path: ["provider_origins", "cloudflare"],
@@ -255,7 +323,7 @@ export const secretBootstrapPlanSchema = z
   });
 
 export type SecretBootstrapPlan = z.infer<typeof secretBootstrapPlanSchema>;
-type BootstrapSecret = SecretBootstrapPlan["secrets"][number];
+export type BootstrapSecret = SecretBootstrapPlan["secrets"][number];
 
 export const secretBootstrapStateSchema = z
   .object({
@@ -287,6 +355,17 @@ export interface SafeBootstrapPlan {
     readonly consumers: readonly string[];
     readonly rotationOwner: string;
     readonly creation: "manual" | "generated" | "extension";
+    readonly sourceDetails?: {
+      readonly provider: "cloudflare";
+      readonly ownership: "account";
+      readonly tokenName: string;
+      readonly accountIdEnvironment: string;
+      readonly permissionGroups: readonly {
+        readonly id: string;
+        readonly name: string;
+      }[];
+      readonly expiresOn?: string;
+    };
     readonly status: "complete" | "ready" | "waiting";
   }[];
 }
@@ -302,10 +381,12 @@ export type BootstrapCommandRunner = (command: BootstrapCommand) => Promise<void
 export type CredentialFetch = (
   url: URL,
   init: RequestInit,
-) => Promise<Pick<Response, "ok" | "status">>;
+) => Promise<Pick<Response, "ok" | "status"> & { json?: () => Promise<unknown> }>;
 export type SecretSourceExtension = (input: {
   readonly plan: SecretBootstrapPlan;
   readonly secret: BootstrapSecret;
+  readonly environment: Readonly<Record<string, string | undefined>>;
+  readonly fetch: CredentialFetch;
 }) => Promise<string>;
 
 export interface ExecuteSecretBootstrapInput {
@@ -450,6 +531,24 @@ export function planSecretBootstrap(input: {
         consumers: secret.consumers.map(consumerLabel),
         rotationOwner: secret.rotation_owner,
         creation: secret.creation.mode,
+        ...(secret.creation.mode === "extension" &&
+        secret.creation.extension === "cloudflare-account-token" &&
+        "permission_groups" in secret.creation
+          ? {
+              sourceDetails: {
+                provider: "cloudflare" as const,
+                ownership: "account" as const,
+                tokenName: secret.creation.token_name,
+                accountIdEnvironment:
+                  input.plan.identities.cloudflare_token_provisioner
+                    ?.account_id_env ?? "",
+                permissionGroups: secret.creation.permission_groups,
+                ...(secret.creation.expires_on
+                  ? { expiresOn: secret.creation.expires_on }
+                  : {}),
+              },
+            }
+          : {}),
         status,
       };
     }),
@@ -482,7 +581,12 @@ async function resolveSecretValue(
       `Secret '${secret.id}' requires unavailable source extension '${secret.creation.extension}'`,
     );
   }
-  const value = await extension({ plan, secret });
+  const value = await extension({
+    plan,
+    secret,
+    environment: input.environment,
+    fetch: input.fetch ?? fetch,
+  });
   if (!value) throw new Error(`Source extension '${secret.creation.extension}' returned an empty value`);
   return value;
 }
