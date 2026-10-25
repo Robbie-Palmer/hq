@@ -1,88 +1,114 @@
 ---
 title: "Knowledge Graphs"
-description: "Knowledge models that give entities and relationships stable identities, explicit meanings, and links across sources."
+description: "A way to connect facts from independently designed sources through shared identities, named predicates, and explicit semantics."
 source_url: "https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html"
 related_ideas:
   - "ontology-engineering"
   - "data-provenance"
   - "ner"
-  - "domain-driven-design"
+  - "bounded-context"
 ---
 
-A knowledge graph describes knowledge as identifiable entities joined by named relationships. A
-statement such as "Ada wrote Program" can be represented as a subject, predicate, and object:
-*Ada*, *wrote*, *Program*. The predicate says what the link means. It is more than an anonymous
-line between two records.
+A knowledge graph is useful when facts are split across sources that were designed separately, yet
+people need to ask questions that cross those boundaries. It gives things reusable identities and
+expresses claims about them through named relationships. The point is to make meaning and identity
+survive the join between sources.
 
-There is no single agreed definition of a knowledge graph. The
-[Stanford CS520 introduction](https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html)
-starts with a directed, labelled graph whose labels have well-defined meanings. Other definitions
-also require a schema, links across sources, or methods for deriving new statements. These
-differences produce several kinds of knowledge graph, including RDF graphs and labelled property
-graphs.
+Imagine that one source describes people, another publications, and a third organisations. Each
+can keep its own schema. A knowledge graph can state that the author in one source is the same
+person described in another, then connect that person to a publication and an employer. A reader
+can ask which organisations employ authors who publish on a given subject without first building a
+new combined record for that exact question.
 
-## Predicates carry meaning
+## The graph is made of claims
 
-In a knowledge graph, relationship names belong to the knowledge model. *Wrote*, *employed by*,
-and *located in* describe different claims and support different questions. A query can match a
-particular predicate or a path made from several predicates, such as a work, its author, and the
-author's birthplace.
+A common representation is a subject, predicate, and object. "Ada wrote Program" becomes *Ada*,
+*wrote*, *Program*. The predicate is a named part of the knowledge model. It says what the
+connection means and can be used in a query.
+
+The [Stanford CS520 introduction](https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html)
+starts with a directed, labelled graph whose labels have well-defined meanings. This separates a
+knowledge graph from a network in which edges mean only "connected to". It also lets a query match
+a chain of particular claims, such as a publication, its author, and the author's employer.
+
+SPARQL expresses these questions as patterns of RDF triples. Property-graph languages express them
+as patterns of nodes, edges, labels, and paths. The exact graph model varies, but named predicates
+and reusable entity identities are the useful contract.
+
+## Identity lets sources meet
+
+Names alone are poor join keys. Two records called "Ada" may describe different people, while
+"A. Lovelace" and "Augusta Ada King" may describe one person. Entity resolution decides when
+records refer to the same thing and records the evidence for that decision.
 
 RDF uses global identifiers called IRIs for predicates, and permits subjects and non-literal
-objects to use them too. Two publishers can therefore refer to the same predicate or entity
-without sharing a database schema. Labelled property graphs usually use names that are local to
-one graph, although applications can impose wider naming rules. In either case, merging graphs
-safely depends on knowing whether two identifiers denote the same thing and whether two predicates
-express the same relationship.
+objects to use them too. Independent publishers can therefore refer to the same entity or
+relationship without adopting one table layout. This practice is closely associated with linked
+data. Labelled property graphs often use identifiers that are local to one graph, so applications
+must supply their own rules for connecting sources.
 
-[Named entity recognition](/ideas/ner) can find candidate entities in text. Entity resolution then
-decides whether two mentions refer to one entity. That decision is part of constructing the graph,
-and mistaken matches create mistaken paths.
+[Named entity recognition](/ideas/ner) can find mentions in text. It does not decide identity by
+itself. A mistaken identity match joins every surrounding claim to the wrong thing, which makes
+entity resolution one of the consequential parts of building a knowledge graph.
 
-## Schemas can support inference
+## Semantics make the links reusable
 
-[Ontology engineering](/ideas/ontology-engineering) defines classes and predicates when a graph
-needs shared semantics. In RDF Schema or OWL, those definitions can also entail statements that
-were never stored directly. If every *archivist* is a *person*, and Jo is an archivist, a reasoner
-can infer that Jo is a person. Rules can define inverse relationships, class hierarchies, and other
-consequences.
+[Ontology engineering](/ideas/ontology-engineering) defines what classes and predicates mean. It
+can distinguish legal ownership from operational responsibility, for example, instead of placing
+both under a vague *owner* link. An ontology may also define consequences. If every *archivist* is
+a *person*, and Jo is an archivist, an RDF Schema or OWL reasoner can infer that Jo is a person.
 
-Reasoning is optional. Many knowledge graphs use a lightweight vocabulary and answer only what
-their recorded statements support. Others use formal ontologies and an entailment regime. Readers
-need to know which behaviour a graph provides, because an inferred answer has a different basis
-from an asserted one.
+Inference is optional. Many knowledge graphs use a small vocabulary and return only recorded
+claims. Formal reasoning becomes useful when consumers need consistent deductions across sources,
+but it also makes the basis of an answer less obvious. A result should say whether its supporting
+claims were asserted or inferred.
 
-## The graph is the query model
+[Bounded contexts](/ideas/bounded-context) explain why one universal vocabulary is often the wrong
+goal. Two domains may use the same word differently or different words for related concepts. A
+knowledge graph can preserve those local meanings and publish explicit mappings at the boundary.
+Treating every similar term as identical destroys the distinctions the graph was meant to expose.
 
-Knowledge-graph query languages match graph-shaped patterns. SPARQL matches sets of RDF triples;
-property-graph languages match nodes, edges, labels, and paths. This makes a chain of named
-relationships a direct part of the query rather than an implementation detail hidden behind one
-application endpoint.
+## Provenance qualifies a claim
+
+Sources can disagree, and a claim can stop being true. RDF named graphs, reification, and similar
+techniques let a system identify a statement or a set of statements, then attach a source, time, or
+confidence to it. [Data provenance](/ideas/data-provenance) covers the broader task of recording
+where data came from and how it changed.
+
+This makes it possible to explain an answer assembled through several links. The system can show
+which source supplied each claim, which identity matches were involved, and which steps were
+inferred. Without that context, a multi-hop answer is difficult to challenge or correct.
+
+## Where the term earns its keep
 
 Relational tables can represent the same facts, and SQL can follow relationships through joins or
-recursive queries. The choice of a knowledge graph adds neither truth nor expressive power by
-itself. It makes entities, predicates, and graph patterns the shared model presented to publishers
-and consumers. A graph database is one possible storage engine for that model. It can also store a
-network with no knowledge model at all.
+recursive queries. A graph database can store and traverse a network without giving its links
+shared meanings. Neither storage choice settles whether a system has a knowledge graph.
 
-## Statements can have their own context
+The knowledge-graph model earns its extra machinery when several owners publish overlapping facts,
+new sources or relationship types arrive often, and consumers need questions whose paths were not
+fixed when the data was designed. It is also useful when answers must carry identity, semantic, and
+provenance evidence across those paths.
 
-Graphs assembled from several sources often contain competing or time-bound claims. RDF named
-graphs, reification, and similar techniques let a system identify a statement or a set of
-statements, then attach a source, time, or confidence to it. [Data provenance](/ideas/data-provenance)
-explains the broader job of recording where data came from and how it changed.
+If one team owns the schema, the access patterns are stable, and local identifiers are sufficient,
+ordinary tables or documents are usually clearer. Calling that data a knowledge graph would add a
+label without solving a new problem.
 
-This context matters when the graph answers through several links. A useful result should expose
-which statements supported the path and whether any were inferred. Otherwise the graph can return
-a connected answer without showing why anyone should accept it.
+## The surrounding ideas
+
+The adjacent terms describe different parts of the job. Entity resolution establishes identity.
+Ontology engineering defines meaning. Linked data publishes reusable identifiers and statements
+across the web. Data provenance records the evidence behind claims. A graph database provides one
+kind of storage and query engine. A knowledge graph brings some or all of these together so facts
+from separate models can support a connected question.
 
 ## Questions it prompts
 
-* Do entities and predicates have identities that can be reused across sources?
-* Which meanings come from an ontology, a local schema, or application convention?
-* Does the graph return asserted statements, inferred statements, or both?
-* Which path patterns need to be queried across independently published data?
-* Would tables and ordinary joins give consumers a simpler model for the same facts?
+* Which questions need to cross independently owned sources?
+* Which entities require shared identities, and how will identity matches be justified?
+* Which predicates need shared definitions, and which meanings should remain local?
+* Must answers distinguish asserted, mapped, and inferred claims?
+* Would a stable relational schema answer the same questions with less machinery?
 
 ## Sources
 
