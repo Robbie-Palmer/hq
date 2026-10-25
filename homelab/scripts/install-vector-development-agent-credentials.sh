@@ -6,7 +6,7 @@ homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 context=${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}
 export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-${homelab_dir}/.kube/vector-development.yaml}"
 
-if [ ! -t 0 ]; then
+if [[ ! -t 0 ]]; then
   echo "Run this task from an interactive terminal so credentials remain hidden" >&2
   exit 1
 fi
@@ -31,7 +31,7 @@ pod=$(
         | .metadata.name // empty
       '
 )
-if [ -z "${pod}" ]; then
+if [[ -z "${pod}" ]]; then
   echo "No ready Vector t3-code pod is available" >&2
   exit 1
 fi
@@ -46,11 +46,11 @@ kubectl --context "${context}" --namespace t3-code exec --stdin "${pod}" \
   <"${script_dir}/check-t3-idle.mjs"
 idle_status=$?
 set -e
-if [ "${idle_status}" -eq 20 ]; then
+if [[ "${idle_status}" -eq 20 ]]; then
   echo "Vector has active T3 work; credentials were not changed" >&2
   exit 1
 fi
-if [ "${idle_status}" -ne 0 ]; then
+if [[ "${idle_status}" -ne 0 ]]; then
   echo "The T3 idle check failed; credentials were not changed" >&2
   exit "${idle_status}"
 fi
@@ -66,7 +66,7 @@ read -r -s -p "GitHub fine-grained token for Robbie-Palmer/hq: " github_token
 printf '\n'
 read -r -s -p "Doppler vector-development-t3 service-account token: " doppler_token
 printf '\n'
-if [ -z "${github_token}" ] || [ -z "${doppler_token}" ]; then
+if [[ -z "${github_token}" || -z "${doppler_token}" ]]; then
   echo "Both credentials are required" >&2
   exit 1
 fi
@@ -118,10 +118,10 @@ for _ in $(seq 1 150); do
           | .metadata.name // empty
         '
   )
-  [ -n "${replacement_pod}" ] && break
+  [[ -n "${replacement_pod}" ]] && break
   sleep 2
 done
-if [ -z "${replacement_pod}" ]; then
+if [[ -z "${replacement_pod}" ]]; then
   echo "The runtime secret changed, but the Vector T3 pod was not replaced" >&2
   exit 1
 fi

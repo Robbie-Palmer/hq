@@ -21,7 +21,7 @@ pod=$(
         | .metadata.name // empty
       '
 )
-if [ -z "${pod}" ]; then
+if [[ -z "${pod}" ]]; then
   echo "No ready Vector t3-code pod is available" >&2
   exit 1
 fi
