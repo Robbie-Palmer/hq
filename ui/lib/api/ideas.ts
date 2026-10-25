@@ -36,6 +36,8 @@ export function getAllIdeas() {
   });
 }
 
+export type IdeaSummary = ReturnType<typeof getAllIdeas>[number];
+
 export function getIdea(slug: string) {
   const idea = getIdeaEntity(repository, slug);
   if (!idea) return null;
