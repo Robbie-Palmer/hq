@@ -4,6 +4,7 @@ import type {
   CollaborativePlaylist,
   GuestDirectoryMetadata,
   WeddingGuest,
+  WeddingReadinessPreferences,
 } from "wedding-planner-domain";
 import type {
   Guest as AccommodationGuest,
@@ -26,6 +27,7 @@ export type WeddingPlanDraft = Omit<AccommodationState, "guests"> & {
   hosts?: string[];
   guest_directory?: GuestDirectoryMetadata;
   playlist?: CollaborativePlaylist;
+  readiness?: WeddingReadinessPreferences;
   event_table_plans?: Record<string, TablePlan>;
   reviewed_non_couples: string[][];
   [key: string]: unknown;

@@ -28,6 +28,7 @@ export function toEditorState(plan: WeddingPlan): WeddingPlanDraft {
     ),
     guest_directory: structuredClone(plan.guest_directory),
     playlist: plan.playlist ? structuredClone(plan.playlist) : undefined,
+    readiness: structuredClone(plan.readiness),
   };
 }
 
@@ -69,6 +70,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
     dismissed_accommodation_suggestions,
     guest_directory,
     playlist,
+    readiness,
     ...accommodation
   } = state;
   const tables = defaultTablePlan(state);
@@ -127,6 +129,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
       dismissed_accommodation_suggestions,
     },
     playlist,
+    readiness,
     extensions,
   });
 }
