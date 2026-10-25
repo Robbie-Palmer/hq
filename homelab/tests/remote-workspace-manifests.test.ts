@@ -678,6 +678,24 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
     `);
     v2Idle.close();
     assert.equal(check(v2Path).status, 0);
+
+    const staleTodo = new DatabaseSync(v2Path);
+    staleTodo.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('v2-thread', 'todo_list', 'running')
+    `);
+    staleTodo.close();
+    assert.equal(check(v2Path).status, 0);
+
+    const liveExecutionNode = new DatabaseSync(v2Path);
+    liveExecutionNode.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('v2-thread', 'root_turn', 'running')
+    `);
+    liveExecutionNode.close();
+    const liveExecutionNodeResult = check(v2Path);
+    assert.equal(liveExecutionNodeResult.status, 20);
+    assert.match(liveExecutionNodeResult.stderr, /execution node root_turn running/);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
