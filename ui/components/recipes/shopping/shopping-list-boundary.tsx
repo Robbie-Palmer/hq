@@ -304,7 +304,7 @@ class ShoppingListSaveQueue {
     };
   }
 
-  private handleSource = (source: ShoppingListChangeSource): void => {
+  private readonly handleSource = (source: ShoppingListChangeSource): void => {
     if (source === "local") {
       this.scheduleSave();
       return;
@@ -327,7 +327,7 @@ class ShoppingListSaveQueue {
     }, 500);
   }
 
-  private enqueueCurrentSnapshot = (): void => {
+  private readonly enqueueCurrentSnapshot = (): void => {
     const snapshot = shoppingListContents();
     const serialized = JSON.stringify(snapshot);
     if (serialized === this.refs.savedSnapshot.current) return;
@@ -371,7 +371,7 @@ class ShoppingListSaveQueue {
     this.setSaveFailed(false);
   }
 
-  private handleSaveError = (error: unknown): void => {
+  private readonly handleSaveError = (error: unknown): void => {
     this.setSaveFailed(true);
     if (isApiError(error) && error.status === 409) {
       void this.queryClient.invalidateQueries({
