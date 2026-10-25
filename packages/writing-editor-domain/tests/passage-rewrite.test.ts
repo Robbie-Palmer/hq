@@ -55,6 +55,16 @@ function context() {
           type: "technology",
           href: "/technologies/modelpack",
         },
+        {
+          id: "adr:another-project/001-foreign-term",
+          name: "ADR 001: Foreign terminology",
+          type: "adr",
+        },
+        {
+          id: "technology:foreign-term",
+          name: "ForeignTerm",
+          type: "technology",
+        },
       ],
       edges: [
         {
@@ -66,6 +76,11 @@ function context() {
         {
           source: "project:agent-first-writing",
           target: "technology:modelpack",
+          type: "USES_TECHNOLOGY",
+        },
+        {
+          source: "adr:another-project/001-foreign-term",
+          target: "technology:foreign-term",
           type: "USES_TECHNOLOGY",
         },
       ],
@@ -82,8 +97,13 @@ function context() {
       adrIds: [
         "adr:agent-first-writing/010-modelpack-compatible-model-metadata",
         "adr:agent-first-writing/missing",
+        "adr:another-project/001-foreign-term",
       ],
-      terminologyIds: ["technology:modelpack", "terminology:missing"],
+      terminologyIds: [
+        "technology:modelpack",
+        "terminology:missing",
+        "technology:foreign-term",
+      ],
       evidenceIds: ["evidence:modelpack-current", "evidence:missing"],
     },
   });
@@ -124,6 +144,11 @@ describe("context-bounded passage rewrites", () => {
       expect.objectContaining({ kind: "project", freshness: "not-applicable" }),
       expect.objectContaining({ kind: "adr", freshness: "missing" }),
       expect.objectContaining({ kind: "terminology", label: "ModelPack" }),
+      expect.objectContaining({
+        kind: "terminology",
+        id: "technology:foreign-term",
+        freshness: "missing",
+      }),
       expect.objectContaining({ kind: "evidence", freshness: "stale" }),
     ]));
     expect(retrieved.warnings.map(({ code }) => code)).toEqual(expect.arrayContaining([

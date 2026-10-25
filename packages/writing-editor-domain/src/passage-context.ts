@@ -112,13 +112,8 @@ function addProjectContext(state: RetrievalState): void {
 
 function addAdrContext(state: RetrievalState): void {
   for (const adrId of state.query.adrIds) {
-    const adr = state.nodes.get(adrId);
-    const linked = state.snapshot.edges.some(
-      (edge) =>
-        edge.type === "PART_OF_PROJECT" &&
-        edge.source === adrId && edge.target === state.query.projectId,
-    );
-    if (adr?.type === "adr" && linked) {
+    const adr = projectLinkedAdr(state, adrId);
+    if (adr) {
       state.citations.push(nodeCitation("adr", adr));
     } else {
       state.citations.push(missingCitation("adr", adrId));
@@ -128,7 +123,10 @@ function addAdrContext(state: RetrievalState): void {
 }
 
 function addTerminologyContext(state: RetrievalState): void {
-  const sources = new Set([state.query.projectId, ...state.query.adrIds]);
+  const sources = new Set([
+    state.query.projectId,
+    ...state.query.adrIds.filter((adrId) => projectLinkedAdr(state, adrId)),
+  ]);
   for (const terminologyId of state.query.terminologyIds) {
     const term = state.nodes.get(terminologyId);
     const linked = state.snapshot.edges.some(
@@ -148,6 +146,21 @@ function addTerminologyContext(state: RetrievalState): void {
       });
     }
   }
+}
+
+function projectLinkedAdr(
+  state: RetrievalState,
+  adrId: string,
+): GraphNode | undefined {
+  const adr = state.nodes.get(adrId);
+  if (adr?.type !== "adr") return undefined;
+  return state.snapshot.edges.some(
+    (edge) =>
+      edge.type === "PART_OF_PROJECT" &&
+      edge.source === adrId && edge.target === state.query.projectId,
+  )
+    ? adr
+    : undefined;
 }
 
 function addEvidenceContext(state: RetrievalState): void {
