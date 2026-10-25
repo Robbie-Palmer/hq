@@ -122,6 +122,7 @@ validate_entries_for_environment() {
         exit 1
       fi
       ;;
+    *) ;;
   esac
 }
 
