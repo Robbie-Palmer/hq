@@ -9,40 +9,30 @@ import {
 
 const CLOUDFLARE_ACCOUNT_TOKEN_WRITE = "Account API Tokens Write";
 
-const permissionGroupSchema = z
-  .object({
-    id: z.string(),
-    name: z.string(),
-    is_selectable: z.boolean().optional(),
-    scopes: z.array(z.string()).optional(),
-  })
-  .passthrough();
+const permissionGroupSchema = z.looseObject({
+  id: z.string(),
+  name: z.string(),
+  is_selectable: z.boolean().optional(),
+  scopes: z.array(z.string()).optional(),
+});
 
-const permissionGroupsResponseSchema = z
-  .object({ result: z.array(permissionGroupSchema) })
-  .passthrough();
-const verifyResponseSchema = z
-  .object({
-    result: z.object({ id: z.string(), status: z.literal("active") }).passthrough(),
-  })
-  .passthrough();
-const tokenPolicySchema = z
-  .object({
-    effect: z.literal("allow"),
-    permission_groups: z.array(z.object({ id: z.string() }).passthrough()),
-    resources: z.record(z.string(), z.unknown()),
-  })
-  .passthrough();
-const tokenDetailsResponseSchema = z
-  .object({
-    result: z.object({ policies: z.array(tokenPolicySchema) }).passthrough(),
-  })
-  .passthrough();
-const createTokenResponseSchema = z
-  .object({
-    result: z.object({ value: z.string().min(1) }).passthrough(),
-  })
-  .passthrough();
+const permissionGroupsResponseSchema = z.looseObject({
+  result: z.array(permissionGroupSchema),
+});
+const verifyResponseSchema = z.looseObject({
+  result: z.looseObject({ id: z.string(), status: z.literal("active") }),
+});
+const tokenPolicySchema = z.looseObject({
+  effect: z.literal("allow"),
+  permission_groups: z.array(z.looseObject({ id: z.string() })),
+  resources: z.record(z.string(), z.unknown()),
+});
+const tokenDetailsResponseSchema = z.looseObject({
+  result: z.looseObject({ policies: z.array(tokenPolicySchema) }),
+});
+const createTokenResponseSchema = z.looseObject({
+  result: z.looseObject({ value: z.string().min(1) }),
+});
 
 type CloudflareTokenCreation = BootstrapSecret["creation"] & {
   readonly mode: "extension";
@@ -238,9 +228,8 @@ export async function conformCloudflareAccountTokenAuthority(input: {
   for (const expected of requested) {
     const actual = permissionGroups.find(({ id }) => id === expected.id);
     if (
-      !actual ||
-      actual.name !== expected.name ||
-      actual.is_selectable !== true ||
+      actual?.name !== expected.name ||
+      actual?.is_selectable !== true ||
       !actual.scopes?.includes("com.cloudflare.api.account")
     ) {
       throw new Error(

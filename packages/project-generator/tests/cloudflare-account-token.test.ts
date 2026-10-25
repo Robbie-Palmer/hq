@@ -261,4 +261,99 @@ describe("Cloudflare account-token provisioner", () => {
     ).rejects.toThrow("failed with status 403");
     expect(sensitiveBody).not.toHaveBeenCalled();
   });
+
+  it("requires the dedicated identity and approved Cloudflare origin", async () => {
+    const currentPlan = plan();
+    const { cloudflare_token_provisioner: _provisioner, ...identities } =
+      currentPlan.identities;
+    await expect(
+      conformCloudflareAccountTokenAuthority({
+        plan: { ...currentPlan, identities },
+        environment,
+        fetch: conformantFetch().fetchCredential,
+      }),
+    ).rejects.toThrow(/separate token-provisioner identity/);
+
+    await expect(
+      conformCloudflareAccountTokenAuthority({
+        plan: {
+          ...currentPlan,
+          provider_origins: {
+            ...currentPlan.provider_origins,
+            cloudflare: "https://example.com",
+          },
+        },
+        environment,
+        fetch: conformantFetch().fetchCredential,
+      }),
+    ).rejects.toThrow(/approved API origin/);
+  });
+
+  it("rejects missing, invalid, and malformed Cloudflare responses", async () => {
+    const responses = [
+      {
+        response: { ok: true, status: 200 },
+        expected: /no JSON response/,
+      },
+      {
+        response: {
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error("sensitive parse failure");
+          },
+        },
+        expected: /invalid JSON/,
+      },
+      {
+        response: { ok: true, status: 200, json: async () => ({ result: null }) },
+        expected: /unexpected response/,
+      },
+    ];
+
+    for (const testCase of responses) {
+      await expect(
+        conformCloudflareAccountTokenAuthority({
+          plan: plan(),
+          environment,
+          fetch: async () => testCase.response,
+        }),
+      ).rejects.toThrow(testCase.expected);
+    }
+  });
+
+  it("requires the bootstrap permission and exactly one bootstrap policy", async () => {
+    const currentPlan = plan();
+    const { fetchCredential } = conformantFetch();
+    const withoutBootstrapPermission: CredentialFetch = async (url, init) =>
+      url.pathname.endsWith("/permission_groups")
+        ? jsonResponse([
+            {
+              id: DOWNSTREAM_PERMISSION_ID,
+              name: "Workers Scripts Write",
+              is_selectable: true,
+              scopes: ["com.cloudflare.api.account"],
+            },
+          ])
+        : fetchCredential(url, init);
+    await expect(
+      conformCloudflareAccountTokenAuthority({
+        plan: currentPlan,
+        environment,
+        fetch: withoutBootstrapPermission,
+      }),
+    ).rejects.toThrow(/did not expose/);
+
+    const withoutPolicy: CredentialFetch = async (url, init) =>
+      url.pathname.endsWith("/tokens/token-id")
+        ? jsonResponse({ policies: [] })
+        : fetchCredential(url, init);
+    await expect(
+      conformCloudflareAccountTokenAuthority({
+        plan: currentPlan,
+        environment,
+        fetch: withoutPolicy,
+      }),
+    ).rejects.toThrow(/exactly one policy/);
+  });
 });
