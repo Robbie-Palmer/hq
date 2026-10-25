@@ -106,14 +106,22 @@ run "homelab_tailnet_delivery_boundaries" {
   command = plan
 
   assert {
+    condition = (
+      doppler_environment.managed["homelab/prd_tailnet_values"].slug == "prd_tailnet_values" &&
+      !doppler_environment.managed["homelab/prd_tailnet_values"].personal_configs
+    )
+    error_message = "Tailnet delivery must use its dedicated non-personal Doppler environment."
+  }
+
+  assert {
     condition = toset([
       for config in values(doppler_config.managed) :
       "${config.project}/${config.environment}/${config.name}"
       if startswith(config.name, "prd_tailnet")
       ]) == toset([
-      "homelab/prd/prd_tailnet_values",
-      "homelab/prd/prd_tailnet_values_infra",
-      "homelab/prd/prd_tailnet_values_infra_plan",
+      "homelab/prd_tailnet_values/prd_tailnet_values",
+      "homelab/prd_tailnet_values/prd_tailnet_values_infra",
+      "homelab/prd_tailnet_values/prd_tailnet_values_infra_plan",
     ])
     error_message = "Tailnet delivery must declare the shared values, read-only plan, and write apply Doppler configs."
   }

@@ -79,10 +79,16 @@ locals {
               "prd_remote_development_host",
               "prd_remote_development_infra",
               "prd_remote_development_observability",
+              "prd_vector_development",
+            ]
+          }
+          prd_tailnet_values = {
+            name             = "Tailnet Values"
+            personal_configs = false
+            configs = [
               "prd_tailnet_values",
               "prd_tailnet_values_infra",
               "prd_tailnet_values_infra_plan",
-              "prd_vector_development",
             ]
           }
         }
