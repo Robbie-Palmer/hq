@@ -941,16 +941,16 @@ function comparisonCompensation(
     input.baselineCompensation?.annualEmployerPensionContribution ?? null;
   const replace = (baseline: number | null, prior: number, future: number) =>
     baseline == null || replaced == null ? future : baseline - prior + future;
-  const warnings =
-    input.scenario.currentRole == null
-      ? [
-          "Current-role facts are inherited from the existing forecast. Add an explicit current role before relying on this comparison for an employment-exit decision.",
-        ]
-      : explicit == null
-        ? [
-            `The ${input.scenario.currentRole.currency} current role could not be converted to ${input.repository.settings.baseCurrency} from accepted exchange-rate observations.`,
-          ]
-        : [];
+  const warnings: string[] = [];
+  if (input.scenario.currentRole == null) {
+    warnings.push(
+      "Current-role facts are inherited from the existing forecast. Add an explicit current role before relying on this comparison for an employment-exit decision.",
+    );
+  } else if (explicit == null) {
+    warnings.push(
+      `The ${input.scenario.currentRole.currency} current role could not be converted to ${input.repository.settings.baseCurrency} from accepted exchange-rate observations.`,
+    );
+  }
   return {
     warnings,
     value: {
