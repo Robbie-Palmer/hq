@@ -440,9 +440,11 @@ test.describe("deployed recipe PWA offline navigation", () => {
 
     await context.setOffline(true);
     await page.getByRole("button", { name: item, exact: true }).click();
-    await expect(page.getByRole("status")).toContainText(
-      "1 offline shopping-list change is waiting to sync.",
-    );
+    await expect(
+      page.getByRole("status").filter({
+        hasText: "1 offline shopping-list change is waiting to sync.",
+      }),
+    ).toBeVisible();
     await expect.poll(() => readShoppingOutbox(page)).toHaveLength(1);
     const [queued] = await readShoppingOutbox(page);
     if (!queued) throw new Error("The checklist command was not queued");
