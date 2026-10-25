@@ -2859,7 +2859,6 @@ export const createWorkGraphApp = (
   app.openapi(listWorkItemEvidenceRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const { currentOnly, cursor, limit } = context.req.valid("query");
-    await repository.getWorkItem(workItemId);
     const evidence = await repository.listWorkItemDeliveryEvidence({
       workItemId,
       currentOnly: currentOnly === "true",
@@ -2879,7 +2878,6 @@ export const createWorkGraphApp = (
 
   app.openapi(getWorkItemCompletionCandidateRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
-    await repository.getWorkItem(workItemId);
     const candidate = await repository.getCompletionCandidate(workItemId);
     return context.json(
       {

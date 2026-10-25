@@ -3151,6 +3151,38 @@ describe("lease-backed claiming", () => {
     ]);
   });
 
+  it("matches full-graph projections for targeted point reads", async () => {
+    await repository.createWorkItem({ id: "routine", title: "Routine work" });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    await repository.createWorkItem({ id: "middle", title: "Middle" });
+    await repository.createWorkItem({
+      id: "urgent-parent",
+      title: "Urgent parent",
+      expedited: true,
+      expediteReason: "Restore service.",
+    });
+    await repository.createWorkItem({
+      id: "urgent-child",
+      title: "Urgent child",
+      parentId: "urgent-parent",
+    });
+    await repository.addDependency(dependency("urgent-child", "middle"));
+    await repository.addDependency(dependency("middle", "blocker"));
+
+    const listed = await repository.listWorkItems();
+    for (const expected of listed) {
+      await expect(repository.getWorkItem(expected.id)).resolves.toEqual(
+        expected,
+      );
+    }
+    expect(
+      (await repository.getWorkItem("blocker")).priority,
+    ).toMatchObject({
+      effectiveExpedited: true,
+      donatedFromWorkItemId: "urgent-child",
+    });
+  });
+
   it("reclaims stale work with a higher epoch and expires the old lease", async () => {
     await repository.createWorkItem({ id: "work", title: "Stale work" });
     const firstLease = await repository.claimWorkItem({
