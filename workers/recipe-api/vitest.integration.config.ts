@@ -9,6 +9,7 @@ export default defineConfig({
       include: [
         "workers/recipe-api/src/**/*.ts",
         "packages/recipe-db/src/batch-drafts.ts",
+        "packages/recipe-db/src/ingredient-properties.ts",
       ],
       reporter: [["lcovonly", { projectRoot: "../.." }]],
       reportsDirectory: "workers/recipe-api/coverage-integration",
