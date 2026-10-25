@@ -2415,6 +2415,54 @@ test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
   );
 });
 
+test("Vector agent credentials use an idle guard and non-secret health checks", () => {
+  const installer = readFileSync(
+    new URL(
+      "../scripts/install-vector-development-agent-credentials.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const healthCheck = readFileSync(
+    new URL(
+      "../scripts/vector-development-agent-auth-health.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(installer.includes('check-t3-idle.mjs'));
+  assert.ok(installer.includes('read -r -s -p'));
+  assert.equal(installer.match(/doppler secrets upload/g)?.length, 1);
+  assert.ok(installer.includes('--rawfile github_token'));
+  assert.ok(installer.includes('--rawfile doppler_token'));
+  assert.doesNotMatch(installer, /doppler secrets set/);
+  assert.ok(installer.includes('--config prd_vector_development'));
+  assert.ok(installer.includes('for _ in $(seq 1 180)'));
+  assert.ok(installer.includes('.data.AGENT_CREDENTIALS_REVISION'));
+  assert.ok(installer.includes('${AGENT_CREDENTIALS_REVISION:-}'));
+  assert.ok(installer.includes('gh auth setup-git --hostname github.com --force'));
+  assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_token)/);
+
+  assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
+  assert.match(
+    healthCheck,
+    /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
+  );
+  assert.ok(!healthCheck.includes('.permissions.push'));
+  assert.ok(
+    healthCheck.includes(
+      'for project in ai-review homelab personal-site work-graph',
+    ),
+  );
+  assert.match(
+    healthCheck,
+    /doppler secrets --project "\$\{project\}" --config dev --only-names/,
+  );
+  assert.ok(!healthCheck.includes('--raw'));
+  assert.ok(!healthCheck.includes('--plain'));
+});
+
 test("the Vector tailnet scripts avoid local DNS collisions", () => {
   const fetchKubeconfig = readFileSync(
     new URL("../scripts/fetch-vector-development-kubeconfig.sh", import.meta.url),

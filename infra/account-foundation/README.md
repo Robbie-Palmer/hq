@@ -64,6 +64,13 @@ roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
 and `personal-finance`. Secret values remain with the workload that uses each
 config.
 
+The same root owns the `vector-development-t3` Doppler service account, its
+secret-value-only custom project role, and explicit membership in the four
+development environments used by the monorepo. It does not create a service
+account token: provider-generated credentials must not enter Terraform state.
+The [Vector commissioning guide](../../homelab/docs/vector-development.md)
+describes the guarded token bootstrap and runtime health check.
+
 Personal Finance uses three Doppler environments named `ops`, `drift`, and
 `apply`. Their automatically created root configs hold the separated delivery
 credentials. This avoids child-config inheritance, which the current Doppler
