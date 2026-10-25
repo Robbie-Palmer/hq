@@ -5,6 +5,8 @@ container_id=""
 container_name=""
 migration_recovery_database=""
 migration_recovery_url=""
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+expected_migration_count=$(jq '.entries | length' "$script_dir/../drizzle/meta/_journal.json")
 
 cleanup() {
   container_ref="${container_id:-$container_name}"
@@ -105,8 +107,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$recovery_migration_count" != "31" ]]; then
-    echo "Expected the recovery database to apply all 31 migrations." >&2
+  if [[ "$recovery_migration_count" != "$expected_migration_count" ]]; then
+    echo "Expected the recovery database to apply all $expected_migration_count migrations." >&2
     exit 1
   fi
 
@@ -123,7 +125,7 @@ if [[ -n "$migration_recovery_url" ]]; then
     --username postgres \
     --dbname "$migration_recovery_database" \
     --set ON_ERROR_STOP=1 \
-    --command 'delete from drizzle.__drizzle_migrations where created_at in (1792232867906, 1792494340628)' \
+    --command 'delete from drizzle.__drizzle_migrations where created_at >= 1792232867906' \
     >/dev/null
   pending_migration_count=$(docker exec "$container_id" psql \
     --username postgres \
@@ -131,8 +133,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$pending_migration_count" != "29" ]]; then
-    echo "Expected migration 0028 and its successor to be pending in the recovery database." >&2
+  if [[ "$pending_migration_count" != "28" ]]; then
+    echo "Expected migration 0028 and its successors to be pending in the recovery database." >&2
     exit 1
   fi
 
@@ -143,8 +145,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$reapplied_migration_count" != "31" ]]; then
-    echo "Expected migration 0028 and its successor to reapply over the existing schema." >&2
+  if [[ "$reapplied_migration_count" != "$expected_migration_count" ]]; then
+    echo "Expected migration 0028 and its successors to reapply over the existing schema." >&2
     exit 1
   fi
 fi
