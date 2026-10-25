@@ -205,6 +205,10 @@ chmod +x "$mock_bin/doppler"
 cat > "$mock_bin/gh" <<'MOCK_GH'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ " $* " != *" --repo Robbie-Palmer/hq "* ]]; then
+  echo "Missing explicit GitHub repository: $*" >&2
+  exit 1
+fi
 if [[ "${2:-}" == "list" ]]; then
   echo '[]'
   exit 0
