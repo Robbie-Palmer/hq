@@ -433,7 +433,7 @@ export const legacyADRAliases = [
     alias: "work-graph:007-shortcut",
     target: "personal-knowledge-graph:034-shortcut",
     notes:
-      "Shortcut remains the authoritative tracker outside any explicitly bounded Work\nGraph pilot while Work Graph proves that it can replace the existing capture,\nranking, and review workflow. Inheriting the decision here gives Work Graph\nownership of that eventual cutover without pretending it has already happened.\n",
+      "Shortcut remained authoritative outside the bounded Work Graph pilot until the\n25 October 2026 cutover. Work Graph reconciled all 131 active personal stories\nbefore ADR 007 superseded this inherited decision. Shortcut is now a legacy\nrecord and possible import source, not an authority for current personal work.\n",
   },
   // Canonical ownership redirects retained after moving domain decisions out
   // of the Personal Knowledge Graph project.

@@ -1,7 +1,8 @@
 ---
 title: "ADR 007: Make Work Graph the authoritative work system"
 date: "2026-09-19"
-status: "Proposed"
+status: "Accepted"
+supersedes: "work-graph:007-shortcut"
 ---
 
 ## Context
@@ -77,8 +78,8 @@ or desktop client remains optional and does not affect acceptance.
 
 Keep this ADR proposed, and keep Shortcut authoritative outside an explicitly
 bounded Work Graph pilot, until the acceptance criteria pass. Each pilot has
-one authority for its stated scope. At that point, mark this ADR accepted and
-record it as superseding ADR 007.
+one authority for its stated scope. Once they pass, accept this ADR and record
+it as superseding the inherited Shortcut decision.
 
 ## Acceptance criteria
 
@@ -104,6 +105,20 @@ record it as superseding ADR 007.
 6. At least one change can be followed from source control through CI and
    promotion between environments. Observed system events update its evidence
    and state without requiring the owner to reread and reconcile its tickets.
+
+## Acceptance record
+
+The owner accepted this decision on 25 October 2026 after using Work Graph
+instead of Shortcut for project management for several weeks. It proved more
+capable at planning dependencies, coordinating concurrent agents, and tying
+completion to evidence. The acceptance evidence remains in Work Graph on
+`work-graph-authority-acceptance` and its delivery tickets.
+
+Work Graph is authoritative for migrated personal executable work. The public
+knowledge graph still owns durable initiative, project, and architecture prose.
+GitHub, dependency automation, security tools, telemetry, and Shortcut may
+supply observations, links, or legacy records, but they do not own Work Graph
+lifecycle or priority.
 
 ## Consequences
 
