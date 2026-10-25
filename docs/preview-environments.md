@@ -71,7 +71,8 @@ positive overrides such as `300` are rejected with `412 Precondition Failed`.
 
 Schema changes use committed Drizzle migrations. Every preview branch starts
 without application objects or migration history, so `drizzle-kit migrate`
-applies the complete history beginning with the strict `0000_baseline.sql`.
+applies the complete history beginning with the strict
+`0000_create_recipe_database_baseline.sql`.
 The branch is recreated on every PR update because migration files can still be
 edited before they reach `main`.
 

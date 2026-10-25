@@ -11,7 +11,7 @@ Production and previews run those migrations before deploying the Worker.
 2. Generate one migration for the coherent change:
 
    ```bash
-   mise run //workers/recipe-api:db:generate -- --name add_recipe_notes
+   mise run //workers/recipe-api:db:generate -- add_recipe_notes
    ```
 
 3. Review both the generated SQL and snapshot. Add explicit SQL for any data
@@ -90,14 +90,14 @@ The repository deliberately has three data paths:
 | Required reference data, such as diets and ingredients | SQL data migration | Versioned with the application and applied exactly once |
 | Disposable PR test accounts and recipes | Preview seed | Preview environments only |
 
-The initial reference catalog is committed as `0001_diet_catalog.sql`, so a
+The initial reference catalog is committed as `0001_seed_initial_diet_catalog.sql`, so a
 fresh `db:migrate` produces a usable database without a separate seed command.
 For a catalog change, generate a custom migration and write the explicit
 inserts, updates, or deletes required to move from the old catalog to the new
 one:
 
 ```bash
-mise run //workers/recipe-api:db:generate -- --custom --name update_diet_catalog
+mise run //workers/recipe-api:db:generate -- update_diet_catalog --custom
 ```
 
 Do not edit a catalog migration after it reaches `main`. A later migration is
@@ -136,7 +136,7 @@ migrations.
 
 ## Initial baseline and one-time cutover
 
-`0000_baseline.sql` is a normal strict initial migration generated from the
+`0000_create_recipe_database_baseline.sql` is a normal strict initial migration generated from the
 complete TypeScript schema. It assumes an empty database and deliberately fails
 if a conflicting type, table, constraint, or index already exists.
 
