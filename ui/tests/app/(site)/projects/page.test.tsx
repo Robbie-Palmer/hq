@@ -22,6 +22,7 @@ vi.mock("@/lib/api/initiatives", () => ({
       status: "inactive",
       content: "",
       projectContributions: {},
+      ideas: [],
       projects: [],
     },
   ],

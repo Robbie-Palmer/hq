@@ -53,6 +53,17 @@ const idea = {
         status: "in_progress",
       },
     ],
+    initiatives: [
+      {
+        slug: "connected-work",
+        title: "Connected Work",
+        description: "Connect plans and execution.",
+        date: "2026-01-01",
+        status: "active",
+        projectContributions: {},
+        content: "",
+      },
+    ],
     blogs: [
       {
         slug: "platform-teams",
@@ -169,6 +180,9 @@ describe("ideas pages", () => {
       screen.getByRole("link", { name: /^Agentic Code Review/ }),
     ).toHaveAttribute("href", "/projects/agentic-code-review");
     expect(
+      screen.getByRole("link", { name: /^Connected Work/ }),
+    ).toHaveAttribute("href", "/initiatives/connected-work");
+    expect(
       screen.getByRole("link", { name: /^Platform Teams/ }),
     ).toHaveAttribute("href", "/blog/platform-teams");
     expect(
@@ -188,7 +202,13 @@ describe("ideas pages", () => {
       ...idea,
       sourceUrl: undefined,
       relatedIdeas: [],
-      relatedContent: { technologies: [], projects: [], blogs: [], adrs: [] },
+      relatedContent: {
+        technologies: [],
+        projects: [],
+        initiatives: [],
+        blogs: [],
+        adrs: [],
+      },
     });
 
     render(
@@ -198,9 +218,7 @@ describe("ideas pages", () => {
     );
 
     expect(screen.queryByRole("link", { name: /Read the source/ })).toBeNull();
-    expect(
-      screen.getByText(/has no technology or published-content references/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/has no related references/)).toBeInTheDocument();
   });
 
   it("uses the not-found boundary for an unknown idea", async () => {

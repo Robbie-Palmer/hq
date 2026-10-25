@@ -20,6 +20,7 @@ export interface RelationData {
   projectRole: Map<ProjectSlug, RoleSlug>;
   projectTags: Map<ProjectSlug, string[]>;
   projectInitiatives: Map<ProjectSlug, InitiativeSlug[]>;
+  initiativeIdeas: Map<InitiativeSlug, IdeaSlug[]>;
   blogTechnologies: Map<BlogSlug, TechnologySlug[]>;
   blogIdeas: Map<BlogSlug, IdeaSlug[]>;
   blogTags: Map<BlogSlug, string[]>;
@@ -55,6 +56,7 @@ export function createEmptyRelationData(): RelationData {
     projectRole: new Map(),
     projectTags: new Map(),
     projectInitiatives: new Map(),
+    initiativeIdeas: new Map(),
     blogTechnologies: new Map(),
     blogIdeas: new Map(),
     blogTags: new Map(),
@@ -109,6 +111,11 @@ class ContentGraphBuilder {
     return this;
   }
 
+  addInitiatives(): this {
+    addInitiativeRelations(this.graph, this.relations);
+    return this;
+  }
+
   addAdrs(): this {
     addAdrRelations(this.graph, this.relations);
     return this;
@@ -138,6 +145,7 @@ export function buildContentGraph(input: BuildGraphInput): ContentGraph {
   return new ContentGraphBuilder(input)
     .addTechnologyIdeas()
     .addProjects()
+    .addInitiatives()
     .addAdrs()
     .addBlogsAndRoles()
     .addProductDecisions()
@@ -320,6 +328,15 @@ function addProjectRelations(
     for (const adrRef of adrRefs) {
       graph.reverse.projectADRs.get(projectSlug)?.add(adrRef);
     }
+  }
+}
+
+function addInitiativeRelations(
+  graph: ContentGraph,
+  relations: RelationData,
+): void {
+  for (const [slug, ideas] of relations.initiativeIdeas) {
+    addIdeaEdges(graph, makeNodeId("initiative", slug), ideas);
   }
 }
 
