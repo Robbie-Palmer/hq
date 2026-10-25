@@ -2,8 +2,8 @@
 set -euo pipefail
 
 dvc_command=(
-  bash ../scripts/doppler-pipeline-env
-  ../scripts/dvc
+  bash ../scripts/doppler-pipeline-env.sh
+  ../scripts/dvc.sh
 )
 
 "${dvc_command[@]}" repro prepare_gector_model

@@ -156,7 +156,7 @@ may be unmasked; keep the secret access key masked. Then run:
 mise //ml-pipelines/recipe-dataset:push
 ```
 
-The task injects that Doppler config through `../scripts/doppler-pipeline-env`,
+The task injects that Doppler config through `../scripts/doppler-pipeline-env.sh`,
 which maps the `R2_*` names onto the `AWS_*` ones DVC reads. Credentials
 already set in the environment take precedence.
 

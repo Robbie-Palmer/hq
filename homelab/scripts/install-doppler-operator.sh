@@ -17,8 +17,13 @@ trap cleanup EXIT
 umask 077
 operator_file=$(mktemp)
 
-"${script_dir}/require-kube-context" "${expected_context}" cloud
-curl --fail --location --silent --show-error "${operator_url}" --output "${operator_file}"
+"${script_dir}/require-kube-context.sh" "${expected_context}" cloud
+curl --fail --location --silent --show-error \
+  --proto '=https' \
+  --proto-redir '=https' \
+  --tlsv1.2 \
+  "${operator_url}" \
+  --output "${operator_file}"
 echo "${operator_sha256}  ${operator_file}" | sha256sum -c - >/dev/null
 kubectl apply --server-side --filename "${operator_file}"
 kubectl wait \

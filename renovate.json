@@ -14,7 +14,7 @@
       "customType": "regex",
       "description": "Track the repository-wide mise bootstrap version",
       "managerFilePatterns": [
-        "/^\\.github/actions/setup-mise/mise-version$/"
+        "/^\\.github/actions/setup-mise/mise-version\\.txt$/"
       ],
       "matchStrings": [
         "^(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$"
@@ -75,7 +75,7 @@
         "/^homelab/images/t3-code/README\\.md$/",
         "/^homelab/k3s/base/t3-code/deployment\\.yaml$/",
         "/^homelab/mise\\.toml$/",
-        "/^homelab/scripts/(?:check-t3-image|load-remote-development-image)$/"
+        "/^homelab/scripts/(?:check-t3-image|load-remote-development-image)\\.sh$/"
       ],
       "matchStrings": [
         "(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)-agent-tools-[0-9]+"

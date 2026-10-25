@@ -207,69 +207,69 @@ run = "ansible/scripts/deploy_asus.sh"
 
 [tasks.nix-flake-check]
 description = "Check the Nix flake contract and outputs for this system"
-run = "bash scripts/nix-command flake check"
+run = "bash scripts/nix-command.sh flake check"
 
 [tasks.nix-flake-show]
 description = "Show the Nix flake outputs without building them"
-run = "bash scripts/nix-command flake show"
+run = "bash scripts/nix-command.sh flake show"
 
 [tasks.nix-format]
 description = "Format the homelab Nix flake"
-run = "bash scripts/nix-command fmt -- flake.nix"
+run = "bash scripts/nix-command.sh fmt -- flake.nix"
 
 [tasks.nix-develop]
 description = "Enter the default Nix development shell"
-run = "bash scripts/nix-command develop"
+run = "bash scripts/nix-command.sh develop"
 
 [tasks.remote-build]
 description = "Build the remote-development NixOS system"
-run = "bash scripts/nix-command build --no-link .#nixosConfigurations.remote-development.config.system.build.toplevel"
+run = "bash scripts/nix-command.sh build --no-link .#nixosConfigurations.remote-development.config.system.build.toplevel"
 
 [tasks.remote-otelcol-validate]
 description = "Validate the pinned remote-development OpenTelemetry Collector configuration"
 run = '''
 OTELCOL_STORAGE_DIRECTORY="${TMPDIR:-/tmp}/remote-development-otelcol-validate" \
-  bash scripts/nix-command shell --inputs-from . nixpkgs#opentelemetry-collector-contrib \
+  bash scripts/nix-command.sh shell --inputs-from . nixpkgs#opentelemetry-collector-contrib \
   --command otelcol-contrib validate --config=hosts/remote-development/opentelemetry-collector.yaml
 '''
 
 [tasks.remote-volume-prepare]
 description = "Encrypt the empty Hetzner data volume and verify its Doppler recovery key"
-run = "bash scripts/prepare-remote-development-volume"
+run = "bash scripts/prepare-remote-development-volume.sh"
 
 [tasks.remote-install]
 description = "Install remote-development from scratch with nixos-anywhere"
-run = "bash scripts/install-remote-development"
+run = "bash scripts/install-remote-development.sh"
 
 [tasks.remote-tailscale-enrol]
 description = "Enroll remote-development with a one-use tagged Tailscale key from Doppler"
-run = "bash scripts/enrol-remote-development-tailscale"
+run = "bash scripts/enrol-remote-development-tailscale.sh"
 
 [tasks.remote-rebuild]
 description = "Build and switch the remote-development NixOS configuration over the tailnet"
-run = "bash scripts/rebuild-remote-development"
+run = "bash scripts/rebuild-remote-development.sh"
 
 [tasks.remote-health]
 description = "Verify the remote host, encrypted volume, Tailscale, K3s, and t3-code"
-run = "bash scripts/remote-development-health"
+run = "bash scripts/remote-development-health.sh"
 
 [tasks.remote-backup-credentials]
 description = "Install the workspace backup credentials from Doppler without printing them"
-run = "bash scripts/install-remote-development-backup-credentials"
+run = "bash scripts/install-remote-development-backup-credentials.sh"
 
 [tasks.remote-backup]
 description = "Run the encrypted workspace backup and print its safe status"
 run = '''
-bash scripts/run-remote-development-backup
+bash scripts/run-remote-development-backup.sh
 '''
 
 [tasks.remote-observability-credentials]
 description = "Install Netdata, Healthchecks.io, and PostHog secrets without printing them"
-run = "bash scripts/install-remote-development-observability-credentials"
+run = "bash scripts/install-remote-development-observability-credentials.sh"
 
 [tasks.remote-healthchecks-reconcile]
 description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
-run = "bash scripts/reconcile-remote-development-healthchecks"
+run = "bash scripts/reconcile-remote-development-healthchecks.sh"
 
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
@@ -299,7 +299,7 @@ run = "pnpm exec tsx --test personal-archive-backup/tests/backup.test.ts"
 
 [tasks.remote-kubeconfig]
 description = "Fetch the remote cluster kubeconfig over Tailscale into a gitignored file"
-run = "bash scripts/fetch-remote-development-kubeconfig"
+run = "bash scripts/fetch-remote-development-kubeconfig.sh"
 
 [tasks.t3-image-build]
 description = "Build the pinned t3-code runtime image"
@@ -315,11 +315,11 @@ docker build \
 
 [tasks.t3-image-check]
 description = "Check agent CLI versions and start the t3-code image as its runtime UID"
-run = "bash scripts/check-t3-image"
+run = "bash scripts/check-t3-image.sh"
 
 [tasks.t3-image-build-check]
 description = "Build and test the pinned t3-code runtime image"
-run = "bash scripts/build-and-check-t3-image"
+run = "bash scripts/build-and-check-t3-image.sh"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
@@ -327,11 +327,11 @@ run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"
-run = "bash scripts/load-remote-development-image"
+run = "bash scripts/load-remote-development-image.sh"
 
 [tasks.t3-image-deploy-remote]
 description = "Wait for idle T3 work, deploy the remote image, and verify the rollout"
-run = "bash scripts/deploy-remote-development-t3-image"
+run = "bash scripts/deploy-remote-development-t3-image.sh"
 
 [tasks.k3s-render-home]
 description = "Render the home t3-code overlay"
@@ -357,7 +357,7 @@ pnpm exec tsx --test tests/remote-workspace-manifests.test.ts
 description = "Server-side dry run of the home overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -368,7 +368,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Server-side dry run of the remote overlay after an exact context check"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/remote-development \
   "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
   cloud \
@@ -379,7 +379,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Apply the home overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -390,7 +390,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Server-side dry run of the home media overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home-media \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -406,7 +406,7 @@ if [[ ! -x "$gate" ]]; then
   echo "Missing $gate; run mise //homelab:ansible-configure-mac first" >&2
   exit 1
 fi
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home-media \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -438,7 +438,7 @@ bash k3s/overlays/home-media/backup-media-config.sh
 description = "Apply the remote overlay after an exact context check"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/remote-development \
   "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
   cloud \
@@ -449,7 +449,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Install the pinned Doppler operator and inject config-scoped tokens"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/install-doppler-operator
+bash scripts/install-doppler-operator.sh
 '''
 
 # ---------------------------------------------------------------------------

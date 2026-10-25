@@ -23,7 +23,7 @@ if [ "$idle_poll_seconds" -eq 0 ]; then
   exit 1
 fi
 
-"${script_dir}/require-kube-context" "$context" cloud
+"${script_dir}/require-kube-context.sh" "$context" cloud
 
 target_images=$(
   kubectl kustomize "$overlay" \
@@ -91,7 +91,7 @@ while true; do
   esac
 done
 
-"${script_dir}/apply-kustomize-overlay" "$overlay" "$context" cloud apply
+"${script_dir}/apply-kustomize-overlay.sh" "$overlay" "$context" cloud apply
 kubectl --context "$context" --namespace t3-code rollout status \
   deployment/t3-code --timeout=10m
 

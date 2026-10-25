@@ -116,7 +116,7 @@ env CI=true \
   GITHUB_TOKEN="inherited-github-token" \
   TFE_TOKEN="inherited-state-token" \
   TF_TOKEN_app_terraform_io="inherited-state-token" \
-  bash "$script_dir/doppler-terraform-env" plan bash -c '
+  bash "$script_dir/doppler-terraform-env.sh" plan bash -c '
     [[ "$TF_TOKEN_app_terraform_io" == "test-state-token" ]]
     [[ "$TFE_TOKEN" == "test-state-token" ]]
     [[ "$DOPPLER_TOKEN" == "test-doppler-token" ]]
@@ -145,12 +145,12 @@ for mode_and_config in \
     -u DOPPLER_ACCOUNT_FOUNDATION_APPLY_CONFIG \
     DOPPLER_ARGS_LOG="$doppler_args_log" \
     PATH="$mock_bin:$PATH" \
-    bash "$script_dir/doppler-terraform-env" "$mode" true
+    bash "$script_dir/doppler-terraform-env.sh" "$mode" true
 
   grep -Fxq -- "$expected_config" "$doppler_args_log"
 done
 
-if CI=true bash "$script_dir/doppler-terraform-env" invalid true 2>/dev/null; then
+if CI=true bash "$script_dir/doppler-terraform-env.sh" invalid true 2>/dev/null; then
   echo "Expected an unknown credential mode to fail." >&2
   exit 1
 fi
@@ -163,7 +163,7 @@ if missing_credential_output="$(
     -u TFE_TOKEN \
     -u GITHUB_TOKEN \
     CI=true \
-    bash "$script_dir/doppler-terraform-env" plan true 2>&1
+    bash "$script_dir/doppler-terraform-env.sh" plan true 2>&1
 )"; then
   echo "Expected missing plan credentials to fail." >&2
   exit 1

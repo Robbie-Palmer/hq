@@ -5,7 +5,7 @@ image=ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18
 target=${REMOTE_DEVELOPMENT_TAILNET_TARGET:-root@remote-development}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 for command in docker gzip ssh; do

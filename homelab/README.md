@@ -516,7 +516,7 @@ one-time S3 values without echoing them. It stores the values in the dedicated
 Doppler config and installs the resulting credential file on the host:
 
 ```bash
-./homelab/scripts/store-remote-development-backup-credentials
+./homelab/scripts/store-remote-development-backup-credentials.sh
 ```
 
 Install credentials after a host replacement, then run and inspect the first

@@ -15,6 +15,7 @@ if [ ! -d "${workspace_source}" ]; then
   echo "workspace source is not a directory" >&2
   exit 1
 fi
+workspace_source=$(cd -- "${workspace_source}" && pwd -P)
 if [ -e "${export_directory}" ]; then
   echo "workspace state export target must not exist" >&2
   exit 1
@@ -57,7 +58,7 @@ export_worktree() {
     skipped_worktree_count=$((skipped_worktree_count + 1))
     return
   fi
-  worktree=$(readlink -f -- "${worktree}")
+  worktree=$(cd -- "${worktree}" && pwd -P)
   case "${worktree}" in
     "${workspace_source}/workspaces"/*|"${workspace_source}/home/.t3/worktrees"/*) ;;
     *) return ;;
@@ -121,7 +122,7 @@ export_worktree() {
   git -C "${worktree}" ls-files --others --exclude-standard -z \
     >"${untracked_list}"
   if [ -s "${untracked_list}" ]; then
-    tar --create --gzip --null --verbatim-files-from \
+    tar --create --gzip --null \
       --directory="${worktree}" \
       --files-from="${untracked_list}" \
       --file="${state_directory}/untracked.tar.gz"
