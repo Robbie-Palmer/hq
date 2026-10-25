@@ -73,6 +73,11 @@ Secret and identity bootstrap uses a separate versioned contract. Run
 handoff, then `mise //:project:secret-bootstrap:apply -- <plan.yaml>` to resume
 it. A manual provider action must be acknowledged with
 `--acknowledge <checkpoint-id>` before the command moves its dependent value.
+Plans that create Cloudflare account-owned tokens use the built-in
+`cloudflare-account-token` extension. Run
+`mise //:project:secret-bootstrap:conformance -- <plan.yaml>` before apply to
+check the bootstrap token and declared permission groups without creating a
+token.
 See the [runbook](../../docs/runbooks/project-secret-bootstrap.md) and the
 [example plan](../../infra/project-modules/examples/secret-bootstrap.yaml).
 

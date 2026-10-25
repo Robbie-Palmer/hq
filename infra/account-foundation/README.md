@@ -61,8 +61,8 @@ created environments until their branch and reviewer policy is in place.
 `delivery.tf` declares the non-secret Doppler and GitHub structure for managed
 roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
 `work-graph` containers, plus the structure created for `cloudflare-access`
-and `personal-finance`. Secret values remain with the workload that uses each
-config.
+`cloudflare-token-bootstrap`, and `personal-finance`. Secret values remain with
+the workload that uses each config.
 
 The same root owns the `vector-development-t3` Doppler service account, its
 secret-value-only custom project role, and explicit membership in the four
@@ -93,6 +93,14 @@ read-only checks can run. The apply environment accepts only `main` and
 requires review. The declaration manages environment names and protection
 rules only. GitHub secrets and variables still come from Doppler through the
 existing sync flow and are absent from Terraform configuration and state.
+
+The same registry creates `cloudflare-token-bootstrap/ops_provisioner` and
+`production-cloudflare-token-bootstrap` for the account-owned Cloudflare API
+token provisioner. That GitHub environment accepts only `main`, requires a
+reviewer, and disables administrator bypass.
+The account-foundation apply creates the empty config and environment. A human
+then installs the first masked token and runs the dedicated credential-sync
+task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).
 
 Resource keys use the same names as provider import IDs, but some separators
 are different. Use the first column as the Terraform import target and the

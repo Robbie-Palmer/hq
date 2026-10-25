@@ -81,6 +81,10 @@ depends = ["test:scripts", "test:terraform"]
 description = "Sync account-foundation plan and apply values from Doppler to protected GitHub environments"
 run = "../../scripts/sync-doppler-github-envs.sh production-account-foundation-plan production-account-foundation"
 
+[tasks."cloudflare-token-bootstrap:credentials:sync"]
+description = "Sync the dedicated Cloudflare token-provisioning config to its protected GitHub environment"
+run = "../../scripts/sync-doppler-github-envs.sh production-cloudflare-token-bootstrap"
+
 [tasks.plan]
 description = "Plan account-foundation infrastructure with plan-only credentials"
 depends = ["init"]
