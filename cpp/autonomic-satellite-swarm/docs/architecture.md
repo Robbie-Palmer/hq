@@ -58,6 +58,15 @@ claiming a physical safe action.
 at most one record per configured interval and only when the platform says the output channel is
 available. A rejected record stays in the bounded queue.
 
+`ResourceObserver` returns timestamped, explicitly available platform measurements.
+`ResourceEvidenceRecorder` validates and ages them without converting them into a health or
+allocation decision. It retains the last valid observation when a later sample is missing or bad.
+
+`SharedRadioScheduler` applies a byte limit, airtime limit, or both within a rolling window.
+Coordination and safety traffic always enter first. Telemetry waits while either priority class is
+pending or the remaining budget cannot cover the whole frame. Admission, deferral, overrun, and
+upstream queue-loss counters make congestion visible.
+
 ### Wire codec
 
 `WireCodec` converts messages to a fixed 18-byte representation. It explicitly controls byte order,
@@ -112,7 +121,8 @@ for a benchtop swarm demonstration; it is not proposed as a spacecraft communica
 - Each controller keeps at most 16 telemetry records. A higher-priority record may evict an older,
   lower-priority record, and every loss increments a saturating drop counter.
 - Telemetry export attempts one record per configured interval. The reference firmware uses a
-  dedicated serial link at one frame per second; shared-radio scheduling remains unimplemented.
+  dedicated serial link at one frame per second. The portable shared-radio scheduler is implemented,
+  but no firmware adapter uses it without physical capacity and duty-cycle evidence.
 - The Uno firmware build reserves at least 768 bytes of SRAM beyond global allocation for local
   variables and the runtime stack. This static-allocation threshold provides headroom; worst-case
   stack and interrupt-nesting behavior remain unverified.
@@ -145,7 +155,8 @@ A credible next research iteration would add:
    equal-score tie-break.
 4. A mission executor interface with progress, cancellation, and failure semantics, plus validated
    hardware implementations of the safe-state actuator hook.
-5. Measured shared-radio scheduling, delivery, and duty-cycle rules for telemetry export.
+5. Physical shared-radio delivery, duty-cycle, timing, and energy measurements for a selected
+   adapter. The portable priority and budget rules are implemented.
 6. Authenticated messages with replay protection before enabling remote intervention.
 7. Property-based and model-checked invariants beyond the deterministic regression scenarios.
 8. Hardware-in-the-loop tests for a selected board and radio.
