@@ -6,7 +6,8 @@ related_ideas:
   - "knowledge-graphs"
   - "data-provenance"
   - "ontology-engineering"
-  - "adaptive-planning"
+  - "domain-driven-design"
+  - "bounded-context"
 ---
 
 A digital twin is a digital model kept connected to something in the world. The counterpart may be
@@ -36,10 +37,16 @@ state, and the ability to act safely.
 
 ## A twin is an interpretation
 
-No model mimics every aspect of its counterpart. The twin selects entities, measurements,
-relationships, and behaviour for particular questions. [Ontology engineering](/ideas/ontology-engineering)
-defines those meanings. [Knowledge graphs](/ideas/knowledge-graphs) can connect observations and
-models across systems when their identities and relationships matter.
+The phrase "the map is not the territory" applies directly to a digital twin. A representation
+remains separate from the thing it represents. It selects features of its subject for a purpose and
+can be incomplete, out of date, or wrong. The Stanford Encyclopedia of Philosophy's entry on
+[scientific representation](https://plato.stanford.edu/entries/scientific-representation/)
+explains how models let us reason about a target while leaving room for misrepresentation.
+
+A twin selects entities, measurements, relationships, and behaviour for particular questions.
+[Ontology engineering](/ideas/ontology-engineering) defines those meanings. [Knowledge
+graphs](/ideas/knowledge-graphs) can connect observations and models across systems when their
+identities and relationships matter.
 
 This selection should stay visible. A confident visualisation can hide missing sensors, delayed
 updates, disputed identities, or a model used outside the conditions where it was tested.
@@ -52,9 +59,14 @@ Large environments rarely have one owner or one model. The National Digital Twin
 not propose a single model of the whole United Kingdom. Its guide describes mechanisms for people
 to bring together the information and models needed for a specific problem.
 
-That is a better boundary for most systems. Independent twins can exchange selected facts through
-shared identifiers, definitions, and access rules. Federation preserves ownership and lets each
-twin operate at the update rate and level of detail its decisions require.
+[Domain-Driven Design](/ideas/domain-driven-design) gives these boundaries a precise vocabulary.
+Each twin can belong to a [bounded context](/ideas/bounded-context) with its own model and
+ubiquitous language. A context map records how those languages relate. Adapters translate
+identifiers and terms at the boundary when the contexts disagree. Only concepts that carry the
+same meaning should enter a shared vocabulary.
+
+This federation preserves ownership. Each twin can use the update rate and level of detail its
+decisions require.
 
 Connections also create risk. A compromised observation can corrupt the model. A recommendation
 can cause physical harm if software applies it without suitable authority. NIST's security and
@@ -75,5 +87,7 @@ the connection becomes unreliable.
 
 * UK Department for Business and Trade. ["What a digital twin is and how you can contribute"](https://www.gov.uk/government/publications/what-a-digital-twin-is-and-how-you-can-contribute/what-a-digital-twin-is-and-how-you-can-contribute).
   First published 29 November 2023, updated 12 January 2024.
+* Frigg, Roman, and James Nguyen. ["Scientific Representation"](https://plato.stanford.edu/entries/scientific-representation/).
+  *Stanford Encyclopedia of Philosophy*.
 * Voas, Jeffrey, et al. [*Security and Trust Considerations for Digital Twin Technology*](https://doi.org/10.6028/NIST.IR.8356).
   NIST IR 8356, 2025.
