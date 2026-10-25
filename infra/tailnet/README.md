@@ -53,6 +53,7 @@ mise run //infra/tailnet:format
 mise run //infra/tailnet:validate
 mise run //infra/tailnet:lint:tflint
 mise run //infra/tailnet:test
+mise run //infra/tailnet:validate:policy
 mise run //infra/tailnet:import:baseline
 mise run //infra/tailnet:plan:refresh-only
 mise run //infra/tailnet:plan
@@ -61,6 +62,8 @@ TAILNET_APPLY_CONFIRM='apply hq-tailnet' mise run //infra/tailnet:apply
 ```
 
 `validate`, TFLint, and the script tests need no tailnet credentials.
+`validate:policy` uses read-only API access to validate the rendered policy and
+run its tests without changing the tailnet. A normal `plan` runs it first.
 `import:baseline` is idempotent and imports both live resources before the
 first normal plan. `plan:refresh-only` proves that the imported state can be
 refreshed without changing the tailnet. `plan` writes the ignored `.planfile`.

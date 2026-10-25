@@ -1,5 +1,5 @@
 variable "user_logins" {
-  description = "Private Tailscale user logins keyed by operator or restricted policy role"
+  description = "Private Tailscale user logins keyed by policy role"
   type        = map(string)
   sensitive   = true
   default     = {}
