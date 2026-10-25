@@ -233,9 +233,9 @@ describe("agent markdown generation", () => {
       'Rules -->|"detection-only records"| Findings',
       'Findings -->|"finding IDs and published diffs"| Evidence',
       'Source -->|"bounded source spans"| Local',
-      'Source -.->|"wider document context"| Rewrite',
+      'Source -->|"bounded passage and graph context"| Rewrite',
       'Local -->|"grouped proposals"| Review',
-      'Rewrite -.->|"multi-edit proposals"| Review',
+      'Rewrite -->|"multi-edit proposals"| Review',
       'Review -->|"recorded editorial decisions"| Outcomes',
       'Evidence -->|"baseline comparisons"| Outcomes',
     ]) {
