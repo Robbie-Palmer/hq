@@ -89,7 +89,7 @@ writing Worker secrets. A bootstrap plan that needs both operations can name
 both identities, but neither token receives the other's permissions.
 
 The protected environment also needs `DOPPLER_BOOTSTRAP_TOKEN` and
-`GITHUB_BOOTSTRAP_TOKEN`. Scope the first credential to write only the Doppler
+`GH_BOOTSTRAP_TOKEN`. Scope the first credential to write only the Doppler
 configs named by the reviewed plan. Scope the second to secret administration
 for this repository's GitHub environments named by the plan. Sync the dedicated
 config only after its environment protection has been applied and checked:

@@ -98,6 +98,16 @@ validate_entries_for_environment() {
   local entries_json="$2"
   local invalid_visibility
   local missing_names
+  local reserved_names
+
+  reserved_names=$(jq -r '
+    [.[] | select(.name | startswith("GITHUB_")) | .name]
+    | join(", ")
+  ' <<<"$entries_json")
+  if [[ -n "$reserved_names" ]]; then
+    echo "Refusing to sync GitHub-reserved secret names to '$github_env': $reserved_names" >&2
+    exit 1
+  fi
 
   case "$github_env" in
     production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
