@@ -8,6 +8,7 @@ import type { Env } from "hono";
 import { routePath } from "hono/route";
 import {
   classifyRetryableDatabaseFailure,
+  type DatabaseQueryMetrics,
   type AttentionRequestReadModel,
   type ArchiveKnowledgeScopeInput,
   type AssignCompletionPolicyInput,
@@ -2365,6 +2366,7 @@ export interface WorkGraphApiRepository {
 export interface WorkGraphAppOptions {
   readonly createLeaseId?: () => string;
   readonly createRequestId?: () => string;
+  readonly databaseMetrics?: DatabaseQueryMetrics;
   readonly workerVersion?: string;
 }
 
@@ -2599,6 +2601,32 @@ export const createWorkGraphApp = (
   const app = new OpenAPIHono({ defaultHook: validationHook });
   const createLeaseId = options.createLeaseId ?? (() => crypto.randomUUID());
   const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
+  const databaseMetrics = options.databaseMetrics;
+  if (databaseMetrics !== undefined) {
+    app.use("*", async (context, next) => {
+      const startedAt = Date.now();
+      await next();
+      const requestId =
+        context.res.headers.get("X-Request-Id") ?? createRequestId();
+      context.header("X-Request-Id", requestId);
+      const responseBytes = (await context.res.clone().arrayBuffer()).byteLength;
+      console.info({
+        message: "Work Graph request usage",
+        event: "request_usage",
+        requestId,
+        method: context.req.method,
+        route: routePath(context) || "unmatched",
+        outcome: "usage",
+        status: context.res.status,
+        workerVersion: options.workerVersion ?? "local",
+        databaseQueryCount: databaseMetrics.queryCount,
+        databaseResultRowCount: databaseMetrics.resultRowCount,
+        databaseResultBytesEstimated: databaseMetrics.resultBytesEstimated,
+        responseBytes,
+        durationMs: Date.now() - startedAt,
+      });
+    });
+  }
   const resolveContextWithEvidence = async (workItemId: string) => {
     const resolved = [...(await repository.resolveWorkItemContext(workItemId))];
     const remaining = Math.max(0, 1_000 - resolved.length);

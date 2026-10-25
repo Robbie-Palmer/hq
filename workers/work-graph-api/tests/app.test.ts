@@ -284,6 +284,47 @@ const buildRepository = (): WorkGraphApiRepository => ({
   })),
 });
 
+describe("Given request usage metrics", () => {
+  it("records a normalized route with database and response totals", async () => {
+    const repository = buildRepository();
+    const databaseMetrics = {
+      queryCount: 4,
+      resultRowCount: 7,
+      resultBytesEstimated: 512,
+    };
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, {
+      createRequestId: () => "usage-request",
+      databaseMetrics,
+      workerVersion: "version-usage",
+    });
+
+    const response = await app.request("/api/work-items?stage=ready");
+
+    expect(response.headers.get("x-request-id")).toBe("usage-request");
+    expect(info).toHaveBeenCalledWith({
+      message: "Work Graph request usage",
+      event: "request_usage",
+      requestId: "usage-request",
+      method: "GET",
+      route: "/api/work-items",
+      outcome: "usage",
+      status: 200,
+      workerVersion: "version-usage",
+      databaseQueryCount: 4,
+      databaseResultRowCount: 7,
+      databaseResultBytesEstimated: 512,
+      responseBytes: expect.any(Number),
+      durationMs: expect.any(Number),
+    });
+    const usageRecord = info.mock.calls[0]?.[0] as
+      | { responseBytes: number }
+      | undefined;
+    expect(usageRecord?.responseBytes).toBeGreaterThan(0);
+    info.mockRestore();
+  });
+});
+
 describe("Given a requested delivery-critical path", () => {
   it("returns the stable projection and passes scope filters", async () => {
     const repository = buildRepository();

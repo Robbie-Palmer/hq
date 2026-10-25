@@ -4,7 +4,12 @@ export {
   type WorkGraphAppOptions,
 } from "./app";
 
-import { closeDb, createDb, WorkGraphRepository } from "work-graph-db";
+import {
+  closeDb,
+  createDatabaseQueryMetrics,
+  createDb,
+  WorkGraphRepository,
+} from "work-graph-db";
 import { createWorkGraphApp } from "./app";
 
 export interface WorkGraphBindings {
@@ -20,10 +25,13 @@ export default {
     let db: ReturnType<typeof createDb> | undefined;
     try {
       try {
+        const databaseMetrics = createDatabaseQueryMetrics();
         db = createDb(env.HYPERDRIVE.connectionString, {
           maxConnections: 1,
+          metrics: databaseMetrics,
         });
         return await createWorkGraphApp(new WorkGraphRepository(db), {
+          databaseMetrics,
           workerVersion: env.WORKER_VERSION?.id,
         }).fetch(request, env, context);
       } finally {
