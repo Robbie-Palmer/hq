@@ -112,7 +112,8 @@ function v2Activity() {
       UNION ALL
       SELECT thread_id, 'execution node ' || kind || ' ' || status
       FROM orchestration_v2_projection_nodes
-      WHERE status IN ('pending', 'running', 'waiting')
+      WHERE kind != 'todo_list'
+        AND status IN ('pending', 'running', 'waiting')
       ORDER BY threadId, reason
     `)
     .all();
