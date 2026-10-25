@@ -528,16 +528,6 @@ locals {
   managed_doppler_environments = merge(doppler_environment.managed, doppler_environment.disposable)
   managed_github_environments  = merge(github_repository_environment.managed, github_repository_environment.disposable)
 
-  # T3 sessions may manage development secret values, but never Doppler's
-  # project, environment, config, membership, or token structure. Keep this
-  # allowlist explicit so a new project or environment does not silently
-  # expand the agent's access.
-  vector_t3_doppler_project_access = {
-    ai-review     = ["dev"]
-    homelab       = ["dev"]
-    personal-site = ["dev"]
-    work-graph    = ["dev"]
-  }
 }
 
 data "github_user" "reviewer" {
@@ -604,38 +594,6 @@ resource "doppler_config" "disposable" {
   project     = local.managed_doppler_projects[each.value.project].name
   environment = local.managed_doppler_environments["${each.value.project}/${each.value.environment}"].slug
   name        = each.value.name
-}
-
-resource "doppler_project_role" "vector_t3_secret_editor" {
-  name = "Vector T3 secret editor"
-  permissions = [
-    "enclave_project_config_secrets_read",
-    "enclave_project_config_secrets_write",
-  ]
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "doppler_service_account" "vector_t3" {
-  name                  = "vector-development-t3"
-  workplace_permissions = []
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "doppler_project_member_service_account" "vector_t3" {
-  for_each = local.vector_t3_doppler_project_access
-
-  project              = local.declared_delivery_registry[each.key].doppler.project.name
-  service_account_slug = doppler_service_account.vector_t3.slug
-  role                 = doppler_project_role.vector_t3_secret_editor.identifier
-  environments         = toset(each.value)
-
-  depends_on = [doppler_project.managed]
 }
 
 resource "github_repository_environment" "managed" {

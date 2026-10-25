@@ -56,39 +56,96 @@ if [[ "${idle_status}" -ne 0 ]]; then
 fi
 
 github_token=
-doppler_token=
-credential_revision=
+credential_revision=$(date -u +%Y%m%dT%H%M%SZ)-$$
+credentials_uploaded=false
+projects=(ai-review homelab personal-site work-graph)
+declare -A doppler_tokens=()
+declare -A new_token_slugs=()
+declare -A old_token_slugs=()
 cleanup() {
-  unset github_token doppler_token credential_revision
+  status=$?
+  trap - EXIT
+  unset github_token
+  for project in "${projects[@]}"; do
+    unset "doppler_tokens[${project}]"
+  done
+  if [[ "${status}" -ne 0 && "${credentials_uploaded}" != true ]]; then
+    for project in "${projects[@]}"; do
+      if [[ -n "${new_token_slugs[$project]:-}" ]]; then
+        doppler configs tokens revoke \
+          --project "${project}" \
+          --config dev \
+          --slug "${new_token_slugs[$project]}" \
+          --silent >/dev/null 2>&1 || true
+      fi
+    done
+  fi
+  exit "${status}"
 }
 trap cleanup EXIT
 
 read -r -s -p "GitHub fine-grained token for Robbie-Palmer/hq: " github_token
 printf '\n'
-read -r -s -p "Doppler vector-development-t3 service-account token: " doppler_token
-printf '\n'
-if [[ -z "${github_token}" || -z "${doppler_token}" ]]; then
-  echo "Both credentials are required" >&2
+if [[ -z "${github_token}" ]]; then
+  echo "The GitHub credential is required" >&2
   exit 1
 fi
-credential_revision=$(date -u +%Y%m%dT%H%M%SZ)-$$
+
+for project in "${projects[@]}"; do
+  token_name="vector-development-t3-${project}-dev"
+  old_token_slugs[${project}]=$(
+    doppler configs tokens \
+      --project "${project}" \
+      --config dev \
+      --json \
+      | jq -r --arg token_name "${token_name}" '
+          .[]
+          | select(.name == $token_name or (.name | startswith($token_name + "-")))
+          | .slug
+        '
+  )
+  created_token=$(
+    doppler configs tokens create "${token_name}-${credential_revision}" \
+      --project "${project}" \
+      --config dev \
+      --access read/write \
+      --json
+  )
+  doppler_tokens[${project}]=$(
+    jq -er '.token | select(type == "string" and length > 0)' <<<"${created_token}"
+  )
+  new_token_slugs[${project}]=$(
+    jq -er '.slug | select(type == "string" and length > 0)' <<<"${created_token}"
+  )
+  unset created_token
+done
 
 doppler secrets upload \
   <(
     jq -n \
       --rawfile github_token <(printf '%s' "${github_token}") \
-      --rawfile doppler_token <(printf '%s' "${doppler_token}") \
+      --rawfile doppler_ai_review <(printf '%s' "${doppler_tokens[ai-review]}") \
+      --rawfile doppler_homelab <(printf '%s' "${doppler_tokens[homelab]}") \
+      --rawfile doppler_personal_site <(printf '%s' "${doppler_tokens[personal-site]}") \
+      --rawfile doppler_work_graph <(printf '%s' "${doppler_tokens[work-graph]}") \
       --arg credential_revision "${credential_revision}" \
       '{
         GH_TOKEN: $github_token,
-        DOPPLER_TOKEN: $doppler_token,
+        DOPPLER_TOKEN_AI_REVIEW: $doppler_ai_review,
+        DOPPLER_TOKEN_HOMELAB: $doppler_homelab,
+        DOPPLER_TOKEN_PERSONAL_SITE: $doppler_personal_site,
+        DOPPLER_TOKEN_WORK_GRAPH: $doppler_work_graph,
         AGENT_CREDENTIALS_REVISION: $credential_revision
       }'
   ) \
   --project homelab \
   --config prd_vector_development \
   --silent >/dev/null
-unset github_token doppler_token
+credentials_uploaded=true
+unset github_token
+for project in "${projects[@]}"; do
+  unset "doppler_tokens[${project}]"
+done
 
 for _ in $(seq 1 180); do
   if kubectl --context "${context}" --namespace t3-code \
@@ -146,3 +203,15 @@ kubectl --context "${context}" --namespace t3-code exec "${replacement_pod}" \
   --container t3-code -- gh auth setup-git --hostname github.com --force
 
 "${script_dir}/vector-development-agent-auth-health.sh"
+
+for project in "${projects[@]}"; do
+  while IFS= read -r old_token_slug; do
+    if [[ -n "${old_token_slug}" ]]; then
+      doppler configs tokens revoke \
+        --project "${project}" \
+        --config dev \
+        --slug "${old_token_slug}" \
+        --silent >/dev/null
+    fi
+  done <<<"${old_token_slugs[$project]}"
+done

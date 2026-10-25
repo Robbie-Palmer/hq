@@ -64,12 +64,11 @@ roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
 `cloudflare-token-bootstrap`, and `personal-finance`. Secret values remain with
 the workload that uses each config.
 
-The same root owns the `vector-development-t3` Doppler service account, its
-secret-value-only custom project role, and explicit membership in the four
-development environments used by the monorepo. It does not create a service
-account token: provider-generated credentials must not enter Terraform state.
-The [Vector commissioning guide](../../homelab/docs/vector-development.md)
-describes the guarded token bootstrap and runtime health check.
+The same root owns the existing `homelab/prd_vector_development` delivery
+config. The Vector workload owns its four config-scoped service tokens, and
+their generated values must stay out of Terraform state. The
+[Vector commissioning guide](../../homelab/docs/vector-development.md)
+describes their guarded creation, rotation, and runtime health check.
 
 The tailnet baseline capture created its three Doppler configs before this
 registry adopted them. Account foundation imports those containers without

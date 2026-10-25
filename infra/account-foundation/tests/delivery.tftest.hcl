@@ -228,46 +228,17 @@ run "personal_finance_delivery_boundaries" {
   }
 }
 
-run "vector_agent_secret_access_is_scoped" {
+run "vector_runtime_config_is_managed" {
   command = plan
 
   assert {
-    condition = contains(
-      [for config in values(doppler_config.managed) : config.name],
-      "prd_vector_development",
-    )
+    condition = anytrue([
+      for config in values(doppler_config.managed) :
+      config.name == "prd_vector_development" &&
+      config.project == "homelab" &&
+      config.environment == "prd"
+    ])
     error_message = "The existing Vector runtime config must be managed by account-foundation."
-  }
-
-  assert {
-    condition = doppler_project_role.vector_t3_secret_editor.permissions == toset([
-      "enclave_project_config_secrets_read",
-      "enclave_project_config_secrets_write",
-    ])
-    error_message = "The Vector service account role must only read and write secret values."
-  }
-
-  assert {
-    condition     = doppler_service_account.vector_t3.name == "vector-development-t3"
-    error_message = "Vector must use a workload identity instead of a personal Doppler login."
-  }
-
-  assert {
-    condition = toset(keys(doppler_project_member_service_account.vector_t3)) == toset([
-      "ai-review",
-      "homelab",
-      "personal-site",
-      "work-graph",
-    ])
-    error_message = "Vector secret access must remain limited to the declared development projects."
-  }
-
-  assert {
-    condition = alltrue([
-      for membership in values(doppler_project_member_service_account.vector_t3) :
-      membership.environments == toset(["dev"])
-    ])
-    error_message = "Vector must not receive staging, production, or operations secret access by default."
   }
 }
 
@@ -294,18 +265,5 @@ run "cloudflare_token_bootstrap_is_restricted" {
   assert {
     condition     = github_repository_environment_deployment_policy.managed["hq/production-cloudflare-token-bootstrap/main"].branch_pattern == "main"
     error_message = "Cloudflare token provisioning must be restricted to main."
-  }
-}
-
-run "vector_agent_secret_bindings" {
-  command = apply
-
-  assert {
-    condition = alltrue([
-      for membership in values(doppler_project_member_service_account.vector_t3) :
-      membership.service_account_slug == doppler_service_account.vector_t3.slug &&
-      membership.role == doppler_project_role.vector_t3_secret_editor.identifier
-    ])
-    error_message = "Vector memberships must use the Vector service account and secret-editor role."
   }
 }
