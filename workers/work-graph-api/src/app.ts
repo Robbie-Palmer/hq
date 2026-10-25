@@ -2910,7 +2910,7 @@ export const createWorkGraphApp = (
         deliveryEvidence: {
           items: evidencePage,
           nextCursor:
-            evidence.length > 100 ? (evidencePage.at(-1)?.id ?? null) : null,
+            evidence.length > 100 ? evidencePage[99]!.id : null,
         },
         completionCandidate: serializeCompletionCandidate(candidate),
       },

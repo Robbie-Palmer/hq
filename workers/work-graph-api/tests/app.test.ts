@@ -958,8 +958,7 @@ describe("Given work items with derived readiness", () => {
 
   it("returns the details shown for a work item in one request", async () => {
     const repository = buildRepository();
-    const evidence = {
-      id: "00000000-0000-4000-8000-000000000009",
+    const evidenceTemplate = {
       deliveryProvider: "github",
       deliveryExternalId: "delivery-1",
       provider: "github",
@@ -979,30 +978,30 @@ describe("Given work items with derived readiness", () => {
       current: true,
       projectedAt: "2026-09-22T11:00:01.000Z",
     };
-    const candidate = {
-      id: "00000000-0000-4000-8000-000000000010",
-      workItemId: "ticket",
-      policyId: "default",
-      policyRevision: 3,
-      candidate: true,
-      reasons: [] as const,
-      evidenceObservationIds: [evidence.id],
-      evaluatedAt: "2026-09-22T12:00:00.000Z",
-    };
-    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue([
+    const evidence = Array.from({ length: 101 }, (_, index) => ({
+      ...evidenceTemplate,
+      id: `00000000-0000-4000-8000-${(index + 1)
+        .toString(16)
+        .padStart(12, "0")}`,
+    }));
+    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue(
       evidence,
-    ]);
-    vi.mocked(repository.getCompletionCandidate).mockResolvedValue(candidate);
+    );
     const app = createWorkGraphApp(repository);
 
     const details = await app.request("/api/work-items/ticket/details");
 
     expect(details.status).toBe(200);
-    expect(await responseJson(details)).toMatchObject({
+    const body = await responseJson(details);
+    expect(body).toMatchObject({
       id: "ticket",
-      deliveryEvidence: { items: [evidence], nextCursor: null },
-      completionCandidate: candidate,
+      deliveryEvidence: { nextCursor: evidence[99]?.id },
+      completionCandidate: null,
     });
+    expect(
+      (body as { deliveryEvidence: { items: unknown[] } }).deliveryEvidence
+        .items,
+    ).toHaveLength(100);
     expect(repository.getWorkItem).toHaveBeenCalledWith("ticket");
     expect(repository.listWorkItemDeliveryEvidence).toHaveBeenCalledWith({
       workItemId: "ticket",
