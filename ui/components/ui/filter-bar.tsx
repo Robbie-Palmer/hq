@@ -78,7 +78,7 @@ function availableSections(
   return sections ?? [];
 }
 
-function SearchControl({
+export function SearchControl({
   onSearchChange,
   searchAriaLabel,
   searchPlaceholder,

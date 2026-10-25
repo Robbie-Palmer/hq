@@ -1,12 +1,6 @@
-import { Lightbulb, Network } from "lucide-react";
+import { Lightbulb } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
-import {
-  Card,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { IdeaList } from "@/components/ideas/idea-list";
 import { getAllIdeas } from "@/lib/api/ideas";
 
 export const metadata: Metadata = {
@@ -33,25 +27,7 @@ export default function IdeasPage() {
         </p>
       </header>
 
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-        {ideas.map((idea) => (
-          <Link key={idea.slug} href={`/ideas/${idea.slug}`} className="h-full">
-            <Card className="h-full transition-all hover:border-primary/50 hover:shadow-lg">
-              <CardHeader>
-                <CardTitle>{idea.title}</CardTitle>
-                <CardDescription className="leading-6">
-                  {idea.description}
-                </CardDescription>
-                <p className="flex items-center gap-1.5 pt-2 text-xs text-muted-foreground">
-                  <Network className="size-3.5" />
-                  {idea.referenceCount} graph{" "}
-                  {idea.referenceCount === 1 ? "connection" : "connections"}
-                </p>
-              </CardHeader>
-            </Card>
-          </Link>
-        ))}
-      </div>
+      <IdeaList ideas={ideas} />
     </div>
   );
 }
