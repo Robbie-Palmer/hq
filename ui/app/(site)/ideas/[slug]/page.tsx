@@ -5,6 +5,8 @@ import {
   FileText,
   FolderKanban,
   GitBranch,
+  Goal,
+  type LucideIcon,
 } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -62,30 +64,127 @@ function RelatedCard({
   );
 }
 
-type ProductDecisionReference = NonNullable<
-  ReturnType<typeof getIdea>
->["relatedContent"]["productDecisions"][number];
+type Idea = NonNullable<ReturnType<typeof getIdea>>;
 
-function ProductDecisionReferences({
-  decisions,
-}: Readonly<{ decisions: ProductDecisionReference[] }>) {
-  if (decisions.length === 0) return null;
+interface ReferenceGroupData {
+  title: string;
+  icon: LucideIcon;
+  references: Array<{
+    key: string;
+    href: string;
+    title: string;
+    description: string;
+  }>;
+}
+
+function buildReferenceGroups(idea: Idea): ReferenceGroupData[] {
+  return [
+    {
+      title: "Technologies",
+      icon: Blocks,
+      references: idea.relatedContent.technologies.map((technology) => ({
+        key: technology.slug,
+        href: `/technologies/${technology.slug}`,
+        title: technology.name,
+        description: technology.description ?? technology.website,
+      })),
+    },
+    {
+      title: "Projects",
+      icon: FolderKanban,
+      references: idea.relatedContent.projects.map((project) => ({
+        key: project.slug,
+        href: `/projects/${project.slug}`,
+        title: project.title,
+        description: project.status.replace("_", " "),
+      })),
+    },
+    {
+      title: "Initiatives",
+      icon: Goal,
+      references: idea.relatedContent.initiatives.map((initiative) => ({
+        key: initiative.slug,
+        href: `/initiatives/${initiative.slug}`,
+        title: initiative.title,
+        description: initiative.status,
+      })),
+    },
+    {
+      title: "Blog posts",
+      icon: FileText,
+      references: idea.relatedContent.blogs.map((blog) => ({
+        key: blog.slug,
+        href: `/blog/${blog.slug}`,
+        title: blog.title,
+        description: `${blog.date} · ${blog.readingTime}`,
+      })),
+    },
+    {
+      title: "Architecture decisions",
+      icon: GitBranch,
+      references: idea.relatedContent.adrs.map((adr) => ({
+        key: `${adr.projectSlug}:${adr.slug}`,
+        href: `/projects/${adr.projectSlug}/adrs/${adr.slug}`,
+        title: adr.title,
+        description: adr.status,
+      })),
+    },
+    {
+      title: "Product decisions",
+      icon: FileCheck2,
+      references: (idea.relatedContent.productDecisions ?? []).map(
+        (decision) => ({
+          key: decision.pdrRef,
+          href: productDecisionPath(decision.pdrRef),
+          title: decision.title,
+          description: decision.status,
+        }),
+      ),
+    },
+  ];
+}
+
+function ReferenceGroup({ group }: Readonly<{ group: ReferenceGroupData }>) {
+  const Icon = group.icon;
   return (
     <div className="space-y-3">
       <h3 className="flex items-center gap-2 text-lg font-medium">
-        <FileCheck2 className="size-5" /> Product decisions
+        <Icon className="size-5" /> {group.title}
       </h3>
       <div className="grid gap-3 md:grid-cols-2">
-        {decisions.map((decision) => (
+        {group.references.map((reference) => (
           <RelatedCard
-            key={decision.pdrRef}
-            href={productDecisionPath(decision.pdrRef)}
-            title={decision.title}
-            description={decision.status}
+            key={reference.key}
+            href={reference.href}
+            title={reference.title}
+            description={reference.description}
           />
         ))}
       </div>
     </div>
+  );
+}
+
+function IdeaReferences({
+  groups,
+}: Readonly<{ groups: ReferenceGroupData[] }>) {
+  const populatedGroups = groups.filter((group) => group.references.length > 0);
+  if (populatedGroups.length === 0) {
+    return (
+      <p className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
+        This idea has no related references yet.
+      </p>
+    );
+  }
+  return (
+    <section className="space-y-6" aria-labelledby="idea-references">
+      <h2 id="idea-references" className="text-2xl font-semibold">
+        Where it appears
+      </h2>
+      {populatedGroups.map((group) => (
+        <ReferenceGroup key={group.title} group={group} />
+      ))}
+    </section>
   );
 }
 
@@ -108,14 +207,7 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
   const { slug } = await params;
   const idea = getIdea(slug);
   if (!idea) notFound();
-  const productDecisions = idea.relatedContent.productDecisions ?? [];
-
-  const hasReferences =
-    idea.relatedContent.technologies.length > 0 ||
-    idea.relatedContent.projects.length > 0 ||
-    idea.relatedContent.blogs.length > 0 ||
-    idea.relatedContent.adrs.length > 0 ||
-    productDecisions.length > 0;
+  const referenceGroups = buildReferenceGroups(idea);
 
   return (
     <div className="container mx-auto max-w-5xl px-4 py-8">
@@ -145,86 +237,7 @@ export default async function IdeaPage({ params }: Readonly<PageProps>) {
 
         <Markdown source={idea.content} />
 
-        {hasReferences ? (
-          <section className="space-y-6" aria-labelledby="idea-references">
-            <h2 id="idea-references" className="text-2xl font-semibold">
-              Where it appears
-            </h2>
-            {idea.relatedContent.technologies.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="flex items-center gap-2 text-lg font-medium">
-                  <Blocks className="size-5" /> Technologies
-                </h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {idea.relatedContent.technologies.map((technology) => (
-                    <RelatedCard
-                      key={technology.slug}
-                      href={`/technologies/${technology.slug}`}
-                      title={technology.name}
-                      description={technology.description ?? technology.website}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {idea.relatedContent.projects.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="flex items-center gap-2 text-lg font-medium">
-                  <FolderKanban className="size-5" /> Projects
-                </h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {idea.relatedContent.projects.map((project) => (
-                    <RelatedCard
-                      key={project.slug}
-                      href={`/projects/${project.slug}`}
-                      title={project.title}
-                      description={project.status.replace("_", " ")}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {idea.relatedContent.blogs.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="flex items-center gap-2 text-lg font-medium">
-                  <FileText className="size-5" /> Blog posts
-                </h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {idea.relatedContent.blogs.map((blog) => (
-                    <RelatedCard
-                      key={blog.slug}
-                      href={`/blog/${blog.slug}`}
-                      title={blog.title}
-                      description={`${blog.date} · ${blog.readingTime}`}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            {idea.relatedContent.adrs.length > 0 && (
-              <div className="space-y-3">
-                <h3 className="flex items-center gap-2 text-lg font-medium">
-                  <GitBranch className="size-5" /> Architecture decisions
-                </h3>
-                <div className="grid gap-3 md:grid-cols-2">
-                  {idea.relatedContent.adrs.map((adr) => (
-                    <RelatedCard
-                      key={`${adr.projectSlug}:${adr.slug}`}
-                      href={`/projects/${adr.projectSlug}/adrs/${adr.slug}`}
-                      title={adr.title}
-                      description={adr.status}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-            <ProductDecisionReferences decisions={productDecisions} />
-          </section>
-        ) : (
-          <p className="rounded-lg border bg-muted/30 p-4 text-sm text-muted-foreground">
-            This idea has no technology or published-content references yet.
-          </p>
-        )}
+        <IdeaReferences groups={referenceGroups} />
       </div>
     </div>
   );

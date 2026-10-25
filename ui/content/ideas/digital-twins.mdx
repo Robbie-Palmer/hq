@@ -1,0 +1,93 @@
+---
+title: "Digital Twins"
+description: "Digital models kept connected to real counterparts so observations, simulations, and decisions can inform one another."
+source_url: "https://www.gov.uk/government/publications/what-a-digital-twin-is-and-how-you-can-contribute/what-a-digital-twin-is-and-how-you-can-contribute"
+related_ideas:
+  - "knowledge-graphs"
+  - "data-provenance"
+  - "ontology-engineering"
+  - "domain-driven-design"
+  - "bounded-context"
+---
+
+A digital twin is a digital model kept connected to something in the world. The counterpart may be
+an object, a process, or a larger system. Observations update the model, and analysis of the model
+helps people or software decide what to do next.
+
+The UK government's [introductory guide](https://www.gov.uk/government/publications/what-a-digital-twin-is-and-how-you-can-contribute/what-a-digital-twin-is-and-how-you-can-contribute)
+uses a strong definition: the model has a two-way flow of timely data with its real counterpart.
+This connection supports testing decisions before making them and examining how actions may affect
+the world. The guide also sets an important safety boundary. The real counterpart must remain able
+to operate safely and securely without the twin.
+
+## The connection makes it a twin
+
+A static model captures a design or a past state. A simulation explores behaviour under stated
+assumptions. A dashboard displays observations. Each can be useful, but none alone maintains a
+living relationship with a particular counterpart.
+
+A digital twin combines some of these capabilities around a continuing identity. New observations
+change its state. Models estimate what cannot be observed directly or test possible actions. When
+an approved action changes the counterpart, later observations show what actually happened. This
+feedback loop is what separates the twin from a detailed picture.
+
+"Timely" does not always mean real time. A turbine controller and a household budget need very
+different update rates. The right interval comes from the decision being made, the cost of stale
+state, and the ability to act safely.
+
+## A twin is an interpretation
+
+The phrase "the map is not the territory" applies directly to a digital twin. A representation
+remains separate from the thing it represents. It selects features of its subject for a purpose and
+can be incomplete, out of date, or wrong. The Stanford Encyclopedia of Philosophy's entry on
+[scientific representation](https://plato.stanford.edu/entries/scientific-representation/)
+explains how models let us reason about a target while leaving room for misrepresentation.
+
+A twin selects entities, measurements, relationships, and behaviour for particular questions.
+[Ontology engineering](/ideas/ontology-engineering) defines those meanings. [Knowledge
+graphs](/ideas/knowledge-graphs) can connect observations and models across systems when their
+identities and relationships matter.
+
+This selection should stay visible. A confident visualisation can hide missing sensors, delayed
+updates, disputed identities, or a model used outside the conditions where it was tested.
+[Data provenance](/ideas/data-provenance) lets a prediction or recommendation point back to its
+observations, model version, and assumptions.
+
+## Twins can cooperate without becoming one system
+
+Large environments rarely have one owner or one model. The National Digital Twin Programme does
+not propose a single model of the whole United Kingdom. Its guide describes mechanisms for people
+to bring together the information and models needed for a specific problem.
+
+[Domain-Driven Design](/ideas/domain-driven-design) gives these boundaries a precise vocabulary.
+Each twin can belong to a [bounded context](/ideas/bounded-context) with its own model and
+ubiquitous language. A context map records how those languages relate. Adapters translate
+identifiers and terms at the boundary when the contexts disagree. Only concepts that carry the
+same meaning should enter a shared vocabulary.
+
+This federation preserves ownership. Each twin can use the update rate and level of detail its
+decisions require.
+
+Connections also create risk. A compromised observation can corrupt the model. A recommendation
+can cause physical harm if software applies it without suitable authority. NIST's security and
+trust report treats instrumentation, control, simulation, and testing as part of the same risk
+problem. The twin needs authenticated sources, explicit control boundaries, and a safe mode when
+the connection becomes unreliable.
+
+## Questions it prompts
+
+* What real counterpart has a continuing identity in the model?
+* Which decisions does the twin support, and how fresh must each observation be?
+* Can users distinguish observed state, inferred state, and simulated possibilities?
+* Which actions may flow back to the counterpart, and who authorises them?
+* What happens when sensors, models, or connections fail?
+* Can the counterpart continue safely without the twin?
+
+## Sources
+
+* UK Department for Business and Trade. ["What a digital twin is and how you can contribute"](https://www.gov.uk/government/publications/what-a-digital-twin-is-and-how-you-can-contribute/what-a-digital-twin-is-and-how-you-can-contribute).
+  First published 29 November 2023, updated 12 January 2024.
+* Frigg, Roman, and James Nguyen. ["Scientific Representation"](https://plato.stanford.edu/entries/scientific-representation/).
+  *Stanford Encyclopedia of Philosophy*.
+* Voas, Jeffrey, et al. [*Security and Trust Considerations for Digital Twin Technology*](https://doi.org/10.6028/NIST.IR.8356).
+  NIST IR 8356, 2025.

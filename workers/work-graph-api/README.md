@@ -83,6 +83,23 @@ occurs after a claim may have been committed, the Worker returns
 `claim_outcome_uncertain` without `Retry-After` and tells the caller to inspect
 the work item before claiming again.
 
+### Route usage measurement
+
+Each request emits one structured `request_usage` record with its normalized
+route, database query count, result-row count, estimated database result bytes,
+HTTP response bytes, and duration. The database estimate measures decoded row
+values and excludes PostgreSQL protocol overhead. It is intended to compare
+routes and trends rather than reconcile an invoice byte for byte.
+
+The record never includes SQL, parameters, query strings, ticket IDs, database
+values, headers, or exception text. Run `diagnostics:query` for a time window to
+aggregate these records by method and route. Results are ordered by estimated
+database transfer so the largest measured read path appears first.
+
+The database client disables Postgres.js array-type discovery. Drizzle handles
+the schema's built-in array columns, so each new Worker request avoids the
+otherwise automatic `pg_catalog` query and its 300-plus returned rows.
+
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
 state. Apply migrations before deploying the Worker, then restart the

@@ -1,0 +1,80 @@
+---
+title: "Knowledge Graphs"
+description: "Knowledge captured as connected notes, entities, and claims."
+source_url: "https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html"
+related_ideas:
+  - "ontology-engineering"
+  - "data-provenance"
+  - "ner"
+---
+
+A knowledge graph stores knowledge as addressable items connected by relations. An item might be a
+note, page, entity, or claim. A relation might be an ordinary hyperlink or a named predicate such
+as *cites* or *supersedes*.
+
+Linked notes and machine-readable claim stores both use the term. More explicit relations enable
+more precise queries.
+
+## What makes it a knowledge graph
+
+The label describes the graph's purpose. Its items record claims, sources, interpretations, and
+decisions. A graph database can store transport networks or software dependencies too. Nodes and
+edges alone do not make the contents knowledge.
+
+For personal use, the job is capture. A note keeps its source and its connections to later notes or
+decisions. Backlinks recover those connections without forcing the note into one folder or a
+finished taxonomy.
+
+## Three common forms
+
+| Form                       | Relation                                         | What it supports                              |
+| -------------------------- | ------------------------------------------------ | --------------------------------------------- |
+| Linked notes or wiki pages | Hyperlink, with meaning supplied by prose        | Navigation, backlinks, and associative recall |
+| Typed content graph        | Named links between kinds of content             | Relation-specific queries and checks          |
+| Semantic knowledge graph   | Predicates between identified entities or claims | Precise queries, validation, and inference    |
+
+[Roam Research](https://roamresearch.com/) and
+[Obsidian](https://obsidian.md/help/links) fit the first form. Their links and backlinks build a
+graph from notes without requiring a formal schema.
+
+Wikipedia is also a linked body of knowledge written for people. Its structured companion,
+[Wikidata](https://www.wikidata.org/wiki/Wikidata:Introduction), represents knowledge as identified
+items and property-value statements. Wikidata can attach qualifiers and references to a statement,
+which makes the statement usable and auditable by software.
+
+The [Stanford CS520 introduction](https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html)
+concentrates on this formal end. It describes a directed, labelled graph with well-defined
+meanings for its labels. A personal knowledge graph can still be useful without RDF, global
+identifiers, or inference.
+
+## Add structure when it answers a question
+
+Untyped links are cheap to capture and leave interpretation to the reader. Typed links cost more:
+the author must choose and maintain a vocabulary. That cost pays off when software needs the
+distinction. A *cites* relation can find unsupported notes. *Supersedes* can identify the current
+decision. *Contradicts* can collect unresolved disagreement.
+
+[Ontology engineering](/ideas/ontology-engineering) defines the concepts and relations used by a
+formal graph. [Data provenance](/ideas/data-provenance) records the source and history of a claim.
+[Named entity recognition](/ideas/ner) can propose entities found in prose. Formal graphs often use
+these techniques. Linked notes can omit them.
+
+Documents, relational tables, RDF stores, and graph databases can all hold a knowledge graph. The
+storage choice affects querying and performance. It does not decide whether the content represents
+knowledge.
+
+## Questions it prompts
+
+* What should remain connected after the immediate task ends?
+* Which repeated queries or checks justify more structure?
+* How will the graph represent sources, uncertainty, and disagreement?
+
+## Sources
+
+* Obsidian. ["Internal links."](https://obsidian.md/help/links)
+* Roam Research. ["A note taking tool for networked thought."](https://roamresearch.com/)
+* Wikidata. ["Introduction."](https://www.wikidata.org/wiki/Wikidata:Introduction)
+* Stanford University CS520. ["What is a Knowledge Graph?"](https://web.stanford.edu/class/cs520/2020/notes/What_is_a_Knowledge_Graph.html).
+  2020\.
+* Hogan, Aidan, et al. ["Knowledge Graphs"](https://doi.org/10.1145/3447772).
+  *ACM Computing Surveys* 54, no. 4, 2021.

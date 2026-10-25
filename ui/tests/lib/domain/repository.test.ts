@@ -476,6 +476,7 @@ description: "Making patient-specific treatment decisions accessible"
 date: "2017-07-04"
 updated: "2021-11-01"
 status: "inactive"
+ideas: ["Digital Twins"]
 project_contributions:
   pathology-viewer: "Made model output inspectable."
 ---
@@ -498,6 +499,9 @@ project_contributions:
           "pathology-viewer": "Made model output inspectable.",
         },
         content: "\n# Goal",
+      });
+      expect(result.relations.get("personalized-medicine")).toEqual({
+        ideas: ["digital-twins"],
       });
     });
 

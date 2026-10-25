@@ -53,6 +53,10 @@ load_config_entries() {
           )
           and .key == "DOPPLER_TOKEN"
         )
+        or (
+          $source == "cloudflare-token-bootstrap/ops_provisioner"
+          and .key == "DOPPLER_BOOTSTRAP_TOKEN"
+        )
       ))
     | map({
         name: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
@@ -246,6 +250,7 @@ known_environments=(
   preview-site-ui
   production-account-foundation
   production-account-foundation-plan
+  production-cloudflare-token-bootstrap
   production-cloudflare-access
   production-cloudflare-access-drift
   production-cloudflare-access-plan
@@ -284,6 +289,7 @@ sync_requested_env preview-recipe-api stg_recipe_api stg_pages_env
 sync_requested_env preview-site-ui stg_site_ui stg_pages_env
 sync_requested_env production-account-foundation ops_account_foundation
 sync_requested_env production-account-foundation-plan ops_account_foundation_plan
+sync_requested_env production-cloudflare-token-bootstrap cloudflare-token-bootstrap/ops_provisioner
 sync_requested_env production-cloudflare-access cloudflare-access/ops_apply
 sync_requested_env production-cloudflare-access-drift cloudflare-access/ops_drift
 sync_requested_env production-cloudflare-access-plan cloudflare-access/ops_plan

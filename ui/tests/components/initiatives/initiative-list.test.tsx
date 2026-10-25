@@ -30,6 +30,7 @@ function initiative(
     status: "active",
     content: "",
     projectContributions: {},
+    ideas: [],
     projects: [
       {
         slug: `${slug}-project`,
@@ -38,7 +39,7 @@ function initiative(
         updated: projectUpdated,
       },
     ],
-  } as InitiativeWithProjects;
+  } as unknown as InitiativeWithProjects;
 }
 
 describe("InitiativeList", () => {

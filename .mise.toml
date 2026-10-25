@@ -187,6 +187,11 @@ description = "Show a redacted project secret and identity bootstrap plan"
 depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts secret-bootstrap-plan"
 
+[tasks."project:secret-bootstrap:conformance"]
+description = "Check Cloudflare token-provisioning authority without writing"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts secret-bootstrap-conformance"
+
 [tasks."project:secret-bootstrap:apply"]
 description = "Resume a reviewed project secret and identity bootstrap plan"
 depends = ["//packages/project-generator:install"]

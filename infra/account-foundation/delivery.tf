@@ -171,7 +171,7 @@ locals {
           ops = {
             name             = "Operations"
             personal_configs = false
-            # The three account-foundation configs are part of the manual seed.
+            # The account-foundation seed configs stay outside this registry.
             configs = ["ops", "ops_preview_agent_access"]
           }
         }
@@ -297,6 +297,35 @@ locals {
           }
           apply = {
             name                 = "production-cloudflare-access"
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+        }
+      }
+    }
+    cloudflare-token-bootstrap = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "cloudflare-token-bootstrap"
+          description = "Cloudflare account-owned API token provisioning authority"
+        }
+        environments = {
+          ops = {
+            name             = "Operations"
+            personal_configs = false
+            configs          = ["ops_provisioner"]
+          }
+        }
+      }
+      github = {
+        repository = "hq"
+        environments = {
+          provision = {
+            name                 = "production-cloudflare-token-bootstrap"
+            can_admins_bypass    = false
             reviewer_usernames   = ["Robbie-Palmer"]
             custom_branch_policy = true
             branch_patterns      = { main = null }

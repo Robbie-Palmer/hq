@@ -59,7 +59,7 @@ depends = ["typecheck", "test", "lint:api", "lint:queries", "deploy:check"]
 
 [tasks."diagnostics:query"]
 depends = ["install"]
-description = "Query historical Work Graph failures and Hyperdrive pool metrics"
+description = "Query Work Graph route usage, failures, and Hyperdrive pool metrics"
 run = "bash scripts/diagnostics.sh"
 
 [tasks."diagnostics:monitor"]

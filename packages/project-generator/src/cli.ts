@@ -41,6 +41,10 @@ import {
   secretBootstrapStateSchema,
   type SecretBootstrapState,
 } from "./secret-bootstrap.js";
+import {
+  conformCloudflareAccountTokenAuthority,
+  createCloudflareAccountToken,
+} from "./cloudflare-account-token.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
@@ -369,10 +373,32 @@ async function runSecretBootstrapApplyCommand(
     acknowledge: input.acknowledge,
     environment: process.env,
     persist: (state) => writeBootstrapState(prepared.statePath, state),
+    extensions: {
+      "cloudflare-account-token": createCloudflareAccountToken,
+    },
+  });
+}
+
+async function runSecretBootstrapConformanceCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return conformCloudflareAccountTokenAuthority({
+    plan: prepared.plan,
+    environment: process.env,
   });
 }
 
 export const projectGeneratorRouter = t.router({
+  secretBootstrapConformance: t.procedure
+    .meta({
+      description: "Check Cloudflare token-provisioning authority without writing",
+    })
+    .input(secretBootstrapCommandInput)
+    .query(({ ctx, input }) =>
+      runSecretBootstrapConformanceCommand(ctx, input),
+    ),
   secretBootstrapPlan: t.procedure
     .meta({
       description: "Show a redacted secret and identity bootstrap plan",

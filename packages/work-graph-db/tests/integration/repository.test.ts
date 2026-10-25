@@ -12,6 +12,8 @@ import {
   classifyRetryableDatabaseFailure,
   closeDb,
   createDb,
+  createDatabaseQueryMetrics,
+  estimateDatabaseResultRowBytes,
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
@@ -25,6 +27,30 @@ if (!databaseURL) {
 
 const db = createDb(databaseURL);
 const repository = new WorkGraphRepository(db);
+
+describe("database query metrics", () => {
+  it("counts executed queries, result rows, and estimated result bytes", async () => {
+    const metrics = createDatabaseQueryMetrics();
+    const measuredDb = createDb(databaseURL, { metrics });
+    try {
+      const rows = await measuredDb.execute<{
+        label: string;
+        amount: number;
+      }>(sql`select 'measured'::text as label, 42::integer as amount`);
+      const [row] = rows;
+
+      expect(rows).toEqual([{ label: "measured", amount: 42 }]);
+      if (row === undefined) throw new Error("Expected one measured row.");
+      expect(metrics.queryCount).toBe(1);
+      expect(metrics.resultRowCount).toBe(1);
+      expect(metrics.resultBytesEstimated).toBe(
+        estimateDatabaseResultRowBytes(row),
+      );
+    } finally {
+      await closeDb(measuredDb);
+    }
+  });
+});
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;

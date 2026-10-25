@@ -1,5 +1,11 @@
 export { closeDb, createDb, type Db, type DbTransaction } from "./connection";
 export {
+  createDatabaseQueryMetrics,
+  estimateDatabaseResultRowBytes,
+  recordDatabaseResultRow,
+  type DatabaseQueryMetrics,
+} from "./query-metrics";
+export {
   classifyRetryableDatabaseFailure,
   isRetryableDatabaseTimeout,
   type RetryableDatabaseFailure,

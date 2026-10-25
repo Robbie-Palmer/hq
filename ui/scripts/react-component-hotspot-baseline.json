@@ -16,23 +16,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "IdeaPage",
-    "maximums": {
-      "lines": 134,
-      "renderComplexity": 11
-    },
-    "path": "app/(site)/ideas/[slug]/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "InitiativePage",
-    "maximums": {
-      "lines": 93
-    },
-    "path": "app/(site)/initiatives/[slug]/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "Home",
     "maximums": {
       "lines": 160
