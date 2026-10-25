@@ -303,6 +303,7 @@ bash -n \
   scripts/vector-development-health.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
+  k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh \
   scripts/provision-vector-development-remote-boot.sh \
   scripts/wake-vector-development.sh \
   scripts/shutdown-vector-development.sh

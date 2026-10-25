@@ -106,21 +106,23 @@ the local HTTP endpoint.
 
 ## Agent GitHub and Doppler access
 
-Account foundation declares the `vector-development-t3` Doppler service
-account and a custom role containing only `View Secrets` and `Manage Secrets`.
-Its allowlist covers the `dev` environment in `ai-review`, `homelab`,
-`personal-site`, and `work-graph`. It cannot administer projects,
-environments, configs, memberships, service tokens, staging, production, or
-operations secrets. Extend the checked-in allowlist deliberately if a later
-workflow needs another boundary.
+The current Doppler plan does not include
+[service accounts](https://docs.doppler.com/docs/service-accounts) or custom
+roles. Vector therefore uses four write-enabled
+[service tokens](https://docs.doppler.com/docs/service-tokens), each bound by
+Doppler to one config: `ai-review/dev`, `homelab/dev`, `personal-site/dev`, or
+`work-graph/dev`. A checked-in wrapper selects the matching token from an
+explicit `--project`, `-p`, or `DOPPLER_PROJECT` value. It rejects every other
+project. The workload receives no personal or CLI token and cannot reach
+staging, production, operations configs, or Doppler administration APIs.
 
-Terraform owns the service account, role, and memberships, but not its token.
-Putting a generated token in a Terraform resource or variable would preserve
-that credential in state. After applying the reviewed account-foundation plan,
-create one token for `vector-development-t3` in Doppler. Separately create a
-fine-grained GitHub token limited to `Robbie-Palmer/hq`, with repository
-contents, pull requests, workflows, and the read permissions needed for checks.
-Do not paste either token into chat or a shell argument.
+Account foundation owns the existing `homelab/prd_vector_development` delivery
+config, but generated service-token values remain outside Terraform state. The
+guarded installer creates and rotates the four service tokens through the
+authenticated controller. Separately create a fine-grained GitHub token limited
+to `Robbie-Palmer/hq`, with repository contents, pull requests, workflows, and
+the read permissions needed for checks. Do not paste it into chat or a shell
+argument.
 
 Wait until the Vector server has no active T3 work, then run the guarded
 interactive installer from the controller:
@@ -130,14 +132,16 @@ mise run //homelab:vector-agent-auth-install
 mise run //homelab:vector-agent-auth-health
 ```
 
-The installer refuses to continue while T3 has active work. It accepts both
-credentials without echoing them and uploads `GH_TOKEN`, `DOPPLER_TOKEN`, and a
-revision marker to `homelab/prd_vector_development` in one request. It waits
-through the configured Doppler sync interval for the managed Secret and a
-replacement `t3-code` Deployment pod to load that revision, then configures Git
-to use GitHub CLI as its credential helper. The health task performs a dry-run
-Git push and checks all four development-only Doppler configs without printing
-secret names or values.
+The installer refuses to continue while T3 has active work. It accepts the
+GitHub credential without echoing it, creates four config-scoped Doppler
+tokens, and uploads all five credentials plus a revision marker to
+`homelab/prd_vector_development` in one request. It waits through the configured
+Doppler sync interval for the managed Secret and a replacement `t3-code`
+Deployment pod to load that revision, then configures Git to use GitHub CLI as
+its credential helper. The health task performs a dry-run Git push and a
+temporary write-and-delete probe in all four development configs without
+printing secret names or values. The installer revokes the previous four
+service tokens only after those checks pass.
 
 ## Connect and operate
 

@@ -104,12 +104,13 @@ Doppler plan does not include child-config inheritance. Doppler created the
 `ops`, `drift`, and `apply` root configs with their environments. Account
 foundation recorded the containers, and a follow-up plan reported no changes.
 
-Account foundation also owns the `vector-development-t3` service account, its
-custom secret-value editor role, and its explicit project memberships. The
-role contains only the secret read and write permissions and each membership
-is restricted to `dev`. The service-account token is a workload credential:
-it is created outside Terraform and stored in
-`homelab/prd_vector_development`, so its value never enters state.
+Account foundation also owns the existing
+`homelab/prd_vector_development` delivery config. The current Doppler plan has
+no service accounts or custom roles, so Vector uses four write-enabled service
+tokens bound separately to the `dev` config in `ai-review`, `homelab`,
+`personal-site`, and `work-graph`. The guarded workload installer creates and
+rotates those tokens outside Terraform, then stores them in the Vector delivery
+config so their values never enter state.
 
 ## GitHub environments
 

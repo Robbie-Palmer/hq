@@ -44,11 +44,40 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
       https://github.com/Robbie-Palmer/hq.git \
       HEAD:"refs/heads/t3-code-auth-health-check-$(date +%s)-$$" \
       >/dev/null 2>&1
-    test -n "${DOPPLER_TOKEN:-}"
+    rm -rf -- "${github_probe_dir}"
+    trap - EXIT
+    case "$(command -v doppler)" in
+      /opt/vector/bin/doppler|/data/home/.local/share/mise/shims/doppler) ;;
+      *) exit 1 ;;
+    esac
+    probe="VECTOR_T3_AUTH_PROBE_$(date +%s)_$$"
+    cleanup_doppler_probe() {
+      for project in ai-review homelab personal-site work-graph; do
+        doppler secrets delete "${probe}" \
+          --project "${project}" --config dev --yes --silent \
+          >/dev/null 2>&1 || true
+      done
+    }
+    trap cleanup_doppler_probe EXIT
     for project in ai-review homelab personal-site work-graph; do
+      case "${project}" in
+        ai-review) test -n "${DOPPLER_TOKEN_AI_REVIEW:-}" ;;
+        homelab) test -n "${DOPPLER_TOKEN_HOMELAB:-}" ;;
+        personal-site) test -n "${DOPPLER_TOKEN_PERSONAL_SITE:-}" ;;
+        work-graph) test -n "${DOPPLER_TOKEN_WORK_GRAPH:-}" ;;
+      esac
       doppler secrets --project "${project}" --config dev --only-names \
         >/dev/null
+      printf %s health-check \
+        | doppler secrets set "${probe}" \
+          --project "${project}" --config dev --no-interactive --silent \
+          >/dev/null
+      doppler secrets --project "${project}" --config dev --only-names \
+        | grep -Fx "${probe}" >/dev/null
+      doppler secrets delete "${probe}" \
+        --project "${project}" --config dev --yes --silent >/dev/null
     done
+    trap - EXIT
   '
 
 echo "Vector T3 GitHub and development-only Doppler access are healthy"

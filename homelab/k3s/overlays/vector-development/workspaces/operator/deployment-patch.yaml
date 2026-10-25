@@ -60,6 +60,8 @@ spec:
               value: "107374182400"
             - name: SHARED_TASK_CACHE_MAX_AGE_SECONDS
               value: "1209600"
+            - name: PATH
+              value: /opt/vector/bin:/data/home/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
             - name: CF_ACCESS_CLIENT_ID
               valueFrom:
                 secretKeyRef:
@@ -129,6 +131,9 @@ spec:
                 - ALL
             readOnlyRootFilesystem: true
           volumeMounts:
+            - name: vector-doppler-wrapper
+              mountPath: /opt/vector/bin
+              readOnly: true
             - name: cache
               mountPath: /data/home/.cache
               subPath: home-cache
@@ -201,6 +206,10 @@ spec:
             - name: docker-data
               mountPath: /home/rootless/.local/share/docker
       volumes:
+        - name: vector-doppler-wrapper
+          configMap:
+            name: vector-doppler-wrapper
+            defaultMode: 365
         - name: cache
           persistentVolumeClaim:
             claimName: t3-code-cache
