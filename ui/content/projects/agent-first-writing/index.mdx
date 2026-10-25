@@ -124,8 +124,8 @@ The implemented path runs repository text through Vale, GECToR, and a narrow
 punctuation candidate. Vale stores detection-only findings against hashed
 source bytes. The model producers emit suggestions and grouped proposals, which
 enter a governed review stage. An observed edit is not an acceptance decision.
-Solid blue nodes and lines are implemented. Dashed orange nodes and lines are
-planned.
+Solid blue nodes and lines are implemented. Passage rewrites remain review-only
+until their evidence gate passes.
 
 <Mermaid
   chart={`flowchart LR
@@ -133,7 +133,7 @@ Source["Source text<br/>[Implemented]<br/>Revision and SHA-256 hash"]
 Rules["Deterministic checks<br/>[Implemented]<br/>Vale rules"]
 Findings["Deterministic findings<br/>[Implemented]<br/>UTF-8 spans and provenance"]
 Local["Local suggestions<br/>[Implemented for model candidates]<br/>Replacement and confidence"]
-Rewrite["Passage rewrites<br/>[Planned]<br/>Grouped proposal and diff"]
+Rewrite["Passage rewrites<br/>[Implemented review-only]<br/>Graph context, grouped proposal, and diff"]
 Review["Human review<br/>[Implemented evidence stage]<br/>Accept, reject, or change"]
 Evidence["Evaluation evidence<br/>[Implemented foundation]<br/>Published-edit alignment"]
 Outcomes["Decision-backed evidence<br/>[Implemented]<br/>Hash-bound records and receipts"]
@@ -142,17 +142,15 @@ Source -->|"exact source bytes"| Rules
 Rules -->|"detection-only records"| Findings
 Findings -->|"finding IDs and published diffs"| Evidence
 Source -->|"bounded source spans"| Local
-Source -.->|"wider document context"| Rewrite
+Source -->|"bounded passage and graph context"| Rewrite
 Local -->|"grouped proposals"| Review
-Rewrite -.->|"multi-edit proposals"| Review
+Rewrite -->|"multi-edit proposals"| Review
 Review -->|"recorded editorial decisions"| Outcomes
 Evidence -->|"baseline comparisons"| Outcomes
 
 classDef implemented fill:#dbeafe,stroke:#2563eb,color:#1e3a5f,stroke-width:2px
-classDef planned fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:2px,stroke-dasharray:5 5
 class Source,Rules,Findings,Local,Review,Evidence,Outcomes implemented
-class Rewrite planned
-linkStyle 4,6 stroke:#ea580c,stroke-width:2px,stroke-dasharray:5 5
+class Rewrite implemented
 `}
 />
 
@@ -237,6 +235,14 @@ general editor:
 7. Capture accept and reject decisions so the evaluation set grows through use.
 8. Extract the repository-specific implementation into a general product only
    after it improves real published pages.
+
+The repository reviewer now accepts one byte-bounded passage rewrite and
+decomposes it into ordered ADR 003 suggestions under a grouped proposal. Before
+the decision prompt it shows the combined diff, project and ADR citations,
+terminology context, evidence freshness warnings, and the author's retained
+fact-checking and publication authority. Per-case evaluation records facts,
+terminology, voice, useful-edit yield, and review time. The default-loop gate
+stays closed until every declared threshold passes.
 
 # Relationship to the knowledge graph
 
