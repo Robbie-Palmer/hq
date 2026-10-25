@@ -50,6 +50,13 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
       /opt/vector/bin/doppler|/data/home/.local/share/mise/shims/doppler) ;;
       *) exit 1 ;;
     esac
+    test "$(command -v work-graph)" = /opt/vector/bin/work-graph
+    test -n "${WORK_GRAPH_API_URL:-}"
+    test -n "${WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS:-}"
+    test -n "${WORK_GRAPH_CF_ACCESS_CLIENT_ID:-}"
+    test -n "${WORK_GRAPH_CF_ACCESS_CLIENT_SECRET:-}"
+    work-graph prime >/dev/null
+    work-graph ready --json >/dev/null
     probe="VECTOR_T3_AUTH_PROBE_$(date +%s)_$$"
     cleanup_doppler_probe() {
       for project in ai-review homelab personal-site work-graph; do
@@ -80,4 +87,4 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
     trap - EXIT
   '
 
-echo "Vector T3 GitHub and development-only Doppler access are healthy"
+echo "Vector T3 GitHub, Work Graph, and development-only Doppler access are healthy"

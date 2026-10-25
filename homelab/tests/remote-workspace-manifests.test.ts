@@ -1483,6 +1483,10 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     String(valueAt(dopplerWrapper, ["data", "doppler"])),
     /DOPPLER_TOKEN_PERSONAL_SITE/,
   );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "work-graph"])),
+    /exec \/usr\/local\/bin\/work-graph "\$@"/,
+  );
   const t3VolumeMounts = valueAt(t3Container, ["volumeMounts"]);
   assert.ok(Array.isArray(t3VolumeMounts));
   assert.deepEqual(
@@ -2540,6 +2544,13 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     ),
     "utf8",
   );
+  const workGraphWrapper = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.ok(installer.includes('check-t3-idle.mjs'));
   assert.ok(installer.includes('read -r -s -p'));
@@ -2561,6 +2572,13 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_tokens)/);
 
   assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
+  assert.ok(
+    healthCheck.includes(
+      'test "$(command -v work-graph)" = /opt/vector/bin/work-graph',
+    ),
+  );
+  assert.ok(healthCheck.includes('work-graph prime >/dev/null'));
+  assert.ok(healthCheck.includes('work-graph ready --json >/dev/null'));
   assert.match(
     healthCheck,
     /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
@@ -2601,6 +2619,7 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     assert.ok(dopplerWrapper.includes(variable));
   }
   assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
+  assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
 });
 
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {

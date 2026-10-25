@@ -31,6 +31,17 @@ RUN export MISE_CACHE_DIR=/tmp/mise-cache \
 
 FROM docker:29.8.2-cli@sha256:b1805116a6a86cc591b5d5f60a910a0715cdcc9d18d866ad68b1457ead25c35c AS docker-cli
 
+FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS work-graph-cli-build
+
+COPY package.json package-lock.json /usr/local/lib/t3-code/
+RUN npm ci --ignore-scripts --prefix /usr/local/lib/t3-code
+
+COPY --from=work-graph-cli package.json tsconfig.json tsconfig.build.json /tmp/work-graph-cli/
+COPY --from=work-graph-cli src /tmp/work-graph-cli/src
+RUN ln --symbolic /usr/local/lib/t3-code/node_modules /tmp/work-graph-cli/node_modules \
+    && /usr/local/lib/t3-code/node_modules/.bin/tsc \
+      --project /tmp/work-graph-cli/tsconfig.build.json
+
 FROM node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
@@ -41,6 +52,8 @@ COPY --from=docker-cli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/
 COPY --from=mise-tools /opt/t3-code-tools/ /usr/local/bin/
 COPY bindep.txt package.json package-lock.json /usr/local/lib/t3-code/
 COPY --from=agent-auth-mcp package.json package-lock.json /usr/local/lib/agent-auth-mcp/
+COPY --from=work-graph-cli package.json /usr/local/lib/work-graph-cli/
+COPY --from=work-graph-cli-build --chmod=0555 /tmp/work-graph-cli/dist /usr/local/lib/work-graph-cli/dist
 
 # T3's npm launcher downloads and verifies the native release archive. Run it
 # during the build so the runtime image does not need a first-start download,
@@ -74,6 +87,12 @@ RUN groupadd --gid 2000 t3code \
     && ln --symbolic \
       "/usr/local/lib/t3-code/runtime/versions/${t3_version}/t3" \
       /usr/local/bin/t3 \
+    && ln --symbolic \
+      /usr/local/lib/t3-code/node_modules \
+      /usr/local/lib/work-graph-cli/node_modules \
+    && ln --symbolic \
+      /usr/local/lib/work-graph-cli/dist/cli.js \
+      /usr/local/bin/work-graph \
     && ln --force \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code-linux-x64/claude \
       /usr/local/lib/t3-code/node_modules/@anthropic-ai/claude-code/bin/claude.exe \

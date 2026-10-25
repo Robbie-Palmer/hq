@@ -140,8 +140,11 @@ Doppler sync interval for the managed Secret and a replacement `t3-code`
 Deployment pod to load that revision, then configures Git to use GitHub CLI as
 its credential helper. The health task performs a dry-run Git push and a
 temporary write-and-delete probe in all four development configs without
-printing secret names or values. The installer revokes the previous four
-service tokens only after those checks pass.
+printing secret names or values. It also checks the image-installed
+`work-graph` command against the production API using credentials injected via
+a separate read-only Doppler token. Agent sessions inherit that ready-to-use
+command and do not need a personal Doppler login. The installer revokes the
+previous four service tokens only after those checks pass.
 
 ## Connect and operate
 
