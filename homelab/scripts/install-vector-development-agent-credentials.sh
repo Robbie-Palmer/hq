@@ -73,24 +73,24 @@ if [[ -z "${github_token}" || -z "${doppler_token}" ]]; then
 fi
 credential_revision=$(date -u +%Y%m%dT%H%M%SZ)-$$
 
-printf '%s' "${github_token}" \
-  | doppler secrets set GH_TOKEN \
-      --project homelab \
-      --config prd_vector_development \
-      --silent >/dev/null
-printf '%s' "${doppler_token}" \
-  | doppler secrets set DOPPLER_TOKEN \
-      --project homelab \
-      --config prd_vector_development \
-      --silent >/dev/null
-printf '%s' "${credential_revision}" \
-  | doppler secrets set AGENT_CREDENTIALS_REVISION \
-      --project homelab \
-      --config prd_vector_development \
-      --silent >/dev/null
+doppler secrets upload \
+  <(
+    jq -n \
+      --rawfile github_token <(printf '%s' "${github_token}") \
+      --rawfile doppler_token <(printf '%s' "${doppler_token}") \
+      --arg credential_revision "${credential_revision}" \
+      '{
+        GH_TOKEN: $github_token,
+        DOPPLER_TOKEN: $doppler_token,
+        AGENT_CREDENTIALS_REVISION: $credential_revision
+      }'
+  ) \
+  --project homelab \
+  --config prd_vector_development \
+  --silent >/dev/null
 unset github_token doppler_token
 
-for _ in $(seq 1 60); do
+for _ in $(seq 1 180); do
   if kubectl --context "${context}" --namespace t3-code \
     get secret t3-code-runtime --output=json \
     | jq -e --arg credential_revision "${credential_revision}" '

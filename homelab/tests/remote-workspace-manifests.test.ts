@@ -2433,12 +2433,12 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
 
   assert.ok(installer.includes('check-t3-idle.mjs'));
   assert.ok(installer.includes('read -r -s -p'));
-  assert.ok(installer.includes('doppler secrets set GH_TOKEN'));
-  assert.ok(installer.includes('doppler secrets set DOPPLER_TOKEN'));
-  assert.ok(
-    installer.includes('doppler secrets set AGENT_CREDENTIALS_REVISION'),
-  );
+  assert.equal(installer.match(/doppler secrets upload/g)?.length, 1);
+  assert.ok(installer.includes('--rawfile github_token'));
+  assert.ok(installer.includes('--rawfile doppler_token'));
+  assert.doesNotMatch(installer, /doppler secrets set/);
   assert.ok(installer.includes('--config prd_vector_development'));
+  assert.ok(installer.includes('for _ in $(seq 1 180)'));
   assert.ok(installer.includes('.data.AGENT_CREDENTIALS_REVISION'));
   assert.ok(installer.includes('${AGENT_CREDENTIALS_REVISION:-}'));
   assert.ok(installer.includes('gh auth setup-git --hostname github.com --force'));

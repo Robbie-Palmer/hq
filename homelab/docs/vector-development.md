@@ -131,11 +131,13 @@ mise run //homelab:vector-agent-auth-health
 ```
 
 The installer refuses to continue while T3 has active work. It accepts both
-credentials without echoing them, streams them to
-`homelab/prd_vector_development` as `GH_TOKEN` and `DOPPLER_TOKEN`, waits for
-the Doppler operator rollout, and configures Git to use GitHub CLI as its
-credential helper. The health task performs a dry-run Git push and checks all
-four development-only Doppler configs without printing secret names or values.
+credentials without echoing them and uploads `GH_TOKEN`, `DOPPLER_TOKEN`, and a
+revision marker to `homelab/prd_vector_development` in one request. It waits
+through the configured Doppler sync interval for the managed Secret and a
+replacement `t3-code` Deployment pod to load that revision, then configures Git
+to use GitHub CLI as its credential helper. The health task performs a dry-run
+Git push and checks all four development-only Doppler configs without printing
+secret names or values.
 
 ## Connect and operate
 
