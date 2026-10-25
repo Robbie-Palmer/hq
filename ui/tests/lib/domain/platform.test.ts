@@ -1936,6 +1936,60 @@ describe("temporal platform layers", () => {
     expect(writingTechnologies).not.toContain("github-secrets");
   });
 
+  it.each([
+    {
+      project: "personal-knowledge-graph",
+      technology: "typescript",
+      source: "required-layer",
+      adoptionDecision: "personal-knowledge-graph:058-temporal-platform-layers",
+    },
+    {
+      project: "recipe-site",
+      technology: "cloudflare-workers",
+      source: "preferred-layer",
+      adoptionDecision:
+        "recipe-site:004-backend-platform-for-authenticated-features",
+    },
+    {
+      project: "agentic-code-review",
+      technology: "cloudflare-workers",
+      source: "preferred-layer",
+      adoptionDecision: "agentic-code-review:001-stateful-ai-code-review",
+    },
+    {
+      project: "work-graph",
+      technology: "hono",
+      source: "preferred-layer",
+      adoptionDecision: "work-graph:003-rest-api-and-cli-first",
+    },
+  ] as const)(
+    "deduplicates $technology in the current $project stack without changing ADR history",
+    ({ project, technology, source, adoptionDecision }) => {
+      const view = getProjectWithADRs(loadDomainRepository(), project);
+      expect(view).not.toBeNull();
+      if (!view) return;
+
+      const currentTechnologySlugs = [
+        ...view.technologies.map((item) => item.slug),
+        ...(view.platformTechnologies ?? []).map((item) => item.slug),
+      ];
+      expect(new Set(currentTechnologySlugs).size).toBe(
+        currentTechnologySlugs.length,
+      );
+      expect(view.technologies.map((item) => item.slug)).not.toContain(
+        technology,
+      );
+      expect(
+        view.platformTechnologies?.find((item) => item.slug === technology),
+      ).toMatchObject({ source, adoptionDecision });
+      expect(
+        view.adrs.some((adr) =>
+          adr.technologies.some((item) => item.slug === technology),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("resolves a project ADR override for a governance value", () => {
     const repository = loadDomainRepository();
     const overrideRef = "personal-knowledge-graph:058-temporal-platform-layers";
