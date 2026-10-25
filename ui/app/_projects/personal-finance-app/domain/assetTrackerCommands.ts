@@ -1370,6 +1370,12 @@ export function applyDeletePlannedExpenditure(
       data.decisionRecords ?? [],
     ),
     futureCashFlows,
+    jobMoveScenarios: data.jobMoveScenarios?.map((scenario) => ({
+      ...scenario,
+      includedFutureCashFlowIds: scenario.includedFutureCashFlowIds?.filter(
+        (flowId) => flowId !== parsed.id,
+      ),
+    })),
     ownership: {
       ...data.ownership,
       futureCashFlows: Object.fromEntries(
@@ -1950,6 +1956,12 @@ export function applyDeleteFutureCashFlow(
       data.decisionRecords ?? [],
     ),
     futureCashFlows,
+    jobMoveScenarios: data.jobMoveScenarios?.map((scenario) => ({
+      ...scenario,
+      includedFutureCashFlowIds: scenario.includedFutureCashFlowIds?.filter(
+        (flowId) => flowId !== parsed.id,
+      ),
+    })),
     plannedExpenditures: data.plannedExpenditures.filter(
       ({ id }) => id !== parsed.id,
     ),
@@ -2735,7 +2747,7 @@ function validateJobMoveScenarioReferences(
   for (const flowId of input.includedFutureCashFlowIds ?? []) {
     if (!futureCashFlowIds.has(flowId)) {
       throw new AssetTrackerCommandError(
-        "FLOW_NOT_FOUND",
+        "FUTURE_CASH_FLOW_NOT_FOUND",
         `No future cash flow found with ID ${flowId}`,
       );
     }

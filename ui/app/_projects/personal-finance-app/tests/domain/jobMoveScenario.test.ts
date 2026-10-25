@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  AssetTrackerCommandError,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyDeleteFutureCashFlow,
   applyDeleteJobMoveScenario,
+  applyDeletePlannedExpenditure,
   applyDuplicateJobMoveScenario,
   applySaveJobMoveScenario,
   buildRepository,
@@ -293,6 +296,65 @@ describe("job-move scenarios", () => {
     );
   });
 
+  it("removes deleted future cash flows from saved paths", () => {
+    const withSelectedFlow = AssetTrackerDataSchema.parse({
+      ...data(),
+      plannedExpenditures: [
+        {
+          id: "redundancy-cash",
+          name: "Employer-confirmed net redundancy cash",
+          amount: 10_000,
+          date: "2026-02-15",
+          fromAccountId: "current",
+        },
+      ],
+      futureCashFlows: [
+        {
+          id: "redundancy-cash",
+          name: "Employer-confirmed net redundancy cash",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: ["redundancy"],
+          currency: "GBP",
+          stages: [
+            {
+              id: "redundancy-cash-stage",
+              direction: "receipt",
+              toAccountId: "current",
+              dueDate: "2026-02-15",
+              amount: 10_000,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+      jobMoveScenarios: [
+        {
+          ...employedScenario(),
+          includedFutureCashFlowIds: ["redundancy-cash"],
+        },
+      ],
+    });
+
+    const withoutFlow = applyDeleteFutureCashFlow(withSelectedFlow, {
+      id: "redundancy-cash",
+    });
+    const withoutExpenditure = applyDeletePlannedExpenditure(withSelectedFlow, {
+      id: "redundancy-cash",
+    });
+
+    expect(
+      withoutFlow.jobMoveScenarios?.[0]?.includedFutureCashFlowIds,
+    ).toEqual([]);
+    expect(
+      withoutExpenditure.jobMoveScenarios?.[0]?.includedFutureCashFlowIds,
+    ).toEqual([]);
+    expect(() => buildRepository(withoutFlow)).not.toThrow();
+    expect(() => buildRepository(withoutExpenditure)).not.toThrow();
+  });
+
   it("distinguishes immediate re-employment, a long gap, and no later job", () => {
     const immediate = comparison({
       ...employedScenario(),
@@ -370,6 +432,36 @@ describe("job-move scenarios", () => {
     expect(horizon?.scenario.totalBalance).toBeLessThan(
       horizon?.baseline.totalBalance ?? Number.NEGATIVE_INFINITY,
     );
+  });
+
+  it("does not subtract more current-role compensation than the baseline", () => {
+    const currentRole = employedScenario().currentRole;
+    if (currentRole == null) throw new Error("Expected current-role facts");
+    const unemployed: JobMoveScenario = {
+      ...employedScenario(),
+      employmentStatus: "unemployed",
+      roleStartDate: undefined,
+      employer: undefined,
+      baseGrossPay: 0,
+      variableGrossPay: 0,
+      employeePensionRate: 0,
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+      destinationAccountId: undefined,
+      pensionAccountId: undefined,
+      currentRole: {
+        ...currentRole,
+        annualTakeHomePay: 50_000,
+        annualEmployeePensionContribution: 1_000,
+        annualEmployerPensionContribution: 2_000,
+      },
+    };
+
+    expect(comparison(unemployed).compensation).toMatchObject({
+      scenarioAnnualTakeHomePay: 0,
+      scenarioAnnualEmployeePensionContribution: 0,
+      scenarioAnnualEmployerPensionContribution: 0,
+    });
   });
 
   it("keeps another household member's income in a job-loss scenario", () => {
@@ -504,5 +596,26 @@ describe("job-move scenarios", () => {
     expect(duplicated.jobMoveScenarios).toHaveLength(2);
     expect(removed.jobMoveScenarios).toHaveLength(1);
     expect(removed.salaryHistory).toEqual(original.salaryHistory);
+  });
+
+  it("reports an unknown selected future cash flow with its specific code", () => {
+    let failure: unknown;
+    try {
+      applySaveJobMoveScenario(
+        data(),
+        {
+          scenario: {
+            ...employedScenario(),
+            includedFutureCashFlowIds: ["missing-flow"],
+          },
+        },
+        "2026-01-02T00:00:00Z",
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(failure).toBeInstanceOf(AssetTrackerCommandError);
+    expect(failure).toMatchObject({ code: "FUTURE_CASH_FLOW_NOT_FOUND" });
   });
 });

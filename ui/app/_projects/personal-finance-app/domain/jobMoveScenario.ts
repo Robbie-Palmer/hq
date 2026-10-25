@@ -940,7 +940,9 @@ function comparisonCompensation(
   const baselineEmployerPension =
     input.baselineCompensation?.annualEmployerPensionContribution ?? null;
   const replace = (baseline: number | null, prior: number, future: number) =>
-    baseline == null || replaced == null ? future : baseline - prior + future;
+    baseline == null || replaced == null
+      ? future
+      : Math.max(baseline - prior, 0) + future;
   const warnings: string[] = [];
   if (input.scenario.currentRole == null) {
     warnings.push(
