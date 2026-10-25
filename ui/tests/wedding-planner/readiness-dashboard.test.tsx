@@ -70,6 +70,9 @@ describe("readiness dashboard", () => {
     if (!guestWarning) throw new Error("Expected a guest readiness warning");
     fireEvent.click(guestWarning);
     expect(onNavigate).toHaveBeenCalledWith("guests", "uma");
+    expect(
+      guestWarning.querySelector(".readiness-issue-area"),
+    ).toHaveTextContent("guests");
   });
 
   it("lets the couple configure the checks used by a milestone", () => {

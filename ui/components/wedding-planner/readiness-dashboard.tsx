@@ -5,6 +5,7 @@ import {
   BedDouble,
   CalendarClock,
   CheckCircle2,
+  ChevronRight,
   CircleDollarSign,
   ClipboardCheck,
   Plus,
@@ -204,18 +205,17 @@ function IssueList({
           const destination = internalDestination(item.href);
           const content = (
             <>
-              <AlertTriangle size={17} />
-              <span>
+              <span className="readiness-issue-icon">
+                <AlertTriangle size={16} />
+              </span>
+              <span className="readiness-issue-copy">
                 <strong>{item.title}</strong>
                 <small>{item.detail}</small>
               </span>
-              <Badge
-                variant={
-                  item.severity === "warning" ? "destructive" : "secondary"
-                }
-              >
+              <Badge className="readiness-issue-area" variant="outline">
                 {item.area}
               </Badge>
+              <ChevronRight className="readiness-issue-chevron" size={16} />
             </>
           );
           return destination ? (

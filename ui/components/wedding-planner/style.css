@@ -127,30 +127,37 @@
   display: grid;
   gap: 8px;
 }
+.readiness-issues {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .readiness-payments a,
 .readiness-issues a,
 .readiness-issues button {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   width: 100%;
   border: 1px solid var(--line);
-  border-radius: 9px;
-  background: #fff;
+  border-radius: 11px;
+  background: #fbfcf9;
   color: var(--ink);
-  padding: 10px 12px;
+  padding: 12px;
   text-align: left;
   text-decoration: none;
+}
+.readiness-payments a {
+  display: flex;
+  gap: 10px;
 }
 .readiness-payments a:hover,
 .readiness-issues a:hover,
 .readiness-issues button:hover {
-  border-color: #aebfad;
-  background: #f4f7f1;
+  border-color: #bdcab9;
+  background: #f3f7f1;
 }
 .readiness-payments a > span,
-.readiness-issues a > span,
-.readiness-issues button > span {
+.readiness-issue-copy {
   display: grid;
   flex: 1;
 }
@@ -159,9 +166,23 @@
   color: var(--soft-ink);
   font-size: 12px;
 }
-.readiness-issues svg {
-  color: #ad6f2d;
-  flex: 0 0 auto;
+.readiness-issue-icon {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 999px;
+  background: #fff2dd;
+  color: #9a611e;
+}
+.readiness-issue-area {
+  border-color: #dce3da;
+  background: #f0f3ee;
+  color: #526258;
+  text-transform: capitalize;
+}
+.readiness-issue-chevron {
+  color: #98a49b;
 }
 .readiness-clear {
   display: flex;
@@ -175,6 +196,9 @@
   .readiness-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .readiness-issues {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 700px) {
@@ -183,6 +207,20 @@
   .readiness-summary-grid,
   .readiness-check-grid {
     grid-template-columns: 1fr;
+  }
+  .readiness-issues a,
+  .readiness-issues button {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .readiness-issue-icon {
+    grid-row: 1 / 3;
+  }
+  .readiness-issue-area {
+    grid-column: 2;
+    justify-self: start;
+  }
+  .readiness-issue-chevron {
+    display: none;
   }
 }
 .editor-app button,
