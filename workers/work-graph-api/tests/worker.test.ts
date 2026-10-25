@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fakes = vi.hoisted(() => ({
   appFetch: vi.fn(),
@@ -34,6 +34,24 @@ const env = {
   WORKER_VERSION: { id: "version-123" },
 };
 const context = {} as ExecutionContext;
+
+const memoryCache = () => {
+  const entries = new Map<string, Response>();
+  return {
+    match: vi.fn(async (request: RequestInfo) => {
+      const key = request instanceof Request ? request.url : request.toString();
+      return entries.get(key)?.clone();
+    }),
+    put: vi.fn(async (request: RequestInfo, response: Response) => {
+      const key = request instanceof Request ? request.url : request.toString();
+      entries.set(key, response.clone());
+    }),
+  } as unknown as Cache;
+};
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 describe("Given the deployed Worker entrypoint", () => {
   beforeEach(() => {
@@ -75,6 +93,121 @@ describe("Given the deployed Worker entrypoint", () => {
     expect(response.status).toBe(500);
     expect(response.headers.get("x-request-id")).toBeTruthy();
     expect(fakes.closeDb).toHaveBeenCalledWith(db);
+  });
+
+  it("serves a repeated projection without opening another database connection", async () => {
+    const cache = memoryCache();
+    vi.stubGlobal("caches", { default: cache });
+    const pending: Promise<unknown>[] = [];
+    const cacheContext = {
+      waitUntil: vi.fn((promise: Promise<unknown>) => pending.push(promise)),
+    } as unknown as ExecutionContext;
+    const request = new Request(
+      "https://work-graph.example/api/work-items?stage=ready",
+    ) as WorkerRequest;
+    fakes.appFetch.mockResolvedValue(
+      Response.json({ items: [], nextCursor: null }),
+    );
+
+    const first = await worker.fetch(request, env, cacheContext);
+    await Promise.all(pending);
+    const second = await worker.fetch(request, env, cacheContext);
+
+    expect(first.headers.get("x-work-graph-cache")).toBe("miss");
+    expect(second.headers.get("x-work-graph-cache")).toBe("hit");
+    expect(await second.json()).toEqual({ items: [], nextCursor: null });
+    expect(fakes.createDb).toHaveBeenCalledTimes(1);
+    expect(fakes.appFetch).toHaveBeenCalledTimes(1);
+    expect(fakes.closeDb).toHaveBeenCalledTimes(1);
+  });
+
+  it("rotates cached projections after a successful mutation", async () => {
+    const cache = memoryCache();
+    vi.stubGlobal("caches", { default: cache });
+    const pending: Promise<unknown>[] = [];
+    const cacheContext = {
+      waitUntil: vi.fn((promise: Promise<unknown>) => pending.push(promise)),
+    } as unknown as ExecutionContext;
+    fakes.appFetch.mockImplementation(async (request: Request) =>
+      request.method === "POST"
+        ? Response.json({ id: "ticket" }, { status: 201 })
+        : Response.json({ items: [], nextCursor: null }),
+    );
+    const projection = new Request(
+      "https://work-graph.example/api/work-items?stage=ready",
+    ) as WorkerRequest;
+
+    await worker.fetch(projection, env, cacheContext);
+    await Promise.all(pending.splice(0));
+    expect(
+      (await worker.fetch(projection, env, cacheContext)).headers.get(
+        "x-work-graph-cache",
+      ),
+    ).toBe("hit");
+
+    await worker.fetch(
+      new Request("https://work-graph.example/api/work-items", {
+        method: "POST",
+      }) as WorkerRequest,
+      env,
+      cacheContext,
+    );
+    const afterMutation = await worker.fetch(projection, env, cacheContext);
+
+    expect(afterMutation.headers.get("x-work-graph-cache")).toBe("miss");
+    expect(fakes.appFetch).toHaveBeenCalledTimes(3);
+    expect(fakes.createDb).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not store an unsuccessful projection response", async () => {
+    vi.stubGlobal("caches", { default: memoryCache() });
+    const cacheContext = {
+      waitUntil: vi.fn(),
+    } as unknown as ExecutionContext;
+    fakes.appFetch.mockResolvedValue(
+      Response.json({ error: { code: "not_found" } }, { status: 404 }),
+    );
+
+    const response = await worker.fetch(
+      new Request(
+        "https://work-graph.example/api/work-items/missing/details",
+      ) as WorkerRequest,
+      env,
+      cacheContext,
+    );
+
+    expect(response.status).toBe(404);
+    expect(response.headers.get("x-work-graph-cache")).toBeNull();
+    expect(cacheContext.waitUntil).not.toHaveBeenCalled();
+  });
+
+  it("logs a cache failure without failing the database read", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubGlobal("caches", {
+      default: {
+        match: vi.fn(async () => Promise.reject(new Error("private cache error"))),
+        put: vi.fn(),
+      },
+    });
+    fakes.appFetch.mockResolvedValue(
+      Response.json({ items: [], nextCursor: null }),
+    );
+
+    const response = await worker.fetch(
+      new Request("https://work-graph.example/api/work-items") as WorkerRequest,
+      { HYPERDRIVE: env.HYPERDRIVE },
+      { waitUntil: vi.fn() } as unknown as ExecutionContext,
+    );
+
+    expect(response.status).toBe(200);
+    expect(error).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exceptionClass: "projection_cache_lookup_error",
+        workerVersion: "local",
+      }),
+    );
+    expect(JSON.stringify(error.mock.calls)).not.toContain("private cache error");
+    error.mockRestore();
   });
 });
 

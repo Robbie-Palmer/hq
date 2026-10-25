@@ -83,6 +83,25 @@ occurs after a claim may have been committed, the Worker returns
 `claim_outcome_uncertain` without `Retry-After` and tells the caller to inspect
 the work item before claiming again.
 
+### Projection cache
+
+The Worker caches successful queue, critical-path, and ticket-details GETs in
+Cloudflare's Cache API for five seconds. Cache hits do not open a Hyperdrive
+connection. Query parameters are sorted before lookup, and the deployed Worker
+version is part of each key.
+
+Every successful POST, PUT, or DELETE rotates a generation key before the
+response returns. That makes all prior query variants unreachable in the
+Cloudflare location that handled the mutation. A delivery-consumer write or a
+mutation handled in another location can leave an entry readable until its
+five-second TTL expires. Clients receive `Cache-Control: no-store` and an
+`X-Work-Graph-Cache` value of `hit` or `miss`, so they do not extend that
+window.
+
+Cache lookup, storage, and invalidation failures fall back to PostgreSQL and
+emit a sanitized `projection_cache_*_error` record. They do not turn an
+otherwise successful API request into an error.
+
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
 state. Apply migrations before deploying the Worker, then restart the
