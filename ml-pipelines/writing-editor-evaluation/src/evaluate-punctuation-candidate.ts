@@ -97,8 +97,8 @@ function loadEligibleDecisions(
     for (const decision of decisions) {
       const [suggestion] = decision.proposal.suggestions;
       if (
-        decision.proposal.suggestions.length === 1 && suggestion &&
-        suggestion.span.sourceText === "" && suggestion.replacement === ","
+        decision.proposal.suggestions.length === 1 &&
+        suggestion?.span.sourceText === "" && suggestion.replacement === ","
       ) {
         eligible.set(
           siteKey(
@@ -158,6 +158,25 @@ function deterministicCounts(root: string): { documents: number; proposals: numb
       return sum + records.proposals.length;
     }, 0),
   };
+}
+
+function candidateDecision(
+  adoptionGates: Record<string, boolean>,
+  rejectionGates: Record<string, boolean>,
+): "adopt" | "reject" | "gather-more-evidence" {
+  if (Object.values(adoptionGates).every(Boolean)) return "adopt";
+  if (Object.values(rejectionGates).some(Boolean)) return "reject";
+  return "gather-more-evidence";
+}
+
+function nextEvidence(decision: "adopt" | "reject" | "gather-more-evidence", unassessed: number) {
+  if (decision === "gather-more-evidence") {
+    return `Review the ${unassessed} unmatched proposals before reconsidering adoption. Keep the model out of the default editor.`;
+  }
+  if (decision === "reject") {
+    return "Keep the model out of the default editor. A new candidate needs a separate pre-registration.";
+  }
+  return "The candidate may enter the review-only editor path. It must not apply edits without a recorded decision.";
 }
 
 export function evaluatePunctuationCandidate(options: {
@@ -222,11 +241,7 @@ export function evaluatePunctuationCandidate(options: {
     acceptedSiteRecall:
       acceptedSiteRecall <= experiment.decisionThresholds.reject.maximumAcceptedSiteRecall,
   };
-  const decision = Object.values(adoptionGates).every(Boolean)
-    ? "adopt"
-    : Object.values(rejectionGates).some(Boolean)
-    ? "reject"
-    : "gather-more-evidence";
+  const decision = candidateDecision(adoptionGates, rejectionGates);
 
   const body = {
     schemaVersion: 1,
@@ -309,11 +324,7 @@ export function evaluatePunctuationCandidate(options: {
     "",
     "## Next evidence",
     "",
-    decision === "gather-more-evidence"
-      ? `Review the ${unassessed} unmatched proposals before reconsidering adoption. Keep the model out of the default editor.`
-      : decision === "reject"
-      ? "Keep the model out of the default editor. A new candidate needs a separate pre-registration."
-      : "The candidate may enter the review-only editor path. It must not apply edits without a recorded decision.",
+    nextEvidence(decision, unassessed),
     "",
   ].join("\n");
   fs.mkdirSync(path.dirname(options.reportFile), { recursive: true });

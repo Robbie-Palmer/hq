@@ -174,6 +174,40 @@ export async function verifyPunctuationAsset(
   }
 }
 
+async function prepareAsset(options: {
+  asset: PunctuationModelManifest["assets"][number];
+  outputDirectory: string;
+  timeoutMs: number;
+  download: CheckpointDownloader;
+  verifyAsset: typeof verifyPunctuationAsset;
+}): Promise<void> {
+  const { asset, outputDirectory, timeoutMs, download, verifyAsset } = options;
+  const file = path.join(outputDirectory, asset.file);
+  if (fs.existsSync(file)) {
+    await verifyAsset(file, asset.bytes, asset.contentHash);
+    return;
+  }
+  if (asset.url === undefined) throw new Error(`${asset.file} has no acquisition URL`);
+  const partial = `${file}.partial`;
+  await download(new URL(asset.url), partial, {
+    expectedBytes: asset.bytes,
+    timeoutMs,
+  });
+  await verifyAsset(partial, asset.bytes, asset.contentHash);
+  fs.renameSync(partial, file);
+}
+
+async function prepareAssets(
+  assets: PunctuationModelManifest["assets"],
+  options: Omit<Parameters<typeof prepareAsset>[0], "asset">,
+  index = 0,
+): Promise<void> {
+  const asset = assets[index];
+  if (asset === undefined) return;
+  await prepareAsset({ ...options, asset });
+  await prepareAssets(assets, options, index + 1);
+}
+
 export async function preparePunctuationModel(options: {
   manifestFile: string;
   outputDirectory: string;
@@ -188,21 +222,12 @@ export async function preparePunctuationModel(options: {
   const verifyAsset = options.verifyAsset ?? verifyPunctuationAsset;
   fs.mkdirSync(outputDirectory, { recursive: true });
 
-  for (const asset of manifest.assets) {
-    const file = path.join(outputDirectory, asset.file);
-    if (fs.existsSync(file)) {
-      await verifyAsset(file, asset.bytes, asset.contentHash);
-      continue;
-    }
-    const partial = `${file}.partial`;
-    if (asset.url === undefined) throw new Error(`${asset.file} has no acquisition URL`);
-    await download(new URL(asset.url), partial, {
-      expectedBytes: asset.bytes,
-      timeoutMs: options.timeoutMs ?? 60_000,
-    });
-    await verifyAsset(partial, asset.bytes, asset.contentHash);
-    fs.renameSync(partial, file);
-  }
+  await prepareAssets(manifest.assets, {
+    outputDirectory,
+    timeoutMs: options.timeoutMs ?? 60_000,
+    download,
+    verifyAsset,
+  });
 
   const receipt: PunctuationModelReceipt = {
     schemaVersion: 1,

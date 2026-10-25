@@ -279,22 +279,33 @@ class PunctuationModel:
             start = keep_to
         return labels
 
+    def segment_comma_insertions(
+        self, source: str, segment: TextSegment
+    ) -> dict[int, float]:
+        segment_source = source[segment.start : segment.end]
+        cleaned, boundaries = strip_marks_with_boundaries(segment_source)
+        if not cleaned.strip():
+            return {}
+
+        insertions: dict[int, float] = {}
+        for cleaned_end, (label, probability) in self.labels(cleaned).items():
+            if label != "," or probability < self.parameters.minimum_comma_probability:
+                continue
+            if cleaned_end < len(cleaned) and not cleaned[cleaned_end].isspace():
+                continue
+            original_offset = segment.start + boundaries[cleaned_end]
+            if original_offset < len(source) and source[original_offset] in TRAILING_MARKS:
+                continue
+            byte_offset = len(source[:original_offset].encode("utf-8"))
+            insertions[byte_offset] = probability
+        return insertions
+
     def comma_insertions(self, source: str) -> list[dict[str, int | float]]:
         insertions: dict[int, float] = {}
         for segment in document_segments(source):
-            segment_source = source[segment.start : segment.end]
-            cleaned, boundaries = strip_marks_with_boundaries(segment_source)
-            if not cleaned.strip():
-                continue
-            for cleaned_end, (label, probability) in self.labels(cleaned).items():
-                if label != "," or probability < self.parameters.minimum_comma_probability:
-                    continue
-                if cleaned_end < len(cleaned) and not cleaned[cleaned_end].isspace():
-                    continue
-                original_offset = segment.start + boundaries[cleaned_end]
-                if original_offset < len(source) and source[original_offset] in TRAILING_MARKS:
-                    continue
-                byte_offset = len(source[:original_offset].encode("utf-8"))
+            for byte_offset, probability in self.segment_comma_insertions(
+                source, segment
+            ).items():
                 insertions[byte_offset] = max(insertions.get(byte_offset, 0), probability)
         return [
             {"byteOffset": byte_offset, "confidence": insertions[byte_offset]}

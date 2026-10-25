@@ -161,10 +161,10 @@ const ReceiptSchema = z.object({
   manifestContentHash: z.string(),
 }).strict();
 
-const RecordsSourceSchema = z.object({
+const RecordsSourceSchema = z.looseObject({
   documentId: z.string(),
   revision: z.string(),
-}).passthrough();
+});
 
 export function runPunctuationCandidate(options: {
   evidenceRoot: string;
