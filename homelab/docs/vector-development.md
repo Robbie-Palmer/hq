@@ -134,8 +134,8 @@ The installer refuses to continue while T3 has active work. It accepts both
 credentials without echoing them, streams them to
 `homelab/prd_vector_development` as `GH_TOKEN` and `DOPPLER_TOKEN`, waits for
 the Doppler operator rollout, and configures Git to use GitHub CLI as its
-credential helper. The health task tests GitHub authentication and a
-development-only Doppler read without printing secret names or values.
+credential helper. The health task performs a dry-run Git push and checks all
+four development-only Doppler configs without printing secret names or values.
 
 ## Connect and operate
 

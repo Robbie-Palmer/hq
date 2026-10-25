@@ -2447,8 +2447,9 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
   assert.match(
     healthCheck,
-    /gh api repos\/Robbie-Palmer\/hq --jq "\.permissions\.push"/,
+    /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
   );
+  assert.ok(!healthCheck.includes('.permissions.push'));
   assert.ok(
     healthCheck.includes(
       'for project in ai-review homelab personal-site work-graph',
