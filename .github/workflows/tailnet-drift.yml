@@ -10,7 +10,7 @@ permissions:
   issues: write
 
 concurrency:
-  group: tailnet-terraform-drift
+  group: tailnet-infrastructure
   cancel-in-progress: false
 
 jobs:

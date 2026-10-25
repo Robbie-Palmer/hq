@@ -88,7 +88,9 @@ the read-only credential. Fork pull requests cannot start that job.
 The drift workflow runs from `main` every six hours with the read-only
 credential and no reviewer gate. It opens or updates one issue with a link to
 the protected run when Terraform detects drift, and closes that issue after a
-clean plan. It never posts plan output.
+clean plan. It never posts plan output. Drift and apply share a non-cancelling
+concurrency group, so a drift plan waits for an active apply instead of reading
+the tailnet while Terraform is changing it.
 
 Apply is manual, runs only from `main`, and waits for approval on
 `production-tailnet-infra`. The workflow deletes any stale plan, creates a
