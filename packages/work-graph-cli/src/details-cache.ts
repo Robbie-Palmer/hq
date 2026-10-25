@@ -107,9 +107,9 @@ export class FileWorkItemDetailsCache implements WorkItemDetailsCache {
 }
 
 const disabledCache: WorkItemDetailsCache = {
-  read: async () => undefined,
-  remove: async () => undefined,
-  write: async () => undefined,
+  read: () => Promise.resolve(undefined),
+  remove: () => Promise.resolve(),
+  write: () => Promise.resolve(),
 };
 
 export const createWorkItemDetailsCache = (
