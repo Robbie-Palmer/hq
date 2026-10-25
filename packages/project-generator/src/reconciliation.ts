@@ -27,6 +27,7 @@ import {
   resolveProjectProfile,
   type ProjectProfile,
   type ProjectProfileContracts,
+  type ResolvedFulfillmentCheckpoint,
   type ResolvedProfilePolicy,
   type ResolvedProjectBlueprint,
   type ResolvedSelection,
@@ -44,13 +45,43 @@ const recordedSelectionSchema = z
   })
   .strict();
 
-const recordedBlueprintSchema = z.looseObject({
-    schema_version: z.literal(1),
-    effective_at: z.string().min(1),
-    project: z.looseObject({ id: z.string().min(1) }),
-    selections: z.array(recordedSelectionSchema),
-    manual_checkpoints: z.array(z.string()).default([]),
+const recordedBlueprintFields = {
+  effective_at: z.string().min(1),
+  project: z.looseObject({ id: z.string().min(1) }),
+  selections: z.array(recordedSelectionSchema),
+};
+
+const recordedFulfillmentCheckpointSchema = z
+  .object({
+    id: z.string().min(1),
+    action: z.string().min(1),
+    fulfillment: z.literal("manual"),
+    status: z.enum(["pending", "verified"]),
+    evidence: z.array(z.string().min(1)),
+  })
+  .strict()
+  .superRefine((checkpoint, context) => {
+    if (checkpoint.status === "verified" && checkpoint.evidence.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "must contain at least one item when a checkpoint is verified",
+      });
+    }
   });
+
+const recordedBlueprintSchema = z.discriminatedUnion("schema_version", [
+  z.looseObject({
+    ...recordedBlueprintFields,
+    schema_version: z.literal(1),
+    manual_checkpoints: z.array(z.string()).default([]),
+  }),
+  z.looseObject({
+    ...recordedBlueprintFields,
+    schema_version: z.literal(2),
+    fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
+  }),
+]);
 
 const receiptSchema = z.looseObject({
     _commit: z.string().regex(/^[0-9a-f]{40}$/),
@@ -94,7 +125,7 @@ export interface ReconciliationAction {
     | "policy_change"
     | "default_change"
     | "local_override"
-    | "manual_checkpoint"
+    | "fulfillment_checkpoint"
     | "template_update"
     | "repository_edit";
   readonly summary: string;
@@ -448,11 +479,24 @@ function overrideSummary(review: LocalOverrideReview): string {
   return `Review ${review.status} local override '${review.slot}' from decision '${review.current?.decision}'.`;
 }
 
+function appendPendingFulfillmentActions(
+  checkpoints: readonly ResolvedFulfillmentCheckpoint[],
+  actions: ReconciliationAction[],
+): void {
+  for (const checkpoint of checkpoints) {
+    if (checkpoint.status !== "pending") continue;
+    actions.push({
+      kind: "fulfillment_checkpoint",
+      summary: checkpoint.action,
+    });
+  }
+}
+
 function buildActions(input: {
   readonly policies: readonly PolicyChange[];
   readonly defaults: readonly DefaultSelectionChange[];
   readonly overrides: readonly LocalOverrideReview[];
-  readonly checkpoints: readonly string[];
+  readonly checkpoints: readonly ResolvedFulfillmentCheckpoint[];
   readonly recordedTemplateRevision: string;
   readonly targetTemplateRevision: string;
   readonly changedPaths: readonly string[];
@@ -476,9 +520,7 @@ function buildActions(input: {
       summary: overrideSummary(review),
     });
   }
-  for (const checkpoint of input.checkpoints) {
-    manualDecisions.push({ kind: "manual_checkpoint", summary: checkpoint });
-  }
+  appendPendingFulfillmentActions(input.checkpoints, manualDecisions);
   if (input.recordedTemplateRevision !== input.targetTemplateRevision) {
     migrations.push({
       kind: "template_update",
@@ -635,7 +677,7 @@ export async function planProjectReconciliation(
     policies,
     defaults,
     overrides,
-    checkpoints: input.blueprint.manual_checkpoints,
+    checkpoints: input.blueprint.fulfillment_checkpoints,
     recordedTemplateRevision: recorded.commit,
     targetTemplateRevision: input.template.revision,
     changedPaths,

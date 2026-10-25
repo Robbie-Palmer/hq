@@ -210,7 +210,7 @@ function adoptionBlueprint(
   projectId = "alpha",
 ): ResolvedProjectBlueprint {
   return {
-    schema_version: 1,
+    schema_version: 2,
     profile_schema_version: 1,
     effective_at: "2026-10-21T00:00:00Z",
     project: {
@@ -256,7 +256,7 @@ function adoptionBlueprint(
     },
     nix: { enabled: false },
     opentelemetry: { enabled: false },
-    manual_checkpoints: [],
+    fulfillment_checkpoints: [],
   };
 }
 

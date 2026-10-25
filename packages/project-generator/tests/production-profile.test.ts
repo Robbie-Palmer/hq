@@ -20,7 +20,7 @@ const profileUrl = new URL(
   "../../../ui/content/projects/personal-finance-app/project-profile.yaml",
   import.meta.url,
 );
-const effectiveAt = "2026-10-21T00:00:00Z";
+const effectiveAt = "2026-10-25T00:00:00Z";
 
 async function productionBlueprint() {
   const [profileSource, layout, platform, nix, opentelemetry] =
@@ -93,15 +93,42 @@ describe("Personal Finance production profile", () => {
       },
     ]);
     expect(first.blueprint.nix).toEqual({ enabled: false });
-    expect(first.blueprint.opentelemetry).toEqual({ enabled: false });
+    expect(first.blueprint.opentelemetry).toMatchObject({
+      enabled: true,
+      runtime: "typescript-worker",
+      data_policy: {
+        mode: "default-deny",
+        unsafe_record_action: "drop",
+      },
+    });
     expect(
       first.blueprint.components.some(({ kind }) => kind === "worker"),
     ).toBe(false);
     expect(
-      first.blueprint.selections.some(({ layer }) =>
-        ["backend-api", "database", "storage"].includes(layer),
-      ),
-    ).toBe(false);
+      first.blueprint.selections
+        .filter(({ layer }) =>
+          [
+            "web-app",
+            "backend-api",
+            "database",
+            "observability",
+            "storage",
+          ].includes(layer),
+        )
+        .map(({ slot }) => slot),
+    ).toEqual(
+      expect.arrayContaining([
+        "web-app.host",
+        "backend-api.runtime",
+        "backend-api.relational-connection",
+        "database.relational-engine",
+        "database.relational-host",
+        "database.backup-restore",
+        "observability.telemetry-protocol",
+        "observability.application-telemetry",
+        "storage.object-store",
+      ]),
+    );
   });
 
   it("pins the production template and inherits local task applicability", async () => {
