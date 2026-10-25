@@ -404,6 +404,7 @@ locals {
       ]
     ])
   ])
+  cloudflare_token_bootstrap_config_id = "cloudflare-token-bootstrap/ops/ops_provisioner"
   github_environment_ids = flatten([
     for entry in local.delivery_registry_entries : [
       for environment in values(entry.root.github.environments) :
@@ -459,7 +460,10 @@ locals {
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config_name
-          imported    = root.imported && var.enable_existing_imports
+          imported = (
+            root.imported ||
+            "${root.doppler.project.name}/${environment_slug}/${config_name}" == local.cloudflare_token_bootstrap_config_id
+          ) && var.enable_existing_imports
         }
       }
     ]
