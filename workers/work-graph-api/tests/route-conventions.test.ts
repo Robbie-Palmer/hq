@@ -123,6 +123,7 @@ describe("Given the Work Graph route registry", () => {
         "GET /api/work-items/:workItemId/completion-candidate",
         "GET /api/work-items/:workItemId/contexts",
         "GET /api/work-items/:workItemId/dependencies",
+        "GET /api/work-items/:workItemId/details",
         "GET /api/work-items/:workItemId/events",
         "GET /api/work-items/:workItemId/evidence",
         "GET /api/work-items/:workItemId/leases",

@@ -543,6 +543,12 @@ const deliveryEvidenceListSchema = z
 const completionCandidateResponseSchema = z
   .object({ candidate: z.union([completionCandidateSchema, z.null()]) })
   .openapi("CompletionCandidateResponse");
+const workItemDetailsSchema = workItemSchema
+  .extend({
+    deliveryEvidence: deliveryEvidenceListSchema,
+    completionCandidate: z.union([completionCandidateSchema, z.null()]),
+  })
+  .openapi("WorkItemDetails");
 const knowledgeScopeListSchema = z
   .object({
     items: z.array(knowledgeScopeSchema).max(100),
@@ -1400,6 +1406,25 @@ const getWorkItemRoute = createRoute({
     200: {
       description: "Current work-item projection",
       content: { "application/json": { schema: workItemSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const getWorkItemDetailsRoute = createRoute({
+  method: "get",
+  path: "/api/work-items/{workItemId}/details",
+  operationId: "getWorkItemDetails",
+  summary: "Read the details shown for a work item",
+  description:
+    "Returns the current work-item projection, current delivery evidence, and latest completion candidacy in one request. The standalone projections remain available for callers that need independent pagination or refresh cycles.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: { params: workItemParamsSchema },
+  responses: {
+    200: {
+      description: "Current work-item details",
+      content: { "application/json": { schema: workItemDetailsSchema } },
     },
     ...standardErrors,
   },
@@ -2426,6 +2451,17 @@ const serializeWorkItem = (item: WorkItemReadModel) => ({
   currentLease: item.currentLease ? serializeLease(item.currentLease) : null,
 });
 
+const serializeCompletionCandidate = (
+  candidate: StoredCompletionCandidateEvaluation | null,
+) =>
+  candidate === null
+    ? null
+    : {
+        ...candidate,
+        reasons: [...candidate.reasons],
+        evidenceObservationIds: [...candidate.evidenceObservationIds],
+      };
+
 const serializeNote = (storedNote: StoredNote) => ({
   ...storedNote,
   kind:
@@ -2856,6 +2892,32 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(getWorkItemDetailsRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const workItem = await repository.getWorkItem(workItemId);
+    const [evidence, candidate] = await Promise.all([
+      repository.listWorkItemDeliveryEvidence({
+        workItemId,
+        currentOnly: true,
+        limit: 101,
+      }),
+      repository.getCompletionCandidate(workItemId),
+    ]);
+    const evidencePage = evidence.slice(0, 100);
+    return context.json(
+      {
+        ...serializeWorkItem(workItem),
+        deliveryEvidence: {
+          items: evidencePage,
+          nextCursor:
+            evidence.length > 100 ? (evidencePage.at(-1)?.id ?? null) : null,
+        },
+        completionCandidate: serializeCompletionCandidate(candidate),
+      },
+      200,
+    );
+  });
+
   app.openapi(listWorkItemEvidenceRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const { currentOnly, cursor, limit } = context.req.valid("query");
@@ -2881,14 +2943,7 @@ export const createWorkGraphApp = (
     const candidate = await repository.getCompletionCandidate(workItemId);
     return context.json(
       {
-        candidate:
-          candidate === null
-            ? null
-            : {
-                ...candidate,
-                reasons: [...candidate.reasons],
-                evidenceObservationIds: [...candidate.evidenceObservationIds],
-              },
+        candidate: serializeCompletionCandidate(candidate),
       },
       200,
     );

@@ -21,6 +21,7 @@ import {
   getKnowledgeScope,
   getWorkItem,
   getWorkItemCompletionCandidate,
+  getWorkItemDetails,
   listAttentionRequests,
   listKnowledgeScopeRelationships,
   listKnowledgeScopes,
@@ -467,6 +468,15 @@ export class WorkGraphClient {
   getWorkItemCompletionCandidate(workItemId: string) {
     return this.#unwrap(
       getWorkItemCompletionCandidate({
+        ...this.#options(),
+        path: { workItemId },
+      }),
+    );
+  }
+
+  getWorkItemDetails(workItemId: string) {
+    return this.#unwrap(
+      getWorkItemDetails({
         ...this.#options(),
         path: { workItemId },
       }),

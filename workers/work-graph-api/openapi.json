@@ -894,6 +894,35 @@
           "childKnowledgeScopeId"
         ]
       },
+      "WorkItemDetails": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/WorkItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "deliveryEvidence": {
+                "$ref": "#/components/schemas/DeliveryEvidenceList"
+              },
+              "completionCandidate": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/CompletionCandidate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "deliveryEvidence",
+              "completionCandidate"
+            ]
+          }
+        ]
+      },
       "DeliveryEvidenceList": {
         "type": "object",
         "properties": {
@@ -1088,24 +1117,6 @@
           "projectedAt"
         ]
       },
-      "CompletionCandidateResponse": {
-        "type": "object",
-        "properties": {
-          "candidate": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CompletionCandidate"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "candidate"
-        ]
-      },
       "CompletionCandidate": {
         "type": "object",
         "properties": {
@@ -1176,6 +1187,24 @@
           "reasons",
           "evidenceObservationIds",
           "evaluatedAt"
+        ]
+      },
+      "CompletionCandidateResponse": {
+        "type": "object",
+        "properties": {
+          "candidate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompletionCandidate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "candidate"
         ]
       },
       "CompletionPolicyRevision": {
@@ -7871,6 +7900,144 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/WorkItemDependencyList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/work-items/{workItemId}/details": {
+      "get": {
+        "operationId": "getWorkItemDetails",
+        "summary": "Read the details shown for a work item",
+        "description": "Returns the current work-item projection, current delivery evidence, and latest completion candidacy in one request. The standalone projections remain available for callers that need independent pagination or refresh cycles.",
+        "tags": [
+          "work-items"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "workItemId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current work-item details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkItemDetails"
                 }
               }
             }
