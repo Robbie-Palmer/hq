@@ -105,8 +105,8 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$recovery_migration_count" != "30" ]]; then
-    echo "Expected the recovery database to apply all 30 migrations." >&2
+  if [[ "$recovery_migration_count" != "31" ]]; then
+    echo "Expected the recovery database to apply all 31 migrations." >&2
     exit 1
   fi
 
@@ -131,7 +131,7 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$pending_migration_count" != "28" ]]; then
+  if [[ "$pending_migration_count" != "29" ]]; then
     echo "Expected migration 0028 and its successor to be pending in the recovery database." >&2
     exit 1
   fi
@@ -143,7 +143,7 @@ if [[ -n "$migration_recovery_url" ]]; then
     --tuples-only \
     --no-align \
     --command 'select count(*) from drizzle.__drizzle_migrations')
-  if [[ "$reapplied_migration_count" != "30" ]]; then
+  if [[ "$reapplied_migration_count" != "31" ]]; then
     echo "Expected migration 0028 and its successor to reapply over the existing schema." >&2
     exit 1
   fi
