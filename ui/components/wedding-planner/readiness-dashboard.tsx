@@ -37,7 +37,7 @@ const checkLabels: Record<ReadinessCheckId, string> = {
   guest_metadata: "Required guest details",
   guest_follow_up: "Guest follow-up",
   accommodation: "Accommodation allocation",
-  accommodation_bookings: "Bookings and payment links",
+  accommodation_bookings: "Bookings and payments",
   seating: "Seating plan",
   seating_exports: "Seating exports",
 };

@@ -38,8 +38,8 @@ function plan(): WeddingPlan {
             booking: {
               status: "booked",
               payer: { kind: "couple" },
-              commitment_id: null,
-              payment_ids: [],
+              cancellation_state: "requested",
+              refund_state: "pending",
             },
           },
         ],
@@ -142,6 +142,10 @@ describe("wedding readiness", () => {
     expect(readiness.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "guest-dietary:alex" }),
+        expect.objectContaining({
+          id: "accommodation-payment:hotel",
+          detail: "Refund is still pending",
+        }),
         expect.objectContaining({ id: "seating-warning:0" }),
       ]),
     );
@@ -160,4 +164,5 @@ describe("wedding readiness", () => {
       }),
     ]);
   });
+
 });
