@@ -27,7 +27,7 @@ function plan() {
         configs: ["prd"],
       },
       github: {
-        token_env: "GITHUB_BOOTSTRAP_TOKEN",
+        token_env: "GH_BOOTSTRAP_TOKEN",
         repository: "example/sample-service",
         environments: ["production-sample-service"],
       },

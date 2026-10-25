@@ -32,7 +32,7 @@ function plan(overrides: Record<string, unknown> = {}): SecretBootstrapPlan {
         configs: ["prd"],
       },
       github: {
-        token_env: "GITHUB_BOOTSTRAP_TOKEN",
+        token_env: "GH_BOOTSTRAP_TOKEN",
         repository: "example/sample-service",
         environments: ["production-sample-service"],
       },
@@ -86,7 +86,7 @@ function plan(overrides: Record<string, unknown> = {}): SecretBootstrapPlan {
 function environment() {
   return {
     DOPPLER_BOOTSTRAP_TOKEN: "doppler-credential",
-    GITHUB_BOOTSTRAP_TOKEN: "github-credential",
+    GH_BOOTSTRAP_TOKEN: "github-credential",
     CLOUDFLARE_BOOTSTRAP_TOKEN: "cloudflare-credential",
     CLOUDFLARE_ACCOUNT_ID: "account-id",
     NEW_CLOUDFLARE_API_TOKEN: "secret-value",

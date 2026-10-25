@@ -38,7 +38,7 @@ jobs:
       CLOUDFLARE_BOOTSTRAP_TOKEN: ${{ secrets.CLOUDFLARE_BOOTSTRAP_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       DOPPLER_BOOTSTRAP_TOKEN: ${{ secrets.DOPPLER_BOOTSTRAP_TOKEN }}
-      GITHUB_BOOTSTRAP_TOKEN: ${{ secrets.GITHUB_BOOTSTRAP_TOKEN }}
+      GH_BOOTSTRAP_TOKEN: ${{ secrets.GH_BOOTSTRAP_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
