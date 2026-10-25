@@ -1,25 +1,23 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   BedDouble,
   CalendarClock,
   CheckCircle2,
   ChevronRight,
-  CircleDollarSign,
-  ClipboardCheck,
   Plus,
   Settings2,
   Users,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   buildWeddingReadiness,
   defaultWeddingReadinessPreferences,
   type ReadinessCheckId,
   readinessCheckIds,
   seatingExportKinds,
-  type WeddingOperationsSnapshot,
 } from "wedding-planner-domain";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,12 +30,9 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { editorStateToPlan } from "@/lib/wedding-planner/editor-projection";
-import { loadWeddingOperationsSnapshot } from "@/lib/wedding-planner/readiness-finance";
 import type { WeddingPlanDraft } from "@/lib/wedding-planner/types";
 
 const checkLabels: Record<ReadinessCheckId, string> = {
-  checklist: "Checklist work",
-  finances: "Costs and payments",
   guest_responses: "Guest responses",
   guest_metadata: "Required guest details",
   guest_follow_up: "Guest follow-up",
@@ -55,10 +50,6 @@ const exportLabels = {
 
 type PlannerDestination = "guests" | "inventory" | "tables";
 
-type ReadinessLoader = (
-  planningCaseId: string | null,
-) => Promise<WeddingOperationsSnapshot | null>;
-
 type DraftUpdate = (change: (draft: WeddingPlanDraft) => void) => void;
 type ReadinessPreferences = NonNullable<WeddingPlanDraft["readiness"]>;
 type ReadinessMilestone = ReadinessPreferences["milestones"][number];
@@ -75,18 +66,6 @@ type MilestoneFieldsProps = Readonly<{
 function ensureReadiness(state: WeddingPlanDraft) {
   state.readiness ??= defaultWeddingReadinessPreferences();
   return state.readiness;
-}
-
-function defaultLoader(planningCaseId: string | null) {
-  return loadWeddingOperationsSnapshot(window.localStorage, planningCaseId);
-}
-
-function formatMoney(amount: number, currency: string): string {
-  return new Intl.NumberFormat("en-GB", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 function internalDestination(href: string): {
@@ -108,7 +87,7 @@ function SummaryCard({
   value,
   detail,
 }: Readonly<{
-  icon: typeof ClipboardCheck;
+  icon: LucideIcon;
   title: string;
   value: string;
   detail: string;
@@ -121,60 +100,6 @@ function SummaryCard({
         <CardTitle>{value}</CardTitle>
       </CardHeader>
       <CardContent>{detail}</CardContent>
-    </Card>
-  );
-}
-
-function FinanceSummary({
-  operations,
-}: Readonly<{ operations: WeddingOperationsSnapshot | null }>) {
-  if (!operations)
-    return (
-      <Card className="readiness-connect-card">
-        <CardHeader>
-          <CardTitle>No saved wedding costs found</CardTitle>
-          <CardDescription>
-            This dashboard can read a wedding planning case saved by Asset
-            Tracker in this browser. It does not sync accounts or copy monetary
-            data into the wedding plan.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button asChild variant="outline">
-            <a href="/assettracker/cash-flow">Open Asset Tracker</a>
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Wedding costs</CardTitle>
-        <CardDescription>{operations.planning_case_name}</CardDescription>
-      </CardHeader>
-      <CardContent className="readiness-finance-table">
-        {operations.finances.map((summary) => (
-          <div key={summary.currency}>
-            <strong>{summary.currency}</strong>
-            <span>
-              Planned {formatMoney(summary.planned, summary.currency)}
-            </span>
-            <span>
-              Committed {formatMoney(summary.committed, summary.currency)}
-            </span>
-            <span>Paid {formatMoney(summary.paid, summary.currency)}</span>
-            <span>
-              Refunded {formatMoney(summary.refunded, summary.currency)}
-            </span>
-            <span>
-              Remaining {formatMoney(summary.remaining, summary.currency)}
-            </span>
-          </div>
-        ))}
-        {!operations.finances.length && (
-          <p className="editor-hint">No linked wedding costs yet.</p>
-        )}
-      </CardContent>
     </Card>
   );
 }
@@ -295,49 +220,30 @@ function MilestoneIdentityFields({
 }
 
 function MilestoneRequirementFields({
-  preferences,
   active,
-  onUpdate,
   updateActive,
 }: MilestoneFieldsProps) {
   return (
-    <>
-      <label htmlFor="readiness-planning-case">
-        <span>Planning case ID</span>
-        <Input
-          id="readiness-planning-case"
-          aria-label="Planning case ID"
-          placeholder="Auto-detect a saved wedding case"
-          value={preferences.planning_case_id ?? ""}
-          onChange={(event) =>
-            onUpdate((draft) => {
-              ensureReadiness(draft).planning_case_id =
-                event.target.value.trim() || null;
-            })
-          }
-        />
-      </label>
-      <label
-        className="readiness-settings-wide"
-        htmlFor="readiness-required-guest-fields"
-      >
-        <span>Required guest fields</span>
-        <Input
-          id="readiness-required-guest-fields"
-          aria-label="Required guest fields"
-          placeholder="email, phone, custom_fields.meal"
-          value={active.required_guest_fields.join(", ")}
-          onChange={(event) =>
-            updateActive((milestone) => {
-              milestone.required_guest_fields = event.target.value
-                .split(",")
-                .map((field) => field.trim())
-                .filter(Boolean);
-            })
-          }
-        />
-      </label>
-    </>
+    <label
+      className="readiness-settings-wide"
+      htmlFor="readiness-required-guest-fields"
+    >
+      <span>Required guest fields</span>
+      <Input
+        id="readiness-required-guest-fields"
+        aria-label="Required guest fields"
+        placeholder="email, phone, custom_fields.meal"
+        value={active.required_guest_fields.join(", ")}
+        onChange={(event) =>
+          updateActive((milestone) => {
+            milestone.required_guest_fields = event.target.value
+              .split(",")
+              .map((field) => field.trim())
+              .filter(Boolean);
+          })
+        }
+      />
+    </label>
   );
 }
 
@@ -478,39 +384,7 @@ type ReadinessDashboardProps = Readonly<{
   state: WeddingPlanDraft;
   onUpdate: DraftUpdate;
   onNavigate: (view: PlannerDestination, targetId?: string) => void;
-  loadOperations?: ReadinessLoader;
 }>;
-
-function useOperations(
-  loadOperations: ReadinessLoader,
-  planningCaseId: string | null,
-) {
-  const [operations, setOperations] =
-    useState<WeddingOperationsSnapshot | null>(null);
-  const [operationsError, setOperationsError] = useState("");
-  useEffect(() => {
-    let current = true;
-    loadOperations(planningCaseId)
-      .then((snapshot) => {
-        if (!current) return;
-        setOperations(snapshot);
-        setOperationsError("");
-      })
-      .catch((cause) => {
-        if (!current) return;
-        setOperations(null);
-        setOperationsError(
-          cause instanceof Error
-            ? cause.message
-            : "Could not read saved Asset Tracker data",
-        );
-      });
-    return () => {
-      current = false;
-    };
-  }, [loadOperations, planningCaseId]);
-  return { operations, operationsError };
-}
 
 function ReadinessSummary({
   readiness,
@@ -518,19 +392,12 @@ function ReadinessSummary({
   readiness: ReturnType<typeof buildWeddingReadiness>;
 }>) {
   const details = {
-    checklist: `${readiness.checklist.overdue} overdue · ${readiness.checklist.blocked} blocked · ${readiness.checklist.unresolved_decisions} decisions open`,
     guests: `${readiness.guests.awaiting_response} awaiting response · ${readiness.guests.missing_required_metadata} missing details`,
     accommodation: `${readiness.accommodation.unassigned} unassigned · ${readiness.accommodation.conflicts + readiness.accommodation.unmet_needs} conflicts or unmet needs`,
     seating: `${readiness.seating.unseated} unseated · ${readiness.seating.unlocked} unlocked · ${readiness.seating.stale_exports} exports due`,
   };
   return (
     <div className="readiness-summary-grid">
-      <SummaryCard
-        icon={ClipboardCheck}
-        title="Checklist"
-        value={`${readiness.checklist.completed}/${readiness.checklist.total}`}
-        detail={details.checklist}
-      />
       <SummaryCard
         icon={Users}
         title="Guests"
@@ -553,58 +420,15 @@ function ReadinessSummary({
   );
 }
 
-function UpcomingPayments({
-  readiness,
-}: Readonly<{
-  readiness: ReturnType<typeof buildWeddingReadiness>;
-}>) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Upcoming payments</CardTitle>
-        <CardDescription>
-          Deposits and balances due before this milestone
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="readiness-payments">
-        {readiness.upcoming_payments.map((payment) => (
-          <a href={payment.href} key={payment.id}>
-            <CircleDollarSign size={17} />
-            <span>
-              <strong>{payment.title}</strong>
-              <small>{payment.due_on}</small>
-            </span>
-            <strong>{formatMoney(payment.amount, payment.currency)}</strong>
-          </a>
-        ))}
-        {!readiness.upcoming_payments.length && (
-          <p className="editor-hint">No linked payments due.</p>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 export function ReadinessDashboard({
   state,
   onUpdate,
   onNavigate,
-  loadOperations = defaultLoader,
 }: ReadinessDashboardProps) {
-  const planningCaseId = state.readiness?.planning_case_id ?? null;
-  const { operations, operationsError } = useOperations(
-    loadOperations,
-    planningCaseId,
-  );
   const plan = useMemo(() => editorStateToPlan(state), [state]);
   const readiness = useMemo(
-    () =>
-      buildWeddingReadiness(
-        plan,
-        operations,
-        new Date().toISOString().slice(0, 10),
-      ),
-    [operations, plan],
+    () => buildWeddingReadiness(plan, new Date().toISOString().slice(0, 10)),
+    [plan],
   );
   return (
     <>
@@ -620,16 +444,7 @@ export function ReadinessDashboard({
         </Badge>
       </div>
       <ReadinessSettings state={state} onUpdate={onUpdate} />
-      {operationsError && (
-        <div role="alert" className="editor-error">
-          {operationsError}
-        </div>
-      )}
       <ReadinessSummary readiness={readiness} />
-      <div className="readiness-detail-grid">
-        <FinanceSummary operations={operations} />
-        <UpcomingPayments readiness={readiness} />
-      </div>
       <IssueList readiness={readiness} onNavigate={onNavigate} />
     </>
   );

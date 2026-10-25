@@ -80,7 +80,7 @@
 }
 .readiness-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 18px;
 }
@@ -102,27 +102,6 @@
   font-size: 12px;
   line-height: 1.45;
 }
-.readiness-detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 18px;
-}
-.readiness-finance-table > div {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  border-bottom: 1px solid var(--line);
-  padding: 10px 0;
-  font-size: 13px;
-}
-.readiness-finance-table > div strong {
-  grid-column: 1 / -1;
-}
-.readiness-finance-table > div:last-child {
-  border-bottom: 0;
-}
-.readiness-payments,
 .readiness-issues {
   display: grid;
   gap: 8px;
@@ -130,7 +109,6 @@
 .readiness-issues {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
-.readiness-payments a,
 .readiness-issues a,
 .readiness-issues button {
   display: grid;
@@ -146,22 +124,15 @@
   text-align: left;
   text-decoration: none;
 }
-.readiness-payments a {
-  display: flex;
-  gap: 10px;
-}
-.readiness-payments a:hover,
 .readiness-issues a:hover,
 .readiness-issues button:hover {
   border-color: #bdcab9;
   background: #f3f7f1;
 }
-.readiness-payments a > span,
 .readiness-issue-copy {
   display: grid;
   flex: 1;
 }
-.readiness-payments small,
 .readiness-issues small {
   color: var(--soft-ink);
   font-size: 12px;
@@ -203,7 +174,6 @@
 
 @media (max-width: 700px) {
   .readiness-settings-grid,
-  .readiness-detail-grid,
   .readiness-summary-grid,
   .readiness-check-grid {
     grid-template-columns: 1fr;

@@ -63,6 +63,19 @@
             "maxAllowedComplexity": 15
           }
         }
+      },
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "patterns": [
+              {
+                "group": ["@/app/_projects/personal-finance-app/**"],
+                "message": "Asset Tracker internals are private to the Asset Tracker project. Cross-project access requires an explicitly supported server API."
+              }
+            ]
+          }
+        }
       }
     },
     "domains": {
@@ -78,6 +91,19 @@
     }
   },
   "overrides": [
+    {
+      "includes": [
+        "app/_projects/personal-finance-app/**",
+        "app/assettracker/**"
+      ],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off"
+          }
+        }
+      }
+    },
     {
       "includes": [
         "contexts/**",

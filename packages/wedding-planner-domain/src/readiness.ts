@@ -3,8 +3,6 @@ import { auditAccommodationInventory } from "./accommodation/inventory";
 import type { WeddingPlan } from "./plan";
 
 export const readinessCheckIds = [
-  "checklist",
-  "finances",
   "guest_responses",
   "guest_metadata",
   "guest_follow_up",
@@ -21,14 +19,22 @@ export const seatingExportKinds = ["venue", "caterer", "floor_plan"] as const;
 export const SeatingExportKindSchema = z.enum(seatingExportKinds);
 export type SeatingExportKind = z.infer<typeof SeatingExportKindSchema>;
 
+function removeRetiredReadinessChecks(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.filter((check) => check !== "checklist" && check !== "finances");
+}
+
 export const readinessMilestoneSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   due_on: z.iso.date().nullable().default(null),
-  check_ids: z
-    .array(ReadinessCheckIdSchema)
-    .default([...readinessCheckIds])
-    .transform((checks) => [...new Set(checks)]),
+  check_ids: z.preprocess(
+    removeRetiredReadinessChecks,
+    z
+      .array(ReadinessCheckIdSchema)
+      .default([...readinessCheckIds])
+      .transform((checks) => [...new Set(checks)]),
+  ),
   required_guest_fields: z
     .array(z.string().trim().min(1))
     .default([])
@@ -50,7 +56,6 @@ const defaultMilestone: ReadinessMilestone = {
 };
 
 export const weddingReadinessPreferencesSchema = z.object({
-  planning_case_id: z.string().trim().min(1).nullable().default(null),
   active_milestone_id: z.string().trim().min(1).default(defaultMilestone.id),
   milestones: z
     .array(readinessMilestoneSchema)
@@ -74,53 +79,7 @@ export function defaultWeddingReadinessPreferences(): WeddingReadinessPreference
   return weddingReadinessPreferencesSchema.parse({});
 }
 
-export type ReadinessTask = {
-  id: string;
-  title: string;
-  owner: string | null;
-  status:
-    | "not_started"
-    | "in_progress"
-    | "blocked"
-    | "complete"
-    | "not_applicable";
-  due_on: string | null;
-  href: string;
-};
-
-export type WeddingFinanceSummary = {
-  currency: string;
-  planned: number;
-  committed: number;
-  paid: number;
-  refunded: number;
-  remaining: number;
-};
-
-export type UpcomingWeddingPayment = {
-  id: string;
-  title: string;
-  due_on: string;
-  amount: number;
-  currency: string;
-  href: string;
-};
-
-export type WeddingOperationsSnapshot = {
-  planning_case_id: string;
-  planning_case_name: string;
-  tasks: ReadinessTask[];
-  unresolved_decisions: { id: string; title: string; href: string }[];
-  finances: WeddingFinanceSummary[];
-  upcoming_payments: UpcomingWeddingPayment[];
-};
-
-export type ReadinessArea =
-  | "checklist"
-  | "finances"
-  | "guests"
-  | "accommodation"
-  | "seating";
+export type ReadinessArea = "guests" | "accommodation" | "seating";
 
 export type ReadinessIssue = {
   id: string;
@@ -134,17 +93,6 @@ export type ReadinessIssue = {
 
 export type WeddingReadiness = {
   milestone: ReadinessMilestone;
-  checklist: {
-    completed: number;
-    total: number;
-    overdue: number;
-    blocked: number;
-    upcoming: number;
-    ownership_gaps: number;
-    unresolved_decisions: number;
-  };
-  finances: WeddingFinanceSummary[];
-  upcoming_payments: UpcomingWeddingPayment[];
   guests: {
     total: number;
     attending: number;
@@ -170,81 +118,12 @@ export type WeddingReadiness = {
   issues: ReadinessIssue[];
 };
 
-function taskDueOn(task: ReadinessTask): string | null {
-  return task.due_on;
-}
-
 function issue(
   input: Omit<ReadinessIssue, "severity"> & {
     severity?: ReadinessIssue["severity"];
   },
 ): ReadinessIssue {
   return { severity: "attention", ...input };
-}
-
-function checklistReadiness(
-  operations: WeddingOperationsSnapshot | null,
-  asOfDate: string,
-): { summary: WeddingReadiness["checklist"]; issues: ReadinessIssue[] } {
-  const tasks = operations?.tasks ?? [];
-  const actionable = tasks.filter((task) => task.status !== "not_applicable");
-  const incomplete = actionable.filter((task) => task.status !== "complete");
-  const overdue = incomplete.filter(
-    (task) => taskDueOn(task) != null && taskDueOn(task)! < asOfDate,
-  );
-  const blocked = incomplete.filter((task) => task.status === "blocked");
-  const upcoming = incomplete.filter(
-    (task) => taskDueOn(task) != null && taskDueOn(task)! >= asOfDate,
-  );
-  const ownershipGaps = incomplete.filter((task) => !task.owner?.trim());
-  const taskIssues = incomplete.flatMap((task) => {
-    const details = [
-      overdue.includes(task) ? `Overdue since ${task.due_on}` : null,
-      task.status === "blocked" ? "Blocked" : null,
-      !task.owner?.trim() ? "No owner assigned" : null,
-    ].filter((detail): detail is string => detail != null);
-    return details.length
-      ? [
-          issue({
-            id: `task:${task.id}`,
-            check_id: "checklist",
-            area: "checklist",
-            severity:
-              overdue.includes(task) || task.status === "blocked"
-                ? "warning"
-                : "attention",
-            title: task.title,
-            detail: details.join("; "),
-            href: task.href,
-          }),
-        ]
-      : [];
-  });
-  const issues: ReadinessIssue[] = [
-    ...taskIssues,
-    ...(operations?.unresolved_decisions ?? []).map((decision) =>
-      issue({
-        id: `decision:${decision.id}`,
-        check_id: "checklist",
-        area: "checklist",
-        title: decision.title,
-        detail: "Decision still open",
-        href: decision.href,
-      }),
-    ),
-  ];
-  return {
-    summary: {
-      completed: actionable.filter((task) => task.status === "complete").length,
-      total: actionable.length,
-      overdue: overdue.length,
-      blocked: blocked.length,
-      upcoming: upcoming.length,
-      ownership_gaps: ownershipGaps.length,
-      unresolved_decisions: operations?.unresolved_decisions.length ?? 0,
-    },
-    issues,
-  };
 }
 
 function guestFieldValue(plan: WeddingPlan, guestId: string, field: string) {
@@ -582,40 +461,20 @@ export function activeReadinessMilestone(
 
 export function buildWeddingReadiness(
   plan: WeddingPlan,
-  operations: WeddingOperationsSnapshot | null,
   asOfDate: string,
 ): WeddingReadiness {
   const milestone = activeReadinessMilestone(plan);
   const enabled = new Set(milestone.check_ids);
-  const checklist = checklistReadiness(operations, asOfDate);
   const guests = guestReadiness(plan, milestone);
   const accommodation = accommodationReadiness(plan, milestone, asOfDate);
   const seating = seatingReadiness(plan, milestone);
-  const upcomingPayments = (operations?.upcoming_payments ?? []).filter(
-    (payment) => !milestone.due_on || payment.due_on <= milestone.due_on,
-  );
-  const financeIssues = upcomingPayments.map((payment) =>
-    issue({
-      id: `finance-payment:${payment.id}`,
-      check_id: "finances",
-      area: "finances",
-      title: payment.title,
-      detail: `${payment.currency} ${payment.amount.toFixed(2)} due ${payment.due_on}`,
-      href: payment.href,
-    }),
-  );
   const allIssues = [
-    ...checklist.issues,
-    ...financeIssues,
     ...guests.issues,
     ...accommodation.issues,
     ...seating.issues,
   ];
   return {
     milestone,
-    checklist: checklist.summary,
-    finances: operations?.finances ?? [],
-    upcoming_payments: upcomingPayments,
     guests: guests.summary,
     accommodation: accommodation.summary,
     seating: seating.summary,

@@ -1,68 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type {
-  WeddingOperationsSnapshot,
-  WeddingReadinessPreferences,
-} from "wedding-planner-domain";
+import type { WeddingReadinessPreferences } from "wedding-planner-domain";
 import { ReadinessDashboard } from "@/components/wedding-planner/readiness-dashboard";
 import { toEditorState } from "@/lib/wedding-planner/editor-projection";
 import { createSampleWeddingPlan } from "@/lib/wedding-planner/sample-plan";
 
-const operations: WeddingOperationsSnapshot = {
-  planning_case_id: "wedding-operations",
-  planning_case_name: "Wedding operations",
-  tasks: [
-    {
-      id: "book-band",
-      title: "Book band",
-      owner: "Robin",
-      status: "blocked",
-      due_on: "2026-09-01",
-      href: "https://example.test/band",
-    },
-  ],
-  unresolved_decisions: [],
-  finances: [
-    {
-      currency: "GBP",
-      planned: 10_000,
-      committed: 8_000,
-      paid: 2_000,
-      refunded: 100,
-      remaining: 8_100,
-    },
-  ],
-  upcoming_payments: [
-    {
-      id: "venue:balance",
-      title: "Venue balance",
-      due_on: "2027-03-01",
-      amount: 4_000,
-      currency: "GBP",
-      href: "/assettracker/cash-flow#cash-flow-venue",
-    },
-  ],
-};
-
 describe("readiness dashboard", () => {
-  it("shows private operational and ledger summaries with resolvable links", async () => {
+  it("shows wedding readiness with resolvable links", () => {
     const onNavigate = vi.fn();
     render(
       <ReadinessDashboard
         state={toEditorState(createSampleWeddingPlan())}
         onUpdate={vi.fn()}
         onNavigate={onNavigate}
-        loadOperations={vi.fn().mockResolvedValue(operations)}
       />,
     );
-
-    expect(await screen.findByText("Wedding costs")).toBeInTheDocument();
-    expect(screen.getByText("Planned £10,000.00")).toBeInTheDocument();
-    expect(screen.getByText("Refunded £100.00")).toBeInTheDocument();
-    expect(screen.getAllByText("Venue balance")).toHaveLength(2);
-    expect(
-      screen.getAllByRole("link", { name: /Book band/ })[0],
-    ).toHaveAttribute("href", "https://example.test/band");
 
     const guestWarning = screen.getAllByRole("button", {
       name: /Uma Hart/,
@@ -86,7 +38,6 @@ describe("readiness dashboard", () => {
         state={state}
         onUpdate={onUpdate}
         onNavigate={vi.fn()}
-        loadOperations={vi.fn().mockResolvedValue(null)}
       />,
     );
     fireEvent.click(screen.getByText("Milestone checks"));
@@ -96,9 +47,6 @@ describe("readiness dashboard", () => {
     fireEvent.change(screen.getByLabelText("Milestone due date"), {
       target: { value: "2027-05-01" },
     });
-    fireEvent.change(screen.getByLabelText("Planning case ID"), {
-      target: { value: " wedding-case " },
-    });
     fireEvent.change(screen.getByLabelText("Required guest fields"), {
       target: { value: "email, custom_fields.meal" },
     });
@@ -106,12 +54,11 @@ describe("readiness dashboard", () => {
     fireEvent.click(screen.getByLabelText("Venue CSV"));
     fireEvent.click(screen.getByRole("button", { name: "Add milestone" }));
 
-    expect(onUpdate).toHaveBeenCalledTimes(7);
+    expect(onUpdate).toHaveBeenCalledTimes(6);
     const readiness = state.readiness as
       | WeddingReadinessPreferences
       | undefined;
     expect(readiness).toMatchObject({
-      planning_case_id: "wedding-case",
       active_milestone_id: expect.stringMatching(/^milestone-/),
     });
     expect(readiness?.milestones[0]).toMatchObject({
@@ -128,29 +75,7 @@ describe("readiness dashboard", () => {
     expect(readiness?.milestones).toHaveLength(2);
   });
 
-  it("describes the same-browser Asset Tracker data boundary", async () => {
-    render(
-      <ReadinessDashboard
-        state={toEditorState(createSampleWeddingPlan())}
-        onUpdate={vi.fn()}
-        onNavigate={vi.fn()}
-        loadOperations={vi.fn().mockResolvedValue(null)}
-      />,
-    );
-
-    expect(
-      await screen.findByText("No saved wedding costs found"),
-    ).toBeVisible();
-    expect(
-      screen.getByText(/saved by Asset Tracker in this browser/),
-    ).toBeVisible();
-    expect(screen.getByText(/does not sync accounts/)).toBeVisible();
-    expect(
-      screen.queryByText("Connect the wedding planning case"),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows an all-clear state when a milestone has no enabled checks", async () => {
+  it("shows an all-clear state when a milestone has no enabled checks", () => {
     const state = toEditorState(createSampleWeddingPlan());
     const milestone = state.readiness?.milestones[0];
     if (!milestone) throw new Error("Expected a readiness milestone");
@@ -160,26 +85,10 @@ describe("readiness dashboard", () => {
         state={state}
         onUpdate={vi.fn()}
         onNavigate={vi.fn()}
-        loadOperations={vi.fn().mockResolvedValue(null)}
       />,
     );
 
-    expect(await screen.findByText("Ready")).toBeVisible();
+    expect(screen.getByText("Ready")).toBeVisible();
     expect(screen.getByText("No warnings for this milestone")).toBeVisible();
-  });
-
-  it("reports a ledger loading failure", async () => {
-    render(
-      <ReadinessDashboard
-        state={toEditorState(createSampleWeddingPlan())}
-        onUpdate={vi.fn()}
-        onNavigate={vi.fn()}
-        loadOperations={vi.fn().mockRejectedValue(new Error("Ledger offline"))}
-      />,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent("Ledger offline");
-    });
   });
 });
