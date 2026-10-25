@@ -3,6 +3,8 @@ import {
   calculateEdibleMass,
   convertIngredientMassToVolume,
   convertIngredientVolumeToMass,
+  IngredientPropertyObservationSchema,
+  IngredientPropertyValueSchema,
   type IngredientPropertyObservation,
   reconcileIngredientProperty,
 } from "../src/ingredient-property";
@@ -94,6 +96,71 @@ describe("ingredient property reconciliation", () => {
         },
       }),
     ).toThrow("must consider every candidate");
+  });
+
+  it("rejects duplicate candidate and considered observation ids", () => {
+    expect(() =>
+      reconcileIngredientProperty({
+        catalogVersion: "2026.10.0",
+        observations: [DENSITY_A, DENSITY_A],
+        selectedObservationId: DENSITY_A.id,
+        confidence: 0.9,
+        decision: {
+          ...DECISION,
+          consideredObservationIds: [DENSITY_A.id],
+        },
+      }),
+    ).toThrow("unique ids");
+    expect(() =>
+      reconcileIngredientProperty({
+        catalogVersion: "2026.10.0",
+        observations: [DENSITY_A, DENSITY_B],
+        selectedObservationId: DENSITY_A.id,
+        confidence: 0.9,
+        decision: {
+          ...DECISION,
+          consideredObservationIds: [DENSITY_A.id, DENSITY_A.id],
+        },
+      }),
+    ).toThrow("must be unique");
+  });
+
+  it("rejects confidence that cannot be stored at four decimal places", () => {
+    expect(
+      IngredientPropertyObservationSchema.safeParse({
+        ...DENSITY_A,
+        confidence: 0.12345,
+      }).success,
+    ).toBe(false);
+    expect(() =>
+      reconcileIngredientProperty({
+        catalogVersion: "2026.10.0",
+        observations: [DENSITY_A],
+        selectedObservationId: DENSITY_A.id,
+        confidence: 0.12345,
+        decision: {
+          ...DECISION,
+          consideredObservationIds: [DENSITY_A.id],
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("reports malformed edible fractions as validation failures", () => {
+    expect(() =>
+      IngredientPropertyValueSchema.safeParse({
+        kind: "edible_mass_fraction",
+        unit: "fraction",
+        edibleMassFraction: "1e3",
+      }),
+    ).not.toThrow();
+    expect(
+      IngredientPropertyValueSchema.safeParse({
+        kind: "edible_mass_fraction",
+        unit: "fraction",
+        edibleMassFraction: "1e3",
+      }).success,
+    ).toBe(false);
   });
 
   it("rejects candidates for different preparations", () => {

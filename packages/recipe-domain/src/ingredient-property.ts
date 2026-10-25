@@ -47,15 +47,17 @@ export type IngredientPreparationState = z.infer<
   typeof IngredientPreparationStateSchema
 >;
 
+const DECIMAL_PATTERN = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
+
 export const PositiveDecimalSchema = z
   .string()
-  .regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/)
+  .regex(DECIMAL_PATTERN)
   .refine((value) => /[1-9]/.test(value), "Value must be greater than zero");
 export type PositiveDecimal = z.infer<typeof PositiveDecimalSchema>;
 
 export const NonNegativeDecimalSchema = z
   .string()
-  .regex(/^(?:0|[1-9]\d*)(?:\.\d+)?$/);
+  .regex(DECIMAL_PATTERN);
 export type NonNegativeDecimal = z.infer<typeof NonNegativeDecimalSchema>;
 
 export const IngredientPropertySourceReferenceSchema = z.object({
@@ -83,7 +85,7 @@ const EdibleMassFractionPropertyValueSchema = z.object({
   kind: z.literal("edible_mass_fraction"),
   unit: z.literal("fraction"),
   edibleMassFraction: PositiveDecimalSchema.refine(
-    (value) => compareDecimals(value, "1") <= 0,
+    (value) => DECIMAL_PATTERN.test(value) && compareDecimals(value, "1") <= 0,
     "Edible mass fraction cannot exceed 1",
   ),
 });
@@ -109,6 +111,8 @@ export type IngredientPropertyValue = z.infer<
   typeof IngredientPropertyValueSchema
 >;
 
+const ConfidenceSchema = z.number().min(0).max(1).multipleOf(0.0001);
+
 export const IngredientPropertyObservationSchema = z.object({
   id: z.uuid(),
   sourceRecordId: z.string().trim().min(1).max(240),
@@ -116,7 +120,7 @@ export const IngredientPropertyObservationSchema = z.object({
   ingredientSlug: IngredientSlugSchema,
   preparationState: IngredientPreparationStateSchema,
   value: IngredientPropertyValueSchema,
-  confidence: z.number().min(0).max(1),
+  confidence: ConfidenceSchema,
   source: IngredientPropertySourceReferenceSchema,
 });
 export type IngredientPropertyObservation = z.infer<
@@ -132,7 +136,13 @@ export const INGREDIENT_PROPERTY_RECONCILIATION_STRATEGIES = [
 export const IngredientPropertyReconciliationDecisionSchema = z.object({
   strategy: z.enum(INGREDIENT_PROPERTY_RECONCILIATION_STRATEGIES),
   rationale: z.string().trim().min(1),
-  consideredObservationIds: z.array(z.uuid()).min(1),
+  consideredObservationIds: z
+    .array(z.uuid())
+    .min(1)
+    .refine(
+      (ids) => new Set(ids).size === ids.length,
+      "Considered observation ids must be unique",
+    ),
   decidedBy: z.string().trim().min(1),
   decidedAt: z.iso.datetime(),
 });
@@ -143,7 +153,7 @@ export type IngredientPropertyReconciliationDecision = z.infer<
 export const IngredientPropertySelectionSchema = z.object({
   catalogVersion: z.string().trim().min(1).max(160),
   observation: IngredientPropertyObservationSchema,
-  confidence: z.number().min(0).max(1),
+  confidence: ConfidenceSchema,
   decision: IngredientPropertyReconciliationDecisionSchema,
 });
 export type IngredientPropertySelection = z.infer<
@@ -195,9 +205,13 @@ export function reconcileIngredientProperty(input: {
     input.decision,
   );
   const candidateIds = new Set(observations.map(({ id }) => id));
+  if (candidateIds.size !== observations.length) {
+    throw new Error("Reconciliation candidates must have unique ids");
+  }
+  const consideredIds = new Set(decision.consideredObservationIds);
   if (
-    decision.consideredObservationIds.length !== candidateIds.size ||
-    decision.consideredObservationIds.some((id) => !candidateIds.has(id))
+    consideredIds.size !== candidateIds.size ||
+    [...consideredIds].some((id) => !candidateIds.has(id))
   ) {
     throw new Error("The reconciliation decision must consider every candidate");
   }

@@ -93,7 +93,7 @@ function selection(input: {
 
 afterEach(async () => {
   await client.unsafe(`
-    truncate table ingredient_property_source restart identity cascade
+    truncate table ingredient_property_catalog_version, ingredient_property_source restart identity cascade
   `);
 });
 
@@ -268,9 +268,132 @@ describe("ingredient property catalog persistence", () => {
     await expect(
       stageIngredientPropertyRelease(db, {
         source: SOURCE_ADMISSION,
+        release,
+        observations: [
+          {
+            ...firstObservation,
+            value: {
+              kind: "density",
+              unit: "g_per_ml",
+              gramsPerMilliliter: "0.54",
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow(`observation ${OBSERVATION_1_ID} changed after ingestion`);
+
+    await expect(
+      stageIngredientPropertyRelease(db, {
+        source: SOURCE_ADMISSION,
         release: { ...release, checksumSha256: "b".repeat(64) },
         observations: [firstObservation],
       }),
     ).rejects.toThrow("changed after ingestion");
+  });
+
+  it("normalizes admitted sources without optional license URLs", async () => {
+    const source = {
+      ...SOURCE_ADMISSION,
+      sourceId: "integration-source-without-license-url",
+      publisher: `  ${SOURCE_ADMISSION.publisher}  `,
+      licenseUrl: undefined,
+    };
+    const sourceObservation = {
+      ...observation({
+        id: OBSERVATION_1_ID,
+        sourceRecordId: "cashews-density-without-license-url",
+        density: "0.53",
+      }),
+      source: {
+        sourceId: source.sourceId,
+        publisher: SOURCE_ADMISSION.publisher,
+        dataset: source.dataset,
+        canonicalUrl: source.canonicalUrl,
+        license: source.license,
+        attribution: source.attribution,
+        effectiveVersion: source.effectiveVersion,
+      },
+    };
+
+    await expect(
+      stageIngredientPropertyRelease(db, {
+        source,
+        release: {
+          id: RELEASE_1_ID,
+          effectiveAt: new Date("2026-10-01T00:00:00.000Z"),
+          retrievedAt: new Date("2026-10-02T00:00:00.000Z"),
+          checksumSha256: "c".repeat(64),
+          connectorVersion: "1.0.0",
+        },
+        observations: [sourceObservation],
+      }),
+    ).resolves.toEqual({ releaseId: RELEASE_1_ID, observationCount: 1 });
+  });
+
+  it("requires the selected observation to belong to a validated release", async () => {
+    const validatedObservation = observation({
+      id: OBSERVATION_1_ID,
+      sourceRecordId: "cashews-density-validated",
+      density: "0.53",
+    });
+    const stagedObservation = observation({
+      id: OBSERVATION_2_ID,
+      sourceRecordId: "cashews-density-staged",
+      density: "0.55",
+      effectiveVersion: "2026-11",
+    });
+    await stageIngredientPropertyRelease(db, {
+      source: SOURCE_ADMISSION,
+      release: {
+        id: RELEASE_1_ID,
+        effectiveAt: new Date("2026-10-01T00:00:00.000Z"),
+        retrievedAt: new Date("2026-10-02T00:00:00.000Z"),
+        checksumSha256: "a".repeat(64),
+        connectorVersion: "1.0.0",
+      },
+      observations: [validatedObservation],
+    });
+    await validateIngredientPropertyRelease(db, RELEASE_1_ID);
+    await stageIngredientPropertyRelease(db, {
+      source: { ...SOURCE_ADMISSION, effectiveVersion: "2026-11" },
+      release: {
+        id: RELEASE_2_ID,
+        effectiveAt: new Date("2026-11-01T00:00:00.000Z"),
+        retrievedAt: new Date("2026-11-02T00:00:00.000Z"),
+        checksumSha256: "b".repeat(64),
+        connectorVersion: "1.0.0",
+      },
+      observations: [stagedObservation],
+    });
+    const stagedSelection = selection({
+      catalogVersion: "2026.11.0",
+      observations: [stagedObservation],
+      selectedObservationId: stagedObservation.id,
+    });
+
+    await expect(
+      publishIngredientPropertyCatalog(db, {
+        version: "2026.11.0",
+        effectiveAt: new Date("2026-11-05T00:00:00.000Z"),
+        publishedAt: new Date("2026-11-05T12:00:00.000Z"),
+        selections: [stagedSelection],
+      }),
+    ).rejects.toThrow("requires validated source releases");
+    await expect(
+      publishIngredientPropertyCatalog(db, {
+        version: "2026.11.0",
+        effectiveAt: new Date("2026-11-05T00:00:00.000Z"),
+        publishedAt: new Date("2026-11-05T12:00:00.000Z"),
+        selections: [
+          {
+            ...stagedSelection,
+            decision: {
+              ...stagedSelection.decision,
+              consideredObservationIds: [validatedObservation.id],
+            },
+          },
+        ],
+      }),
+    ).rejects.toThrow("must include the selection");
   });
 });

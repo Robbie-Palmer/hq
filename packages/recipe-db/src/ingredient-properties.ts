@@ -50,25 +50,51 @@ function sourceReferenceFromRow(
 function assertSourceMatches(
   actual: typeof schema.ingredientPropertySource.$inferSelect,
   expected: IngredientPropertySourceAdmission,
+  reference: IngredientPropertySourceReference,
 ): void {
-  const fields = [
-    "publisher",
-    "dataset",
-    "canonicalUrl",
-    "license",
-    "licenseUrl",
-    "attribution",
-    "redistributionAllowed",
-    "derivativeUseAllowed",
-    "admissionNotes",
-  ] as const;
-  const mismatch = fields.find((field) => actual[field] !== expected[field]);
+  const expectedFields = {
+    publisher: reference.publisher,
+    dataset: reference.dataset,
+    canonicalUrl: reference.canonicalUrl,
+    license: reference.license,
+    licenseUrl: reference.licenseUrl ?? null,
+    attribution: reference.attribution,
+    redistributionAllowed: expected.redistributionAllowed,
+    derivativeUseAllowed: expected.derivativeUseAllowed,
+    admissionNotes: expected.admissionNotes,
+  } as const;
+  const mismatch = (
+    Object.keys(expectedFields) as (keyof typeof expectedFields)[]
+  ).find((field) => actual[field] !== expectedFields[field]);
   if (
     mismatch ||
     actual.admittedAt.getTime() !== expected.admittedAt.getTime()
   ) {
     throw new Error(
       `Ingredient property source ${expected.sourceId} changed ${mismatch ?? "admittedAt"}`,
+    );
+  }
+}
+
+function assertObservationMatches(
+  actual: typeof schema.ingredientPropertyObservation.$inferSelect | undefined,
+  expected: IngredientPropertyObservation,
+  sourceReleaseId: string,
+): void {
+  if (
+    !actual ||
+    actual.sourceReleaseId !== sourceReleaseId ||
+    actual.sourceRecordId !== expected.sourceRecordId ||
+    actual.ingredientSlug !== expected.ingredientSlug ||
+    actual.preparationState !== expected.preparationState ||
+    actual.propertyKind !== expected.value.kind ||
+    actual.propertyKey !== ingredientPropertyKey(expected.value) ||
+    canonicalJson(actual.value) !== canonicalJson(expected.value) ||
+    Number(actual.confidence) !== expected.confidence ||
+    canonicalJson(actual.originalRecord) !== canonicalJson(expected.originalRecord)
+  ) {
+    throw new Error(
+      `Ingredient property observation ${expected.id} changed after ingestion`,
     );
   }
 }
@@ -96,9 +122,13 @@ export async function stageIngredientPropertyRelease(
     observations: IngredientPropertyObservation[];
   },
 ): Promise<{ releaseId: string; observationCount: number }> {
-  const sourceReference = IngredientPropertySourceReferenceSchema.parse(
+  const parsedSourceReference = IngredientPropertySourceReferenceSchema.parse(
     input.source,
   );
+  const { licenseUrl, ...requiredSourceReference } = parsedSourceReference;
+  const sourceReference: IngredientPropertySourceReference = licenseUrl
+    ? { ...requiredSourceReference, licenseUrl }
+    : requiredSourceReference;
   if (!/^[0-9a-f]{64}$/.test(input.release.checksumSha256)) {
     throw new Error("Ingredient property release checksum must be SHA-256 hex");
   }
@@ -139,7 +169,7 @@ export async function stageIngredientPropertyRelease(
       .where(eq(schema.ingredientPropertySource.id, sourceReference.sourceId))
       .limit(1);
     if (!storedSource) throw new Error("Ingredient property source was not stored");
-    assertSourceMatches(storedSource, input.source);
+    assertSourceMatches(storedSource, input.source, sourceReference);
 
     await tx
       .insert(schema.ingredientPropertySourceRelease)
@@ -190,6 +220,25 @@ export async function stageIngredientPropertyRelease(
           })),
         )
         .onConflictDoNothing();
+      const storedObservations = await tx
+        .select()
+        .from(schema.ingredientPropertyObservation)
+        .where(
+          inArray(
+            schema.ingredientPropertyObservation.id,
+            observations.map(({ id }) => id),
+          ),
+        );
+      const storedObservationsById = new Map(
+        storedObservations.map((observation) => [observation.id, observation]),
+      );
+      for (const observation of observations) {
+        assertObservationMatches(
+          storedObservationsById.get(observation.id),
+          observation,
+          storedRelease.id,
+        );
+      }
     }
     return { releaseId: storedRelease.id, observationCount: observations.length };
   });
@@ -281,6 +330,16 @@ function validateStoredSelection(
 ): void {
   const selectedRow = rowsById.get(selection.observation.id);
   if (!selectedRow) throw new Error("A selected property observation is missing");
+  if (
+    !selection.decision.consideredObservationIds.includes(
+      selection.observation.id,
+    )
+  ) {
+    throw new Error("The reconciliation decision must include the selection");
+  }
+  if (selectedRow.release.status !== "validated") {
+    throw new Error("Catalog publication requires validated source releases");
+  }
   const storedObservation = observationFromJoin(selectedRow);
   if (
     canonicalJson(storedObservation) !== canonicalJson(selection.observation)

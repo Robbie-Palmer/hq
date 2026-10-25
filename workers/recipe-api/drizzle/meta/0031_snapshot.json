@@ -2626,8 +2626,8 @@
       },
       "indexes": {},
       "foreignKeys": {
-        "ingredient_property_catalog_source_release_catalog_version_ingredient_property_catalog_version_version_fk": {
-          "name": "ingredient_property_catalog_source_release_catalog_version_ingredient_property_catalog_version_version_fk",
+        "property_catalog_source_version_fk": {
+          "name": "property_catalog_source_version_fk",
           "tableFrom": "ingredient_property_catalog_source_release",
           "tableTo": "ingredient_property_catalog_version",
           "columnsFrom": [
@@ -2639,8 +2639,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "ingredient_property_catalog_source_release_source_release_id_ingredient_property_source_release_id_fk": {
-          "name": "ingredient_property_catalog_source_release_source_release_id_ingredient_property_source_release_id_fk",
+        "property_catalog_source_release_fk": {
+          "name": "property_catalog_source_release_fk",
           "tableFrom": "ingredient_property_catalog_source_release",
           "tableTo": "ingredient_property_source_release",
           "columnsFrom": [
@@ -2887,8 +2887,8 @@
         }
       },
       "foreignKeys": {
-        "ingredient_property_observation_source_release_id_ingredient_property_source_release_id_fk": {
-          "name": "ingredient_property_observation_source_release_id_ingredient_property_source_release_id_fk",
+        "property_observation_release_fk": {
+          "name": "property_observation_release_fk",
           "tableFrom": "ingredient_property_observation",
           "tableTo": "ingredient_property_source_release",
           "columnsFrom": [
@@ -2900,8 +2900,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "ingredient_property_observation_ingredient_slug_ingredient_slug_fk": {
-          "name": "ingredient_property_observation_ingredient_slug_ingredient_slug_fk",
+        "property_observation_ingredient_fk": {
+          "name": "property_observation_ingredient_fk",
           "tableFrom": "ingredient_property_observation",
           "tableTo": "ingredient",
           "columnsFrom": [
@@ -3041,8 +3041,8 @@
         }
       },
       "foreignKeys": {
-        "ingredient_property_selection_catalog_version_ingredient_property_catalog_version_version_fk": {
-          "name": "ingredient_property_selection_catalog_version_ingredient_property_catalog_version_version_fk",
+        "property_selection_catalog_fk": {
+          "name": "property_selection_catalog_fk",
           "tableFrom": "ingredient_property_selection",
           "tableTo": "ingredient_property_catalog_version",
           "columnsFrom": [
@@ -3054,8 +3054,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "ingredient_property_selection_ingredient_slug_ingredient_slug_fk": {
-          "name": "ingredient_property_selection_ingredient_slug_ingredient_slug_fk",
+        "property_selection_ingredient_fk": {
+          "name": "property_selection_ingredient_fk",
           "tableFrom": "ingredient_property_selection",
           "tableTo": "ingredient",
           "columnsFrom": [
@@ -3067,8 +3067,8 @@
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
-        "ingredient_property_selection_observation_id_ingredient_property_observation_id_fk": {
-          "name": "ingredient_property_selection_observation_id_ingredient_property_observation_id_fk",
+        "property_selection_observation_fk": {
+          "name": "property_selection_observation_fk",
           "tableFrom": "ingredient_property_selection",
           "tableTo": "ingredient_property_observation",
           "columnsFrom": [
@@ -3310,8 +3310,8 @@
         }
       },
       "foreignKeys": {
-        "ingredient_property_source_release_source_id_ingredient_property_source_id_fk": {
-          "name": "ingredient_property_source_release_source_id_ingredient_property_source_id_fk",
+        "property_release_source_fk": {
+          "name": "property_release_source_fk",
           "tableFrom": "ingredient_property_source_release",
           "tableTo": "ingredient_property_source",
           "columnsFrom": [

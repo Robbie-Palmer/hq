@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -654,9 +655,7 @@ export const ingredientPropertySourceRelease = pgTable(
   "ingredient_property_source_release",
   {
     id: uuid().primaryKey().defaultRandom(),
-    sourceId: text()
-      .notNull()
-      .references(() => ingredientPropertySource.id, { onDelete: "restrict" }),
+    sourceId: text().notNull(),
     effectiveVersion: text().notNull(),
     effectiveAt: timestamp({ withTimezone: true }).notNull(),
     retrievedAt: timestamp({ withTimezone: true }).notNull(),
@@ -667,6 +666,11 @@ export const ingredientPropertySourceRelease = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    foreignKey({
+      name: "property_release_source_fk",
+      columns: [table.sourceId],
+      foreignColumns: [ingredientPropertySource.id],
+    }).onDelete("restrict"),
     uniqueIndex("ingredient_property_source_release_version_uidx").on(
       table.sourceId,
       table.effectiveVersion,
@@ -690,15 +694,9 @@ export const ingredientPropertyObservation = pgTable(
   "ingredient_property_observation",
   {
     id: uuid().primaryKey().defaultRandom(),
-    sourceReleaseId: uuid()
-      .notNull()
-      .references(() => ingredientPropertySourceRelease.id, {
-        onDelete: "restrict",
-      }),
+    sourceReleaseId: uuid().notNull(),
     sourceRecordId: text().notNull(),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "restrict" }),
+    ingredientSlug: text().notNull(),
     preparationState: text().notNull(),
     propertyKind: ingredientPropertyKindEnum().notNull(),
     propertyKey: text().notNull(),
@@ -708,6 +706,16 @@ export const ingredientPropertyObservation = pgTable(
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    foreignKey({
+      name: "property_observation_release_fk",
+      columns: [table.sourceReleaseId],
+      foreignColumns: [ingredientPropertySourceRelease.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_observation_ingredient_fk",
+      columns: [table.ingredientSlug],
+      foreignColumns: [ingredient.slug],
+    }).onDelete("restrict"),
     uniqueIndex("ingredient_property_observation_source_record_uidx").on(
       table.sourceReleaseId,
       table.sourceRecordId,
@@ -759,18 +767,20 @@ export const ingredientPropertyCatalogVersion = pgTable(
 export const ingredientPropertyCatalogSourceRelease = pgTable(
   "ingredient_property_catalog_source_release",
   {
-    catalogVersion: text()
-      .notNull()
-      .references(() => ingredientPropertyCatalogVersion.version, {
-        onDelete: "restrict",
-      }),
-    sourceReleaseId: uuid()
-      .notNull()
-      .references(() => ingredientPropertySourceRelease.id, {
-        onDelete: "restrict",
-      }),
+    catalogVersion: text().notNull(),
+    sourceReleaseId: uuid().notNull(),
   },
   (table) => [
+    foreignKey({
+      name: "property_catalog_source_version_fk",
+      columns: [table.catalogVersion],
+      foreignColumns: [ingredientPropertyCatalogVersion.version],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_catalog_source_release_fk",
+      columns: [table.sourceReleaseId],
+      foreignColumns: [ingredientPropertySourceRelease.id],
+    }).onDelete("restrict"),
     primaryKey({
       columns: [table.catalogVersion, table.sourceReleaseId],
       name: "ingredient_property_catalog_source_release_pk",
@@ -782,27 +792,32 @@ export const ingredientPropertySelection = pgTable(
   "ingredient_property_selection",
   {
     id: uuid().primaryKey().defaultRandom(),
-    catalogVersion: text()
-      .notNull()
-      .references(() => ingredientPropertyCatalogVersion.version, {
-        onDelete: "restrict",
-      }),
-    ingredientSlug: text()
-      .notNull()
-      .references(() => ingredient.slug, { onDelete: "restrict" }),
+    catalogVersion: text().notNull(),
+    ingredientSlug: text().notNull(),
     preparationState: text().notNull(),
     propertyKey: text().notNull(),
-    observationId: uuid()
-      .notNull()
-      .references(() => ingredientPropertyObservation.id, {
-        onDelete: "restrict",
-      }),
+    observationId: uuid().notNull(),
     confidence: numeric({ precision: 5, scale: 4 }).notNull(),
     reconciliationDecision:
       jsonb().$type<IngredientPropertyReconciliationDecision>().notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [
+    foreignKey({
+      name: "property_selection_catalog_fk",
+      columns: [table.catalogVersion],
+      foreignColumns: [ingredientPropertyCatalogVersion.version],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_selection_ingredient_fk",
+      columns: [table.ingredientSlug],
+      foreignColumns: [ingredient.slug],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_selection_observation_fk",
+      columns: [table.observationId],
+      foreignColumns: [ingredientPropertyObservation.id],
+    }).onDelete("restrict"),
     uniqueIndex("ingredient_property_selection_catalog_property_uidx").on(
       table.catalogVersion,
       table.ingredientSlug,
