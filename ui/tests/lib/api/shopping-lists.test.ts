@@ -90,11 +90,14 @@ describe("shopping-list API client", () => {
 
     await expect(applyShoppingListCommand(command)).resolves.toEqual(response);
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/shopping-lists/current/commands",
+      "/api/shopping-lists/00000000-0000-4000-8000-000000000080/commands/00000000-0000-4000-8000-000000000090",
       expect.objectContaining({
-        body: JSON.stringify(command),
+        body: JSON.stringify({
+          baseRevision: command.baseRevision,
+          command: command.command,
+        }),
         credentials: "same-origin",
-        method: "POST",
+        method: "PUT",
       }),
     );
   });

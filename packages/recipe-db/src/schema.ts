@@ -39,6 +39,7 @@ import {
   type PantryFreshnessEstimate,
   type PantryMutationValue,
 } from "recipe-domain/pantry";
+import type { ShoppingListChecklistCommand } from "recipe-domain/shopping-list";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 
 export type { CookLogMutationValue } from "recipe-domain/cook-log";
@@ -905,13 +906,6 @@ export type ShoppingListSnapshot = {
     note?: string;
     sourceMealId?: string;
   }>;
-};
-
-export type ShoppingListChecklistCommand = {
-  type: "set_checked";
-  itemType: "ingredient" | "extra";
-  itemId: string;
-  checked: boolean;
 };
 
 /**

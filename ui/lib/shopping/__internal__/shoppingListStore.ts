@@ -11,6 +11,7 @@
 
 // Internal implementation. The public facade excludes test reset hooks.
 
+import type { ShoppingListCommandRequest } from "recipe-domain/shopping-list";
 import { isRecord } from "ts-base/records";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
 import { type MealPlanEntry, parseMealPlan } from "@/lib/domain/meal-plan";
@@ -50,15 +51,10 @@ export type ShoppingListChangeSource =
   | "local"
   | "storage";
 
-export type ShoppingListCommandIntent = {
-  commandId: string;
-  command: {
-    type: "set_checked";
-    itemType: "ingredient" | "extra";
-    itemId: string;
-    checked: boolean;
-  };
-};
+export type ShoppingListCommandIntent = Pick<
+  ShoppingListCommandRequest,
+  "command" | "commandId"
+>;
 
 const LEGACY_STORAGE_KEY = "recipe-shopping-list:v1";
 const STORAGE_KEY_PREFIX = "recipe-shopping-list:v2:";

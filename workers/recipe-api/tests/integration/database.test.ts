@@ -1783,9 +1783,8 @@ describe("recipe API PostgreSQL integration", () => {
       id: string;
       revision: string;
     };
+    const commandId = "019a1d20-1111-7111-8111-111111111111";
     const request = {
-      commandId: "019a1d20-1111-7111-8111-111111111111",
-      listId: current.id,
       baseRevision: current.revision,
       command: {
         type: "set_checked",
@@ -1797,8 +1796,8 @@ describe("recipe API PostgreSQL integration", () => {
 
     const applied = await authenticatedRequest(
       owner,
-      "/shopping-lists/current/commands",
-      { method: "POST", body: request },
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
     );
     expect(applied.status).toBe(200);
     expect(await applied.json()).toMatchObject({
@@ -1809,8 +1808,8 @@ describe("recipe API PostgreSQL integration", () => {
 
     const replayed = await authenticatedRequest(
       owner,
-      "/shopping-lists/current/commands",
-      { method: "POST", body: request },
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
     );
     expect(replayed.status).toBe(200);
     expect(await replayed.json()).toMatchObject({
@@ -1856,8 +1855,8 @@ describe("recipe API PostgreSQL integration", () => {
 
     const replayedAfterAdvance = await authenticatedRequest(
       owner,
-      "/shopping-lists/current/commands",
-      { method: "POST", body: request },
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
     );
     expect(replayedAfterAdvance.status).toBe(200);
     expect(await replayedAfterAdvance.json()).toMatchObject({
@@ -1867,13 +1866,10 @@ describe("recipe API PostgreSQL integration", () => {
 
     const stale = await authenticatedRequest(
       owner,
-      "/shopping-lists/current/commands",
+      `/shopping-lists/${current.id}/commands/019a1d20-2222-7222-8222-222222222222`,
       {
-        method: "POST",
-        body: {
-          ...request,
-          commandId: "019a1d20-2222-7222-8222-222222222222",
-        },
+        method: "PUT",
+        body: request,
       },
     );
     expect(stale.status).toBe(409);

@@ -1,3 +1,7 @@
+import type {
+  ShoppingListChecklistCommand,
+  ShoppingListCommandRequest,
+} from "recipe-domain/shopping-list";
 import { apiRequest } from "@/lib/api/http";
 import type {
   ExtraItem,
@@ -26,19 +30,7 @@ export type StoredShoppingList = {
   updatedAt: string;
 };
 
-export type ShoppingListChecklistCommand = {
-  type: "set_checked";
-  itemType: "ingredient" | "extra";
-  itemId: string;
-  checked: boolean;
-};
-
-export type ShoppingListCommandRequest = {
-  commandId: string;
-  listId: string;
-  baseRevision: string;
-  command: ShoppingListChecklistCommand;
-};
+export type { ShoppingListChecklistCommand, ShoppingListCommandRequest };
 
 export function getCurrentShoppingList(
   signal?: AbortSignal,
@@ -64,9 +56,10 @@ export function saveCurrentShoppingList(
 export function applyShoppingListCommand(
   request: ShoppingListCommandRequest,
 ): Promise<StoredShoppingList> {
-  return apiRequest("/api/shopping-lists/current/commands", {
-    method: "POST",
-    json: request,
+  const { commandId, listId, ...body } = request;
+  return apiRequest(`/api/shopping-lists/${listId}/commands/${commandId}`, {
+    method: "PUT",
+    json: body,
     fallbackMessage: "The offline shopping-list change could not be saved.",
   });
 }

@@ -1,5 +1,8 @@
-import { isRecord } from "ts-base/records";
-import type { ShoppingListCommandRequest } from "@/lib/api/shopping-lists";
+import {
+  type ShoppingListCommandRequest,
+  ShoppingListCommandRequestSchema,
+} from "recipe-domain/shopping-list";
+import { z } from "zod";
 
 const DATABASE_NAME = "robbies-recipes";
 const DATABASE_VERSION = 3;
@@ -7,24 +10,34 @@ const SNAPSHOT_STORE = "offline-snapshots";
 const OUTBOX_STORE = "shopping-command-outbox";
 let lastEnqueuedAt = 0;
 
-export type ShoppingCommandOutcome =
-  | "pending"
-  | "retry"
-  | "conflict"
-  | "dead_letter";
+export const ShoppingCommandOutcomeSchema = z.enum([
+  "pending",
+  "retry",
+  "conflict",
+  "dead_letter",
+]);
 
-export type ShoppingCommandOutboxRecord = ShoppingListCommandRequest & {
-  key: string;
-  actorUserId: string;
-  resourceId: string;
-  householdId: string | null;
-  outcome: ShoppingCommandOutcome;
-  attempts: number;
-  nextAttemptAt: number;
-  lastError?: string;
-  createdAt: number;
-  updatedAt: number;
-};
+export type ShoppingCommandOutcome = z.infer<
+  typeof ShoppingCommandOutcomeSchema
+>;
+
+export const ShoppingCommandOutboxRecordSchema =
+  ShoppingListCommandRequestSchema.extend({
+    key: z.string().min(1),
+    actorUserId: z.string().min(1),
+    resourceId: z.string().min(1),
+    householdId: z.string().min(1).nullable(),
+    outcome: ShoppingCommandOutcomeSchema,
+    attempts: z.number().int().nonnegative().safe(),
+    nextAttemptAt: z.number().int().nonnegative().safe(),
+    lastError: z.string().optional(),
+    createdAt: z.number().int().nonnegative().safe(),
+    updatedAt: z.number().int().nonnegative().safe(),
+  }).strict();
+
+export type ShoppingCommandOutboxRecord = z.infer<
+  typeof ShoppingCommandOutboxRecordSchema
+>;
 
 export type NewShoppingCommand = ShoppingListCommandRequest & {
   actorUserId: string;
@@ -72,28 +85,6 @@ function transactionDone(transaction: IDBTransaction): Promise<void> {
   });
 }
 
-function isOutboxRecord(value: unknown): value is ShoppingCommandOutboxRecord {
-  if (!isRecord(value) || !isRecord(value.command)) return false;
-  return (
-    typeof value.key === "string" &&
-    typeof value.commandId === "string" &&
-    typeof value.actorUserId === "string" &&
-    typeof value.resourceId === "string" &&
-    typeof value.listId === "string" &&
-    typeof value.baseRevision === "string" &&
-    value.command.type === "set_checked" &&
-    (value.command.itemType === "ingredient" ||
-      value.command.itemType === "extra") &&
-    typeof value.command.itemId === "string" &&
-    typeof value.command.checked === "boolean" &&
-    typeof value.outcome === "string" &&
-    typeof value.attempts === "number" &&
-    typeof value.nextAttemptAt === "number" &&
-    typeof value.createdAt === "number" &&
-    typeof value.updatedAt === "number"
-  );
-}
-
 async function withStore<T>(
   mode: IDBTransactionMode,
   operation: (store: IDBObjectStore) => Promise<T>,
@@ -139,7 +130,10 @@ export function listShoppingCommands(
   return withStore("readonly", async (store) => {
     const values: unknown[] = await requestResult(store.getAll());
     return values
-      .filter(isOutboxRecord)
+      .flatMap((value) => {
+        const parsed = ShoppingCommandOutboxRecordSchema.safeParse(value);
+        return parsed.success ? [parsed.data] : [];
+      })
       .filter((record) => record.actorUserId === actorUserId)
       .sort((left, right) => left.createdAt - right.createdAt);
   });

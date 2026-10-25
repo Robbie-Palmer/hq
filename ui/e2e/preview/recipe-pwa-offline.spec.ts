@@ -272,6 +272,20 @@ async function readShoppingOutbox(page: Page): Promise<ShoppingOutboxEntry[]> {
   );
 }
 
+function isSuccessfulShoppingCommand(response: {
+  ok(): boolean;
+  request(): { method(): string };
+  url(): string;
+}): boolean {
+  return (
+    /^\/api\/shopping-lists\/[^/]+\/commands\/[^/]+$/.test(
+      new URL(response.url()).pathname,
+    ) &&
+    response.request().method() === "PUT" &&
+    response.ok()
+  );
+}
+
 async function addShoppingExtra(page: Page, item: string): Promise<void> {
   const saved = page.waitForResponse(
     (response) =>
@@ -439,13 +453,7 @@ test.describe("deployed recipe PWA offline navigation", () => {
     ).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => readShoppingOutbox(page)).toEqual([queued]);
 
-    const synced = page.waitForResponse(
-      (response) =>
-        new URL(response.url()).pathname ===
-          "/api/shopping-lists/current/commands" &&
-        response.request().method() === "POST" &&
-        response.ok(),
-    );
+    const synced = page.waitForResponse(isSuccessfulShoppingCommand);
     await context.setOffline(false);
     await page.evaluate(() => window.dispatchEvent(new Event("online")));
     await synced;
@@ -458,6 +466,60 @@ test.describe("deployed recipe PWA offline navigation", () => {
     await removeShoppingExtra(page, item);
   });
 
+  test("preserves an unsaved list edit while replaying an offline checklist command", async ({
+    createPreviewSession,
+  }, testInfo) => {
+    const { context, page } = await createPreviewSession("household-owner");
+    const suffix = `${testInfo.parallelIndex.toString()}-${Date.now().toString()}`;
+    const checklistItem = `Queued checklist item ${suffix}`;
+    const offlineItem = `Unsaved offline item ${suffix}`;
+    const retryItem = `Save retry item ${suffix}`;
+    await prepareOfflineRecipeSession(page);
+    await page.getByRole("link", { name: "Shopping", exact: true }).click();
+    await addShoppingExtra(page, checklistItem);
+
+    await context.setOffline(true);
+    await page
+      .getByRole("combobox", { name: "Add a shopping-list item" })
+      .fill(offlineItem);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: offlineItem, exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+    await expect(
+      page.getByText(
+        "Your latest shopping-list changes have not been saved. They remain on this device; edit the list to try again.",
+      ),
+    ).toBeVisible();
+
+    await page
+      .getByRole("button", { name: checklistItem, exact: true })
+      .click();
+    await expect.poll(() => readShoppingOutbox(page)).toHaveLength(1);
+
+    const synced = page.waitForResponse(isSuccessfulShoppingCommand);
+    await context.setOffline(false);
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await synced;
+    await expect.poll(() => readShoppingOutbox(page)).toEqual([]);
+    await expect(
+      page.getByRole("button", { name: offlineItem, exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    await addShoppingExtra(page, retryItem);
+    await page.reload();
+    await expect(
+      page.getByRole("button", { name: checklistItem, exact: true }),
+    ).toHaveAttribute("aria-pressed", "true");
+    await expect(
+      page.getByRole("button", { name: offlineItem, exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+
+    await removeShoppingExtra(page, retryItem);
+    await removeShoppingExtra(page, offlineItem);
+    await removeShoppingExtra(page, checklistItem);
+  });
+
   test("replays the same command when its acknowledgement is lost", async ({
     createPreviewSession,
   }, testInfo) => {
@@ -468,20 +530,20 @@ test.describe("deployed recipe PWA offline navigation", () => {
     await page.getByRole("link", { name: "Shopping", exact: true }).click();
     await addShoppingExtra(page, item);
 
-    await page.route(
-      "**/api/shopping-lists/current/commands",
-      async (route) => {
-        const body = route.request().postDataJSON() as { commandId: string };
-        deliveries.push(body.commandId);
-        if (deliveries.length === 1) {
-          const response = await route.fetch();
-          expect(response.ok()).toBe(true);
-          await route.abort("connectionfailed");
-          return;
-        }
-        await route.continue();
-      },
-    );
+    await page.route("**/api/shopping-lists/*/commands/*", async (route) => {
+      const commandId = new URL(route.request().url()).pathname
+        .split("/")
+        .at(-1);
+      if (!commandId) throw new Error("The command URL has no command ID");
+      deliveries.push(commandId);
+      if (deliveries.length === 1) {
+        const response = await route.fetch();
+        expect(response.ok()).toBe(true);
+        await route.abort("connectionfailed");
+        return;
+      }
+      await route.continue();
+    });
 
     await page.getByRole("button", { name: item, exact: true }).click();
     await expect

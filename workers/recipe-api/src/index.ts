@@ -61,6 +61,14 @@ import {
   PantryLocationSchema,
   PantryMutationConflictError,
 } from "recipe-domain/pantry";
+import {
+  type ShoppingListChecklistCommand,
+  ShoppingListCommandBodySchema,
+  ShoppingListCommandIdSchema,
+  type ShoppingListCommandRequest,
+  ShoppingListCommandRequestSchema,
+  ShoppingListIdSchema,
+} from "recipe-domain/shopping-list";
 import { SavedRecipePayloadSchema } from "recipe-domain/serialization";
 import {
   isRecipeAppRouteSlug,
@@ -929,24 +937,6 @@ const updateShoppingListBodySchema = z
   })
   .strict();
 
-const shoppingListChecklistCommandSchema = z
-  .object({
-    type: z.literal("set_checked"),
-    itemType: z.enum(["ingredient", "extra"]),
-    itemId: z.string().trim().min(1).max(200),
-    checked: z.boolean(),
-  })
-  .strict();
-
-const shoppingListCommandBodySchema = z
-  .object({
-    commandId: z.uuid().max(36),
-    listId: z.uuid().max(36),
-    baseRevision: z.string().regex(/^\d+$/).max(30),
-    command: shoppingListChecklistCommandSchema,
-  })
-  .strict();
-
 const createShoppingListBodySchema = z
   .object({
     previousListId: z.uuid().max(36),
@@ -1078,8 +1068,8 @@ export const routeMetadata = {
     requestBodySchema: updateShoppingListBodySchema,
     successResponseSchema: shoppingListResponseSchema,
   },
-  "POST /shopping-lists/current/commands": {
-    requestBodySchema: shoppingListCommandBodySchema,
+  "PUT /shopping-lists/:listId/commands/:commandId": {
+    requestBodySchema: ShoppingListCommandBodySchema,
     successResponseSchema: shoppingListResponseSchema,
   },
   "POST /shopping-lists": {
@@ -1267,6 +1257,8 @@ const notificationActionKeySchema = z.enum([
 ]);
 
 function pathParameterSchema(name: string) {
+  if (name === "listId") return ShoppingListIdSchema;
+  if (name === "commandId") return ShoppingListCommandIdSchema;
   if (UUID_PATH_PARAMETER_NAMES.has(name)) return uuidIdSchema;
   if (name === "actionKey") return notificationActionKeySchema;
   return z.string().min(1).max(200);
@@ -2051,10 +2043,6 @@ async function currentShoppingList(db: Db, userId: string) {
   });
 }
 
-type ShoppingListChecklistCommand = z.infer<
-  typeof shoppingListChecklistCommandSchema
->;
-
 function sameChecklistCommand(
   left: ShoppingListChecklistCommand,
   right: ShoppingListChecklistCommand,
@@ -2095,7 +2083,7 @@ type ShoppingCommandResult =
 function matchesShoppingCommandReceipt(
   receipt: typeof schema.shoppingListCommandReceipt.$inferSelect,
   resourceId: string,
-  input: z.infer<typeof shoppingListCommandBodySchema>,
+  input: ShoppingListCommandRequest,
 ): boolean {
   return (
     receipt.resourceId === resourceId &&
@@ -2107,7 +2095,7 @@ function matchesShoppingCommandReceipt(
 
 function matchesShoppingCommandBase(
   current: typeof schema.shoppingList.$inferSelect | undefined,
-  input: z.infer<typeof shoppingListCommandBodySchema>,
+  input: ShoppingListCommandRequest,
 ): current is typeof schema.shoppingList.$inferSelect {
   return (
     current?.id === input.listId &&
@@ -2118,7 +2106,7 @@ function matchesShoppingCommandBase(
 async function applyShoppingCommand(
   db: Db,
   userId: string,
-  input: z.infer<typeof shoppingListCommandBodySchema>,
+  input: ShoppingListCommandRequest,
 ): Promise<ShoppingCommandResult> {
   return db.transaction(async (tx) => {
     const scope = await lockPantryScope(tx, userId);
@@ -4481,18 +4469,30 @@ registerRoute("put", "/shopping-lists/current", async (c) => {
   );
 });
 
-registerRoute("post", "/shopping-lists/current/commands", async (c) => {
+registerRoute("put", "/shopping-lists/:listId/commands/:commandId", async (c) => {
   const csrfFailure = validateCsrf(c);
   if (csrfFailure) return csrfFailure;
 
   return withRecipeSession(
     c,
     "mutation",
-    "POST /shopping-lists/current/commands mutation failed",
+    "PUT /shopping-lists/:listId/commands/:commandId mutation failed",
     async ({ db, session }) => {
-      const body = await parseJsonBody(c, shoppingListCommandBodySchema);
+      const body = await parseJsonBody(c, ShoppingListCommandBodySchema);
       if (!body.success) return body.response;
-      const result = await applyShoppingCommand(db, session.user.id, body.data);
+      const request = ShoppingListCommandRequestSchema.safeParse({
+        ...body.data,
+        listId: c.req.param("listId"),
+        commandId: c.req.param("commandId"),
+      });
+      if (!request.success) {
+        return c.json({ error: "Invalid shopping-list command path" }, 400);
+      }
+      const result = await applyShoppingCommand(
+        db,
+        session.user.id,
+        request.data,
+      );
       if (result.status === "conflict") {
         return c.json({ error: result.message }, 409);
       }
