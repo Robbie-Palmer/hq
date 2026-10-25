@@ -29,6 +29,11 @@ import {
   LEFTOVER_STORAGE_LOCATIONS,
 } from "recipe-domain/cook-log";
 import {
+  INGREDIENT_PROPERTY_KINDS,
+  type IngredientPropertyReconciliationDecision,
+  type IngredientPropertyValue,
+} from "recipe-domain/ingredient-property";
+import {
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
@@ -599,6 +604,224 @@ export const ingredient = pgTable("ingredient", {
     .defaultNow()
     .$onUpdate(() => new Date()),
 });
+
+export const ingredientPropertyKindEnum = pgEnum(
+  "ingredient_property_kind",
+  INGREDIENT_PROPERTY_KINDS,
+);
+export const ingredientPropertyReleaseStatusEnum = pgEnum(
+  "ingredient_property_release_status",
+  ["staged", "validated", "rejected"],
+);
+export const ingredientPropertyCatalogStatusEnum = pgEnum(
+  "ingredient_property_catalog_status",
+  ["draft", "published"],
+);
+
+export const ingredientPropertySource = pgTable(
+  "ingredient_property_source",
+  {
+    id: text().primaryKey(),
+    publisher: text().notNull(),
+    dataset: text().notNull(),
+    canonicalUrl: text().notNull(),
+    license: text().notNull(),
+    licenseUrl: text(),
+    attribution: text().notNull(),
+    redistributionAllowed: boolean().notNull(),
+    derivativeUseAllowed: boolean().notNull(),
+    admittedAt: timestamp({ withTimezone: true }).notNull(),
+    admissionNotes: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "ingredient_property_source_identity_check",
+      sql`length(${table.publisher}) > 0 and length(${table.dataset}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_license_check",
+      sql`length(${table.license}) > 0 and length(${table.attribution}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_admission_check",
+      sql`length(${table.admissionNotes}) > 0`,
+    ),
+  ],
+);
+
+export const ingredientPropertySourceRelease = pgTable(
+  "ingredient_property_source_release",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    sourceId: text()
+      .notNull()
+      .references(() => ingredientPropertySource.id, { onDelete: "restrict" }),
+    effectiveVersion: text().notNull(),
+    effectiveAt: timestamp({ withTimezone: true }).notNull(),
+    retrievedAt: timestamp({ withTimezone: true }).notNull(),
+    checksumSha256: text().notNull(),
+    connectorVersion: text().notNull(),
+    status: ingredientPropertyReleaseStatusEnum().notNull().default("staged"),
+    diagnostics: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ingredient_property_source_release_version_uidx").on(
+      table.sourceId,
+      table.effectiveVersion,
+    ),
+    uniqueIndex("ingredient_property_source_release_checksum_uidx").on(
+      table.sourceId,
+      table.checksumSha256,
+    ),
+    check(
+      "ingredient_property_source_release_version_check",
+      sql`length(${table.effectiveVersion}) > 0 and length(${table.connectorVersion}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_release_checksum_check",
+      sql`${table.checksumSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+export const ingredientPropertyObservation = pgTable(
+  "ingredient_property_observation",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    sourceReleaseId: uuid()
+      .notNull()
+      .references(() => ingredientPropertySourceRelease.id, {
+        onDelete: "restrict",
+      }),
+    sourceRecordId: text().notNull(),
+    ingredientSlug: text()
+      .notNull()
+      .references(() => ingredient.slug, { onDelete: "restrict" }),
+    preparationState: text().notNull(),
+    propertyKind: ingredientPropertyKindEnum().notNull(),
+    propertyKey: text().notNull(),
+    value: jsonb().$type<IngredientPropertyValue>().notNull(),
+    confidence: numeric({ precision: 5, scale: 4 }).notNull(),
+    originalRecord: jsonb().$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ingredient_property_observation_source_record_uidx").on(
+      table.sourceReleaseId,
+      table.sourceRecordId,
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    index("ingredient_property_observation_lookup_idx").on(
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    check(
+      "ingredient_property_observation_identity_check",
+      sql`length(${table.sourceRecordId}) > 0 and length(${table.preparationState}) > 0 and length(${table.propertyKey}) > 0`,
+    ),
+    check(
+      "ingredient_property_observation_confidence_check",
+      sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+  ],
+);
+
+export const ingredientPropertyCatalogVersion = pgTable(
+  "ingredient_property_catalog_version",
+  {
+    version: text().primaryKey(),
+    status: ingredientPropertyCatalogStatusEnum().notNull().default("draft"),
+    effectiveAt: timestamp({ withTimezone: true }).notNull(),
+    publishedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "ingredient_property_catalog_version_name_check",
+      sql`length(${table.version}) > 0`,
+    ),
+    check(
+      "ingredient_property_catalog_version_publish_check",
+      sql`(${table.status} = 'published') = (${table.publishedAt} is not null)`,
+    ),
+    index("ingredient_property_catalog_version_effective_idx").on(
+      table.status,
+      table.effectiveAt.desc(),
+    ),
+  ],
+);
+
+export const ingredientPropertyCatalogSourceRelease = pgTable(
+  "ingredient_property_catalog_source_release",
+  {
+    catalogVersion: text()
+      .notNull()
+      .references(() => ingredientPropertyCatalogVersion.version, {
+        onDelete: "restrict",
+      }),
+    sourceReleaseId: uuid()
+      .notNull()
+      .references(() => ingredientPropertySourceRelease.id, {
+        onDelete: "restrict",
+      }),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.catalogVersion, table.sourceReleaseId],
+      name: "ingredient_property_catalog_source_release_pk",
+    }),
+  ],
+);
+
+export const ingredientPropertySelection = pgTable(
+  "ingredient_property_selection",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    catalogVersion: text()
+      .notNull()
+      .references(() => ingredientPropertyCatalogVersion.version, {
+        onDelete: "restrict",
+      }),
+    ingredientSlug: text()
+      .notNull()
+      .references(() => ingredient.slug, { onDelete: "restrict" }),
+    preparationState: text().notNull(),
+    propertyKey: text().notNull(),
+    observationId: uuid()
+      .notNull()
+      .references(() => ingredientPropertyObservation.id, {
+        onDelete: "restrict",
+      }),
+    confidence: numeric({ precision: 5, scale: 4 }).notNull(),
+    reconciliationDecision:
+      jsonb().$type<IngredientPropertyReconciliationDecision>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("ingredient_property_selection_catalog_property_uidx").on(
+      table.catalogVersion,
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    index("ingredient_property_selection_observation_idx").on(
+      table.observationId,
+    ),
+    check(
+      "ingredient_property_selection_identity_check",
+      sql`length(${table.preparationState}) > 0 and length(${table.propertyKey}) > 0`,
+    ),
+    check(
+      "ingredient_property_selection_confidence_check",
+      sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+  ],
+);
 
 export const authoredTermKindEnum = pgEnum(
   "authored_term_kind",
