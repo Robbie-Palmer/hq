@@ -443,6 +443,9 @@ describe("offline recipe cache", () => {
       saveOfflineRecipeSnapshot("user-1", bootstrap),
     ).resolves.toEqual({ status: "unavailable" });
     await expect(clearOfflineRecipeSnapshots()).resolves.toBeUndefined();
+    await expect(listShoppingCommands("user-1")).rejects.toThrow(
+      new TypeError("IndexedDB is unavailable"),
+    );
   });
 
   it("reports quota exhaustion when the write transaction aborts", async () => {
