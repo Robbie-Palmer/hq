@@ -191,6 +191,8 @@ The task writes the machine-readable report and a review copy under
 `outputs/publication-pilot`. It does not commit or publish an artifact. The
 author must review every final artifact before its recorded publication time.
 
+## Review evidence maintenance
+
 If a reviewed file moves after the pinned baseline, map its baseline artifact
 ID to the current artifact ID in `targetRenames` in
 `review-decision-config.json`. The recorder resolves that map before reading

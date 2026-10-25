@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
@@ -17,7 +16,14 @@ import {
 import { sha256 } from "writing-editor-domain/suggestions";
 import { z } from "zod";
 
-import { readContainedText, readJson, resolveContainedFile, writeJson } from "./files";
+import {
+  ensureOutputDirectory,
+  readContainedText,
+  readJson,
+  resolveContainedFile,
+  writeJson,
+} from "./files";
+import { fileAtRevision } from "./git-revisions";
 
 const ArtifactIdSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
 const ArtifactTypeSchema = z.enum([
@@ -393,18 +399,17 @@ function assertPublicationChronology(
 }
 
 function verifyPublishedRevision(
-  repositoryRoot: string | undefined,
+  repositoryRoot: string,
   artifact: ArtifactEvidence,
   published: string,
 ): void {
-  if (repositoryRoot === undefined) return;
   let committed: string;
   try {
-    committed = execFileSync(
-      "git",
-      ["show", `${artifact.publication.revision}:${artifact.publication.repositoryPath}`],
-      { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
+    committed = fileAtRevision(
+      repositoryRoot,
+      artifact.publication.revision,
+      artifact.publication.repositoryPath,
+    ).toString("utf8");
   } catch {
     throw new Error(`${artifact.artifactId} published revision cannot be read from Git`);
   }
@@ -536,6 +541,13 @@ function reviewTiming(
     artifact.finalManualReview.finishedAt,
     `${artifact.artifactId} final manual review`,
   );
+  const firstReviewStartedAt = decisions.reduce(
+    (earliest, decision) => Math.min(earliest, Date.parse(decision.reviewStartedAt)),
+    Number.POSITIVE_INFINITY,
+  );
+  if (firstReviewStartedAt < Date.parse(artifact.sessionStartedAt)) {
+    throw new Error(`${artifact.artifactId} proposal review began before the session start`);
+  }
   const lastDecisionAt = decisions.reduce(
     (latest, decision) => Math.max(latest, Date.parse(decision.decidedAt)),
     Date.parse(artifact.sessionStartedAt),
@@ -615,7 +627,7 @@ function evaluateArtifact(options: {
   artifact: ArtifactEvidence;
   comparisons: ReaderComparison[];
   evidenceRoot: string;
-  repositoryRoot?: string;
+  repositoryRoot: string;
 }): ArtifactResult {
   const { preregistration, artifact, comparisons, evidenceRoot, repositoryRoot } = options;
   assertPublicationChronology(preregistration, artifact);
@@ -680,7 +692,7 @@ export function evaluatePublicationPilot(options: {
   preregistrationFile: string;
   evidenceFile: string;
   evidenceRoot: string;
-  repositoryRoot?: string;
+  repositoryRoot: string;
 }) {
   const preregistration = PublicationPilotPreregistrationSchema.parse(
     readJson(options.preregistrationFile),
@@ -874,8 +886,30 @@ export function renderPublicationPilotReport(
   ].join("\n");
 }
 
-function runCli(): void {
+function resolveOutputFile(
+  workingDirectory: string,
+  requestedFile: string,
+  label: string,
+): string {
+  const outputRoot = path.resolve(workingDirectory, "outputs");
+  const resolved = path.resolve(workingDirectory, requestedFile);
+  const relative = path.relative(outputRoot, resolved);
+  if (
+    relative === "" || relative === ".." || relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    throw new Error(`${label} must be a file below ${outputRoot}`);
+  }
+  ensureOutputDirectory(path.dirname(resolved), workingDirectory);
+  return resolved;
+}
+
+export function runPublicationPilotCli(
+  args: string[],
+  workingDirectory = process.cwd(),
+): void {
   const { values } = parseArgs({
+    args,
     options: {
       preregistration: { type: "string" },
       evidence: { type: "string" },
@@ -901,11 +935,12 @@ function runCli(): void {
     evidenceRoot: values["evidence-root"],
     repositoryRoot: values.repository,
   });
-  writeJson(values.output, result);
-  fs.mkdirSync(path.dirname(values.report), { recursive: true });
-  fs.writeFileSync(values.report, renderPublicationPilotReport(result));
+  const outputFile = resolveOutputFile(workingDirectory, values.output, "JSON report");
+  const reportFile = resolveOutputFile(workingDirectory, values.report, "Markdown report");
+  writeJson(outputFile, result);
+  fs.writeFileSync(reportFile, renderPublicationPilotReport(result));
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  runCli();
+  runPublicationPilotCli(process.argv.slice(2));
 }
