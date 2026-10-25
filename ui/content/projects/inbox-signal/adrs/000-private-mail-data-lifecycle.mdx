@@ -1,0 +1,262 @@
+---
+title: "ADR 000: Bound the private mail data lifecycle"
+date: "2026-10-25"
+status: "Accepted"
+tech_stack: ["Doppler"]
+---
+
+## Context
+
+Inbox Signal needs raw MIME, attachments, provider identifiers, and derived
+records to inventory old mail and explain proposed actions. Those copies are
+more sensitive than the mailbox metadata normally exposed by a provider UI.
+They can contain identity documents, financial records, account links, health
+information, and private correspondence.
+
+The project plans to put large objects in Cloudflare R2, operational records in
+Neon PostgreSQL, and bounded evaluation samples in a private DVC remote. Each
+store has a different deletion mechanism. Provider-side deletion also has its
+own recovery and hold behavior. Treating a mailbox delete as complete while a
+raw object, model sample, restored database branch, or derived assertion remains
+would break the project's deletion promise.
+
+[R2 encrypts all objects at rest with provider-managed keys](https://developers.cloudflare.com/r2/reference/data-security/).
+That protects storage media but does not separate mail content from a
+compromised Cloudflare account or an over-broad application credential. R2
+bucket locks can prevent premature deletion, while
+[lifecycle expiry is asynchronous](https://developers.cloudflare.com/r2/buckets/object-lifecycles/)
+and may occur after the recorded expiry time. Explicit deletion is therefore
+required for user-directed purges. R2's
+[direct APIs are strongly consistent](https://developers.cloudflare.com/r2/reference/consistency/)
+for object deletion and listing, so the application can verify that an object
+is absent after a delete.
+
+[Neon history can restore a branch](https://neon.com/blog/announcing-point-in-time-restore)
+inside its configured history window. DVC keeps content-addressed objects until
+[remote garbage collection](https://dvc.org/doc/command-reference/gc) removes
+objects that are no longer referenced. Neither mechanism understands that an
+Inbox Signal record has been deleted. The application needs one inventory and
+one state transition that drives every copy.
+
+## Decision
+
+Keep a machine-readable inventory of every store that may contain private mail
+data. Each inventory entry must name the data class, owner, location, encryption
+boundary, retention rule, restore path, deletion operation, and deletion
+verification. A new store cannot receive private mail until it appears in the
+inventory and passes the lifecycle rehearsal defined below.
+
+### Encrypt content before object storage
+
+Encrypt every raw MIME object, attachment, retained document, export, and DVC
+sample before it reaches R2. R2's automatic encryption and TLS remain additional
+controls, not the content-encryption boundary.
+
+Use envelope encryption in the Workers runtime:
+
+1. Generate a random 256-bit data-encryption key and 96-bit nonce for each
+   object.
+2. Encrypt the object with AES-256-GCM. Bind the account-scoped object ID,
+   object version, content class, and envelope version as authenticated
+   additional data.
+3. Wrap the data-encryption key with a versioned AES-256 key-encryption key.
+   Store only the ciphertext, nonce, wrapped key, algorithms, and key version in
+   R2 and Neon.
+4. Keep key-encryption keys in a dedicated Doppler production config. Deliver
+   them only to the mail content service. Provider adapters, analytics jobs,
+   browser automation, and general CI do not receive decryption keys.
+
+Cloudflare Workers supports AES-GCM, AES-KW, key generation, wrapping, and
+unwrapping through its
+[Web Crypto implementation](https://developers.cloudflare.com/workers/runtime-apis/web-crypto/).
+The implementation must use those runtime primitives rather than a handwritten
+cipher or a reusable object nonce.
+
+Each key version has an activation time and status. Rotate the key-encryption
+key after suspected exposure and at least once every 12 months. Rotation
+rewraps data-encryption keys without decrypting and rewriting the content.
+Retire an old key only after the inventory proves that every live envelope has
+been rewrapped or deleted and the longest backup window has elapsed.
+[Doppler retains secret version history](https://docs.doppler.com/docs/versioning),
+so key deletion is not treated as proof that mail was erased. Deletion evidence
+comes from removing every ciphertext copy.
+
+### Apply explicit retention periods
+
+Retention follows the content class wherever the project stores it.
+The following periods are maxima unless an approved exception names a shorter
+or longer period.
+
+| Data class                                                        | Retention rule                                                                                                          | End-of-life action                                                                                                      |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Raw MIME and ordinary attachments                                 | 90 days from ingestion, or the end of an approved provider deletion window when earlier                                 | Delete the R2 object and content-bearing Neon rows                                                                      |
+| Documents or messages explicitly selected for long-term retention | Keep while the recorded retention reason remains active; review the reason and next review date at least every 365 days | Start a 30-day recovery window when the owner removes the reason, then purge                                            |
+| Provider sync tokens and active message metadata                  | While the provider connection and source message remain active                                                          | Revoke the token on disconnect and remove message-level metadata during purge                                           |
+| Derived classifications, entities, relationships, and assertions  | While at least one live item of supporting evidence remains                                                             | Delete within 24 hours after the last supporting item is purged, unless the owner separately retains the derived record |
+| Approved action manifests and reversible action details           | 30 days after execution                                                                                                 | Remove message IDs, destinations, and content; retain only the content-free receipt described below                     |
+| Operational logs and traces                                       | 14 days                                                                                                                 | Expire automatically; logs must never contain bodies, headers, attachment names, addresses, or stable message IDs       |
+| Aggregate telemetry                                               | 30 days                                                                                                                 | Expire automatically; dimensions must not identify an account, sender, message, document, or action manifest            |
+| DVC evaluation sample content                                     | 180 days from sample creation                                                                                           | Remove its references, then garbage-collect both private remote objects and every managed cache                         |
+| Generated exports and temporary processing objects                | 24 hours                                                                                                                | Delete explicitly and use lifecycle expiry as a backstop                                                                |
+| Neon point-in-time history                                        | 6 hours for the first release, never more than 7 days without a later decision                                          | Let provider history expire; delete temporary restore branches within 24 hours                                          |
+| Content-free deletion receipts                                    | 400 days                                                                                                                | Expire automatically                                                                                                    |
+
+A content-free deletion receipt contains a random operation ID, data-class
+counts, requested and completed timestamps, provider outcome classes, and failed
+store names. It does not contain account addresses, provider IDs, message IDs,
+content hashes, sender data, subjects, filenames, or object keys.
+
+Use R2 lifecycle rules as maximum-age backstops for raw, evaluation, export,
+and temporary prefixes. Lifecycle expiry can lag by about a day, so the purge
+worker must call the direct object API for scheduled and user-directed deletion.
+Use a
+[seven-day R2 bucket lock](https://developers.cloudflare.com/r2/buckets/bucket-locks/)
+on newly ingested raw and retained objects to protect against immediate
+accidental deletion. The recovery workflow must show the resulting earliest
+purge time before accepting a request that would be delayed by an active lock.
+
+Do not create an independent archive of all raw mail. The source mailbox remains
+the recovery source during initial ingestion, and the R2 lock protects the
+short-lived working copy. Long-term retained documents follow their explicit
+retention reason. Database history protects recent metadata changes but is not a
+permanent mail archive.
+
+### Propagate deletion through one state machine
+
+Deletion has three states: `active`, `pending_deletion`, and `purged`.
+
+Moving a provider message to trash starts `pending_deletion` and records the
+provider's verified recovery deadline. The default recovery period is 30 days.
+If a provider guarantees less time, the review UI must show the shorter deadline
+before approval. During this state, the system may restore the message and its
+local records, but it may not add the item to a new evaluation sample or
+long-term retention class.
+
+Permanent purge needs a separate approval after the recovery deadline. The
+purge worker then:
+
+1. verifies that the approval, provider version, and recovery deadline still
+   match;
+2. requests provider-side permanent deletion when the provider exposes it;
+3. deletes raw objects, attachments, exports, and retained document copies from
+   R2;
+4. deletes content-bearing Neon rows and disconnects derived records that have
+   no other live evidence;
+5. removes DVC references and garbage-collects the private remote and managed
+   caches;
+6. invalidates cached reads and outstanding action manifests; and
+7. writes the content-free receipt only after every project-controlled store
+   verifies absence.
+
+For R2, verification requires both a failed direct object lookup and absence
+from a strongly consistent prefix listing. A lifecycle rule alone is not
+verification. For Neon, verification queries every inventoried content table by
+the internal deletion operation before committing the receipt. DVC deletion
+uses remote garbage collection because removing a `.dvc` reference does not
+remove the content-addressed object. Git may retain the content hash in old
+pointer history, but the private object and all managed cache copies must be
+gone.
+
+The service reports a partial purge instead of claiming success when a store is
+unavailable or rejects deletion. It retries idempotently with the same operation
+ID. A provider's success response records that the provider accepted the
+operation, not that its physical media or Recoverable Items area was erased.
+For example,
+[Microsoft Graph's permanent-delete operation](https://learn.microsoft.com/en-us/graph/api/message-permanentdelete?view=graph-rest-1.0)
+can move a message to the mailbox's hidden purges area before Exchange removes
+it according to the mailbox retention policy. The receipt must show that
+distinction.
+
+### Limit and record exceptions
+
+Only the mailbox owner may add a long-term retention reason or a legal,
+contractual, tax, warranty, dispute, or security exception. The exception names
+the affected items or data class, reason, approver, start time, and next review
+date. It cannot be inferred from a classifier result.
+
+An exception may postpone application deletion, but it does not widen telemetry
+or agent access. When a provider hold prevents final deletion, remove all
+project-controlled copies that are not covered by the exception and report the
+provider hold as the remaining copy. Review every exception at least annually.
+
+### Gate ingestion on restore and deletion rehearsals
+
+Do not import private mail until an isolated environment passes a synthetic
+lifecycle rehearsal. The fixture contains two threaded messages, duplicate
+provider delivery, a text and binary attachment, a retained document, derived
+records, an action manifest, telemetry, and a DVC sample. The rehearsal must:
+
+1. encrypt and upload every object, prove that stored bytes and logs contain no
+   plaintext fixture marker, and decrypt with the active key;
+2. rotate the key-encryption key, rewrap the fixture keys, and decrypt with only
+   the new active version;
+3. move one fixture message to `pending_deletion`, restore it, and prove that
+   provider identity, thread membership, attachments, evidence links, and
+   action idempotency survive without duplicate effects;
+4. purge the other fixture with shortened test-only periods and verify absence
+   from R2 lookup and listing, all content-bearing Neon tables, the DVC remote,
+   managed DVC caches, exports, logs, and application reads;
+5. restore the Neon database to an isolated branch from a point before the
+   fixture purge, run integrity checks, and delete the branch within 24 hours;
+6. prove that the production history, bucket-lock, lifecycle, log, and telemetry
+   settings match this decision; and
+7. emit a content-free rehearsal receipt with the tested schema and envelope
+   versions.
+
+Run the full rehearsal before first import, after any store, envelope, key,
+backup, or deletion-path change, and at least every 90 days while the system
+holds raw mail. A production restore rehearsal uses synthetic canary data. It
+must never restore private mailbox data into CI or a developer laptop.
+
+## Consequences
+
+Inbox Signal has one deletion contract across the provider, R2, Neon, DVC,
+caches, exports, and derived knowledge. The 30-day reversible provider action
+and seven-day R2 lock make an accidental cleanup recoverable. Explicit purge
+verification prevents a lifecycle configuration or removed DVC pointer from
+being mistaken for deletion.
+
+Client-side encryption reduces the value of an R2-only compromise. The mail
+content service still receives a decryption key and can read authorized
+objects, so its identity, logs, and capability checks remain part of the trusted
+boundary. Doppler becomes a required production dependency for key delivery and
+rotation.
+
+The 90-day raw window limits the ability to rerun future parsers over the full
+historical sample. The 180-day evaluation window makes some old experiments
+irreproducible after their private examples expire. Metrics, model artifacts,
+redacted error categories, and content-free provenance may remain, but they
+cannot reconstruct deleted examples.
+
+Provider holds and backup windows mean physical deletion may finish after the
+project-controlled purge. The UI and receipt must say which boundary remains and
+its expected expiry. A failed or unverifiable store keeps the operation open.
+
+## Alternatives considered
+
+### Rely on provider-managed encryption
+
+R2 and Neon already encrypt stored data. This is simpler, but the same provider
+account that stores the objects can authorize reads. Client-side envelopes add
+an independent application key and allow key rotation without rewriting large
+objects.
+
+### Encrypt the entire bucket with one application key
+
+One key and nonce discipline would be easier to implement. It would make
+rotation rewrite every object and would give one key direct access to every
+ciphertext. Per-object data keys contain compromise and make rotation a bounded
+rewrap operation.
+
+### Keep raw mail indefinitely for future models
+
+An unlimited corpus would make later extraction and evaluation easier. It would
+also create a second permanent mailbox and contradict deletion from the source
+provider. Selected records can be retained with an explicit reason; ordinary
+raw imports expire.
+
+### Treat a removed database row or DVC pointer as deletion
+
+This ignores R2 objects, DVC caches, database history, temporary exports, and
+provider recovery areas. The store inventory and verified purge state cost more
+to operate, but they are the only way to make a deletion receipt meaningful.
