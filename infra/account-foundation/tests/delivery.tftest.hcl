@@ -108,6 +108,7 @@ run "homelab_tailnet_delivery_boundaries" {
   assert {
     condition = (
       doppler_environment.managed["homelab/prd_tailnet_values"].slug == "prd_tailnet_values" &&
+      doppler_environment.managed["homelab/prd_tailnet_values"].name == "Production Tailnet Values" &&
       !doppler_environment.managed["homelab/prd_tailnet_values"].personal_configs
     )
     error_message = "Tailnet delivery must use its dedicated non-personal Doppler environment."

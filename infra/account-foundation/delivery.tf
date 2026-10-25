@@ -83,7 +83,7 @@ locals {
             ]
           }
           prd_tailnet_values = {
-            name             = "Tailnet Values"
+            name             = "Production Tailnet Values"
             personal_configs = false
             configs = [
               "prd_tailnet_values",
