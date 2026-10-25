@@ -401,6 +401,11 @@ function applyHousingReleases(
         `Housing release "${release.id}" references a missing account`,
       );
     }
+    if (property.balance <= 0) {
+      throw new Error(
+        `Housing release "${release.id}" cannot be applied after the property has been fully released`,
+      );
+    }
     let settlementTotal = 0;
     const appliedSettlements: RetirementHousingRelease["liabilitySettlements"] =
       [];

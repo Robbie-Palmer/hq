@@ -349,6 +349,56 @@ describe("projectRetirementCapital", () => {
     });
   });
 
+  it("rejects a housing release after the property has been fully released", () => {
+    expect(() =>
+      projectRetirementCapital(
+        scenario(
+          [
+            account({ id: "cash", name: "Cash", balance: 0 }),
+            account({
+              id: "home",
+              name: "Home",
+              balance: 100_000,
+              assetType: "property",
+              liquidity: "illiquid",
+            }),
+          ],
+          {
+            endDate: "2035-02-01",
+            annualSpending: 0,
+            withdrawalOrder: ["cash"],
+            housingReleases: [
+              {
+                id: "sell-home",
+                date: "2035-01-01",
+                sourcePropertyAccountId: "home",
+                destinationAccountId: "cash",
+                grossProceeds: 100_000,
+                retainedHousingValue: 0,
+                tax: 0,
+                fees: 0,
+                liabilitySettlements: [],
+              },
+              {
+                id: "sell-home-again",
+                date: "2035-02-01",
+                sourcePropertyAccountId: "home",
+                destinationAccountId: "cash",
+                grossProceeds: 100_000,
+                retainedHousingValue: 0,
+                tax: 0,
+                fees: 0,
+                liabilitySettlements: [],
+              },
+            ],
+          },
+        ),
+      ),
+    ).toThrow(
+      'Housing release "sell-home-again" cannot be applied after the property has been fully released',
+    );
+  });
+
   it("keeps unsupported tax treatment visible and applies access delays", () => {
     const result = projectRetirementCapital(
       scenario(
