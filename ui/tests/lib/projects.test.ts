@@ -122,9 +122,12 @@ describe("Projects functions", () => {
       }
     });
 
-    it("should dedupe technologies shared across multiple accepted ADRs", () => {
+    it("should dedupe technologies shared across local and platform sources", () => {
       const project = getProject("recipe-site");
-      const names = project.technologies.map((t) => t.name);
+      const names = [
+        ...project.technologies,
+        ...(project.platformTechnologies ?? []),
+      ].map((technology) => technology.name);
       expect(names.filter((n) => n === "Better Auth")).toHaveLength(1);
       expect(names.filter((n) => n === "Cloudflare Workers")).toHaveLength(1);
     });
@@ -139,7 +142,10 @@ describe("Projects functions", () => {
         adr.technologies.map((t) => t.name),
       );
       expect(adrTechnologies.length).toBeGreaterThan(0);
-      const projectTechNames = project.technologies.map((t) => t.name);
+      const projectTechNames = [
+        ...project.technologies,
+        ...(project.platformTechnologies ?? []),
+      ].map((technology) => technology.name);
       for (const tech of adrTechnologies) {
         expect(projectTechNames).toContain(tech);
       }
