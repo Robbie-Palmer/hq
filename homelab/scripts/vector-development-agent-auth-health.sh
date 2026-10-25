@@ -30,11 +30,15 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
   --container t3-code -- sh -eu -c '
     test -n "${GH_TOKEN:-}"
     gh auth status --hostname github.com >/dev/null 2>&1
+    gh api repos/Robbie-Palmer/hq --jq ".permissions.push" \
+      | grep -Fx true >/dev/null
     git config --global --get-all credential.https://github.com.helper \
       | grep -F "gh auth git-credential" >/dev/null
     test -n "${DOPPLER_TOKEN:-}"
-    doppler secrets --project personal-site --config dev --only-names \
-      >/dev/null
+    for project in ai-review homelab personal-site work-graph; do
+      doppler secrets --project "${project}" --config dev --only-names \
+        >/dev/null
+    done
   '
 
 echo "Vector T3 GitHub and development-only Doppler access are healthy"

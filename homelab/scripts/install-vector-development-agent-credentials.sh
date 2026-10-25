@@ -57,8 +57,9 @@ fi
 
 github_token=
 doppler_token=
+credential_revision=
 cleanup() {
-  unset github_token doppler_token
+  unset github_token doppler_token credential_revision
 }
 trap cleanup EXIT
 
@@ -70,6 +71,7 @@ if [[ -z "${github_token}" || -z "${doppler_token}" ]]; then
   echo "Both credentials are required" >&2
   exit 1
 fi
+credential_revision=$(date -u +%Y%m%dT%H%M%SZ)-$$
 
 printf '%s' "${github_token}" \
   | doppler secrets set GH_TOKEN \
@@ -81,14 +83,19 @@ printf '%s' "${doppler_token}" \
       --project homelab \
       --config prd_vector_development \
       --silent >/dev/null
+printf '%s' "${credential_revision}" \
+  | doppler secrets set AGENT_CREDENTIALS_REVISION \
+      --project homelab \
+      --config prd_vector_development \
+      --silent >/dev/null
 unset github_token doppler_token
 
 for _ in $(seq 1 60); do
   if kubectl --context "${context}" --namespace t3-code \
     get secret t3-code-runtime --output=json \
-    | jq -e '
-        (.data.GH_TOKEN // "") != ""
-        and (.data.DOPPLER_TOKEN // "") != ""
+    | jq -e --arg credential_revision "${credential_revision}" '
+        ((.data.AGENT_CREDENTIALS_REVISION // "") | @base64d)
+          == $credential_revision
       ' >/dev/null; then
     break
   fi
@@ -97,9 +104,9 @@ done
 
 kubectl --context "${context}" --namespace t3-code get secret t3-code-runtime \
   --output=json \
-  | jq -e '
-      (.data.GH_TOKEN // "") != ""
-      and (.data.DOPPLER_TOKEN // "") != ""
+  | jq -e --arg credential_revision "${credential_revision}" '
+      ((.data.AGENT_CREDENTIALS_REVISION // "") | @base64d)
+        == $credential_revision
     ' >/dev/null
 
 replacement_pod=
@@ -118,11 +125,18 @@ for _ in $(seq 1 150); do
           | .metadata.name // empty
         '
   )
-  [[ -n "${replacement_pod}" ]] && break
+  if [[ -n "${replacement_pod}" ]] \
+    && kubectl --context "${context}" --namespace t3-code \
+      exec "${replacement_pod}" --container t3-code -- \
+      sh -eu -c 'test "${AGENT_CREDENTIALS_REVISION:-}" = "$1"' \
+      _ "${credential_revision}" >/dev/null 2>&1; then
+    break
+  fi
+  replacement_pod=
   sleep 2
 done
 if [[ -z "${replacement_pod}" ]]; then
-  echo "The runtime secret changed, but the Vector T3 pod was not replaced" >&2
+  echo "The credential revision synced, but no replacement Vector T3 pod loaded it" >&2
   exit 1
 fi
 

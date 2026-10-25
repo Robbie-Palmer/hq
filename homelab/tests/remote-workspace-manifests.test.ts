@@ -2435,15 +2435,28 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.ok(installer.includes('read -r -s -p'));
   assert.ok(installer.includes('doppler secrets set GH_TOKEN'));
   assert.ok(installer.includes('doppler secrets set DOPPLER_TOKEN'));
+  assert.ok(
+    installer.includes('doppler secrets set AGENT_CREDENTIALS_REVISION'),
+  );
   assert.ok(installer.includes('--config prd_vector_development'));
+  assert.ok(installer.includes('.data.AGENT_CREDENTIALS_REVISION'));
+  assert.ok(installer.includes('${AGENT_CREDENTIALS_REVISION:-}'));
   assert.ok(installer.includes('gh auth setup-git --hostname github.com --force'));
   assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_token)/);
 
   assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
+  assert.match(
+    healthCheck,
+    /gh api repos\/Robbie-Palmer\/hq --jq "\.permissions\.push"/,
+  );
   assert.ok(
     healthCheck.includes(
-      'doppler secrets --project personal-site --config dev --only-names',
+      'for project in ai-review homelab personal-site work-graph',
     ),
+  );
+  assert.match(
+    healthCheck,
+    /doppler secrets --project "\$\{project\}" --config dev --only-names/,
   );
   assert.ok(!healthCheck.includes('--raw'));
   assert.ok(!healthCheck.includes('--plain'));

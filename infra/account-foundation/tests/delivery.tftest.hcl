@@ -209,3 +209,16 @@ run "vector_agent_secret_access_is_scoped" {
     error_message = "Vector must not receive staging, production, or operations secret access by default."
   }
 }
+
+run "vector_agent_secret_bindings" {
+  command = apply
+
+  assert {
+    condition = alltrue([
+      for membership in values(doppler_project_member_service_account.vector_t3) :
+      membership.service_account_slug == doppler_service_account.vector_t3.slug &&
+      membership.role == doppler_project_role.vector_t3_secret_editor.identifier
+    ])
+    error_message = "Vector memberships must use the Vector service account and secret-editor role."
+  }
+}
