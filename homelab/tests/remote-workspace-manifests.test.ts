@@ -649,6 +649,10 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         thread_id TEXT NOT NULL,
         status TEXT NOT NULL
       );
+      CREATE TABLE orchestration_v2_projection_threads (
+        thread_id TEXT PRIMARY KEY,
+        deleted_at TEXT
+      );
       CREATE TABLE orchestration_v2_projection_turn_items (
         thread_id TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -659,6 +663,10 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         kind TEXT NOT NULL,
         status TEXT NOT NULL
       );
+      INSERT INTO orchestration_v2_projection_threads
+        VALUES ('v2-thread', NULL);
+      INSERT INTO orchestration_v2_projection_threads
+        VALUES ('deleted-v2-thread', '2026-10-24T20:49:08.914Z');
       INSERT INTO orchestration_v2_projection_provider_threads
         VALUES (
           'v2-thread',
@@ -685,6 +693,14 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         VALUES ('v2-thread', 'todo_list', 'running')
     `);
     staleTodo.close();
+    assert.equal(check(v2Path).status, 0);
+
+    const deletedExecutionNode = new DatabaseSync(v2Path);
+    deletedExecutionNode.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('deleted-v2-thread', 'tool_call', 'running')
+    `);
+    deletedExecutionNode.close();
     assert.equal(check(v2Path).status, 0);
 
     const liveExecutionNode = new DatabaseSync(v2Path);
