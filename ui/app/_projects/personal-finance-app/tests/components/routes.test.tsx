@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/app/_projects/personal-finance-app/components/asset-tracker-provider";
 import { CashFlowRoute } from "@/app/_projects/personal-finance-app/components/cash-flow-route";
@@ -181,6 +181,8 @@ describe("Asset Tracker project routes", () => {
       flowSankeyData: { nodes: [], links: [] },
       incomeHistory: [],
       salaryHistory: [],
+      planningCases: [],
+      setPlanningChecklistItemStatus: vi.fn(),
       financialIndependence: { periods: [] },
       household: {
         members: [
@@ -253,6 +255,62 @@ describe("Asset Tracker project routes", () => {
       screen.getByText("Planning tools without income: true"),
     ).toBeVisible();
     expect(screen.queryByText("Mortgage calculator")).not.toBeInTheDocument();
+  });
+
+  it("links checklist anchors to tasks that can be updated", async () => {
+    const setPlanningChecklistItemStatus = vi.fn().mockResolvedValue(undefined);
+    const current = mockUseAssetTracker();
+    mockUseAssetTracker.mockReturnValue({
+      ...current,
+      planningCases: [
+        {
+          id: "wedding",
+          name: "Wedding",
+          labels: ["wedding"],
+          targetDate: "2027-06-12",
+          checklistItems: [
+            {
+              id: "book-band",
+              title: "Book the band",
+              category: "suppliers",
+              owner: "Alex",
+              priority: "high",
+              status: "blocked",
+              dependencyIds: [],
+              financialLinks: [],
+              schedule: { kind: "due_date", dueDate: "2026-11-01" },
+              statusHistory: [
+                {
+                  status: "blocked",
+                  changedAt: "2026-10-24T12:00:00Z",
+                  changedBy: "test",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+      setPlanningChecklistItemStatus,
+    } as ReturnType<typeof useAssetTracker>);
+
+    render(<PlanningRoute />);
+
+    expect(document.querySelector("#task-book-band")).toHaveTextContent(
+      "Book the band",
+    );
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Status for Book the band" }),
+      { target: { value: "in_progress" } },
+    );
+
+    await waitFor(() => {
+      expect(setPlanningChecklistItemStatus).toHaveBeenCalledWith({
+        planningCaseId: "wedding",
+        itemId: "book-band",
+        status: "in_progress",
+        changedBy: "asset-tracker-ui",
+      });
+    });
   });
 
   it("composes mortgage planning separately from FI planning", () => {

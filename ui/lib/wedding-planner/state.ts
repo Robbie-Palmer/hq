@@ -1,4 +1,7 @@
-import { accommodationState } from "wedding-planner-domain";
+import {
+  accommodationState,
+  weddingReadinessPreferencesSchema,
+} from "wedding-planner-domain";
 import {
   accommodationInventorySchema,
   buildInput as domainBuildInput,
@@ -102,6 +105,7 @@ const stateSchema = z.looseObject({
   default_outside_cost_gbp: z.string().default(""),
   optimization_mode: OptimizationModeSchema.default("priority_first"),
   inventory: accommodationInventorySchema.prefault({}),
+  readiness: weddingReadinessPreferencesSchema.prefault({}),
 });
 
 function stringList(value: unknown): value is string[] {

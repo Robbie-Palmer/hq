@@ -956,6 +956,61 @@ describe("Given work items with derived readiness", () => {
     });
   });
 
+  it("returns the details shown for a work item in one request", async () => {
+    const repository = buildRepository();
+    const evidenceTemplate = {
+      deliveryProvider: "github",
+      deliveryExternalId: "delivery-1",
+      provider: "github",
+      externalId: "check-1",
+      repository: "example/work-graph",
+      commitSha: "0123456789abcdef0123456789abcdef01234567",
+      kind: "ci" as const,
+      state: "success" as const,
+      name: "verify",
+      environment: null,
+      sourceUrl: "https://github.com/example/work-graph/actions/runs/1",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T11:00:01.000Z",
+      correlationKind: "pull_request_head" as const,
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 7,
+      current: true,
+      projectedAt: "2026-09-22T11:00:01.000Z",
+    };
+    const evidence = Array.from({ length: 101 }, (_, index) => ({
+      ...evidenceTemplate,
+      id: `00000000-0000-4000-8000-${(index + 1)
+        .toString(16)
+        .padStart(12, "0")}`,
+    }));
+    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue(
+      evidence,
+    );
+    const app = createWorkGraphApp(repository);
+
+    const details = await app.request("/api/work-items/ticket/details");
+
+    expect(details.status).toBe(200);
+    const body = await responseJson(details);
+    expect(body).toMatchObject({
+      id: "ticket",
+      deliveryEvidence: { nextCursor: evidence[99]?.id },
+      completionCandidate: null,
+    });
+    expect(
+      (body as { deliveryEvidence: { items: unknown[] } }).deliveryEvidence
+        .items,
+    ).toHaveLength(100);
+    expect(repository.getWorkItem).toHaveBeenCalledWith("ticket");
+    expect(repository.listWorkItemDeliveryEvidence).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      currentOnly: true,
+      limit: 101,
+    });
+    expect(repository.getCompletionCandidate).toHaveBeenCalledWith("ticket");
+  });
+
   it("creates and assigns completion policies before evaluating current evidence", async () => {
     const repository = buildRepository();
     const app = createWorkGraphApp(repository);
