@@ -23,7 +23,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-mise
+      - uses: $/.github/actions/setup-mise
 
       - name: Run secretless Terraform checks
         run: mise run //infra/tailnet:check
@@ -45,7 +45,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-mise
+      - uses: $/.github/actions/setup-mise
 
       - name: Remove stale Terraform plan
         run: rm -f .planfile

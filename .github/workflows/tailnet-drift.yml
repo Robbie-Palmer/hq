@@ -28,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-mise
+      - uses: $/.github/actions/setup-mise
 
       - name: Check for Terraform drift
         id: drift

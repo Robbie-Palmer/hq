@@ -55,11 +55,6 @@ locals {
           name        = "homelab"
           description = "Secrets and configuration for the private homelab"
         }
-        create_configs = [
-          "prd_tailnet_values",
-          "prd_tailnet_values_infra",
-          "prd_tailnet_values_infra_plan",
-        ]
         environments = {
           dev = {
             name             = "Development"
@@ -429,11 +424,7 @@ locals {
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config_name
-          imported = (
-            root.imported &&
-            var.enable_existing_imports &&
-            !contains(try(root.doppler.create_configs, []), config_name)
-          )
+          imported    = root.imported && var.enable_existing_imports
         }
       }
     ]
