@@ -24,6 +24,10 @@ export function createDb(
   // named prepared statements cannot be reused safely.
   const client = postgres(connectionString, {
     prepare: false,
+    // Postgres.js otherwise queries pg_catalog for every new client to discover
+    // array OIDs. Drizzle serializes and parses the built-in array columns used
+    // by this schema, so that 300+ row startup query is unnecessary.
+    fetch_types: false,
     ...(options.maxConnections === undefined
       ? {}
       : { max: options.maxConnections }),

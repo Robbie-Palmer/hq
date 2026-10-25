@@ -96,6 +96,10 @@ values, headers, or exception text. Run `diagnostics:query` for a time window to
 aggregate these records by method and route. Results are ordered by estimated
 database transfer so the largest measured read path appears first.
 
+The database client disables Postgres.js array-type discovery. Drizzle handles
+the schema's built-in array columns, so each new Worker request avoids the
+otherwise automatic `pg_catalog` query and its 300-plus returned rows.
+
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
 state. Apply migrations before deploying the Worker, then restart the

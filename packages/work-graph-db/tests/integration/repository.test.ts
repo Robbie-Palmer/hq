@@ -41,7 +41,7 @@ describe("database query metrics", () => {
 
       expect(rows).toEqual([{ label: "measured", amount: 42 }]);
       if (row === undefined) throw new Error("Expected one measured row.");
-      expect(metrics.queryCount).toBeGreaterThanOrEqual(1);
+      expect(metrics.queryCount).toBe(1);
       expect(metrics.resultRowCount).toBe(1);
       expect(metrics.resultBytesEstimated).toBe(
         estimateDatabaseResultRowBytes(row),
