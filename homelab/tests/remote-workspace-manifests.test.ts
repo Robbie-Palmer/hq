@@ -49,8 +49,40 @@ const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
 const overlays = {
   home: "k3s/overlays/home",
   remote: "k3s/overlays/remote-development",
+  vector: "k3s/overlays/vector-development",
 } as const;
 const renderedOverlays = new Map<string, string>();
+
+test("the Vector root filesystem and initrd support project quotas", () => {
+  const diskConfig = readFileSync(
+    new URL("../hosts/vector-development/disk-config.nix", import.meta.url),
+    "utf8",
+  );
+  const hardwareConfig = readFileSync(
+    new URL(
+      "../hosts/vector-development/hardware-configuration.nix",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const quotaScript = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/apply-project-quotas.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(diskConfig.includes('"project,quota"'));
+  assert.ok(diskConfig.includes('"quotatype=prjquota"'));
+  assert.ok(diskConfig.includes('"prjquota"'));
+  assert.ok(hardwareConfig.includes('boot.initrd.kernelModules = [ "quota_v2" ]'));
+  assert.ok(
+    quotaScript.includes(
+      'quota_status="$(quotaon --project --print-state / 2>&1 || true)"',
+    ),
+  );
+});
 
 test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
   const healthCheck = readFileSync(
@@ -381,6 +413,9 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     codex2Home,
     ".sqlite-maintenance.lock",
   );
+  const codex2TemporaryDirectory = join(codex2Home, ".tmp");
+  const primaryGoals = join(codexHome, "goals_1.sqlite");
+  const codex2Goals = join(codex2Home, "goals_1.sqlite");
   const settingsPath = join(t3Home, "userdata/settings.json");
   const configPath = join(codexHome, "config.toml");
   const catalogPath = join(codexHome, "model-catalog.json");
@@ -389,6 +424,9 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     mkdirSync(join(t3Home, "userdata"), { recursive: true });
     mkdirSync(codexHome, { recursive: true });
     mkdirSync(codex2Home, { recursive: true });
+    mkdirSync(codex2TemporaryDirectory, { recursive: true });
+    writeFileSync(primaryGoals, "primary goals\n");
+    writeFileSync(codex2Goals, "stale secondary goals\n");
     writeFileSync(codex2MaintenanceLock, "stale shadow lock\n");
     writeFileSync(
       settingsPath,
@@ -438,6 +476,8 @@ test("the t3 bootstrap defaults every Codex home to Sol with high reasoning", ()
     const firstSettings = readFileSync(settingsPath, "utf8");
     const firstCatalog = readFileSync(catalogPath, "utf8");
     assert.equal(existsSync(codex2MaintenanceLock), false);
+    assert.equal(existsSync(codex2TemporaryDirectory), false);
+    assert.equal(existsSync(codex2Goals), false);
     const primaryMaintenanceLock = join(
       codexHome,
       ".sqlite-maintenance.lock",
@@ -643,7 +683,7 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
   }
 });
 
-test("the Codex provider login preserves a valid maintenance-lock symlink", () => {
+test("the Codex provider login reconciles shared shadow-home entries", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "codex-provider-"));
   const testHome = join(temporaryDirectory, "home");
   const binDirectory = join(temporaryDirectory, "bin");
@@ -660,7 +700,12 @@ test("the Codex provider login preserves a valid maintenance-lock symlink", () =
       '{"providerInstances":{}}\n',
     );
     writeFileSync(maintenanceLock, "active lock\n");
-    writeFileSync(join(binDirectory, "codex"), "#!/usr/bin/env bash\nexit 0\n");
+    mkdirSync(join(primaryHome, ".tmp"));
+    writeFileSync(join(primaryHome, "goals_1.sqlite"), "primary goals\n");
+    writeFileSync(
+      join(binDirectory, "codex"),
+      '#!/usr/bin/env bash\nset -eu\nrm -f "$CODEX_HOME/.tmp" "$CODEX_HOME/goals_1.sqlite"\nmkdir -p "$CODEX_HOME/.tmp"\nprintf "stale goals\\n" >"$CODEX_HOME/goals_1.sqlite"\n',
+    );
     chmodSync(join(binDirectory, "codex"), 0o755);
 
     run(
@@ -681,6 +726,15 @@ test("the Codex provider login preserves a valid maintenance-lock symlink", () =
     const shadowLock = join(shadowHome, ".sqlite-maintenance.lock");
     assert.equal(lstatSync(shadowLock).isSymbolicLink(), true);
     assert.equal(readFileSync(shadowLock, "utf8"), "active lock\n");
+    assert.equal(lstatSync(join(shadowHome, ".tmp")).isSymbolicLink(), true);
+    assert.equal(
+      lstatSync(join(shadowHome, "goals_1.sqlite")).isSymbolicLink(),
+      true,
+    );
+    assert.equal(
+      readFileSync(join(shadowHome, "goals_1.sqlite"), "utf8"),
+      "primary goals\n",
+    );
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -1200,6 +1254,62 @@ test("every rendered overlay passes the pinned Kubernetes and Doppler schemas", 
   }
 });
 
+test("the Vector and Hetzner workspaces share one OpenCode profile", () => {
+  const expectedProfile = readFileSync(
+    new URL(
+      "../k3s/components/t3-code-operator-profile/opencode.json",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  for (const overlay of [overlays.remote, overlays.vector]) {
+    const resources = parseResources(overlay);
+    const profiles = resources.filter(
+      ({ kind, metadata }) =>
+        kind === "ConfigMap" &&
+        metadata.namespace === "t3-code" &&
+        metadata.name.startsWith("t3-code-operator-profile-"),
+    );
+    assert.equal(profiles.length, 1);
+    const profile = profiles[0]!;
+    assert.equal(valueAt(profile, ["data", "opencode.json"]), expectedProfile);
+
+    const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+    const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
+    assert.ok(Array.isArray(containers));
+    const t3Container = containers.find(({ name }) => name === "t3-code");
+    assert.ok(t3Container);
+    const volumeMounts = valueAt(t3Container, ["volumeMounts"]);
+    assert.ok(Array.isArray(volumeMounts));
+    assert.deepEqual(
+      volumeMounts.find(
+        ({ mountPath }) => mountPath === "/home/robbie/repos",
+      ),
+      {
+        mountPath: "/home/robbie/repos",
+        name: "data",
+        subPath: "workspaces",
+      },
+    );
+    const environment = valueAt(t3Container, ["env"]);
+    assert.ok(Array.isArray(environment));
+    const openCodeConfig = environment.find(
+      ({ name }) => name === "OPENCODE_CONFIG_CONTENT",
+    );
+    assert.deepEqual(openCodeConfig, {
+      name: "OPENCODE_CONFIG_CONTENT",
+      valueFrom: {
+        configMapKeyRef: {
+          key: "opencode.json",
+          name: profile.metadata.name,
+          optional: false,
+        },
+      },
+    });
+  }
+});
+
 test("Flux Schema evaluates the DopplerSecret CEL authentication rule", () => {
   const invalidDopplerSecret = `
 apiVersion: secrets.doppler.com/v1alpha1
@@ -1262,12 +1372,120 @@ test("the Doppler installer pins its schema version and enforces HTTPS", () => {
   assert.match(installer, /--tlsv1\.2/);
 });
 
+test("the vector overlay binds the large workspace and RTX 4080 to the laptop", () => {
+  const resources = parseResources(overlays.vector);
+  const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+  const devicePlugin = resource(
+    resources,
+    "DaemonSet",
+    "nvidia-device-plugin-daemonset",
+    "kube-system",
+  );
+  const operatorVolume = resource(
+    resources,
+    "PersistentVolume",
+    "t3-code-vector-development",
+  );
+  const cacheVolume = resource(
+    resources,
+    "PersistentVolume",
+    "t3-code-vector-development-cache",
+  );
+  const runtimeSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code",
+    "t3-code",
+  );
+  const podSpec = valueAt(deployment, ["spec", "template", "spec"]);
+  assert.ok(typeof podSpec === "object" && podSpec !== null);
+  assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
+  assert.deepEqual(valueAt(podSpec, ["nodeSelector"]), {
+    "homelab.dev/accelerator": "nvidia",
+    "homelab.dev/capability": "agent-workspace",
+    "homelab.dev/location": "home",
+    "homelab.dev/power-profile": "mains-dependent",
+  });
+
+  const containers = valueAt(podSpec, ["containers"]);
+  assert.ok(Array.isArray(containers));
+  const t3Container = containers.find(
+    (container) => container.name === "t3-code",
+  ) as Record<string, unknown> | undefined;
+  const dockerContainer = containers.find(
+    (container) => container.name === "docker",
+  ) as Record<string, unknown> | undefined;
+  assert.ok(t3Container);
+  assert.ok(dockerContainer);
+  assert.equal(valueAt(t3Container, ["resources", "limits", "cpu"]), "20");
+  assert.equal(valueAt(t3Container, ["resources", "limits", "memory"]), "40Gi");
+  assert.equal(
+    valueAt(t3Container, ["resources", "limits", "nvidia.com/gpu"]),
+    "1",
+  );
+  assert.equal(valueAt(dockerContainer, ["resources", "limits", "cpu"]), "8");
+  assert.equal(
+    valueAt(dockerContainer, ["resources", "limits", "memory"]),
+    "12Gi",
+  );
+
+  assert.equal(
+    valueAt(operatorVolume, ["spec", "local", "path"]),
+    "/srv/vector-development/t3-code",
+  );
+  assert.equal(valueAt(operatorVolume, ["spec", "capacity", "storage"]), "500Gi");
+  assert.equal(
+    valueAt(cacheVolume, ["spec", "local", "path"]),
+    "/srv/vector-development/t3-code-cache",
+  );
+  assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "250Gi");
+  assert.equal(valueAt(runtimeSecret, ["spec", "config"]), "prd_vector_development");
+
+  const devicePluginContainers = valueAt(devicePlugin, [
+    "spec",
+    "template",
+    "spec",
+    "containers",
+  ]);
+  assert.ok(Array.isArray(devicePluginContainers));
+  const devicePluginContainer = devicePluginContainers.find(
+    (container) => container.name === "nvidia-device-plugin",
+  ) as Record<string, unknown> | undefined;
+  assert.ok(devicePluginContainer);
+  const devicePluginEnvironment = valueAt(devicePluginContainer, ["env"]);
+  assert.ok(Array.isArray(devicePluginEnvironment));
+  assert.deepEqual(
+    devicePluginEnvironment.find(
+      (variable) => variable.name === "DEVICE_ID_STRATEGY",
+    ),
+    { name: "DEVICE_ID_STRATEGY", value: "index" },
+  );
+  assert.match(
+    String(
+      valueAt(devicePlugin, [
+        "spec",
+        "template",
+        "spec",
+        "containers",
+        0,
+        "image",
+      ]),
+    ),
+    /^nvcr\.io\/nvidia\/k8s-device-plugin@sha256:[a-f0-9]{64}$/,
+  );
+  assert.equal(
+    valueAt(devicePlugin, ["spec", "template", "spec", "runtimeClassName"]),
+    "nvidia",
+  );
+});
+
 test("the remote overlay isolates durable data from rebuildable caches", () => {
   const resources = parseResources(overlays.remote);
 
   assert.deepEqual(kindCounts(resources), {
     ClusterRole: 1,
     ClusterRoleBinding: 1,
+    ConfigMap: 1,
     Deployment: 2,
     DopplerSecret: 3,
     Namespace: 2,
@@ -1600,6 +1818,19 @@ test("the remote overlay isolates durable data from rebuildable caches", () => {
       ]),
     ).includes("/data/home/.t3/worktrees"),
   );
+  assert.ok(
+    String(
+      valueAt(operatorDeployment, [
+        "spec",
+        "template",
+        "spec",
+        "initContainers",
+        0,
+        "command",
+        3,
+      ]),
+    ).includes("rm -rf /data/home/.codex-personal/.tmp"),
+  );
   assert.deepEqual(
     valueAt(operatorDeployment, [
       "spec",
@@ -1879,6 +2110,7 @@ test("the default remote overlay contains only the operator workspace", () => {
   assert.deepEqual(kindCounts(resources), {
     ClusterRole: 1,
     ClusterRoleBinding: 1,
+    ConfigMap: 1,
     Deployment: 2,
     DopplerSecret: 3,
     Namespace: 2,
@@ -2156,11 +2388,195 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   assert.ok(
     dopplerInstaller.includes(
-      'remote-development-k3s-${namespace}-${token_secret}-${doppler_config}',
+      '${token_label_prefix}-${namespace}-${token_secret}-${doppler_config}',
     ),
   );
   assert.ok(dopplerInstaller.includes("sha256sum -c -"));
   assert.ok(dopplerInstaller.includes("| tr -d '\\r\\n'"));
   assert.ok(dopplerInstaller.includes("--from-file=serviceToken=/dev/stdin"));
   assert.ok(!dopplerInstaller.includes("token_file"));
+});
+
+test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
+  const healthCheck = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    healthCheck,
+    /containerd_config=\/var\/lib\/rancher\/k3s\/agent\/etc\/containerd\/config\.toml/,
+  );
+  assert.match(healthCheck, /test -x "\$\{nvidia_runtime\}"/);
+  assert.doesNotMatch(
+    healthCheck,
+    /command -v nvidia-container-runtime/,
+    "the tools output is intentionally not linked into the global system PATH",
+  );
+});
+
+test("the Vector tailnet scripts avoid local DNS collisions", () => {
+  const fetchKubeconfig = readFileSync(
+    new URL("../scripts/fetch-vector-development-kubeconfig.sh", import.meta.url),
+    "utf8",
+  );
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+  const health = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    fetchKubeconfig,
+    /^tailnet_host=\$\{VECTOR_DEVELOPMENT_TAILNET_HOST:-vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.match(
+    rebuild,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.match(
+    health,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.ok(fetchKubeconfig.includes('tls_server_name=${'));
+  assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
+});
+
+test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    hostConfig,
+    /systemd\.services\.k3s[\s\S]*path = \[[\s\S]*nvidiaContainerTools[\s\S]*pkgs\.runc[\s\S]*\];/,
+  );
+  assert.ok(hostConfig.includes("tomlFormat = pkgs.formats.toml { };"));
+  assert.ok(hostConfig.includes("nvidiaContainerConfig = tomlFormat.generate"));
+  assert.ok(hostConfig.includes('mode = "cdi"'));
+  assert.match(hostConfig, /runtimes = \[ \(?lib\.getExe pkgs\.runc\)? \];/);
+  assert.ok(
+    hostConfig.includes(
+      '"nvidia-container-runtime/config.toml".source = nvidiaContainerConfig',
+    ),
+  );
+  assert.ok(hostConfig.includes('"--kubelet-arg=node-ip=0.0.0.0"'));
+  assert.ok(
+    hostConfig.includes(
+      '"--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"',
+    ),
+  );
+});
+
+test("the Vector stays awake while serving workloads", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("autoSuspend = false"));
+  assert.ok(hostConfig.includes('sleep-inactive-ac-type = "nothing"'));
+  assert.ok(hostConfig.includes("sleep-inactive-ac-timeout"));
+  assert.ok(hostConfig.includes('sleep-inactive-battery-type = "nothing"'));
+  assert.ok(hostConfig.includes("sleep-inactive-battery-timeout"));
+  assert.ok(hostConfig.includes('IdleAction = "ignore"'));
+  assert.ok(hostConfig.includes('HandleLidSwitch = "suspend"'));
+  assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
+  assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
+  assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
+});
+
+test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const hardwareConfig = readFileSync(
+    new URL(
+      "../hosts/vector-development/hardware-configuration.nix",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const provision = readFileSync(
+    new URL(
+      "../scripts/provision-vector-development-remote-boot.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const installer = readFileSync(
+    new URL("../scripts/install-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+  const wake = readFileSync(
+    new URL("../scripts/wake-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+  const shutdown = readFileSync(
+    new URL("../scripts/shutdown-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+  const remoteUnlock = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/vector-remote-unlock.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("interfaces.enp58s0.wakeOnLan"));
+  assert.ok(hostConfig.includes('policy = [ "magic" ]'));
+  assert.ok(hostConfig.includes('"ethernet.wake-on-lan" = 64'));
+  assert.ok(hostConfig.includes("ensureProfiles.profiles.vector-development-wired"));
+  assert.ok(hostConfig.includes("down-on-poweroff = 0"));
+  assert.ok(hardwareConfig.includes('"r8169"'));
+  assert.ok(hostConfig.includes("network.ssh"));
+  assert.ok(hostConfig.includes("port = 2222"));
+  assert.ok(hostConfig.includes('restrict,command="/bin/vector-remote-unlock"'));
+  assert.ok(hostConfig.includes("AllowTcpForwarding no"));
+  assert.ok(hostConfig.includes("PermitTTY no"));
+  assert.ok(
+    hostConfig.includes(
+      "builtins.readFile ./scripts/vector-remote-unlock.bash",
+    ),
+  );
+  assert.ok(remoteUnlock.includes("systemd-reply-password"));
+  assert.ok(remoteUnlock.includes("cryptsetup:*"));
+  assert.ok(hostConfig.includes('matchConfig.Name = "enp58s0"'));
+  assert.ok(hostConfig.includes('ClientIdentifier = "mac"'));
+
+  assert.ok(provision.includes("prd_remote_development_host"));
+  assert.ok(provision.includes("526bbc1a-bafd-45df-92c7-c668dd3ffde4"));
+  assert.ok(provision.includes("openssl rand -hex 32"));
+  assert.ok(provision.includes("cryptsetup luksAddKey"));
+  assert.ok(provision.includes("cryptsetup open --test-passphrase"));
+  assert.ok(provision.includes("/run/vector-development-remote-unlock.key"));
+  assert.ok(
+    installer.includes(
+      "etc/secrets/initrd/vector-development_ssh_host_ed25519_key",
+    ),
+  );
+  assert.match(installer, /extra_files_dir=\$\{secret_dir\}\/extra-files/);
+  assert.ok(installer.includes("ssh-keygen -q -t ed25519 -N ''"));
+  assert.ok(
+    installer.includes("--extra-files /run/vector-development-extra-files"),
+  );
+  assert.ok(wake.includes("VECTOR_DEVELOPMENT_LUKS_REMOTE_KEY"));
+  assert.ok(wake.includes("StrictHostKeyChecking=yes"));
+  assert.ok(wake.includes("VECTOR_DEVELOPMENT_INITRD_HOST_PUBLIC_KEY"));
+  assert.ok(wake.includes("for port in (7, 9)"));
+  assert.ok(wake.includes("wake_attempt % 5"));
+  assert.ok(wake.includes("for health_attempt in $(seq 1 12)"));
+  assert.ok(shutdown.includes('test "$(hostname)" = vector-development'));
+  assert.ok(shutdown.includes("systemctl poweroff"));
+
+  for (const script of [provision, wake]) {
+    assert.ok(!script.includes("192.168.1.151"));
+    assert.ok(!script.includes("d8:43:ae:06:28:77"));
+  }
 });

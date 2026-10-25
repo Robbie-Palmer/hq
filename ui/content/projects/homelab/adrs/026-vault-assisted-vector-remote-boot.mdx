@@ -1,0 +1,88 @@
+---
+title: "ADR 026: Vault-assisted remote boot for the Vector laptop"
+date: "2026-10-24"
+status: "Accepted"
+---
+
+# Context
+
+[ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+made the Vector laptop an encrypted NixOS development workstation. Its local
+LUKS passphrase protects the disk, but it also stops every unattended boot at
+the initrd prompt. Wake-on-LAN alone would therefore turn on a machine that
+could not run K3s, Tailscale, or T3 Code.
+
+The Mac mini is always on and shares the home network with the laptop. Remote
+startup should remain an explicit operator action, preserve a local recovery
+path, and avoid placing a disk key in the repository, shell arguments, or the
+unencrypted boot partition.
+
+# Decision
+
+Enable magic-packet Wake-on-LAN on the Vector's wired adapter. Remote boot
+requires AC power, wired Ethernet, a stable DHCP lease, and firmware settings
+that keep the adapter powered while the laptop is off.
+
+Start networking and OpenSSH in the NixOS initrd on a dedicated port. Pin a
+dedicated initrd host key on the controller. Restrict every authorized key to a
+single forced command that passes standard input to the pending systemd LUKS
+password request. Disable terminal allocation, forwarding, and tunnelling. The
+initrd service does not expose an administrative shell.
+
+Add a separate random LUKS key to its own keyslot and store it in the existing
+controller-only `homelab/prd_remote_development_host` Doppler config. The
+current Doppler plan has no spare config, and the Vector workload config must
+not receive a disk-unlock key. The wake task reads the key only as a stream
+from Doppler to the authenticated initrd SSH connection.
+It does not place the key in an environment variable, command argument,
+repository file, or persistent file on either host. Preserve the original
+human passphrase as the local recovery method.
+
+Provide explicit mise tasks to wake and unlock the laptop and to perform a
+hostname-guarded shutdown. After remote unlock, ordinary system services start
+without a GNOME user login.
+
+# Alternatives
+
+## Remove LUKS encryption
+
+This would make remote boot simple but would expose the workspace, credentials,
+and cached source code if the laptop were stolen. Convenience does not justify
+removing protection for data at rest.
+
+## Use Tang and Clevis
+
+Tang is a good fit for automatic network-bound disk encryption. This laptop
+needs deliberate starts rather than autonomous recovery, so a continuously
+available unlock server and an automatic policy add machinery without matching
+the desired operator-controlled flow.
+
+## Seal the key to the TPM
+
+TPM2 enrollment could unlock the disk without another machine. With Secure
+Boot currently disabled, it would provide weaker assurance about the booted
+software than a measured and verified boot design. PCR-bound keys also add
+upgrade and recovery work that is unnecessary for the current explicit flow.
+
+## Keep local passphrase entry as the only path
+
+This preserves the smallest attack surface but makes remote power control
+ineffective. It leaves the strongest development machine unavailable whenever
+no one is at the laptop.
+
+# Consequences
+
+Possession of both an authorized SSH private key and access to the scoped
+Doppler config can unlock the laptop while it is connected to the home LAN.
+Those credentials now form part of the disk-access boundary and need prompt
+revocation if either is compromised.
+
+The machine remains encrypted when it is off, and the original passphrase
+still works when remote dependencies fail. A stolen laptop alone does not
+carry the automation key.
+
+Remote boot depends on the Mac mini, Doppler, AC power, Ethernet, DHCP, and the
+firmware Wake-on-LAN setting. The initrd host private key is intentionally
+present on the unencrypted boot partition so the controller can authenticate
+the pre-unlock machine. Secure Boot remains a separate hardening decision, so
+physical boot-partition tampering is not prevented by this design.

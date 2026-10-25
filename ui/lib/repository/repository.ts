@@ -1724,6 +1724,55 @@ function validateADRProductDecisionLinks(
   }
 }
 
+function resolveADRReference(input: ValidationInput, adrRef: ADRRef): ADRRef {
+  return input.adrAliases?.get(adrRef) ?? adrRef;
+}
+
+function validateADRSupersession(
+  input: ValidationInput,
+  relations: ADRRelations,
+  adrRef: ADRRef,
+  errors: ReferentialIntegrityError[],
+): void {
+  const supersedes = input.adrs.get(adrRef)?.supersedes;
+  if (!supersedes) return;
+
+  const supersededRef = resolveADRReference(input, supersedes);
+  if (!input.adrs.has(supersededRef)) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: supersedes,
+      message: `ADR '${supersedes}' referenced by supersedes does not exist`,
+    });
+  }
+
+  const allowedTargets = input.projectRelations.get(relations.project)?.adrs;
+  const isLocalLegacyAlias =
+    input.adrAliases?.has(supersedes) === true &&
+    parseADRRef(supersedes).projectSlug === relations.project;
+  if (!isLocalLegacyAlias && !allowedTargets?.includes(supersededRef)) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: supersedes,
+      message: `ADR '${adrRef}' cannot supersede '${supersedes}' because it is not local or inherited in project '${relations.project}'`,
+    });
+  }
+
+  if (supersededRef === adrRef) {
+    errors.push({
+      type: "circular_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: adrRef,
+      message: `ADR '${adrRef}' cannot supersede itself`,
+    });
+  }
+}
+
 function validateProductDecisionSupersession(
   decision: ProductDecision,
   slug: ProductDecisionRef,
@@ -1961,44 +2010,14 @@ export function validateReferentialIntegrity(
       checkIdea(ideaSlug, `ADR[${adrRef}]`, "ideas");
     });
     validateADRProductDecisionLinks(input, relations, adrRef, errors);
-    const adr = input.adrs.get(adrRef);
-    if (adr?.supersedes && !input.adrs.has(adr.supersedes)) {
-      errors.push({
-        type: "missing_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "supersedes",
-        value: adr.supersedes,
-        message: `ADR '${adr.supersedes}' referenced by supersedes does not exist`,
-      });
-    }
-    if (adr?.supersedes) {
-      const allowedTargets = input.projectRelations.get(
-        relations.project,
-      )?.adrs;
-      if (!allowedTargets?.includes(adr.supersedes)) {
-        errors.push({
-          type: "invalid_reference",
-          entity: `ADR[${adrRef}]`,
-          field: "supersedes",
-          value: adr.supersedes,
-          message: `ADR '${adrRef}' cannot supersede '${adr.supersedes}' because it is not local or inherited in project '${relations.project}'`,
-        });
-      }
-    }
-    if (adr?.supersedes === adrRef) {
-      errors.push({
-        type: "circular_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "supersedes",
-        value: adrRef,
-        message: `ADR '${adrRef}' cannot supersede itself`,
-      });
-    }
+    validateADRSupersession(input, relations, adrRef, errors);
   });
 
   input.adrs.forEach((adr, startRef) => {
     const seen = new Set<ADRRef>([startRef]);
-    let current = adr.supersedes;
+    let current = adr.supersedes
+      ? resolveADRReference(input, adr.supersedes)
+      : undefined;
     while (current) {
       if (seen.has(current)) {
         errors.push({
@@ -2011,7 +2030,8 @@ export function validateReferentialIntegrity(
         break;
       }
       seen.add(current);
-      current = input.adrs.get(current)?.supersedes;
+      const next = input.adrs.get(current)?.supersedes;
+      current = next ? resolveADRReference(input, next) : undefined;
     }
   });
 

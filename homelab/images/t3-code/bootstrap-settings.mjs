@@ -4,6 +4,7 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   writeFileSync,
@@ -22,6 +23,12 @@ const codexModelCatalogPath = join(codexHomePath, "model-catalog.json");
 const recipeAgentStoragePath = join(codexHomePath, "agent-auth/recipes");
 const preferredModel = "gpt-5.6-sol";
 const preferredReasoningEffort = "high";
+const privateCodexShadowEntries = new Set([
+  "auth.json",
+  "models_cache.json",
+  "log",
+  "tmp",
+]);
 const configureRecipeAgentMcp =
   process.env.CONFIGURE_RECIPE_AGENT_MCP === "true";
 
@@ -33,7 +40,7 @@ function recordOrEmpty(value) {
   return isRecord(value) ? value : {};
 }
 
-function removeConflictingMaintenanceLock(shadowHomePath) {
+function removeConflictingShadowEntry(shadowHomePath, entryName) {
   const resolvedHome = resolve(homePath);
   const resolvedShadowHome = resolve(shadowHomePath);
   if (
@@ -44,10 +51,10 @@ function removeConflictingMaintenanceLock(shadowHomePath) {
     return;
   }
 
-  const lockPath = join(resolvedShadowHome, ".sqlite-maintenance.lock");
+  const entryPath = join(resolvedShadowHome, entryName);
   let entry;
   try {
-    entry = lstatSync(lockPath);
+    entry = lstatSync(entryPath);
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       return;
@@ -55,8 +62,19 @@ function removeConflictingMaintenanceLock(shadowHomePath) {
     throw error;
   }
   if (!entry.isSymbolicLink()) {
-    rmSync(lockPath, { force: true });
-    console.warn(`Removed conflicting Codex shadow-home lock ${lockPath}`);
+    rmSync(entryPath, { force: true, recursive: entry.isDirectory() });
+    console.warn(`Removed conflicting Codex shadow-home entry ${entryPath}`);
+  }
+}
+
+function reconcileCodexShadowHome(shadowHomePath) {
+  removeConflictingShadowEntry(shadowHomePath, ".sqlite-maintenance.lock");
+  removeConflictingShadowEntry(shadowHomePath, ".tmp");
+  if (!existsSync(codexHomePath)) return;
+  for (const entryName of readdirSync(codexHomePath)) {
+    if (!privateCodexShadowEntries.has(entryName)) {
+      removeConflictingShadowEntry(shadowHomePath, entryName);
+    }
   }
 }
 
@@ -257,7 +275,7 @@ for (const instance of Object.values(settings.providerInstances)) {
   }
   const config = recordOrEmpty(instance.config);
   if (typeof config.shadowHomePath === "string") {
-    removeConflictingMaintenanceLock(config.shadowHomePath);
+    reconcileCodexShadowHome(config.shadowHomePath);
   }
 }
 

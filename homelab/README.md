@@ -10,6 +10,11 @@ All services are reachable only over the home LAN and the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet. The router
 forwards no ports, so nothing is ever public.
 
+The MSI Vector laptop is a graphical NixOS workstation and an independent
+development plane. [ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+records its architecture, and its installation and commissioning runbook is in
+[`docs/vector-development.md`](docs/vector-development.md).
+
 [ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
 outage. It is an independent, single-node K3s cluster on a NixOS VPS, not a
@@ -162,7 +167,7 @@ catalog, then restart again to apply the preferred defaults to it.
 
 #### Adding a Codex provider
 
-`scripts/codex-add-provider` registers an additional Codex subscription and
+`scripts/codex-add-provider.mjs` registers an additional Codex subscription and
 starts its login. It detects the environment: inside a t3-code pod it targets
 `/data/home`, symlinks shared state into a new shadow home such as
 `/data/home/.codex-<name>`, and uses device-code login; on a workstation it uses

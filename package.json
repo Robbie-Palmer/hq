@@ -75,6 +75,11 @@
       "mise run //infra/remote-development:precommit-lint",
       "mise run //infra/remote-development:lint:tflint"
     ],
+    "infra/tailnet/**/*.tf": [
+      "mise run //infra/tailnet:format",
+      "mise run //infra/tailnet:precommit-lint",
+      "mise run //infra/tailnet:lint:tflint"
+    ],
     "infra/work-graph/**/*.tf": [
       "mise run //infra/work-graph:format",
       "mise run //infra/work-graph:precommit-lint",

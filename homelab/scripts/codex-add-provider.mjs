@@ -133,22 +133,25 @@ mkdirSync(shadowHome, { recursive: true, mode: 0o700 });
 mkdirSync(join(shadowHome, "log"), { recursive: true, mode: 0o700 });
 mkdirSync(join(shadowHome, "tmp"), { recursive: true, mode: 0o700 });
 
-if (existsSync(base.primaryHome)) {
+function reconcileSharedEntries() {
+  if (!existsSync(base.primaryHome)) return;
   for (const entryName of readdirSync(base.primaryHome)) {
     if (PRIVATE_ENTRIES.has(entryName)) {
       continue;
     }
     const link = join(shadowHome, entryName);
-    if (existsSync(link)) {
-      continue;
-    }
     try {
-      lstatSync(link);
-    } catch {
-      symlinkSync(join(base.primaryHome, entryName), link);
+      const entry = lstatSync(link);
+      if (entry.isSymbolicLink()) continue;
+      rmSync(link, { force: true, recursive: entry.isDirectory() });
+    } catch (error) {
+      if (error.code !== "ENOENT") throw error;
     }
+    symlinkSync(join(base.primaryHome, entryName), link);
   }
 }
+
+reconcileSharedEntries();
 
 if (existsSync(join(shadowHome, "auth.json"))) {
   console.error(
@@ -228,6 +231,7 @@ if (options.runLogin) {
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
+  reconcileSharedEntries();
 } else {
   const deviceFlag = options.loginMode === "device" ? " --device-auth" : "";
   console.log(`Skipped login. Authenticate later with:`);
