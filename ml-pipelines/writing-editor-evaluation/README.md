@@ -156,6 +156,41 @@ area. Git tracks only their DVC pointers. Each evidence manifest records its
 classification, consent, retention, and deletion status. A deletion request
 blocks adoption even when the numerical thresholds pass.
 
+## Repository publication pilot
+
+`publication-pilot.json` freezes the release experiment before its first
+session. The cohort contains at least six public artifacts: two ADRs, two
+project pages, one idea, and one pitch. At least two artifacts must be new and
+four must be material revisions. Each artifact needs three blinded reader
+comparisons.
+
+Keep the evidence under `data/review-evidence/publication-pilot` and store it in
+DVC. The root `evidence.json` points to the raw agent draft, editor-reviewed
+result, final published bytes, producer records, decision log, and review
+receipt for each artifact. It also records the final manual-review interval, a
+matched prior-workflow duration, quality assessments, deterministic catches,
+the published Git revision, and the author's explicit approval. Reader records
+randomize which variant is A or B and collect preference plus a 1-to-7
+cognitive-load score for both variants.
+
+The evaluator verifies the byte hashes and decision chain before it calculates
+anything. It reports accepted, changed, and rejected proposals; useful-edit
+yield; editor and final-manual review time; savings against the declared manual
+baseline; factual, terminology, voice, and regression failures; deterministic
+catches; reader preference; cognitive-load change; and failures for each
+artifact. Missing cohort coverage returns `gather-more-evidence`. A complete
+cohort that misses any quality or outcome gate returns `do-not-justify`.
+
+After pulling the private evidence, run:
+
+```bash
+mise //ml-pipelines/writing-editor-evaluation:evaluate:publication-pilot
+```
+
+The task writes the machine-readable report and a review copy under
+`outputs/publication-pilot`. It does not commit or publish an artifact. The
+author must review every final artifact before its recorded publication time.
+
 If a reviewed file moves after the pinned baseline, map its baseline artifact
 ID to the current artifact ID in `targetRenames` in
 `review-decision-config.json`. The recorder resolves that map before reading

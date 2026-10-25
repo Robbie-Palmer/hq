@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "recordType": "writing-publication-pilot-preregistration",
+  "pilotId": "repository-publication-pilot-v1",
+  "preregisteredAt": "2026-10-25T22:04:29Z",
+  "sourceRevision": "eb1cd3be1492d9055d3c55c33aa61730a516f4db",
+  "cohort": {
+    "minimumArtifacts": 6,
+    "requiredMix": [
+      {
+        "artifactType": "adr",
+        "minimum": 2
+      },
+      {
+        "artifactType": "project-page",
+        "minimum": 2
+      },
+      {
+        "artifactType": "idea",
+        "minimum": 1
+      },
+      {
+        "artifactType": "pitch",
+        "minimum": 1
+      }
+    ],
+    "minimumNewArtifacts": 2,
+    "minimumMaterialRevisions": 4
+  },
+  "comparison": {
+    "design": "blinded-within-artifact",
+    "minimumReadersPerArtifact": 3,
+    "cognitiveLoadScale": {
+      "minimum": 1,
+      "maximum": 7,
+      "lowerIsBetter": true
+    }
+  },
+  "thresholds": {
+    "minimumUsefulEditYield": 0.6,
+    "minimumMedianTimeSavedFraction": 0.25,
+    "minimumReviewedPreferenceRate": 0.6,
+    "maximumMeanCognitiveLoadDelta": -0.5,
+    "maximumRegressionRate": 0,
+    "maximumUnwantedVoiceChangeRate": 0,
+    "requireZeroFactualRegressions": true,
+    "requireZeroTerminologyRegressions": true
+  }
+}
