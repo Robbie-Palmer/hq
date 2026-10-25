@@ -279,6 +279,7 @@ in
       ];
       extraFlags = [
         "--kubelet-arg=node-ip=0.0.0.0"
+        "--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"
         "--secrets-encryption"
         "--write-kubeconfig-mode=0640"
       ];

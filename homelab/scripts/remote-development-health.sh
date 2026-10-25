@@ -4,7 +4,7 @@ set -euo pipefail
 target=${REMOTE_DEVELOPMENT_TAILNET_TARGET:-root@remote-development}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 ssh "${REMOTE_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" 'bash -se' <<'REMOTE'

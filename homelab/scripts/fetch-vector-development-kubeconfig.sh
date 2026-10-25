@@ -11,7 +11,7 @@ kube_dir=${homelab_dir}/.kube
 kubeconfig=${kube_dir}/vector-development.yaml
 temporary=$(mktemp)
 
-source "${script_dir}/vector-development-ssh"
+source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 cleanup() {

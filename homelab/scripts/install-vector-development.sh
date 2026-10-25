@@ -12,19 +12,28 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 secret_dir=$(mktemp -d)
 secret_file=${secret_dir}/vector-development-luks.key
+extra_files_dir=${secret_dir}/extra-files
+initrd_host_key=${extra_files_dir}/etc/secrets/initrd/vector-development_ssh_host_ed25519_key
 
-source "${script_dir}/vector-development-ssh"
+source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 cleanup() {
-  if [ -f "${secret_file}" ]; then
-    shred --remove "${secret_file}" 2>/dev/null || rm -f "${secret_file}"
-  fi
+  for sensitive_file in "${secret_file}" "${initrd_host_key}"; do
+    if [ -f "${sensitive_file}" ]; then
+      shred --remove "${sensitive_file}" 2>/dev/null || rm -f "${sensitive_file}"
+    fi
+  done
+  rm -f "${initrd_host_key}.pub"
+  rmdir "${extra_files_dir}/etc/secrets/initrd" 2>/dev/null || true
+  rmdir "${extra_files_dir}/etc/secrets" 2>/dev/null || true
+  rmdir "${extra_files_dir}/etc" 2>/dev/null || true
+  rmdir "${extra_files_dir}" 2>/dev/null || true
   rmdir "${secret_dir}" 2>/dev/null || true
 }
 trap cleanup EXIT
 
-for command in docker ssh; do
+for command in docker ssh ssh-keygen; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "${command} is required" >&2
     exit 1
@@ -80,6 +89,11 @@ fi
 printf '%s' "${passphrase}" >"${secret_file}"
 unset passphrase passphrase_confirmation
 
+install -d -m 700 "$(dirname -- "${initrd_host_key}")"
+ssh-keygen -q -t ed25519 -N '' -f "${initrd_host_key}"
+chmod 600 "${initrd_host_key}"
+chmod 644 "${initrd_host_key}.pub"
+
 docker run --rm \
   --network host \
   -e "NIX_CONFIG=experimental-features = nix-command flakes" \
@@ -88,6 +102,7 @@ docker run --rm \
   -v "${identity_file}:/run/vector-development-identity:ro" \
   -v "${VECTOR_DEVELOPMENT_KNOWN_HOSTS_FILE}:/run/vector-development-known-hosts" \
   -v "${secret_file}:/run/vector-development-luks.key:ro" \
+  -v "${extra_files_dir}:/run/vector-development-extra-files:ro" \
   -w /workspace \
   "${nix_image}" \
   nix run .#nixos-anywhere -- \
@@ -95,6 +110,7 @@ docker run --rm \
     --target-host "${target}" \
     -i /run/vector-development-identity \
     --disk-encryption-keys /tmp/vector-development-luks.key /run/vector-development-luks.key \
+    --extra-files /run/vector-development-extra-files \
     --copy-host-keys \
     --ssh-option UserKnownHostsFile=/run/vector-development-known-hosts \
     --ssh-option StrictHostKeyChecking=yes \

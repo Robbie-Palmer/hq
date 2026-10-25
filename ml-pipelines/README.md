@@ -28,7 +28,7 @@ installed and authenticated, since it injects the credentials.
 ## Credentials Setup
 
 Secrets come from the Doppler config `dev_ml_pipelines`, injected by
-`scripts/doppler-pipeline-env`. It holds:
+`scripts/doppler-pipeline-env.sh`. It holds:
 
 - `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY`. DVC remote access. The wrapper
   maps them to the `AWS_*` names DVC's S3 remote reads, matching how CI maps

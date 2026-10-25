@@ -7,8 +7,8 @@ on:
       - ".github/actions/setup-mise/**"
       - "homelab/images/t3-code/**"
       - "packages/agent-auth-mcp/**"
-      - "homelab/scripts/build-and-check-t3-image"
-      - "homelab/scripts/check-t3-image"
+      - "homelab/scripts/build-and-check-t3-image.sh"
+      - "homelab/scripts/check-t3-image.sh"
       - "homelab/mise.toml"
       - ".github/workflows/t3-code-image.yml"
   push:
@@ -19,8 +19,8 @@ on:
       - ".github/actions/setup-mise/**"
       - "homelab/images/t3-code/**"
       - "packages/agent-auth-mcp/**"
-      - "homelab/scripts/build-and-check-t3-image"
-      - "homelab/scripts/check-t3-image"
+      - "homelab/scripts/build-and-check-t3-image.sh"
+      - "homelab/scripts/check-t3-image.sh"
       - "homelab/mise.toml"
       - ".github/workflows/t3-code-image.yml"
   workflow_dispatch:

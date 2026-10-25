@@ -9,7 +9,7 @@ _.file = ".env"
 [tasks.dvc]
 description = "Run DVC in the current pipeline with credentials from Doppler (e.g. mise run //ml-pipelines:dvc -- status)"
 dir = "{{cwd}}"
-run = "bash {{config_root}}/scripts/doppler-pipeline-env {{config_root}}/scripts/dvc"
+run = "bash {{config_root}}/scripts/doppler-pipeline-env.sh {{config_root}}/scripts/dvc.sh"
 
 [tasks.dvc-lock]
 description = "Update the locked DVC tool environment"

@@ -10,7 +10,7 @@ remote_key_file=/run/vector-development-remote-unlock.key
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 remote_key_uploaded=0
 
-source "${script_dir}/vector-development-ssh"
+source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 cleanup() {

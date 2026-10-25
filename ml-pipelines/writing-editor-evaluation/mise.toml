@@ -49,17 +49,17 @@ run = "bash scripts/smoke-gector.sh"
 [tasks."run:gector"]
 description = "Run the DVC GECToR stage over the frozen cohort"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro run_gector"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro run_gector"
 
 [tasks."run:gector:current"]
 description = "Build, calibrate, run, and report GECToR over current public content"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro report_current_content_gector"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro report_current_content_gector"
 
 [tasks."run:gector:developer"]
 description = "Build, calibrate, run, and report GECToR over current developer content"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro report_developer_content_gector"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro report_developer_content_gector"
 
 [tasks."model:prepare"]
 description = "Download and verify the pinned GECToR-2024 checkpoint"
@@ -79,38 +79,38 @@ run = "bash scripts/match-edits.sh"
 [tasks."evaluate:reviews"]
 description = "Validate review outcomes and produce the evidence-gated scorecard"
 depends = ["install", "review-evidence:pull"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro evaluate_reviews"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro evaluate_reviews"
 
 [tasks.evaluate]
 description = "Produce the full cohort, producer, edit, and decision scorecard"
 depends = ["install"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro --single-item evaluate"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro --single-item evaluate"
 
 [tasks."record:gector:decisions"]
 description = "Record governed decisions for seed and broad GECToR proposals"
 depends = ["install", "runtime:sync"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro finalize_cohort_readiness evaluate"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro finalize_cohort_readiness evaluate"
 
 [tasks."review-evidence:pull"]
 description = "Pull the governed writing-review evidence from DVC"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull data/review-evidence/repository-pilot.dvc"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh pull data/review-evidence/repository-pilot.dvc"
 
 [tasks.repro]
 description = "Reproduce the local writing evaluation stages through DVC"
 depends = ["install"]
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro"
 
 [tasks.pull]
 description = "Pull the writing evaluation corpus and outputs from R2"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh pull"
 
 [tasks.push]
 description = "Push the writing evaluation cache to its R2 prefix"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc push"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh push"
 
 [tasks.dvc]
 description = "Run a DVC command in the writing evaluation project"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh"
 
 [tasks.typecheck]
 description = "Typecheck the writing editor evaluation pipeline"

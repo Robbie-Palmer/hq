@@ -6,7 +6,7 @@ project=homelab
 config=prd_remote_development_host
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 if ! doppler secrets get TAILSCALE_AUTH_KEY \

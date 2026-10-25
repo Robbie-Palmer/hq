@@ -75,7 +75,7 @@ PY
 
 if port_open "${address}" 22; then
   echo "Vector is already running; checking its services"
-  VECTOR_DEVELOPMENT_TAILNET_TARGET="${target}" "${script_dir}/vector-development-health"
+  VECTOR_DEVELOPMENT_TAILNET_TARGET="${target}" "${script_dir}/vector-development-health.sh"
   exit 0
 fi
 
@@ -118,7 +118,7 @@ for _ in $(seq 1 90); do
   if port_open "${address}" 22; then
     for health_attempt in $(seq 1 12); do
       if VECTOR_DEVELOPMENT_TAILNET_TARGET="${target}" \
-        "${script_dir}/vector-development-health"; then
+        "${script_dir}/vector-development-health.sh"; then
         exit 0
       fi
       echo "Vector services are not ready yet (${health_attempt}/12)" >&2

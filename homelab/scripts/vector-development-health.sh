@@ -4,7 +4,7 @@ set -euo pipefail
 target=${VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development.tailaa0e46.ts.net}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-source "${script_dir}/vector-development-ssh"
+source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" 'bash -se' <<'REMOTE'

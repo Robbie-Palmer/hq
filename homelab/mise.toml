@@ -207,16 +207,16 @@ run = "ansible/scripts/deploy_asus.sh"
 
 [tasks.nix-flake-check]
 description = "Check the Nix flake contract and outputs for this system"
-run = "bash scripts/nix-command flake check"
+run = "bash scripts/nix-command.sh flake check"
 
 [tasks.nix-flake-show]
 description = "Show the Nix flake outputs without building them"
-run = "bash scripts/nix-command flake show"
+run = "bash scripts/nix-command.sh flake show"
 
 [tasks.nix-format]
 description = "Format all homelab Nix declarations"
 run = '''
-bash scripts/nix-command develop --command nixfmt \
+bash scripts/nix-command.sh develop --command nixfmt \
   flake.nix \
   hosts/vector-development/*.nix \
   packages/*.nix
@@ -224,15 +224,15 @@ bash scripts/nix-command develop --command nixfmt \
 
 [tasks.nix-update-nixpkgs]
 description = "Update the locked stable nixpkgs inputs selected by the flake"
-run = "bash scripts/nix-command flake update nixpkgs nixpkgs2605"
+run = "bash scripts/nix-command.sh flake update nixpkgs nixpkgs2605"
 
 [tasks.nix-develop]
 description = "Enter the default Nix development shell"
-run = "bash scripts/nix-command develop"
+run = "bash scripts/nix-command.sh develop"
 
 [tasks.remote-build]
 description = "Build the remote-development NixOS system"
-run = "bash scripts/nix-command build --no-link .#nixosConfigurations.remote-development.config.system.build.toplevel"
+run = "bash scripts/nix-command.sh build --no-link .#nixosConfigurations.remote-development.config.system.build.toplevel"
 
 # ---------------------------------------------------------------------------
 # vector-development NixOS laptop and independent K3s workload
@@ -240,43 +240,43 @@ run = "bash scripts/nix-command build --no-link .#nixosConfigurations.remote-dev
 
 [tasks.vector-build]
 description = "Build the vector-development NixOS system"
-run = "bash scripts/nix-command build --no-link .#nixosConfigurations.vector-development.config.system.build.toplevel"
+run = "bash scripts/nix-command.sh build --no-link .#nixosConfigurations.vector-development.config.system.build.toplevel"
 
 [tasks.vector-install]
 description = "Guard, wipe, and install vector-development from a NixOS live ISO"
-run = "bash scripts/install-vector-development"
+run = "bash scripts/install-vector-development.sh"
 
 [tasks.vector-password]
 description = "Set the local GNOME and sudo password without exposing it to the shell"
-run = "bash scripts/set-vector-development-password"
+run = "bash scripts/set-vector-development-password.sh"
 
 [tasks.vector-tailscale-enrol]
 description = "Interactively enroll vector-development in Tailscale"
-run = "bash scripts/enrol-vector-development-tailscale"
+run = "bash scripts/enrol-vector-development-tailscale.sh"
 
 [tasks.vector-kubeconfig]
 description = "Fetch the vector-development kubeconfig over Tailscale"
-run = "bash scripts/fetch-vector-development-kubeconfig"
+run = "bash scripts/fetch-vector-development-kubeconfig.sh"
 
 [tasks.vector-rebuild]
 description = "Build and switch vector-development over the tailnet"
-run = "bash scripts/rebuild-vector-development"
+run = "bash scripts/rebuild-vector-development.sh"
 
 [tasks.vector-health]
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
-run = "bash scripts/vector-development-health"
+run = "bash scripts/vector-development-health.sh"
 
 [tasks.vector-remote-boot-provision]
 description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
-run = "bash scripts/provision-vector-development-remote-boot"
+run = "bash scripts/provision-vector-development-remote-boot.sh"
 
 [tasks.vector-wake]
 description = "Wake, remotely unlock, and verify vector-development"
-run = "bash scripts/wake-vector-development"
+run = "bash scripts/wake-vector-development.sh"
 
 [tasks.vector-shutdown]
 description = "Guard and power off vector-development"
-run = "bash scripts/shutdown-vector-development"
+run = "bash scripts/shutdown-vector-development.sh"
 
 [tasks.vector-static-check]
 description = "Syntax-check vector-development commissioning scripts"
@@ -285,20 +285,20 @@ bash -n \
   hosts/vector-development/scripts/create-data-layout.bash \
   hosts/vector-development/scripts/apply-project-quotas.bash \
   hosts/vector-development/scripts/configure-tailscale-serve.bash \
-  scripts/vector-development-ssh \
-  scripts/install-vector-development \
-  scripts/set-vector-development-password \
-  scripts/enrol-vector-development-tailscale \
-  scripts/fetch-vector-development-kubeconfig \
-  scripts/rebuild-vector-development \
-  scripts/vector-development-health \
-  scripts/provision-vector-development-remote-boot \
-  scripts/wake-vector-development \
-  scripts/shutdown-vector-development
-grep -F 'VECTOR_DEVELOPMENT_INSTALL:-' scripts/install-vector-development >/dev/null
-grep -F 'nvme-eui.e8238fa6bf530001001b448b4a0a7d9e' scripts/install-vector-development >/dev/null
-grep -F '23304R801651' scripts/install-vector-development >/dev/null
-grep -F '1024209543168' scripts/install-vector-development >/dev/null
+  scripts/vector-development-ssh.sh \
+  scripts/install-vector-development.sh \
+  scripts/set-vector-development-password.sh \
+  scripts/enrol-vector-development-tailscale.sh \
+  scripts/fetch-vector-development-kubeconfig.sh \
+  scripts/rebuild-vector-development.sh \
+  scripts/vector-development-health.sh \
+  scripts/provision-vector-development-remote-boot.sh \
+  scripts/wake-vector-development.sh \
+  scripts/shutdown-vector-development.sh
+grep -F 'VECTOR_DEVELOPMENT_INSTALL:-' scripts/install-vector-development.sh >/dev/null
+grep -F 'nvme-eui.e8238fa6bf530001001b448b4a0a7d9e' scripts/install-vector-development.sh >/dev/null
+grep -F '23304R801651' scripts/install-vector-development.sh >/dev/null
+grep -F '1024209543168' scripts/install-vector-development.sh >/dev/null
 '''
 
 [tasks.k3s-render-vector]
@@ -309,7 +309,7 @@ run = "kubectl kustomize k3s/overlays/vector-development"
 description = "Server-side dry run of the vector overlay after exact context and location checks"
 run = '''
 export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/vector-development \
   "${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
   home \
@@ -320,7 +320,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Apply the vector overlay after exact context and location checks"
 run = '''
 export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/vector-development \
   "${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
   home \
@@ -334,7 +334,7 @@ export KUBECONFIG="${VECTOR_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/vector-developmen
 EXPECTED_KUBE_CONTEXT="${VECTOR_DEVELOPMENT_KUBE_CONTEXT:-vector-development}" \
 EXPECTED_KUBE_LOCATION=home \
 DOPPLER_TOKEN_LABEL_PREFIX=vector-development-k3s \
-  bash scripts/install-doppler-operator \
+  bash scripts/install-doppler-operator.sh \
     "t3-code:doppler-token:homelab:prd_vector_development" \
     "t3-code:doppler-agent-token:personal-site:dev_agent" \
     "t3-code:doppler-work-graph-token:work-graph:prd_work_graph"
@@ -344,47 +344,47 @@ DOPPLER_TOKEN_LABEL_PREFIX=vector-development-k3s \
 description = "Validate the pinned remote-development OpenTelemetry Collector configuration"
 run = '''
 OTELCOL_STORAGE_DIRECTORY="${TMPDIR:-/tmp}/remote-development-otelcol-validate" \
-  bash scripts/nix-command shell --inputs-from . nixpkgs#opentelemetry-collector-contrib \
+  bash scripts/nix-command.sh shell --inputs-from . nixpkgs#opentelemetry-collector-contrib \
   --command otelcol-contrib validate --config=hosts/remote-development/opentelemetry-collector.yaml
 '''
 
 [tasks.remote-volume-prepare]
 description = "Encrypt the empty Hetzner data volume and verify its Doppler recovery key"
-run = "bash scripts/prepare-remote-development-volume"
+run = "bash scripts/prepare-remote-development-volume.sh"
 
 [tasks.remote-install]
 description = "Install remote-development from scratch with nixos-anywhere"
-run = "bash scripts/install-remote-development"
+run = "bash scripts/install-remote-development.sh"
 
 [tasks.remote-tailscale-enrol]
 description = "Enroll remote-development with a one-use tagged Tailscale key from Doppler"
-run = "bash scripts/enrol-remote-development-tailscale"
+run = "bash scripts/enrol-remote-development-tailscale.sh"
 
 [tasks.remote-rebuild]
 description = "Build and switch the remote-development NixOS configuration over the tailnet"
-run = "bash scripts/rebuild-remote-development"
+run = "bash scripts/rebuild-remote-development.sh"
 
 [tasks.remote-health]
 description = "Verify the remote host, encrypted volume, Tailscale, K3s, and t3-code"
-run = "bash scripts/remote-development-health"
+run = "bash scripts/remote-development-health.sh"
 
 [tasks.remote-backup-credentials]
 description = "Install the workspace backup credentials from Doppler without printing them"
-run = "bash scripts/install-remote-development-backup-credentials"
+run = "bash scripts/install-remote-development-backup-credentials.sh"
 
 [tasks.remote-backup]
 description = "Run the encrypted workspace backup and print its safe status"
 run = '''
-bash scripts/run-remote-development-backup
+bash scripts/run-remote-development-backup.sh
 '''
 
 [tasks.remote-observability-credentials]
 description = "Install Netdata, Healthchecks.io, and PostHog secrets without printing them"
-run = "bash scripts/install-remote-development-observability-credentials"
+run = "bash scripts/install-remote-development-observability-credentials.sh"
 
 [tasks.remote-healthchecks-reconcile]
 description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
-run = "bash scripts/reconcile-remote-development-healthchecks"
+run = "bash scripts/reconcile-remote-development-healthchecks.sh"
 
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
@@ -414,7 +414,7 @@ run = "pnpm exec tsx --test personal-archive-backup/tests/backup.test.ts"
 
 [tasks.remote-kubeconfig]
 description = "Fetch the remote cluster kubeconfig over Tailscale into a gitignored file"
-run = "bash scripts/fetch-remote-development-kubeconfig"
+run = "bash scripts/fetch-remote-development-kubeconfig.sh"
 
 [tasks.t3-image-build]
 description = "Build the pinned t3-code runtime image"
@@ -430,11 +430,11 @@ docker build \
 
 [tasks.t3-image-check]
 description = "Check agent CLI versions and start the t3-code image as its runtime UID"
-run = "bash scripts/check-t3-image"
+run = "bash scripts/check-t3-image.sh"
 
 [tasks.t3-image-build-check]
 description = "Build and test the pinned t3-code runtime image"
-run = "bash scripts/build-and-check-t3-image"
+run = "bash scripts/build-and-check-t3-image.sh"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
@@ -442,11 +442,11 @@ run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"
-run = "bash scripts/load-remote-development-image"
+run = "bash scripts/load-remote-development-image.sh"
 
 [tasks.t3-image-deploy-remote]
 description = "Wait for idle T3 work, deploy the remote image, and verify the rollout"
-run = "bash scripts/deploy-remote-development-t3-image"
+run = "bash scripts/deploy-remote-development-t3-image.sh"
 
 [tasks.k3s-render-home]
 description = "Render the home t3-code overlay"
@@ -472,7 +472,7 @@ pnpm exec tsx --test tests/remote-workspace-manifests.test.ts
 description = "Server-side dry run of the home overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -483,7 +483,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Server-side dry run of the remote overlay after an exact context check"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/remote-development \
   "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
   cloud \
@@ -494,7 +494,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Apply the home overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -505,7 +505,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Server-side dry run of the home media overlay after an exact context check"
 run = '''
 export KUBECONFIG="${HOME_KUBECONFIG:-$HOME/.kube/config}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home-media \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -521,7 +521,7 @@ if [[ ! -x "$gate" ]]; then
   echo "Missing $gate; run mise //homelab:ansible-configure-mac first" >&2
   exit 1
 fi
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/home-media \
   "${HOME_KUBE_CONTEXT:-colima-homelab-k3s}" \
   home \
@@ -553,7 +553,7 @@ bash k3s/overlays/home-media/backup-media-config.sh
 description = "Apply the remote overlay after an exact context check"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/apply-kustomize-overlay \
+bash scripts/apply-kustomize-overlay.sh \
   k3s/overlays/remote-development \
   "${REMOTE_DEVELOPMENT_KUBE_CONTEXT:-remote-development}" \
   cloud \
@@ -564,7 +564,7 @@ bash scripts/apply-kustomize-overlay \
 description = "Install the pinned Doppler operator and inject config-scoped tokens"
 run = '''
 export KUBECONFIG="${REMOTE_DEVELOPMENT_KUBECONFIG:-$PWD/.kube/remote-development.yaml}"
-bash scripts/install-doppler-operator
+bash scripts/install-doppler-operator.sh
 '''
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for script in scripts/*.sh scripts/doppler-terraform-env; do
+for script in scripts/*.sh scripts/doppler-terraform-env.sh; do
   bash -n "$script"
 done
 

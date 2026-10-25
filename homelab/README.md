@@ -167,7 +167,7 @@ catalog, then restart again to apply the preferred defaults to it.
 
 #### Adding a Codex provider
 
-`scripts/codex-add-provider` registers an additional Codex subscription and
+`scripts/codex-add-provider.mjs` registers an additional Codex subscription and
 starts its login. It detects the environment: inside a t3-code pod it targets
 `/data/home`, symlinks shared state into a new shadow home such as
 `/data/home/.codex-<name>`, and uses device-code login; on a workstation it uses
@@ -521,7 +521,7 @@ one-time S3 values without echoing them. It stores the values in the dedicated
 Doppler config and installs the resulting credential file on the host:
 
 ```bash
-./homelab/scripts/store-remote-development-backup-credentials
+./homelab/scripts/store-remote-development-backup-credentials.sh
 ```
 
 Install credentials after a host replacement, then run and inspect the first

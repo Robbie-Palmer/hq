@@ -37,6 +37,7 @@ export * from "./propertyComparables";
 export * from "./propertyIndexHistory";
 export * from "./recurringFlow";
 export * from "./redundancyPackage";
+export * from "./retirementCapital";
 export * from "./runwayForecast";
 export * from "./salaryCalculation";
 export * from "./salaryHistory";

@@ -86,7 +86,7 @@ test("the Vector root filesystem and initrd support project quotas", () => {
 
 test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
   const healthCheck = readFileSync(
-    new URL("../scripts/remote-development-health", import.meta.url),
+    new URL("../scripts/remote-development-health.sh", import.meta.url),
     "utf8",
   );
   const filter = healthCheck.match(
@@ -188,7 +188,7 @@ test("the agent coordinator enforces the pilot budget and skips documentation", 
   const memoryPressurePath = join(temporaryDirectory, "memory.pressure");
   const ioPressurePath = join(temporaryDirectory, "io.pressure");
   const coordinator = fileURLToPath(
-    new URL("../scripts/work-graph-agent-coordinator", import.meta.url),
+    new URL("../scripts/work-graph-agent-coordinator.sh", import.meta.url),
   );
   const tickets = Array.from({ length: 12 }, (_, index) => ({
     id: `ticket-${String(index + 1).padStart(2, "0")}`,
@@ -858,7 +858,7 @@ printf '%s\\n' \\
       [
         fileURLToPath(
           new URL(
-            "../scripts/remote-development-observability-metrics",
+            "../scripts/remote-development-observability-metrics.sh",
             import.meta.url,
           ),
         ),
@@ -961,7 +961,7 @@ printf '%s\\n' \\
       [
         fileURLToPath(
           new URL(
-            "../scripts/remote-development-observability-metrics",
+            "../scripts/remote-development-observability-metrics.sh",
             import.meta.url,
           ),
         ),
@@ -1104,7 +1104,7 @@ fi
       [
         fileURLToPath(
           new URL(
-            "../scripts/reconcile-remote-development-healthchecks",
+            "../scripts/reconcile-remote-development-healthchecks.sh",
             import.meta.url,
           ),
         ),
@@ -1348,9 +1348,9 @@ spec:
   ]);
 });
 
-test("the Doppler validation catalog matches the installed operator version", () => {
+test("the Doppler installer pins its schema version and enforces HTTPS", () => {
   const installer = readFileSync(
-    new URL("../scripts/install-doppler-operator", import.meta.url),
+    new URL("../scripts/install-doppler-operator.sh", import.meta.url),
     "utf8",
   );
   const validationConfig = readFileSync(
@@ -1367,6 +1367,9 @@ test("the Doppler validation catalog matches the installed operator version", ()
   assert.ok(installedVersion, "the Doppler Operator URL must pin a version");
   assert.ok(schemaVersion, "the Doppler schema catalog must pin a version");
   assert.equal(schemaVersion[1], installedVersion[1]);
+  assert.match(installer, /--proto '=https'/);
+  assert.match(installer, /--proto-redir '=https'/);
+  assert.match(installer, /--tlsv1\.2/);
 });
 
 test("the vector overlay binds the large workspace and RTX 4080 to the laptop", () => {
@@ -2190,7 +2193,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   const agentCoordinatorRunner = readFileSync(
     new URL(
-      "../scripts/run-work-graph-agent-coordinator",
+      "../scripts/run-work-graph-agent-coordinator.sh",
       import.meta.url,
     ),
     "utf8",
@@ -2319,14 +2322,14 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('test -s "$target/server/db/state.db"'));
 
   const volumePreparation = readFileSync(
-    new URL("../scripts/prepare-remote-development-volume", import.meta.url),
+    new URL("../scripts/prepare-remote-development-volume.sh", import.meta.url),
     "utf8",
   );
   assert.ok(volumePreparation.includes("-O project,quota"));
   assert.ok(volumePreparation.includes("-E quotatype=prjquota"));
 
   const healthCheck = readFileSync(
-    new URL("../scripts/remote-development-health", import.meta.url),
+    new URL("../scripts/remote-development-health.sh", import.meta.url),
     "utf8",
   );
   assert.ok(healthCheck.includes("check_project_quota t3-code-operator"));
@@ -2370,7 +2373,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
 
   const dopplerInstaller = readFileSync(
-    new URL("../scripts/install-doppler-operator", import.meta.url),
+    new URL("../scripts/install-doppler-operator.sh", import.meta.url),
     "utf8",
   );
   assert.ok(
@@ -2396,7 +2399,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
 
 test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
   const healthCheck = readFileSync(
-    new URL("../scripts/vector-development-health", import.meta.url),
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
     "utf8",
   );
 
@@ -2414,15 +2417,15 @@ test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
 
 test("the Vector tailnet scripts avoid local DNS collisions", () => {
   const fetchKubeconfig = readFileSync(
-    new URL("../scripts/fetch-vector-development-kubeconfig", import.meta.url),
+    new URL("../scripts/fetch-vector-development-kubeconfig.sh", import.meta.url),
     "utf8",
   );
   const rebuild = readFileSync(
-    new URL("../scripts/rebuild-vector-development", import.meta.url),
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
     "utf8",
   );
   const health = readFileSync(
-    new URL("../scripts/vector-development-health", import.meta.url),
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
     "utf8",
   );
 
@@ -2455,6 +2458,11 @@ test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
   assert.ok(hostConfig.includes('mode = "cdi"'));
   assert.ok(hostConfig.includes('runtimes = ["${lib.getExe pkgs.runc}"]'));
   assert.ok(hostConfig.includes('"--kubelet-arg=node-ip=0.0.0.0"'));
+  assert.ok(
+    hostConfig.includes(
+      '"--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"',
+    ),
+  );
 });
 
 test("the Vector stays awake while serving workloads", () => {
@@ -2489,17 +2497,21 @@ test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", (
   );
   const provision = readFileSync(
     new URL(
-      "../scripts/provision-vector-development-remote-boot",
+      "../scripts/provision-vector-development-remote-boot.sh",
       import.meta.url,
     ),
     "utf8",
   );
+  const installer = readFileSync(
+    new URL("../scripts/install-vector-development.sh", import.meta.url),
+    "utf8",
+  );
   const wake = readFileSync(
-    new URL("../scripts/wake-vector-development", import.meta.url),
+    new URL("../scripts/wake-vector-development.sh", import.meta.url),
     "utf8",
   );
   const shutdown = readFileSync(
-    new URL("../scripts/shutdown-vector-development", import.meta.url),
+    new URL("../scripts/shutdown-vector-development.sh", import.meta.url),
     "utf8",
   );
 
@@ -2524,6 +2536,16 @@ test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", (
   assert.ok(provision.includes("cryptsetup luksAddKey"));
   assert.ok(provision.includes("cryptsetup open --test-passphrase"));
   assert.ok(provision.includes("/run/vector-development-remote-unlock.key"));
+  assert.ok(
+    installer.includes(
+      "etc/secrets/initrd/vector-development_ssh_host_ed25519_key",
+    ),
+  );
+  assert.match(installer, /extra_files_dir=\$\{secret_dir\}\/extra-files/);
+  assert.ok(installer.includes("ssh-keygen -q -t ed25519 -N ''"));
+  assert.ok(
+    installer.includes("--extra-files /run/vector-development-extra-files"),
+  );
   assert.ok(wake.includes("VECTOR_DEVELOPMENT_LUKS_REMOTE_KEY"));
   assert.ok(wake.includes("StrictHostKeyChecking=yes"));
   assert.ok(wake.includes("VECTOR_DEVELOPMENT_INITRD_HOST_PUBLIC_KEY"));

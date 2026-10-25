@@ -7,7 +7,7 @@ nix_image="nixos/nix@sha256:c7cc6c8cb5d81bed19997247629604708fda95c99c43ac362daa
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 
-source "${script_dir}/vector-development-ssh"
+source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
 if [ ! -r "${identity_file}" ]; then
@@ -32,5 +32,5 @@ docker run --rm \
     --target-host "${target}"
 
 if [ "${VECTOR_DEVELOPMENT_SKIP_HEALTH:-0}" != 1 ]; then
-  "${script_dir}/vector-development-health"
+  "${script_dir}/vector-development-health.sh"
 fi

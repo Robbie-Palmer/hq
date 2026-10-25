@@ -17,19 +17,19 @@ import { test } from "node:test";
 const homelabDirectory = fileURLToPath(new URL("..", import.meta.url));
 const backupScript = join(
   homelabDirectory,
-  "scripts/remote-development-workspace-backup",
+  "scripts/remote-development-workspace-backup.sh",
 );
 const restoreScript = join(
   homelabDirectory,
-  "scripts/remote-development-workspace-restore",
+  "scripts/remote-development-workspace-restore.sh",
 );
 const exportScript = join(
   homelabDirectory,
-  "scripts/remote-development-workspace-export",
+  "scripts/remote-development-workspace-export.sh",
 );
 const stateExportScript = join(
   homelabDirectory,
-  "scripts/remote-development-workspace-state-export",
+  "scripts/remote-development-workspace-state-export.sh",
 );
 const committedBackupExcludes = join(
   homelabDirectory,
@@ -236,7 +236,7 @@ test("state export keeps T3 databases and only in-flight Git changes", () => {
   const staleRepository = join(workspaces, "stale-repository");
 
   try {
-    runGit(directory, ["init", "--bare", remote]);
+    runGit(directory, ["init", "--bare", "--initial-branch=main", remote]);
     runGit(directory, ["clone", remote, repository]);
     runGit(repository, ["config", "user.name", "Backup Test"]);
     runGit(repository, ["config", "user.email", "backup@example.test"]);
@@ -252,7 +252,7 @@ test("state export keeps T3 databases and only in-flight Git changes", () => {
     runGit(repository, ["commit", "-m", "stale remote branch"]);
     runGit(repository, ["push", "--set-upstream", "origin", "HEAD"]);
     runGit(directory, ["clone", "--branch", "stale-only", remote, staleRepository]);
-    runGit(repository, ["switch", "master"]);
+    runGit(repository, ["switch", "main"]);
     runGit(repository, ["push", "origin", "--delete", "stale-only"]);
 
     writeFileSync(join(repository, "committed.txt"), "local commit\n");
@@ -381,7 +381,7 @@ test("state export preserves full history when remote refresh fails", () => {
   const repository = join(workspaces, "offline-remote");
 
   try {
-    runGit(directory, ["init", repository]);
+    runGit(directory, ["init", "--initial-branch=main", repository]);
     runGit(repository, ["config", "user.name", "Backup Test"]);
     runGit(repository, ["config", "user.email", "backup@example.test"]);
     writeFileSync(join(repository, "tracked.txt"), "local history\n");

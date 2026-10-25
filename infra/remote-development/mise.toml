@@ -1,6 +1,6 @@
 [tasks.init]
 description = "Initialize remote-development Terraform"
-run = "bash scripts/doppler-terraform-env terraform init"
+run = "bash scripts/doppler-terraform-env.sh terraform init"
 sources = ["*.tf", "**/*.tf", "**/*.tfvars", ".terraform.lock.hcl"]
 outputs = [".terraform/**/*"]
 
@@ -43,20 +43,20 @@ tflint --format compact
 description = "Validate remote-development Terraform without its backend"
 run = """
 #!/usr/bin/env bash
-bash scripts/doppler-terraform-env terraform init -backend=false > /dev/null || { echo "Terraform init failed" >&2; exit 1; }
-bash scripts/doppler-terraform-env terraform validate
+bash scripts/doppler-terraform-env.sh terraform init -backend=false > /dev/null || { echo "Terraform init failed" >&2; exit 1; }
+bash scripts/doppler-terraform-env.sh terraform validate
 """
 
 [tasks.plan]
 description = "Create a saved remote-development Terraform plan"
 depends = ["//infra/remote-development:init"]
-run = "bash scripts/doppler-terraform-env terraform plan -out .planfile"
+run = "bash scripts/doppler-terraform-env.sh terraform plan -out .planfile"
 outputs = [".planfile"]
 
 [tasks.apply]
 description = "Apply the previously saved remote-development Terraform plan"
 depends = ["//infra/remote-development:init"]
-run = "bash scripts/doppler-terraform-env terraform apply .planfile"
+run = "bash scripts/doppler-terraform-env.sh terraform apply .planfile"
 
 [tasks.check]
 description = "Run all remote-development Terraform checks"

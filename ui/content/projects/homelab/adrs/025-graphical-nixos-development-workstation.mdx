@@ -106,6 +106,9 @@ resume, lid behavior, battery use, and external displays. Closing the lid on
 battery suspends the host; closing it on external power leaves remote work
 running.
 
-Full reboots require the local LUKS passphrase. The Hetzner plane remains the
-continuity environment for unattended work. Durable T3 Code state on the
-Vector needs its own tested backup policy before it becomes irreplaceable.
+The local LUKS passphrase remains the recovery path for full reboots. Normal
+remote boots can use the vault-assisted unlock path in
+[ADR 026](/projects/homelab/adrs/026-vault-assisted-vector-remote-boot). The
+Hetzner plane remains the continuity environment for unattended work. Durable
+T3 Code state on the Vector needs its own tested backup policy before it becomes
+irreplaceable.

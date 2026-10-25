@@ -10,7 +10,7 @@ SCRIPT = (
     / "roles"
     / "t3_worktree_cleanup"
     / "files"
-    / "t3-worktree-cleanup"
+    / "t3-worktree-cleanup.sh"
 )
 SQL_DIRECTORY = SCRIPT.parent / "sql"
 
