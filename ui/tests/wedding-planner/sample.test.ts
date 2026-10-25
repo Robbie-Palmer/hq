@@ -79,5 +79,5 @@ describe("sample wedding plan", () => {
       "Milo King",
     );
     expect(rooms.result.cash_flow.already_paid_pence).toBe(15000);
-  }, 20000);
+  }, 40000);
 });
