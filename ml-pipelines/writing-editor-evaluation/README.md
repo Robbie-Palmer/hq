@@ -156,12 +156,6 @@ area. Git tracks only their DVC pointers. Each evidence manifest records its
 classification, consent, retention, and deletion status. A deletion request
 blocks adoption even when the numerical thresholds pass.
 
-The [deterministic repository pilot](deterministic-pilot-report.md) covers
-three project pages and three ADRs outside the frozen fixture. Its first pass
-accepted one exact replacement and rejected three changes to a domain term.
-The hardened rerun removed those proposals and cut findings from 11 to 5. It
-selects context-sensitive lexical substitution as the next bounded experiment.
-
 If a reviewed file moves after the pinned baseline, map its baseline artifact
 ID to the current artifact ID in `targetRenames` in
 `review-decision-config.json`. The recorder resolves that map before reading
