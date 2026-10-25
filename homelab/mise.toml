@@ -266,6 +266,14 @@ run = "bash scripts/rebuild-vector-development.sh"
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
 run = "bash scripts/vector-development-health.sh"
 
+[tasks.vector-agent-auth-health]
+description = "Verify Vector T3 GitHub and scoped Doppler authentication without printing secrets"
+run = "bash scripts/vector-development-agent-auth-health.sh"
+
+[tasks.vector-agent-auth-install]
+description = "Install Vector T3 GitHub and Doppler credentials after an idle guard"
+run = "bash scripts/install-vector-development-agent-credentials.sh"
+
 [tasks.vector-remote-boot-provision]
 description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
 run = "bash scripts/provision-vector-development-remote-boot.sh"
@@ -293,6 +301,8 @@ bash -n \
   scripts/fetch-vector-development-kubeconfig.sh \
   scripts/rebuild-vector-development.sh \
   scripts/vector-development-health.sh \
+  scripts/vector-development-agent-auth-health.sh \
+  scripts/install-vector-development-agent-credentials.sh \
   scripts/provision-vector-development-remote-boot.sh \
   scripts/wake-vector-development.sh \
   scripts/shutdown-vector-development.sh

@@ -104,6 +104,39 @@ The health check covers GNOME, encrypted storage, zram, the host NVIDIA driver,
 the K3s NVIDIA runtime, GPU advertisement and allocation, the T3 rollout, and
 the local HTTP endpoint.
 
+## Agent GitHub and Doppler access
+
+Account foundation declares the `vector-development-t3` Doppler service
+account and a custom role containing only `View Secrets` and `Manage Secrets`.
+Its allowlist covers the `dev` environment in `ai-review`, `homelab`,
+`personal-site`, and `work-graph`. It cannot administer projects,
+environments, configs, memberships, service tokens, staging, production, or
+operations secrets. Extend the checked-in allowlist deliberately if a later
+workflow needs another boundary.
+
+Terraform owns the service account, role, and memberships, but not its token.
+Putting a generated token in a Terraform resource or variable would preserve
+that credential in state. After applying the reviewed account-foundation plan,
+create one token for `vector-development-t3` in Doppler. Separately create a
+fine-grained GitHub token limited to `Robbie-Palmer/hq`, with repository
+contents, pull requests, workflows, and the read permissions needed for checks.
+Do not paste either token into chat or a shell argument.
+
+Wait until the Vector server has no active T3 work, then run the guarded
+interactive installer from the controller:
+
+```bash
+mise run //homelab:vector-agent-auth-install
+mise run //homelab:vector-agent-auth-health
+```
+
+The installer refuses to continue while T3 has active work. It accepts both
+credentials without echoing them, streams them to
+`homelab/prd_vector_development` as `GH_TOKEN` and `DOPPLER_TOKEN`, waits for
+the Doppler operator rollout, and configures Git to use GitHub CLI as its
+credential helper. The health task tests GitHub authentication and a
+development-only Doppler read without printing secret names or values.
+
 ## Connect and operate
 
 The T3 Code desktop application appears in GNOME. Create a pairing URL inside

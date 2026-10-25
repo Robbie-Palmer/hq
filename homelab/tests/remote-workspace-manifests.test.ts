@@ -2415,6 +2415,40 @@ test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
   );
 });
 
+test("Vector agent credentials use an idle guard and non-secret health checks", () => {
+  const installer = readFileSync(
+    new URL(
+      "../scripts/install-vector-development-agent-credentials.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const healthCheck = readFileSync(
+    new URL(
+      "../scripts/vector-development-agent-auth-health.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(installer.includes('check-t3-idle.mjs'));
+  assert.ok(installer.includes('read -r -s -p'));
+  assert.ok(installer.includes('doppler secrets set GH_TOKEN'));
+  assert.ok(installer.includes('doppler secrets set DOPPLER_TOKEN'));
+  assert.ok(installer.includes('--config prd_vector_development'));
+  assert.ok(installer.includes('gh auth setup-git --hostname github.com --force'));
+  assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_token)/);
+
+  assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
+  assert.ok(
+    healthCheck.includes(
+      'doppler secrets --project personal-site --config dev --only-names',
+    ),
+  );
+  assert.ok(!healthCheck.includes('--raw'));
+  assert.ok(!healthCheck.includes('--plain'));
+});
+
 test("the Vector tailnet scripts avoid local DNS collisions", () => {
   const fetchKubeconfig = readFileSync(
     new URL("../scripts/fetch-vector-development-kubeconfig.sh", import.meta.url),

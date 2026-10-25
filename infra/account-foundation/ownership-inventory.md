@@ -84,7 +84,7 @@ column owns the values and decides which values may be mirrored into GitHub.
 | Project | Existing configs | Intended state owner | Value owner |
 | --- | --- | --- | --- |
 | `ai-review` | `dev`, `dev_personal`, `stg`, `prd` | `account-foundation` | `ai-review` workload |
-| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability` | `account-foundation` | `homelab`, `infra/remote-development`, and the personal archive workloads |
+| `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability`, `prd_vector_development` | `account-foundation` | `homelab`, `infra/remote-development`, the Vector workstation, and the personal archive workloads |
 | `personal-site` | `dev`, `dev_personal`, `dev_agent`, `dev_bootstrap_infra`, `dev_infra`, `dev_ml_pipelines`, `dev_pages_env`, `dev_recipe_api`, `stg`, `stg_pages_env`, `stg_recipe_api`, `stg_site_ui`, `prd`, `prd_bootstrap_infra`, `prd_bootstrap_plan`, `prd_ci_repo`, `prd_database_backup`, `prd_infra`, `prd_pages_env`, `prd_recipe_api`, `prd_recipe_ingest`, `prd_site_ui`, `ops`, `ops_preview_agent_access` | `account-foundation` | The matching public-platform, bootstrap, ML pipeline, recipe, backup, or preview workload |
 | `work-graph` | `dev`, `dev_personal`, `stg`, `prd`, `prd_work_graph`, `prd_work_graph_backup`, `prd_work_graph_infra` | `account-foundation` | `infra/work-graph`, Work Graph runtime, and backup workloads |
 | `personal-finance` | `ops`, `drift`, `apply` environment root configs | `account-foundation` | `infra/personal-finance` delivery |
@@ -103,6 +103,13 @@ The Personal Finance registry uses three environments because the current
 Doppler plan does not include child-config inheritance. Doppler created the
 `ops`, `drift`, and `apply` root configs with their environments. Account
 foundation recorded the containers, and a follow-up plan reported no changes.
+
+Account foundation also owns the `vector-development-t3` service account, its
+custom secret-value editor role, and its explicit project memberships. The
+role contains only the secret read and write permissions and each membership
+is restricted to `dev`. The service-account token is a workload credential:
+it is created outside Terraform and stored in
+`homelab/prd_vector_development`, so its value never enters state.
 
 ## GitHub environments
 
