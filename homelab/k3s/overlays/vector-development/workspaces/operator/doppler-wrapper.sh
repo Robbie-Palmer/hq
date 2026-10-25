@@ -4,11 +4,8 @@ set -euo pipefail
 real_doppler=${DOPPLER_REAL_BIN:-/usr/local/bin/doppler}
 token_directory=${DOPPLER_PROJECT_TOKEN_DIRECTORY:-${HOME}/.config/doppler/project-service-tokens}
 
-if [[ -n "${DOPPLER_TOKEN:-}" ]]; then
-  exec "${real_doppler}" "$@"
-fi
-
 project=${DOPPLER_PROJECT:-}
+config=${DOPPLER_CONFIG:-}
 arguments=("$@")
 for ((index = 0; index < ${#arguments[@]}; index++)); do
   argument=${arguments[index]}
@@ -26,6 +23,21 @@ for ((index = 0; index < ${#arguments[@]}; index++)); do
       ;;
     --project=*|-p=*)
       project=${argument#*=}
+      ;;
+    --config|-c)
+      if ((index + 1 >= ${#arguments[@]})); then
+        echo "${argument} requires a config" >&2
+        exit 2
+      fi
+      config=${arguments[index + 1]}
+      ((index += 1))
+      ;;
+    --config=*|-c=*)
+      config=${argument#*=}
+      ;;
+    --token|--token=*|--no-read-env)
+      echo "Vector Doppler access does not accept caller-supplied token options" >&2
+      exit 2
       ;;
     *)
       ;;
@@ -51,6 +63,15 @@ case "${project}" in
     ;;
   *)
     echo "Vector Doppler access is not configured for project ${project}" >&2
+    exit 2
+    ;;
+esac
+
+case "${config}" in
+  ""|dev)
+    ;;
+  *)
+    echo "Vector Doppler access is only configured for the dev config" >&2
     exit 2
     ;;
 esac

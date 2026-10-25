@@ -2538,8 +2538,9 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   );
   assert.match(
     healthCheck,
-    /doppler secrets --project "\$\{project\}" --config dev --only-names/,
+    /doppler secrets --project "\$\{project\}" --config dev --only-names --json/,
   );
+  assert.match(healthCheck, /jq -e --arg probe "\$\{probe\}" 'has\(\$probe\)'/);
   assert.match(healthCheck, /doppler secrets set "\$\{probe\}"/);
   assert.match(healthCheck, /doppler secrets delete "\$\{probe\}"/);
   assert.ok(!healthCheck.includes('--raw'));
@@ -2562,6 +2563,76 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     assert.ok(dopplerWrapper.includes(variable));
   }
   assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
+});
+
+test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-doppler-wrapper-"));
+  const dopplerWrapper = fileURLToPath(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh",
+      import.meta.url,
+    ),
+  );
+  const realDoppler = join(temporaryDirectory, "doppler-real");
+  writeFileSync(
+    realDoppler,
+    [
+      "#!/usr/bin/env bash",
+      'printf \'token=%s\\n\' "$' + '{DOPPLER_TOKEN:-}"',
+      'printf \'args=%s\\n\' "$*"',
+      "",
+    ].join("\n"),
+  );
+  chmodSync(realDoppler, 0o755);
+
+  const baseEnvironment: NodeJS.ProcessEnv = {
+    ...process.env,
+    DOPPLER_REAL_BIN: realDoppler,
+    DOPPLER_PROJECT_TOKEN_DIRECTORY: temporaryDirectory,
+    DOPPLER_TOKEN: "caller-token",
+    DOPPLER_TOKEN_HOMELAB: "managed-homelab-token",
+  };
+  const invoke = (
+    args: readonly string[],
+    environment: NodeJS.ProcessEnv = baseEnvironment,
+  ) =>
+    spawnSync(dopplerWrapper, args, {
+      encoding: "utf8",
+      env: environment,
+      timeout: 5000,
+    });
+
+  try {
+    for (const configArguments of [
+      ["--config", "dev"],
+      ["-c", "dev"],
+      ["--config=dev"],
+      ["-c=dev"],
+    ]) {
+      const result = invoke(["secrets", "--project", "homelab", ...configArguments]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /^token=managed-homelab-token$/m);
+      assert.doesNotMatch(result.stdout, /^token=caller-token$/m);
+    }
+
+    for (const disallowedArguments of [
+      ["secrets", "--project", "homelab", "--config", "prd"],
+      ["secrets", "--project", "homelab", "--token", "caller-token"],
+      ["secrets", "--project", "homelab", "--no-read-env"],
+      ["secrets", "--project", "unknown", "--config", "dev"],
+    ]) {
+      const result = invoke(disallowedArguments);
+      assert.equal(result.status, 2, disallowedArguments.join(" "));
+    }
+
+    const environmentConfig = invoke(["secrets", "--project", "homelab"], {
+      ...baseEnvironment,
+      DOPPLER_CONFIG: "prd",
+    });
+    assert.equal(environmentConfig.status, 2);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("the Vector tailnet scripts avoid local DNS collisions", () => {

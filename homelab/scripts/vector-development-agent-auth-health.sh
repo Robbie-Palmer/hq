@@ -72,8 +72,8 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
         | doppler secrets set "${probe}" \
           --project "${project}" --config dev --no-interactive --silent \
           >/dev/null
-      doppler secrets --project "${project}" --config dev --only-names \
-        | grep -Fx "${probe}" >/dev/null
+      doppler secrets --project "${project}" --config dev --only-names --json \
+        | jq -e --arg probe "${probe}" 'has($probe)' >/dev/null
       doppler secrets delete "${probe}" \
         --project "${project}" --config dev --yes --silent >/dev/null
     done

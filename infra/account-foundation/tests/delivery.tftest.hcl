@@ -171,10 +171,12 @@ run "vector_runtime_config_is_managed" {
   command = plan
 
   assert {
-    condition = contains(
-      [for config in values(doppler_config.managed) : config.name],
-      "prd_vector_development",
-    )
+    condition = anytrue([
+      for config in values(doppler_config.managed) :
+      config.name == "prd_vector_development" &&
+      config.project == "homelab" &&
+      config.environment == "prd"
+    ])
     error_message = "The existing Vector runtime config must be managed by account-foundation."
   }
 
