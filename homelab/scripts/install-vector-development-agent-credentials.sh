@@ -200,7 +200,7 @@ fi
 kubectl --context "${context}" --namespace t3-code rollout status \
   deployment/t3-code --timeout=10m
 kubectl --context "${context}" --namespace t3-code exec "${replacement_pod}" \
-  --container t3-code -- gh auth setup-git --hostname github.com --force
+  --container t3-code -- gh auth setup-git --hostname github.com
 
 "${script_dir}/vector-development-agent-auth-health.sh"
 
