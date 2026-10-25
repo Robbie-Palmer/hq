@@ -2731,6 +2731,15 @@ function validateJobMoveScenarioReferences(
       );
     }
   }
+  const futureCashFlowIds = new Set(data.futureCashFlows.map(({ id }) => id));
+  for (const flowId of input.includedFutureCashFlowIds ?? []) {
+    if (!futureCashFlowIds.has(flowId)) {
+      throw new AssetTrackerCommandError(
+        "FLOW_NOT_FOUND",
+        `No future cash flow found with ID ${flowId}`,
+      );
+    }
+  }
 }
 
 export function applySaveJobMoveScenario(

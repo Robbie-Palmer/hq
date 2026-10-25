@@ -71,6 +71,12 @@ function trackerValue() {
         compensationKind: "takeHomeIncome",
       },
     ],
+    futureCashFlows: [
+      {
+        id: "redundancy-cash",
+        name: "Employer-confirmed net redundancy cash",
+      },
+    ],
     jobMoveScenarios: [
       {
         id: "offer",
@@ -223,6 +229,8 @@ describe("JobMoveScenarioPlanner", () => {
     expect(screen.getByLabelText("Chart time window")).toHaveValue("full");
     expect(screen.getByRole("option", { name: "First 1 year" })).toBeVisible();
     expect(screen.getByRole("option", { name: "First 3 years" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "15 years" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "20 years" })).toBeVisible();
     expect(screen.getByText("FI path over time")).toBeVisible();
     expect(screen.getByText("Forecast milestones")).toBeVisible();
     expect(
@@ -307,6 +315,15 @@ describe("JobMoveScenarioPlanner", () => {
     fireEvent.change(screen.getByLabelText("Current income stops from"), {
       target: { value: "2026-04-01" },
     });
+    fireEvent.change(screen.getByLabelText("Current employer"), {
+      target: { value: "Current Ltd" },
+    });
+    fireEvent.change(screen.getByLabelText("Current role started"), {
+      target: { value: "2025-01-01" },
+    });
+    fireEvent.change(screen.getByLabelText("Annual take-home pay"), {
+      target: { value: "50000" },
+    });
     fireEvent.change(screen.getByLabelText("Annual spending in scenario"), {
       target: { value: "50000" },
     });
@@ -350,6 +367,11 @@ describe("JobMoveScenarioPlanner", () => {
     );
     await user.click(screen.getByRole("checkbox", { name: /Salary/ }));
     await user.click(screen.getByRole("checkbox", { name: /Salary/ }));
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Employer-confirmed net redundancy cash",
+      }),
+    );
     const form = screen
       .getByRole("button", { name: "Save scenario" })
       .closest("form");
@@ -376,6 +398,13 @@ describe("JobMoveScenarioPlanner", () => {
           employerPensionRate: 0.075,
           annualTakeHomeOverride: 60_000,
           annualSpendingOverride: 50_000,
+          currentRole: expect.objectContaining({
+            employer: "Current Ltd",
+            annualTakeHomePay: 50_000,
+            activeFrom: "2025-01-01",
+            activeTo: "2026-04-01",
+          }),
+          includedFutureCashFlowIds: ["redundancy-cash"],
           destinationAccountId: "pension",
           pensionAccountId: "current",
           replacedRecurringFlowIds: ["salary"],

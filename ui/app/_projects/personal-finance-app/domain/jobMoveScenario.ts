@@ -29,6 +29,25 @@ import { SalaryPayFrequencySchema } from "./salaryHistory";
 
 const PensionMethodSchema = z.enum(["salarySacrifice", "netPay"]);
 
+export const EmploymentRoleFactsSchema = z
+  .object({
+    employer: z.string().trim().min(1, "Current employer is required"),
+    annualTakeHomePay: z.number().nonnegative(),
+    baseGrossPay: z.number().nonnegative().optional(),
+    variableGrossPay: z.number().nonnegative().optional(),
+    annualEmployeePensionContribution: z.number().nonnegative(),
+    annualEmployerPensionContribution: z.number().nonnegative(),
+    currency: CurrencySchema,
+    jurisdiction: z.string().trim().min(1),
+    activeFrom: z.iso.date(),
+    activeTo: z.iso.date(),
+  })
+  .refine((role) => role.activeTo >= role.activeFrom, {
+    message: "Current role end must be on or after its start",
+    path: ["activeTo"],
+  });
+export type EmploymentRoleFacts = z.infer<typeof EmploymentRoleFactsSchema>;
+
 const JobMoveScenarioBaseSchema = z.object({
   name: z.string().trim().min(1, "Scenario name is required"),
   /** Household member whose employment income changes in this scenario. */
@@ -51,8 +70,12 @@ const JobMoveScenarioBaseSchema = z.object({
   annualTakeHomeOverride: z.number().nonnegative().optional(),
   /** Optional annual spending used only for this hypothetical path. */
   annualSpendingOverride: z.number().positive().optional(),
+  /** Explicit facts for the role being left. Older saved scenarios may omit them. */
+  currentRole: EmploymentRoleFactsSchema.optional(),
   destinationAccountId: AccountIdSchema.optional(),
   pensionAccountId: AccountIdSchema.optional(),
+  /** Generic receipts and payments that belong only to this path. */
+  includedFutureCashFlowIds: z.array(z.string().trim().min(1)).optional(),
   replacedRecurringFlowIds: z
     .array(z.string().min(1))
     .min(1, "Choose at least one current-role cash flow to replace"),
@@ -62,6 +85,16 @@ function validateJobMoveScenario(
   scenario: z.infer<typeof JobMoveScenarioBaseSchema>,
   context: z.RefinementCtx,
 ) {
+  if (
+    scenario.currentRole != null &&
+    scenario.currentRole.activeTo !== scenario.transitionDate
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["currentRole", "activeTo"],
+      message: "Current role end must match the income stop date",
+    });
+  }
   if (scenario.employmentStatus === "unemployed") return;
   if (scenario.roleStartDate == null) {
     context.addIssue({
@@ -172,6 +205,8 @@ export type JobMoveScenarioComparison = {
       cashBalance: number;
       totalBalance: number;
       liquidBalance: number;
+      accessibleRetirementCapital: number;
+      pensionCapital: number;
       liquidMonths: number;
       totalMonths: number;
       emergencyFundBalance: number | null;
@@ -182,6 +217,8 @@ export type JobMoveScenarioComparison = {
       cashBalance: number;
       totalBalance: number;
       liquidBalance: number;
+      accessibleRetirementCapital: number;
+      pensionCapital: number;
       liquidMonths: number;
       totalMonths: number;
       emergencyFundBalance: number | null;
@@ -551,6 +588,69 @@ function emergencyFundAtPoint(
   };
 }
 
+function capitalAtPoint(
+  repository: AssetTrackerRepository,
+  point: RunwayScenarioPoint,
+) {
+  let accessibleRetirementCapital = 0;
+  let pensionCapital = 0;
+  for (const account of repository.accounts.values()) {
+    if (isLiability(account.assetType)) continue;
+    const balance = Math.max(point.accountBalances[account.id] ?? 0, 0);
+    if (account.taxWrapper === "pension") pensionCapital += balance;
+    const policy = account.accessPolicy;
+    const isAccessible =
+      account.assetType !== "property" &&
+      policy?.canFundOrdinarySpending !== false &&
+      (account.taxWrapper !== "pension" ||
+        policy?.accessibleFromDate != null) &&
+      (policy?.accessibleFromDate == null ||
+        policy.accessibleFromDate <= point.date) &&
+      policy?.taxTreatment?.kind !== "unsupported";
+    if (isAccessible) accessibleRetirementCapital += balance;
+  }
+  return { accessibleRetirementCapital, pensionCapital };
+}
+
+function pathRepositories(
+  repository: AssetTrackerRepository,
+  scenario: JobMoveScenario,
+) {
+  const includedIds = new Set(scenario.includedFutureCashFlowIds ?? []);
+  const scopedIds = new Set([
+    ...repository.jobMoveScenarios.flatMap(
+      (candidate) => candidate.includedFutureCashFlowIds ?? [],
+    ),
+    ...includedIds,
+  ]);
+  const shared = repository.futureCashFlows.filter(
+    (record) => !scopedIds.has(record.id),
+  );
+  const included = repository.futureCashFlows.filter((record) =>
+    includedIds.has(record.id),
+  );
+  return {
+    baseline: { ...repository, futureCashFlows: shared },
+    scenario: {
+      ...repository,
+      futureCashFlows: [...shared, ...included],
+    },
+  };
+}
+
+function selectedDecisionIds(
+  repository: AssetTrackerRepository,
+  pathIds: readonly string[] = [],
+) {
+  const selectedForPath = new Set(pathIds);
+  return repository.futureCashFlows.flatMap((record) =>
+    record.kind === "decision" &&
+    (record.status === "selected" || selectedForPath.has(record.id))
+      ? [record.id]
+      : [],
+  );
+}
+
 function firstExhaustion(
   points: readonly RunwayScenarioPoint[],
   afterDate: string,
@@ -713,7 +813,7 @@ function forecastMilestones(
   );
 }
 
-export function compareJobMoveScenario(input: {
+type CompareJobMoveScenarioInput = {
   repository: AssetTrackerRepository;
   scenario: JobMoveScenario;
   horizonMonths: number;
@@ -723,80 +823,36 @@ export function compareJobMoveScenario(input: {
   financialIndependenceTarget: number | null;
   baselineCompensation: BaselineCompensation;
   emergencyFundAnalysis: EmergencyFundAnalysis | null;
-}): JobMoveScenarioComparison {
-  const compensation = calculateJobMoveCompensation(input.scenario);
-  const comparisonStartDate =
+};
+
+function comparisonWindow(input: CompareJobMoveScenarioInput) {
+  const startDate =
     input.scenario.transitionDate > input.startDate
       ? input.scenario.transitionDate
       : input.startDate;
-  const wholeLeadInMonths = Math.max(
-    differenceInCalendarMonths(
-      parseISO(comparisonStartDate),
-      parseISO(input.startDate),
-    ),
+  const wholeMonths = Math.max(
+    differenceInCalendarMonths(parseISO(startDate), parseISO(input.startDate)),
     0,
   );
-  const leadInMonths =
-    format(
-      addMonths(parseISO(input.startDate), wholeLeadInMonths),
-      "yyyy-MM-dd",
-    ) < comparisonStartDate
-      ? wholeLeadInMonths + 1
-      : wholeLeadInMonths;
-  const projectionMonths = leadInMonths + input.horizonMonths;
-  const baseline = buildRunwayScenarioProjection({
-    repository: input.repository,
-    annualExpenditure: input.annualExpenditure,
-    annualCurrentExpenditure: input.annualCurrentExpenditure,
-    startDate: input.startDate,
-    months: projectionMonths,
-    decisionSelection: {
-      decisionIds: input.repository.futureCashFlows.flatMap((record) =>
-        record.kind === "decision" && record.status === "selected"
-          ? [record.id]
-          : [],
-      ),
-      amount: "expected",
-      timing: "expected",
-    },
-  });
-  const scenarioFlowResult = scenarioFlows(
-    input.repository,
-    input.scenario,
-    compensation,
-    input.startDate,
+  const boundary = format(
+    addMonths(parseISO(input.startDate), wholeMonths),
+    "yyyy-MM-dd",
   );
-  const scenarioRepository = {
-    ...input.repository,
-    recurringFlows: scenarioFlowResult.flows,
-  };
-  const projected = buildRunwayScenarioProjection({
-    repository: scenarioRepository,
-    annualExpenditure: input.annualExpenditure,
-    annualCurrentExpenditure: input.annualCurrentExpenditure,
-    expenditureChange:
-      input.scenario.annualSpendingOverride == null
-        ? undefined
-        : {
-            startDate: input.scenario.transitionDate,
-            annualExpenditure: input.scenario.annualSpendingOverride,
-            annualCurrentExpenditure: input.scenario.annualSpendingOverride,
-          },
-    startDate: input.startDate,
-    months: projectionMonths,
-    decisionSelection: {
-      decisionIds: input.repository.futureCashFlows.flatMap((record) =>
-        record.kind === "decision" && record.status === "selected"
-          ? [record.id]
-          : [],
-      ),
-      amount: "expected",
-      timing: "expected",
-    },
-  });
-  const timeline = baseline.flatMap((baselinePoint, index) => {
-    if (baselinePoint.date < comparisonStartDate) return [];
-    const scenarioPoint = projected[index];
+  const leadInMonths = boundary < startDate ? wholeMonths + 1 : wholeMonths;
+  return { startDate, projectionMonths: leadInMonths + input.horizonMonths };
+}
+
+function comparisonTimeline(input: {
+  baseline: readonly RunwayScenarioPoint[];
+  projected: readonly RunwayScenarioPoint[];
+  baselineRepository: AssetTrackerRepository;
+  scenarioRepository: AssetTrackerRepository;
+  comparisonStartDate: string;
+  emergencyFundAnalysis: EmergencyFundAnalysis | null;
+}): JobMoveScenarioComparison["timeline"] {
+  return input.baseline.flatMap((baselinePoint, index) => {
+    if (baselinePoint.date < input.comparisonStartDate) return [];
+    const scenarioPoint = input.projected[index];
     if (scenarioPoint == null) return [];
     const baselineEmergencyFund = emergencyFundAtPoint(
       baselinePoint.accountBalances,
@@ -813,6 +869,7 @@ export function compareJobMoveScenario(input: {
           cashBalance: baselinePoint.cashBalance,
           totalBalance: baselinePoint.totalBalance,
           liquidBalance: baselinePoint.liquidBalance,
+          ...capitalAtPoint(input.baselineRepository, baselinePoint),
           liquidMonths: baselinePoint.liquidMonths,
           totalMonths: baselinePoint.totalMonths,
           emergencyFundBalance: baselineEmergencyFund.balance,
@@ -823,6 +880,7 @@ export function compareJobMoveScenario(input: {
           cashBalance: scenarioPoint.cashBalance,
           totalBalance: scenarioPoint.totalBalance,
           liquidBalance: scenarioPoint.liquidBalance,
+          ...capitalAtPoint(input.scenarioRepository, scenarioPoint),
           liquidMonths: scenarioPoint.liquidMonths,
           totalMonths: scenarioPoint.totalMonths,
           emergencyFundBalance: scenarioEmergencyFund.balance,
@@ -832,54 +890,166 @@ export function compareJobMoveScenario(input: {
       },
     ];
   });
-  const replaced = replacedCompensation(
+}
+
+function explicitReplacedCompensation(
+  input: CompareJobMoveScenarioInput,
+): CompensationTotals | null {
+  const role = input.scenario.currentRole;
+  if (role == null) return null;
+  const converted = [
+    role.annualTakeHomePay,
+    role.annualEmployeePensionContribution,
+    role.annualEmployerPensionContribution,
+  ].map((amount) =>
+    convertMoneyAtDate(
+      input.repository,
+      { amount, currency: role.currency },
+      input.startDate,
+    ),
+  );
+  const [takeHome, employeePension, employerPension] = converted;
+  if (takeHome == null || employeePension == null || employerPension == null) {
+    return null;
+  }
+  return {
+    annualTakeHomePay: takeHome,
+    annualEmployeePensionContribution: employeePension,
+    annualEmployerPensionContribution: employerPension,
+  };
+}
+
+function comparisonCompensation(
+  input: CompareJobMoveScenarioInput,
+  next: JobMoveCompensation,
+): {
+  value: JobMoveScenarioComparison["compensation"];
+  warnings: string[];
+} {
+  const explicit = explicitReplacedCompensation(input);
+  const inferred = replacedCompensation(
     input.repository,
     input.scenario,
     input.startDate,
   );
+  const replaced = input.scenario.currentRole == null ? inferred : explicit;
   const baselineTakeHome =
     input.baselineCompensation?.annualTakeHomeIncome ?? null;
   const baselineEmployeePension =
     input.baselineCompensation?.annualEmployeePensionContribution ?? null;
   const baselineEmployerPension =
     input.baselineCompensation?.annualEmployerPensionContribution ?? null;
-  const scenarioTakeHome =
-    baselineTakeHome == null || replaced == null
-      ? compensation.annualTakeHomePay
-      : baselineTakeHome -
-        replaced.annualTakeHomePay +
-        compensation.annualTakeHomePay;
-  const scenarioEmployeePension =
-    baselineEmployeePension == null || replaced == null
-      ? compensation.annualEmployeePensionContribution
-      : baselineEmployeePension -
-        replaced.annualEmployeePensionContribution +
-        compensation.annualEmployeePensionContribution;
-  const scenarioEmployerPension =
-    baselineEmployerPension == null || replaced == null
-      ? compensation.annualEmployerPensionContribution
-      : baselineEmployerPension -
-        replaced.annualEmployerPensionContribution +
-        compensation.annualEmployerPensionContribution;
+  const replace = (baseline: number | null, prior: number, future: number) =>
+    baseline == null || replaced == null ? future : baseline - prior + future;
+  const warnings =
+    input.scenario.currentRole == null
+      ? [
+          "Current-role facts are inherited from the existing forecast. Add an explicit current role before relying on this comparison for an employment-exit decision.",
+        ]
+      : explicit == null
+        ? [
+            `The ${input.scenario.currentRole.currency} current role could not be converted to ${input.repository.settings.baseCurrency} from accepted exchange-rate observations.`,
+          ]
+        : [];
   return {
-    scenarioId: input.scenario.id,
-    warnings: scenarioFlowResult.warnings,
-    compensation: {
+    warnings,
+    value: {
       baselineAnnualTakeHomePay: baselineTakeHome,
       baselineAnnualPensionContribution:
-        input.baselineCompensation == null
+        baselineEmployeePension == null || baselineEmployerPension == null
           ? null
-          : input.baselineCompensation.annualEmployeePensionContribution +
-            input.baselineCompensation.annualEmployerPensionContribution,
-      scenarioAnnualTakeHomePay: scenarioTakeHome,
-      scenarioAnnualEmployeePensionContribution: scenarioEmployeePension,
-      scenarioAnnualEmployerPensionContribution: scenarioEmployerPension,
+          : baselineEmployeePension + baselineEmployerPension,
+      scenarioAnnualTakeHomePay: replace(
+        baselineTakeHome,
+        replaced?.annualTakeHomePay ?? 0,
+        next.annualTakeHomePay,
+      ),
+      scenarioAnnualEmployeePensionContribution: replace(
+        baselineEmployeePension,
+        replaced?.annualEmployeePensionContribution ?? 0,
+        next.annualEmployeePensionContribution,
+      ),
+      scenarioAnnualEmployerPensionContribution: replace(
+        baselineEmployerPension,
+        replaced?.annualEmployerPensionContribution ?? 0,
+        next.annualEmployerPensionContribution,
+      ),
       currency: input.repository.settings.baseCurrency,
     },
+  };
+}
+
+export function compareJobMoveScenario(
+  input: CompareJobMoveScenarioInput,
+): JobMoveScenarioComparison {
+  const compensation = calculateJobMoveCompensation(input.scenario);
+  const repositories = pathRepositories(input.repository, input.scenario);
+  const window = comparisonWindow(input);
+  const baseline = buildRunwayScenarioProjection({
+    repository: repositories.baseline,
+    annualExpenditure: input.annualExpenditure,
+    annualCurrentExpenditure: input.annualCurrentExpenditure,
+    startDate: input.startDate,
+    months: window.projectionMonths,
+    decisionSelection: {
+      decisionIds: selectedDecisionIds(repositories.baseline),
+      amount: "expected",
+      timing: "expected",
+    },
+  });
+  const scenarioFlowResult = scenarioFlows(
+    repositories.scenario,
+    input.scenario,
+    compensation,
+    input.startDate,
+  );
+  const scenarioRepository = {
+    ...repositories.scenario,
+    recurringFlows: scenarioFlowResult.flows,
+  };
+  const projected = buildRunwayScenarioProjection({
+    repository: scenarioRepository,
+    annualExpenditure: input.annualExpenditure,
+    annualCurrentExpenditure: input.annualCurrentExpenditure,
+    expenditureChange:
+      input.scenario.annualSpendingOverride == null
+        ? undefined
+        : {
+            startDate: input.scenario.transitionDate,
+            annualExpenditure: input.scenario.annualSpendingOverride,
+            annualCurrentExpenditure: input.scenario.annualSpendingOverride,
+          },
+    startDate: input.startDate,
+    months: window.projectionMonths,
+    decisionSelection: {
+      decisionIds: selectedDecisionIds(
+        scenarioRepository,
+        input.scenario.includedFutureCashFlowIds ?? [],
+      ),
+      amount: "expected",
+      timing: "expected",
+    },
+  });
+  const timeline = comparisonTimeline({
+    baseline,
+    projected,
+    baselineRepository: repositories.baseline,
+    scenarioRepository,
+    comparisonStartDate: window.startDate,
+    emergencyFundAnalysis: input.emergencyFundAnalysis,
+  });
+  const comparedCompensation = comparisonCompensation(input, compensation);
+  return {
+    scenarioId: input.scenario.id,
+    warnings: [
+      ...scenarioFlowResult.warnings,
+      ...comparedCompensation.warnings,
+    ],
+    compensation: comparedCompensation.value,
     calculation: compensation.calculation,
     timeline,
     milestones: forecastMilestones(
-      input.repository,
+      scenarioRepository,
       input.scenario,
       projected,
       input.financialIndependenceTarget,
@@ -887,11 +1057,11 @@ export function compareJobMoveScenario(input: {
     financialIndependenceTarget: input.financialIndependenceTarget,
     financialIndependenceDates: {
       baseline: goalDate(
-        baseline.filter(({ date }) => date >= comparisonStartDate),
+        baseline.filter(({ date }) => date >= window.startDate),
         input.financialIndependenceTarget,
       ),
       scenario: goalDate(
-        projected.filter(({ date }) => date >= comparisonStartDate),
+        projected.filter(({ date }) => date >= window.startDate),
         input.financialIndependenceTarget,
       ),
     },

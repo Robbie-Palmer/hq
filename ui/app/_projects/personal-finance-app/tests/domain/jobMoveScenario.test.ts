@@ -32,6 +32,14 @@ function data(): AssetTrackerData {
         currency: "GBP",
         assetType: "stocks",
         liquidity: "illiquid",
+        taxWrapper: "pension",
+        accessPolicy: {
+          accessibleFromDate: "2026-01-01",
+          accessDelayMonths: 0,
+          withdrawalFeeRate: 0,
+          taxTreatment: { kind: "tax-free" },
+          canFundOrdinarySpending: true,
+        },
         expectedAnnualReturn: 0,
         createdAt: "2025-01-01",
       },
@@ -82,6 +90,18 @@ function employedScenario(): JobMoveScenario {
     destinationAccountId: "current",
     pensionAccountId: "pension",
     replacedRecurringFlowIds: ["current-salary"],
+    currentRole: {
+      employer: "Current Ltd",
+      annualTakeHomePay: 36_000,
+      baseGrossPay: 48_000,
+      variableGrossPay: 0,
+      annualEmployeePensionContribution: 0,
+      annualEmployerPensionContribution: 0,
+      currency: "GBP",
+      jurisdiction: "England",
+      activeFrom: "2025-01-01",
+      activeTo: "2026-02-01",
+    },
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
   };
@@ -152,6 +172,158 @@ describe("job-move scenarios", () => {
       scenarioAnnualEmployeePensionContribution: 6_240,
       scenarioAnnualEmployerPensionContribution: 7_800,
     });
+    expect(horizon?.scenario.accessibleRetirementCapital).toBeGreaterThan(0);
+    expect(horizon?.scenario.pensionCapital).toBeGreaterThan(20_000);
+  });
+
+  it("keeps a manual net redundancy receipt inside its selected path", () => {
+    const withRedundancy = AssetTrackerDataSchema.parse({
+      ...data(),
+      futureCashFlows: [
+        {
+          id: "redundancy-cash",
+          name: "Employer-confirmed net redundancy cash",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: ["redundancy"],
+          currency: "GBP",
+          stages: [
+            {
+              id: "redundancy-cash-stage",
+              direction: "receipt",
+              toAccountId: "current",
+              dueDate: "2026-02-15",
+              amount: 10_000,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+    });
+    const scenario = {
+      ...employedScenario(),
+      employmentStatus: "unemployed" as const,
+      roleStartDate: undefined,
+      employer: undefined,
+      baseGrossPay: 0,
+      variableGrossPay: 0,
+      employeePensionRate: 0,
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+      destinationAccountId: undefined,
+      pensionAccountId: undefined,
+      includedFutureCashFlowIds: ["redundancy-cash"],
+    };
+    const result = compareJobMoveScenario({
+      repository: buildRepository(withRedundancy),
+      scenario,
+      horizonMonths: 12,
+      startDate: "2026-01-01",
+      annualExpenditure: 12_000,
+      annualCurrentExpenditure: 12_000,
+      financialIndependenceTarget: null,
+      emergencyFundAnalysis: null,
+      baselineCompensation: null,
+    });
+    const afterPayment = result.timeline.find(
+      ({ date }) => date === "2026-03-01",
+    );
+
+    expect(afterPayment?.scenario.totalBalance).toBe(
+      (afterPayment?.baseline.totalBalance ?? 0) + 4_000,
+    );
+  });
+
+  it("keeps path events isolated across multiple job offers", () => {
+    const input = AssetTrackerDataSchema.parse({
+      ...data(),
+      futureCashFlows: [
+        {
+          id: "offer-a-signing-bonus",
+          name: "Offer A signing bonus",
+          kind: "commitment",
+          status: "active",
+          changeability: "fixed",
+          refundable: false,
+          labels: [],
+          currency: "GBP",
+          stages: [
+            {
+              id: "offer-a-signing-bonus-stage",
+              direction: "receipt",
+              toAccountId: "current",
+              dueDate: "2026-03-15",
+              amount: 5_000,
+              actuals: [],
+            },
+          ],
+        },
+      ],
+      jobMoveScenarios: [
+        {
+          ...employedScenario(),
+          includedFutureCashFlowIds: ["offer-a-signing-bonus"],
+        },
+        { ...employedScenario(), id: "offer-b", name: "Offer B" },
+      ],
+    });
+    const repository = buildRepository(input);
+    const compare = (scenario: JobMoveScenario) =>
+      compareJobMoveScenario({
+        repository,
+        scenario,
+        horizonMonths: 12,
+        startDate: "2026-01-01",
+        annualExpenditure: 12_000,
+        annualCurrentExpenditure: 12_000,
+        financialIndependenceTarget: null,
+        emergencyFundAnalysis: null,
+        baselineCompensation: null,
+      });
+    const offerA = compare(repository.jobMoveScenarios[0] as JobMoveScenario);
+    const offerB = compare(repository.jobMoveScenarios[1] as JobMoveScenario);
+
+    expect(offerA.timeline.at(-1)?.scenario.totalBalance).toBeGreaterThan(
+      offerB.timeline.at(-1)?.scenario.totalBalance ?? Number.POSITIVE_INFINITY,
+    );
+    expect(offerA.timeline.at(-1)?.baseline.totalBalance).toBe(
+      offerB.timeline.at(-1)?.baseline.totalBalance,
+    );
+  });
+
+  it("distinguishes immediate re-employment, a long gap, and no later job", () => {
+    const immediate = comparison({
+      ...employedScenario(),
+      roleStartDate: "2026-02-01",
+    });
+    const longGap = comparison({
+      ...employedScenario(),
+      roleStartDate: "2026-11-01",
+    });
+    const noLaterJob = comparison({
+      ...employedScenario(),
+      employmentStatus: "unemployed",
+      roleStartDate: undefined,
+      employer: undefined,
+      baseGrossPay: 0,
+      variableGrossPay: 0,
+      employeePensionRate: 0,
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+      destinationAccountId: undefined,
+      pensionAccountId: undefined,
+    });
+
+    expect(immediate.timeline.at(-1)?.scenario.totalBalance).toBeGreaterThan(
+      longGap.timeline.at(-1)?.scenario.totalBalance ??
+        Number.POSITIVE_INFINITY,
+    );
+    expect(longGap.timeline.at(-1)?.scenario.totalBalance).toBeGreaterThan(
+      noLaterJob.timeline.at(-1)?.scenario.totalBalance ??
+        Number.POSITIVE_INFINITY,
+    );
   });
 
   it("starts the selected horizon when current income stops", () => {
