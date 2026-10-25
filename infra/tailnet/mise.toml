@@ -32,7 +32,7 @@ tflint --format compact
 
 [tasks."test:scripts"]
 description = "Test tailnet credential and apply guards"
-run = "bash scripts/doppler-terraform-env.test.sh && bash scripts/guarded-apply.test.sh"
+run = "bash scripts/doppler-terraform-env.test.sh && bash scripts/guarded-apply.test.sh && bash scripts/import-baseline.test.sh"
 
 [tasks.test]
 description = "Test tailnet operator scripts"
@@ -52,6 +52,11 @@ depends = ["init"]
 run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .planfile"
 outputs = [".planfile"]
 
+[tasks."plan:refresh-only"]
+description = "Refresh imported tailnet state without proposing changes"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -refresh-only -input=false"
+
 [tasks.import]
 description = "Import an existing tailnet resource with read-only API credentials"
 depends = ["init"]
@@ -64,6 +69,11 @@ if [[ $# -ne 2 ]]; then
 fi
 bash scripts/doppler-terraform-env.sh plan terraform import -input=false "$1" "$2"
 """
+
+[tasks."import:baseline"]
+description = "Import the current policy and complete DNS configuration"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan bash scripts/import-baseline.sh terraform"
 
 [tasks.apply]
 description = "Apply a reviewed tailnet Terraform plan behind an explicit guard"

@@ -1,5 +1,5 @@
 variable "user_logins" {
-  description = "Private Tailscale user logins keyed by policy role"
+  description = "Private Tailscale user logins keyed by operator or restricted policy role"
   type        = map(string)
   sensitive   = true
   default     = {}
@@ -13,10 +13,8 @@ variable "user_logins" {
   }
 }
 
-# The baseline ticket will consume this map when it adds DNS and policy values.
-# tflint-ignore: terraform_unused_declarations
 variable "private_addresses" {
-  description = "Private tailnet addresses keyed by their policy or DNS purpose"
+  description = "Private tailnet addresses keyed by lab_host or primary_dns purpose"
   type        = map(string)
   sensitive   = true
   default     = {}
