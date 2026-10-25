@@ -209,7 +209,10 @@ export function useShoppingCommandSync(
               record.listId === canonical.id &&
               record.resourceId === canonical.resourceId,
           )
-          .reduce(applyProjectedCommand, canonical.snapshot);
+          .reduce(
+            (snapshot, record) => applyProjectedCommand(snapshot, record),
+            canonical.snapshot,
+          );
         installShoppingListSnapshot(
           projected,
           canonical.id,
@@ -248,16 +251,16 @@ export function useShoppingCommandSync(
             record.resourceId === serverList.resourceId,
         )
       : failed;
+    const discardedCommandIds = new Set(
+      discarded.map(({ commandId }) => commandId),
+    );
     void Promise.all(
       discarded.map((record) =>
         removeShoppingCommand(record.actorUserId, record.commandId),
       ),
     ).then(() => {
       setCommands((current) =>
-        current.filter(
-          ({ commandId }) =>
-            !discarded.some((record) => record.commandId === commandId),
-        ),
+        current.filter(({ commandId }) => !discardedCommandIds.has(commandId)),
       );
       if (serverList) {
         installShoppingListSnapshot(

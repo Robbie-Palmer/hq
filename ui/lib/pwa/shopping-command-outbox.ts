@@ -99,7 +99,7 @@ async function withStore<T>(
   operation: (store: IDBObjectStore) => Promise<T>,
 ): Promise<T> {
   if (typeof indexedDB === "undefined") {
-    throw new Error("IndexedDB is unavailable");
+    throw new TypeError("IndexedDB is unavailable");
   }
   const database = await openDatabase();
   try {

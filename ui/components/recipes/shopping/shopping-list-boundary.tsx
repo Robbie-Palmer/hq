@@ -563,13 +563,10 @@ function ShoppingListSyncStatus({
         </p>
       ) : null}
       {commandSync.pending.length > 0 ? (
-        <p
-          role="status"
-          className="rt-body bg-[var(--butter-soft)] px-4 py-2 text-center"
-        >
+        <output className="rt-body block bg-[var(--butter-soft)] px-4 py-2 text-center">
           {commandSync.pending.length} offline shopping-list change
           {commandSync.pending.length === 1 ? " is" : "s are"} waiting to sync.
-        </p>
+        </output>
       ) : null}
       {commandSync.failed.length > 0 ? (
         <div

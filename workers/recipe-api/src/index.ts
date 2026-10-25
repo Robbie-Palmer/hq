@@ -2110,8 +2110,7 @@ function matchesShoppingCommandBase(
   input: z.infer<typeof shoppingListCommandBodySchema>,
 ): current is typeof schema.shoppingList.$inferSelect {
   return (
-    current !== undefined &&
-    current.id === input.listId &&
+    current?.id === input.listId &&
     current.revision === BigInt(input.baseRevision)
   );
 }
@@ -2142,7 +2141,7 @@ async function applyShoppingCommand(
           message: "The command ID was already used for another change",
         };
       }
-      if (!current || current.id !== receipt.listId) {
+      if (current?.id !== receipt.listId) {
         return {
           status: "conflict",
           message: "The shopping trip changed after this command was saved",
