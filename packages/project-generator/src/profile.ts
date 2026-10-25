@@ -32,7 +32,7 @@ const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const PROJECT_PROFILE_SCHEMA_VERSION = 1;
-export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 1;
+export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 2;
 
 const slugSchema = z.string().regex(LOWERCASE_KEBAB_CASE_PATTERN);
 const slotSchema = z.string().regex(SLOT_PATTERN);
@@ -219,6 +219,26 @@ const reconciliationPolicySchema = z.discriminatedUnion("mode", [
     .strict(),
 ]);
 
+const checkpointFulfillmentSchema = z
+  .object({
+    checkpoint: slugSchema,
+    status: z.enum(["pending", "verified"]),
+    evidence: z.array(z.string().min(1)).default([]),
+  })
+  .strict()
+  .superRefine((fulfillment, context) => {
+    if (
+      fulfillment.status === "verified" &&
+      fulfillment.evidence.length === 0
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "must contain at least one item when a checkpoint is verified",
+      });
+    }
+  });
+
 const unsupportedCapabilitiesSchema = z
   .record(z.string(), z.unknown())
   .superRefine((capabilities, context) => {
@@ -245,6 +265,7 @@ const projectProfileFieldsSchema = z
     layers: z.array(layerUseSchema).min(1),
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
+    checkpoint_fulfillment: z.array(checkpointFulfillmentSchema).default([]),
     reconciliation: reconciliationPolicySchema.default({ mode: "tracking" }),
     nix: nixProfileSchema,
     opentelemetry: otelProfileSchema,
@@ -276,6 +297,11 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
   addDuplicateIssues(
     profile.overrides.map(({ slot }) => slot),
     "override slots",
+    context,
+  );
+  addDuplicateIssues(
+    profile.checkpoint_fulfillment.map(({ checkpoint }) => checkpoint),
+    "checkpoint fulfillment records",
     context,
   );
 
@@ -356,8 +382,16 @@ export interface ResolvedProfilePolicy {
   readonly decision: string;
 }
 
+export interface ResolvedFulfillmentCheckpoint {
+  readonly id: string;
+  readonly action: string;
+  readonly fulfillment: "manual";
+  readonly status: "pending" | "verified";
+  readonly evidence: readonly string[];
+}
+
 export interface ResolvedProjectBlueprint {
-  readonly schema_version: 1;
+  readonly schema_version: 2;
   readonly profile_schema_version: 1;
   readonly effective_at: string;
   readonly project: {
@@ -401,7 +435,7 @@ export interface ResolvedProjectBlueprint {
   };
   readonly nix: Record<string, unknown>;
   readonly opentelemetry: Record<string, unknown>;
-  readonly manual_checkpoints: readonly string[];
+  readonly fulfillment_checkpoints: readonly ResolvedFulfillmentCheckpoint[];
 }
 
 function addDuplicateIssues(values: readonly string[], label: string, context: z.RefinementCtx): void {
@@ -547,7 +581,7 @@ interface SelectionResolutionState {
   readonly slotDefinitions: ReadonlyMap<string, SlotDefinition>;
   readonly resolvedValues: Map<string, Set<string>>;
   readonly resolved: ResolvedSelection[];
-  readonly checkpoints: Set<string>;
+  readonly checkpoints: Map<string, ResolvedFulfillmentCheckpoint>;
 }
 
 function activePolicies(
@@ -716,21 +750,73 @@ function addResolvedSelections(
   }
 }
 
+function addCheckpoint(
+  checkpoints: Map<string, ResolvedFulfillmentCheckpoint>,
+  input: {
+    readonly selectionId: string;
+    readonly kind: "configuration" | "state" | "operational-check" | "manual-setup";
+    readonly label: string;
+    readonly action: string;
+  },
+): void {
+  const label = normalizeSlug(
+    input.label.replaceAll(/[^a-zA-Z0-9]+/g, " "),
+  );
+  if (!label) {
+    throw new Error(
+      `Fulfillment checkpoint for '${input.selectionId}' needs an identifiable label`,
+    );
+  }
+  const id = `${input.selectionId}-${input.kind}-${label}`;
+  if (checkpoints.has(id)) {
+    throw new Error(`Duplicate fulfillment checkpoint '${id}'`);
+  }
+  checkpoints.set(id, {
+    id,
+    action: input.action,
+    fulfillment: "manual",
+    status: "pending",
+    evidence: [],
+  });
+}
+
 function addSelectionCheckpoints(
   selections: readonly PlatformSelection[],
-  checkpoints: Set<string>,
+  checkpoints: Map<string, ResolvedFulfillmentCheckpoint>,
 ): void {
   for (const selection of selections) {
     for (const requirement of selection.configuration_requirements) {
-      checkpoints.add(`Configure ${requirement.name} for ${selection.id}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "configuration",
+        label: requirement.name,
+        action: `Configure ${requirement.name} for ${selection.id}`,
+      });
     }
     for (const requirement of selection.state_requirements) {
-      checkpoints.add(`Provision ${requirement.name} for ${selection.id}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "state",
+        label: requirement.name,
+        action: `Provision ${requirement.name} for ${selection.id}`,
+      });
     }
     for (const check of selection.operational_checks) {
-      checkpoints.add(`Verify ${check.name}: ${check.reference}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "operational-check",
+        label: check.name,
+        action: `Verify ${check.name}: ${check.reference}`,
+      });
     }
-    for (const step of selection.manual_setup) checkpoints.add(step);
+    for (const step of selection.manual_setup) {
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "manual-setup",
+        label: step,
+        action: step,
+      });
+    }
   }
 }
 
@@ -754,7 +840,10 @@ function resolveSelections(
   profile: ProjectProfile,
   contracts: ProjectProfileContracts,
   effectiveAt: string,
-): { selections: ResolvedSelection[]; checkpoints: string[] } {
+): {
+  selections: ResolvedSelection[];
+  checkpoints: ResolvedFulfillmentCheckpoint[];
+} {
   const slotDefinitions = new Map(contracts.platform.slots.map((slot) => [slot.slug, slot]));
   const policies = activePolicies(profile, contracts, effectiveAt);
   validateOverrides(profile, policies, slotDefinitions);
@@ -767,7 +856,7 @@ function resolveSelections(
     slotDefinitions,
     resolvedValues: new Map(),
     resolved: [],
-    checkpoints: new Set(),
+    checkpoints: new Map(),
   };
   let pending = [...policies];
   while (pending.length) {
@@ -780,9 +869,31 @@ function resolveSelections(
     }
     pending = next;
   }
+  const fulfillment = new Map(
+    profile.checkpoint_fulfillment.map((record) => [record.checkpoint, record]),
+  );
+  for (const checkpoint of fulfillment.keys()) {
+    if (!state.checkpoints.has(checkpoint)) {
+      throw new Error(
+        `Checkpoint fulfillment references unknown current checkpoint '${checkpoint}'`,
+      );
+    }
+  }
+  const checkpoints = Array.from(state.checkpoints.values())
+    .map((checkpoint) => {
+      const record = fulfillment.get(checkpoint.id);
+      return record === undefined
+        ? checkpoint
+        : {
+            ...checkpoint,
+            status: record.status,
+            evidence: [...record.evidence].toSorted(compareStrings),
+          };
+    })
+    .toSorted((left, right) => compareStrings(left.id, right.id));
   return {
     selections: state.resolved.toSorted((left, right) => left.slot.localeCompare(right.slot, "en") || left.value.localeCompare(right.value, "en")),
-    checkpoints: Array.from(state.checkpoints).toSorted(compareStrings),
+    checkpoints,
   };
 }
 
@@ -885,7 +996,7 @@ export function resolveProjectProfile(
       cardinality: contracts.opentelemetry.cardinality,
       failure_mode: contracts.opentelemetry.processing.failure_mode,
     } : { enabled: false },
-    manual_checkpoints: checkpoints,
+    fulfillment_checkpoints: checkpoints,
   };
 }
 

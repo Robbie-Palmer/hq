@@ -303,6 +303,7 @@ describe("project profile contracts", () => {
     expect(parsed).toMatchObject({
       requirements: [],
       overrides: [],
+      checkpoint_fulfillment: [],
       reconciliation: { mode: "tracking" },
     });
   });
@@ -324,6 +325,13 @@ describe("project profile contracts", () => {
       { slot: "project.task-runner", kind: "technology", value: "mise", decision: "project:001-one" },
       { slot: "project.task-runner", kind: "technology", value: "other", decision: "project:002-two" },
     ] }, /duplicate override slots/],
+    [{ checkpoint_fulfillment: [
+      { checkpoint: "one", status: "pending" },
+      { checkpoint: "one", status: "pending" },
+    ] }, /duplicate checkpoint fulfillment records/],
+    [{ checkpoint_fulfillment: [
+      { checkpoint: "one", status: "verified" },
+    ] }, /must contain at least one item when a checkpoint is verified/],
     [{ reconciliation: { mode: "tracking", defer: { effective_at: "later", reason: "Wait." } } }, /effective_at/],
     [{ reconciliation: { mode: "frozen", frozen_at: effectiveAt } }, /reason/],
     [{ nix: { boundary: "none", packages: ["one"] } }, /no Nix boundary/],
@@ -389,12 +397,67 @@ describe("project profile resolution", () => {
       resource_attributes: { "me.robbiepalmer.project.id": "project:sample-app" },
       transport: { protocol: "http/protobuf", route: "direct" },
     });
-    expect(blueprint.manual_checkpoints).toEqual([
-      "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry",
-      "Confirm telemetry retention.",
-      "Provision Exporter queue for observability-opentelemetry",
-      "Verify OTel conformance: //:otel-check",
+    expect(blueprint.schema_version).toBe(2);
+    expect(blueprint.fulfillment_checkpoints).toEqual([
+      {
+        id: "observability-opentelemetry-configuration-otel-exporter-otlp-endpoint",
+        action:
+          "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-manual-setup-confirm-telemetry-retention",
+        action: "Confirm telemetry retention.",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-operational-check-otel-conformance",
+        action: "Verify OTel conformance: //:otel-check",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-state-exporter-queue",
+        action: "Provision Exporter queue for observability-opentelemetry",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
     ]);
+  });
+
+  it("records verified manual fulfillment only when evidence is supplied", () => {
+    const input = profile({
+      checkpoint_fulfillment: [
+        {
+          checkpoint:
+            "observability-opentelemetry-operational-check-otel-conformance",
+          status: "verified",
+          evidence: ["ci://runs/123"],
+        },
+      ],
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(
+      blueprint.fulfillment_checkpoints.find(
+        ({ id }) =>
+          id ===
+          "observability-opentelemetry-operational-check-otel-conformance",
+      ),
+    ).toEqual({
+      id: "observability-opentelemetry-operational-check-otel-conformance",
+      action: "Verify OTel conformance: //:otel-check",
+      fulfillment: "manual",
+      status: "verified",
+      evidence: ["ci://runs/123"],
+    });
   });
 
   it("serializes equivalent profiles byte-for-byte regardless of source ordering", () => {
@@ -561,6 +624,7 @@ describe("project profile resolution", () => {
     [profile({ requirements: [] }), contracts(), /undeclared operational prerequisite/],
     [profile({ overrides: [{ slot: "observability.telemetry-protocol", kind: "policy", value: "custom", decision: "sample-app:001-custom" }] }), contracts(), /kind does not match/],
     [profile({ overrides: [{ slot: "project.task-runner", kind: "technology", value: "mise", decision: "sample-app:001-custom" }], layers: [{ layer: "observability", slots: ["observability.telemetry-protocol"] }] }), contracts(), /not referenced by an active profile policy/],
+    [profile({ checkpoint_fulfillment: [{ checkpoint: "unknown-checkpoint", status: "pending" }] }), contracts(), /unknown current checkpoint/],
   ])("rejects profiles that contradict current contracts", (input, currentContracts, expected) => {
     expect(() => resolveProjectProfile(input, currentContracts, effectiveAt)).toThrow(expected);
   });

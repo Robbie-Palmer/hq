@@ -1,6 +1,6 @@
 schema_version: 1
-effective_at: "2026-10-23T00:00:00Z"
-reconciliation_target: "2026-10-23T08:00:00Z"
+effective_at: "2026-10-25T00:00:00Z"
+reconciliation_target: "2026-10-25T12:40:00Z"
 
 template:
   id: "monorepo-project"
@@ -132,15 +132,30 @@ projects:
     adoption_state: "tracking"
     profile: "ui/content/projects/personal-finance-app/project-profile.yaml"
     receipt: ".copier/projects/personal-finance-app.yml"
-    layers: ["governance", "base", "infrastructure"]
-    capabilities: ["secrets.runtime-store", "secrets.ci-store", "infrastructure.provisioner", "infrastructure.state-backend"]
+    layers: ["governance", "base", "typescript", "web-app", "backend-api", "database", "infrastructure", "observability", "storage"]
+    capabilities:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "web-app.host"
+      - "backend-api.runtime"
+      - "backend-api.relational-connection"
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+      - "observability.telemetry-protocol"
+      - "observability.application-telemetry"
+      - "storage.object-store"
     deliberate_overrides: []
     reconciliation:
-      policy_changes: 0
-      default_changes: 0
+      policy_changes: 23
+      default_changes: 24
       preserved_overrides: 0
-      automatic_edits: ["receipt effective_at"]
-    applied_changes: ["existing receipt and catalog registration from reviewed adoption"]
+      automatic_edits: ["receipt effective_at", "resolved selections", "OpenTelemetry contract", "fulfillment checkpoints"]
+    applied_changes: ["profile", "receipt", "platform adoption records"]
     evidence:
       - "https://github.com/Robbie-Palmer/hq/pull/1875"
       - "semantic reconciliation passed"
