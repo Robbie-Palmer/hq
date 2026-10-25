@@ -100,6 +100,10 @@ reviewer, and disables administrator bypass.
 The account-foundation apply creates the empty config and environment. A human
 then installs the first masked token and runs the dedicated credential-sync
 task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).
+The config has a declarative import because Doppler's provider can create the
+config and then return a paid-inheritance error on workplaces without config
+inheritance. The import records that created config on the next apply without
+reading its secret values.
 
 Resource keys use the same names as provider import IDs, but some separators
 are different. Use the first column as the Terraform import target and the
