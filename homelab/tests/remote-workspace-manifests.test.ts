@@ -2578,7 +2578,7 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     ),
   );
   assert.ok(healthCheck.includes('work-graph prime >/dev/null'));
-  assert.ok(healthCheck.includes('work-graph ready --json >/dev/null'));
+  assert.ok(healthCheck.includes('work-graph ready >/dev/null'));
   assert.match(
     healthCheck,
     /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
