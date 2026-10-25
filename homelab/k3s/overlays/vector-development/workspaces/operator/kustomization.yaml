@@ -15,6 +15,7 @@ configMapGenerator:
   - name: vector-doppler-wrapper
     files:
       - doppler=doppler-wrapper.sh
+      - work-graph=work-graph-wrapper.sh
 patches:
   - path: namespace-patch.yaml
   - path: deployment-patch.yaml
