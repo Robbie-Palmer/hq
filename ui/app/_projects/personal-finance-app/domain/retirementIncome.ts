@@ -275,12 +275,12 @@ function projectStream(input: {
     ),
   );
   const grossAmount = stream.amountBasis === "gross" ? amount : null;
-  const taxAmount =
-    stream.taxTreatment.kind === "fixed-rate"
-      ? roundMoney(amount * stream.taxTreatment.rate)
-      : stream.amountBasis === "gross"
-        ? 0
-        : null;
+  let taxAmount: number | null = null;
+  if (stream.taxTreatment.kind === "fixed-rate") {
+    taxAmount = roundMoney(amount * stream.taxTreatment.rate);
+  } else if (stream.amountBasis === "gross") {
+    taxAmount = 0;
+  }
   return {
     stream: {
       streamId: stream.id,
