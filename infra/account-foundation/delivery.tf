@@ -55,6 +55,11 @@ locals {
           name        = "homelab"
           description = "Secrets and configuration for the private homelab"
         }
+        create_configs = [
+          "prd_tailnet_values",
+          "prd_tailnet_values_infra",
+          "prd_tailnet_values_infra_plan",
+        ]
         environments = {
           dev = {
             name             = "Development"
@@ -79,6 +84,9 @@ locals {
               "prd_remote_development_host",
               "prd_remote_development_infra",
               "prd_remote_development_observability",
+              "prd_tailnet_values",
+              "prd_tailnet_values_infra",
+              "prd_tailnet_values_infra_plan",
               "prd_vector_development",
             ]
           }
@@ -93,6 +101,24 @@ locals {
           }
           remote-development-plan = {
             name = "production-remote-development-infra-plan"
+          }
+          tailnet-apply = {
+            name                 = "production-tailnet-infra"
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-drift = {
+            name                 = "production-tailnet-infra-drift"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-plan = {
+            name               = "production-tailnet-infra-plan"
+            reviewer_usernames = ["Robbie-Palmer"]
+            imported           = false
           }
         }
       }
@@ -403,7 +429,11 @@ locals {
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config_name
-          imported    = root.imported && var.enable_existing_imports
+          imported = (
+            root.imported &&
+            var.enable_existing_imports &&
+            !contains(try(root.doppler.create_configs, []), config_name)
+          )
         }
       }
     ]
@@ -416,7 +446,7 @@ locals {
         root_id    = root_id
         purpose    = purpose
         repository = root.github.repository
-        imported   = root.imported && var.enable_existing_imports
+        imported   = try(environment.imported, root.imported) && var.enable_existing_imports
       })
     }
   ]...)

@@ -102,6 +102,58 @@ run "cloudflare_access_delivery_boundaries" {
   }
 }
 
+run "homelab_tailnet_delivery_boundaries" {
+  command = plan
+
+  assert {
+    condition = toset([
+      for config in values(doppler_config.managed) :
+      "${config.project}/${config.environment}/${config.name}"
+      if startswith(config.name, "prd_tailnet")
+      ]) == toset([
+      "homelab/prd/prd_tailnet_values",
+      "homelab/prd/prd_tailnet_values_infra",
+      "homelab/prd/prd_tailnet_values_infra_plan",
+    ])
+    error_message = "Tailnet delivery must declare the shared values, read-only plan, and write apply Doppler configs."
+  }
+
+  assert {
+    condition = length([
+      for environment in values(github_repository_environment.managed) : environment
+      if startswith(environment.environment, "production-tailnet-infra")
+    ]) == 3
+    error_message = "Tailnet delivery must have plan, drift, and apply GitHub environments."
+  }
+
+  assert {
+    condition     = github_repository_environment.managed["hq/production-tailnet-infra-plan"].reviewers[0].users == toset([8760191])
+    error_message = "The tailnet plan environment must require the declared reviewer."
+  }
+
+  assert {
+    condition     = github_repository_environment.managed["hq/production-tailnet-infra"].reviewers[0].users == toset([8760191])
+    error_message = "The tailnet apply environment must require the declared reviewer."
+  }
+
+  assert {
+    condition     = length(github_repository_environment.managed["hq/production-tailnet-infra-drift"].reviewers) == 0
+    error_message = "The tailnet drift environment must run without a reviewer gate."
+  }
+
+  assert {
+    condition = toset([
+      for policy in values(github_repository_environment_deployment_policy.managed) :
+      "${policy.environment}/${policy.branch_pattern}"
+      if startswith(policy.environment, "production-tailnet-infra")
+      ]) == toset([
+      "production-tailnet-infra-drift/main",
+      "production-tailnet-infra/main",
+    ])
+    error_message = "Tailnet drift and apply must be restricted to main."
+  }
+}
+
 run "personal_finance_delivery_boundaries" {
   command = plan
 
