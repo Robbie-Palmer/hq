@@ -54,7 +54,7 @@ const renderedOverlays = new Map<string, string>();
 
 test("Serve health accepts the private Netdata route and rejects unexpected routes", () => {
   const healthCheck = readFileSync(
-    new URL("../scripts/remote-development-health", import.meta.url),
+    new URL("../scripts/remote-development-health.sh", import.meta.url),
     "utf8",
   );
   const filter = healthCheck.match(
@@ -156,7 +156,7 @@ test("the agent coordinator enforces the pilot budget and skips documentation", 
   const memoryPressurePath = join(temporaryDirectory, "memory.pressure");
   const ioPressurePath = join(temporaryDirectory, "io.pressure");
   const coordinator = fileURLToPath(
-    new URL("../scripts/work-graph-agent-coordinator", import.meta.url),
+    new URL("../scripts/work-graph-agent-coordinator.sh", import.meta.url),
   );
   const tickets = Array.from({ length: 12 }, (_, index) => ({
     id: `ticket-${String(index + 1).padStart(2, "0")}`,
@@ -804,7 +804,7 @@ printf '%s\\n' \\
       [
         fileURLToPath(
           new URL(
-            "../scripts/remote-development-observability-metrics",
+            "../scripts/remote-development-observability-metrics.sh",
             import.meta.url,
           ),
         ),
@@ -907,7 +907,7 @@ printf '%s\\n' \\
       [
         fileURLToPath(
           new URL(
-            "../scripts/remote-development-observability-metrics",
+            "../scripts/remote-development-observability-metrics.sh",
             import.meta.url,
           ),
         ),
@@ -1050,7 +1050,7 @@ fi
       [
         fileURLToPath(
           new URL(
-            "../scripts/reconcile-remote-development-healthchecks",
+            "../scripts/reconcile-remote-development-healthchecks.sh",
             import.meta.url,
           ),
         ),
@@ -1240,7 +1240,7 @@ spec:
 
 test("the Doppler validation catalog matches the installed operator version", () => {
   const installer = readFileSync(
-    new URL("../scripts/install-doppler-operator", import.meta.url),
+    new URL("../scripts/install-doppler-operator.sh", import.meta.url),
     "utf8",
   );
   const validationConfig = readFileSync(
@@ -1958,7 +1958,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
   const agentCoordinatorRunner = readFileSync(
     new URL(
-      "../scripts/run-work-graph-agent-coordinator",
+      "../scripts/run-work-graph-agent-coordinator.sh",
       import.meta.url,
     ),
     "utf8",
@@ -2087,14 +2087,14 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('test -s "$target/server/db/state.db"'));
 
   const volumePreparation = readFileSync(
-    new URL("../scripts/prepare-remote-development-volume", import.meta.url),
+    new URL("../scripts/prepare-remote-development-volume.sh", import.meta.url),
     "utf8",
   );
   assert.ok(volumePreparation.includes("-O project,quota"));
   assert.ok(volumePreparation.includes("-E quotatype=prjquota"));
 
   const healthCheck = readFileSync(
-    new URL("../scripts/remote-development-health", import.meta.url),
+    new URL("../scripts/remote-development-health.sh", import.meta.url),
     "utf8",
   );
   assert.ok(healthCheck.includes("check_project_quota t3-code-operator"));
@@ -2138,7 +2138,7 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   );
 
   const dopplerInstaller = readFileSync(
-    new URL("../scripts/install-doppler-operator", import.meta.url),
+    new URL("../scripts/install-doppler-operator.sh", import.meta.url),
     "utf8",
   );
   assert.ok(

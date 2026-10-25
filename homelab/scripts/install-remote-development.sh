@@ -11,7 +11,7 @@ homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 secret_dir=$(mktemp -d)
 secret_file="${secret_dir}/var/lib/remote-development-secrets/data-volume.key"
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 cleanup() {

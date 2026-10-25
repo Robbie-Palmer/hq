@@ -26,7 +26,7 @@
 
 - name: Install the T3 worktree cleanup script
   ansible.builtin.copy:
-    src: t3-worktree-cleanup
+    src: t3-worktree-cleanup.sh
     dest: "{{ t3_worktree_cleanup_script_path }}"
     mode: "0700"
     validate: /bin/bash -n %s

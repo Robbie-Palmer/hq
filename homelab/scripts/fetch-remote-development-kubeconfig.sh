@@ -9,7 +9,7 @@ kube_dir="${homelab_dir}/.kube"
 kubeconfig="${kube_dir}/remote-development.yaml"
 temporary=$(mktemp)
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 cleanup() {

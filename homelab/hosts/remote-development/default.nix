@@ -42,19 +42,19 @@ let
     KEEP_LAST=${toString workspaceBackupInventory.retention.minimumSnapshots}
   '';
   workspaceBackup = pkgs.writeShellScriptBin "remote-development-workspace-backup" (
-    builtins.readFile ../../scripts/remote-development-workspace-backup
+    builtins.readFile ../../scripts/remote-development-workspace-backup.sh
   );
   workspaceBackupStatus = pkgs.writeShellScriptBin "remote-development-workspace-backup-status" (
-    builtins.readFile ../../scripts/remote-development-workspace-backup-status
+    builtins.readFile ../../scripts/remote-development-workspace-backup-status.sh
   );
   workspaceStateExport = pkgs.writeShellScriptBin "remote-development-workspace-state-export" (
-    builtins.readFile ../../scripts/remote-development-workspace-state-export
+    builtins.readFile ../../scripts/remote-development-workspace-state-export.sh
   );
   workspaceRestore = pkgs.writeShellScriptBin "remote-development-workspace-restore" (
-    builtins.readFile ../../scripts/remote-development-workspace-restore
+    builtins.readFile ../../scripts/remote-development-workspace-restore.sh
   );
   workspaceExport = pkgs.writeShellScriptBin "remote-development-workspace-export" (
-    builtins.readFile ../../scripts/remote-development-workspace-export
+    builtins.readFile ../../scripts/remote-development-workspace-export.sh
   );
   observabilityMetricsConfig = pkgs.writeText "remote-development-observability-metrics.env" ''
     WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
@@ -72,13 +72,13 @@ let
     AGENT_COORDINATOR_HEALTH_FILE=${operatorDataPath}/home/.t3/work-graph-coordinator/health.json
   '';
   observabilityMetrics = pkgs.writeShellScriptBin "remote-development-observability-metrics" (
-    builtins.readFile ../../scripts/remote-development-observability-metrics
+    builtins.readFile ../../scripts/remote-development-observability-metrics.sh
   );
   agentCoordinator = pkgs.writeText "work-graph-agent-coordinator" (
-    builtins.readFile ../../scripts/work-graph-agent-coordinator
+    builtins.readFile ../../scripts/work-graph-agent-coordinator.sh
   );
   agentCoordinatorRunner = pkgs.writeShellScriptBin "run-work-graph-agent-coordinator" (
-    builtins.readFile ../../scripts/run-work-graph-agent-coordinator
+    builtins.readFile ../../scripts/run-work-graph-agent-coordinator.sh
   );
   netdataLibbpf = pkgs.fetchFromGitHub {
     owner = "netdata";

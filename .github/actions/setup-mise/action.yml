@@ -8,11 +8,11 @@ runs:
       id: version
       shell: bash
       env:
-        MISE_VERSION_FILE: ${{ github.action_path }}/mise-version
+        MISE_VERSION_FILE: ${{ github.action_path }}/mise-version.txt
       run: |
         version="$(<"$MISE_VERSION_FILE")"
         if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
-          echo "::error::mise-version must contain one mise version"
+          echo "::error::mise-version.txt must contain one mise version"
           exit 1
         fi
         printf 'value=%s\n' "$version" >> "$GITHUB_OUTPUT"

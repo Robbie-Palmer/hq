@@ -1,6 +1,6 @@
 [tasks.init]
 description = "Initialize Work Graph Terraform"
-run = "bash scripts/doppler-terraform-env terraform init"
+run = "bash scripts/doppler-terraform-env.sh terraform init"
 sources = ["*.tf"]
 outputs = [".terraform/**/*"]
 
@@ -27,7 +27,7 @@ run = "bash scripts/validate.sh"
 [tasks.plan]
 description = "Plan Work Graph infrastructure"
 depends = ["//infra/work-graph:init"]
-run = "bash scripts/doppler-terraform-env terraform plan -out .planfile"
+run = "bash scripts/doppler-terraform-env.sh terraform plan -out .planfile"
 outputs = [".planfile"]
 
 [tasks.apply]
@@ -36,21 +36,21 @@ depends = ["//infra/work-graph:init"]
 run = """
 #!/usr/bin/env bash
 set -euo pipefail
-bash scripts/doppler-terraform-env terraform apply .planfile
-bash scripts/doppler-terraform-env bash scripts/check-state-for-credentials.sh
+bash scripts/doppler-terraform-env.sh terraform apply .planfile
+bash scripts/doppler-terraform-env.sh bash scripts/check-state-for-credentials.sh
 """
 
 [tasks."state:check"]
 description = "Assert that Work Graph Terraform state contains no credentials"
 depends = ["//infra/work-graph:init"]
-run = "bash scripts/doppler-terraform-env bash scripts/check-state-for-credentials.sh"
+run = "bash scripts/doppler-terraform-env.sh bash scripts/check-state-for-credentials.sh"
 
 [tasks."access:rotate"]
 description = "Rotate the Work Graph Access secret into Doppler with overlap"
 run = """
 DOPPLER_AGENT_CONFIG=prd_work_graph \
 CF_ACCESS_SERVICE_TOKEN_NAME=work-graph-agents \
-bash scripts/doppler-terraform-env bash ../../scripts/rotate-preview-access-token.sh
+bash scripts/doppler-terraform-env.sh bash ../../scripts/rotate-preview-access-token.sh
 """
 
 [tasks.check]

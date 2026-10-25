@@ -7,7 +7,7 @@ nix_image="nixos/nix@sha256:c7cc6c8cb5d81bed19997247629604708fda95c99c43ac362daa
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 homelab_dir=$(cd -- "${script_dir}/.." && pwd)
 
-source "${script_dir}/remote-development-ssh"
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 if [ ! -r "${identity_file}" ]; then
@@ -34,5 +34,5 @@ docker run --rm \
 if [ "${REMOTE_DEVELOPMENT_SKIP_HEALTH:-0}" = 1 ]; then
   echo "skipped post-rebuild health check during commissioning"
 else
-  "${script_dir}/remote-development-health"
+  "${script_dir}/remote-development-health.sh"
 fi

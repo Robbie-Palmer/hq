@@ -91,7 +91,7 @@ remote node with `mise run //homelab:t3-image-load-remote`.
 To update the coding-agent CLIs, change `package.json` and refresh its lockfile.
 Doppler is pinned in this directory's `mise.toml`; Vale is shared with the
 repository through `.config/mise/config.toml`. The monorepo-wide mise bootstrap
-version remains in `.github/actions/setup-mise/mise-version`; the image check
+version remains in `.github/actions/setup-mise/mise-version.txt`; the image check
 requires both the Dockerfile's tagged bootstrap image and this directory's
 release-artifact pin to match it. Refresh the corresponding `mise.lock`,
 increment the release suffix in the image tasks and manifests, then build and

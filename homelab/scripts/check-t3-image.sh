@@ -3,7 +3,7 @@ set -euo pipefail
 
 image=ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version")"
+mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version.txt")"
 package_json="${script_dir}/../images/t3-code/package.json"
 image_directory="${script_dir}/../images/t3-code"
 dockerfile="${image_directory}/Dockerfile"

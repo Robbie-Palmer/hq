@@ -7,7 +7,7 @@ expected_location=${3:?expected homelab.dev/location value is required}
 mode=${4:-dry-run}
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 
-"${script_dir}/require-kube-context" "${expected_context}" "${expected_location}"
+"${script_dir}/require-kube-context.sh" "${expected_context}" "${expected_location}"
 
 case "${mode}" in
   dry-run)

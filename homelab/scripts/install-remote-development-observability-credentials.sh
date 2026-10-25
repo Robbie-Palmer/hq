@@ -13,8 +13,8 @@ for command in doppler ssh; do
   fi
 done
 
-# shellcheck source=remote-development-ssh
-source "${script_dir}/remote-development-ssh"
+# shellcheck source=remote-development-ssh.sh
+source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 temporary_directory=$(mktemp -d)
