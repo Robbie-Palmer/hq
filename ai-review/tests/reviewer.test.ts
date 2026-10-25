@@ -57,7 +57,10 @@ test("ignore patterns match paths and basenames", () => {
   assert.equal(ignored(".env.production"), true);
   assert.equal(ignored("ui/components/card.tsx"), false);
   assert.equal(ignored("workers/recipe-api/src/db/schema.ts"), false);
-  assert.equal(ignored("workers/recipe-api/drizzle/0015_agent_mutation_ledger.sql"), false);
+  assert.equal(
+    ignored("workers/recipe-api/drizzle/0015_add_agent_mutation_ledger.sql"),
+    false,
+  );
   assert.equal(ignored(".vale/styles/proselint/Passive.yml"), true);
   assert.equal(ignored(".vale/styles/write-good/E-Prime.yml"), true);
   assert.equal(ignored(".vale/styles/Unslop/AIVocabulary.yml"), false);

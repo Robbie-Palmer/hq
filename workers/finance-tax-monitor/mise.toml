@@ -27,6 +27,11 @@ description = "Generate finance tax monitor PostgreSQL migrations"
 depends = ["install"]
 run = "pnpm db:generate"
 
+[tasks."db:check"]
+description = "Validate finance tax monitor migration names, history, and schema snapshot"
+depends = ["install"]
+run = "pnpm db:check"
+
 [tasks."deploy:check"]
 description = "Build the finance tax monitor without uploading it"
 depends = ["install"]
@@ -34,4 +39,4 @@ run = "pnpm deploy:check"
 
 [tasks.check]
 description = "Check the finance tax monitor Workflow"
-depends = ["typecheck", "test", "test:integration", "deploy:check"]
+depends = ["typecheck", "test", "test:integration", "db:check", "deploy:check"]

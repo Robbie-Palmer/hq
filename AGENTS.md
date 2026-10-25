@@ -20,6 +20,11 @@ repository's `.mise.toml` before the agent starts, so mise tasks work in each ge
 After changing frontend code, run `mise //ui:lint`. The `@shadcn/lint` policy lives in
 `ui/.oxlintrc.json`; keep recipe-specific color and class guidance scoped to the recipe overrides.
 
+Drizzle migration names must state an action and a specific subject in lowercase snake_case. Generate
+them through the owning mise task and pass the name as its first argument, for example
+`mise //workers/recipe-api:db:generate -- add_recipe_notes`. The task rejects omitted, random, and
+vague names. Do not invoke `drizzle-kit generate` directly.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.

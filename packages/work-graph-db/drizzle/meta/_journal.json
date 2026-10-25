@@ -6,35 +6,35 @@
       "idx": 0,
       "version": "7",
       "when": 1789373963860,
-      "tag": "0000_initial_work_graph",
+      "tag": "0000_create_initial_work_graph",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
       "when": 1789391224129,
-      "tag": "0001_work_item_leases",
+      "tag": "0001_add_work_item_leases",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
       "when": 1789419803810,
-      "tag": "0002_idempotency_keys",
+      "tag": "0002_add_idempotency_keys",
       "breakpoints": true
     },
     {
       "idx": 3,
       "version": "7",
       "when": 1789421647370,
-      "tag": "0003_notes_and_attention",
+      "tag": "0003_add_notes_and_attention_requests",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
       "when": 1789451649008,
-      "tag": "0004_lease_work_item_provenance",
+      "tag": "0004_enforce_lease_work_item_provenance",
       "breakpoints": true
     },
     {
@@ -48,84 +48,84 @@
       "idx": 6,
       "version": "7",
       "when": 1789538626778,
-      "tag": "0006_knowledge_scopes",
+      "tag": "0006_add_knowledge_scopes",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "7",
       "when": 1789560127273,
-      "tag": "0007_immutable_events",
+      "tag": "0007_add_immutable_events",
       "breakpoints": true
     },
     {
       "idx": 8,
       "version": "7",
       "when": 1789578352323,
-      "tag": "0008_immutable_post_release_notes",
+      "tag": "0008_make_notes_immutable_and_self_attributed",
       "breakpoints": true
     },
     {
       "idx": 9,
       "version": "7",
       "when": 1789585176431,
-      "tag": "0009_work_item_priority",
+      "tag": "0009_add_work_item_priority",
       "breakpoints": true
     },
     {
       "idx": 10,
       "version": "7",
       "when": 1789738710661,
-      "tag": "0010_contextual_priority_ordering",
+      "tag": "0010_add_contextual_priority_ordering",
       "breakpoints": true
     },
     {
       "idx": 11,
       "version": "7",
       "when": 1789900478925,
-      "tag": "0011_work_item_context",
+      "tag": "0011_add_work_item_context",
       "breakpoints": true
     },
     {
       "idx": 12,
       "version": "7",
       "when": 1789909161482,
-      "tag": "0012_pull_request_tracking",
+      "tag": "0012_add_pull_request_tracking",
       "breakpoints": true
     },
     {
       "idx": 13,
       "version": "7",
       "when": 1790240802776,
-      "tag": "0013_knowledge_scope_lifecycle",
+      "tag": "0013_add_knowledge_scope_lifecycle",
       "breakpoints": true
     },
     {
       "idx": 14,
       "version": "7",
       "when": 1790374487047,
-      "tag": "0014_database_request_timeouts",
+      "tag": "0014_set_database_request_timeouts",
       "breakpoints": true
     },
     {
       "idx": 15,
       "version": "7",
       "when": 1790421850377,
-      "tag": "0015_delivery_evidence_and_completion_candidacy",
+      "tag": "0015_add_delivery_evidence_and_completion_candidacy",
       "breakpoints": true
     },
     {
       "idx": 16,
       "version": "7",
       "when": 1791536948545,
-      "tag": "0016_github_delivery_processing",
+      "tag": "0016_add_github_delivery_processing",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
       "when": 1792330134967,
-      "tag": "0017_policy_driven_automatic_release",
+      "tag": "0017_enable_policy_driven_automatic_release",
       "breakpoints": true
     }
   ]
