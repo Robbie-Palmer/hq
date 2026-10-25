@@ -96,7 +96,7 @@ describe("readiness dashboard", () => {
     fireEvent.change(screen.getByLabelText("Milestone due date"), {
       target: { value: "2027-05-01" },
     });
-    fireEvent.change(screen.getByLabelText("Asset Tracker planning case ID"), {
+    fireEvent.change(screen.getByLabelText("Planning case ID"), {
       target: { value: " wedding-case " },
     });
     fireEvent.change(screen.getByLabelText("Required guest fields"), {
@@ -126,6 +126,28 @@ describe("readiness dashboard", () => {
       "venue",
     );
     expect(readiness?.milestones).toHaveLength(2);
+  });
+
+  it("describes the same-browser Asset Tracker data boundary", async () => {
+    render(
+      <ReadinessDashboard
+        state={toEditorState(createSampleWeddingPlan())}
+        onUpdate={vi.fn()}
+        onNavigate={vi.fn()}
+        loadOperations={vi.fn().mockResolvedValue(null)}
+      />,
+    );
+
+    expect(
+      await screen.findByText("No saved wedding costs found"),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/saved by Asset Tracker in this browser/),
+    ).toBeVisible();
+    expect(screen.getByText(/does not sync accounts/)).toBeVisible();
+    expect(
+      screen.queryByText("Connect the wedding planning case"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows an all-clear state when a milestone has no enabled checks", async () => {

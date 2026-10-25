@@ -132,10 +132,11 @@ function FinanceSummary({
     return (
       <Card className="readiness-connect-card">
         <CardHeader>
-          <CardTitle>Connect the wedding planning case</CardTitle>
+          <CardTitle>No saved wedding costs found</CardTitle>
           <CardDescription>
-            Add the planning case ID below to read its checklist and costs from
-            Asset Tracker. The wedding plan does not copy monetary data.
+            This dashboard can read a wedding planning case saved by Asset
+            Tracker in this browser. It does not sync accounts or copy monetary
+            data into the wedding plan.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -302,11 +303,11 @@ function MilestoneRequirementFields({
   return (
     <>
       <label htmlFor="readiness-planning-case">
-        <span>Asset Tracker planning case ID</span>
+        <span>Planning case ID</span>
         <Input
           id="readiness-planning-case"
-          aria-label="Asset Tracker planning case ID"
-          placeholder="Auto-detect a wedding case"
+          aria-label="Planning case ID"
+          placeholder="Auto-detect a saved wedding case"
           value={preferences.planning_case_id ?? ""}
           onChange={(event) =>
             onUpdate((draft) => {
@@ -501,7 +502,7 @@ function useOperations(
         setOperationsError(
           cause instanceof Error
             ? cause.message
-            : "Could not read Asset Tracker",
+            : "Could not read saved Asset Tracker data",
         );
       });
     return () => {
