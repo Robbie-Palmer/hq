@@ -275,8 +275,13 @@ decision, source ticket, and inheritance depth.
 `show` returns the work-item projection, current delivery evidence, and the
 latest completion-candidate evaluation. The evaluation includes the policy ID
 and revision used to produce it. A null `completionCandidate` means no
-evaluation has been recorded. Evidence history remains available through the
-REST collection.
+evaluation has been recorded. The CLI caches released and cancelled ticket
+details under `WORK_GRAPH_CACHE_DIR`, `$XDG_CACHE_HOME/work-graph`, or
+`$HOME/.cache/work-graph`, in that order. Open tickets always use the API. Run
+`show <ticket> --refresh` when an audit needs delivery evidence that arrived
+after the terminal transition. Set `WORK_GRAPH_CACHE_DIR` to an empty value to
+disable the cache. Evidence history remains available through the REST
+collection.
 
 `completion-policy put` creates an immutable policy revision.
 `completion-policy assign` assigns a revision to a ticket and immediately
