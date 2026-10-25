@@ -2,7 +2,7 @@
 
 This Terraform root owns the Tailscale policy file and global DNS settings for
 the `hq-tailnet` workspace. The initial root defines the provider, private input
-boundary, and policy structure. It does not import or change the live tailnet.
+boundary, and policy structure.
 
 ## Ownership
 
@@ -59,5 +59,5 @@ TAILNET_APPLY_CONFIRM='apply hq-tailnet' mise run //infra/tailnet:apply
 `validate`, TFLint, and the script tests need no tailnet credentials. `plan`
 writes the ignored `.planfile`. `apply` requires that saved file and the exact
 confirmation value shown above. Never apply this bootstrap alone. Wait for the
-baseline ticket to add the imported resource and produce a reviewed no-change
+baseline change to add the imported resource and produce a reviewed no-change
 plan.
