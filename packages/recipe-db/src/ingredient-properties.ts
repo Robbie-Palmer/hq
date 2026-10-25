@@ -82,8 +82,7 @@ function assertObservationMatches(
   sourceReleaseId: string,
 ): void {
   if (
-    !actual ||
-    actual.sourceReleaseId !== sourceReleaseId ||
+    actual?.sourceReleaseId !== sourceReleaseId ||
     actual.sourceRecordId !== expected.sourceRecordId ||
     actual.ingredientSlug !== expected.ingredientSlug ||
     actual.preparationState !== expected.preparationState ||
