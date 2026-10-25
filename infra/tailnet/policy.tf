@@ -1,6 +1,5 @@
 locals {
-  operator_group   = "group:operator"
-  restricted_group = "group:restricted"
+  operator_group = "group:operator"
 
   development_tags = [
     "tag:remote-development",
@@ -9,8 +8,7 @@ locals {
 
   tailnet_policy = {
     groups = {
-      (local.operator_group)   = [var.user_logins["operator"]]
-      (local.restricted_group) = [var.user_logins["restricted"]]
+      (local.operator_group) = [var.user_logins["operator"]]
     }
 
     hosts = {
@@ -79,35 +77,33 @@ locals {
           "lab-dns:53",
           "lab-host:3001",
         ]
-        deny = ["192.0.2.1:443"]
       },
       {
-        src = local.restricted_group
+        src = "lab-host"
         accept = [
           "lab-dns:53",
           "lab-host:3001",
         ]
-        deny = ["192.0.2.1:443"]
       },
     ]
 
     sshTests = [
       {
-        src    = local.operator_group
-        dst    = ["autogroup:self"]
+        src    = var.user_logins["operator"]
+        dst    = [var.user_logins["operator"]]
         accept = ["pi", "robbie"]
         check  = ["root"]
         deny   = ["ubuntu"]
       },
       {
-        src   = local.operator_group
+        src   = var.user_logins["operator"]
         dst   = local.development_tags
         check = ["root"]
         deny  = ["pi", "robbie"]
       },
       {
-        src  = local.restricted_group
-        dst  = local.development_tags
+        src  = "tag:remote-development"
+        dst  = ["tag:vector-development"]
         deny = ["pi", "robbie", "root"]
       },
     ]

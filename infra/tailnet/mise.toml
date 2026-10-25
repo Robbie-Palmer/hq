@@ -48,9 +48,14 @@ depends = ["validate"]
 
 [tasks.plan]
 description = "Plan tailnet policy with read-only credentials"
-depends = ["init"]
+depends = ["validate:policy"]
 run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .planfile"
 outputs = [".planfile"]
+
+[tasks."validate:policy"]
+description = "Validate the rendered policy and its tests with the Tailscale API"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan bash scripts/validate-policy.sh"
 
 [tasks."plan:refresh-only"]
 description = "Refresh imported tailnet state without proposing changes"
