@@ -632,6 +632,92 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     expect(getShoppingListSnapshot().checked).toEqual(["garlic"]);
   });
 
+  it("does not replace a newer list with an older command receipt", async () => {
+    const newerList = {
+      ...storedList,
+      revision: "2",
+      snapshot: {
+        ...emptySnapshot,
+        checked: ["garlic"],
+        extras: [{ id: "extra-bread", text: "Bread", checked: false }],
+      },
+    };
+    const recordedResult = {
+      ...storedList,
+      revision: "1",
+      snapshot: { ...emptySnapshot, checked: ["garlic"] },
+    };
+    mocks.listShoppingCommands.mockResolvedValue([queuedCommand]);
+    mocks.getCurrentShoppingList.mockResolvedValue(newerList);
+    mocks.applyShoppingListCommand.mockResolvedValue(recordedResult);
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List restored</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List restored")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.removeShoppingCommand).toHaveBeenCalledWith(
+        "user-1",
+        queuedCommand.commandId,
+      ),
+    );
+    expect(getShoppingListSnapshot()).toMatchObject({
+      checked: ["garlic"],
+      extras: [{ id: "extra-bread", text: "Bread", checked: false }],
+    });
+  });
+
+  it("preserves a local extra while replaying an offline checklist command", async () => {
+    let online = false;
+    const onlineSpy = vi
+      .spyOn(navigator, "onLine", "get")
+      .mockImplementation(() => online);
+    mocks.saveCurrentShoppingList.mockRejectedValue(new Error("offline"));
+
+    try {
+      renderWithQueryClient(
+        <ShoppingListBoundary>
+          <p>List ready</p>
+        </ShoppingListBoundary>,
+      );
+      await screen.findByText("List ready");
+      await waitForInstalledList();
+
+      act(() => addExtra("Milk"));
+      await waitFor(() =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          storedList.revision,
+          expect.objectContaining({
+            extras: [expect.objectContaining({ text: "Milk" })],
+          }),
+        ),
+      );
+
+      act(() => toggleChecked("garlic"));
+      await waitFor(() =>
+        expect(mocks.enqueueShoppingCommand).toHaveBeenCalledOnce(),
+      );
+      expect(mocks.applyShoppingListCommand).not.toHaveBeenCalled();
+
+      online = true;
+      act(() => globalThis.dispatchEvent(new Event("online")));
+
+      await waitFor(() =>
+        expect(mocks.removeShoppingCommand).toHaveBeenCalledOnce(),
+      );
+      expect(getShoppingListSnapshot()).toMatchObject({
+        checked: ["garlic"],
+        extras: [expect.objectContaining({ text: "Milk" })],
+      });
+    } finally {
+      onlineSpy.mockRestore();
+    }
+  });
+
   it("offers the server version when an offline command conflicts", async () => {
     mocks.applyShoppingListCommand.mockRejectedValue(
       new ApiError(

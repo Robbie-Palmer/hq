@@ -1824,6 +1824,47 @@ describe("recipe API PostgreSQL integration", () => {
         .where(eq(schema.shoppingListCommandReceipt.actorUserId, owner.id)),
     ).toHaveLength(1);
 
+    const advancedSnapshot = {
+      recipes: [],
+      checked: ["garlic"],
+      extras: [
+        {
+          id: "extra-bread",
+          text: "Bread",
+          checked: false,
+        },
+      ],
+      plan: [],
+    };
+    const advanced = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current",
+      {
+        method: "PUT",
+        body: {
+          listId: current.id,
+          revision: "1",
+          snapshot: advancedSnapshot,
+        },
+      },
+    );
+    expect(advanced.status).toBe(200);
+    expect(await advanced.json()).toMatchObject({
+      revision: "2",
+      snapshot: advancedSnapshot,
+    });
+
+    const replayedAfterAdvance = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current/commands",
+      { method: "POST", body: request },
+    );
+    expect(replayedAfterAdvance.status).toBe(200);
+    expect(await replayedAfterAdvance.json()).toMatchObject({
+      revision: "1",
+      snapshot: { checked: ["garlic"], extras: [] },
+    });
+
     const stale = await authenticatedRequest(
       owner,
       "/shopping-lists/current/commands",

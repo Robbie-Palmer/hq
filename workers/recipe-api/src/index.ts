@@ -2147,7 +2147,17 @@ async function applyShoppingCommand(
           message: "The shopping trip changed after this command was saved",
         };
       }
-      return { status: "applied", response: shoppingListResponse(current, scope) };
+      return {
+        status: "applied",
+        response: shoppingListResponse(
+          {
+            ...current,
+            revision: receipt.resultRevision,
+            snapshot: receipt.resultSnapshot,
+          },
+          scope,
+        ),
+      };
     }
     if (!matchesShoppingCommandBase(current, input)) {
       return {

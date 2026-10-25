@@ -15,8 +15,10 @@ import {
   updateShoppingCommand,
 } from "@/lib/pwa/shopping-command-outbox";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
+import { mergeLocalShoppingListChanges } from "@/lib/shopping/mergeShoppingListChanges";
 import {
   getShoppingListCacheIdentity,
+  getShoppingListCacheMetadata,
   getShoppingListSnapshot,
   installShoppingListSnapshot,
   subscribeShoppingListCommands,
@@ -91,12 +93,15 @@ async function replayShoppingCommandQueue({
             baseRevision: canonical.revision,
           });
     try {
-      canonical = await applyShoppingListCommand({
+      const applied = await applyShoppingListCommand({
         commandId: record.commandId,
         listId: record.listId,
         baseRevision: record.baseRevision,
         command: record.command,
       });
+      if (BigInt(applied.revision) >= BigInt(canonical.revision)) {
+        canonical = applied;
+      }
       await removeShoppingCommand(userId, record.commandId);
       remaining = remaining.filter(
         ({ commandId }) => commandId !== record.commandId,
@@ -203,7 +208,7 @@ export function useShoppingCommandSync(
       userId,
     })
       .then(({ canonical, remaining }) => {
-        const projected = remaining
+        const remoteProjection = remaining
           .filter(
             (record) =>
               record.listId === canonical.id &&
@@ -213,6 +218,15 @@ export function useShoppingCommandSync(
             (snapshot, record) => applyProjectedCommand(snapshot, record),
             canonical.snapshot,
           );
+        const local = getShoppingListSnapshot();
+        const baseline =
+          getShoppingListCacheMetadata().confirmedSnapshot ??
+          serverList.snapshot;
+        const projected = mergeLocalShoppingListChanges(
+          baseline,
+          local,
+          remoteProjection,
+        );
         installShoppingListSnapshot(
           projected,
           canonical.id,
