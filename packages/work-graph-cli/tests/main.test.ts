@@ -174,7 +174,8 @@ describe("Given agent-facing Work Graph commands", () => {
 
     expect(await test.run(["prime"])).toBe(EXIT_CODES.success);
     expect(test.requests).toEqual([]);
-    expect(JSON.parse(test.stdout[0] ?? "null")).toMatchObject({
+    const prime = JSON.parse(test.stdout[0] ?? "null");
+    expect(prime).toMatchObject({
       workerId: null,
       auth: expect.stringContaining("automatically"),
       workflow: [
@@ -184,6 +185,9 @@ describe("Given agent-facing Work Graph commands", () => {
         expect.stringContaining("work-graph release"),
       ],
     });
+    expect(prime.rules).toContain(
+      "Ordinary command output is already JSON; do not append bare --json. The --json option requires a complete input object, except for critical-path --json.",
+    );
   });
 
   it("updates from the current checkout without API configuration", async () => {
@@ -1931,6 +1935,20 @@ describe("Given CLI and HTTP failures", () => {
       error: {
         code: "CLI_USAGE",
         message: "✖ Invalid input: expected number, received string → at epoch",
+      },
+    });
+  });
+
+  it("corrects a bare JSON option on commands whose output is already JSON", async () => {
+    const test = harness();
+
+    expect(await test.run(["ready", "--json"])).toBe(EXIT_CODES.usage);
+    expect(test.fetch).not.toHaveBeenCalled();
+    expect(JSON.parse(test.stderr[0] ?? "null")).toEqual({
+      error: {
+        code: "CLI_USAGE",
+        message:
+          "The --json option for ready requires a JSON object. Command output is already JSON; run 'work-graph ready' without --json.",
       },
     });
   });

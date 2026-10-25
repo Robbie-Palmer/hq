@@ -70,6 +70,13 @@ machine with an older client, bootstrap once with
 the ticket's active lease. Pass `--lease-id` and `--epoch` together only when a
 script already has both values.
 
+`ready` and other ordinary commands already write JSON to stdout. Do not
+append a bare `--json`. The `--json` option normally requires a complete input
+object, for example
+`work-graph ready --json '{"limit":10}'`. The one exception is
+`work-graph critical-path --json`, where the bare option selects the full JSON
+projection instead of the human-readable summary.
+
 ## Plan with the critical path
 
 Run `work-graph critical-path` for the global plan. Narrow an owner review with
@@ -93,11 +100,12 @@ can cross decomposition and dependency edges. `ready` leaves can start now,
 claimable leaves that can advance independently. Prefer the highest-priority
 branch that fits the requested scope.
 
-Use `--json` for automation. Consume `nodes` and `edges` as the deduplicated
-graph, `targetOutcomeIds` as the selected outcomes, `blockingPaths` as the
-explanations, and `readyLeafIds` and `parallelBranches` as work-selection
-inputs. `blockingAttentionIds` lists items that need a human response. Inspect
-`inclusionReasons` when an item's presence is surprising.
+Use `work-graph critical-path --json` for the full projection. Consume `nodes`
+and `edges` as the deduplicated graph, `targetOutcomeIds` as the selected
+outcomes, `blockingPaths` as the explanations, and `readyLeafIds` and
+`parallelBranches` as work-selection inputs. `blockingAttentionIds` lists
+items that need a human response. Inspect `inclusionReasons` when an item's
+presence is surprising.
 
 The result is a live structural projection. It does not estimate duration or
 delivery dates. Verify a surprising path with `work-graph show <ticket>`,
@@ -122,4 +130,5 @@ then rerun the projection.
   unfinished work to the queue.
 
 Prefer the short commands above. Use `metadata`, explicit lease fields, and
-`--json` for audits, recovery, or automation that needs the full contract.
+complete `--json '<object>'` input only for audits, recovery, or automation
+that needs fields unavailable as ordinary flags.
