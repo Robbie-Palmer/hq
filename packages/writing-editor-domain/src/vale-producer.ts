@@ -180,7 +180,6 @@ function safeReplacement(check: string, match: string): string | undefined {
     commence: "begin",
     endeavor: "try",
     endeavour: "try",
-    expedite: "speed up",
     numerous: "many",
     utilise: "use",
     utilize: "use",
