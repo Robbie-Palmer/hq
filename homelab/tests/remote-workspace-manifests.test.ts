@@ -2556,7 +2556,8 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.ok(installer.includes('for _ in $(seq 1 180)'));
   assert.ok(installer.includes('.data.AGENT_CREDENTIALS_REVISION'));
   assert.ok(installer.includes('${AGENT_CREDENTIALS_REVISION:-}'));
-  assert.ok(installer.includes('gh auth setup-git --hostname github.com --force'));
+  assert.ok(installer.includes('gh auth setup-git --hostname github.com'));
+  assert.doesNotMatch(installer, /gh auth setup-git[^\n]*--force/);
   assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_tokens)/);
 
   assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
@@ -2574,7 +2575,10 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     healthCheck,
     /doppler secrets --project "\$\{project\}" --config dev --only-names --json/,
   );
-  assert.match(healthCheck, /jq -e --arg probe "\$\{probe\}" 'has\(\$probe\)'/);
+  assert.match(
+    healthCheck,
+    /jq -e --arg probe "\$\{probe\}" "has\(\\\$probe\)"/,
+  );
   assert.match(healthCheck, /doppler secrets set "\$\{probe\}"/);
   assert.match(healthCheck, /doppler secrets delete "\$\{probe\}"/);
   assert.ok(!healthCheck.includes('--raw'));
