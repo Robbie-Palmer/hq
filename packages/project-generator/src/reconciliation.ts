@@ -580,9 +580,10 @@ export async function planProjectReconciliation(
     );
   }
 
-  const profileWithoutOverrides = projectProfileSchema.parse({
+  const profileWithoutLocalState = projectProfileSchema.parse({
     ...input.profile,
     overrides: [],
+    checkpoint_fulfillment: [],
   });
   const recordedSlots = new Set(
     recorded.blueprint.selections.map(({ slot }) => slot),
@@ -598,7 +599,7 @@ export async function planProjectReconciliation(
     input.blueprint.effective_at,
   );
   const historicalPlatformDefaults = resolveProjectProfile(
-    profileWithoutOverrides,
+    profileWithoutLocalState,
     input.contracts,
     recorded.blueprint.effective_at,
   ).selections;
@@ -621,7 +622,7 @@ export async function planProjectReconciliation(
     ).values(),
   ];
   const newDefaults = resolveProjectProfile(
-    profileWithoutOverrides,
+    profileWithoutLocalState,
     input.contracts,
     input.blueprint.effective_at,
   ).selections;

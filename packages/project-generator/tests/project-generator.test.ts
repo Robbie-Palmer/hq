@@ -1062,6 +1062,7 @@ describe("CLI", () => {
             status: "Accepted",
             decision: "personal-engineering-platform:001-mise",
             effective_from: "2026-01-01T00:00:00Z",
+            configuration_requirements: [{ name: "MISE_CONFIG" }],
           },
         ],
       }),
@@ -1099,10 +1100,11 @@ describe("CLI", () => {
       }),
     );
     const output: string[] = [];
+    const errors: string[] = [];
     const dependencies = {
       workingDirectory: configuration,
       stdout: (text: string) => output.push(text),
-      stderr: () => undefined,
+      stderr: (text: string) => errors.push(text),
     };
     const args = [
       "profile.yaml",
@@ -1150,6 +1152,43 @@ describe("CLI", () => {
     await expect(
       readFile(path.join(repository, "packages/alpha/generated.txt"), "utf8"),
     ).resolves.toBe("Alpha package\n");
+
+    const receiptPath = path.join(repository, ".copier/projects/alpha.yml");
+    const receiptSource = await readFile(receiptPath, "utf8");
+    const receiptWithoutEvidence = parse(receiptSource) as {
+      blueprint: {
+        fulfillment_checkpoints: {
+          evidence: string[];
+          status: string;
+        }[];
+      };
+    };
+    const checkpointWithoutEvidence =
+      receiptWithoutEvidence.blueprint.fulfillment_checkpoints[0];
+    if (!checkpointWithoutEvidence) throw new Error("Missing fixture checkpoint");
+    checkpointWithoutEvidence.status = "verified";
+    await writeFile(receiptPath, stringify(receiptWithoutEvidence), "utf8");
+    const invalidReceiptErrors: string[] = [];
+    expect(
+      await runCli(
+        [
+          "profile-reconcile",
+          ...args.map((argument) =>
+            argument === "2026-10-21T00:00:00Z"
+              ? "2026-10-22T00:00:00Z"
+              : argument,
+          ),
+        ],
+        {
+          ...dependencies,
+          stderr: (text: string) => invalidReceiptErrors.push(text),
+        },
+      ),
+    ).toBe(1);
+    expect(invalidReceiptErrors.join(" ")).toContain(
+      "must contain at least one item when a checkpoint is verified",
+    );
+    await writeFile(receiptPath, receiptSource, "utf8");
 
     await write(
       repository,
@@ -1202,6 +1241,23 @@ describe("CLI", () => {
             status: "Accepted",
             decision: "personal-engineering-platform:002-current-runner",
             effective_from: "2026-11-01T00:00:00Z",
+            configuration_requirements: [{ name: "CURRENT_RUNNER_TOKEN" }],
+            state_requirements: [{ name: "Runner cache" }],
+          },
+        ],
+      }),
+    );
+    await write(
+      configuration,
+      "profile.yaml",
+      stringify({
+        ...baseProfile,
+        checkpoint_fulfillment: [
+          {
+            checkpoint:
+              "project-task-runner-current-configuration-current-runner-token",
+            status: "verified",
+            evidence: ["ci://runs/current-runner-token"],
           },
         ],
       }),
@@ -1212,23 +1268,35 @@ describe("CLI", () => {
         : argument,
     );
     output.length = 0;
-    expect(
-      await runCli(
-        ["profile-reconcile", ...reconciliationArgs],
-        dependencies,
-      ),
-    ).toBe(0);
+    const reconciliationExitCode = await runCli(
+      ["profile-reconcile", ...reconciliationArgs],
+      dependencies,
+    );
+    expect(errors).toEqual([]);
+    expect(reconciliationExitCode).toBe(0);
     const reconciliation = JSON.parse(output.join("")) as {
       status: string;
       planDigest: string;
       policyChanges: { kind: string }[];
       defaultChanges: { kind: string }[];
+      actions: {
+        manualDecisions: { kind: string; summary: string }[];
+      };
       candidate: { checks: unknown[] };
     };
     expect(reconciliation).toMatchObject({
       status: "ready",
       policyChanges: [{ kind: "replaced" }],
       defaultChanges: [{ kind: "replaced" }],
+      actions: {
+        manualDecisions: [
+          {
+            kind: "fulfillment_checkpoint",
+            summary:
+              "Provision Runner cache for project-task-runner-current",
+          },
+        ],
+      },
       candidate: {
         checks: [{ task: "//:fixture", status: "passed" }],
       },
