@@ -2,7 +2,7 @@
 title: "Agent-first Writing Editor"
 description: "A layered writing system that turns dense agent output into prose people can absorb without erasing the author's voice"
 date: "2026-09-04"
-updated: "2026-10-19"
+updated: "2026-10-25"
 status: "in_progress"
 platform_layers:
   - layer: "governance"
@@ -120,18 +120,19 @@ does not need the same ceremony as restructuring an argument.
 
 ## Editorial data flow
 
-The implemented path runs repository text through Vale and GECToR. Vale stores
-detection-only findings against hashed source bytes. GECToR emits suggestions
-and grouped proposals, which enter a governed review stage. An observed edit is
-not an acceptance decision. Solid blue nodes and lines are implemented. Dashed
-orange nodes and lines are planned.
+The implemented path runs repository text through Vale, GECToR, and a narrow
+punctuation candidate. Vale stores detection-only findings against hashed
+source bytes. The model producers emit suggestions and grouped proposals, which
+enter a governed review stage. An observed edit is not an acceptance decision.
+Solid blue nodes and lines are implemented. Dashed orange nodes and lines are
+planned.
 
 <Mermaid
   chart={`flowchart LR
 Source["Source text<br/>[Implemented]<br/>Revision and SHA-256 hash"]
 Rules["Deterministic checks<br/>[Implemented]<br/>Vale rules"]
 Findings["Deterministic findings<br/>[Implemented]<br/>UTF-8 spans and provenance"]
-Local["Local suggestions<br/>[Implemented for GECToR]<br/>Replacement and confidence"]
+Local["Local suggestions<br/>[Implemented for model candidates]<br/>Replacement and confidence"]
 Rewrite["Passage rewrites<br/>[Planned]<br/>Grouped proposal and diff"]
 Review["Human review<br/>[Implemented evidence stage]<br/>Accept, reject, or change"]
 Evidence["Evaluation evidence<br/>[Implemented foundation]<br/>Published-edit alignment"]
@@ -201,6 +202,20 @@ rejection threshold. Its generated files are never copied over the source
 documents. The holdout decisions remain evaluation-only and are excluded from
 future training or threshold tuning.
 
+## Missing-comma candidate
+
+The broad review exposed one useful narrow gap. Reviewers accepted 34 of 41
+single-comma insertions from GECToR. A pre-registered experiment tested the
+140M-parameter `Horizon-Labs/punctuation-restoration-small` model against those
+fixed decisions. The candidate emitted 43 comma-only proposals across the 166
+documents that contained reviewed GECToR proposals. It recovered 4 of the 34
+accepted sites and none of the 7 rejected sites. This gives 100% useful yield
+on the four matched sites but only 11.8% recall.
+
+Another 39 proposals fall outside the fixed decisions. Their effects on facts,
+terminology, intent, and voice have not been reviewed. The experiment therefore
+ends with `gather-more-evidence`. The model stays out of the default editor.
+
 # First useful release
 
 The first release should work on content in this repository before becoming a
@@ -213,8 +228,9 @@ general editor:
 3. Measure factual preservation, unwanted voice changes, accepted edits, time
    saved, and regressions caught by deterministic rules.
 4. Run Vale and other deterministic checks through the shared finding format.
-5. Add a lightweight model only for failure classes that the evaluation set
-   proves Vale cannot handle.
+5. Evaluate lightweight models only for failure classes that the evaluation
+   set proves Vale cannot handle. The first missing-comma candidate needs more
+   evidence and is not part of the default editor.
 6. Add passage rewrites with diffs after local suggestions are reliable.
 7. Capture accept and reject decisions so the evaluation set grows through use.
 8. Extract the repository-specific implementation into a general product only

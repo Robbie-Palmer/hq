@@ -240,3 +240,41 @@ review applied dozens of narrow corrections while rejecting unsafe or
 meaning-changing rewrites.
 The result confirms that stricter thresholds and Markdown-aware segmentation
 reduce noise, but do not make GECToR suitable for unattended editing.
+
+The next experiment isolates missing commas, the strongest narrow failure
+class in the governed GECToR review. Of 41 single-comma proposals, reviewers
+accepted 34 and rejected 7. `punctuation-experiment.json` fixes that sample,
+the 0.9 confidence threshold, excluded edits, metrics, and decision gates
+before candidate inference runs.
+
+The candidate is the 140M-parameter
+`Horizon-Labs/punctuation-restoration-small` checkpoint at revision
+`ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1`. Its ModelPack-compatible manifest
+pins the safetensors weights and tokenizer assets. DVC stores the model bytes;
+runtime code loads only the materialized model directory and does not read DVC
+cache paths. The adapter emits only comma insertions as ADR 003 suggestions and
+one-suggestion proposals. It verifies every source hash and UTF-8 insertion
+boundary before accepting the run.
+
+New candidate runs target the `vector-development` tailnet host and its laptop
+RTX 4080. The GTX 1050 constraint recorded for the earlier GECToR decision no
+longer applies, and this experiment does not use paid remote inference.
+
+Run and evaluate the candidate with:
+
+```bash
+mise run //ml-pipelines/writing-editor-evaluation:model:prepare:punctuation
+mise run //ml-pipelines/writing-editor-evaluation:run:punctuation
+mise run //ml-pipelines/writing-editor-evaluation:evaluate:punctuation
+```
+
+The evaluation compares exact candidate sites with the governed GECToR
+decisions. It also records the Vale and hardened deterministic rewrite
+boundaries. Candidate proposals outside the fixed decision set remain
+unassessed and block adoption until a reviewer records their quality outcomes.
+
+The pinned 0.9-threshold run emitted 43 proposals across 166 artifacts. It
+matched 4 accepted GECToR sites and no rejected sites, for 100% useful yield on
+labelled matches and 11.8% accepted-site recall. The other 39 proposals remain
+unassessed. The fixed decision is `gather-more-evidence`, and the model is not
+installed in the default editor.

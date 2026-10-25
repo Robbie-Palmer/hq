@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "failureClass": "missing-comma",
+  "targetBehavior": "Insert a comma at an unpunctuated prose word boundary when the pinned model assigns the comma label with at least 0.9 probability.",
+  "excludedEdits": [
+    "comma deletions",
+    "comma replacements",
+    "other punctuation",
+    "casing changes",
+    "word changes",
+    "Markdown structure and inline markup"
+  ],
+  "parameters": {
+    "chunkTokens": 400,
+    "overlapTokens": 50,
+    "minimumCommaProbability": 0.9,
+    "dtype": "float16"
+  },
+  "hardware": {
+    "targetHost": "vector-development",
+    "accelerator": "NVIDIA GeForce RTX 4080 Laptop GPU",
+    "maximumPeakCudaAllocatedBytes": 2147483648,
+    "maximumMedianInferenceMillisecondsPerArtifact": 500
+  },
+  "sampleSize": {
+    "source": "gector-broad-pilot",
+    "eligibleDecisions": 41,
+    "minimumEligibleDecisions": 20,
+    "rule": "Use every governed single-suggestion GECToR proposal that inserts one comma into an empty source span. Do not tune the threshold against these outcomes."
+  },
+  "primaryMetrics": [
+    "usefulYieldOnEligibleDecisions",
+    "acceptedSiteRecall",
+    "unassessedProposalCount",
+    "medianInferenceMillisecondsPerArtifact",
+    "peakCudaAllocatedBytes"
+  ],
+  "decisionThresholds": {
+    "adopt": {
+      "minimumUsefulYield": 0.6,
+      "minimumAcceptedSiteRecall": 0.5,
+      "maximumUnassessedProposalsPerArtifact": 0.25,
+      "requireQualityPreservation": true
+    },
+    "reject": {
+      "maximumUsefulYield": 0.25,
+      "maximumAcceptedSiteRecall": 0.1
+    },
+    "otherwise": "gather-more-evidence"
+  }
+}
