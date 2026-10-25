@@ -2455,8 +2455,15 @@ test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
     hostConfig,
     /systemd\.services\.k3s[\s\S]*path = \[[\s\S]*nvidiaContainerTools[\s\S]*pkgs\.runc[\s\S]*\];/,
   );
+  assert.ok(hostConfig.includes("tomlFormat = pkgs.formats.toml { };"));
+  assert.ok(hostConfig.includes("nvidiaContainerConfig = tomlFormat.generate"));
   assert.ok(hostConfig.includes('mode = "cdi"'));
-  assert.ok(hostConfig.includes('runtimes = ["${lib.getExe pkgs.runc}"]'));
+  assert.match(hostConfig, /runtimes = \[ \(?lib\.getExe pkgs\.runc\)? \];/);
+  assert.ok(
+    hostConfig.includes(
+      '"nvidia-container-runtime/config.toml".source = nvidiaContainerConfig',
+    ),
+  );
   assert.ok(hostConfig.includes('"--kubelet-arg=node-ip=0.0.0.0"'));
   assert.ok(
     hostConfig.includes(
@@ -2514,6 +2521,13 @@ test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", (
     new URL("../scripts/shutdown-vector-development.sh", import.meta.url),
     "utf8",
   );
+  const remoteUnlock = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/vector-remote-unlock.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
 
   assert.ok(hostConfig.includes("interfaces.enp58s0.wakeOnLan"));
   assert.ok(hostConfig.includes('policy = [ "magic" ]'));
@@ -2526,7 +2540,13 @@ test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", (
   assert.ok(hostConfig.includes('restrict,command="/bin/vector-remote-unlock"'));
   assert.ok(hostConfig.includes("AllowTcpForwarding no"));
   assert.ok(hostConfig.includes("PermitTTY no"));
-  assert.ok(hostConfig.includes("systemd-reply-password"));
+  assert.ok(
+    hostConfig.includes(
+      "builtins.readFile ./scripts/vector-remote-unlock.bash",
+    ),
+  );
+  assert.ok(remoteUnlock.includes("systemd-reply-password"));
+  assert.ok(remoteUnlock.includes("cryptsetup:*"));
   assert.ok(hostConfig.includes('matchConfig.Name = "enp58s0"'));
   assert.ok(hostConfig.includes('ClientIdentifier = "mac"'));
 

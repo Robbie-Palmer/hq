@@ -24,57 +24,32 @@ let
   ];
   initrdUnlockKeys = map (key: ''restrict,command="/bin/vector-remote-unlock" ${key}'') operatorKeys;
   initrdHostKey = "/etc/secrets/initrd/vector-development_ssh_host_ed25519_key";
-  remoteUnlockScript = pkgs.writeShellScript "vector-remote-unlock" ''
-    set -eu
-
-    request=
-    attempts=0
-    while [ "$attempts" -lt 60 ]; do
-      for candidate in /run/systemd/ask-password/ask.*; do
-        [ -f "$candidate" ] || continue
-        request_id=
-        while IFS='=' read -r field value; do
-          if [ "$field" = Id ]; then
-            request_id=$value
-            break
-          fi
-        done < "$candidate"
-        case "$request_id" in
-          cryptsetup:*)
-            if [ -n "$request" ]; then
-              echo "more than one LUKS password request is pending" >&2
-              exit 1
-            fi
-            request=$candidate
-            ;;
-        esac
-      done
-      [ -z "$request" ] || break
-      attempts=$((attempts + 1))
-      sleep 1
-    done
-
-    if [ -z "$request" ]; then
-      echo "the Vector LUKS password request is not available" >&2
-      exit 1
-    fi
-
-    socket=
-    while IFS='=' read -r field value; do
-      if [ "$field" = Socket ]; then
-        socket=$value
-        break
-      fi
-    done < "$request"
-    if [ -z "$socket" ] || [ ! -S "$socket" ]; then
-      echo "the Vector LUKS password socket is not available" >&2
-      exit 1
-    fi
-
-    exec /bin/systemd-reply-password 1 "$socket"
-  '';
+  remoteUnlockScript = pkgs.writeShellScript "vector-remote-unlock" (
+    builtins.readFile ./scripts/vector-remote-unlock.bash
+  );
   t3CodeDesktop = pkgs.callPackage ../../packages/t3-code-desktop.nix { };
   nvidiaContainerTools = lib.getOutput "tools" config.hardware.nvidia-container-toolkit.package;
+  tomlFormat = pkgs.formats.toml { };
+  nvidiaContainerConfig = tomlFormat.generate "nvidia-container-runtime-config.toml" {
+    "disable-require" = true;
+    "supported-driver-capabilities" = "compat32,compute,display,graphics,ngx,utility,video";
+    "nvidia-container-cli" = {
+      environment = [ ];
+      ldconfig = "@${lib.getExe' pkgs.glibc "ldconfig"}";
+      "load-kmods" = true;
+      "no-cgroups" = false;
+      path = lib.getExe' pkgs.libnvidia-container "nvidia-container-cli";
+    };
+    "nvidia-container-runtime" = {
+      mode = "cdi";
+      runtimes = [ (lib.getExe pkgs.runc) ];
+    };
+    "nvidia-container-runtime-hook" = {
+      path = "${nvidiaContainerTools}/bin/nvidia-container-runtime-hook";
+      "skip-mode-detection" = false;
+    };
+    "nvidia-ctk".path = lib.getExe' config.hardware.nvidia-container-toolkit.package "nvidia-ctk";
+  };
   dataLayoutScript = pkgs.writeShellApplication {
     name = "vector-development-data-layout";
     runtimeInputs = [ pkgs.coreutils ];
@@ -355,24 +330,7 @@ in
 
   environment = {
     etc = {
-      "nvidia-container-runtime/config.toml".text = ''
-        disable-require = true
-        supported-driver-capabilities = "compat32,compute,display,graphics,ngx,utility,video"
-        [nvidia-container-cli]
-        environment = []
-        ldconfig = "@${lib.getExe' pkgs.glibc "ldconfig"}"
-        load-kmods = true
-        no-cgroups = false
-        path = "${lib.getExe' pkgs.libnvidia-container "nvidia-container-cli"}"
-        [nvidia-container-runtime]
-        mode = "cdi"
-        runtimes = ["${lib.getExe pkgs.runc}"]
-        [nvidia-container-runtime-hook]
-        path = "${nvidiaContainerTools}/bin/nvidia-container-runtime-hook"
-        skip-mode-detection = false
-        [nvidia-ctk]
-        path = "${lib.getExe' config.hardware.nvidia-container-toolkit.package "nvidia-ctk"}"
-      '';
+      "nvidia-container-runtime/config.toml".source = nvidiaContainerConfig;
       projects.text = ''
         ${operatorProjectId}:${operatorDataPath}
         ${cacheProjectId}:${cacheDataPath}
