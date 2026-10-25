@@ -56,7 +56,7 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
     test -n "${WORK_GRAPH_CF_ACCESS_CLIENT_ID:-}"
     test -n "${WORK_GRAPH_CF_ACCESS_CLIENT_SECRET:-}"
     work-graph prime >/dev/null
-    work-graph ready --json >/dev/null
+    work-graph ready >/dev/null
     probe="VECTOR_T3_AUTH_PROBE_$(date +%s)_$$"
     cleanup_doppler_probe() {
       for project in ai-review homelab personal-site work-graph; do
