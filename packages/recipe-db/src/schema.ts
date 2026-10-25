@@ -39,6 +39,7 @@ import {
   type PantryFreshnessEstimate,
   type PantryMutationValue,
 } from "recipe-domain/pantry";
+import type { ShoppingListChecklistCommand } from "recipe-domain/shopping-list";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 
 export type { CookLogMutationValue } from "recipe-domain/cook-log";
@@ -953,6 +954,37 @@ export const shoppingList = pgTable(
     index("shopping_list_household_history_idx").on(
       table.organizationId,
       table.createdAt.desc(),
+    ),
+  ],
+);
+
+/**
+ * Receipt for a replay-safe shopping-list command issued by one signed-in
+ * actor. The command result is kept so a retry after a lost acknowledgement
+ * can return the same canonical projection without applying the command again.
+ */
+export const shoppingListCommandReceipt = pgTable(
+  "shopping_list_command_receipt",
+  {
+    commandId: uuid().notNull(),
+    actorUserId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    resourceId: text().notNull(),
+    listId: uuid()
+      .notNull()
+      .references(() => shoppingList.id, { onDelete: "cascade" }),
+    baseRevision: bigint({ mode: "bigint" }).notNull(),
+    command: jsonb().$type<ShoppingListChecklistCommand>().notNull(),
+    resultRevision: bigint({ mode: "bigint" }).notNull(),
+    resultSnapshot: jsonb().$type<ShoppingListSnapshot>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.actorUserId, table.commandId] }),
+    index("shopping_list_command_receipt_list_idx").on(
+      table.listId,
+      table.createdAt,
     ),
   ],
 );

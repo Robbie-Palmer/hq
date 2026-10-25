@@ -211,6 +211,13 @@
       "when": 1792494340628,
       "tag": "0029_add_high_volume_recipe_ingredients",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792874167697,
+      "tag": "0030_add_shopping_list_command_receipts",
+      "breakpoints": true
     }
   ]
 }

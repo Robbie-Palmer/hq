@@ -13,6 +13,7 @@
     "./pantry": "./src/pantry.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
+    "./shopping-list": "./src/shopping-list.ts",
     "./visibility": "./src/visibility.ts",
     "./unit": "./src/unit.ts",
     "./slugs": "./src/slugs.ts",

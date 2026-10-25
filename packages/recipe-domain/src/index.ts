@@ -10,6 +10,7 @@ export * from "./pantry";
 export * from "./pluralization";
 export * from "./recipe";
 export * from "./serialization";
+export * from "./shopping-list";
 export * from "./slugs";
 export * from "./unit";
 export * from "./visibility";

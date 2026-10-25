@@ -26,11 +26,16 @@ import {
 } from "@/lib/api/shopping-lists";
 import { authClient } from "@/lib/auth-client";
 import { loadOfflineShoppingListSnapshot } from "@/lib/pwa/offline-recipe-cache";
+import {
+  listShoppingCommands,
+  type ShoppingCommandOutboxRecord,
+} from "@/lib/pwa/shopping-command-outbox";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import {
   restoreOfflineShoppingListQuery,
   shoppingListQuery,
 } from "@/lib/query/shopping-list-queries";
+import { mergeLocalShoppingListChanges } from "@/lib/shopping/mergeShoppingListChanges";
 import {
   confirmShoppingListRevision,
   getShoppingListCacheIdentity,
@@ -41,83 +46,11 @@ import {
   type ShoppingListState,
   subscribeShoppingList,
 } from "@/lib/shopping/shoppingListStore";
+import { useShoppingCommandSync } from "./shopping-command-sync";
 
 function shoppingListContents(): ShoppingListContents {
   const { recipes, checked, extras, plan } = getShoppingListSnapshot();
   return { recipes, checked, extras, plan };
-}
-
-function mergeKeyedValues<T>(
-  baseline: T[],
-  local: T[],
-  remote: T[],
-  keyFor: (value: T) => string,
-): T[] {
-  const baselineByKey = new Map(
-    baseline.map((value) => [keyFor(value), value]),
-  );
-  const localByKey = new Map(local.map((value) => [keyFor(value), value]));
-  const merged = new Map(remote.map((value) => [keyFor(value), value]));
-  for (const value of baseline) {
-    const key = keyFor(value);
-    if (!localByKey.has(key)) merged.delete(key);
-  }
-  for (const value of local) {
-    const key = keyFor(value);
-    if (JSON.stringify(value) !== JSON.stringify(baselineByKey.get(key))) {
-      merged.set(key, value);
-    }
-  }
-  return [...merged.values()];
-}
-
-function mergeCheckedValues(
-  baseline: string[],
-  local: string[],
-  remote: string[],
-): string[] {
-  const localValues = new Set(local);
-  const baselineValues = new Set(baseline);
-  const merged = new Set(remote);
-  for (const value of baseline) {
-    if (!localValues.has(value)) merged.delete(value);
-  }
-  for (const value of local) {
-    if (!baselineValues.has(value)) merged.add(value);
-  }
-  return [...merged];
-}
-
-function mergeLocalShoppingListChanges(
-  baseline: ShoppingListContents,
-  local: ShoppingListContents,
-  remote: ShoppingListContents,
-): ShoppingListContents {
-  return {
-    recipes: mergeKeyedValues(
-      baseline.recipes,
-      local.recipes,
-      remote.recipes,
-      (recipe) => recipe.slug,
-    ),
-    checked: mergeCheckedValues(
-      baseline.checked,
-      local.checked,
-      remote.checked,
-    ),
-    extras: mergeKeyedValues(
-      baseline.extras,
-      local.extras,
-      remote.extras,
-      (extra) => extra.id,
-    ),
-    plan: mergeKeyedValues(
-      baseline.plan,
-      local.plan,
-      remote.plan,
-      (meal) => meal.id,
-    ),
-  };
 }
 
 function parseSavedSnapshot(serialized: string): ShoppingListContents {
@@ -143,6 +76,7 @@ const EMPTY_SHOPPING_LIST: ShoppingListContents = {
   extras: [],
   plan: [],
 };
+const EMPTY_OUTBOX_COMMANDS: readonly ShoppingCommandOutboxRecord[] = [];
 
 function recoverCachedShoppingList(
   serverList: StoredShoppingList,
@@ -212,6 +146,7 @@ interface ShoppingSyncRefs {
 
 function installInitialShoppingList(
   serverList: StoredShoppingList,
+  hasPendingCommands: boolean,
   refs: ShoppingSyncRefs,
   setInstalledId: (id: string) => void,
 ): void {
@@ -234,9 +169,8 @@ function installInitialShoppingList(
     },
     serverList.resourceId,
   );
-  refs.pendingCacheRecovery.current = shouldRecoverCache
-    ? serverList.id
-    : undefined;
+  refs.pendingCacheRecovery.current =
+    shouldRecoverCache && !hasPendingCommands ? serverList.id : undefined;
   setInstalledId(serverList.id);
 }
 
@@ -421,6 +355,7 @@ class ShoppingListSaveQueue {
 function useShoppingListSync(
   userId: string,
   serverList: StoredShoppingList | undefined,
+  pendingCommands: readonly ShoppingCommandOutboxRecord[],
 ): { installedId: string | undefined; saveFailed: boolean } {
   const queryClient = useQueryClient();
   const [installedId, setInstalledId] = useState<string>();
@@ -443,7 +378,17 @@ function useShoppingListSync(
   useEffect(() => {
     if (!serverList) return;
     if (!installedId) {
-      installInitialShoppingList(serverList, refs, setInstalledId);
+      const hasPendingCommands = pendingCommands.some(
+        (command) =>
+          command.listId === serverList.id &&
+          command.resourceId === serverList.resourceId,
+      );
+      installInitialShoppingList(
+        serverList,
+        hasPendingCommands,
+        refs,
+        setInstalledId,
+      );
       return;
     }
     if (
@@ -468,7 +413,7 @@ function useShoppingListSync(
     }
 
     rebaseInstalledShoppingList(serverList, refs, setInstalledId);
-  }, [installedId, queryClient, refs, serverList, userId]);
+  }, [installedId, pendingCommands, queryClient, refs, serverList, userId]);
 
   const hasInstalledList = Boolean(installedId);
   useLayoutEffect(() => {
@@ -488,17 +433,23 @@ function useShoppingListSync(
 function useOfflineShoppingListRestore(
   userId: string,
   enabled: boolean,
-): boolean {
+): ShoppingCommandOutboxRecord[] | undefined {
   const queryClient = useQueryClient();
-  const [restoredUserId, setRestoredUserId] = useState<string>();
+  const [restored, setRestored] = useState<{
+    userId: string;
+    commands: ShoppingCommandOutboxRecord[];
+  }>();
   useEffect(() => {
     let disposed = false;
     if (!enabled) {
-      setRestoredUserId(undefined);
+      setRestored(undefined);
       return;
     }
-    void loadOfflineShoppingListSnapshot(userId)
-      .then((snapshot) => {
+    void Promise.all([
+      loadOfflineShoppingListSnapshot(userId).catch(() => null),
+      listShoppingCommands(userId).catch(() => []),
+    ])
+      .then(([snapshot, commands]) => {
         if (
           !disposed &&
           snapshot &&
@@ -512,18 +463,59 @@ function useOfflineShoppingListRestore(
             snapshot.savedAt,
           );
         }
+        if (!disposed) setRestored({ userId, commands });
       })
       .catch(() => {
-        // Restricted storage must not prevent a network-backed list loading.
-      })
-      .finally(() => {
-        if (!disposed) setRestoredUserId(userId);
+        if (!disposed) setRestored({ userId, commands: [] });
       });
     return () => {
       disposed = true;
     };
   }, [enabled, queryClient, userId]);
-  return restoredUserId === userId;
+  return restored?.userId === userId ? restored.commands : undefined;
+}
+
+function ShoppingListSyncStatus({
+  saveFailed,
+  commandSync,
+}: Readonly<{
+  saveFailed: boolean;
+  commandSync: ReturnType<typeof useShoppingCommandSync>;
+}>) {
+  return (
+    <>
+      {saveFailed ? (
+        <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
+          Your latest shopping-list changes have not been saved. They remain on
+          this device; edit the list to try again.
+        </p>
+      ) : null}
+      {commandSync.pending.length > 0 ? (
+        <output className="rt-body block bg-[var(--butter-soft)] px-4 py-2 text-center">
+          {commandSync.pending.length} offline shopping-list change
+          {commandSync.pending.length === 1 ? " is" : "s are"} waiting to sync.
+        </output>
+      ) : null}
+      {commandSync.failed.length > 0 ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-center gap-3 bg-[var(--cream-dark)] px-4 py-2 text-center"
+        >
+          <p className="rt-body text-[var(--berry)]">
+            An offline shopping-list change needs attention.{" "}
+            {commandSync.failed[0]?.lastError}
+          </p>
+          <button
+            type="button"
+            onClick={commandSync.useServerVersion}
+            className="rt-mono underline"
+          >
+            Use server version
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export function ShoppingListBoundary({
@@ -531,13 +523,26 @@ export function ShoppingListBoundary({
 }: Readonly<{ children: ReactNode }>) {
   const { data: session } = authClient.useSession();
   const userId = session?.user.id ?? "pending";
-  const restored = useOfflineShoppingListRestore(userId, Boolean(session));
+  const restoredCommands = useOfflineShoppingListRestore(
+    userId,
+    Boolean(session),
+  );
 
   const current = useQuery({
     ...shoppingListQuery(userId),
-    enabled: Boolean(session) && restored,
+    enabled: Boolean(session) && restoredCommands !== undefined,
   });
-  const { installedId, saveFailed } = useShoppingListSync(userId, current.data);
+  const { installedId, saveFailed } = useShoppingListSync(
+    userId,
+    current.data,
+    restoredCommands ?? EMPTY_OUTBOX_COMMANDS,
+  );
+  const commandSync = useShoppingCommandSync(
+    userId,
+    current.data,
+    installedId,
+    restoredCommands ?? EMPTY_OUTBOX_COMMANDS,
+  );
 
   if (current.isError && !current.data) {
     return (
@@ -555,12 +560,10 @@ export function ShoppingListBoundary({
   }
   return (
     <ShoppingListScopeContext.Provider value={current.data.scope}>
-      {saveFailed ? (
-        <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
-          Your latest shopping-list changes have not been saved. They remain on
-          this device; edit the list to try again.
-        </p>
-      ) : null}
+      <ShoppingListSyncStatus
+        saveFailed={saveFailed}
+        commandSync={commandSync}
+      />
       {children}
     </ShoppingListScopeContext.Provider>
   );
