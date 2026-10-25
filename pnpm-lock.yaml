@@ -863,6 +863,9 @@ importers:
       recipe-domain:
         specifier: workspace:*
         version: link:../recipe-domain
+      ts-base:
+        specifier: workspace:*
+        version: link:../ts-base
     devDependencies:
       typescript:
         specifier: ^6.0.0

@@ -218,6 +218,13 @@
       "when": 1792874167697,
       "tag": "0030_add_shopping_list_command_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792955048094,
+      "tag": "0031_add_ingredient_property_catalog",
+      "breakpoints": true
     }
   ]
 }
