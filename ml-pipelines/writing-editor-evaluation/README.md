@@ -276,5 +276,7 @@ unassessed and block adoption until a reviewer records their quality outcomes.
 The pinned 0.9-threshold run emitted 43 proposals across 166 artifacts. It
 matched 4 accepted GECToR sites and no rejected sites, for 100% useful yield on
 labelled matches and 11.8% accepted-site recall. The other 39 proposals remain
-unassessed. The fixed decision is `gather-more-evidence`, and the model is not
-installed in the default editor.
+unassessed. On the target `vector-development` RTX 4080, median inference took
+148.7 ms per artifact and peak allocated CUDA memory was 303.6 MiB. Both
+hardware limits passed. The fixed decision is `gather-more-evidence`, and the
+model is not installed in the default editor.
