@@ -13,7 +13,7 @@ export function decimalFraction(value: string): Fraction {
   const negative = value.startsWith("-");
   const unsigned = negative ? value.slice(1) : value;
   const [whole = "0", decimal = ""] = unsigned.split(".");
-  const denominator = 10n ** BigInt(decimal.length);
+  const denominator = BigInt(10) ** BigInt(decimal.length);
   const numerator = BigInt(`${whole}${decimal}`);
   return { numerator: negative ? -numerator : numerator, denominator };
 }
@@ -29,8 +29,10 @@ export function multiplyFractions(
 }
 
 export function divideFractions(left: Fraction, right: Fraction): Fraction {
-  if (right.numerator === 0n) throw new RangeError("Cannot divide by zero");
-  const sign = right.numerator < 0n ? -1n : 1n;
+  if (right.numerator === BigInt(0)) {
+    throw new RangeError("Cannot divide by zero");
+  }
+  const sign = right.numerator < BigInt(0) ? -BigInt(1) : BigInt(1);
   return {
     numerator: left.numerator * right.denominator * sign,
     denominator: left.denominator * right.numerator * sign,
@@ -49,18 +51,18 @@ export function formatFraction(
   ) {
     throw new RangeError("decimalPlaces must be an integer from 0 to 12");
   }
-  if (value.denominator <= 0n) {
+  if (value.denominator <= BigInt(0)) {
     throw new RangeError("Fraction denominator must be greater than zero");
   }
 
-  const negative = value.numerator < 0n;
+  const negative = value.numerator < BigInt(0);
   const numerator = negative ? -value.numerator : value.numerator;
-  const scale = 10n ** BigInt(decimalPlaces);
+  const scale = BigInt(10) ** BigInt(decimalPlaces);
   const rounded =
-    (numerator * scale * 2n + value.denominator) /
-    (value.denominator * 2n);
+    (numerator * scale * BigInt(2) + value.denominator) /
+    (value.denominator * BigInt(2));
   const whole = rounded / scale;
-  const prefix = negative && rounded !== 0n ? "-" : "";
+  const prefix = negative && rounded !== BigInt(0) ? "-" : "";
   if (decimalPlaces === 0) return `${prefix}${whole}`;
   const remainder = (rounded % scale)
     .toString()
@@ -77,5 +79,5 @@ export function compareDecimals(left: string, right: string): number {
   const difference =
     leftFraction.numerator * rightFraction.denominator -
     rightFraction.numerator * leftFraction.denominator;
-  return difference < 0n ? -1 : difference > 0n ? 1 : 0;
+  return difference < BigInt(0) ? -1 : difference > BigInt(0) ? 1 : 0;
 }
