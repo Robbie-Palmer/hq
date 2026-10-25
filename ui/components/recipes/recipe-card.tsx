@@ -76,13 +76,43 @@ export function RecipeThumb({
   );
 }
 
+function RecipeMatchCardAction({
+  recipe,
+  inList,
+  onToggleList,
+  cardAction,
+}: Readonly<{
+  recipe: KitchenRecipeMatch;
+  inList: boolean;
+  onToggleList: () => void;
+  cardAction: "open-recipe" | "toggle-list";
+}>) {
+  if (cardAction === "toggle-list") {
+    return (
+      <button
+        type="button"
+        aria-pressed={inList}
+        aria-label={`${inList ? "Remove" : "Add"} ${recipe.title} ${inList ? "from" : "to"} the shopping list`}
+        onClick={onToggleList}
+        className="absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--ring)]/50"
+      />
+    );
+  }
+  return (
+    <RecipePageLink
+      href={recipe.href ?? recipePageHref(recipe)}
+      aria-label={`Open ${recipe.title}`}
+      className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--ring)]/50"
+    />
+  );
+}
+
 /**
  * The recipe card shared by the kitchen's ready/close-match sections and the
  * shopping picker: thumbnail, kitchen-match progress against the shared stock,
  * what's still needed, and an add/remove shopping-list toggle. The card body is
  * a stretched link to the recipe; interactive children sit above it (z-10).
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function RecipeMatchCard({
   recipe,
   inList,
@@ -116,25 +146,12 @@ export function RecipeMatchCard({
           : "border-[var(--line-strong)]",
       )}
     >
-      {cardAction === "toggle-list" ? (
-        <button
-          type="button"
-          aria-pressed={inList}
-          aria-label={
-            inList
-              ? `Remove ${recipe.title} from the shopping list`
-              : `Add ${recipe.title} to the shopping list`
-          }
-          onClick={onToggleList}
-          className="absolute inset-0 cursor-pointer rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--ring)]/50"
-        />
-      ) : (
-        <RecipePageLink
-          href={recipe.href ?? recipePageHref(recipe)}
-          aria-label={`Open ${recipe.title}`}
-          className="absolute inset-0 rounded-lg focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-[var(--ring)]/50"
-        />
-      )}
+      <RecipeMatchCardAction
+        recipe={recipe}
+        inList={inList}
+        onToggleList={onToggleList}
+        cardAction={cardAction}
+      />
       <CardContent className="p-3">
         <div className="flex min-w-0 items-start gap-3">
           <RecipeThumb recipe={recipe} size={48} />

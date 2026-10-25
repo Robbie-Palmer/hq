@@ -51,8 +51,21 @@ describe("useScaledRecipe", () => {
     };
 
     let scaledPhase: "initial" | "retry-loading" | "retry-ready" = "initial";
+    const scaleThreeResult = (cookBody: string) =>
+      scaledPhase === "retry-loading"
+        ? {
+            recipe: parsedScaledTwo as never,
+            source: { cookBody, scale: 2 },
+            loading: true,
+            error: null,
+          }
+        : {
+            recipe: parsedScaledThree as never,
+            source: { cookBody, scale: 3 },
+            loading: false,
+            error: null,
+          };
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
     vi.mocked(useCooklangRecipe).mockImplementation((cookBody, scale) => {
       if (!cookBody) {
         return { recipe: null, source: null, loading: false, error: null };
@@ -76,22 +89,8 @@ describe("useScaledRecipe", () => {
         };
       }
 
-      if (scale === 3 && scaledPhase === "retry-loading") {
-        return {
-          recipe: parsedScaledTwo as never,
-          source: { cookBody, scale: 2 },
-          loading: true,
-          error: null,
-        };
-      }
-
       if (scale === 3) {
-        return {
-          recipe: parsedScaledThree as never,
-          source: { cookBody, scale: 3 },
-          loading: false,
-          error: null,
-        };
+        return scaleThreeResult(cookBody);
       }
 
       throw new Error(`Unexpected scale ${scale}`);
