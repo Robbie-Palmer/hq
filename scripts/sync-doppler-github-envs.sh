@@ -2,6 +2,7 @@
 set -euo pipefail
 
 default_project="${DOPPLER_PROJECT:-personal-site}"
+github_repository="${GITHUB_REPOSITORY:-Robbie-Palmer/hq}"
 requested_environments=("$@")
 
 require_command() {
@@ -188,28 +189,28 @@ sync_env() {
     fi
 
     if [[ "$visibility" == "unmasked" ]]; then
-      gh variable set "$name" --env "$github_env" --body "$value" >/dev/null
-      gh secret delete "$name" --env "$github_env" >/dev/null 2>&1 || true
+      gh variable set "$name" --env "$github_env" --body "$value" --repo "$github_repository" >/dev/null
+      gh secret delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null 2>&1 || true
     else
-      gh secret set "$name" --env "$github_env" --body "$value" >/dev/null
-      gh variable delete "$name" --env "$github_env" >/dev/null 2>&1 || true
+      gh secret set "$name" --env "$github_env" --body "$value" --repo "$github_repository" >/dev/null
+      gh variable delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null 2>&1 || true
     fi
   done < <(jq -c '.[]' <<<"$entries_json")
 
-  existing_secrets_json=$(gh secret list --env "$github_env" --json name)
-  existing_vars_json=$(gh variable list --env "$github_env" --json name)
+  existing_secrets_json=$(gh secret list --env "$github_env" --json name --repo "$github_repository")
+  existing_vars_json=$(gh variable list --env "$github_env" --json name --repo "$github_repository")
 
   while IFS= read -r name; do
     if ! contains_name "$name" "$desired_secrets"; then
       echo "Deleting stale GitHub secret '$name' from '$github_env'"
-      gh secret delete "$name" --env "$github_env" >/dev/null
+      gh secret delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null
     fi
   done < <(jq -r '.[].name' <<<"$existing_secrets_json")
 
   while IFS= read -r name; do
     if ! contains_name "$name" "$desired_vars"; then
       echo "Deleting stale GitHub variable '$name' from '$github_env'"
-      gh variable delete "$name" --env "$github_env" >/dev/null
+      gh variable delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null
     fi
   done < <(jq -r '.[].name' <<<"$existing_vars_json")
 }
