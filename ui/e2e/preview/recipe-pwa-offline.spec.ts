@@ -324,7 +324,7 @@ async function expectOfflineDestination(page: Page, path: string) {
   ).toHaveCount(0);
 }
 
-test.describe.configure({ retries: 0, timeout: 90_000 });
+test.describe.configure({ mode: "serial", retries: 0, timeout: 90_000 });
 
 test.describe("deployed recipe PWA offline navigation", () => {
   test("routes unavailable app navigation through the offline page", async ({
