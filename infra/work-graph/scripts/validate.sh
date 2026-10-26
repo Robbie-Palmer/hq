@@ -10,3 +10,4 @@ trap cleanup EXIT INT TERM
 TF_DATA_DIR="$validation_data_dir" terraform init -backend=false > /dev/null
 TF_DATA_DIR="$validation_data_dir" terraform validate
 bash scripts/check-security-boundary.sh
+bash scripts/manage-diagnostics-token.test.sh

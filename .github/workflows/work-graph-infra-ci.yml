@@ -5,6 +5,7 @@ on:
     paths:
       - "infra/work-graph/**"
       - ".github/workflows/work-graph-infra-ci.yml"
+      - ".github/workflows/work-graph-diagnostics-token.yml"
 
 permissions:
   contents: read
