@@ -697,12 +697,15 @@ doppler secrets set PROTON_VPN_WIREGUARD_PRIVATE_KEY \
 Do not commit the downloaded configuration or paste the key into chat. Delete
 the local `.conf` after Doppler stores the key.
 
-The qBittorrent trial pins Gluetun to the Netherlands. A fixed nearby country
-makes exit-location checks, DNS checks, and before/after benchmarks repeatable;
-it is not required by WireGuard. Change `SERVER_COUNTRIES` in
-`k3s/overlays/home-media/programmable-vpn-settings.yaml` if another Proton P2P
-country is a better fit. The Fire TV country remains an independent choice in
-the Proton Android TV app.
+The qBittorrent trial pins Gluetun to the public endpoint, server key, and tunnel
+address from Proton's generated Netherlands NL-880 configuration. The nearby
+country makes exit-location checks and before/after benchmarks repeatable. The
+exact generated endpoint avoids Proton servers that advertised port forwarding
+but stalled during the live NAT-PMP test. Regenerate the configuration and
+change the public values in
+`k3s/overlays/home-media/programmable-vpn-settings.yaml` if Proton retires that
+server or another P2P location is a better fit. The Fire TV country remains an
+independent choice in the Proton Android TV app.
 
 Keep Hotspot Shield connected for the migration. Then run these commands in
 order:
@@ -743,7 +746,7 @@ mise run //homelab:media-vpn-verify
 ```
 
 Run the tunnel-drop check during a maintenance window. It removes Gluetun's
-WireGuard interface, expects qBittorrent egress to fail, and waits up to 60
+WireGuard interface, expects qBittorrent egress to fail, and waits up to 180
 seconds for automatic recovery:
 
 ```bash

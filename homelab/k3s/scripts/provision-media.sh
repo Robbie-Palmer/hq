@@ -6,18 +6,13 @@ set -euo pipefail
 # first-run wizard. Safe to re-run. The compose equivalent lives under
 # hosts/mac-mini/media-automation/scripts.
 #
-# Provisioning reaches out to public trackers (indexer validation, live
-# searches), so refuse to run outside a VPN tunnel; see ADR 020.
+# qBittorrent owns its internet route through the Gluetun sidecar. Provisioning
+# must therefore work without a host-wide VPN, which ADR 024 replaces for this
+# workload.
 
 # Append host paths without clobbering mise's tool paths (kubectl is
 # mise-managed).
 export PATH="$PATH:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
-VPN_IFACE="$(route -n get 1.1.1.1 2>/dev/null | awk '/^ *interface:/{print $2}')"
-case "$VPN_IFACE" in
-  utun*) ;;
-  *) echo "refusing to provision: default route is '${VPN_IFACE:-unset}', not a VPN tunnel (ADR 020)" >&2; exit 1 ;;
-esac
 
 CONTEXT="${MEDIA_KUBE_CONTEXT:-colima-homelab-k3s}"
 NAMESPACE="${MEDIA_NAMESPACE:-media}"

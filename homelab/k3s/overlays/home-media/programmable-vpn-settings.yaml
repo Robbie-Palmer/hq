@@ -4,7 +4,11 @@ metadata:
   name: programmable-vpn-settings
   namespace: media
 data:
-  # Pin one nearby country so exit-location checks and before/after benchmarks
-  # stay repeatable. PORT_FORWARD_ONLY narrows this to Proton P2P servers.
-  SERVER_COUNTRIES: Netherlands
+  # These public values come from the Proton-generated NL-880 configuration.
+  # The private key remains in Doppler.
+  VPN_EXIT_COUNTRY: Netherlands
+  WIREGUARD_ADDRESSES: 10.2.0.2/32
+  WIREGUARD_PUBLIC_KEY: 6tGMeS0XSeK2kFkDgAbAdQyWi9xYT74lO5KPEWdkrC0=
+  WIREGUARD_ENDPOINT_IP: 169.150.196.68
+  WIREGUARD_ENDPOINT_PORT: "51820"
   DNS_UPSTREAM_RESOLVERS: quad9

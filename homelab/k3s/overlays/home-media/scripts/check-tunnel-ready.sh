@@ -2,4 +2,5 @@
 set -eu
 
 ip link show tun0 >/dev/null
-/gluetun-entrypoint healthcheck
+ip link set tun0 up
+exec /gluetun-entrypoint healthcheck

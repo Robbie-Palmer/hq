@@ -5,6 +5,10 @@ metadata:
   namespace: media
 spec:
   replicas: 1
+  # Proton associates this WireGuard credential with one active session. Stop
+  # the old pod before opening the replacement tunnel.
+  strategy:
+    type: Recreate
   template:
     metadata:
       annotations:
@@ -41,13 +45,15 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
-              add: ["NET_ADMIN", "NET_RAW"]
+              # Gluetun chowns runtime files to PUID 1000, then its root
+              # controller clears them during tunnel recovery.
+              add: ["CHOWN", "DAC_OVERRIDE", "NET_ADMIN", "NET_RAW"]
               drop: ["ALL"]
           env:
             - name: TZ
               value: Europe/Dublin
             - name: VPN_SERVICE_PROVIDER
-              value: protonvpn
+              value: custom
             - name: VPN_TYPE
               value: wireguard
             - name: WIREGUARD_PRIVATE_KEY
@@ -55,17 +61,32 @@ spec:
                 secretKeyRef:
                   name: proton-vpn
                   key: PROTON_VPN_WIREGUARD_PRIVATE_KEY
-            - name: SERVER_COUNTRIES
+            - name: WIREGUARD_ADDRESSES
               valueFrom:
                 configMapKeyRef:
                   name: programmable-vpn-settings
-                  key: SERVER_COUNTRIES
-            - name: PORT_FORWARD_ONLY
-              value: "on"
+                  key: WIREGUARD_ADDRESSES
+            - name: WIREGUARD_PUBLIC_KEY
+              valueFrom:
+                configMapKeyRef:
+                  name: programmable-vpn-settings
+                  key: WIREGUARD_PUBLIC_KEY
+            - name: WIREGUARD_ENDPOINT_IP
+              valueFrom:
+                configMapKeyRef:
+                  name: programmable-vpn-settings
+                  key: WIREGUARD_ENDPOINT_IP
+            - name: WIREGUARD_ENDPOINT_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: programmable-vpn-settings
+                  key: WIREGUARD_ENDPOINT_PORT
             - name: VPN_PORT_FORWARDING
               value: "on"
             - name: VPN_PORT_FORWARDING_PROVIDER
               value: protonvpn
+            - name: VPN_PORT_FORWARDING_STATUS_FILE
+              value: /gluetun/forwarded_port
             - name: VPN_PORT_FORWARDING_UP_COMMAND
               value: /opt/homelab/set-forwarded-port.sh {{PORT}} {{VPN_INTERFACE}}
             - name: VPN_PORT_FORWARDING_DOWN_COMMAND
@@ -79,7 +100,7 @@ spec:
                   key: DNS_UPSTREAM_RESOLVERS
           readinessProbe:
             exec:
-              command: ["/gluetun-entrypoint", "healthcheck"]
+              command: ["/opt/homelab/check-tunnel-ready.sh"]
             initialDelaySeconds: 10
             periodSeconds: 10
             timeoutSeconds: 5
@@ -91,7 +112,7 @@ spec:
             timeoutSeconds: 5
           livenessProbe:
             exec:
-              command: ["/gluetun-entrypoint", "healthcheck"]
+              command: ["/opt/homelab/check-tunnel-ready.sh"]
             initialDelaySeconds: 30
             periodSeconds: 30
             timeoutSeconds: 5
@@ -105,6 +126,8 @@ spec:
           volumeMounts:
             - name: tun
               mountPath: /dev/net/tun
+            - name: gluetun-state
+              mountPath: /tmp/gluetun
             - name: vpn-scripts
               mountPath: /opt/homelab
               readOnly: true
@@ -113,6 +136,8 @@ spec:
           hostPath:
             path: /dev/net/tun
             type: CharDevice
+        - name: gluetun-state
+          emptyDir: {}
         - name: vpn-scripts
           configMap:
             name: qbittorrent-vpn-scripts
