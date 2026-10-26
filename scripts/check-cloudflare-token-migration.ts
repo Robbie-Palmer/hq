@@ -37,7 +37,7 @@ const permissionGroupSchema = z
 const credentialSchema = z
   .object({
     id: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
-    current_credential_group: z.string().min(1),
+    current_group: z.string().min(1),
     repeated_name_relation: z.enum(["distinct", "shared"]),
     source_locations: z.array(locationSchema).min(1),
     destinations: z.array(destinationSchema).min(1),
