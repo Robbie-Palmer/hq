@@ -19,18 +19,24 @@ import {
   addExtra,
   addRecipe,
   getShoppingListSnapshot,
+  savePlannedMeal,
   toggleChecked,
 } from "@/lib/shopping/shoppingListStore";
 import { __resetShoppingListForTests } from "@/tests/support/recipe-state";
 
 const mocks = vi.hoisted(() => ({
+  applyShoppingListCommand: vi.fn(),
   captureRecipeProductActivity: vi.fn(),
   getCurrentShoppingList: vi.fn(),
+  enqueueShoppingCommand: vi.fn(),
+  listShoppingCommands: vi.fn(),
   loadOfflineShoppingListSnapshot: vi.fn(),
   saveCurrentShoppingList: vi.fn(),
   saveOfflineShoppingListSnapshot: vi.fn(),
+  removeShoppingCommand: vi.fn(),
   startNewShoppingList: vi.fn(),
   toastError: vi.fn(),
+  updateShoppingCommand: vi.fn(),
 }));
 
 vi.mock("sonner", () => ({ toast: { error: mocks.toastError } }));
@@ -50,9 +56,17 @@ vi.mock("@/lib/auth-client", () => ({
 
 vi.mock("@/lib/api/shopping-lists", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api/shopping-lists")>()),
+  applyShoppingListCommand: mocks.applyShoppingListCommand,
   getCurrentShoppingList: mocks.getCurrentShoppingList,
   saveCurrentShoppingList: mocks.saveCurrentShoppingList,
   startNewShoppingList: mocks.startNewShoppingList,
+}));
+
+vi.mock("@/lib/pwa/shopping-command-outbox", () => ({
+  enqueueShoppingCommand: mocks.enqueueShoppingCommand,
+  listShoppingCommands: mocks.listShoppingCommands,
+  removeShoppingCommand: mocks.removeShoppingCommand,
+  updateShoppingCommand: mocks.updateShoppingCommand,
 }));
 
 vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
@@ -60,7 +74,7 @@ vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
   saveOfflineShoppingListSnapshot: mocks.saveOfflineShoppingListSnapshot,
 }));
 
-const emptySnapshot = { recipes: [], checked: [], extras: [] };
+const emptySnapshot = { recipes: [], checked: [], extras: [], plan: [] };
 const storedList = {
   id: "00000000-0000-4000-8000-000000000080",
   resourceId: "user-1",
@@ -69,6 +83,27 @@ const storedList = {
   snapshot: emptySnapshot,
   createdAt: "2026-08-20T08:00:00.000Z",
   updatedAt: "2026-08-20T08:00:00.000Z",
+};
+
+const queuedCommand = {
+  key: "user-1:00000000-0000-4000-8000-000000000090",
+  commandId: "00000000-0000-4000-8000-000000000090",
+  actorUserId: "user-1",
+  resourceId: "user-1",
+  householdId: null,
+  listId: storedList.id,
+  baseRevision: "0",
+  command: {
+    type: "set_checked" as const,
+    itemType: "ingredient" as const,
+    itemId: "garlic",
+    checked: true,
+  },
+  outcome: "pending" as const,
+  attempts: 0,
+  nextAttemptAt: 0,
+  createdAt: 1,
+  updatedAt: 1,
 };
 
 function renderWithQueryClient(element: React.ReactNode) {
@@ -133,6 +168,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     statefulChildMounts = 0;
     vi.clearAllMocks();
     mocks.loadOfflineShoppingListSnapshot.mockResolvedValue(null);
+    mocks.listShoppingCommands.mockResolvedValue([]);
     mocks.saveOfflineShoppingListSnapshot.mockResolvedValue({
       status: "saved",
       savedAt: 1,
@@ -143,6 +179,34 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       ...storedList,
       id: "00000000-0000-4000-8000-000000000081",
     });
+    mocks.applyShoppingListCommand.mockImplementation(
+      async (request: {
+        baseRevision: string;
+        command: { itemId: string; checked: boolean };
+      }) => ({
+        ...storedList,
+        revision: String(Number(request.baseRevision) + 1),
+        snapshot: {
+          ...emptySnapshot,
+          checked: request.command.checked ? [request.command.itemId] : [],
+        },
+      }),
+    );
+    mocks.enqueueShoppingCommand.mockImplementation(async (command) => ({
+      ...command,
+      key: `${command.actorUserId}:${command.commandId}`,
+      outcome: "pending",
+      attempts: 0,
+      nextAttemptAt: 0,
+      createdAt: 1,
+      updatedAt: 1,
+    }));
+    mocks.removeShoppingCommand.mockResolvedValue(undefined);
+    mocks.updateShoppingCommand.mockImplementation(async (record, changes) => ({
+      ...record,
+      ...changes,
+      updatedAt: 2,
+    }));
   });
 
   it("restores the scoped shopping snapshot when the network is unavailable", async () => {
@@ -238,6 +302,52 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         "shopping-list",
       ])?.revision,
     ).toBe("1");
+  });
+
+  it("saves a converted scoped device-only plan when the server list is empty", async () => {
+    localStorage.setItem(
+      "recipe-shopping-list:v2:test-user",
+      JSON.stringify({
+        version: 2,
+        userId: "test-user",
+        recipes: [],
+        checked: [],
+        extras: [],
+        plan: [{ day: "mon", slot: "dinner", slug: "risotto" }],
+        listId: storedList.id,
+        revision: storedList.revision,
+      }),
+    );
+    __resetShoppingListForTests();
+    mocks.saveCurrentShoppingList.mockImplementation(
+      (_listId, _revision, snapshot) =>
+        Promise.resolve({ ...storedList, revision: "1", snapshot }),
+    );
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>Plan ready</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("Plan ready")).toBeInTheDocument();
+    await waitFor(
+      () =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          storedList.revision,
+          expect.objectContaining({
+            plan: [
+              expect.objectContaining({
+                id: "legacy-mon-dinner-risotto",
+                recipeSlug: "risotto",
+                status: "committed",
+              }),
+            ],
+          }),
+        ),
+      { timeout: 5_000 },
+    );
   });
 
   it("keeps a recipe-page addition and its servings when the shopping route mounts", async () => {
@@ -413,9 +523,17 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
   });
 
   it("saves a rapid check then uncheck against advancing revisions", async () => {
-    mocks.saveCurrentShoppingList
-      .mockResolvedValueOnce({ ...storedList, revision: "1" })
-      .mockResolvedValueOnce({ ...storedList, revision: "2" });
+    mocks.applyShoppingListCommand
+      .mockResolvedValueOnce({
+        ...storedList,
+        revision: "1",
+        snapshot: { ...emptySnapshot, checked: ["garlic"] },
+      })
+      .mockResolvedValueOnce({
+        ...storedList,
+        revision: "2",
+        snapshot: emptySnapshot,
+      });
     renderWithQueryClient(
       <ShoppingListBoundary>
         <p>List ready</p>
@@ -425,18 +543,202 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
 
     act(() => toggleChecked("garlic"));
     await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenCalledTimes(1),
+      expect(mocks.applyShoppingListCommand).toHaveBeenCalledTimes(1),
     );
     act(() => toggleChecked("garlic"));
 
     await waitFor(() =>
-      expect(mocks.saveCurrentShoppingList).toHaveBeenNthCalledWith(
+      expect(mocks.applyShoppingListCommand).toHaveBeenNthCalledWith(
         2,
-        storedList.id,
-        "1",
-        expect.objectContaining({ checked: [] }),
+        expect.objectContaining({
+          baseRevision: "1",
+          command: expect.objectContaining({
+            itemId: "garlic",
+            checked: false,
+          }),
+        }),
       ),
     );
+    expect(getShoppingListSnapshot().checked).toEqual([]);
+  });
+
+  it("keeps a checklist command durable until its acknowledgement", async () => {
+    let acknowledge: ((list: StoredShoppingList) => void) | undefined;
+    mocks.applyShoppingListCommand.mockImplementation(
+      () =>
+        new Promise<StoredShoppingList>((resolve) => {
+          acknowledge = resolve;
+        }),
+    );
+    const view = renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List ready</p>
+      </ShoppingListBoundary>,
+    );
+    await screen.findByText("List ready");
+
+    act(() => toggleChecked("garlic"));
+
+    await waitFor(() =>
+      expect(mocks.enqueueShoppingCommand).toHaveBeenCalledOnce(),
+    );
+    await waitFor(() =>
+      expect(mocks.applyShoppingListCommand).toHaveBeenCalledOnce(),
+    );
+    expect(mocks.removeShoppingCommand).not.toHaveBeenCalled();
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(
+      "1 offline shopping-list change is waiting to sync",
+    );
+
+    view.unmount();
+    acknowledge?.({
+      ...storedList,
+      revision: "1",
+      snapshot: { ...emptySnapshot, checked: ["garlic"] },
+    });
+  });
+
+  it("replays the same command after an acknowledgement is interrupted", async () => {
+    const acknowledged = {
+      ...storedList,
+      revision: "1",
+      snapshot: { ...emptySnapshot, checked: ["garlic"] },
+    };
+    mocks.listShoppingCommands.mockResolvedValue([queuedCommand]);
+    mocks.getCurrentShoppingList.mockResolvedValue(acknowledged);
+    mocks.applyShoppingListCommand.mockResolvedValue(acknowledged);
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List restored</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List restored")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.applyShoppingListCommand).toHaveBeenCalledWith({
+        commandId: queuedCommand.commandId,
+        listId: queuedCommand.listId,
+        baseRevision: queuedCommand.baseRevision,
+        command: queuedCommand.command,
+      }),
+    );
+    await waitFor(() =>
+      expect(mocks.removeShoppingCommand).toHaveBeenCalledWith(
+        "user-1",
+        queuedCommand.commandId,
+      ),
+    );
+    expect(getShoppingListSnapshot().checked).toEqual(["garlic"]);
+  });
+
+  it("does not replace a newer list with an older command receipt", async () => {
+    const newerList = {
+      ...storedList,
+      revision: "2",
+      snapshot: {
+        ...emptySnapshot,
+        checked: ["garlic"],
+        extras: [{ id: "extra-bread", text: "Bread", checked: false }],
+      },
+    };
+    const recordedResult = {
+      ...storedList,
+      revision: "1",
+      snapshot: { ...emptySnapshot, checked: ["garlic"] },
+    };
+    mocks.listShoppingCommands.mockResolvedValue([queuedCommand]);
+    mocks.getCurrentShoppingList.mockResolvedValue(newerList);
+    mocks.applyShoppingListCommand.mockResolvedValue(recordedResult);
+
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List restored</p>
+      </ShoppingListBoundary>,
+    );
+
+    expect(await screen.findByText("List restored")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(mocks.removeShoppingCommand).toHaveBeenCalledWith(
+        "user-1",
+        queuedCommand.commandId,
+      ),
+    );
+    expect(getShoppingListSnapshot()).toMatchObject({
+      checked: ["garlic"],
+      extras: [{ id: "extra-bread", text: "Bread", checked: false }],
+    });
+  });
+
+  it("preserves a local extra while replaying an offline checklist command", async () => {
+    let online = false;
+    const onlineSpy = vi
+      .spyOn(navigator, "onLine", "get")
+      .mockImplementation(() => online);
+    mocks.saveCurrentShoppingList.mockRejectedValue(new Error("offline"));
+
+    try {
+      renderWithQueryClient(
+        <ShoppingListBoundary>
+          <p>List ready</p>
+        </ShoppingListBoundary>,
+      );
+      await screen.findByText("List ready");
+      await waitForInstalledList();
+
+      act(() => addExtra("Milk"));
+      await waitFor(() =>
+        expect(mocks.saveCurrentShoppingList).toHaveBeenCalledWith(
+          storedList.id,
+          storedList.revision,
+          expect.objectContaining({
+            extras: [expect.objectContaining({ text: "Milk" })],
+          }),
+        ),
+      );
+
+      act(() => toggleChecked("garlic"));
+      await waitFor(() =>
+        expect(mocks.enqueueShoppingCommand).toHaveBeenCalledOnce(),
+      );
+      expect(mocks.applyShoppingListCommand).not.toHaveBeenCalled();
+
+      online = true;
+      act(() => globalThis.dispatchEvent(new Event("online")));
+
+      await waitFor(() =>
+        expect(mocks.removeShoppingCommand).toHaveBeenCalledOnce(),
+      );
+      expect(getShoppingListSnapshot()).toMatchObject({
+        checked: ["garlic"],
+        extras: [expect.objectContaining({ text: "Milk" })],
+      });
+    } finally {
+      onlineSpy.mockRestore();
+    }
+  });
+
+  it("offers the server version when an offline command conflicts", async () => {
+    mocks.applyShoppingListCommand.mockRejectedValue(
+      new ApiError(
+        "The shopping list changed while this command was offline",
+        409,
+      ),
+    );
+    renderWithQueryClient(
+      <ShoppingListBoundary>
+        <p>List ready</p>
+      </ShoppingListBoundary>,
+    );
+    await screen.findByText("List ready");
+
+    act(() => toggleChecked("garlic"));
+
+    expect(
+      await screen.findByRole("alert", {}, { timeout: 3_000 }),
+    ).toHaveTextContent("needs attention");
+    fireEvent.click(screen.getByRole("button", { name: "Use server version" }));
+    await waitFor(() => expect(mocks.removeShoppingCommand).toHaveBeenCalled());
     expect(getShoppingListSnapshot().checked).toEqual([]);
   });
 
@@ -743,7 +1045,15 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       </ShoppingListBoundary>,
     );
     await screen.findByRole("button", { name: "Start new" });
-    act(() => addExtra("Milk"));
+    act(() => {
+      addExtra("Milk");
+      savePlannedMeal({
+        id: "meal-1",
+        kind: "recipe",
+        status: "candidate",
+        recipeSlug: "risotto",
+      });
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Start new" }));
 
@@ -751,6 +1061,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       recipes: [],
       checked: [],
       extras: [],
+      plan: [expect.objectContaining({ id: "meal-1" })],
     });
     expect(
       JSON.parse(
@@ -768,6 +1079,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         storedList.revision,
         expect.objectContaining({
           extras: [expect.objectContaining({ text: "Milk" })],
+          plan: [expect.objectContaining({ id: "meal-1" })],
         }),
       ),
     );
@@ -777,6 +1089,10 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
       finishStarting?.({
         ...storedList,
         id: "00000000-0000-4000-8000-000000000081",
+        snapshot: {
+          ...emptySnapshot,
+          plan: getShoppingListSnapshot().plan,
+        },
       }),
     );
     await waitFor(() =>
@@ -784,6 +1100,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
         recipes: [],
         checked: [],
         extras: [],
+        plan: [expect.objectContaining({ id: "meal-1" })],
       }),
     );
   });
@@ -926,7 +1243,7 @@ describe("ShoppingListBoundary", { timeout: 10_000 }, () => {
     const nextList = {
       ...storedList,
       id: "00000000-0000-4000-8000-000000000081",
-      snapshot: { recipes, checked, extras },
+      snapshot: { recipes, checked, extras, plan: [] },
     };
     act(() => {
       queryClient.setQueryData(

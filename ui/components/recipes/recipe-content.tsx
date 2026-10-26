@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  CalendarPlus,
   Check,
   Clock,
   Download,
@@ -13,6 +14,7 @@ import {
   Timer,
   Users,
 } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { CookingOutcome } from "recipe-domain/cook-log";
@@ -147,11 +149,7 @@ function buildCookUrl(open: boolean, step: number): string {
   const url = new URL(globalThis.location.href);
   if (open) {
     url.searchParams.set("cook", "1");
-    if (step > 0) {
-      url.searchParams.set("step", String(step + 1));
-    } else {
-      url.searchParams.delete("step");
-    }
+    url.searchParams.set("step", String(step + 1));
   } else {
     url.searchParams.delete("cook");
     url.searchParams.delete("step");
@@ -312,7 +310,104 @@ function useCookingSessionRecording({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function RecipeSourceLink({ canonical }: Readonly<{ canonical?: string }>) {
+  if (!canonical) return null;
+  return (
+    <p className="rt-body text-sm text-[var(--ink-2)] italic mb-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] px-3 py-2">
+      <Globe className="h-4 w-4 not-italic" />
+      <span>
+        Adapted from{" "}
+        <a
+          href={canonical}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline text-[var(--terracotta-deep)] hover:text-foreground"
+        >
+          the original recipe
+        </a>
+        {"."}
+      </span>
+    </p>
+  );
+}
+
+function RecipeHeaderActions({
+  recipeSlug,
+  portions,
+  stepCount,
+  shoppingListEnabled,
+  userId,
+  onStartCooking,
+}: Readonly<{
+  recipeSlug: string;
+  portions: number;
+  stepCount: number;
+  shoppingListEnabled: boolean;
+  userId?: string;
+  onStartCooking: () => void;
+}>) {
+  if (stepCount === 0 && !(shoppingListEnabled && userId)) return null;
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {shoppingListEnabled && userId && (
+        <>
+          <Button
+            size="lg"
+            variant="outline"
+            asChild
+            className="w-full border-[var(--line-strong)] text-[var(--ink-2)] hover:border-[var(--terracotta)] hover:text-[var(--terracotta)] sm:w-auto"
+          >
+            <Link
+              href={`/recipes/planning?recipe=${encodeURIComponent(recipeSlug)}`}
+            >
+              <CalendarPlus className="size-5" />
+              Plan meal
+            </Link>
+          </Button>
+          <RecipeShoppingListButton
+            recipeSlug={recipeSlug}
+            servings={portions}
+            userId={userId}
+          />
+        </>
+      )}
+      {stepCount > 0 && (
+        <Button
+          size="lg"
+          onClick={onStartCooking}
+          className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
+        >
+          <Flame className="size-5" />
+          Start cooking
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function ScalingStatus({
+  error,
+  isScaling,
+}: Readonly<{ error: unknown; isScaling: boolean }>) {
+  if (error) {
+    return (
+      <AlertTriangle
+        className="h-3 w-3 text-destructive"
+        aria-label="Precise scaling unavailable; showing an approximation"
+      />
+    );
+  }
+  if (isScaling) {
+    return (
+      <Loader2
+        className="h-3 w-3 animate-spin text-muted-foreground"
+        aria-label="Scaling recipe"
+      />
+    );
+  }
+  return null;
+}
+
 export function RecipeContent({
   recipe,
   recipeVersion = recipe.date,
@@ -511,26 +606,6 @@ export function RecipeContent({
     setCookStep(step);
   }, []);
 
-  const scalingStatus = (() => {
-    if (scalingError) {
-      return (
-        <AlertTriangle
-          className="h-3 w-3 text-destructive"
-          aria-label="Precise scaling unavailable; showing an approximation"
-        />
-      );
-    }
-    if (isScaling) {
-      return (
-        <Loader2
-          className="h-3 w-3 animate-spin text-muted-foreground"
-          aria-label="Scaling recipe"
-        />
-      );
-    }
-    return null;
-  })();
-
   return (
     <>
       <header className="mb-8">
@@ -546,46 +621,15 @@ export function RecipeContent({
           <EquipmentWarning match={equipmentMatch} className="mb-4" />
         )}
 
-        {recipe.canonical && (
-          <p className="rt-body text-sm text-[var(--ink-2)] italic mb-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-[var(--line-strong)] bg-[var(--paper-warm)] px-3 py-2">
-            <Globe className="h-4 w-4 not-italic" />
-            <span>
-              Adapted from{" "}
-              <a
-                href={recipe.canonical}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline text-[var(--terracotta-deep)] hover:text-foreground"
-              >
-                the original recipe
-              </a>
-              {"."}
-            </span>
-          </p>
-        )}
-
-        {(cookSteps.length > 0 ||
-          (shoppingListEnabled && Boolean(authSession))) && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {shoppingListEnabled && authSession && (
-              <RecipeShoppingListButton
-                recipeSlug={recipe.slug}
-                servings={portions}
-                userId={authSession.user.id}
-              />
-            )}
-            {cookSteps.length > 0 && (
-              <Button
-                size="lg"
-                onClick={openCookMode}
-                className="w-full sm:w-auto bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)] text-base"
-              >
-                <Flame className="size-5" />
-                Start cooking
-              </Button>
-            )}
-          </div>
-        )}
+        <RecipeSourceLink canonical={recipe.canonical} />
+        <RecipeHeaderActions
+          recipeSlug={recipe.slug}
+          portions={portions}
+          stepCount={cookSteps.length}
+          shoppingListEnabled={shoppingListEnabled}
+          userId={authSession?.user.id}
+          onStartCooking={openCookMode}
+        />
 
         <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-1">
@@ -616,7 +660,7 @@ export function RecipeContent({
               >
                 <Plus className="h-3 w-3" />
               </Button>
-              {scalingStatus}
+              <ScalingStatus error={scalingError} isScaling={isScaling} />
             </div>
           </div>
           <div className="flex items-center gap-1.5">

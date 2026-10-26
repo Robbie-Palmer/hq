@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import IdeaPage, {
@@ -12,6 +13,10 @@ vi.mock("@/lib/api/ideas", () => ({
   getAllIdeaSlugs: () => ["goodharts-law", "eventstorming"],
   getAllIdeas: vi.fn(),
   getIdea: vi.fn(),
+}));
+
+vi.mock("posthog-js", () => ({
+  default: { capture: vi.fn() },
 }));
 
 vi.mock("@/components/markdown", () => ({
@@ -48,6 +53,17 @@ const idea = {
         status: "in_progress",
       },
     ],
+    initiatives: [
+      {
+        slug: "connected-work",
+        title: "Connected Work",
+        description: "Connect plans and execution.",
+        date: "2026-01-01",
+        status: "active",
+        projectContributions: {},
+        content: "",
+      },
+    ],
     blogs: [
       {
         slug: "platform-teams",
@@ -72,13 +88,14 @@ describe("ideas pages", () => {
     vi.clearAllMocks();
   });
 
-  it("renders the ideas index with singular and plural connection counts", () => {
+  it("searches the ideas index and preserves connection counts", async () => {
     (getAllIdeas as Mock).mockReturnValue([
       { ...idea, referenceCount: 1 },
       {
         ...idea,
         slug: "eventstorming",
         title: "EventStorming",
+        content: "Collaborative modelling workshop.",
         referenceCount: 2,
       },
     ]);
@@ -88,6 +105,22 @@ describe("ideas pages", () => {
     expect(screen.getByRole("heading", { name: "Ideas" })).toBeInTheDocument();
     expect(screen.getByText(/1 graph connection$/)).toBeInTheDocument();
     expect(screen.getByText(/2 graph connections$/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Filters" }),
+    ).not.toBeInTheDocument();
+
+    const user = userEvent.setup();
+    const search = screen.getByRole("searchbox", { name: "Search ideas" });
+    await user.type(search, "Collaborative");
+
+    expect(screen.queryByText("Goodhart's Law")).not.toBeInTheDocument();
+    expect(screen.getByText("EventStorming")).toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, "nothing matches this");
+    expect(
+      screen.getByText("No ideas found matching your search."),
+    ).toBeInTheDocument();
   });
 
   it("generates routes and metadata", async () => {
@@ -147,6 +180,9 @@ describe("ideas pages", () => {
       screen.getByRole("link", { name: /^Agentic Code Review/ }),
     ).toHaveAttribute("href", "/projects/agentic-code-review");
     expect(
+      screen.getByRole("link", { name: /^Connected Work/ }),
+    ).toHaveAttribute("href", "/initiatives/connected-work");
+    expect(
       screen.getByRole("link", { name: /^Platform Teams/ }),
     ).toHaveAttribute("href", "/blog/platform-teams");
     expect(
@@ -166,7 +202,13 @@ describe("ideas pages", () => {
       ...idea,
       sourceUrl: undefined,
       relatedIdeas: [],
-      relatedContent: { technologies: [], projects: [], blogs: [], adrs: [] },
+      relatedContent: {
+        technologies: [],
+        projects: [],
+        initiatives: [],
+        blogs: [],
+        adrs: [],
+      },
     });
 
     render(
@@ -176,9 +218,7 @@ describe("ideas pages", () => {
     );
 
     expect(screen.queryByRole("link", { name: /Read the source/ })).toBeNull();
-    expect(
-      screen.getByText(/has no technology or published-content references/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/has no related references/)).toBeInTheDocument();
   });
 
   it("uses the not-found boundary for an unknown idea", async () => {

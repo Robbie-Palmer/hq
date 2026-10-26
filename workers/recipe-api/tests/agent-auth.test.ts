@@ -1020,6 +1020,7 @@ describe("recipe Agent Auth capabilities", () => {
               extras: [
                 { id: "extra-milk", text: "Milk", checked: false },
               ],
+              plan: [],
             },
             closedAt: null,
             createdAt,
@@ -1042,6 +1043,7 @@ describe("recipe Agent Auth capabilities", () => {
           recipes: [{ slug: "tomato-soup", servings: 2 }],
           checked: ["tomato"],
           extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+          plan: [],
         },
         createdAt: createdAt.toISOString(),
         updatedAt: updatedAt.toISOString(),

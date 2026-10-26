@@ -2,6 +2,7 @@
 set -euo pipefail
 
 default_project="${DOPPLER_PROJECT:-personal-site}"
+github_repository="${GITHUB_REPOSITORY:-Robbie-Palmer/hq}"
 requested_environments=("$@")
 
 require_command() {
@@ -53,6 +54,10 @@ load_config_entries() {
           )
           and .key == "DOPPLER_TOKEN"
         )
+        or (
+          $source == "cloudflare-token-bootstrap/ops_provisioner"
+          and .key == "DOPPLER_BOOTSTRAP_TOKEN"
+        )
       ))
     | map({
         name: (if $source == "work-graph/prd_work_graph" and (.key | startswith("GITHUB_"))
@@ -63,6 +68,77 @@ load_config_entries() {
         source: $source
       })
   ' <<<"$secrets_json"
+}
+
+filter_entries_for_environment() {
+  local github_env="$1"
+  local entries_json="$2"
+
+  case "$github_env" in
+    production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
+      jq -c '
+        map(select(
+          .name == "TF_API_TOKEN"
+          or .name == "TAILSCALE_OAUTH_CLIENT_ID"
+          or .name == "TAILSCALE_OAUTH_CLIENT_SECRET"
+          or .name == "TAILSCALE_TAILNET"
+          or (.name | startswith("TAILNET_USER_LOGIN_"))
+          or (.name | startswith("TAILNET_PRIVATE_ADDRESS_"))
+        ))
+      ' <<<"$entries_json"
+      ;;
+    *)
+      printf '%s\n' "$entries_json"
+      ;;
+  esac
+}
+
+validate_entries_for_environment() {
+  local github_env="$1"
+  local entries_json="$2"
+  local invalid_visibility
+  local missing_names
+  local reserved_names
+
+  reserved_names=$(jq -r '
+    [.[] | select(.name | startswith("GITHUB_")) | .name]
+    | join(", ")
+  ' <<<"$entries_json")
+  if [[ -n "$reserved_names" ]]; then
+    echo "Refusing to sync GitHub-reserved secret names to '$github_env': $reserved_names" >&2
+    exit 1
+  fi
+
+  case "$github_env" in
+    production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
+      missing_names=$(jq -r '
+        [
+          "TF_API_TOKEN",
+          "TAILSCALE_OAUTH_CLIENT_ID",
+          "TAILSCALE_OAUTH_CLIENT_SECRET",
+          "TAILSCALE_TAILNET",
+          "TAILNET_PRIVATE_ADDRESS_LAB_HOST",
+          "TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS",
+          "TAILNET_USER_LOGIN_OPERATOR"
+        ] - [.[].name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$missing_names" ]]; then
+        echo "Refusing to sync incomplete tailnet values to '$github_env': $missing_names" >&2
+        exit 1
+      fi
+
+      invalid_visibility=$(jq -r '
+        [.[] | select(.visibility == "unmasked") | .name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$invalid_visibility" ]]; then
+        echo "Refusing to sync unmasked tailnet values to '$github_env': $invalid_visibility" >&2
+        exit 1
+      fi
+      ;;
+    *) ;;
+  esac
 }
 
 sync_env() {
@@ -83,6 +159,9 @@ sync_env() {
       <(printf '%s\n' "$entries_json") \
       <(printf '%s\n' "$config_entries_json"))
   done
+
+  entries_json=$(filter_entries_for_environment "$github_env" "$entries_json")
+  validate_entries_for_environment "$github_env" "$entries_json"
 
   local duplicate_names
   duplicate_names=$(jq -r '
@@ -120,28 +199,28 @@ sync_env() {
     fi
 
     if [[ "$visibility" == "unmasked" ]]; then
-      gh variable set "$name" --env "$github_env" --body "$value" >/dev/null
-      gh secret delete "$name" --env "$github_env" >/dev/null 2>&1 || true
+      gh variable set "$name" --env "$github_env" --body "$value" --repo "$github_repository" >/dev/null
+      gh secret delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null 2>&1 || true
     else
-      gh secret set "$name" --env "$github_env" --body "$value" >/dev/null
-      gh variable delete "$name" --env "$github_env" >/dev/null 2>&1 || true
+      gh secret set "$name" --env "$github_env" --body "$value" --repo "$github_repository" >/dev/null
+      gh variable delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null 2>&1 || true
     fi
   done < <(jq -c '.[]' <<<"$entries_json")
 
-  existing_secrets_json=$(gh secret list --env "$github_env" --json name)
-  existing_vars_json=$(gh variable list --env "$github_env" --json name)
+  existing_secrets_json=$(gh secret list --env "$github_env" --json name --repo "$github_repository")
+  existing_vars_json=$(gh variable list --env "$github_env" --json name --repo "$github_repository")
 
   while IFS= read -r name; do
     if ! contains_name "$name" "$desired_secrets"; then
       echo "Deleting stale GitHub secret '$name' from '$github_env'"
-      gh secret delete "$name" --env "$github_env" >/dev/null
+      gh secret delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null
     fi
   done < <(jq -r '.[].name' <<<"$existing_secrets_json")
 
   while IFS= read -r name; do
     if ! contains_name "$name" "$desired_vars"; then
       echo "Deleting stale GitHub variable '$name' from '$github_env'"
-      gh variable delete "$name" --env "$github_env" >/dev/null
+      gh variable delete "$name" --env "$github_env" --repo "$github_repository" >/dev/null
     fi
   done < <(jq -r '.[].name' <<<"$existing_vars_json")
 }
@@ -182,6 +261,7 @@ known_environments=(
   preview-site-ui
   production-account-foundation
   production-account-foundation-plan
+  production-cloudflare-token-bootstrap
   production-cloudflare-access
   production-cloudflare-access-drift
   production-cloudflare-access-plan
@@ -191,6 +271,9 @@ known_environments=(
   production-recipe-api
   production-recipe-ingest
   production-site-ui
+  production-tailnet-infra
+  production-tailnet-infra-drift
+  production-tailnet-infra-plan
   production-infra
   production-infra-bootstrap
   production-infra-bootstrap-plan
@@ -217,6 +300,7 @@ sync_requested_env preview-recipe-api stg_recipe_api stg_pages_env
 sync_requested_env preview-site-ui stg_site_ui stg_pages_env
 sync_requested_env production-account-foundation ops_account_foundation
 sync_requested_env production-account-foundation-plan ops_account_foundation_plan
+sync_requested_env production-cloudflare-token-bootstrap cloudflare-token-bootstrap/ops_provisioner
 sync_requested_env production-cloudflare-access cloudflare-access/ops_apply
 sync_requested_env production-cloudflare-access-drift cloudflare-access/ops_drift
 sync_requested_env production-cloudflare-access-plan cloudflare-access/ops_plan
@@ -226,6 +310,9 @@ sync_requested_env production-personal-finance-plan personal-finance/ops
 sync_requested_env production-recipe-api prd_recipe_api prd_site_ui prd_pages_env
 sync_requested_env production-recipe-ingest prd_recipe_ingest prd_site_ui prd_pages_env
 sync_requested_env production-site-ui prd_site_ui prd_pages_env
+sync_requested_env production-tailnet-infra homelab/prd_tailnet_values_infra
+sync_requested_env production-tailnet-infra-drift homelab/prd_tailnet_values_infra_plan
+sync_requested_env production-tailnet-infra-plan homelab/prd_tailnet_values_infra_plan
 sync_requested_env production-infra prd_infra
 sync_requested_env production-infra-bootstrap prd_bootstrap_infra
 sync_requested_env production-infra-bootstrap-plan prd_bootstrap_plan

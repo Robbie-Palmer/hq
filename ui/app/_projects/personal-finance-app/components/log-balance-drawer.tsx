@@ -1,8 +1,12 @@
 "use client";
 
 import { PenLineIcon } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, type SubmitEvent, useEffect, useState } from "react";
 import { formatAssetTrackerError } from "@/app/_projects/personal-finance-app/domain";
+import {
+  BalanceExpressionError,
+  evaluateBalanceExpression,
+} from "@/app/_projects/personal-finance-app/domain/balanceExpression";
 import {
   formatAccountCurrency,
   todayIsoDate,
@@ -26,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { BalanceExpressionField } from "./balance-expression-field";
 
 interface LogBalanceDrawerProps {
   /** Lock the form to one account (used from the account detail view) */
@@ -68,7 +73,7 @@ export function LogBalanceDrawer({
     );
   }, [accountId, openAccountsKey]);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedId) {
       setError("Choose an account");
@@ -77,16 +82,21 @@ export function LogBalanceDrawer({
     setError(null);
     setSubmitting(true);
     try {
+      const evaluated = evaluateBalanceExpression(balance);
       await recordBalance({
         accountId: selectedId,
         date,
-        balance: Number(balance),
+        balance: evaluated,
       });
       setOpen(false);
       setBalance("");
       setDate(todayIsoDate());
     } catch (err) {
-      setError(formatAssetTrackerError(err));
+      setError(
+        err instanceof BalanceExpressionError
+          ? err.message
+          : formatAssetTrackerError(err),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -148,21 +158,14 @@ export function LogBalanceDrawer({
               on {selectedAccount.latestSnapshotDate}
             </p>
           )}
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="log-balance-amount" className="text-sm font-medium">
-              Balance{selectedAccount ? ` (${selectedAccount.currency})` : ""}
-            </label>
-            <Input
-              id="log-balance-amount"
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              required
-              placeholder="0.00 (negative for debt)"
-              value={balance}
-              onChange={(e) => setBalance(e.target.value)}
-            />
-          </div>
+          <BalanceExpressionField
+            currency={selectedAccount?.currency}
+            value={balance}
+            onChange={(value) => {
+              setBalance(value);
+              setError(null);
+            }}
+          />
           <div className="flex flex-col gap-1.5">
             <label htmlFor="log-balance-date" className="text-sm font-medium">
               Date

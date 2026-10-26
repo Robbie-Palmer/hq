@@ -38,6 +38,7 @@ export type ADRDetailView = {
 
 export type ADRListItemView = {
   slug: string;
+  projectSlug: string;
   title: string;
   status: ADRStatus;
 };
@@ -106,6 +107,7 @@ export function toADRDetailView(
 export function toADRListItemView(adr: ADR): ADRListItemView {
   return {
     slug: adr.slug,
+    projectSlug: adr.projectSlug,
     title: adr.title,
     status: adr.status,
   };

@@ -1,0 +1,37 @@
+schema_version: 1
+
+project:
+  id: "agent-friendly-remote-development"
+  name: "Agent-friendly Remote Development"
+  kind: "infrastructure"
+
+components:
+  - id: "remote-development"
+    name: "Remote development infrastructure"
+    kind: "terraform-root"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "build-runtime"
+    slots:
+      - "build.reproducibility"
+      - "host.configuration"
+      - "network.public-ingress"
+      - "network.private-overlay"
+
+reconciliation:
+  mode: "tracking"
+  defer:
+    effective_at: "2026-10-23T00:00:00Z"
+    reason: "Wait for the profile schema to represent the NixOS host, K3s workload, and per-user workspace boundaries without flattening them into Terraform ownership."
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

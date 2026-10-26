@@ -13,19 +13,12 @@ import {
   Timer,
   X,
 } from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type { CookingOutcome } from "recipe-domain/cook-log";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import { CookingOutcomeDialog } from "@/components/recipes/cooking-outcome-dialog";
 import { Button } from "@/components/ui/button";
-import { useCookMode } from "@/contexts/cook-mode-context";
+import { useCookModeNavigation } from "@/hooks/use-cook-mode-navigation";
 import { useCookingTimer } from "@/hooks/use-cooking-timers";
 import {
   type CookingTimer,
@@ -36,11 +29,7 @@ import {
   resumeTimer,
   startTimer,
 } from "@/lib/cooking/timerStore";
-import {
-  isWakeLockSupported,
-  releaseWakeLock,
-  retainWakeLock,
-} from "@/lib/cooking/wakeLock";
+import { isWakeLockSupported } from "@/lib/cooking/wakeLock";
 import {
   formatIngredient,
   formatInstructionIngredientToken,
@@ -65,40 +54,6 @@ export type CookStep = {
   text: string;
 };
 
-const WAKE_LOCK_KEY = "cook-mode";
-const SWIPE_THRESHOLD_PX = 48;
-
-function isEditableTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
-/**
- * Keep Tab/Shift+Tab cycling within the dialog — the covered page beneath is
- * still in the DOM and would otherwise receive focus.
- */
-function trapFocus(event: KeyboardEvent, container: HTMLElement | null): void {
-  if (!container) return;
-  const focusables = container.querySelectorAll<HTMLElement>(
-    'button:not([disabled]), a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-  );
-  const first = focusables[0];
-  const last = focusables[focusables.length - 1];
-  if (!first || !last) return;
-  const active = document.activeElement;
-  const inside = active instanceof HTMLElement && container.contains(active);
-  if (event.shiftKey) {
-    if (!inside || active === first) {
-      event.preventDefault();
-      last.focus();
-    }
-  } else if (!inside || active === last) {
-    event.preventDefault();
-    first.focus();
-  }
-}
-
 function progressSegmentColor(index: number, currentStep: number): string {
   if (index < currentStep) return "var(--terracotta)";
   if (index === currentStep) return "var(--butter)";
@@ -109,6 +64,19 @@ function timerCircleBackground(state: CookingTimer["state"] | "idle"): string {
   if (state === "running") return "var(--butter)";
   if (state === "completed") return "var(--terracotta)";
   return "var(--card)";
+}
+
+function timerStatusLabel(state: CookingTimer["state"] | "idle"): string {
+  switch (state) {
+    case "idle":
+      return "tap start when you're ready";
+    case "running":
+      return "running";
+    case "paused":
+      return "paused";
+    case "completed":
+      return "time's up!";
+  }
 }
 
 function CookCompletionControls({
@@ -219,140 +187,23 @@ export function CookMode({
   onExit: () => void;
   onComplete: (outcome: CookingOutcome | null) => void;
 }>) {
-  const { setCookModeOpen, setActiveStep } = useCookMode();
-  const clampedStep = Math.min(Math.max(step, 0), steps.length - 1);
-  const current = steps[clampedStep];
-  const [showIngredients, setShowIngredients] = useState(false);
-  const containerRef = useRef<HTMLDialogElement>(null);
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
-
-  const goTo = useCallback(
-    (next: number) => {
-      onStepChange(Math.min(Math.max(next, 0), steps.length - 1));
-    },
-    [onStepChange, steps.length],
-  );
-
-  // Keep the screen awake for the whole cooking session, not just while a
-  // timer is running.
-  useEffect(() => {
-    retainWakeLock(WAKE_LOCK_KEY);
-    return () => releaseWakeLock(WAKE_LOCK_KEY);
-  }, []);
-
-  // Lock page scroll behind the overlay and share the open state so the
-  // timer dock can float above the cook-mode footer instead of covering it.
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    setCookModeOpen(true);
-    containerRef.current?.focus();
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      setCookModeOpen(false);
-    };
-  }, [setCookModeOpen]);
-
-  useEffect(() => {
-    if (!current) return;
-    setActiveStep({
-      recipeSlug,
-      recipeTitle,
-      stepIndex: clampedStep,
-      stepText: current.text,
-    });
-    return () => setActiveStep(null);
-  }, [setActiveStep, recipeSlug, recipeTitle, clampedStep, current]);
-
-  // A non-modal <dialog> (see below) doesn't make the rest of the page inert,
-  // so assistive tech could still reach the covered content. Mark every other
-  // top-level element inert while cook mode is mounted — but not the timer
-  // dock, which is a body-level sibling meant to stay usable during cooking.
-  useEffect(() => {
-    const dialog = containerRef.current;
-    if (!dialog) return;
-    const changed: HTMLElement[] = [];
-    for (const child of Array.from(document.body.children)) {
-      if (
-        !(child instanceof HTMLElement) ||
-        child === dialog ||
-        child.classList.contains("rt-timer-dock") ||
-        child.tagName === "SCRIPT" ||
-        child.tagName === "STYLE" ||
-        child.hasAttribute("inert")
-      ) {
-        continue;
-      }
-      child.setAttribute("inert", "");
-      child.setAttribute("aria-hidden", "true");
-      changed.push(child);
-    }
-    return () => {
-      for (const el of changed) {
-        el.removeAttribute("inert");
-        el.removeAttribute("aria-hidden");
-      }
-    };
-  }, []);
-
-  // Keyboard navigation: arrows move between steps, Escape exits, and Tab is
-  // trapped inside the dialog.
-  useEffect(() => {
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const onKeyDown = (event: KeyboardEvent) => {
-      // An add-timer popover (portalled to <body>, outside the dialog) is open:
-      // let it own the keyboard. Otherwise our focus trap yanks Tab back into
-      // the dialog — leaving the popover's fields unreachable — and Escape would
-      // exit cook mode instead of closing the popover.
-      if (document.querySelector('[data-slot="popover-content"]')) return;
-      if (event.key === "Tab") {
-        trapFocus(event, containerRef.current);
-        return;
-      }
-      if (isEditableTarget(event.target)) return;
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        goTo(clampedStep + 1);
-      } else if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        goTo(clampedStep - 1);
-      } else if (event.key === "Escape") {
-        event.preventDefault();
-        if (showIngredients) {
-          setShowIngredients(false);
-        } else {
-          onExit();
-        }
-      }
-    };
-    globalThis.addEventListener("keydown", onKeyDown);
-    return () => globalThis.removeEventListener("keydown", onKeyDown);
-  }, [clampedStep, goTo, onExit, showIngredients]);
-
-  const onTouchStart = useCallback((event: React.TouchEvent) => {
-    const touch = event.touches[0];
-    touchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
-  }, []);
-
-  const onTouchEnd = useCallback(
-    (event: React.TouchEvent) => {
-      const start = touchStart.current;
-      touchStart.current = null;
-      if (!start) return;
-      const touch = event.changedTouches[0];
-      if (!touch) return;
-      const dx = touch.clientX - start.x;
-      const dy = touch.clientY - start.y;
-      if (
-        Math.abs(dx) < SWIPE_THRESHOLD_PX ||
-        Math.abs(dx) < Math.abs(dy) * 1.5
-      ) {
-        return;
-      }
-      goTo(dx < 0 ? clampedStep + 1 : clampedStep - 1);
-    },
-    [clampedStep, goTo],
-  );
+  const {
+    clampedStep,
+    containerRef,
+    current,
+    goTo,
+    onTouchEnd,
+    onTouchStart,
+    setShowIngredients,
+    showIngredients,
+  } = useCookModeNavigation({
+    onExit,
+    onStepChange,
+    recipeSlug,
+    recipeTitle,
+    step,
+    steps,
+  });
 
   // Canonical names of ingredients mentioned in the current step, for
   // highlighting in the reference panel.
@@ -735,7 +586,76 @@ function IngredientReference({
 }
 
 /** Large timer control for the current step, bound to the global store. */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function TimerResetButton({
+  timerId,
+  label,
+}: Readonly<{ timerId: string; label: string }>) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={() => dismissTimer(timerId)}
+      aria-label={`Reset ${label} timer`}
+    >
+      <RotateCcw className="size-4" />
+      Reset
+    </Button>
+  );
+}
+
+function CookModeTimerActions({
+  state,
+  timerId,
+  label,
+  onStart,
+}: Readonly<{
+  state: CookingTimer["state"] | "idle";
+  timerId: string;
+  label: string;
+  onStart: () => void;
+}>) {
+  if (state === "idle") {
+    return (
+      <Button
+        size="sm"
+        onClick={onStart}
+        className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        <Play className="size-4" />
+        Start
+      </Button>
+    );
+  }
+  if (state === "completed") {
+    return (
+      <Button
+        size="sm"
+        onClick={() => dismissTimer(timerId)}
+        className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
+      >
+        Dismiss
+      </Button>
+    );
+  }
+  const isRunning = state === "running";
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="outline"
+        onClick={() => (isRunning ? pauseTimer(timerId) : resumeTimer(timerId))}
+      >
+        {isRunning ? <Pause className="size-4" /> : <Play className="size-4" />}
+        {isRunning ? "Pause" : "Resume"}
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => extendTimer(timerId)}>
+        +1 min
+      </Button>
+      <TimerResetButton timerId={timerId} label={label} />
+    </>
+  );
+}
+
 function CookModeTimer({
   timerId,
   label,
@@ -820,74 +740,15 @@ function CookModeTimer({
       <div className="flex flex-col items-center gap-2 sm:items-start">
         <div className="rt-body text-[var(--ink-2)]">{label}</div>
         <div className="rt-mono text-[var(--ink-3)]">
-          {state === "idle" && "tap start when you're ready"}
-          {state === "running" && "running"}
-          {state === "paused" && "paused"}
-          {state === "completed" && "time's up!"}
+          {timerStatusLabel(state)}
         </div>
         <div className="flex flex-wrap justify-center gap-2">
-          {state === "idle" && (
-            <Button
-              size="sm"
-              onClick={start}
-              className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-            >
-              <Play className="size-4" />
-              Start
-            </Button>
-          )}
-          {(state === "running" || state === "paused") && (
-            <>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  state === "running"
-                    ? pauseTimer(timerId)
-                    : resumeTimer(timerId)
-                }
-              >
-                {state === "running" ? (
-                  <>
-                    <Pause className="size-4" />
-                    Pause
-                  </>
-                ) : (
-                  <>
-                    <Play className="size-4" />
-                    Resume
-                  </>
-                )}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => extendTimer(timerId)}
-              >
-                +1 min
-              </Button>
-            </>
-          )}
-          {state === "completed" && (
-            <Button
-              size="sm"
-              onClick={() => dismissTimer(timerId)}
-              className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
-            >
-              Dismiss
-            </Button>
-          )}
-          {(state === "running" || state === "paused") && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => dismissTimer(timerId)}
-              aria-label={`Reset ${label} timer`}
-            >
-              <RotateCcw className="size-4" />
-              Reset
-            </Button>
-          )}
+          <CookModeTimerActions
+            state={state}
+            timerId={timerId}
+            label={label}
+            onStart={start}
+          />
         </div>
       </div>
     </div>

@@ -26,7 +26,7 @@ irreplaceable user data, so preserving its push-managed objects adds migration
 tolerance, a canonical-email backfill, and recovery machinery without
 protecting anything valuable. A one-time reset is simpler and gives the
 migration history an honest starting point: an empty database followed by
-`0000_baseline.sql`.
+`0000_create_recipe_database_baseline.sql`.
 
 ADR 016 also selected schema-only Neon branches for previews. Schema-only
 branches copy database objects but omit table rows, including Drizzle's
@@ -61,7 +61,7 @@ editing deployed history.
 
 ## Replace adoption with a fresh production cutover
 
-`0000_baseline.sql` is a normal strict initial migration generated from the
+`0000_create_recipe_database_baseline.sql` is a normal strict initial migration generated from the
 current TypeScript schema. It creates the complete application schema in an
 empty database and fails if conflicting objects already exist. It contains no
 `IF NOT EXISTS` adoption behavior and no backfill for rows created before
@@ -74,7 +74,7 @@ one-time cutover while all data remains disposable, not a recurring deployment
 step.
 
 Required reference data remains migration-owned. The initial diet and
-ingredient catalogue is installed by `0001_diet_catalog.sql`; preview-only
+ingredient catalogue is installed by `0001_seed_initial_diet_catalog.sql`; preview-only
 users and recipes remain seed-owned.
 
 ## Use a dedicated empty Neon preview project

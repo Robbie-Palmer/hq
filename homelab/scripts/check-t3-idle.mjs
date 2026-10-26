@@ -69,6 +69,7 @@ function v2Activity() {
     "orchestration_v2_projection_runs",
     "orchestration_v2_projection_runtime_requests",
     "orchestration_v2_projection_subagents",
+    "orchestration_v2_projection_threads",
     "orchestration_v2_projection_turn_items",
   ];
   if (!requiredTables.every(hasTable)) {
@@ -110,9 +111,13 @@ function v2Activity() {
       WHERE type IN ('command_execution', 'dynamic_tool', 'subagent')
         AND status IN ('pending', 'running', 'waiting')
       UNION ALL
-      SELECT thread_id, 'execution node ' || kind || ' ' || status
-      FROM orchestration_v2_projection_nodes
-      WHERE status IN ('pending', 'running', 'waiting')
+      SELECT nodes.thread_id, 'execution node ' || nodes.kind || ' ' || nodes.status
+      FROM orchestration_v2_projection_nodes AS nodes
+      INNER JOIN orchestration_v2_projection_threads AS threads
+        ON threads.thread_id = nodes.thread_id
+      WHERE threads.deleted_at IS NULL
+        AND nodes.kind != 'todo_list'
+        AND nodes.status IN ('pending', 'running', 'waiting')
       ORDER BY threadId, reason
     `)
     .all();

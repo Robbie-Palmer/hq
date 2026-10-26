@@ -11,8 +11,10 @@
 
 // Internal implementation. The public facade excludes test reset hooks.
 
+import type { ShoppingListCommandRequest } from "recipe-domain/shopping-list";
 import { isRecord } from "ts-base/records";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
+import { type MealPlanEntry, parseMealPlan } from "@/lib/domain/meal-plan";
 
 export type SelectedRecipeEntry = {
   slug: string;
@@ -33,9 +35,26 @@ export type ShoppingListState = {
   checked: string[];
   /** Freeform extras (milk, bread…). */
   extras: ExtraItem[];
+  /** Meal candidates and dated commitments shared by the household. */
+  plan: MealPlanEntry[];
 };
 
-export type ShoppingListChangeSource = "install" | "local" | "storage";
+export type AddCommittedMealsResult = {
+  addedMealCount: number;
+  addedRecipeCount: number;
+  eligibleMealCount: number;
+};
+
+export type ShoppingListChangeSource =
+  | "command"
+  | "install"
+  | "local"
+  | "storage";
+
+export type ShoppingListCommandIntent = Pick<
+  ShoppingListCommandRequest,
+  "command" | "commandId"
+>;
 
 const LEGACY_STORAGE_KEY = "recipe-shopping-list:v1";
 const STORAGE_KEY_PREFIX = "recipe-shopping-list:v2:";
@@ -46,6 +65,7 @@ const EMPTY_STATE: ShoppingListState = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
 
 let state: ShoppingListState = EMPTY_STATE;
@@ -58,6 +78,7 @@ let confirmedSnapshot: ShoppingListState | undefined;
 let hasUnsavedChanges = false;
 let completedTripRecordedFallback = false;
 const listeners = new Set<(source: ShoppingListChangeSource) => void>();
+const commandListeners = new Set<(intent: ShoppingListCommandIntent) => void>();
 
 /**
  * Persistently remember that the current checked-list cycle already produced
@@ -139,7 +160,9 @@ function parseState(raw: string | null): ShoppingListState {
         })
       : [];
 
-    return { recipes, checked, extras };
+    const plan = parseMealPlan(parsed.plan);
+
+    return { recipes, checked, extras, plan };
   } catch {
     return EMPTY_STATE;
   }
@@ -207,11 +230,17 @@ function emit(source: ShoppingListChangeSource): void {
   for (const listener of listeners) listener(source);
 }
 
-function setState(next: ShoppingListState): void {
+function setState(
+  next: ShoppingListState,
+  command?: ShoppingListCommandIntent,
+): void {
   state = next;
   hasUnsavedChanges = true;
   persist();
-  emit("local");
+  emit(command ? "command" : "local");
+  if (command) {
+    for (const listener of commandListeners) listener(command);
+  }
 }
 
 // A single, module-wide storage listener (hooked once on first subscribe, like
@@ -274,6 +303,13 @@ export function subscribeShoppingList(
   return () => {
     listeners.delete(callback);
   };
+}
+
+export function subscribeShoppingListCommands(
+  callback: (intent: ShoppingListCommandIntent) => void,
+): () => void {
+  commandListeners.add(callback);
+  return () => commandListeners.delete(callback);
 }
 
 export function getShoppingListSnapshot(): ShoppingListState {
@@ -408,12 +444,79 @@ export function setRecipeServings(slug: string, servings: number): void {
   });
 }
 
+export function savePlannedMeal(meal: MealPlanEntry): void {
+  const plan = state.plan.some(({ id }) => id === meal.id)
+    ? state.plan.map((current) => (current.id === meal.id ? meal : current))
+    : [...state.plan, meal];
+  setState({ ...state, plan });
+}
+
+export function removePlannedMeal(id: string): void {
+  setState({ ...state, plan: state.plan.filter((meal) => meal.id !== id) });
+}
+
+export function addCommittedMealsToShoppingList(
+  fromDate: string,
+  mealIds?: readonly string[],
+): AddCommittedMealsResult {
+  const selectedIds = mealIds ? new Set(mealIds) : undefined;
+  const mealsBySlug = new Map<string, { count: number; servings: number }>();
+  for (const meal of state.plan) {
+    if (
+      (selectedIds && !selectedIds.has(meal.id)) ||
+      meal.status !== "committed" ||
+      meal.kind !== "recipe" ||
+      !meal.recipeSlug ||
+      !meal.date ||
+      meal.date < fromDate
+    ) {
+      continue;
+    }
+    const current = mealsBySlug.get(meal.recipeSlug);
+    mealsBySlug.set(meal.recipeSlug, {
+      count: (current?.count ?? 0) + 1,
+      servings: (current?.servings ?? 0) + (meal.servings ?? 1),
+    });
+  }
+  let addedMealCount = 0;
+  let addedRecipeCount = 0;
+  const recipes = [...state.recipes];
+  for (const [slug, { count, servings }] of mealsBySlug) {
+    const index = recipes.findIndex((recipe) => recipe.slug === slug);
+    if (index < 0) {
+      recipes.push({ slug, servings });
+      addedMealCount += count;
+      addedRecipeCount += 1;
+    }
+  }
+  if (addedRecipeCount > 0) setState({ ...state, recipes });
+  return {
+    addedMealCount,
+    addedRecipeCount,
+    eligibleMealCount: [...mealsBySlug.values()].reduce(
+      (total, meal) => total + meal.count,
+      0,
+    ),
+  };
+}
+
 export function toggleChecked(key: string): void {
   const wasChecked = state.checked.includes(key);
   const checked = wasChecked
     ? state.checked.filter((k) => k !== key)
     : [...state.checked, key];
-  setState({ ...state, checked });
+  setState(
+    { ...state, checked },
+    {
+      commandId: crypto.randomUUID(),
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: key,
+        checked: !wasChecked,
+      },
+    },
+  );
   if (!wasChecked) {
     captureRecipeProductActivity("shopping_item_checked", {
       checked_item_count: state.checked.length,
@@ -450,12 +553,25 @@ export function addExtra(text: string): void {
 }
 
 export function toggleExtra(id: string): void {
-  setState({
-    ...state,
-    extras: state.extras.map((e) =>
-      e.id === id ? { ...e, checked: !e.checked } : e,
-    ),
-  });
+  const extra = state.extras.find((item) => item.id === id);
+  if (!extra) return;
+  setState(
+    {
+      ...state,
+      extras: state.extras.map((e) =>
+        e.id === id ? { ...e, checked: !e.checked } : e,
+      ),
+    },
+    {
+      commandId: crypto.randomUUID(),
+      command: {
+        type: "set_checked",
+        itemType: "extra",
+        itemId: id,
+        checked: !extra.checked,
+      },
+    },
+  );
 }
 
 export function removeExtra(id: string): void {
@@ -463,7 +579,7 @@ export function removeExtra(id: string): void {
 }
 
 export function clearList(): void {
-  setState({ ...EMPTY_STATE });
+  setState({ ...EMPTY_STATE, plan: state.plan });
   resetShoppingTripCompletion();
 }
 
@@ -505,4 +621,5 @@ export function __resetShoppingListForTests(): void {
   hasUnsavedChanges = false;
   completedTripRecordedFallback = false;
   listeners.clear();
+  commandListeners.clear();
 }

@@ -6,14 +6,14 @@
       "idx": 0,
       "version": "7",
       "when": 1784267759415,
-      "tag": "0000_baseline",
+      "tag": "0000_create_recipe_database_baseline",
       "breakpoints": true
     },
     {
       "idx": 1,
       "version": "7",
       "when": 1784270301462,
-      "tag": "0001_diet_catalog",
+      "tag": "0001_seed_initial_diet_catalog",
       "breakpoints": true
     },
     {
@@ -27,35 +27,35 @@
       "idx": 3,
       "version": "7",
       "when": 1785356991568,
-      "tag": "0003_recipe_recommendations",
+      "tag": "0003_add_recipe_recommendations",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
       "when": 1785443695336,
-      "tag": "0004_cooking_sessions",
+      "tag": "0004_add_cooking_sessions",
       "breakpoints": true
     },
     {
       "idx": 5,
       "version": "7",
       "when": 1785481891842,
-      "tag": "0005_shared_household_pantry",
+      "tag": "0005_add_shared_household_pantry",
       "breakpoints": true
     },
     {
       "idx": 6,
       "version": "7",
       "when": 1786216368940,
-      "tag": "0006_cook_follows",
+      "tag": "0006_add_cook_follows",
       "breakpoints": true
     },
     {
       "idx": 7,
       "version": "7",
       "when": 1786273611769,
-      "tag": "0007_revisioned_pantry_commands",
+      "tag": "0007_add_revisioned_pantry_commands",
       "breakpoints": true
     },
     {
@@ -69,7 +69,7 @@
       "idx": 9,
       "version": "7",
       "when": 1787391346392,
-      "tag": "0009_agent_auth",
+      "tag": "0009_add_agent_auth",
       "breakpoints": true
     },
     {
@@ -83,7 +83,7 @@
       "idx": 11,
       "version": "7",
       "when": 1787476142372,
-      "tag": "0011_type_ingredient_group_relationships",
+      "tag": "0011_add_ingredient_group_relation_types",
       "breakpoints": true
     },
     {
@@ -104,35 +104,35 @@
       "idx": 14,
       "version": "7",
       "when": 1790421865867,
-      "tag": "0014_agent_execution_rate_limits",
+      "tag": "0014_add_agent_execution_rate_limit_correlation",
       "breakpoints": true
     },
     {
       "idx": 15,
       "version": "7",
       "when": 1790431034646,
-      "tag": "0015_agent_mutation_ledger",
+      "tag": "0015_add_agent_mutation_ledger",
       "breakpoints": true
     },
     {
       "idx": 16,
       "version": "7",
       "when": 1790578850537,
-      "tag": "0016_reversible_cook_log_writes",
+      "tag": "0016_add_reversible_cook_log_writes",
       "breakpoints": true
     },
     {
       "idx": 17,
       "version": "7",
       "when": 1790802284772,
-      "tag": "0017_durable_recipe_batches",
+      "tag": "0017_add_durable_recipe_batches",
       "breakpoints": true
     },
     {
       "idx": 18,
       "version": "7",
       "when": 1790839306581,
-      "tag": "0018_collection_archive_import",
+      "tag": "0018_add_collection_archive_import",
       "breakpoints": true
     },
     {
@@ -146,7 +146,7 @@
       "idx": 20,
       "version": "7",
       "when": 1791021493497,
-      "tag": "0020_household_equipment",
+      "tag": "0020_add_household_equipment",
       "breakpoints": true
     },
     {
@@ -188,7 +188,7 @@
       "idx": 26,
       "version": "7",
       "when": 1791307742060,
-      "tag": "0026_kitchen_state_details",
+      "tag": "0026_add_kitchen_state_details",
       "breakpoints": true
     },
     {
@@ -210,6 +210,20 @@
       "version": "7",
       "when": 1792494340628,
       "tag": "0029_add_high_volume_recipe_ingredients",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1792874167697,
+      "tag": "0030_add_shopping_list_command_receipts",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792955048094,
+      "tag": "0031_add_ingredient_property_catalog",
       "breakpoints": true
     }
   ]

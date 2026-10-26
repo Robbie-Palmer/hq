@@ -26,11 +26,16 @@ import {
 } from "@/lib/api/shopping-lists";
 import { authClient } from "@/lib/auth-client";
 import { loadOfflineShoppingListSnapshot } from "@/lib/pwa/offline-recipe-cache";
+import {
+  listShoppingCommands,
+  type ShoppingCommandOutboxRecord,
+} from "@/lib/pwa/shopping-command-outbox";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import {
   restoreOfflineShoppingListQuery,
   shoppingListQuery,
 } from "@/lib/query/shopping-list-queries";
+import { mergeLocalShoppingListChanges } from "@/lib/shopping/mergeShoppingListChanges";
 import {
   confirmShoppingListRevision,
   getShoppingListCacheIdentity,
@@ -41,77 +46,11 @@ import {
   type ShoppingListState,
   subscribeShoppingList,
 } from "@/lib/shopping/shoppingListStore";
+import { useShoppingCommandSync } from "./shopping-command-sync";
 
 function shoppingListContents(): ShoppingListContents {
-  const { recipes, checked, extras } = getShoppingListSnapshot();
-  return { recipes, checked, extras };
-}
-
-function mergeKeyedValues<T>(
-  baseline: T[],
-  local: T[],
-  remote: T[],
-  keyFor: (value: T) => string,
-): T[] {
-  const baselineByKey = new Map(
-    baseline.map((value) => [keyFor(value), value]),
-  );
-  const localByKey = new Map(local.map((value) => [keyFor(value), value]));
-  const merged = new Map(remote.map((value) => [keyFor(value), value]));
-  for (const value of baseline) {
-    const key = keyFor(value);
-    if (!localByKey.has(key)) merged.delete(key);
-  }
-  for (const value of local) {
-    const key = keyFor(value);
-    if (JSON.stringify(value) !== JSON.stringify(baselineByKey.get(key))) {
-      merged.set(key, value);
-    }
-  }
-  return [...merged.values()];
-}
-
-function mergeCheckedValues(
-  baseline: string[],
-  local: string[],
-  remote: string[],
-): string[] {
-  const localValues = new Set(local);
-  const baselineValues = new Set(baseline);
-  const merged = new Set(remote);
-  for (const value of baseline) {
-    if (!localValues.has(value)) merged.delete(value);
-  }
-  for (const value of local) {
-    if (!baselineValues.has(value)) merged.add(value);
-  }
-  return [...merged];
-}
-
-function mergeLocalShoppingListChanges(
-  baseline: ShoppingListContents,
-  local: ShoppingListContents,
-  remote: ShoppingListContents,
-): ShoppingListContents {
-  return {
-    recipes: mergeKeyedValues(
-      baseline.recipes,
-      local.recipes,
-      remote.recipes,
-      (recipe) => recipe.slug,
-    ),
-    checked: mergeCheckedValues(
-      baseline.checked,
-      local.checked,
-      remote.checked,
-    ),
-    extras: mergeKeyedValues(
-      baseline.extras,
-      local.extras,
-      remote.extras,
-      (extra) => extra.id,
-    ),
-  };
+  const { recipes, checked, extras, plan } = getShoppingListSnapshot();
+  return { recipes, checked, extras, plan };
 }
 
 function parseSavedSnapshot(serialized: string): ShoppingListContents {
@@ -135,7 +74,9 @@ const EMPTY_SHOPPING_LIST: ShoppingListContents = {
   recipes: [],
   checked: [],
   extras: [],
+  plan: [],
 };
+const EMPTY_OUTBOX_COMMANDS: readonly ShoppingCommandOutboxRecord[] = [];
 
 function recoverCachedShoppingList(
   serverList: StoredShoppingList,
@@ -144,6 +85,9 @@ function recoverCachedShoppingList(
   const { listId, resourceId, revision } = getShoppingListCacheIdentity();
   const { confirmedSnapshot, hasUnsavedChanges } =
     getShoppingListCacheMetadata();
+  const hasLocalOnlyPlan =
+    JSON.stringify(cached.plan) !==
+    JSON.stringify(confirmedSnapshot?.plan ?? []);
   if (listId !== undefined && listId !== serverList.id) {
     return serverList.snapshot;
   }
@@ -153,7 +97,8 @@ function recoverCachedShoppingList(
   if (
     cached.recipes.length === 0 &&
     cached.checked.length === 0 &&
-    cached.extras.length === 0
+    cached.extras.length === 0 &&
+    cached.plan.length === 0
   ) {
     return serverList.snapshot;
   }
@@ -164,14 +109,16 @@ function recoverCachedShoppingList(
       serverList.snapshot,
     );
   }
-  if (revision === serverList.revision && !hasUnsavedChanges) {
+  if (
+    revision === serverList.revision &&
+    !hasUnsavedChanges &&
+    !hasLocalOnlyPlan
+  ) {
     return serverList.snapshot;
   }
-  return mergeLocalShoppingListChanges(
-    confirmedSnapshot ?? cached,
-    cached,
-    serverList.snapshot,
-  );
+  const baseline =
+    confirmedSnapshot ?? (hasLocalOnlyPlan ? { ...cached, plan: [] } : cached);
+  return mergeLocalShoppingListChanges(baseline, cached, serverList.snapshot);
 }
 
 const ShoppingListScopeContext = createContext<ShoppingListScope | null>(null);
@@ -186,9 +133,229 @@ export function useShoppingListScope(): ShoppingListScope {
   return scope;
 }
 
+type MutableValue<T> = { current: T };
+
+interface ShoppingSyncRefs {
+  installedId: MutableValue<string | undefined>;
+  savedSnapshot: MutableValue<string | undefined>;
+  savedRevision: MutableValue<string | undefined>;
+  savedList: MutableValue<StoredShoppingList | undefined>;
+  supersededRevisions: MutableValue<Set<string>>;
+  pendingCacheRecovery: MutableValue<string | undefined>;
+}
+
+function installInitialShoppingList(
+  serverList: StoredShoppingList,
+  hasPendingCommands: boolean,
+  refs: ShoppingSyncRefs,
+  setInstalledId: (id: string) => void,
+): void {
+  const serialized = JSON.stringify(serverList.snapshot);
+  const next = recoverCachedShoppingList(serverList);
+  const shouldRecoverCache = JSON.stringify(next) !== serialized;
+  refs.savedSnapshot.current = serialized;
+  refs.savedRevision.current = serverList.revision;
+  refs.savedList.current = serverList;
+  refs.installedId.current = serverList.id;
+  installShoppingListSnapshot(
+    next,
+    serverList.id,
+    "install",
+    true,
+    serverList.revision,
+    {
+      confirmedSnapshot: serverList.snapshot,
+      hasUnsavedChanges: shouldRecoverCache,
+    },
+    serverList.resourceId,
+  );
+  refs.pendingCacheRecovery.current =
+    shouldRecoverCache && !hasPendingCommands ? serverList.id : undefined;
+  setInstalledId(serverList.id);
+}
+
+function rebaseInstalledShoppingList(
+  serverList: StoredShoppingList,
+  refs: ShoppingSyncRefs,
+  setInstalledId: (id: string) => void,
+): void {
+  const serialized = JSON.stringify(serverList.snapshot);
+  const local = shoppingListContents();
+  const baseline = refs.savedSnapshot.current;
+  const hasLocalChanges =
+    baseline !== undefined && JSON.stringify(local) !== baseline;
+  const next =
+    hasLocalChanges && baseline
+      ? mergeLocalShoppingListChanges(
+          parseSavedSnapshot(baseline),
+          local,
+          serverList.snapshot,
+        )
+      : serverList.snapshot;
+  const hasRebasedChanges = JSON.stringify(next) !== serialized;
+  refs.savedSnapshot.current = serialized;
+  refs.savedRevision.current = serverList.revision;
+  refs.savedList.current = serverList;
+  refs.installedId.current = serverList.id;
+  installShoppingListSnapshot(
+    next,
+    serverList.id,
+    hasRebasedChanges ? "local" : "install",
+    true,
+    serverList.revision,
+    {
+      confirmedSnapshot: serverList.snapshot,
+      hasUnsavedChanges: hasRebasedChanges,
+    },
+    serverList.resourceId,
+  );
+  setInstalledId(serverList.id);
+}
+
+type ShoppingListChangeSource = Parameters<
+  Parameters<typeof subscribeShoppingList>[0]
+>[0];
+
+class ShoppingListSaveQueue {
+  private saveTimer: ReturnType<typeof setTimeout> | undefined;
+  private syncTimer: ReturnType<typeof setTimeout> | undefined;
+  private saving = Promise.resolve();
+
+  constructor(
+    private readonly queryClient: QueryClient,
+    private readonly userId: string,
+    private readonly resourceId: string | undefined,
+    private readonly refs: ShoppingSyncRefs,
+    private readonly setSaveFailed: (failed: boolean) => void,
+  ) {}
+
+  start(): () => void {
+    const unsubscribe = subscribeShoppingList(this.handleSource);
+    this.recoverPendingCache();
+    return () => {
+      this.clearTimers();
+      unsubscribe();
+    };
+  }
+
+  private readonly handleSource = (source: ShoppingListChangeSource): void => {
+    if (source === "local") {
+      this.scheduleSave();
+      return;
+    }
+    if (source === "install") this.clearSaveTimer();
+    if (source === "storage") this.scheduleSync();
+  };
+
+  private scheduleSave(): void {
+    this.clearSaveTimer();
+    this.saveTimer = setTimeout(this.enqueueCurrentSnapshot, 250);
+  }
+
+  private scheduleSync(): void {
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = setTimeout(() => {
+      void this.queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.shoppingList(this.userId),
+      });
+    }, 500);
+  }
+
+  private readonly enqueueCurrentSnapshot = (): void => {
+    const snapshot = shoppingListContents();
+    const serialized = JSON.stringify(snapshot);
+    if (serialized === this.refs.savedSnapshot.current) return;
+    const listId = this.refs.installedId.current;
+    if (!listId) return;
+    this.saving = this.saving
+      .catch(() => undefined)
+      .then(() => this.save(listId, snapshot, serialized))
+      .catch(this.handleSaveError);
+    this.trackPendingSave(listId, this.saving);
+  };
+
+  private async save(
+    listId: string,
+    snapshot: ShoppingListContents,
+    serialized: string,
+  ): Promise<void> {
+    if (
+      this.refs.installedId.current !== listId ||
+      !this.refs.savedRevision.current
+    ) {
+      return;
+    }
+    const baseRevision = this.refs.savedRevision.current;
+    const updated = await saveCurrentShoppingList(
+      listId,
+      baseRevision,
+      snapshot,
+    );
+    if (this.refs.installedId.current !== listId) return;
+    this.refs.supersededRevisions.current.add(baseRevision);
+    this.refs.savedSnapshot.current = serialized;
+    this.refs.savedRevision.current = updated.revision;
+    this.refs.savedList.current = updated;
+    this.refs.pendingCacheRecovery.current = undefined;
+    confirmShoppingListRevision(updated.id, updated.revision, updated.snapshot);
+    this.queryClient.setQueryData<StoredShoppingList>(
+      recipeQueryKeys.shoppingList(this.userId),
+      updated,
+    );
+    this.setSaveFailed(false);
+  }
+
+  private readonly handleSaveError = (error: unknown): void => {
+    this.setSaveFailed(true);
+    if (isApiError(error) && error.status === 409) {
+      void this.queryClient.invalidateQueries({
+        queryKey: recipeQueryKeys.shoppingList(this.userId),
+      });
+    }
+  };
+
+  private trackPendingSave(listId: string, pending: Promise<void>): void {
+    pendingShoppingListSaves.set(listId, pending);
+    void pending.then(() => {
+      if (pendingShoppingListSaves.get(listId) === pending) {
+        pendingShoppingListSaves.delete(listId);
+      }
+    });
+  }
+
+  private recoverPendingCache(): void {
+    if (
+      this.refs.pendingCacheRecovery.current !== this.refs.installedId.current
+    ) {
+      return;
+    }
+    installShoppingListSnapshot(
+      getShoppingListSnapshot(),
+      this.refs.installedId.current,
+      "local",
+      false,
+      this.refs.savedRevision.current,
+      undefined,
+      this.resourceId,
+    );
+  }
+
+  private clearSaveTimer(): void {
+    if (!this.saveTimer) return;
+    clearTimeout(this.saveTimer);
+    this.saveTimer = undefined;
+  }
+
+  private clearTimers(): void {
+    this.clearSaveTimer();
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+  }
+}
+
 function useShoppingListSync(
   userId: string,
   serverList: StoredShoppingList | undefined,
+  pendingCommands: readonly ShoppingCommandOutboxRecord[],
 ): { installedId: string | undefined; saveFailed: boolean } {
   const queryClient = useQueryClient();
   const [installedId, setInstalledId] = useState<string>();
@@ -199,35 +366,29 @@ function useShoppingListSync(
   const supersededRevisions = useRef<Set<string>>(new Set());
   const pendingCacheRecovery = useRef<string | undefined>(undefined);
   const [saveFailed, setSaveFailed] = useState(false);
+  const refs = useRef<ShoppingSyncRefs>({
+    installedId: installedIdRef,
+    savedSnapshot,
+    savedRevision,
+    savedList,
+    supersededRevisions,
+    pendingCacheRecovery,
+  }).current;
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: The existing rebase effect keeps its explicit conflict cases; cache recovery is isolated above.
   useEffect(() => {
     if (!serverList) return;
-    const serialized = JSON.stringify(serverList.snapshot);
-
     if (!installedId) {
-      const next = recoverCachedShoppingList(serverList);
-      const shouldRecoverCache = JSON.stringify(next) !== serialized;
-      savedSnapshot.current = serialized;
-      savedRevision.current = serverList.revision;
-      savedList.current = serverList;
-      installedIdRef.current = serverList.id;
-      installShoppingListSnapshot(
-        next,
-        serverList.id,
-        "install",
-        true,
-        serverList.revision,
-        {
-          confirmedSnapshot: serverList.snapshot,
-          hasUnsavedChanges: shouldRecoverCache,
-        },
-        serverList.resourceId,
+      const hasPendingCommands = pendingCommands.some(
+        (command) =>
+          command.listId === serverList.id &&
+          command.resourceId === serverList.resourceId,
       );
-      pendingCacheRecovery.current = shouldRecoverCache
-        ? serverList.id
-        : undefined;
-      setInstalledId(serverList.id);
+      installInitialShoppingList(
+        serverList,
+        hasPendingCommands,
+        refs,
+        setInstalledId,
+      );
       return;
     }
     if (
@@ -251,131 +412,20 @@ function useShoppingListSync(
       supersededRevisions.current.add(savedRevision.current);
     }
 
-    const local = shoppingListContents();
-    const baseline = savedSnapshot.current;
-    const hasLocalChanges =
-      baseline !== undefined && JSON.stringify(local) !== baseline;
-    const next =
-      hasLocalChanges && baseline
-        ? mergeLocalShoppingListChanges(
-            parseSavedSnapshot(baseline),
-            local,
-            serverList.snapshot,
-          )
-        : serverList.snapshot;
-    const hasRebasedChanges = JSON.stringify(next) !== serialized;
-    savedSnapshot.current = serialized;
-    savedRevision.current = serverList.revision;
-    savedList.current = serverList;
-    installedIdRef.current = serverList.id;
-    installShoppingListSnapshot(
-      next,
-      serverList.id,
-      hasRebasedChanges ? "local" : "install",
-      true,
-      serverList.revision,
-      {
-        confirmedSnapshot: serverList.snapshot,
-        hasUnsavedChanges: hasRebasedChanges,
-      },
-      serverList.resourceId,
-    );
-    setInstalledId(serverList.id);
-  }, [installedId, queryClient, serverList, userId]);
+    rebaseInstalledShoppingList(serverList, refs, setInstalledId);
+  }, [installedId, pendingCommands, queryClient, refs, serverList, userId]);
 
   const hasInstalledList = Boolean(installedId);
   useLayoutEffect(() => {
     if (!hasInstalledList) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let syncTimer: ReturnType<typeof setTimeout> | undefined;
-    let saving = Promise.resolve();
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const unsubscribe = subscribeShoppingList((source) => {
-      if (source !== "local") {
-        if (source === "install" && timer) {
-          clearTimeout(timer);
-          timer = undefined;
-        }
-        if (source === "storage") {
-          if (syncTimer) clearTimeout(syncTimer);
-          syncTimer = setTimeout(() => {
-            void queryClient.invalidateQueries({
-              queryKey: recipeQueryKeys.shoppingList(userId),
-            });
-          }, 500);
-        }
-        return;
-      }
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const snapshot = shoppingListContents();
-        const serialized = JSON.stringify(snapshot);
-        if (serialized === savedSnapshot.current) return;
-        const listId = installedIdRef.current;
-        if (!listId) return;
-        saving = saving
-          .catch(() => undefined)
-          .then(async () => {
-            if (installedIdRef.current !== listId || !savedRevision.current) {
-              return;
-            }
-            const baseRevision = savedRevision.current;
-            const updated = await saveCurrentShoppingList(
-              listId,
-              baseRevision,
-              snapshot,
-            );
-            if (installedIdRef.current !== listId) return;
-            supersededRevisions.current.add(baseRevision);
-            savedSnapshot.current = serialized;
-            savedRevision.current = updated.revision;
-            savedList.current = updated;
-            pendingCacheRecovery.current = undefined;
-            confirmShoppingListRevision(
-              updated.id,
-              updated.revision,
-              updated.snapshot,
-            );
-            queryClient.setQueryData<StoredShoppingList>(
-              recipeQueryKeys.shoppingList(userId),
-              updated,
-            );
-            setSaveFailed(false);
-          })
-          .catch((error: unknown) => {
-            setSaveFailed(true);
-            if (isApiError(error) && error.status === 409) {
-              void queryClient.invalidateQueries({
-                queryKey: recipeQueryKeys.shoppingList(userId),
-              });
-            }
-          });
-        const pending = saving;
-        pendingShoppingListSaves.set(listId, pending);
-        void pending.then(() => {
-          if (pendingShoppingListSaves.get(listId) === pending) {
-            pendingShoppingListSaves.delete(listId);
-          }
-        });
-      }, 250);
-    });
-    if (pendingCacheRecovery.current === installedIdRef.current) {
-      installShoppingListSnapshot(
-        getShoppingListSnapshot(),
-        installedIdRef.current,
-        "local",
-        false,
-        savedRevision.current,
-        undefined,
-        serverList?.resourceId,
-      );
-    }
-    return () => {
-      if (timer) clearTimeout(timer);
-      if (syncTimer) clearTimeout(syncTimer);
-      unsubscribe();
-    };
-  }, [hasInstalledList, queryClient, serverList?.resourceId, userId]);
+    return new ShoppingListSaveQueue(
+      queryClient,
+      userId,
+      serverList?.resourceId,
+      refs,
+      setSaveFailed,
+    ).start();
+  }, [hasInstalledList, queryClient, refs, serverList?.resourceId, userId]);
 
   return { installedId, saveFailed };
 }
@@ -383,17 +433,23 @@ function useShoppingListSync(
 function useOfflineShoppingListRestore(
   userId: string,
   enabled: boolean,
-): boolean {
+): ShoppingCommandOutboxRecord[] | undefined {
   const queryClient = useQueryClient();
-  const [restoredUserId, setRestoredUserId] = useState<string>();
+  const [restored, setRestored] = useState<{
+    userId: string;
+    commands: ShoppingCommandOutboxRecord[];
+  }>();
   useEffect(() => {
     let disposed = false;
     if (!enabled) {
-      setRestoredUserId(undefined);
+      setRestored(undefined);
       return;
     }
-    void loadOfflineShoppingListSnapshot(userId)
-      .then((snapshot) => {
+    void Promise.all([
+      loadOfflineShoppingListSnapshot(userId).catch(() => null),
+      listShoppingCommands(userId).catch(() => []),
+    ])
+      .then(([snapshot, commands]) => {
         if (
           !disposed &&
           snapshot &&
@@ -407,18 +463,59 @@ function useOfflineShoppingListRestore(
             snapshot.savedAt,
           );
         }
+        if (!disposed) setRestored({ userId, commands });
       })
       .catch(() => {
-        // Restricted storage must not prevent a network-backed list loading.
-      })
-      .finally(() => {
-        if (!disposed) setRestoredUserId(userId);
+        if (!disposed) setRestored({ userId, commands: [] });
       });
     return () => {
       disposed = true;
     };
   }, [enabled, queryClient, userId]);
-  return restoredUserId === userId;
+  return restored?.userId === userId ? restored.commands : undefined;
+}
+
+function ShoppingListSyncStatus({
+  saveFailed,
+  commandSync,
+}: Readonly<{
+  saveFailed: boolean;
+  commandSync: ReturnType<typeof useShoppingCommandSync>;
+}>) {
+  return (
+    <>
+      {saveFailed ? (
+        <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
+          Your latest shopping-list changes have not been saved. They remain on
+          this device; edit the list to try again.
+        </p>
+      ) : null}
+      {commandSync.pending.length > 0 ? (
+        <output className="rt-body block bg-[var(--butter-soft)] px-4 py-2 text-center">
+          {commandSync.pending.length} offline shopping-list change
+          {commandSync.pending.length === 1 ? " is" : "s are"} waiting to sync.
+        </output>
+      ) : null}
+      {commandSync.failed.length > 0 ? (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-center gap-3 bg-[var(--cream-dark)] px-4 py-2 text-center"
+        >
+          <p className="rt-body text-[var(--berry)]">
+            An offline shopping-list change needs attention.{" "}
+            {commandSync.failed[0]?.lastError}
+          </p>
+          <button
+            type="button"
+            onClick={commandSync.useServerVersion}
+            className="rt-mono underline"
+          >
+            Use server version
+          </button>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export function ShoppingListBoundary({
@@ -426,13 +523,26 @@ export function ShoppingListBoundary({
 }: Readonly<{ children: ReactNode }>) {
   const { data: session } = authClient.useSession();
   const userId = session?.user.id ?? "pending";
-  const restored = useOfflineShoppingListRestore(userId, Boolean(session));
+  const restoredCommands = useOfflineShoppingListRestore(
+    userId,
+    Boolean(session),
+  );
 
   const current = useQuery({
     ...shoppingListQuery(userId),
-    enabled: Boolean(session) && restored,
+    enabled: Boolean(session) && restoredCommands !== undefined,
   });
-  const { installedId, saveFailed } = useShoppingListSync(userId, current.data);
+  const { installedId, saveFailed } = useShoppingListSync(
+    userId,
+    current.data,
+    restoredCommands ?? EMPTY_OUTBOX_COMMANDS,
+  );
+  const commandSync = useShoppingCommandSync(
+    userId,
+    current.data,
+    installedId,
+    restoredCommands ?? EMPTY_OUTBOX_COMMANDS,
+  );
 
   if (current.isError && !current.data) {
     return (
@@ -450,12 +560,10 @@ export function ShoppingListBoundary({
   }
   return (
     <ShoppingListScopeContext.Provider value={current.data.scope}>
-      {saveFailed ? (
-        <p className="rt-body bg-[var(--cream-dark)] px-4 py-2 text-center">
-          Your latest shopping-list changes have not been saved. They remain on
-          this device; edit the list to try again.
-        </p>
-      ) : null}
+      <ShoppingListSyncStatus
+        saveFailed={saveFailed}
+        commandSync={commandSync}
+      />
       {children}
     </ShoppingListScopeContext.Provider>
   );
@@ -484,6 +592,7 @@ export function useStartNewShoppingList() {
         recipes: previous.recipes,
         checked: previous.checked,
         extras: previous.extras,
+        plan: previous.plan,
       });
     },
     onSuccess: (next) => {
@@ -528,7 +637,7 @@ export function useStartNewShoppingList() {
     // An install updates the screen immediately without scheduling an empty
     // PUT against the list that the POST is about to archive.
     installShoppingListSnapshot(
-      { recipes: [], checked: [], extras: [] },
+      { recipes: [], checked: [], extras: [], plan: previous.plan },
       current.id,
       "install",
       false,

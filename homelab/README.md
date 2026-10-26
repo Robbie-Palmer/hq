@@ -10,6 +10,11 @@ All services are reachable only over the home LAN and the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet. The router
 forwards no ports, so nothing is ever public.
 
+The MSI Vector laptop is a graphical NixOS workstation and an independent
+development plane. [ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+records its architecture, and its installation and commissioning runbook is in
+[`docs/vector-development.md`](docs/vector-development.md).
+
 [ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
 an off-site t3-code environment for continuity during a home power or broadband
 outage. It is an independent, single-node K3s cluster on a NixOS VPS, not a
@@ -162,7 +167,7 @@ catalog, then restart again to apply the preferred defaults to it.
 
 #### Adding a Codex provider
 
-`scripts/codex-add-provider` registers an additional Codex subscription and
+`scripts/codex-add-provider.mjs` registers an additional Codex subscription and
 starts its login. It detects the environment: inside a t3-code pod it targets
 `/data/home`, symlinks shared state into a new shadow home such as
 `/data/home/.codex-<name>`, and uses device-code login; on a workstation it uses
@@ -473,19 +478,33 @@ volume replication are also not backups.
 The operator workspace now uses restic to send encrypted snapshots to the
 private `remote-development-workspace-backups` Cloudflare R2 bucket. The versioned
 inventory in `remote-development-backup/inventory.json` fixes the workspace,
-destination, daily schedule, 36-hour freshness limit, and retention policy.
+destination, six-hour schedule, eight-hour freshness limit, and retention policy.
 The repository holds paths and policy only. The R2 access key and independent
 restic password stay in Doppler config
 `homelab/prd_remote_development_backup` and on the host under
 `/var/lib/remote-development-backup` with mode `0600`.
 
-The backup reads `/srv/remote-development/t3-code`, including T3 state,
-worktrees, repositories, both Codex homes, and provider sessions. It never
-reads the separate `/srv/remote-development/t3-code-cache` tree. A successful
-run checks five percent of repository data, prunes snapshots to the declared
-retention, and writes `/var/lib/remote-development-backup/status.json`. That
-status contains timestamps, state, and the failed step. It contains no source
-file names, endpoints, or credentials.
+The backup preserves T3 Code userdata and in-flight Git changes. Before each
+snapshot it uses SQLite's online backup operation for the T3 databases, then
+exports each dirty worktree as a binary patch, an archive of non-ignored
+untracked files, and a Git bundle when the worktree has commits that are not on
+any remote. Clean repositories are omitted because GitHub is their recovery
+source.
+
+The job does not back up Codex homes, provider sessions, authentication
+material, browser profiles, logs, complete repositories, package stores,
+build output, or the separate `/srv/remote-development/t3-code-cache` tree.
+NixOS and the Kubernetes manifests recreate the host, application, and tool
+configuration. Doppler recreates runtime secrets.
+
+The timer runs at 00:17, 06:17, 12:17, and 18:17 UTC with up to 15 minutes of
+random delay. It keeps every snapshot for 14 days. A minimum of eight snapshots
+survives if the schedule stops, which also gives the first narrowed backup
+roughly two days of overlap with the previous full-workspace snapshots. A
+successful run checks one percent of repository data, prunes expired snapshots,
+and writes `/var/lib/remote-development-backup/status.json`. That status
+contains timestamps, state, and the failed step. It contains no source file
+names, endpoints, or credentials.
 
 Create an R2 Object Read & Write token scoped only to
 `remote-development-workspace-backups`, then store these masked Doppler secrets:
@@ -502,7 +521,7 @@ one-time S3 values without echoing them. It stores the values in the dedicated
 Doppler config and installs the resulting credential file on the host:
 
 ```bash
-./homelab/scripts/store-remote-development-backup-credentials
+./homelab/scripts/store-remote-development-backup-credentials.sh
 ```
 
 Install credentials after a host replacement, then run and inspect the first
@@ -517,12 +536,21 @@ mise run //homelab:remote-health
 For a recovery test, create an empty target on a host with the credential
 files and run the installed restore command. Restic recreates the absolute
 source path beneath the target. The command fails if the target is not empty
-or the restored T3 and workspace roots are missing.
+or the restored T3 databases and worktree export manifest are missing. It
+installs the consistent database copies into the restored T3 userdata tree.
 
 ```bash
 install -d -m 0700 /var/tmp/operator-workspace-restore
 remote-development-workspace-restore /var/tmp/operator-workspace-restore
 ```
+
+Each directory under
+`var/lib/remote-development-backup/staging/in-flight-worktrees` contains the
+original relative worktree path and revision in `metadata.json`. Recover an
+unfinished worktree by cloning its repository from GitHub, fetching
+`unpushed.bundle` when present, applying `tracked.patch`, and extracting
+`untracked.tar.gz`. Empty files are valid and may be absent when that kind of
+local state did not exist.
 
 The user export is a different artifact. It retains repositories and session
 history but removes provider tokens, cookies, SSH keys, Doppler state, cloud

@@ -12,6 +12,8 @@ import {
   classifyRetryableDatabaseFailure,
   closeDb,
   createDb,
+  createDatabaseQueryMetrics,
+  estimateDatabaseResultRowBytes,
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
@@ -25,6 +27,30 @@ if (!databaseURL) {
 
 const db = createDb(databaseURL);
 const repository = new WorkGraphRepository(db);
+
+describe("database query metrics", () => {
+  it("counts executed queries, result rows, and estimated result bytes", async () => {
+    const metrics = createDatabaseQueryMetrics();
+    const measuredDb = createDb(databaseURL, { metrics });
+    try {
+      const rows = await measuredDb.execute<{
+        label: string;
+        amount: number;
+      }>(sql`select 'measured'::text as label, 42::integer as amount`);
+      const [row] = rows;
+
+      expect(rows).toEqual([{ label: "measured", amount: 42 }]);
+      if (row === undefined) throw new Error("Expected one measured row.");
+      expect(metrics.queryCount).toBe(1);
+      expect(metrics.resultRowCount).toBe(1);
+      expect(metrics.resultBytesEstimated).toBe(
+        estimateDatabaseResultRowBytes(row),
+      );
+    } finally {
+      await closeDb(measuredDb);
+    }
+  });
+});
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
@@ -213,7 +239,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(17);
+  expect(migrationCount?.count).toBe(18);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -961,6 +987,7 @@ describe("GitHub delivery consumption", () => {
       revision: 1,
       requiredCiNames: ["CI"],
       productionEnvironments: ["production"],
+      automaticRelease: false,
       createdAt: "2026-10-01T09:00:00.000Z",
     });
     await repository.assignCompletionPolicy({
@@ -987,6 +1014,108 @@ describe("GitHub delivery consumption", () => {
     expect(await repository.getWorkItem("github-work")).toMatchObject({
       lifecycle: "open",
     });
+  });
+
+  it("automatically releases from stored evidence once and ignores duplicate delivery", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-automatic",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "github-work",
+      policyId: "github-automatic",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T09:01:00.000Z",
+    });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    const mergeDelivery = githubDelivery();
+    await consumer.consume(mergeDelivery);
+    await expect(consumer.consume(mergeDelivery)).resolves.toBe("processed");
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "released",
+      stage: "released",
+    });
+    const releases = await repository.listEvents({
+      workItemId: "github-work",
+      type: "work_item.lifecycle_changed",
+      lifecycle: "released",
+    });
+    expect(releases).toHaveLength(1);
+    expect(releases[0]?.data).toMatchObject({
+      actor: "completion-policy",
+      policyId: "github-automatic",
+      policyRevision: 1,
+      evidenceObservationIds: expect.arrayContaining([
+        expect.any(String),
+      ]),
+    });
+  });
+
+  it("keeps an active worker lease fenced during automatic evaluation and concurrent release", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-automatic",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "github-work",
+      policyId: "github-automatic",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T09:01:00.000Z",
+    });
+    const activeLease = await repository.claimWorkItem({
+      workItemId: "github-work",
+      workerId: "worker-a",
+      leaseId: recordId(905),
+      leaseDurationSeconds: 900,
+    });
+    if (!activeLease) throw new Error("Expected an active lease.");
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    const mergeDelivery = githubDelivery();
+    await consumer.consume(mergeDelivery);
+    expect(await repository.getCompletionCandidate("github-work")).toMatchObject({
+      candidate: true,
+    });
+    expect(await repository.getCurrentLease("github-work")).toEqual(activeLease);
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "open",
+      stage: "in_progress",
+    });
+
+    await Promise.all([
+      consumer.consume(mergeDelivery),
+      repository.terminateClaimedWorkItem({
+        leaseId: activeLease.id,
+        epoch: activeLease.epoch,
+        workItemId: "github-work",
+        outcome: "released",
+        ...completionEvidence,
+      }),
+    ]);
+    expect(
+      await repository.listEvents({
+        workItemId: "github-work",
+        type: "work_item.lifecycle_changed",
+        lifecycle: "released",
+      }),
+    ).toHaveLength(1);
+    expect(await repository.listLeases("github-work")).toEqual([
+      expect.objectContaining({ id: activeLease.id, outcome: "released" }),
+    ]);
   });
 
   it("deduplicates concurrent queue redelivery and equivalent facts with a new delivery ID", async () => {
@@ -1571,6 +1700,7 @@ describe("delivery evidence persistence", () => {
       revision: 2,
       requiredCiNames: ["verify"],
       productionEnvironments: ["production"],
+      automaticRelease: false,
       createdAt: "2026-09-22T09:00:00.000Z",
     });
     await repository.assignCompletionPolicy({
@@ -1676,6 +1806,254 @@ describe("delivery evidence persistence", () => {
         currentOnly: true,
       }),
     ).resolves.toHaveLength(6);
+  });
+
+  it("atomically releases only after every implementation pull request satisfies policy", async () => {
+    await repository.createWorkItem({ id: "automatic", title: "Ship automatically" });
+    const pullRequests = [
+      { number: 1, head: commitSha("a"), merge: commitSha("b") },
+      { number: 2, head: commitSha("c"), merge: commitSha("d") },
+    ];
+    for (const item of pullRequests) {
+      await repository.refreshPullRequest({
+        repository: "example/work-graph",
+        number: item.number,
+        url: `https://github.com/example/work-graph/pull/${item.number}`,
+        headSha: item.head,
+        acceptedHeadSha: item.head,
+        mergeCommitSha: item.merge,
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-09-22T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "automatic",
+        repository: "example/work-graph",
+        number: item.number,
+        role: "implementation",
+      });
+    }
+    await repository.putCompletionPolicyRevision({
+      policyId: "automatic-production",
+      revision: 4,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "automatic",
+      policyId: "automatic-production",
+      policyRevision: 4,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    let suffix = 40;
+    for (const item of pullRequests) {
+      await storeObservation(suffix, {
+        externalId: `automatic-pr-${item.number}`,
+        commitSha: item.merge,
+        kind: "pull_request",
+        name: null,
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: item.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `automatic-ci-${item.number}`,
+        commitSha: item.head,
+        pullRequestNumber: item.number,
+      });
+      suffix += 1;
+      await storeObservation(suffix, {
+        externalId: `automatic-deployment-${item.number}`,
+        commitSha: item.merge,
+        kind: "deployment",
+        name: null,
+        environment: "production",
+        correlationKind: "pull_request_merge",
+        pullRequestNumber: item.number,
+      });
+      suffix += 1;
+    }
+
+    const input = {
+      id: recordId(750),
+      workItemId: "automatic",
+      evaluatedAt: "2026-09-22T14:00:00.000Z",
+    };
+    const released = await repository.evaluateCompletionCandidateAndReleaseIfConfigured(input);
+    expect(released).toMatchObject({
+      automaticReleaseOutcome: "released",
+      evaluation: {
+        candidate: true,
+        policyId: "automatic-production",
+        policyRevision: 4,
+        evidenceObservationIds: expect.arrayContaining([
+          recordId(640),
+          recordId(641),
+          recordId(642),
+          recordId(643),
+          recordId(644),
+          recordId(645),
+        ]),
+      },
+    });
+    await expect(
+      repository.evaluateCompletionCandidateAndReleaseIfConfigured(input),
+    ).resolves.toMatchObject({ automaticReleaseOutcome: "already_terminal" });
+    expect(await repository.getWorkItem("automatic")).toMatchObject({
+      lifecycle: "released",
+    });
+    const releases = await repository.listEvents({
+      workItemId: "automatic",
+      type: "work_item.lifecycle_changed",
+      lifecycle: "released",
+    });
+    expect(releases).toHaveLength(1);
+    expect(releases[0]?.data).toMatchObject({
+      actor: "completion-policy",
+      policyId: "automatic-production",
+      policyRevision: 4,
+      completionCandidateEvaluationId: input.id,
+      evidenceObservationIds: expect.arrayContaining([
+        recordId(640),
+        recordId(645),
+      ]),
+      mergeEvidenceUrls: [
+        "https://github.com/example/work-graph/actions/runs/40",
+        "https://github.com/example/work-graph/actions/runs/43",
+      ],
+      deploymentEvidenceUrls: [
+        "https://github.com/example/work-graph/actions/runs/42",
+        "https://github.com/example/work-graph/actions/runs/45",
+      ],
+    });
+    expect(releases[0]?.data).not.toHaveProperty("mergeEvidence");
+    expect(releases[0]?.data).not.toHaveProperty("deploymentEvidence");
+  });
+
+  it("rechecks stale failure and graph blockers before release", async () => {
+    await repository.createWorkItem({ id: "guarded", title: "Guarded release" });
+    const attentionLease = await repository.claimWorkItem({
+      workItemId: "guarded",
+      workerId: "worker-a",
+      leaseId: recordId(760),
+      leaseDurationSeconds: 300,
+    });
+    if (!attentionLease) throw new Error("Expected the attention lease.");
+    await repository.createAttentionRequest({
+      id: recordId(761),
+      workItemId: "guarded",
+      leaseId: attentionLease.id,
+      epoch: attentionLease.epoch,
+      kind: "decision",
+      question: "Is the production failure acceptable?",
+      blocking: true,
+    });
+    await repository.createWorkItem({
+      id: "unfinished-child",
+      title: "Unfinished child",
+      parentId: "guarded",
+    });
+    await repository.createWorkItem({
+      id: "blocking-dependency",
+      title: "Blocking dependency",
+    });
+    await repository.addDependency(
+      dependency("guarded", "blocking-dependency"),
+    );
+    const head = commitSha("e");
+    const merge = commitSha("f");
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 3,
+      url: "https://github.com/example/work-graph/pull/3",
+      headSha: head,
+      acceptedHeadSha: head,
+      mergeCommitSha: merge,
+      state: "merged",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "guarded",
+      repository: "example/work-graph",
+      number: 3,
+      role: "implementation",
+    });
+    await repository.putCompletionPolicyRevision({
+      policyId: "guarded-production",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "guarded",
+      policyId: "guarded-production",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    await storeObservation(60, {
+      externalId: "guarded-pr",
+      commitSha: merge,
+      kind: "pull_request",
+      name: null,
+      correlationKind: "pull_request_merge",
+      pullRequestNumber: 3,
+    });
+    await storeObservation(61, {
+      externalId: "guarded-ci",
+      commitSha: head,
+      pullRequestNumber: 3,
+    });
+    await storeObservation(62, {
+      externalId: "guarded-deployment",
+      commitSha: merge,
+      kind: "deployment",
+      name: null,
+      environment: "production",
+      correlationKind: "pull_request_merge",
+      pullRequestNumber: 3,
+    });
+    await storeObservation(63, {
+      externalId: "guarded-deployment",
+      commitSha: merge,
+      kind: "deployment",
+      state: "failure",
+      name: null,
+      environment: "production",
+      correlationKind: "pull_request_merge",
+      pullRequestNumber: 3,
+      providerObservedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const result = await repository.evaluateCompletionCandidateAndReleaseIfConfigured({
+      id: recordId(762),
+      workItemId: "guarded",
+      evaluatedAt: "2026-09-22T14:00:00.000Z",
+    });
+    expect(result).toMatchObject({
+      automaticReleaseOutcome: "completion_requirements_not_met",
+      evaluation: {
+        candidate: false,
+        reasons: expect.arrayContaining([
+          "missing_production_deployment",
+          "unfinished_children",
+          "unsatisfied_dependencies",
+          "unresolved_blocking_attention",
+        ]),
+      },
+    });
+    expect(await repository.getWorkItem("guarded")).toMatchObject({
+      lifecycle: "open",
+    });
   });
 });
 
@@ -2797,6 +3175,38 @@ describe("lease-backed claiming", () => {
       "urgent",
       "shared",
     ]);
+  });
+
+  it("matches full-graph projections for targeted point reads", async () => {
+    await repository.createWorkItem({ id: "routine", title: "Routine work" });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    await repository.createWorkItem({ id: "middle", title: "Middle" });
+    await repository.createWorkItem({
+      id: "urgent-parent",
+      title: "Urgent parent",
+      expedited: true,
+      expediteReason: "Restore service.",
+    });
+    await repository.createWorkItem({
+      id: "urgent-child",
+      title: "Urgent child",
+      parentId: "urgent-parent",
+    });
+    await repository.addDependency(dependency("urgent-child", "middle"));
+    await repository.addDependency(dependency("middle", "blocker"));
+
+    const listed = await repository.listWorkItems();
+    for (const expected of listed) {
+      await expect(repository.getWorkItem(expected.id)).resolves.toEqual(
+        expected,
+      );
+    }
+    expect(
+      (await repository.getWorkItem("blocker")).priority,
+    ).toMatchObject({
+      effectiveExpedited: true,
+      donatedFromWorkItemId: "urgent-child",
+    });
   });
 
   it("reclaims stale work with a higher epoch and expires the old lease", async () => {

@@ -40,6 +40,11 @@ import { SpellcheckEditor } from "@/components/recipes/spellcheck-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useCooklangRecipe } from "@/hooks/use-cooklang-recipe";
+import {
+  type ImportedRecipeDraft,
+  type RecipeAddMethod,
+  useRecipeDraftImport,
+} from "@/hooks/use-recipe-draft-import";
 import { getHouseholds } from "@/lib/api/households";
 import { ApiError, apiRequest } from "@/lib/api/http";
 import { authClient } from "@/lib/auth-client";
@@ -59,34 +64,6 @@ const EXAMPLE_RECIPE = `Bring a large #pot{} of salted water to the boil. Add @d
 Meanwhile, warm @olive oil{2%tbsp} in a #frying pan{}. Add @garlic{2%cloves} and cook for ~{2%minutes}.
 
 Stir in @chopped tomatoes{400%g} and simmer for ~{15%minutes}. Drain the pasta, toss it through the sauce, and serve.`;
-
-type AddMethod = "write" | "url" | "photo" | "file";
-
-type ImportedRecipe = {
-  title: string;
-  description: string;
-  cuisine: string;
-  servings: number;
-  prepTime?: number;
-  cookTime?: number;
-  source: string;
-  url?: string;
-};
-
-function isImportedRecipe(value: unknown): value is ImportedRecipe {
-  if (!value || typeof value !== "object") return false;
-  const recipe = value as Record<string, unknown>;
-  return (
-    typeof recipe.title === "string" &&
-    typeof recipe.description === "string" &&
-    typeof recipe.cuisine === "string" &&
-    typeof recipe.servings === "number" &&
-    (recipe.prepTime === undefined || typeof recipe.prepTime === "number") &&
-    (recipe.cookTime === undefined || typeof recipe.cookTime === "number") &&
-    typeof recipe.source === "string" &&
-    (recipe.url === undefined || typeof recipe.url === "string")
-  );
-}
 
 async function invalidateSavedRecipeQueries({
   queryClient,
@@ -131,76 +108,6 @@ async function invalidateSavedRecipeQueries({
     );
   }
   await Promise.all(invalidations);
-}
-
-const MAX_RECIPE_FILE_LENGTH = 100_000;
-
-class RecipeFileImportError extends Error {}
-
-type ImportRequest = {
-  id: number;
-  controller: AbortController;
-};
-
-function importRequestIsStale(
-  current: ImportRequest | null,
-  request: ImportRequest,
-): boolean {
-  return request.controller.signal.aborted || current?.id !== request.id;
-}
-
-function finishImportRequest(
-  requestRef: { current: ImportRequest | null },
-  request: ImportRequest,
-  setImporting: (importing: boolean) => void,
-) {
-  if (requestRef.current?.id !== request.id) return;
-  requestRef.current = null;
-  setImporting(false);
-}
-
-async function fetchUrlRecipeDraft(
-  url: string,
-  signal: AbortSignal,
-): Promise<ImportedRecipe> {
-  const body = await apiRequest<unknown>("/api/recipe-drafts/url", {
-    method: "POST",
-    json: { url },
-    signal,
-    fallbackMessage: "The recipe could not be imported.",
-  });
-  if (!isImportedRecipe(body)) {
-    throw new Error("The recipe could not be imported.");
-  }
-  return body;
-}
-
-async function fetchFileRecipeDraft(
-  file: File,
-  signal: AbortSignal,
-): Promise<ImportedRecipe> {
-  if (file.size > MAX_RECIPE_FILE_LENGTH) {
-    throw new RecipeFileImportError(
-      "Choose a recipe file smaller than 100 KB.",
-    );
-  }
-  const content = await file.text();
-  const body = await apiRequest<unknown>("/api/recipe-drafts/file", {
-    method: "POST",
-    json: { filename: file.name, content },
-    signal,
-    fallbackMessage: "The recipe file could not be imported.",
-  });
-  if (!isImportedRecipe(body)) {
-    throw new RecipeFileImportError("The recipe file could not be imported.");
-  }
-  return body;
-}
-
-function fileImportErrorMessage(error: unknown): string {
-  return error instanceof RecipeFileImportError || error instanceof ApiError
-    ? error.message
-    : "The recipe file could not be imported.";
 }
 
 function recipeSaveErrorMessage(error: unknown): string {
@@ -374,10 +281,10 @@ function RecipeImportControls({
   importError: string | null;
   importedFileName: string | null;
   importing: boolean;
-  method: AddMethod;
+  method: RecipeAddMethod;
   onFileChange: (file: File | null) => void;
   onFileImport: () => Promise<void>;
-  onMethodChange: (method: AddMethod) => void;
+  onMethodChange: (method: RecipeAddMethod) => void;
   onPhotoDraft: (draft: PhotoRecipeImportDraft) => void;
   onUrlChange: (url: string) => void;
   onUrlImport: () => Promise<void>;
@@ -700,13 +607,6 @@ export function AddRecipeView({
   const { data: session, isPending: sessionPending } = authClient.useSession();
   const sessionUserId = session?.user.id;
   const queryClient = useQueryClient();
-  const [method, setMethod] = useState<AddMethod>("write");
-  const [recipeUrl, setRecipeUrl] = useState("");
-  const [recipeFile, setRecipeFile] = useState<File | null>(null);
-  const [importing, setImporting] = useState(false);
-  const [importError, setImportError] = useState<string | null>(null);
-  const [urlImportSuccess, setUrlImportSuccess] = useState(false);
-  const [importedFileName, setImportedFileName] = useState<string | null>(null);
   const [importedUrl, setImportedUrl] = useState<string | null>(
     initialDraft.url ?? null,
   );
@@ -734,8 +634,6 @@ export function AddRecipeView({
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const visibilityTouchedRef = useRef(editing);
-  const importRequestRef = useRef<ImportRequest | null>(null);
-  const nextImportRequestIdRef = useRef(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const cooklang = useMemo(() => normalizeRecipeSource(source), [source]);
   const parse = useCooklangRecipe(cooklang);
@@ -810,7 +708,7 @@ export function AddRecipeView({
   ]);
   const preview = previewResult.recipe;
 
-  const applyImportedRecipe = useCallback((recipe: ImportedRecipe) => {
+  const applyImportedRecipe = useCallback((recipe: ImportedRecipeDraft) => {
     setTitle(recipe.title);
     setDescription(recipe.description);
     setCuisine(recipe.cuisine);
@@ -820,95 +718,40 @@ export function AddRecipeView({
     setSource(recipe.source);
     setImportedUrl(recipe.url ?? null);
   }, []);
+  const {
+    cancelImport,
+    importError,
+    importedFileName,
+    importing,
+    importRecipeFile,
+    importRecipeUrl,
+    method,
+    recipeFile,
+    recipeUrl,
+    resetImportResult,
+    selectMethod,
+    setRecipeFile,
+    setRecipeUrl,
+    urlImportSuccess,
+  } = useRecipeDraftImport(applyImportedRecipe);
 
-  async function importRecipeUrl() {
-    if (!recipeUrl.trim() || importing) return;
-    importRequestRef.current?.controller.abort();
-    const request = {
-      id: ++nextImportRequestIdRef.current,
-      controller: new AbortController(),
-    };
-    importRequestRef.current = request;
-    setImporting(true);
-    setImportError(null);
-    setUrlImportSuccess(false);
-    try {
-      const importedRecipe = await fetchUrlRecipeDraft(
-        recipeUrl.trim(),
-        request.controller.signal,
+  const applyPhotoDraft = useCallback(
+    (draft: PhotoRecipeImportDraft) => {
+      const { frontmatter, body } = draft.cooklang;
+      setTitle(frontmatter.title ?? draft.recipe.title);
+      setDescription(frontmatter.description ?? draft.recipe.description);
+      setCuisine(
+        (frontmatter.cuisine ?? draft.recipe.cuisine ?? []).join(", "),
       );
-      if (importRequestIsStale(importRequestRef.current, request)) return;
-      applyImportedRecipe(importedRecipe);
-      setRecipeUrl(importedRecipe.url ?? recipeUrl.trim());
-      setUrlImportSuccess(true);
-      setImportedFileName(null);
-    } catch (error) {
-      if (importRequestIsStale(importRequestRef.current, request)) return;
-      setImportError(
-        error instanceof Error
-          ? error.message
-          : "The recipe could not be imported.",
-      );
-    } finally {
-      finishImportRequest(importRequestRef, request, setImporting);
-    }
-  }
-
-  async function importRecipeFile() {
-    if (!recipeFile || importing) return;
-    importRequestRef.current?.controller.abort();
-    const request = {
-      id: ++nextImportRequestIdRef.current,
-      controller: new AbortController(),
-    };
-    importRequestRef.current = request;
-    setImporting(true);
-    setImportError(null);
-    setImportedFileName(null);
-    try {
-      const importedRecipe = await fetchFileRecipeDraft(
-        recipeFile,
-        request.controller.signal,
-      );
-      if (importRequestIsStale(importRequestRef.current, request)) return;
-      applyImportedRecipe(importedRecipe);
-      setImportedFileName(recipeFile.name);
-      setUrlImportSuccess(false);
-    } catch (error) {
-      if (importRequestIsStale(importRequestRef.current, request)) return;
-      setImportError(fileImportErrorMessage(error));
-    } finally {
-      finishImportRequest(importRequestRef, request, setImporting);
-    }
-  }
-
-  function invalidateImportRequest() {
-    importRequestRef.current?.controller.abort();
-    importRequestRef.current = null;
-    setImporting(false);
-  }
-
-  function selectMethod(nextMethod: AddMethod) {
-    invalidateImportRequest();
-    setImportError(null);
-    setImportedFileName(null);
-    setUrlImportSuccess(false);
-    setMethod(nextMethod);
-  }
-
-  const applyPhotoDraft = useCallback((draft: PhotoRecipeImportDraft) => {
-    const { frontmatter, body } = draft.cooklang;
-    setTitle(frontmatter.title ?? draft.recipe.title);
-    setDescription(frontmatter.description ?? draft.recipe.description);
-    setCuisine((frontmatter.cuisine ?? draft.recipe.cuisine ?? []).join(", "));
-    setServings(frontmatter.servings ?? draft.recipe.servings);
-    setPrepTime(draft.recipe.prepTime);
-    setCookTime(draft.recipe.cookTime);
-    setSource(body);
-    setImportedUrl(null);
-    setUrlImportSuccess(false);
-    setImportedFileName(null);
-  }, []);
+      setServings(frontmatter.servings ?? draft.recipe.servings);
+      setPrepTime(draft.recipe.prepTime);
+      setCookTime(draft.recipe.cookTime);
+      setSource(body);
+      setImportedUrl(null);
+      resetImportResult();
+    },
+    [resetImportResult],
+  );
 
   const batchOnChange = batchImport?.onChange;
   useEffect(() => {
@@ -1062,20 +905,11 @@ export function AddRecipeView({
                 importedFileName={importedFileName}
                 importing={importing}
                 method={method}
-                onFileChange={(file) => {
-                  invalidateImportRequest();
-                  setRecipeFile(file);
-                  setImportError(null);
-                  setImportedFileName(null);
-                }}
+                onFileChange={setRecipeFile}
                 onFileImport={importRecipeFile}
                 onMethodChange={selectMethod}
                 onPhotoDraft={applyPhotoDraft}
-                onUrlChange={(url) => {
-                  invalidateImportRequest();
-                  setRecipeUrl(url);
-                  setImportError(null);
-                }}
+                onUrlChange={setRecipeUrl}
                 onUrlImport={importRecipeUrl}
                 recipeFile={recipeFile}
                 recipeUrl={recipeUrl}
@@ -1160,7 +994,7 @@ export function AddRecipeView({
                   size="sm"
                   className="rounded-full"
                   onClick={() => {
-                    invalidateImportRequest();
+                    cancelImport();
                     setTitle("Weeknight tomato pasta");
                     setDescription("A quick, cosy pasta for busy evenings.");
                     setCuisine("Italian");
@@ -1168,8 +1002,7 @@ export function AddRecipeView({
                     setCookTime(25);
                     setSource(EXAMPLE_RECIPE);
                     setImportedUrl(null);
-                    setUrlImportSuccess(false);
-                    setImportedFileName(null);
+                    resetImportResult();
                   }}
                 >
                   <Sparkles /> Try example

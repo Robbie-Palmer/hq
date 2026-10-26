@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Heart,
   House,
+  LayoutDashboard,
   Music2,
   Search,
   Sparkles,
@@ -81,6 +82,7 @@ import {
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
 import { PlaylistEditor } from "./playlist-editor";
+import { ReadinessDashboard } from "./readiness-dashboard";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -138,6 +140,7 @@ function PaymentChoice({
 }
 
 const plannerSections = [
+  { id: "readiness", label: "Readiness", icon: LayoutDashboard },
   { id: "bed_groups", label: "Bed groups", icon: BedDouble },
   { id: "guests", label: "Guests", icon: Users },
   { id: "sharing", label: "Sharing map", icon: Waypoints },
@@ -335,6 +338,32 @@ function ResultView({
   );
 }
 
+function ReadinessView({
+  view,
+  state,
+  onUpdate,
+  onView,
+  onGuest,
+}: Readonly<{
+  view: EditorView;
+  state: WeddingPlanDraft | null;
+  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
+  onView: (view: EditorView) => void;
+  onGuest: (guestId: string) => void;
+}>) {
+  if (view !== "readiness" || !state) return null;
+  return (
+    <ReadinessDashboard
+      state={state}
+      onUpdate={onUpdate}
+      onNavigate={(destination, targetId) => {
+        if (targetId && destination === "guests") onGuest(targetId);
+        onView(destination);
+      }}
+    />
+  );
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
@@ -369,7 +398,6 @@ export function AccommodationEditor({
   const solverVersion = useRef(0);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTimer = useRef<number | null>(null);
-
   useEffect(() => {
     loadEditorPlan(
       application,
@@ -785,6 +813,13 @@ export function AccommodationEditor({
               onCalculate={calculateTablePlan}
             />
           )}
+          <ReadinessView
+            view={view}
+            state={state}
+            onUpdate={update}
+            onView={setView}
+            onGuest={setSelectedId}
+          />
           <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
             <>

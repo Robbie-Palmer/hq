@@ -14,7 +14,7 @@
       "customType": "regex",
       "description": "Track the repository-wide mise bootstrap version",
       "managerFilePatterns": [
-        "/^\\.github/actions/setup-mise/mise-version$/"
+        "/^\\.github/actions/setup-mise/mise-version\\.txt$/"
       ],
       "matchStrings": [
         "^(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+(?:-[0-9A-Za-z.-]+)?)$"
@@ -75,7 +75,7 @@
         "/^homelab/images/t3-code/README\\.md$/",
         "/^homelab/k3s/base/t3-code/deployment\\.yaml$/",
         "/^homelab/mise\\.toml$/",
-        "/^homelab/scripts/(?:check-t3-image|load-remote-development-image)$/"
+        "/^homelab/scripts/(?:check-t3-image|load-remote-development-image)\\.sh$/"
       ],
       "matchStrings": [
         "(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)-agent-tools-[0-9]+"
@@ -90,6 +90,49 @@
     "automerge": true
   },
   "packageRules": [
+    {
+      "description": "Ignore dynamic HCP Terraform workspace versions that Renovate mistakes for literal tool constraints",
+      "matchManagers": [
+        "terraform"
+      ],
+      "matchFileNames": [
+        "infra/account-foundation/hcp.tf",
+        "infra/project-modules/v1/modules/terraform-state/main.tf"
+      ],
+      "matchPackageNames": [
+        "hashicorp/terraform"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "Resolve the Mise-managed C++ compiler from Mise's default Conda channel",
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDatasources": [
+        "conda"
+      ],
+      "matchPackageNames": [
+        "gxx"
+      ],
+      "registryUrls": [
+        "https://api.anaconda.org/package/conda-forge/"
+      ]
+    },
+    {
+      "description": "Keep temporary uv Git overrides pinned to their reviewed fix commits",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchDatasources": [
+        "git-refs"
+      ],
+      "matchPackageNames": [
+        "https://github.com/grantjenks/python-diskcache.git",
+        "https://github.com/smarie/python-pytest-cases.git"
+      ],
+      "enabled": false
+    },
     {
       "description": "Keep the workerd test runner on the Vitest version supported by Cloudflare's pool",
       "matchFileNames": [

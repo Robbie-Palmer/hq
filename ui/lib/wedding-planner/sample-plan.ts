@@ -189,7 +189,6 @@ export function createSampleWeddingPlan(): WeddingPlan {
             booking: {
               status: "held",
               payer: { kind: "guest_direct" },
-              commitment_id: "hotel-room-block",
             },
           },
         ],

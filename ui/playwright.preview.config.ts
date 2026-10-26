@@ -29,7 +29,9 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 4 : undefined,
+  // The protected preview shares mutable fixture accounts in one remote API
+  // and Durable Object namespace, so stateful tests must not overlap.
+  workers: 1,
   timeout: 45_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",

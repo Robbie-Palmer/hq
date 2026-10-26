@@ -13,6 +13,7 @@ const RECIPE_APP_ROUTE_SLUGS = new Set([
   "notifications",
   "offline",
   "onboarding",
+  "planning",
   "profile",
   "saved",
   "settings",

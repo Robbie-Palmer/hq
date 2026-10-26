@@ -102,6 +102,43 @@ describe("deterministic Vale producer", () => {
     })).toThrow(/inside a larger word/);
   });
 
+  it("keeps domain terminology out of the exact-replacement allowlist", async () => {
+    const styles = resolve(import.meta.dirname, "../../../.vale/styles/Unslop");
+    const safeWords = await readFile(join(styles, "PlainWordsSafe.yml"), "utf8");
+    const copularPhrases = await readFile(join(styles, "ServesAs.yml"), "utf8");
+
+    expect(safeWords).not.toMatch(/expedite/iu);
+    expect(copularPhrases).not.toMatch(/features/iu);
+  });
+
+  it("rejects inconsistent session timing", () => {
+    expect(() => ReviewReceiptSchema.parse({
+      schemaVersion: 1,
+      recordType: "writing-review-receipt",
+      documentId: "draft.md",
+      revision: "worktree:test",
+      recordsHash: "a".repeat(64),
+      decisionsHash: "b".repeat(64),
+      sourceBeforeHash: "c".repeat(64),
+      sourceAfterHash: "c".repeat(64),
+      sourceChanged: false,
+      summary: {
+        findings: 1,
+        proposals: 0,
+        accepted: 0,
+        rejected: 0,
+        changed: 0,
+        reviewMilliseconds: 0,
+      },
+      sessionTiming: {
+        startedAt: "2026-10-24T12:00:00.000Z",
+        findingsReviewedAt: "2026-10-24T11:59:59.000Z",
+        completedAt: "2026-10-24T12:00:01.000Z",
+        elapsedMilliseconds: 0,
+      },
+    })).toThrow(/review session interval/);
+  });
+
   it("writes producer output and a decision before changing the addressed source", async () => {
     const directory = await mkdtemp(join(tmpdir(), "writing-editor-source-review-"));
     try {
@@ -137,6 +174,7 @@ describe("deterministic Vale producer", () => {
         "--decisions", decisionsPath,
         "--receipt", receiptPath,
         "--vale", valePath,
+        "--measure-session",
       ], { input: scriptedInput("a"), output: commandOutput });
 
       expect(JSON.parse(await readFile(recordsPath, "utf8")).proposals).toHaveLength(1);
@@ -149,6 +187,12 @@ describe("deterministic Vale producer", () => {
       )).toMatchObject({
         sourceChanged: true,
         summary: { findings: 0, proposals: 1, accepted: 1 },
+        sessionTiming: {
+          startedAt: expect.any(String),
+          findingsReviewedAt: expect.any(String),
+          completedAt: expect.any(String),
+          elapsedMilliseconds: expect.any(Number),
+        },
       });
       expect(await readFile(sourcePath, "utf8")).toBe("# Draft\n\nUse direct words.\n");
       expect(displayed).toContain("-Utilize direct words.");

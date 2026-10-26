@@ -1,0 +1,246 @@
+schema_version: 1
+effective_at: "2026-10-25T00:00:00Z"
+reconciliation_target: "2026-10-25T12:40:00Z"
+
+template:
+  id: "monorepo-project"
+  source: "https://github.com/Robbie-Palmer/hq.git"
+  revision: "6d9f9044e7d74e50270f61eccc19001b54cd317a"
+
+scope:
+  statuses:
+    - "live"
+    - "in_progress"
+  exclusions:
+    - id: "personal-engineering-platform"
+      reason: "The platform defines the adoption contract and cannot adopt itself."
+    - id: "intelligent-document-processing"
+      reason: "Terminal Industries owns this employer project."
+    - id: "mobile-asset-identification"
+      reason: "Terminal Industries owns this employer project."
+    - id: "real-time-multi-camera-video-analytics"
+      reason: "Terminal Industries owns this employer project."
+
+projects:
+  - id: "agent-first-writing"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/agent-first-writing/project-profile.yaml"
+    receipt: ".copier/projects/agent-first-writing.yml"
+    layers: ["governance", "base", "python", "data"]
+    capabilities: ["secrets.runtime-store", "data.artifact-versioning"]
+    deliberate_overrides:
+      - "project.primary-language remains Python under agent-first-writing:009-primary-language-python."
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 1
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "agent-friendly-remote-development"
+    adoption_state: "deferred"
+    profile: "ui/content/projects/agent-friendly-remote-development/project-profile.yaml"
+    receipt: null
+    layers: ["governance", "base", "infrastructure", "build-runtime"]
+    capabilities:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+      - "build.reproducibility"
+      - "host.configuration"
+      - "network.public-ingress"
+      - "network.private-overlay"
+    deliberate_overrides: []
+    reconciliation:
+      status: "deferred_before_initial_adoption"
+      reason: "The current profile cannot represent the NixOS host, K3s workload, and per-user workspace boundaries without flattening them into Terraform ownership."
+    applied_changes: ["versioned profile and deferral declaration"]
+    evidence: ["adoption plan ready"]
+
+  - id: "agentic-code-review"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/agentic-code-review/project-profile.yaml"
+    receipt: ".copier/projects/agentic-code-review.yml"
+    layers: ["governance", "base", "typescript", "backend-api", "database", "infrastructure", "observability", "storage"]
+    capabilities:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "backend-api.runtime"
+      - "database.olap-engine"
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+      - "storage.object-store"
+    deliberate_overrides:
+      - "The top-level ai-review service remains local because Copier rejects repository-root ownership; the domain and evaluation paths are managed."
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "autonomic-satellite-swarm"
+    adoption_state: "deferred"
+    profile: "ui/content/projects/autonomic-satellite-swarm/project-profile.yaml"
+    receipt: null
+    layers: ["governance", "base"]
+    capabilities: ["project.primary-language"]
+    deliberate_overrides:
+      - "project.primary-language remains C++ under autonomic-satellite-swarm:001-c-plus-plus."
+    reconciliation:
+      status: "deferred_before_initial_adoption"
+      reason: "The research prototype keeps its reviewed CMake, Arduino, and WebAssembly contracts until the platform defines an embedded C++ layer."
+    applied_changes: ["versioned profile and deferral declaration"]
+    evidence: ["adoption plan ready"]
+
+  - id: "homelab"
+    adoption_state: "deferred"
+    profile: "ui/content/projects/homelab/project-profile.yaml"
+    receipt: null
+    layers: ["governance", "base", "build-runtime", "data"]
+    capabilities:
+      - "build.reproducibility"
+      - "artifact.contract"
+      - "host.configuration"
+      - "network.public-ingress"
+      - "network.private-overlay"
+      - "data.artifact-versioning"
+    deliberate_overrides: []
+    reconciliation:
+      status: "deferred_before_initial_adoption"
+      reason: "The current profile cannot model the mixed NixOS, K3s, Docker, backup, and private-fleet lifecycle as one generated component."
+    applied_changes: ["versioned profile and deferral declaration"]
+    evidence: ["adoption plan ready"]
+
+  - id: "personal-digital-infrastructure"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/personal-digital-infrastructure/project-profile.yaml"
+    receipt: ".copier/projects/personal-digital-infrastructure.yml"
+    layers: ["governance"]
+    capabilities: ["governance.repository-visibility", "governance.license", "governance.source-boundary"]
+    deliberate_overrides: []
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "personal-finance-app"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/personal-finance-app/project-profile.yaml"
+    receipt: ".copier/projects/personal-finance-app.yml"
+    layers: ["governance", "base", "typescript", "web-app", "backend-api", "database", "infrastructure", "observability", "storage"]
+    capabilities:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "web-app.host"
+      - "backend-api.runtime"
+      - "backend-api.relational-connection"
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+      - "observability.telemetry-protocol"
+      - "observability.application-telemetry"
+      - "storage.object-store"
+    deliberate_overrides: []
+    reconciliation:
+      policy_changes: 23
+      default_changes: 24
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at", "resolved selections", "OpenTelemetry contract", "fulfillment checkpoints"]
+    applied_changes: ["profile", "receipt", "platform adoption records"]
+    evidence:
+      - "https://github.com/Robbie-Palmer/hq/pull/1875"
+      - "semantic reconciliation passed"
+
+  - id: "personal-knowledge-graph"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/personal-knowledge-graph/project-profile.yaml"
+    receipt: ".copier/projects/personal-knowledge-graph.yml"
+    layers: ["governance", "base", "typescript", "web-app", "infrastructure", "observability", "storage"]
+    capabilities:
+      - "delivery.preview-environment"
+      - "web-app.host"
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+      - "storage.object-store"
+    deliberate_overrides:
+      - "Shared frontend runtime code remains outside Copier ownership; the project publication is managed through delegated UI checks."
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "recipe-site"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/recipe-site/project-profile.yaml"
+    receipt: ".copier/projects/recipe-site.yml"
+    layers: ["governance", "base", "typescript", "web-app", "backend-api", "identity", "api-governance", "database", "infrastructure", "observability", "storage", "data"]
+    capabilities:
+      - "delivery.preview-environment"
+      - "security.preview-access"
+      - "web-app.host"
+      - "backend-api.runtime"
+      - "identity.authentication-library"
+      - "database.relational-engine"
+      - "database.preview-isolation"
+      - "observability.telemetry-protocol"
+      - "storage.object-store"
+      - "data.artifact-versioning"
+    deliberate_overrides:
+      - "Shared frontend routes and public-platform Terraform remain local; Copier manages the API, ingestion, domain, database, parsing, and dataset paths."
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "catalog reconciliation"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "wedding-planner"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/wedding-planner/project-profile.yaml"
+    receipt: ".copier/projects/wedding-planner.yml"
+    layers: ["governance", "base", "typescript", "web-app"]
+    capabilities: ["web-app.host"]
+    deliberate_overrides:
+      - "Shared frontend route code remains local; Copier manages the domain package and project publication."
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]
+
+  - id: "work-graph"
+    adoption_state: "tracking"
+    profile: "ui/content/projects/work-graph/project-profile.yaml"
+    receipt: ".copier/projects/work-graph.yml"
+    layers: ["governance", "base", "typescript", "backend-api", "database", "infrastructure", "observability", "storage"]
+    capabilities:
+      - "security.service-auth"
+      - "backend-api.runtime"
+      - "backend-api.contract-format"
+      - "database.relational-engine"
+      - "database.backup-restore"
+      - "infrastructure.provisioner"
+      - "storage.object-store"
+    deliberate_overrides: []
+    reconciliation:
+      policy_changes: 0
+      default_changes: 0
+      preserved_overrides: 0
+      automatic_edits: ["receipt effective_at"]
+    applied_changes: ["receipt", "project registration", "catalog records"]
+    evidence: ["adoption plan ready", "layout check passed", "semantic reconciliation passed"]

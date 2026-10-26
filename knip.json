@@ -36,10 +36,14 @@
         "@anthropic-ai/claude-code",
         "@auth/agent-cli",
         "@openai/codex",
+        "@trpc/server",
         "@xai-official/grok",
         "opencode-ai",
         "pnpm",
-        "t3"
+        "t3",
+        "trpc-cli",
+        "undici",
+        "zod"
       ]
     },
     "packages/agent-auth-mcp": {},

@@ -425,8 +425,8 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: c79ec320f3a994b378bf43897e53d7a9
-      size: 671533
+      md5: 4fd8cf7ca5ed1977950fc9bb468dfb34
+      size: 674081
     - path: data/review-evidence/repository-pilot/decisions.jsonl
       hash: md5
       md5: fa8151bcdbb6e612cc5189c5dca5f55c
@@ -445,8 +445,8 @@ stages:
       size: 2402
     - path: evaluation-params.json
       hash: md5
-      md5: 26ed31f4343e1382730c572a859d7e23
-      size: 172
+      md5: 865d0880f2c68509bda8aa38b14a3c89
+      size: 652
     - path: package.json
       hash: md5
       md5: 0fe057aad8ffadcf5845a4ea16495eb9
@@ -458,8 +458,8 @@ stages:
       isexec: true
     - path: src/evaluate-reviews.ts
       hash: md5
-      md5: ed4df12554a80bfe32fa103f6a2246fe
-      size: 18235
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
     - path: src/files.ts
       hash: md5
       md5: 1050ccec8a3f76bda0349fd1a3704970
@@ -467,8 +467,8 @@ stages:
     outs:
     - path: outputs/evaluation/repository-pilot.json
       hash: md5
-      md5: 61bdcfbc5a3c5d5896b77e2f0d64d330
-      size: 1940
+      md5: 8d2e166172a9bc2ed2d0bf4443857b5c
+      size: 3199
   build_current_content_corpus:
     cmd: bash scripts/build-current-content-corpus.sh
     deps:
@@ -1798,66 +1798,6 @@ stages:
       md5: 5afbefc3c5a09ef6602325a778dff985.dir
       size: 5600107
       nfiles: 832
-  evaluate_gector_decisions:
-    cmd: pnpm exec tsx src/evaluate-reviews.ts --manifest 
-      data/review-evidence/gector-broad-pilot/manifest.json --evidence 
-      data/review-evidence/gector-broad-pilot --params evaluation-params.json 
-      --output outputs/review-evaluation/gector-broad-pilot-scorecard.json
-    deps:
-    - path: ../../packages/writing-editor-domain/package.json
-      hash: md5
-      md5: b593d08224c2a5ecd4bf6566f2457057
-      size: 1066
-    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
-      hash: md5
-      md5: 7d4daa79a40f8c7c584963ef701bce21
-      size: 46
-    - path: ../../packages/writing-editor-domain/src/decisions.ts
-      hash: md5
-      md5: 75c67d7125104a7b42df2a37cc4d42e0
-      size: 2997
-    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
-      hash: md5
-      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
-      size: 2318
-    - path: ../../packages/writing-editor-domain/src/review.ts
-      hash: md5
-      md5: 79f007f6de0209d2cf47263ce61ae544
-      size: 7966
-    - path: ../../packages/writing-editor-domain/src/suggestions.ts
-      hash: md5
-      md5: d0d064a3be87e2ce1256b3c17b004405
-      size: 6579
-    - path: ../../pnpm-lock.yaml
-      hash: md5
-      md5: c79ec320f3a994b378bf43897e53d7a9
-      size: 671533
-    - path: data/review-evidence/gector-broad-pilot
-      hash: md5
-      md5: 5afbefc3c5a09ef6602325a778dff985.dir
-      size: 5600107
-      nfiles: 832
-    - path: evaluation-params.json
-      hash: md5
-      md5: 26ed31f4343e1382730c572a859d7e23
-      size: 172
-    - path: package.json
-      hash: md5
-      md5: 0fe057aad8ffadcf5845a4ea16495eb9
-      size: 512
-    - path: src/evaluate-reviews.ts
-      hash: md5
-      md5: ed4df12554a80bfe32fa103f6a2246fe
-      size: 18235
-    - path: src/files.ts
-      hash: md5
-      md5: 1050ccec8a3f76bda0349fd1a3704970
-      size: 3340
-    outs:
-    - path: outputs/review-evaluation/gector-broad-pilot-scorecard.json
-      hash: md5
-      md5: 4e72a1f82fc612fe08e625a4a78bb196
-      size: 123223
   finalize_cohort_readiness:
     cmd: bash scripts/finalize-cohort-readiness.sh
     deps:
@@ -1887,8 +1827,8 @@ stages:
       size: 6579
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: c79ec320f3a994b378bf43897e53d7a9
-      size: 671533
+      md5: 4fd8cf7ca5ed1977950fc9bb468dfb34
+      size: 674081
     - path: data/review-evidence/gector-broad-pilot
       hash: md5
       md5: 5afbefc3c5a09ef6602325a778dff985.dir
@@ -1896,8 +1836,8 @@ stages:
       nfiles: 832
     - path: evaluation-params.json
       hash: md5
-      md5: 26ed31f4343e1382730c572a859d7e23
-      size: 172
+      md5: 865d0880f2c68509bda8aa38b14a3c89
+      size: 652
     - path: outputs/frozen/cohort.json
       hash: md5
       md5: 9ee6923d17bb3431fe7d2e925d359430
@@ -1912,16 +1852,16 @@ stages:
       size: 494
     - path: src/evaluate-reviews.ts
       hash: md5
-      md5: ed4df12554a80bfe32fa103f6a2246fe
-      size: 18235
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
     - path: src/files.ts
       hash: md5
       md5: 1050ccec8a3f76bda0349fd1a3704970
       size: 3340
     - path: src/finalize-cohort-readiness.ts
       hash: md5
-      md5: 622f0a28643ef8fc196c6879368716ae
-      size: 4505
+      md5: 5df150de9c504be8f6a458368d269bd0
+      size: 4514
     - path: src/freeze-cohort.ts
       hash: md5
       md5: 7e407485e124fab01fd1d796e256fd1f
@@ -1944,3 +1884,303 @@ stages:
       hash: md5
       md5: a7b1fdd09f9f3e8547124a00fa3d7dda
       size: 284
+  evaluate:
+    cmd: bash scripts/evaluate.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/review-receipt.ts
+      hash: md5
+      md5: 851ef5ec8d4ad27296613a4c2bf38ae4
+      size: 2318
+    - path: ../../packages/writing-editor-domain/src/review.ts
+      hash: md5
+      md5: 79f007f6de0209d2cf47263ce61ae544
+      size: 7966
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 4fd8cf7ca5ed1977950fc9bb468dfb34
+      size: 674081
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: 5afbefc3c5a09ef6602325a778dff985.dir
+      size: 5600107
+      nfiles: 832
+    - path: evaluation-params.json
+      hash: md5
+      md5: 865d0880f2c68509bda8aa38b14a3c89
+      size: 652
+    - path: outputs/frozen/cohort.json
+      hash: md5
+      md5: 9ee6923d17bb3431fe7d2e925d359430
+      size: 7051
+    - path: outputs/matched/vale.json
+      hash: md5
+      md5: f140287ebce50fa1765baa3b56da7c16
+      size: 213451
+    - path: outputs/producers/gector/run.json
+      hash: md5
+      md5: a9b1b9b23f2585204cc1b20c8cf0ffcd
+      size: 231795
+    - path: outputs/producers/vale.json
+      hash: md5
+      md5: a3b8573b845ea0d799d76d2590684255
+      size: 46403
+    - path: outputs/review-baseline/customer/run.json
+      hash: md5
+      md5: da80ea975e2964e20fb747274387b7fb
+      size: 338923
+    - path: outputs/review-baseline/developer/run.json
+      hash: md5
+      md5: d5e7a6a4c569f1f95cc358cd952e37af
+      size: 774545
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: scripts/evaluate.sh
+      hash: md5
+      md5: 719c8ee4b1a2aaf5b82477ae7e4dc56b
+      size: 579
+      isexec: true
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/schemas.ts
+      hash: md5
+      md5: bf4fbf87e5b08e96a57c5cc118dc9c4e
+      size: 25921
+    outs:
+    - path: outputs/evaluation/scorecard.json
+      hash: md5
+      md5: 287fc6722418ede62d4901c2e3428c0c
+      size: 431244
+  prepare_punctuation_model:
+    cmd: bash scripts/prepare-punctuation-model.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-model-manifest.json
+      hash: md5
+      md5: 8d7a88b692c4eb2406e58d4156be0195
+      size: 5778
+    - path: scripts/prepare-punctuation-model.sh
+      hash: md5
+      md5: 069ccffb5e40697355b22a1e004e8669
+      size: 86
+      isexec: true
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/prepare-gector-model.ts
+      hash: md5
+      md5: e4f6aa4f517d642ec0ac28339750ffe3
+      size: 20924
+    - path: src/prepare-punctuation-model.ts
+      hash: md5
+      md5: fbe9a8b1b115a0ff316a6513bdad8530
+      size: 8958
+    outs:
+    - path: data/models/punctuation-restoration-small
+      hash: md5
+      md5: 4a197c50be09c273494e3eca7ab1a73a.dir
+      size: 597003049
+      nfiles: 6
+  run_punctuation_candidate:
+    cmd: bash scripts/run-punctuation-candidate.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/proposals.ts
+      hash: md5
+      md5: c4b20db48f31d2324134763913160fac
+      size: 4668
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: data/models/punctuation-restoration-small
+      hash: md5
+      md5: 4a197c50be09c273494e3eca7ab1a73a.dir
+      size: 597003049
+      nfiles: 6
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: 5afbefc3c5a09ef6602325a778dff985.dir
+      size: 5600107
+      nfiles: 832
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-experiment.json
+      hash: md5
+      md5: 682b4552c2414ad79ac020b95b4df683
+      size: 1598
+    - path: punctuation-model-manifest.json
+      hash: md5
+      md5: 8d7a88b692c4eb2406e58d4156be0195
+      size: 5778
+    - path: pyproject.toml
+      hash: md5
+      md5: ab6587b4675427cd002a60eb793c33d4
+      size: 1213
+    - path: python/punctuation_runtime.py
+      hash: md5
+      md5: 3d7fa02a2f660252d6262f645ac706fd
+      size: 14605
+    - path: scripts/adapt-punctuation-candidate.sh
+      hash: md5
+      md5: 54e1484cd66771dac34d774232b7d466
+      size: 406
+      isexec: true
+    - path: scripts/run-punctuation-candidate.sh
+      hash: md5
+      md5: 7825cfcfef954b2a23eb8de324eeb441
+      size: 498
+      isexec: true
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/prepare-punctuation-model.ts
+      hash: md5
+      md5: fbe9a8b1b115a0ff316a6513bdad8530
+      size: 8958
+    - path: src/run-punctuation-candidate.ts
+      hash: md5
+      md5: eb402db0038eb4bac1d854f859cf8458
+      size: 13495
+    - path: uv.lock
+      hash: md5
+      md5: cee6a8d7c79f50b508e64cbce64e07ec
+      size: 61624
+    outs:
+    - path: outputs/punctuation-candidate/run
+      hash: md5
+      md5: d9d01a21efa8c378d96b2b3bb7554cb1.dir
+      size: 239288
+      nfiles: 2
+  evaluate_punctuation_candidate:
+    cmd: bash scripts/evaluate-punctuation-candidate.sh
+    deps:
+    - path: ../../packages/writing-editor-domain/package.json
+      hash: md5
+      md5: b593d08224c2a5ecd4bf6566f2457057
+      size: 1066
+    - path: ../../packages/writing-editor-domain/src/canonical-json.ts
+      hash: md5
+      md5: 7d4daa79a40f8c7c584963ef701bce21
+      size: 46
+    - path: ../../packages/writing-editor-domain/src/decisions.ts
+      hash: md5
+      md5: 75c67d7125104a7b42df2a37cc4d42e0
+      size: 2997
+    - path: ../../packages/writing-editor-domain/src/suggestions.ts
+      hash: md5
+      md5: d0d064a3be87e2ce1256b3c17b004405
+      size: 6579
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 3cfa07b4271839a51f1044cad2c288d1
+      size: 690958
+    - path: data/review-evidence/deterministic-pilot-post-hardening
+      hash: md5
+      md5: fbfb33910d17e55cbe952696c2234d7b.dir
+      size: 13922
+      nfiles: 13
+    - path: data/review-evidence/gector-broad-pilot
+      hash: md5
+      md5: 5afbefc3c5a09ef6602325a778dff985.dir
+      size: 5600107
+      nfiles: 832
+    - path: outputs/punctuation-candidate/run/run.json
+      hash: md5
+      md5: 724a97689c72e2205d28ab241a582058
+      size: 176370
+    - path: package.json
+      hash: md5
+      md5: 0fe057aad8ffadcf5845a4ea16495eb9
+      size: 512
+    - path: punctuation-experiment.json
+      hash: md5
+      md5: 682b4552c2414ad79ac020b95b4df683
+      size: 1598
+    - path: scripts/evaluate-punctuation-candidate.sh
+      hash: md5
+      md5: 6ac94d850da8a0a24a78a3c2e1bb97ab
+      size: 438
+      isexec: true
+    - path: src/evaluate-punctuation-candidate.ts
+      hash: md5
+      md5: b7bcb2ce7662bc841c606990b9da9c6c
+      size: 14052
+    - path: src/evaluate-reviews.ts
+      hash: md5
+      md5: 20a6ad85f6146582dea87876e2e7efaf
+      size: 33711
+    - path: src/files.ts
+      hash: md5
+      md5: 1050ccec8a3f76bda0349fd1a3704970
+      size: 3340
+    - path: src/run-punctuation-candidate.ts
+      hash: md5
+      md5: eb402db0038eb4bac1d854f859cf8458
+      size: 13495
+    outs:
+    - path: outputs/punctuation-candidate/evaluation.json
+      hash: md5
+      md5: 89e8d51eabd69bdc2995000213fc0d41
+      size: 1668
+    - path: outputs/punctuation-candidate/report.md
+      hash: md5
+      md5: 78d43ace15d7e53dbbe31871a324a570
+      size: 1265

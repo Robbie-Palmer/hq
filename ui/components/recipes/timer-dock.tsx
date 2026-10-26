@@ -25,6 +25,11 @@ import {
 } from "@/contexts/cook-mode-context";
 import { useCookingTimers } from "@/hooks/use-cooking-timers";
 import {
+  readBrowserStorageJson,
+  removeBrowserStorage,
+  writeBrowserStorageJson,
+} from "@/lib/browser/storage";
+import {
   type CookingTimer,
   dismissTimer,
   extendTimer,
@@ -48,39 +53,25 @@ function cookModeFooterClearance(): number {
 /** Offsets from the bottom-right corner, so the dock hugs its default anchor. */
 type DockPosition = { right: number; bottom: number };
 
+function isDockPosition(value: unknown): value is DockPosition {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as DockPosition).right === "number" &&
+    typeof (value as DockPosition).bottom === "number"
+  );
+}
+
 function loadPosition(): DockPosition | null {
-  try {
-    const raw = localStorage.getItem(POSITION_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as DockPosition).right === "number" &&
-      typeof (parsed as DockPosition).bottom === "number"
-    ) {
-      return parsed as DockPosition;
-    }
-  } catch {
-    // localStorage unavailable
-  }
-  return null;
+  return readBrowserStorageJson("localStorage", POSITION_KEY, isDockPosition);
 }
 
 function savePosition(position: DockPosition): void {
-  try {
-    localStorage.setItem(POSITION_KEY, JSON.stringify(position));
-  } catch {
-    // localStorage unavailable
-  }
+  writeBrowserStorageJson("localStorage", POSITION_KEY, position);
 }
 
 function clearPosition(): void {
-  try {
-    localStorage.removeItem(POSITION_KEY);
-  } catch {
-    // localStorage unavailable
-  }
+  removeBrowserStorage("localStorage", POSITION_KEY);
 }
 
 function clamp(value: number, min: number, max: number): number {

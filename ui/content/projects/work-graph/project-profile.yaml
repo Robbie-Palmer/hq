@@ -1,0 +1,78 @@
+schema_version: 1
+
+project:
+  id: "work-graph"
+  name: "Work Graph"
+  kind: "service"
+
+components:
+  - id: "work-graph-api"
+    name: "Work Graph API"
+    kind: "worker"
+  - id: "work-graph-observer"
+    name: "Work Graph observer"
+    kind: "worker"
+  - id: "work-graph-cli"
+    name: "Work Graph CLI"
+    kind: "typescript-package"
+  - id: "work-graph-db"
+    name: "Work Graph database"
+    kind: "typescript-package"
+  - id: "work-graph-domain"
+    name: "Work Graph domain"
+    kind: "typescript-package"
+  - id: "work-graph"
+    name: "Work Graph infrastructure"
+    kind: "terraform-root"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "security.service-auth"
+  - layer: "typescript"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+      - "backend-api.http-framework"
+      - "backend-api.contract-format"
+      - "backend-api.contract-generator"
+      - "backend-api.relational-connection"
+  - layer: "database"
+    slots:
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+  - layer: "storage"
+    slots:
+      - "storage.object-store"
+
+requirements:
+  - "credential-rotation"
+  - "runtime-derived-api-contract"
+  - "committed-migration-history"
+  - "serialized-migration-runner"
+  - "backup-key-custody"
+  - "backup-retention-policy"
+  - "restore-drill"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

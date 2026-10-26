@@ -1,0 +1,54 @@
+schema_version: 1
+
+project:
+  id: "homelab"
+  name: "Home Lab"
+  kind: "infrastructure"
+
+components:
+  - id: "ansible"
+    name: "Home Lab Ansible automation"
+    kind: "homelab-subsystem"
+  - id: "hosts"
+    name: "Home Lab host configurations"
+    kind: "homelab-subsystem"
+  - id: "k3s"
+    name: "Home Lab K3s workloads"
+    kind: "homelab-subsystem"
+  - id: "personal-archive-backup"
+    name: "Personal archive backup"
+    kind: "homelab-subsystem"
+  - id: "remote-development-backup"
+    name: "Remote development backup"
+    kind: "homelab-subsystem"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "build-runtime"
+    slots:
+      - "build.reproducibility"
+      - "artifact.contract"
+      - "host.configuration"
+      - "network.public-ingress"
+      - "network.private-overlay"
+  - layer: "data"
+    slots:
+      - "data.artifact-versioning"
+
+requirements:
+  - "git-repository"
+  - "external-blob-remote"
+
+reconciliation:
+  mode: "tracking"
+  defer:
+    effective_at: "2026-10-23T00:00:00Z"
+    reason: "Wait for the profile schema to model the mixed NixOS, K3s, Docker, backup, and private-fleet lifecycle without assigning the whole system to one generated component."
+
+nix:
+  boundary: "project"
+  flake_path: "homelab/flake.nix"
+
+opentelemetry:
+  enabled: false

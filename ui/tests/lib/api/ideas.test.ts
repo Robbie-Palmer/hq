@@ -5,12 +5,13 @@ import {
   getIdea,
   getIdeasForADR,
   getIdeasForBlog,
+  getIdeasForInitiative,
   getIdeasForProject,
 } from "@/lib/api/ideas";
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(38);
+    expect(getAllIdeaSlugs()).toHaveLength(41);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -89,6 +90,7 @@ describe("ideas API", () => {
       getIdeasForProject("commercial-knowledge-graph").map((idea) => idea.slug),
     ).toEqual([
       "intelligent-document-processing",
+      "knowledge-graphs",
       "nlp",
       "ocr",
       "ontology-engineering",
@@ -129,7 +131,12 @@ describe("ideas API", () => {
       getIdeasForBlog(
         "2023-03-28-uniting-machine-learning-data-streaming-1",
       ).map((idea) => idea.slug),
-    ).toEqual(["bounded-context", "conways-law", "data-mesh"]);
+    ).toEqual([
+      "bounded-context",
+      "conways-law",
+      "data-mesh",
+      "data-provenance",
+    ]);
     expect(
       getIdeasForBlog(
         "2023-05-23-automatically-detect-pii-real-time-cyber-defense",
@@ -146,12 +153,51 @@ describe("ideas API", () => {
     expect(
       getIdeasForADR("recipe-site:009-sonarqube").map((idea) => idea.slug),
     ).toEqual(["goodharts-law"]);
+    expect(
+      getIdeasForInitiative("digital-twin-of-the-yard").map(
+        (idea) => idea.slug,
+      ),
+    ).toEqual(["digital-twins"]);
+  });
+
+  it("exposes approved source backlinks for the new ideas", () => {
+    const knowledgeGraphs = getIdea("knowledge-graphs");
+    const provenance = getIdea("data-provenance");
+    const digitalTwins = getIdea("digital-twins");
+
+    expect(
+      knowledgeGraphs?.relatedContent.projects.map(({ slug }) => slug),
+    ).toEqual(["commercial-knowledge-graph"]);
+    expect(knowledgeGraphs?.relatedContent.adrs).toContainEqual(
+      expect.objectContaining({
+        projectSlug: "personal-knowledge-graph",
+        slug: "033-content-graph-indexes",
+      }),
+    );
+    expect(provenance?.relatedContent.blogs.map(({ slug }) => slug)).toEqual([
+      "2022-02-28-enabling-multi-omic-data-management",
+      "2023-03-28-uniting-machine-learning-data-streaming-1",
+    ]);
+    expect(provenance?.relatedContent.adrs).toContainEqual(
+      expect.objectContaining({
+        projectSlug: "personal-finance-app",
+        slug: "000-financial-fact-and-calculation-provenance",
+      }),
+    );
+    expect(
+      digitalTwins?.relatedContent.initiatives.map(({ slug }) => slug),
+    ).toEqual([
+      "digital-twin-of-the-yard",
+      "digital-twins-for-everyday-life",
+      "semi-autonomous-software-development",
+    ]);
   });
 
   it("returns null and empty links for unknown content", () => {
     expect(getIdea("missing")).toBeNull();
     expect(getIdeasForProject("missing")).toEqual([]);
     expect(getIdeasForBlog("missing")).toEqual([]);
+    expect(getIdeasForInitiative("missing")).toEqual([]);
     expect(getIdeasForADR("missing:001")).toEqual([]);
   });
 });

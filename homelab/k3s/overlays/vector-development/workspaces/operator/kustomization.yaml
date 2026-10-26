@@ -1,0 +1,28 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: t3-code
+components:
+  - ../../../../components/t3-code-operator-profile
+resources:
+  - ../../../../base/t3-code
+  - cache-persistent-volume.yaml
+  - cache-persistent-volume-claim.yaml
+  - doppler-secret.yaml
+  - preview-agent-doppler-secret.yaml
+  - work-graph-secret.yaml
+  - persistent-volume.yaml
+configMapGenerator:
+  - name: vector-doppler-wrapper
+    files:
+      - doppler=doppler-wrapper.sh
+      - work-graph=work-graph-wrapper.sh
+patches:
+  - path: namespace-patch.yaml
+  - path: deployment-patch.yaml
+  - path: persistent-volume-claim-patch.yaml
+  - path: service-patch.yaml
+labels:
+  - pairs:
+      homelab.dev/environment: vector-development
+    includeSelectors: false
+    includeTemplates: true

@@ -161,6 +161,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   putCompletionPolicyRevision: vi.fn(async (input) => input),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
+  evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
   listNotes: vi.fn(async () => []),
   listEvents: vi.fn(async () => []),
   listDependencies: vi.fn(async () => []),
@@ -281,6 +282,47 @@ const buildRepository = (): WorkGraphApiRepository => ({
         }
       : null,
   })),
+});
+
+describe("Given request usage metrics", () => {
+  it("records a normalized route with database and response totals", async () => {
+    const repository = buildRepository();
+    const databaseMetrics = {
+      queryCount: 4,
+      resultRowCount: 7,
+      resultBytesEstimated: 512,
+    };
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const app = createWorkGraphApp(repository, {
+      createRequestId: () => "usage-request",
+      databaseMetrics,
+      workerVersion: "version-usage",
+    });
+
+    const response = await app.request("/api/work-items?stage=ready");
+
+    expect(response.headers.get("x-request-id")).toBe("usage-request");
+    expect(info).toHaveBeenCalledWith({
+      message: "Work Graph request usage",
+      event: "request_usage",
+      requestId: "usage-request",
+      method: "GET",
+      route: "/api/work-items",
+      outcome: "usage",
+      status: 200,
+      workerVersion: "version-usage",
+      databaseQueryCount: 4,
+      databaseResultRowCount: 7,
+      databaseResultBytesEstimated: 512,
+      responseBytes: expect.any(Number),
+      durationMs: expect.any(Number),
+    });
+    const usageRecord = info.mock.calls[0]?.[0] as
+      | { responseBytes: number }
+      | undefined;
+    expect(usageRecord?.responseBytes).toBeGreaterThan(0);
+    info.mockRestore();
+  });
 });
 
 describe("Given a requested delivery-critical path", () => {
@@ -955,6 +997,61 @@ describe("Given work items with derived readiness", () => {
     });
   });
 
+  it("returns the details shown for a work item in one request", async () => {
+    const repository = buildRepository();
+    const evidenceTemplate = {
+      deliveryProvider: "github",
+      deliveryExternalId: "delivery-1",
+      provider: "github",
+      externalId: "check-1",
+      repository: "example/work-graph",
+      commitSha: "0123456789abcdef0123456789abcdef01234567",
+      kind: "ci" as const,
+      state: "success" as const,
+      name: "verify",
+      environment: null,
+      sourceUrl: "https://github.com/example/work-graph/actions/runs/1",
+      providerObservedAt: "2026-09-22T11:00:00.000Z",
+      ingestedAt: "2026-09-22T11:00:01.000Z",
+      correlationKind: "pull_request_head" as const,
+      pullRequestRepository: "example/work-graph",
+      pullRequestNumber: 7,
+      current: true,
+      projectedAt: "2026-09-22T11:00:01.000Z",
+    };
+    const evidence = Array.from({ length: 101 }, (_, index) => ({
+      ...evidenceTemplate,
+      id: `00000000-0000-4000-8000-${(index + 1)
+        .toString(16)
+        .padStart(12, "0")}`,
+    }));
+    vi.mocked(repository.listWorkItemDeliveryEvidence).mockResolvedValue(
+      evidence,
+    );
+    const app = createWorkGraphApp(repository);
+
+    const details = await app.request("/api/work-items/ticket/details");
+
+    expect(details.status).toBe(200);
+    const body = await responseJson(details);
+    expect(body).toMatchObject({
+      id: "ticket",
+      deliveryEvidence: { nextCursor: evidence[99]?.id },
+      completionCandidate: null,
+    });
+    expect(
+      (body as { deliveryEvidence: { items: unknown[] } }).deliveryEvidence
+        .items,
+    ).toHaveLength(100);
+    expect(repository.getWorkItem).toHaveBeenCalledWith("ticket");
+    expect(repository.listWorkItemDeliveryEvidence).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      currentOnly: true,
+      limit: 101,
+    });
+    expect(repository.getCompletionCandidate).toHaveBeenCalledWith("ticket");
+  });
+
   it("creates and assigns completion policies before evaluating current evidence", async () => {
     const repository = buildRepository();
     const app = createWorkGraphApp(repository);
@@ -969,6 +1066,7 @@ describe("Given work items with derived readiness", () => {
         body: JSON.stringify({
           requiredCiNames: ["Work Graph Observer CI"],
           productionEnvironments: ["production-work-graph"],
+          automaticRelease: false,
           createdAt,
         }),
       },
@@ -992,6 +1090,7 @@ describe("Given work items with derived readiness", () => {
       revision: 1,
       requiredCiNames: ["Work Graph Observer CI"],
       productionEnvironments: ["production-work-graph"],
+      automaticRelease: false,
       createdAt,
     });
     expect(assignment.status).toBe(200);
@@ -1001,7 +1100,7 @@ describe("Given work items with derived readiness", () => {
       policyRevision: 1,
       assignedAt,
     });
-    expect(repository.evaluateCompletionCandidateIfConfigured).toHaveBeenCalledWith(
+    expect(repository.evaluateCompletionCandidateAndReleaseIfConfigured).toHaveBeenCalledWith(
       expect.objectContaining({ workItemId: "ticket" }),
     );
   });

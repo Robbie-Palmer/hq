@@ -249,6 +249,13 @@ export function getIdeasForBlog(
   return getIdeasFor(graph, "blog", slug);
 }
 
+export function getIdeasForInitiative(
+  graph: ContentGraph,
+  slug: InitiativeSlug,
+): Set<IdeaSlug> {
+  return getIdeasFor(graph, "initiative", slug);
+}
+
 export function getIdeasForADR(
   graph: ContentGraph,
   adrRef: ADRRef,
@@ -303,6 +310,7 @@ export function getContentReferencingIdeaByType(
   slug: IdeaSlug,
 ): {
   projects: ProjectSlug[];
+  initiatives: InitiativeSlug[];
   adrs: ADRRef[];
   blogs: BlogSlug[];
   productDecisions: ProductDecisionRef[];
@@ -310,6 +318,7 @@ export function getContentReferencingIdeaByType(
   const nodeIds = getContentReferencingIdea(graph, slug);
   return {
     projects: filterNodesByType(nodeIds, "project"),
+    initiatives: filterNodesByType(nodeIds, "initiative"),
     adrs: filterNodesByType(nodeIds, "adr"),
     blogs: filterNodesByType(nodeIds, "blog"),
     productDecisions: filterNodesByType(nodeIds, "product-decision"),

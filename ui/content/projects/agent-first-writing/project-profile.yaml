@@ -1,0 +1,43 @@
+schema_version: 1
+
+project:
+  id: "agent-first-writing"
+  name: "Agent-first Writing Editor"
+  kind: "data-pipeline"
+
+components:
+  - id: "writing-editor-evaluation"
+    name: "Writing editor evaluation"
+    kind: "python-pipeline"
+  - id: "writing-editor-domain"
+    name: "Writing editor domain"
+    kind: "typescript-package"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+  - layer: "python"
+  - layer: "data"
+    slots:
+      - "data.artifact-versioning"
+
+requirements:
+  - "git-repository"
+  - "external-blob-remote"
+
+overrides:
+  - slot: "project.primary-language"
+    kind: "technology"
+    value: "python"
+    decision: "agent-first-writing:009-primary-language-python"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

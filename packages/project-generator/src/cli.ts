@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { initTRPC } from "@trpc/server";
@@ -17,6 +17,7 @@ import {
 } from "./contracts.js";
 import {
   executeProjectPlan,
+  planProjectAdoption,
   type GenerationMode,
   type GenerationResult,
 } from "./engine.js";
@@ -29,6 +30,21 @@ import {
   parseProjectProfileContracts,
   resolveProjectProfile,
 } from "./profile.js";
+import {
+  applyProjectReconciliation,
+  planProjectReconciliation,
+} from "./reconciliation.js";
+import {
+  executeSecretBootstrap,
+  parseSecretBootstrapPlan,
+  planSecretBootstrap,
+  secretBootstrapStateSchema,
+  type SecretBootstrapState,
+} from "./secret-bootstrap.js";
+import {
+  conformCloudflareAccountTokenAuthority,
+  createCloudflareAccountToken,
+} from "./cloudflare-account-token.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
@@ -93,6 +109,40 @@ const profileCommandInput = z.object({
 
 type ProfileCommandInput = z.infer<typeof profileCommandInput>;
 
+const secretBootstrapCommandInput = z.object({
+  planPath: z
+    .string()
+    .describe("Versioned secret bootstrap plan YAML path")
+    .meta({ positional: true }),
+  state: z
+    .string()
+    .optional()
+    .describe("Resume-state JSON path; defaults to .project-bootstrap/<project>.json"),
+  acknowledge: z
+    .array(z.string())
+    .optional()
+    .describe("Manual checkpoint IDs completed by the operator"),
+});
+
+type SecretBootstrapCommandInput = z.infer<typeof secretBootstrapCommandInput>;
+
+const reconciliationApplyInput = profileCommandInput.extend({
+  reviewedPlan: z
+    .string()
+    .describe("Reviewed reconciliation plan JSON path"),
+});
+
+const reviewedPlanSchema = z.looseObject({
+    schemaVersion: z.literal(1),
+    kind: z.literal("project_reconciliation"),
+    projectId: z.string().min(1),
+    status: z.literal("ready"),
+    baseRevision: z.string().regex(/^[0-9a-f]{40}$/),
+    targetEffectiveAt: z.string().min(1),
+    candidate: z.looseObject({ diff: z.string() }),
+    planDigest: z.string().regex(/^[0-9a-f]{64}$/),
+  });
+
 function resolveTemplateSource(
   template: TemplateSource,
   registryPath: string,
@@ -151,6 +201,20 @@ async function runProfileCommand(
   input: ProfileCommandInput,
   mode: GenerationMode,
 ): Promise<GenerationResult | string> {
+  const prepared = await prepareProfileCommand(context, input);
+  const result = await executeProjectPlan({
+    repository: prepared.repository,
+    mode,
+    plan: prepared.plan,
+    template: prepared.template,
+  });
+  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+}
+
+async function prepareProfileCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
   const resolvePath = (value: string) =>
     path.resolve(context.workingDirectory, value);
   const profilePath = resolvePath(input.profilePath);
@@ -195,11 +259,158 @@ async function runProfileCommand(
     resolveTemplateSource(selected, registryPath),
   );
   const plan = projectPlanFromBlueprint({ blueprint, contracts, template });
-  const result = await executeProjectPlan({ repository, mode, plan, template });
-  return mode === "dry-run" ? result.diff || "No changes.\n" : result;
+  return { blueprint, contracts, plan, profile, repository, template };
+}
+
+async function runProfileAdoptionPlanCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  return planProjectAdoption(prepared);
+}
+
+async function runProfileReconciliationCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  return planProjectReconciliation(prepared);
+}
+
+async function runProfileReconciliationApplyCommand(
+  context: CommandContext,
+  input: z.infer<typeof reconciliationApplyInput>,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  const reviewedPlanPath = path.resolve(
+    context.workingDirectory,
+    input.reviewedPlan,
+  );
+  const reviewedPlan = reviewedPlanSchema.parse(
+    JSON.parse(await readFile(reviewedPlanPath, "utf8")),
+  );
+  if (reviewedPlan.projectId !== prepared.blueprint.project.id) {
+    throw new Error(
+      `Reviewed plan is for project '${reviewedPlan.projectId}', not '${prepared.blueprint.project.id}'`,
+    );
+  }
+  return applyProjectReconciliation({
+    ...prepared,
+    reviewedPlanDigest: reviewedPlan.planDigest,
+  });
+}
+
+async function readBootstrapState(
+  statePath: string,
+): Promise<SecretBootstrapState | undefined> {
+  try {
+    return secretBootstrapStateSchema.parse(
+      JSON.parse(await readFile(statePath, "utf8")),
+    );
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return undefined;
+    }
+    throw error;
+  }
+}
+
+async function prepareSecretBootstrapCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const planPath = path.resolve(context.workingDirectory, input.planPath);
+  const plan = parseSecretBootstrapPlan(await readFile(planPath, "utf8"));
+  const statePath = path.resolve(
+    context.workingDirectory,
+    input.state ?? `.project-bootstrap/${plan.project_id}.json`,
+  );
+  return {
+    plan,
+    statePath,
+    state: await readBootstrapState(statePath),
+  };
+}
+
+async function runSecretBootstrapPlanCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return planSecretBootstrap({
+    plan: prepared.plan,
+    state: prepared.state,
+    acknowledge: input.acknowledge,
+  });
+}
+
+async function writeBootstrapState(
+  statePath: string,
+  state: SecretBootstrapState,
+): Promise<void> {
+  await mkdir(path.dirname(statePath), { recursive: true, mode: 0o700 });
+  const temporaryPath = `${statePath}.${process.pid}.tmp`;
+  await writeFile(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await rename(temporaryPath, statePath);
+}
+
+async function runSecretBootstrapApplyCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return executeSecretBootstrap({
+    plan: prepared.plan,
+    state: prepared.state,
+    acknowledge: input.acknowledge,
+    environment: process.env,
+    persist: (state) => writeBootstrapState(prepared.statePath, state),
+    extensions: {
+      "cloudflare-account-token": createCloudflareAccountToken,
+    },
+  });
+}
+
+async function runSecretBootstrapConformanceCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return conformCloudflareAccountTokenAuthority({
+    plan: prepared.plan,
+    environment: process.env,
+  });
 }
 
 export const projectGeneratorRouter = t.router({
+  secretBootstrapConformance: t.procedure
+    .meta({
+      description: "Check Cloudflare token-provisioning authority without writing",
+    })
+    .input(secretBootstrapCommandInput)
+    .query(({ ctx, input }) =>
+      runSecretBootstrapConformanceCommand(ctx, input),
+    ),
+  secretBootstrapPlan: t.procedure
+    .meta({
+      description: "Show a redacted secret and identity bootstrap plan",
+    })
+    .input(secretBootstrapCommandInput)
+    .query(({ ctx, input }) => runSecretBootstrapPlanCommand(ctx, input)),
+  secretBootstrapApply: t.procedure
+    .meta({
+      description: "Resume a reviewed secret and identity bootstrap plan",
+    })
+    .input(secretBootstrapCommandInput)
+    .mutation(({ ctx, input }) => runSecretBootstrapApplyCommand(ctx, input)),
   plan: t.procedure
     .meta({
       description: "Produce a machine-readable Copier project change plan",
@@ -230,6 +441,28 @@ export const projectGeneratorRouter = t.router({
     })
     .input(profileCommandInput)
     .query(({ ctx, input }) => runProfileCommand(ctx, input, "plan")),
+  profileAdoptionPlan: t.procedure
+    .meta({
+      description:
+        "Plan Copier adoption for an existing project without an answers file",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileAdoptionPlanCommand(ctx, input)),
+  profileReconcile: t.procedure
+    .meta({
+      description:
+        "Plan a reviewed update from the recorded blueprint to newer platform defaults",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileReconciliationCommand(ctx, input)),
+  profileReconcileApply: t.procedure
+    .meta({
+      description: "Apply an unchanged reviewed project reconciliation plan",
+    })
+    .input(reconciliationApplyInput)
+    .mutation(({ ctx, input }) =>
+      runProfileReconciliationApplyCommand(ctx, input),
+    ),
   profileDryRun: t.procedure
     .meta({
       description: "Preview a resolved project profile without applying it",
@@ -244,10 +477,12 @@ export const projectGeneratorRouter = t.router({
     .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "create")),
   profileUpdate: t.procedure
     .meta({
-      description: "Update a Copier-managed project from a resolved profile",
+      description: "Apply a reviewed project reconciliation plan",
     })
-    .input(profileCommandInput)
-    .mutation(({ ctx, input }) => runProfileCommand(ctx, input, "update")),
+    .input(reconciliationApplyInput)
+    .mutation(({ ctx, input }) =>
+      runProfileReconciliationApplyCommand(ctx, input),
+    ),
 });
 
 export async function runCli(

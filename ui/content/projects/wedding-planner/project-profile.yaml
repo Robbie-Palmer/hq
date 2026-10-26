@@ -1,0 +1,31 @@
+schema_version: 1
+
+project:
+  id: "wedding-planner"
+  name: "Wedding planner"
+  kind: "application"
+
+components:
+  - id: "publication"
+    name: "Wedding planner publication"
+    kind: "project-content"
+  - id: "wedding-planner-domain"
+    name: "Wedding planner domain"
+    kind: "typescript-package"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

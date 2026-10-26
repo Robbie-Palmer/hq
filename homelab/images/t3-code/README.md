@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.1.0-agent-tools-18`. Its leading version matches the bundled T3
+release tag `0.1.2-agent-tools-19`. Its leading version matches the bundled T3
 release, which lets Renovate update the image references in the same pull
 request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its
@@ -27,13 +27,14 @@ Collector; the image does not contain a PostHog token. OTLP export does not
 disable the rotating local trace at
 `/data/home/.t3/userdata/logs/server.trace.ndjson`.
 
-The deployment enables the OpenCode and Grok providers in T3's persisted
-settings, enables thread continuation after a server restart, and adds a
-`codex2` instance backed by a separate `auth.json`. It
-defaults new Codex threads and every Codex provider catalog to GPT-5.6-Sol with
-high reasoning while keeping the other cached models available. The
-remote-development overlay declares OpenRouter's GLM 5.3 Flash
-model through `OPENCODE_CONFIG_CONTENT`. Doppler injects
+The image's bootstrap script is the shared T3 provider policy for every
+environment built from this image. It enables the OpenCode and Grok providers,
+enables thread continuation after a server restart, and adds a `codex2`
+instance backed by a separate `auth.json`. It defaults new Codex threads and
+every Codex provider catalog to GPT-5.6-Sol with high reasoning while keeping
+the other cached models available. The shared operator Kustomize component
+declares OpenRouter's GLM 5.3 Flash model for the Hetzner and Vector workspaces
+through `OPENCODE_CONFIG_CONTENT`. Doppler injects
 `OPENROUTER_API_KEY`; the key never appears in the OpenCode configuration or
 image. Grok's device-login state lives under `/data/home/.grok`.
 
@@ -47,6 +48,12 @@ Its state stays under
 `/data/home/.codex/agent-auth/recipes`, and Codex forwards the
 `AGENT_AUTH_ENCRYPTION_KEY` supplied by the remote K3s deployment. The home
 overlay does not enable this MCP entry.
+
+The image builds and installs `packages/work-graph-cli` as
+`/usr/local/bin/work-graph`. Agent sessions can use the CLI immediately. The
+remote and Vector operator overlays inject the production API URL and its
+scoped Cloudflare Access pair, so API commands do not need an interactive
+Doppler login.
 
 Run repository tasks with `mise run`. Mise installs versions declared by each
 repository on first use and keeps them under `/data/home/.local/share/mise`.
@@ -91,7 +98,7 @@ remote node with `mise run //homelab:t3-image-load-remote`.
 To update the coding-agent CLIs, change `package.json` and refresh its lockfile.
 Doppler is pinned in this directory's `mise.toml`; Vale is shared with the
 repository through `.config/mise/config.toml`. The monorepo-wide mise bootstrap
-version remains in `.github/actions/setup-mise/mise-version`; the image check
+version remains in `.github/actions/setup-mise/mise-version.txt`; the image check
 requires both the Dockerfile's tagged bootstrap image and this directory's
 release-artifact pin to match it. Refresh the corresponding `mise.lock`,
 increment the release suffix in the image tasks and manifests, then build and

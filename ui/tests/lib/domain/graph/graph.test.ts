@@ -10,6 +10,7 @@ import {
   getContentUsingTechnologyByType,
   getIdeasForADR,
   getIdeasForBlog,
+  getIdeasForInitiative,
   getIdeasForProject,
   getIdeasForTechnology,
   getInitiativesForProject,
@@ -279,6 +280,7 @@ describe("graph queries", () => {
   relations.roleTechnologies.set("eng", ["typescript", "react"]);
   relations.projectInitiatives.set("site", ["connected-work"]);
   relations.projectIdeas.set("site", ["conways-law", "goodharts-law"]);
+  relations.initiativeIdeas.set("connected-work", ["goodharts-law"]);
   relations.blogIdeas.set("post", ["conways-law"]);
   relations.adrIdeas.set("001", ["goodharts-law"]);
   relations.ideaRelatedIdeas.set("conways-law", ["reverse-conway-maneuver"]);
@@ -360,6 +362,9 @@ describe("graph queries", () => {
       new Set(["conways-law", "goodharts-law"]),
     );
     expect(getIdeasForBlog(graph, "post")).toEqual(new Set(["conways-law"]));
+    expect(getIdeasForInitiative(graph, "connected-work")).toEqual(
+      new Set(["goodharts-law"]),
+    );
     expect(getIdeasForADR(graph, "001")).toEqual(new Set(["goodharts-law"]));
     expect(getIdeasForProject(graph, "missing")).toEqual(new Set());
   });
@@ -370,6 +375,7 @@ describe("graph queries", () => {
     );
     expect(getContentReferencingIdeaByType(graph, "goodharts-law")).toEqual({
       projects: ["site"],
+      initiatives: ["connected-work"],
       adrs: ["001"],
       blogs: [],
       productDecisions: [],

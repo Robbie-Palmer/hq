@@ -11,6 +11,7 @@ const end = new Date("2026-09-30T00:15:00Z");
 function responses({
   invocations = [],
   records = [],
+  usage = [],
   waiting = 0,
   peakWaiting = waiting,
   poolSize = waiting > 0 ? 12 : 2,
@@ -18,6 +19,7 @@ function responses({
 }: {
   invocations?: unknown[];
   records?: unknown[];
+  usage?: unknown[];
   waiting?: number;
   peakWaiting?: number;
   poolSize?: number;
@@ -26,6 +28,7 @@ function responses({
   return [
     { result: { events: { events: invocations } } },
     { result: { events: { events: records } } },
+    { result: { events: { events: usage } } },
     {
       data: {
         viewer: {
@@ -102,7 +105,20 @@ describe("production diagnostics", () => {
         ],
       },
     });
-    expect(requests[2]?.body.variables).toEqual({
+    expect(requests[2]?.body).toMatchObject({
+      queryId: "work-graph-production-route-usage",
+      parameters: {
+        filters: expect.arrayContaining([
+          {
+            key: "event",
+            value: "request_usage",
+            operation: "eq",
+            type: "string",
+          },
+        ]),
+      },
+    });
+    expect(requests[3]?.body.variables).toEqual({
       accountTag: config.accountId,
       configId: config.hyperdriveId,
       start: start.toISOString(),
@@ -175,6 +191,104 @@ describe("production diagnostics", () => {
     ).toBe(true);
   });
 
+  it("aggregates route usage by estimated database transfer", async () => {
+    const usage = [
+      {
+        timestamp: 200,
+        source: {
+          method: "GET",
+          route: "/api/work-items",
+          databaseQueryCount: 3,
+          databaseResultRowCount: 10,
+          databaseResultBytesEstimated: 1_000,
+          responseBytes: 700,
+          durationMs: 25,
+        },
+      },
+      {
+        timestamp: 100,
+        source: JSON.stringify({
+          method: "GET",
+          route: "/api/work-items",
+          databaseQueryCount: 2,
+          databaseResultRowCount: 5,
+          databaseResultBytesEstimated: 500,
+          responseBytes: 350,
+          durationMs: 15,
+        }),
+      },
+      {
+        timestamp: 300,
+        source: {
+          method: "GET",
+          route: "/api/critical-path",
+          databaseQueryCount: 6,
+          databaseResultRowCount: 12,
+          databaseResultBytesEstimated: 2_000,
+          responseBytes: 900,
+          durationMs: 40,
+        },
+      },
+    ];
+
+    const result = await diagnose(
+      config,
+      start,
+      end,
+      sender(responses({ usage })),
+    );
+
+    expect(result.usageByRoute).toEqual([
+      {
+        method: "GET",
+        route: "/api/critical-path",
+        requests: 1,
+        databaseQueries: 6,
+        databaseResultRows: 12,
+        databaseResultBytesEstimated: 2_000,
+        responseBytes: 900,
+        durationMs: 40,
+        firstObservedAt: 300,
+        lastObservedAt: 300,
+      },
+      {
+        method: "GET",
+        route: "/api/work-items",
+        requests: 2,
+        databaseQueries: 5,
+        databaseResultRows: 15,
+        databaseResultBytesEstimated: 1_500,
+        responseBytes: 1_050,
+        durationMs: 40,
+        firstObservedAt: 100,
+        lastObservedAt: 200,
+      },
+    ]);
+  });
+
+  it("rejects malformed usage events instead of reporting misleading totals", async () => {
+    await expect(
+      diagnose(
+        config,
+        start,
+        end,
+        sender(
+          responses({
+            usage: [
+              {
+                source: {
+                  method: "GET",
+                  route: "/api/work-items",
+                  databaseQueryCount: "many",
+                },
+              },
+            ],
+          }),
+        ),
+      ),
+    ).rejects.toThrow("Unexpected Work Graph usage event");
+  });
+
   it.each([new Error("SECRET"), new DOMException("SECRET", "TimeoutError")])(
     "redacts network errors",
     async (failure) => {
@@ -212,7 +326,7 @@ describe("production diagnostics", () => {
       ),
     ).rejects.toThrow("Unexpected Cloudflare events");
     const emptyAccounts = responses();
-    emptyAccounts[2] = { data: { viewer: { accounts: [] } } };
+    emptyAccounts[3] = { data: { viewer: { accounts: [] } } };
     await expect(
       diagnose(config, start, end, sender(emptyAccounts)),
     ).rejects.toThrow("Expected one account");

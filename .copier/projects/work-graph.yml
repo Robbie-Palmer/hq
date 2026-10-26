@@ -1,0 +1,583 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:work-graph/work-graph
+        kind: component
+        name: Work Graph infrastructure
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - infra/work-graph
+      - id: component:work-graph/work-graph-api
+        kind: component
+        name: Work Graph API
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - workers/work-graph-api
+      - id: component:work-graph/work-graph-cli
+        kind: component
+        name: Work Graph CLI
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - packages/work-graph-cli
+      - id: component:work-graph/work-graph-db
+        kind: component
+        name: Work Graph database
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - packages/work-graph-db
+      - id: component:work-graph/work-graph-domain
+        kind: component
+        name: Work Graph domain
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - packages/work-graph-domain
+      - id: component:work-graph/work-graph-observer
+        kind: component
+        name: Work Graph observer
+        project: project:work-graph
+        relations:
+          - target: system:work-graph/service
+            type: part_of
+        source_paths:
+          - workers/work-graph-observer
+    system:
+      id: system:work-graph/service
+      kind: system
+      name: Work Graph
+      project: project:work-graph
+      source_paths:
+        - infra/work-graph
+        - packages/work-graph-cli
+        - packages/work-graph-db
+        - packages/work-graph-domain
+        - workers/work-graph-api
+        - workers/work-graph-observer
+  components:
+    - id: work-graph
+      kind: terraform-root
+      name: Work Graph infrastructure
+      path: infra/work-graph
+      stable_id: component:work-graph/work-graph
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+    - id: work-graph-api
+      kind: worker
+      name: Work Graph API
+      path: workers/work-graph-api
+      stable_id: component:work-graph/work-graph-api
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+    - id: work-graph-cli
+      kind: typescript-package
+      name: Work Graph CLI
+      path: packages/work-graph-cli
+      stable_id: component:work-graph/work-graph-cli
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+    - id: work-graph-db
+      kind: typescript-package
+      name: Work Graph database
+      path: packages/work-graph-db
+      stable_id: component:work-graph/work-graph-db
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+    - id: work-graph-domain
+      kind: typescript-package
+      name: Work Graph domain
+      path: packages/work-graph-domain
+      stable_id: component:work-graph/work-graph-domain
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+    - id: work-graph-observer
+      kind: worker
+      name: Work Graph observer
+      path: workers/work-graph-observer
+      stable_id: component:work-graph/work-graph-observer
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+  effective_at: 2026-10-23 14:00:00+00:00
+  manual_checkpoints:
+    - Configure AGE_RECIPIENT for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure CF_ACCESS_CLIENT_ID for
+      security-service-auth-cloudflare-access-2026-09-29
+    - Configure CF_ACCESS_CLIENT_SECRET for
+      security-service-auth-cloudflare-access-2026-09-29
+    - Configure NEON_DATABASE_URL_UNPOOLED for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure R2_ACCESS_KEY_ID for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure R2_DATABASE_BACKUPS_BUCKET_NAME for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Configure R2_SECRET_ACCESS_KEY for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Generate the age identity outside CI and the database and object-store
+      provider accounts, then keep a separate recovery copy.
+    - Place each newly issued one-time service-token secret directly into its
+      owning runtime secret store before the provider value is lost.
+    - Provision Bucket configuration and object contents for
+      storage-object-store-cloudflare-r2-2026-09-29
+    - Provision Encrypted archives and checksums for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - Provision Restore drill evidence for
+      database-backup-restore-encrypted-archives-2026-09-29
+    - "Verify Archive decryption and structure verification: //backups:verify"
+    - "Verify Declared bucket plan: //infra/public-platform:check"
+    - "Verify Scheduled encrypted backup: .github/workflows/database-backup.yml"
+    - "Verify Scratch database restore drill:
+      /projects/personal-engineering-platform/adrs/017-relational-data-stack"
+    - "Verify Use-case access and lifecycle check:
+      /projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-sto\
+      rage"
+    - "Verify Work Graph scheduled encrypted backup:
+      .github/workflows/work-graph-database-backup.yml"
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - infra/work-graph
+      - packages/work-graph-cli
+      - packages/work-graph-db
+      - packages/work-graph-domain
+      - ui/content/projects/work-graph
+      - workers/work-graph-api
+      - workers/work-graph-observer
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: work-graph
+    kind: service
+    name: Work Graph
+    stable_id: project:work-graph
+  repository_paths:
+    architecture_decisions: ui/content/projects/work-graph/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/work-graph.yml
+    product_decisions: ui/content/projects/work-graph/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/work-graph/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-contract-format-openapi-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-format
+      source: default
+      value: openapi
+    - decision: personal-engineering-platform:035-web-api-data-capability-contracts
+      id: backend-api-contract-generator-hono-zod-openapi-2026-10-19
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-generator
+      source: default
+      value: honozod-openapi
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-http-framework-hono-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.http-framework
+      source: default
+      value: hono
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: backend-api-relational-connection-hyperdrive-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.relational-connection
+      source: default
+      value: hyperdrive
+    - decision: personal-engineering-platform:002-cloudflare-workers
+      id: backend-api-runtime-cloudflare-workers-2026-09-12
+      kind: technology
+      layer: backend-api
+      slot: backend-api.runtime
+      source: default
+      value: cloudflare-workers
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: database-backup-restore-encrypted-archives-2026-09-29
+      kind: policy
+      layer: database
+      slot: database.backup-restore
+      source: default
+      value: Encrypted PostgreSQL archives with tested restores
+    - decision: personal-engineering-platform:035-web-api-data-capability-contracts
+      id: database-migration-discipline-committed-2026-10-19
+      kind: policy
+      layer: database
+      slot: database.migration-discipline
+      source: default
+      value: Committed ordered migrations with drift checks and one serialized
+        deployment runner
+    - decision: personal-engineering-platform:017-relational-data-stack
+      id: database-relational-access-drizzle-2026-09-29
+      kind: technology
+      layer: database
+      slot: database.relational-access
+      source: default
+      value: drizzle
+    - decision: personal-engineering-platform:005-database-defaults
+      id: database-relational-engine-postgresql-2026-09-12
+      kind: technology
+      layer: database
+      slot: database.relational-engine
+      source: default
+      value: postgresql
+    - decision: personal-engineering-platform:005-database-defaults
+      id: database-relational-host-neon-2026-09-12
+      kind: technology
+      layer: database
+      slot: database.relational-host
+      source: default
+      value: neon
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-linter-tflint-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.linter
+      source: default
+      value: tflint
+    - decision: personal-engineering-platform:003-terraform
+      id: infrastructure-provisioner-terraform-2026-09-12
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.provisioner
+      source: default
+      value: terraform
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-state-backend-terraform-cloud-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.state-backend
+      source: default
+      value: terraform-cloud
+    - decision: personal-engineering-platform:001-language-defaults
+      id: project-primary-language-typescript-2026-09-12
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: default
+      value: typescript
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-ci-store-github-secrets-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.ci-store
+      source: default
+      value: github-secrets
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-runtime-store-doppler-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.runtime-store
+      source: default
+      value: doppler
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:019-cloudflare-access-boundaries
+      id: security-service-auth-cloudflare-access-2026-09-29
+      kind: technology
+      layer: base
+      slot: security.service-auth
+      source: default
+      value: cloudflare-access
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+    - decision: personal-engineering-platform:016-cloudflare-r2-object-storage
+      id: storage-object-store-cloudflare-r2-2026-09-29
+      kind: technology
+      layer: storage
+      slot: storage.object-store
+      source: default
+      value: cloudflare-r2
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-dead-code-analysis-knip-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.dead-code-analysis
+      source: default
+      value: knip
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-git-hooks-husky-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.git-hooks
+      source: default
+      value: husky
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-linter-formatter-biome-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.linter-formatter
+      source: default
+      value: biome
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-package-manager-pnpm-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.package-manager
+      source: default
+      value: pnpm
+    - decision: personal-engineering-platform:001-language-defaults
+      id: typescript-schema-validation-zod-2026-09-12
+      kind: technology
+      layer: typescript
+      slot: typescript.schema-validation
+      source: default
+      value: zod
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-source-security-codeql-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.source-security
+      source: default
+      value: codeql
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-test-runner-vitest-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.test-runner
+      source: default
+      value: vitest
+project_id: work-graph

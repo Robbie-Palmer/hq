@@ -7,6 +7,63 @@ import { authClient } from "@/lib/auth-client";
 const INITIAL_RETRY_DELAY_MS = 5_000;
 const MAX_RETRY_DELAY_MS = 60_000;
 
+class CookingCompletionFlusher {
+  private cancelled = false;
+  private inProgress = false;
+  private requested = false;
+  private retryDelay = INITIAL_RETRY_DELAY_MS;
+  private retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+  constructor(private readonly userId: string) {}
+
+  flush = async (): Promise<void> => {
+    if (this.inProgress) {
+      this.requested = true;
+      return;
+    }
+    this.inProgress = true;
+    this.clearRetry();
+    try {
+      await flushCookingCompletionOutbox(this.userId);
+      this.retryDelay = INITIAL_RETRY_DELAY_MS;
+    } catch (error) {
+      console.error(
+        "[CookingCompletionOutbox] Could not flush cooked meals",
+        error,
+      );
+      this.scheduleRetry();
+    } finally {
+      this.inProgress = false;
+      if (this.requested && !this.cancelled) {
+        this.requested = false;
+        void this.flush();
+      }
+    }
+  };
+
+  online = (): void => {
+    this.retryDelay = INITIAL_RETRY_DELAY_MS;
+    void this.flush();
+  };
+
+  dispose(): void {
+    this.cancelled = true;
+    this.clearRetry();
+  }
+
+  private clearRetry(): void {
+    if (!this.retryTimer) return;
+    clearTimeout(this.retryTimer);
+    this.retryTimer = undefined;
+  }
+
+  private scheduleRetry(): void {
+    if (this.cancelled) return;
+    this.retryTimer = setTimeout(this.flush, this.retryDelay);
+    this.retryDelay = Math.min(this.retryDelay * 2, MAX_RETRY_DELAY_MS);
+  }
+}
+
 function useCookingCompletionOutbox() {
   const { data: session, isPending } = authClient.useSession();
 
@@ -14,55 +71,12 @@ function useCookingCompletionOutbox() {
     const userId = session?.user.id;
     if (isPending || !userId) return;
 
-    let cancelled = false;
-    let flushInProgress = false;
-    let flushRequested = false;
-    let retryDelay = INITIAL_RETRY_DELAY_MS;
-    let retryTimer: ReturnType<typeof setTimeout> | undefined;
-
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const flush = async () => {
-      if (flushInProgress) {
-        flushRequested = true;
-        return;
-      }
-      flushInProgress = true;
-      if (retryTimer) {
-        clearTimeout(retryTimer);
-        retryTimer = undefined;
-      }
-      try {
-        await flushCookingCompletionOutbox(userId);
-        retryDelay = INITIAL_RETRY_DELAY_MS;
-      } catch (error) {
-        console.error(
-          "[CookingCompletionOutbox] Could not flush cooked meals",
-          error,
-        );
-        if (!cancelled) {
-          retryTimer = setTimeout(flush, retryDelay);
-          retryDelay = Math.min(retryDelay * 2, MAX_RETRY_DELAY_MS);
-        }
-      } finally {
-        flushInProgress = false;
-        if (flushRequested && !cancelled) {
-          flushRequested = false;
-          void flush();
-        }
-      }
-    };
-
-    const handleOnline = () => {
-      retryDelay = INITIAL_RETRY_DELAY_MS;
-      void flush();
-    };
-
-    void flush();
-    globalThis.addEventListener("online", handleOnline);
+    const flusher = new CookingCompletionFlusher(userId);
+    void flusher.flush();
+    globalThis.addEventListener("online", flusher.online);
     return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-      globalThis.removeEventListener("online", handleOnline);
+      flusher.dispose();
+      globalThis.removeEventListener("online", flusher.online);
     };
   }, [isPending, session?.user.id]);
 }

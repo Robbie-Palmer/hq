@@ -231,11 +231,17 @@ export const zCompletionCandidate = z.object({
         'missing_required_ci',
         'missing_production_deployment',
         'unfinished_children',
+        'unsatisfied_dependencies',
         'unresolved_blocking_attention'
-    ])).max(9),
+    ])).max(10),
     evidenceObservationIds: z.array(z.uuid().max(36)).max(1000),
     evaluatedAt: z.iso.datetime().max(30)
 });
+
+export const zWorkItemDetails = zWorkItem.and(z.object({
+    deliveryEvidence: zDeliveryEvidenceList,
+    completionCandidate: zCompletionCandidate.nullable()
+}));
 
 export const zCompletionCandidateResponse = z.object({
     candidate: zCompletionCandidate.nullable()
@@ -246,6 +252,7 @@ export const zCompletionPolicyRevision = z.object({
     revision: z.int().gte(1).lte(2147483647),
     requiredCiNames: z.array(z.string().min(1).max(10000)).min(1).max(100),
     productionEnvironments: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    automaticRelease: z.boolean(),
     createdAt: z.iso.datetime().max(30)
 });
 
@@ -565,6 +572,7 @@ export const zCreateAttentionResolutionResponse = zAttentionResolutionResponse;
 export const zPutCompletionPolicyRevisionBody = z.object({
     requiredCiNames: z.array(z.string().min(1).max(10000)).min(1).max(100),
     productionEnvironments: z.array(z.string().min(1).max(10000)).min(1).max(100),
+    automaticRelease: z.boolean().optional().default(false),
     createdAt: z.iso.datetime().max(30)
 });
 
@@ -1093,6 +1101,15 @@ export const zListWorkItemDependenciesQuery = z.object({
  * Current dependency edges involving the work item
  */
 export const zListWorkItemDependenciesResponse = zWorkItemDependencyList;
+
+export const zGetWorkItemDetailsPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Current work-item details
+ */
+export const zGetWorkItemDetailsResponse = zWorkItemDetails;
 
 export const zListWorkItemEventsPath = z.object({
     workItemId: z.string().min(1).max(200)

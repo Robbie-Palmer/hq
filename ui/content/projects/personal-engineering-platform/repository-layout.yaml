@@ -8,10 +8,12 @@ project_kinds:
     description: "An independently operated API, worker, or automation service."
     task_profile: "standard"
   - id: "library"
-    description: "Reusable code distributed through a language workspace or package registry."
+    description: "Reusable code distributed through a language workspace or package
+      registry."
     task_profile: "standard"
   - id: "data-pipeline"
-    description: "A reproducible ingestion, training, evaluation, or artifact-production workflow."
+    description: "A reproducible ingestion, training, evaluation, or
+      artifact-production workflow."
     task_profile: "standard"
   - id: "embedded-system"
     description: "Portable C++ logic plus host, simulator, browser, or firmware adapters."
@@ -20,7 +22,8 @@ project_kinds:
     description: "Provisioning code with an explicit state and operational owner."
     task_profile: "standard"
   - id: "platform"
-    description: "Shared runtime, delivery, or developer capabilities consumed by multiple projects."
+    description: "Shared runtime, delivery, or developer capabilities consumed by
+      multiple projects."
     task_profile: "standard"
 
 projects:
@@ -33,46 +36,87 @@ projects:
   - id: "personal-finance-app"
     kind: "application"
     catalog_record: "system:personal-finance-app/application"
+  - id: agent-first-writing
+    kind: data-pipeline
+    catalog_record: system:agent-first-writing/data-pipeline
+  - id: agentic-code-review
+    kind: service
+    catalog_record: system:agentic-code-review/service
+  - id: personal-knowledge-graph
+    kind: application
+    catalog_record: system:personal-knowledge-graph/application
+  - id: work-graph
+    kind: service
+    catalog_record: system:work-graph/service
+  - id: personal-digital-infrastructure
+    kind: platform
+    catalog_record: system:personal-digital-infrastructure/platform
+  - id: wedding-planner
+    kind: application
+    catalog_record: system:wedding-planner/application
 
 component_kinds:
   - id: "ui"
     directory: "ui"
     mise_config_root: true
     pnpm_workspace_package: true
+    task_ownership: inherited
   - id: "project-ui"
     description: "Project-owned browser code mounted into the shared frontend host."
     directory: "ui/app/_projects/{project}"
     mise_config_root: false
     pnpm_workspace_package: false
+    task_ownership: delegated
+    delegated_task_project: "//ui"
+  - id: "project-content"
+    description: "Project knowledge-graph content rendered by the shared frontend."
+    directory: "ui/content/projects/{project}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: delegated
     delegated_task_project: "//ui"
   - id: "worker"
     directory: "workers/{component}"
     mise_config_root: true
     pnpm_workspace_package: true
+    task_ownership: inherited
   - id: "typescript-package"
     directory: "packages/{component}"
     mise_config_root: true
     pnpm_workspace_package: true
+    task_ownership: inherited
   - id: "python-pipeline"
     directory: "ml-pipelines/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
+    task_ownership: inherited
   - id: "cpp-project"
     directory: "cpp/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
+    task_ownership: inherited
   - id: "terraform-root"
     directory: "infra/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
+    task_ownership: inherited
   - id: "kubernetes-component"
     directory: "homelab/k3s/components/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
+    task_ownership: inherited
   - id: "homelab-system"
     directory: "homelab"
     mise_config_root: true
     pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "homelab-subsystem"
+    description: "A project-specific Home Lab subtree that inherits task applicability
+      from the Home Lab mise hierarchy."
+    directory: "homelab/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
 
 task_contract:
   id: "standard"
@@ -92,19 +136,19 @@ knowledge_graph:
 
 shared_manifests:
   - path: "ui/content/projects/personal-engineering-platform/repository-layout.yaml"
-    allowed_edits: ["projects"]
+    allowed_edits: [ "projects" ]
   - path: ".mise.toml"
-    allowed_edits: ["monorepo.config_roots"]
+    allowed_edits: [ "monorepo.config_roots" ]
   - path: "pnpm-workspace.yaml"
-    allowed_edits: ["packages"]
+    allowed_edits: [ "packages" ]
   - path: "ui/content/projects/personal-engineering-platform/platform.yaml"
-    allowed_edits: ["catalog.records"]
+    allowed_edits: [ "catalog.records" ]
 
 workspace_policy:
   node_workspace: "pnpm-workspace.yaml"
   node_lockfile: "pnpm-lock.yaml"
-  standalone_node_roots: ["homelab/images/t3-code"]
+  standalone_node_roots: [ "homelab/images/t3-code" ]
   approved_npm_lockfiles:
     - "homelab/images/t3-code/package-lock.json"
     - "packages/agent-auth-mcp/package-lock.json"
-  local_mise_roots: ["homelab/images/t3-code"]
+  local_mise_roots: [ "homelab/images/t3-code" ]

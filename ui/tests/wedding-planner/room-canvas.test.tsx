@@ -110,7 +110,15 @@ function setup() {
           id: "top",
           capacity: 2,
           occupants: ["Alex"],
-          appearance: { name: "", shape: "long", x: 500, y: 110, rotation: 0 },
+          appearance: {
+            name: "",
+            shape: "long",
+            x: 500,
+            y: 110,
+            rotation: 0,
+            accessible_seat_indexes: [],
+            high_chair_seat_indexes: [],
+          },
         },
         {
           id: "table-1",
@@ -122,6 +130,8 @@ function setup() {
             x: 170,
             y: 330,
             rotation: 90,
+            accessible_seat_indexes: [],
+            high_chair_seat_indexes: [],
           },
         },
       ]}

@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+target=${VECTOR_DEVELOPMENT_TARGET:-root@vector-development}
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+
+source "${script_dir}/vector-development-ssh.sh"
+vector_development_prepare_ssh "${target}"
+
+ssh -t "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" passwd robbie

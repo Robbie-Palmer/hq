@@ -481,6 +481,7 @@ export const completionPolicyRevision = pgTable(
     revision: integer().notNull(),
     requiredCiNames: text().array().notNull(),
     productionEnvironments: text().array().notNull(),
+    automaticRelease: boolean().notNull().default(false),
     createdAt: timestamp({ withTimezone: true }).notNull(),
   },
   (table) => [

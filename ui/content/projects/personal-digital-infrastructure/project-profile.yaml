@@ -1,0 +1,23 @@
+schema_version: 1
+
+project:
+  id: "personal-digital-infrastructure"
+  name: "Personal Digital Infrastructure"
+  kind: "platform"
+
+components:
+  - id: "publication"
+    name: "Personal Digital Infrastructure publication"
+    kind: "project-content"
+
+layers:
+  - layer: "governance"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

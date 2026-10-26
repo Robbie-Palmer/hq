@@ -13,6 +13,7 @@ import {
 } from "./guest-directory";
 import { seatingPlanSchema } from "./seating/preferences";
 import { collaborativePlaylistSchema } from "./playlist";
+import { weddingReadinessPreferencesSchema } from "./readiness";
 
 const weddingPlanSchema = z.object({
   version: z.literal(2),
@@ -24,17 +25,12 @@ const weddingPlanSchema = z.object({
   accommodation: accommodationPlanSchema.prefault({}),
   seating: seatingPlanSchema,
   playlist: collaborativePlaylistSchema.optional(),
+  readiness: weddingReadinessPreferencesSchema.prefault({}),
   extensions: z.record(z.string(), z.unknown()).default({}),
 });
 export type WeddingPlan = z.infer<typeof weddingPlanSchema>;
 
-function validateReferences(plan: WeddingPlan): void {
-  const ids = new Set(plan.guests.map((guest) => guest.id));
-  if (ids.size !== plan.guests.length)
-    throw new Error("Guest IDs must be unique");
-  validateGuestDirectory(plan);
-  validateCouples(plan.couples, ids);
-  validateDismissedSuggestions(plan, ids);
+function validateSeatingReferences(plan: WeddingPlan, ids: Set<string>) {
   if (
     new Set(plan.seating.top_table_guest_ids).size !==
     plan.seating.top_table_guest_ids.length
@@ -42,6 +38,30 @@ function validateReferences(plan: WeddingPlan): void {
     throw new Error("Top table guests must be unique");
   if (plan.seating.top_table_guest_ids.some((id) => !ids.has(id)))
     throw new Error("The top table refers to an unknown guest");
+  if (
+    Object.keys(plan.seating.locked_assignments).some((id) => !ids.has(id)) ||
+    Object.values(plan.seating.locked_table_guest_ids)
+      .flat()
+      .some((id) => !ids.has(id))
+  )
+    throw new Error("A seating lock refers to an unknown guest");
+  const savedPlanIds = new Set(
+    plan.seating.saved_plans.map((savedPlan) => savedPlan.id),
+  );
+  if (savedPlanIds.size !== plan.seating.saved_plans.length)
+    throw new Error("Saved seating plan IDs must be unique");
+  if (
+    plan.seating.chosen_plan_id &&
+    !savedPlanIds.has(plan.seating.chosen_plan_id)
+  )
+    throw new Error("The chosen seating plan does not exist");
+  if (
+    plan.seating.event_id &&
+    !plan.guest_directory.events.some(
+      (event) => event.id === plan.seating.event_id,
+    )
+  )
+    throw new Error("The seating plan event does not exist");
   if (
     plan.reviewed_non_couples.some(
       ([a, b]) => a === b || !ids.has(a) || !ids.has(b),
@@ -54,6 +74,9 @@ function validateReferences(plan: WeddingPlan): void {
       ...preferences.avoid_table_with,
     ]);
   }
+}
+
+function validateAccommodationReferences(plan: WeddingPlan, ids: Set<string>) {
   for (const [id, preferences] of Object.entries(plan.accommodation.guests)) {
     validateGuestLinks(ids, id, [
       ...preferences.may_share_bed_with,
@@ -75,6 +98,17 @@ function validateReferences(plan: WeddingPlan): void {
   for (const paid of Object.values(plan.accommodation.cottage_paid_by_us_gbp))
     parseMoneyToMinorUnits(paid, "Already paid");
   validateAccommodationInventory(plan);
+}
+
+function validateReferences(plan: WeddingPlan): void {
+  const ids = new Set(plan.guests.map((guest) => guest.id));
+  if (ids.size !== plan.guests.length)
+    throw new Error("Guest IDs must be unique");
+  validateGuestDirectory(plan);
+  validateCouples(plan.couples, ids);
+  validateDismissedSuggestions(plan, ids);
+  validateSeatingReferences(plan, ids);
+  validateAccommodationReferences(plan, ids);
 }
 
 function validateDismissedSuggestions(

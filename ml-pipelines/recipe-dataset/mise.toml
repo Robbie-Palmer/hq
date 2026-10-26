@@ -20,11 +20,11 @@ run = "pnpm exec tsx src/stages/canonicalize-product.mjs"
 
 [tasks.repro]
 description = "Reproduce the complete recipe dataset pipeline"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc repro"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro"
 
 [tasks.pull]
 description = "Pull recipe dataset data from R2"
-run = "bash ../scripts/doppler-pipeline-env ../scripts/dvc pull"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh pull"
 
 [tasks.push]
 description = "Push the recipe dataset DVC cache to its R2 prefix"

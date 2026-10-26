@@ -1,0 +1,84 @@
+schema_version: 1
+
+project:
+  id: "personal-finance-app"
+  name: "Personal Finance App"
+  kind: "application"
+
+components:
+  - id: "web"
+    name: "Asset Tracker"
+    kind: "project-ui"
+    mount_path: "/assettracker"
+  - id: "finance-housing-indices"
+    name: "Finance housing indices"
+    kind: "typescript-package"
+  - id: "finance-inflation-indices"
+    name: "Finance inflation indices"
+    kind: "typescript-package"
+  - id: "finance-tax-rules"
+    name: "Finance tax rules"
+    kind: "typescript-package"
+  - id: "planning-case-domain"
+    name: "Planning case domain"
+    kind: "typescript-package"
+  - id: "personal-finance"
+    name: "Personal Finance infrastructure"
+    kind: "terraform-root"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+      - "backend-api.relational-connection"
+  - layer: "database"
+    slots:
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+    slots:
+      - "observability.telemetry-protocol"
+      - "observability.application-telemetry"
+  - layer: "storage"
+    slots:
+      - "storage.object-store"
+
+requirements:
+  - "committed-migration-history"
+  - "serialized-migration-runner"
+  - "backup-key-custody"
+  - "backup-retention-policy"
+  - "restore-drill"
+  - "instrumented-runtime"
+  - "telemetry-redaction"
+  - "bounded-exporter-failure"
+  - "telemetry-retention"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
+
+reconciliation:
+  mode: tracking
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: true
+  runtime: "typescript-worker"

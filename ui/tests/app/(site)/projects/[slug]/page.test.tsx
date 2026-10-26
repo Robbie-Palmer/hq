@@ -232,6 +232,7 @@ describe("project page", () => {
         projectContributions: {
           homelab: "This project advances the goal.",
         },
+        ideas: [],
         projects: [fixture],
       },
     ] satisfies InitiativeWithProjects[]);

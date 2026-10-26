@@ -1,9 +1,17 @@
-# The 30 GiB cache has a separate filesystem path and must never enter a backup.
-/srv/remote-development/t3-code-cache
+# The export script creates transactionally consistent copies of these databases.
+**/userdata/statev2.sqlite
+**/userdata/statev2.sqlite-shm
+**/userdata/statev2.sqlite-wal
+**/userdata/server-owner.sqlite
+**/userdata/server-owner.sqlite-shm
+**/userdata/server-owner.sqlite-wal
+**/userdata/server-owner.sqlite-journal
 
-# These files are safe to recreate and can churn during a snapshot.
-/srv/remote-development/t3-code/home/.cache
-/srv/remote-development/t3-code/home/.npm/_cacache
-/srv/remote-development/t3-code/home/.pnpm-store
-/srv/remote-development/t3-code/home/.arduino15/staging
-/srv/remote-development/t3-code/workspaces/.pnpm-store
+# Authentication material and browser sessions must be reissued, not restored.
+**/userdata/secrets
+**/userdata/server-browser
+
+# Logs and usage caches are disposable operational state.
+**/userdata/logs
+**/userdata/usage-scan-cache-*.json
+**/userdata/usage-model-rates.json

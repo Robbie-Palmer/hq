@@ -1,0 +1,390 @@
+_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_src_path: https://github.com/Robbie-Palmer/hq.git
+blueprint:
+  catalog:
+    components:
+      - id: component:personal-knowledge-graph/publication
+        kind: component
+        name: Personal Knowledge Graph publication
+        project: project:personal-knowledge-graph
+        relations:
+          - target: system:personal-knowledge-graph/application
+            type: part_of
+        source_paths:
+          - ui/content/projects/personal-knowledge-graph
+    system:
+      id: system:personal-knowledge-graph/application
+      kind: system
+      name: Personal Knowledge Graph
+      project: project:personal-knowledge-graph
+      source_paths:
+        - ui/content/projects/personal-knowledge-graph
+  components:
+    - id: publication
+      kind: project-content
+      name: Personal Knowledge Graph publication
+      path: ui/content/projects/personal-knowledge-graph
+      stable_id: component:personal-knowledge-graph/publication
+      tasks:
+        - disposition: delegated
+          name: build
+          target: //ui:build
+        - disposition: delegated
+          name: clean
+          target: //ui:clean
+        - disposition: delegated
+          name: format
+          target: //ui:format
+        - disposition: delegated
+          name: install
+          target: //ui:install
+        - disposition: delegated
+          name: lint
+          target: //ui:lint
+        - disposition: delegated
+          name: test
+          target: //ui:test
+        - disposition: delegated
+          name: typecheck-or-compile
+          target: //ui:typecheck
+  effective_at: 2026-10-23 14:00:00+00:00
+  manual_checkpoints:
+    - Provision Bucket configuration and object contents for
+      storage-object-store-cloudflare-r2-2026-09-29
+    - Provision Pull-request deployment resources for
+      delivery-preview-environment-isolated-2026-09-29
+    - "Verify Authenticated preview smoke test:
+      //workers/recipe-api:preview:smoke"
+    - "Verify Declared bucket plan: //infra/public-platform:check"
+    - "Verify Preview workflow: .github/workflows/preview-environment.yml"
+    - "Verify Use-case access and lifecycle check:
+      /projects/personal-engineering-platform/adrs/016-cloudflare-r2-object-sto\
+      rage"
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  ownership:
+    owned_paths:
+      - ui/content/projects/personal-knowledge-graph
+    structural_edits:
+      - .mise.toml#monorepo.config_roots
+      - pnpm-workspace.yaml#packages
+      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
+      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
+  profile_schema_version: 1
+  project:
+    id: personal-knowledge-graph
+    kind: application
+    name: Personal Knowledge Graph
+    stable_id: project:personal-knowledge-graph
+  repository_paths:
+    architecture_decisions: ui/content/projects/personal-knowledge-graph/adrs/{sequence}-{slug}.mdx
+    copier_answers: .copier/projects/personal-knowledge-graph.yml
+    product_decisions: ui/content/projects/personal-knowledge-graph/pdrs/{sequence}-{slug}.mdx
+    project_index: ui/content/projects/personal-knowledge-graph/index.mdx
+  schema_version: 1
+  selections:
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: content-spell-check-typos-2026-09-15
+      kind: technology
+      layer: base
+      slot: content.spell-check
+      source: default
+      value: typos
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-ci-github-actions-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.ci
+      source: default
+      value: github-actions
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-dependency-updates-renovate-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.dependency-updates
+      source: default
+      value: renovate
+    - decision: personal-engineering-platform:018-pull-request-preview-environments
+      id: delivery-preview-environment-isolated-2026-09-29
+      kind: policy
+      layer: base
+      slot: delivery.preview-environment
+      source: default
+      value: Isolated pull-request deployments with scoped resources and automatic
+        cleanup
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: delivery-workflow-linter-actionlint-2026-09-15
+      kind: technology
+      layer: base
+      slot: delivery.workflow-linter
+      source: default
+      value: actionlint
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-claude-code-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: claude-code
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: development-coding-agents-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: development.coding-agents
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-license-agpl-3-0-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.license
+      source: default
+      value: AGPL-3.0
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-repository-visibility-public-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.repository-visibility
+      source: default
+      value: Public source
+    - decision: personal-engineering-platform:010-governance-policy-values
+      id: governance-source-boundary-shared-monorepo-2026-09-15
+      kind: policy
+      layer: governance
+      slot: governance.source-boundary
+      source: default
+      value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-linter-tflint-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.linter
+      source: default
+      value: tflint
+    - decision: personal-engineering-platform:003-terraform
+      id: infrastructure-provisioner-terraform-2026-09-12
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.provisioner
+      source: default
+      value: terraform
+    - decision: personal-engineering-platform:009-infrastructure-operations
+      id: infrastructure-state-backend-terraform-cloud-2026-09-15
+      kind: technology
+      layer: infrastructure
+      slot: infrastructure.state-backend
+      source: default
+      value: terraform-cloud
+    - decision: personal-engineering-platform:001-language-defaults
+      id: project-primary-language-typescript-2026-09-12
+      kind: technology
+      layer: base
+      slot: project.primary-language
+      source: default
+      value: typescript
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-repository-host-github-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.repository-host
+      source: default
+      value: github
+    - decision: personal-engineering-platform:028-copier-monorepo-scaffolding
+      id: project-scaffolding-engine-copier-2026-10-08
+      kind: technology
+      layer: base
+      slot: project.scaffolding-engine
+      source: default
+      value: copier
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: project-task-runner-mise-2026-09-15
+      kind: technology
+      layer: base
+      slot: project.task-runner
+      source: default
+      value: mise
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-agentic-code-review-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: agentic-code-review
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-coderabbit-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: coderabbit
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-codex-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: codex
+    - decision: personal-engineering-platform:011-agentic-development-baseline
+      id: quality-ai-reviewers-greptile-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.ai-reviewers
+      source: default
+      value: greptile
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: quality-code-analysis-sonarqube-2026-09-15
+      kind: technology
+      layer: base
+      slot: quality.code-analysis
+      source: default
+      value: sonarqube
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-ci-store-github-secrets-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.ci-store
+      source: default
+      value: github-secrets
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: secrets-runtime-store-doppler-2026-09-15
+      kind: technology
+      layer: base
+      slot: secrets.runtime-store
+      source: default
+      value: doppler
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-dependency-and-iac-scan-trivy-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.dependency-and-iac-scan
+      source: default
+      value: trivy
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-repository-posture-openssf-scorecard-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.repository-posture
+      source: default
+      value: openssf-scorecard
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-secret-scan-gitleaks-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.secret-scan
+      source: default
+      value: gitleaks
+    - decision: personal-engineering-platform:006-repository-delivery-baseline
+      id: security-workflow-analysis-zizmor-2026-09-15
+      kind: technology
+      layer: base
+      slot: security.workflow-analysis
+      source: default
+      value: zizmor
+    - decision: personal-engineering-platform:016-cloudflare-r2-object-storage
+      id: storage-object-store-cloudflare-r2-2026-09-29
+      kind: technology
+      layer: storage
+      slot: storage.object-store
+      source: default
+      value: cloudflare-r2
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-dead-code-analysis-knip-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.dead-code-analysis
+      source: default
+      value: knip
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-git-hooks-husky-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.git-hooks
+      source: default
+      value: husky
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-linter-formatter-biome-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.linter-formatter
+      source: default
+      value: biome
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-package-manager-pnpm-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.package-manager
+      source: default
+      value: pnpm
+    - decision: personal-engineering-platform:001-language-defaults
+      id: typescript-schema-validation-zod-2026-09-12
+      kind: technology
+      layer: typescript
+      slot: typescript.schema-validation
+      source: default
+      value: zod
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-source-security-codeql-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.source-security
+      source: default
+      value: codeql
+    - decision: personal-engineering-platform:007-language-toolchains
+      id: typescript-test-runner-vitest-2026-09-15
+      kind: technology
+      layer: typescript
+      slot: typescript.test-runner
+      source: default
+      value: vitest
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-component-library-shadcn-ui-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.component-library
+      source: default
+      value: shadcnui
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-react-doctor-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: react-doctor
+    - decision: personal-engineering-platform:025-react-component-maintainability-analysis
+      id: web-app-component-maintainability-analysis-tsmetrics-2026-10-04
+      kind: technology
+      layer: web-app
+      slot: web-app.component-maintainability-analysis
+      source: default
+      value: tsmetrics
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-framework-next-js-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.framework
+      source: default
+      value: nextdotjs
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-host-cloudflare-pages-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.host
+      source: default
+      value: cloudflare-pages
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-styling-tailwind-css-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.styling
+      source: default
+      value: tailwind-css
+    - decision: personal-engineering-platform:008-web-application-defaults
+      id: web-app-ui-library-react-2026-09-15
+      kind: technology
+      layer: web-app
+      slot: web-app.ui-library
+      source: default
+      value: react
+project_id: personal-knowledge-graph

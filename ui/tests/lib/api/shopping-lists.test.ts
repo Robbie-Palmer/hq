@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  applyShoppingListCommand,
   getCurrentShoppingList,
   type ShoppingListContents,
   saveCurrentShoppingList,
@@ -11,6 +12,7 @@ const snapshot: ShoppingListContents = {
   recipes: [{ slug: "mushroom-risotto", servings: 4 }],
   checked: ["garlic"],
   extras: [{ id: "extra-milk", text: "Milk", checked: false }],
+  plan: [],
 };
 
 describe("shopping-list API client", () => {
@@ -65,6 +67,37 @@ describe("shopping-list API client", () => {
         }),
         credentials: "same-origin",
         method: "POST",
+      }),
+    );
+  });
+
+  it("sends a stable checklist command for offline replay", async () => {
+    const response = { id: "list-1", revision: "4", snapshot };
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json(response));
+    const command = {
+      commandId: "00000000-0000-4000-8000-000000000090",
+      listId: "00000000-0000-4000-8000-000000000080",
+      baseRevision: "3",
+      command: {
+        type: "set_checked" as const,
+        itemType: "ingredient" as const,
+        itemId: "garlic",
+        checked: true,
+      },
+    };
+
+    await expect(applyShoppingListCommand(command)).resolves.toEqual(response);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/shopping-lists/00000000-0000-4000-8000-000000000080/commands/00000000-0000-4000-8000-000000000090",
+      expect.objectContaining({
+        body: JSON.stringify({
+          baseRevision: command.baseRevision,
+          command: command.command,
+        }),
+        credentials: "same-origin",
+        method: "PUT",
       }),
     );
   });

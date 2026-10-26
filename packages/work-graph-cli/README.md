@@ -46,6 +46,10 @@ work-graph release cli-8 \
   --deployment-evidence https://work-graph.example.com/health
 ```
 
+`ready` and the other commands in this loop already write compact JSON to
+stdout. Do not add a bare `--json` output flag. `critical-path --json` is the
+one exception because that command otherwise renders a human-readable summary.
+
 Codex sessions use their thread ID as worker provenance. Other clients should
 set `WORK_GRAPH_WORKER_ID` once. Commands that already name a ticket find that
 worker's active lease and fencing epoch. Scripts may instead pass `--lease-id`
@@ -275,13 +279,22 @@ decision, source ticket, and inheritance depth.
 `show` returns the work-item projection, current delivery evidence, and the
 latest completion-candidate evaluation. The evaluation includes the policy ID
 and revision used to produce it. A null `completionCandidate` means no
-evaluation has been recorded. Evidence history remains available through the
-REST collection.
+evaluation has been recorded. The CLI caches released and cancelled ticket
+details under `WORK_GRAPH_CACHE_DIR`, `$XDG_CACHE_HOME/work-graph`, or
+`$HOME/.cache/work-graph`, in that order. Open tickets always use the API. Run
+`show <ticket> --refresh` when an audit needs delivery evidence that arrived
+after the terminal transition. Set `WORK_GRAPH_CACHE_DIR` to an empty value to
+disable the cache. Evidence history remains available through the REST
+collection.
 
 `completion-policy put` creates an immutable policy revision.
 `completion-policy assign` assigns a revision to a ticket and immediately
-evaluates its current evidence. Later GitHub deliveries reevaluate assigned
-tickets without changing their lifecycle.
+evaluates its current evidence. By default, later GitHub deliveries update the
+candidate without changing lifecycle. Pass `--automatic-release` when creating
+a revision to let Work Graph release a matching ticket that has no active
+lease. Every linked `implementation` pull request must have merge, required CI,
+and allowed production deployment evidence. Automatic release also requires
+finished children and no unresolved blocking attention.
 
 `pr refresh` and `pr link` remain available as low-level automation commands.
 `pr refresh` records the latest observed snapshot independently of any ticket
@@ -293,8 +306,9 @@ The `metadata` commands expose the complete stored history needed to resume or
 audit one work item. Notes include their content, dependency results contain
 current incoming and outgoing edges, leases retain every worker and outcome,
 and attention results include resolutions. Decomposition, cancellation, and
-release results come from the immutable event log. Release events include both
-merge and deployment evidence.
+release results come from the immutable event log. Worker release events include
+merge and deployment evidence. Automatic release events record the system
+actor, policy revision, candidate evaluation, and stored evidence identities.
 
 `note` records immutable working history. It uses the ticket's active lease by
 default; pass the current lease ID and fencing epoch together when a script
@@ -406,15 +420,16 @@ and its request ID.
 
 ## JSON and exit codes
 
-Every completed command writes one compact JSON document to stdout. Errors
-write one JSON document to stderr:
+Except for the default `critical-path` summary, every completed command writes
+one compact JSON document to stdout. Errors write one JSON document to stderr:
 
 ```json
 {"error":{"code":"WORK_ITEM_NOT_FOUND","message":"Work item not found","status":404,"requestId":"request-123"}}
 ```
 
-Every command also accepts its complete Zod input through `--json`, which is
-useful when an agent already has a structured object:
+Every command also accepts its complete Zod input through `--json '<object>'`,
+which is useful when an agent already has a structured object. A bare `--json`
+is not an output-format flag except on `critical-path`:
 
 ```sh
 work-graph create --json '{"id":"cli-8","title":"Build the TypeScript CLI"}'

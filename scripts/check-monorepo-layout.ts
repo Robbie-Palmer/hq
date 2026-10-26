@@ -83,6 +83,43 @@ function validateNamedRecords(
   return issues;
 }
 
+function validateComponentTaskOwnership(component: ComponentKind): string[] {
+  const issues: string[] = [];
+  if (
+    component.task_ownership === "generated" &&
+    !component.mise_config_root
+  ) {
+    issues.push(
+      `Component kind '${component.id}' cannot generate tasks without a mise root`,
+    );
+  }
+  if (
+    component.task_ownership === "delegated" &&
+    !component.delegated_task_project
+  ) {
+    issues.push(
+      `Component kind '${component.id}' delegates tasks without a target project`,
+    );
+  }
+  if (
+    component.task_ownership !== "delegated" &&
+    component.delegated_task_project
+  ) {
+    issues.push(
+      `Component kind '${component.id}' has a delegated task target but does not delegate tasks`,
+    );
+  }
+  if (
+    component.task_ownership === "delegated" &&
+    component.mise_config_root
+  ) {
+    issues.push(
+      `Component kind '${component.id}' cannot own a mise root and delegate its tasks`,
+    );
+  }
+  return issues;
+}
+
 function validateComponentPaths(components: ComponentKind[]): string[] {
   const issues: string[] = [];
   for (const component of components) {
@@ -104,16 +141,7 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
     ) {
       issues.push(`Component path '${component.directory}' has an unknown placeholder`);
     }
-    if (!component.mise_config_root && !component.delegated_task_project) {
-      issues.push(
-        `Component kind '${component.id}' without a mise root must delegate its tasks`,
-      );
-    }
-    if (component.mise_config_root && component.delegated_task_project) {
-      issues.push(
-        `Component kind '${component.id}' cannot own and delegate its mise tasks`,
-      );
-    }
+    issues.push(...validateComponentTaskOwnership(component));
   }
   issues.push(
     ...duplicateValues(components.map(({ directory }) => directory)).map(

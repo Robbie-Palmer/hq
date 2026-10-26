@@ -1,3 +1,4 @@
+import { stringifyCsv } from "ts-base/csv";
 import type { WeddingGuest } from "./core/guests";
 import {
   canViewGuestField,
@@ -85,13 +86,11 @@ export function exportGuestCsv(
       throw new Error(`${actor.role} cannot export ${field}`);
   }
 
-  const header = fields.map((field) => csvValue(fieldLabel(directory, field)));
+  const header = fields.map((field) => fieldLabel(directory, field));
   const rows = guests.map((guest) =>
-    fields.map((field) =>
-      csvValue(exportValue(directory, guest, field, options)),
-    ),
+    fields.map((field) => exportValue(directory, guest, field, options)),
   );
-  return [header, ...rows].map((row) => row.join(",")).join("\r\n");
+  return stringifyCsv([header, ...rows]);
 }
 
 function accessFieldFor(field: string): string {
@@ -208,8 +207,4 @@ function printable(value: unknown): string {
     return value.toString();
   if (typeof value === "boolean") return value ? "true" : "false";
   return "";
-}
-
-function csvValue(value: string): string {
-  return /[",\r\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
 }

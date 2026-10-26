@@ -32,7 +32,7 @@ const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const PROJECT_PROFILE_SCHEMA_VERSION = 1;
-export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 1;
+export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 2;
 
 const slugSchema = z.string().regex(LOWERCASE_KEBAB_CASE_PATTERN);
 const slotSchema = z.string().regex(SLOT_PATTERN);
@@ -61,6 +61,7 @@ const projectKindSchema = z.enum([
 const componentKindSchema = z.enum([
   "ui",
   "project-ui",
+  "project-content",
   "worker",
   "typescript-package",
   "python-pipeline",
@@ -68,6 +69,7 @@ const componentKindSchema = z.enum([
   "terraform-root",
   "kubernetes-component",
   "homelab-system",
+  "homelab-subsystem",
 ]);
 
 const taskNameSchema = z.enum([
@@ -195,6 +197,48 @@ const otelProfileSchema = z
     }
   });
 
+const reconciliationPolicySchema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      mode: z.literal("tracking"),
+      defer: z
+        .object({
+          effective_at: utcInstantSchema,
+          reason: z.string().min(1),
+        })
+        .strict()
+        .optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("frozen"),
+      frozen_at: utcInstantSchema,
+      reason: z.string().min(1),
+    })
+    .strict(),
+]);
+
+const checkpointFulfillmentSchema = z
+  .object({
+    checkpoint: slugSchema,
+    status: z.enum(["pending", "verified"]),
+    evidence: z.array(z.string().min(1)).default([]),
+  })
+  .strict()
+  .superRefine((fulfillment, context) => {
+    if (
+      fulfillment.status === "verified" &&
+      fulfillment.evidence.length === 0
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "must contain at least one item when a checkpoint is verified",
+      });
+    }
+  });
+
 const unsupportedCapabilitiesSchema = z
   .record(z.string(), z.unknown())
   .superRefine((capabilities, context) => {
@@ -221,6 +265,8 @@ const projectProfileFieldsSchema = z
     layers: z.array(layerUseSchema).min(1),
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
+    checkpoint_fulfillment: z.array(checkpointFulfillmentSchema).default([]),
+    reconciliation: reconciliationPolicySchema.default({ mode: "tracking" }),
     nix: nixProfileSchema,
     opentelemetry: otelProfileSchema,
     capabilities: unsupportedCapabilitiesSchema.optional(),
@@ -253,14 +299,19 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     "override slots",
     context,
   );
+  addDuplicateIssues(
+    profile.checkpoint_fulfillment.map(({ checkpoint }) => checkpoint),
+    "checkpoint fulfillment records",
+    context,
+  );
 
   const compatibleKinds: Record<z.infer<typeof projectKindSchema>, readonly z.infer<typeof componentKindSchema>[]> = {
-    application: ["ui", "project-ui", "worker"],
+    application: ["ui", "project-ui", "project-content", "worker"],
     service: ["worker", "python-pipeline"],
     library: ["typescript-package", "cpp-project"],
     "data-pipeline": ["python-pipeline"],
     "embedded-system": ["cpp-project"],
-    infrastructure: ["terraform-root", "kubernetes-component", "homelab-system"],
+    infrastructure: ["terraform-root", "kubernetes-component", "homelab-system", "homelab-subsystem"],
     platform: componentKindSchema.options,
   };
   if (!profile.components.some(({ kind }) => compatibleKinds[profile.project.kind].includes(kind))) {
@@ -313,7 +364,7 @@ export interface ProjectProfileContracts {
   };
 }
 
-interface ResolvedSelection {
+export interface ResolvedSelection {
   readonly id: string;
   readonly layer: string;
   readonly slot: string;
@@ -323,8 +374,24 @@ interface ResolvedSelection {
   readonly decision: string;
 }
 
+export interface ResolvedProfilePolicy {
+  readonly id: string;
+  readonly layer: string;
+  readonly slot: string;
+  readonly mode: "required" | "preferred";
+  readonly decision: string;
+}
+
+export interface ResolvedFulfillmentCheckpoint {
+  readonly id: string;
+  readonly action: string;
+  readonly fulfillment: "manual";
+  readonly status: "pending" | "verified";
+  readonly evidence: readonly string[];
+}
+
 export interface ResolvedProjectBlueprint {
-  readonly schema_version: 1;
+  readonly schema_version: 2;
   readonly profile_schema_version: 1;
   readonly effective_at: string;
   readonly project: {
@@ -342,7 +409,11 @@ export interface ResolvedProjectBlueprint {
     readonly mount_path?: string;
     readonly tasks: readonly {
       readonly name: string;
-      readonly disposition: "generated" | "delegated" | "not-applicable";
+      readonly disposition:
+        | "generated"
+        | "inherited"
+        | "delegated"
+        | "not-applicable";
       readonly reason?: string;
       readonly target?: string;
     }[];
@@ -364,7 +435,7 @@ export interface ResolvedProjectBlueprint {
   };
   readonly nix: Record<string, unknown>;
   readonly opentelemetry: Record<string, unknown>;
-  readonly manual_checkpoints: readonly string[];
+  readonly fulfillment_checkpoints: readonly ResolvedFulfillmentCheckpoint[];
 }
 
 function addDuplicateIssues(values: readonly string[], label: string, context: z.RefinementCtx): void {
@@ -404,6 +475,33 @@ function substitutePath(template: string, values: Record<string, string>): strin
     if (!value) throw new Error(`Path template references unknown value '${key}'`);
     return value;
   });
+}
+
+function resolveComponentTask(
+  name: z.infer<typeof taskNameSchema>,
+  componentKind: RepositoryLayoutContract["component_kinds"][number],
+  exceptionReason: string | undefined,
+): ResolvedProjectBlueprint["components"][number]["tasks"][number] {
+  if (exceptionReason !== undefined) {
+    return { name, disposition: "not-applicable", reason: exceptionReason };
+  }
+  if (componentKind.task_ownership === "inherited") {
+    return { name, disposition: "inherited" };
+  }
+  if (componentKind.task_ownership === "delegated") {
+    if (!componentKind.delegated_task_project) {
+      throw new Error(
+        `Component kind '${componentKind.id}' delegates tasks without a target project`,
+      );
+    }
+    const taskName = name === "typecheck-or-compile" ? "typecheck" : name;
+    return {
+      name,
+      disposition: "delegated",
+      target: `${componentKind.delegated_task_project}:${taskName}`,
+    };
+  }
+  return { name, disposition: "generated" };
 }
 
 function validateAgainstContracts(profile: ProjectProfile, contracts: ProjectProfileContracts): void {
@@ -451,22 +549,11 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       ...(component.mount_path === undefined
         ? {}
         : { mount_path: component.mount_path }),
-      tasks: requiredTasks.toSorted(compareStrings).map((name) => {
-        const reason = exceptions.get(name);
-        if (reason !== undefined) {
-          return { name, disposition: "not-applicable" as const, reason };
-        }
-        if (componentKind.delegated_task_project) {
-          const taskName =
-            name === "typecheck-or-compile" ? "typecheck" : name;
-          return {
-            name,
-            disposition: "delegated" as const,
-            target: `${componentKind.delegated_task_project}:${taskName}`,
-          };
-        }
-        return { name, disposition: "generated" as const };
-      }),
+      tasks: requiredTasks
+        .toSorted(compareStrings)
+        .map((name) =>
+          resolveComponentTask(name, componentKind, exceptions.get(name)),
+        ),
     };
   }).toSorted((left, right) => left.id.localeCompare(right.id, "en"));
   const duplicatePath = components.find((candidate, index) => components.findIndex(({ path: value }) => value === candidate.path) !== index);
@@ -494,7 +581,7 @@ interface SelectionResolutionState {
   readonly slotDefinitions: ReadonlyMap<string, SlotDefinition>;
   readonly resolvedValues: Map<string, Set<string>>;
   readonly resolved: ResolvedSelection[];
-  readonly checkpoints: Set<string>;
+  readonly checkpoints: Map<string, ResolvedFulfillmentCheckpoint>;
 }
 
 function activePolicies(
@@ -515,6 +602,24 @@ function activePolicies(
       );
     })
     .toSorted((left, right) => left.slot.localeCompare(right.slot, "en"));
+}
+
+export function resolveProjectPolicies(
+  profile: ProjectProfile,
+  contracts: ProjectProfileContracts,
+  effectiveAt: string,
+): readonly ResolvedProfilePolicy[] {
+  const instant = utcInstantSchema.parse(effectiveAt);
+  validateAgainstContracts(profile, contracts);
+  return activePolicies(profile, contracts, instant).map(
+    ({ id, layer, slot, mode, decision }) => ({
+      id,
+      layer,
+      slot,
+      mode,
+      decision,
+    }),
+  );
 }
 
 function validateOverrides(
@@ -645,21 +750,73 @@ function addResolvedSelections(
   }
 }
 
+function addCheckpoint(
+  checkpoints: Map<string, ResolvedFulfillmentCheckpoint>,
+  input: {
+    readonly selectionId: string;
+    readonly kind: "configuration" | "state" | "operational-check" | "manual-setup";
+    readonly label: string;
+    readonly action: string;
+  },
+): void {
+  const label = normalizeSlug(
+    input.label.replaceAll(/[^a-zA-Z0-9]+/g, " "),
+  );
+  if (!label) {
+    throw new Error(
+      `Fulfillment checkpoint for '${input.selectionId}' needs an identifiable label`,
+    );
+  }
+  const id = `${input.selectionId}-${input.kind}-${label}`;
+  if (checkpoints.has(id)) {
+    throw new Error(`Duplicate fulfillment checkpoint '${id}'`);
+  }
+  checkpoints.set(id, {
+    id,
+    action: input.action,
+    fulfillment: "manual",
+    status: "pending",
+    evidence: [],
+  });
+}
+
 function addSelectionCheckpoints(
   selections: readonly PlatformSelection[],
-  checkpoints: Set<string>,
+  checkpoints: Map<string, ResolvedFulfillmentCheckpoint>,
 ): void {
   for (const selection of selections) {
     for (const requirement of selection.configuration_requirements) {
-      checkpoints.add(`Configure ${requirement.name} for ${selection.id}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "configuration",
+        label: requirement.name,
+        action: `Configure ${requirement.name} for ${selection.id}`,
+      });
     }
     for (const requirement of selection.state_requirements) {
-      checkpoints.add(`Provision ${requirement.name} for ${selection.id}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "state",
+        label: requirement.name,
+        action: `Provision ${requirement.name} for ${selection.id}`,
+      });
     }
     for (const check of selection.operational_checks) {
-      checkpoints.add(`Verify ${check.name}: ${check.reference}`);
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "operational-check",
+        label: check.name,
+        action: `Verify ${check.name}: ${check.reference}`,
+      });
     }
-    for (const step of selection.manual_setup) checkpoints.add(step);
+    for (const step of selection.manual_setup) {
+      addCheckpoint(checkpoints, {
+        selectionId: selection.id,
+        kind: "manual-setup",
+        label: step,
+        action: step,
+      });
+    }
   }
 }
 
@@ -683,7 +840,10 @@ function resolveSelections(
   profile: ProjectProfile,
   contracts: ProjectProfileContracts,
   effectiveAt: string,
-): { selections: ResolvedSelection[]; checkpoints: string[] } {
+): {
+  selections: ResolvedSelection[];
+  checkpoints: ResolvedFulfillmentCheckpoint[];
+} {
   const slotDefinitions = new Map(contracts.platform.slots.map((slot) => [slot.slug, slot]));
   const policies = activePolicies(profile, contracts, effectiveAt);
   validateOverrides(profile, policies, slotDefinitions);
@@ -696,7 +856,7 @@ function resolveSelections(
     slotDefinitions,
     resolvedValues: new Map(),
     resolved: [],
-    checkpoints: new Set(),
+    checkpoints: new Map(),
   };
   let pending = [...policies];
   while (pending.length) {
@@ -709,9 +869,31 @@ function resolveSelections(
     }
     pending = next;
   }
+  const fulfillment = new Map(
+    profile.checkpoint_fulfillment.map((record) => [record.checkpoint, record]),
+  );
+  for (const checkpoint of fulfillment.keys()) {
+    if (!state.checkpoints.has(checkpoint)) {
+      throw new Error(
+        `Checkpoint fulfillment references unknown current checkpoint '${checkpoint}'`,
+      );
+    }
+  }
+  const checkpoints = Array.from(state.checkpoints.values())
+    .map((checkpoint) => {
+      const record = fulfillment.get(checkpoint.id);
+      return record === undefined
+        ? checkpoint
+        : {
+            ...checkpoint,
+            status: record.status,
+            evidence: [...record.evidence].toSorted(compareStrings),
+          };
+    })
+    .toSorted((left, right) => compareStrings(left.id, right.id));
   return {
     selections: state.resolved.toSorted((left, right) => left.slot.localeCompare(right.slot, "en") || left.value.localeCompare(right.value, "en")),
-    checkpoints: Array.from(state.checkpoints).toSorted(compareStrings),
+    checkpoints,
   };
 }
 
@@ -738,8 +920,10 @@ export function resolveProjectProfile(
     relations: [{ type: "part_of", target: `system:${profile.project.id}/${profile.project.kind}` }],
   }));
   const ownedPaths = [
-    ...components.map(({ path: componentPath }) => componentPath),
-    `ui/content/projects/${profile.project.id}`,
+    ...new Set([
+      ...components.map(({ path: componentPath }) => componentPath),
+      `ui/content/projects/${profile.project.id}`,
+    ]),
   ].toSorted(compareStrings);
   const otelRuntime = profile.opentelemetry.runtime;
   const transport = otelRuntime ? contracts.opentelemetry.transport.runtime_defaults[otelRuntime] : undefined;
@@ -812,7 +996,7 @@ export function resolveProjectProfile(
       cardinality: contracts.opentelemetry.cardinality,
       failure_mode: contracts.opentelemetry.processing.failure_mode,
     } : { enabled: false },
-    manual_checkpoints: checkpoints,
+    fulfillment_checkpoints: checkpoints,
   };
 }
 

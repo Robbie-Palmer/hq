@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-10-19"
+updated: "2026-10-25"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -147,9 +147,9 @@ The graph should answer five questions:
 * Who currently holds each work item?
 * What evidence would prove it complete?
 
-The first user is me, across the projects in this repository. The first test is
-whether it can replace the mixture of Shortcut, GitHub, live agent sessions, and
-memory that currently holds the plan.
+The first user is me, across the projects in this repository. Work Graph now
+holds the migrated personal plan that previously sat across Shortcut, GitHub,
+live agent sessions, and memory.
 
 # Problem
 
@@ -182,10 +182,15 @@ ticket does not survive agents producing and completing far more intermediate
 work. It becomes a sea of weakly written tickets which no person should need to
 read.
 
-Shortcut remains part of the current workflow, alongside GitHub issues,
-security notifications, Renovate pull requests, PostHog-created fixes, and live
-agent sessions. The Work Graph should absorb useful events from those systems
-without making any of them authoritative.
+Work Graph is authoritative for migrated personal executable work. The cutover
+reconciled all 131 active personal Shortcut stories and moved that fixed set to
+Done after owner review. Shortcut is now a legacy record and possible import
+source, not a place where current work state changes.
+
+GitHub issues, security notifications, Renovate pull requests, PostHog-created
+fixes, and live agent sessions still produce useful signals. Work Graph records
+the resulting outcome, priority, lease, and evidence. Those systems remain
+observers, inputs, or projections rather than competing work authorities.
 
 # Responsibilities
 

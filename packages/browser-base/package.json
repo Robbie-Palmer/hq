@@ -5,6 +5,7 @@
   "description": "Browser platform extensions shared across applications",
   "type": "module",
   "exports": {
+    "./downloads": "./src/downloads.ts",
     "./errors": "./src/errors.ts"
   },
   "scripts": {

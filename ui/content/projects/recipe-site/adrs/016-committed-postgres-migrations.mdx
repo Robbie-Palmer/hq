@@ -130,7 +130,7 @@ RECIPE_IMPORT_JOB ||--o{ RECIPE_IMPORT_ATTEMPT : records`}
 
 ## One baseline, then migrations by coherent change
 
-Create one generated `0000_baseline.sql` representing the entire current
+Create one generated `0000_create_recipe_database_baseline.sql` representing the entire current
 schema. Do not manufacture separate historical migrations for Better Auth,
 notifications, households, or recipe imports. Those changes were not deployed
 as an ordered migration sequence, so reconstructing one adds false history and
@@ -192,7 +192,7 @@ Data has three explicit owners:
 | Required reference catalog         | Versioned data migration | ingredients, ingredient groups, diet presets        |
 | Disposable QA fixture              | Preview-only seed        | test users, households, authored recipes            |
 
-The initial catalog is `0001_diet_catalog.sql`. Later catalog changes use new
+The initial catalog is `0001_seed_initial_diet_catalog.sql`. Later catalog changes use new
 custom migrations, so adding, renaming, or retiring a preset is reviewable and
 replayed in the same order everywhere. `db:migrate` alone must leave a fresh
 database operational; required rows do not depend on an out-of-band seed.

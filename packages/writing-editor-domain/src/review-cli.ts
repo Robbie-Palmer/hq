@@ -12,7 +12,7 @@ import { type Decision, DecisionSchema } from "./decisions";
 import {
   prepareReviewRecords,
   renderFinding,
-  renderProposalDiff,
+  renderProposalReview,
   ReviewRecordsSchema,
   validateRecordedDecisions,
 } from "./review";
@@ -31,6 +31,7 @@ export async function main(
   const io = streams ?? { input: process.stdin, output: process.stdout };
   const parsedArgs = parseArgs(args);
   const input = await loadReviewInput(parsedArgs);
+  const sessionStartedAt = new Date().toISOString();
   const { sourcePath, decisionsPath } = input;
   const source = await readFile(sourcePath, "utf8");
   const unpreparedRecords = input.mode === "manifest"
@@ -57,9 +58,10 @@ export async function main(
   for (const finding of records.findings) {
     io.output.write(`${renderFinding(finding)}\n\n`);
   }
+  const prompts = createInterface(io);
+  const findingsReviewedAt = await markFindingsReviewed(input, records, prompts);
   io.output.write(`Actionable proposals (${records.proposals.length})\n\n`);
 
-  const prompts = createInterface(io);
   try {
     const result = await runReviewSession({
       source,
@@ -67,7 +69,7 @@ export async function main(
       existingDecisions,
       decide: async (proposal) => {
         io.output.write(
-          `${renderProposalDiff(proposal, source, input.displayPath)}\n`,
+          `${renderProposalReview(proposal, source, input.displayPath)}\n`,
         );
         return promptForDecision(prompts, io.output);
       },
@@ -93,7 +95,16 @@ export async function main(
       await atomicWrite(sourcePath, result.source);
     }
     if (input.mode === "source" && input.receiptPath) {
-      const receipt = createReviewReceipt(records, result.decisions, source, result.source);
+      const completedAt = new Date().toISOString();
+      const receipt = createReviewReceipt(
+        records,
+        result.decisions,
+        source,
+        result.source,
+        input.measureSession
+          ? { startedAt: sessionStartedAt, findingsReviewedAt, completedAt }
+          : undefined,
+      );
       await mkdir(dirname(input.receiptPath), { recursive: true });
       await writeFile(input.receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, "utf8");
       io.output.write(`Review receipt: ${input.receiptPath}\n`);
@@ -104,6 +115,17 @@ export async function main(
   } finally {
     prompts.close();
   }
+}
+
+async function markFindingsReviewed(
+  input: ReviewInput,
+  records: z.infer<typeof ReviewRecordsSchema>,
+  prompts: ReturnType<typeof createInterface>,
+): Promise<string> {
+  if (input.mode === "source" && input.measureSession && records.proposals.length === 0) {
+    await prompts.question("Press Enter after reviewing the detection-only findings: ");
+  }
+  return new Date().toISOString();
 }
 
 type ParsedArgs =
@@ -118,6 +140,7 @@ type ParsedArgs =
     receiptPath?: string;
     configPath?: string;
     valeBinary?: string;
+    measureSession?: boolean;
   };
 
 type ReviewInput =
@@ -139,6 +162,7 @@ type ReviewInput =
     revision: string;
     configPath: string;
     valeBinary?: string;
+    measureSession: boolean;
   };
 
 async function loadReviewInput(parsed: ParsedArgs): Promise<ReviewInput> {
@@ -162,6 +186,7 @@ async function loadReviewInput(parsed: ParsedArgs): Promise<ReviewInput> {
       displayPath: parsed.sourcePath,
       documentId: parsed.documentId ?? relative(process.cwd(), sourcePath),
       configPath: resolve(parsed.configPath ?? ".vale.ini"),
+      measureSession: parsed.measureSession ?? false,
     };
   }
   const manifestPath = resolve(parsed.manifestPath);
@@ -258,16 +283,11 @@ function parseArgs(args: string[]): ParsedArgs {
 }
 
 function parseSourceArgs(args: string[]): Extract<ParsedArgs, { mode: "source" }> {
-  const values = new Map<string, string>();
-  for (let index = 0; index < args.length; index += 2) {
-    const flag = args[index];
-    const value = args[index + 1];
-    if (!flag?.startsWith("--") || value === undefined || value.startsWith("--")) {
-      throw new Error(sourceUsage());
-    }
-    if (values.has(flag)) throw new Error(`duplicate argument ${flag}`);
-    values.set(flag, value);
-  }
+  const { remainingArgs, present: measureSession } = extractStandaloneFlag(
+    args,
+    "--measure-session",
+  );
+  const values = parsePairedArgs(remainingArgs);
   const allowed = new Set([
     "--source",
     "--revision",
@@ -293,11 +313,38 @@ function parseSourceArgs(args: string[]): Extract<ParsedArgs, { mode: "source" }
     ...(values.get("--receipt") ? { receiptPath: values.get("--receipt") } : {}),
     ...(values.get("--config") ? { configPath: values.get("--config") } : {}),
     ...(values.get("--vale") ? { valeBinary: values.get("--vale") } : {}),
+    ...(measureSession ? { measureSession: true } : {}),
+  };
+}
+
+function parsePairedArgs(args: string[]): Map<string, string> {
+  const values = new Map<string, string>();
+  for (let index = 0; index < args.length; index += 2) {
+    const flag = args[index];
+    const value = args[index + 1];
+    if (!flag?.startsWith("--") || value === undefined || value.startsWith("--")) {
+      throw new Error(sourceUsage());
+    }
+    if (values.has(flag)) throw new Error(`duplicate argument ${flag}`);
+    values.set(flag, value);
+  }
+  return values;
+}
+
+function extractStandaloneFlag(
+  args: string[],
+  target: string,
+): { remainingArgs: string[]; present: boolean } {
+  const occurrences = args.filter((argument) => argument === target).length;
+  if (occurrences > 1) throw new Error(`duplicate argument ${target}`);
+  return {
+    remainingArgs: args.filter((argument) => argument !== target),
+    present: occurrences === 1,
   };
 }
 
 function sourceUsage(): string {
-  return "usage: mise //packages/writing-editor-domain:review -- --source <file> --revision <revision> [--document-id <id>] [--records <records.json>] [--decisions <decisions.jsonl>] [--receipt <receipt.json>] [--config <.vale.ini>] [--vale <binary>]";
+  return "usage: mise //packages/writing-editor-domain:review -- --source <file> --revision <revision> [--document-id <id>] [--records <records.json>] [--decisions <decisions.jsonl>] [--receipt <receipt.json>] [--config <.vale.ini>] [--vale <binary>] [--measure-session]";
 }
 
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {

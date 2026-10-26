@@ -121,7 +121,7 @@ by this root. Do not recreate or change the workspace in HCP settings.
 ## Local Development
 
 Credentials are sourced from Doppler, the same single source of truth CI uses.
-Run Terraform through mise; `infra/public-platform/scripts/doppler-terraform-env` injects
+Run Terraform through mise; `infra/public-platform/scripts/doppler-terraform-env.sh` injects
 `dev_pages_env` and `dev_infra`, then maps readable Doppler names to
 Terraform's expected `TF_VAR_*` and provider environment variables. A local
 `.env` file is no longer required for normal development.
@@ -242,7 +242,7 @@ deliver to the shared `#production-alerts` Slack channel through a
 `cloudflare_notification_policy_webhooks` destination. The Slack incoming
 webhook URL is a sensitive variable (`slack_webhook_url`) sourced from Doppler
 (`CLOUDFLARE_SLACK_WEBHOOK_URL` in `dev_infra` and `prd_infra`) and mapped by
-`scripts/doppler-terraform-env`.
+`scripts/doppler-terraform-env.sh`.
 
 The managed policies cover major/critical Cloudflare incidents affecting
 Pages, Workers, R2, SSL, and DNS; expiring Access service tokens; Universal

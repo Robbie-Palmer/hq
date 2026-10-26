@@ -159,7 +159,7 @@ export class GitHubDeliveryConsumer {
         const evaluatedAt = receipt.ingestedAt;
         await Promise.all(
           targets.map((target) =>
-            repository.evaluateCompletionCandidateIfConfigured({
+            repository.evaluateCompletionCandidateAndReleaseIfConfigured({
               id: evaluationId(delivery.deliveryId, target.workItemId),
               workItemId: target.workItemId,
               evaluatedAt,

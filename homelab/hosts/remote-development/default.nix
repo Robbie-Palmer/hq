@@ -31,27 +31,30 @@ let
     WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
     DESTINATION_PROVIDER=${workspaceBackupInventory.destination.provider}
     BACKUP_SOURCE=${workspaceBackupInventory.workspace.source}
+    BACKUP_STAGING_DIRECTORY=/var/lib/remote-development-backup/staging
     BACKUP_EXCLUDES_FILE=/etc/remote-development-workspace-backup/backup-excludes.txt
     BACKUP_STATUS_FILE=/var/lib/remote-development-backup/status.json
     BACKUP_CREDENTIALS_FILE=${workspaceBackupInventory.destination.credentialsFile}
     BACKUP_PASSWORD_FILE=${workspaceBackupInventory.destination.passwordFile}
     MAXIMUM_AGE_SECONDS=${toString workspaceBackupInventory.schedule.maximumAgeSeconds}
-    KEEP_HOURLY=${toString workspaceBackupInventory.retention.hourly}
-    KEEP_DAILY=${toString workspaceBackupInventory.retention.daily}
-    KEEP_WEEKLY=${toString workspaceBackupInventory.retention.weekly}
-    KEEP_MONTHLY=${toString workspaceBackupInventory.retention.monthly}
+    CHECK_READ_DATA_SUBSET=${workspaceBackupInventory.integrity.readDataSubset}
+    KEEP_WITHIN=${workspaceBackupInventory.retention.within}
+    KEEP_LAST=${toString workspaceBackupInventory.retention.minimumSnapshots}
   '';
   workspaceBackup = pkgs.writeShellScriptBin "remote-development-workspace-backup" (
-    builtins.readFile ../../scripts/remote-development-workspace-backup
+    builtins.readFile ../../scripts/remote-development-workspace-backup.sh
   );
   workspaceBackupStatus = pkgs.writeShellScriptBin "remote-development-workspace-backup-status" (
-    builtins.readFile ../../scripts/remote-development-workspace-backup-status
+    builtins.readFile ../../scripts/remote-development-workspace-backup-status.sh
+  );
+  workspaceStateExport = pkgs.writeShellScriptBin "remote-development-workspace-state-export" (
+    builtins.readFile ../../scripts/remote-development-workspace-state-export.sh
   );
   workspaceRestore = pkgs.writeShellScriptBin "remote-development-workspace-restore" (
-    builtins.readFile ../../scripts/remote-development-workspace-restore
+    builtins.readFile ../../scripts/remote-development-workspace-restore.sh
   );
   workspaceExport = pkgs.writeShellScriptBin "remote-development-workspace-export" (
-    builtins.readFile ../../scripts/remote-development-workspace-export
+    builtins.readFile ../../scripts/remote-development-workspace-export.sh
   );
   observabilityMetricsConfig = pkgs.writeText "remote-development-observability-metrics.env" ''
     WORKSPACE_ID=${workspaceBackupInventory.workspace.id}
@@ -69,13 +72,13 @@ let
     AGENT_COORDINATOR_HEALTH_FILE=${operatorDataPath}/home/.t3/work-graph-coordinator/health.json
   '';
   observabilityMetrics = pkgs.writeShellScriptBin "remote-development-observability-metrics" (
-    builtins.readFile ../../scripts/remote-development-observability-metrics
+    builtins.readFile ../../scripts/remote-development-observability-metrics.sh
   );
   agentCoordinator = pkgs.writeText "work-graph-agent-coordinator" (
-    builtins.readFile ../../scripts/work-graph-agent-coordinator
+    builtins.readFile ../../scripts/work-graph-agent-coordinator.sh
   );
   agentCoordinatorRunner = pkgs.writeShellScriptBin "run-work-graph-agent-coordinator" (
-    builtins.readFile ../../scripts/run-work-graph-agent-coordinator
+    builtins.readFile ../../scripts/run-work-graph-agent-coordinator.sh
   );
   netdataLibbpf = pkgs.fetchFromGitHub {
     owner = "netdata";
@@ -440,11 +443,18 @@ in
     path = [
       pkgs.coreutils
       pkgs.findutils
+      pkgs.git
+      pkgs.gnutar
+      pkgs.gzip
       pkgs.jq
       pkgs.restic
+      pkgs.sqlite
+      pkgs.util-linux
     ];
     environment.WORKSPACE_BACKUP_CONFIG =
       "/etc/remote-development-workspace-backup/config";
+    environment.WORKSPACE_STATE_EXPORT_BIN =
+      "${workspaceStateExport}/bin/remote-development-workspace-state-export";
     serviceConfig = {
       Type = "oneshot";
       EnvironmentFile = workspaceBackupInventory.destination.credentialsFile;
@@ -461,7 +471,7 @@ in
   };
 
   systemd.timers.remote-development-workspace-backup = {
-    description = "Run the encrypted operator workspace backup every day";
+    description = "Run the encrypted operator workspace backup every six hours";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = workspaceBackupInventory.schedule.onCalendar;
@@ -841,6 +851,7 @@ in
     workspaceBackupStatus
     workspaceExport
     workspaceRestore
+    workspaceStateExport
     observabilityMetrics
     opentelemetry-collector-contrib
   ];

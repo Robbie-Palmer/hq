@@ -579,6 +579,31 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "platform",
   },
   {
+    name: "Score",
+    added: "2026-10-24",
+    description:
+      "Workload specification for portable container configuration across runtime implementations",
+    website: "https://score.dev",
+    type: "tool",
+  },
+  {
+    name: "Kustomize",
+    added: "2026-10-24",
+    description:
+      "Template-free customization of Kubernetes resources through bases and overlays",
+    website:
+      "https://kubernetes.io/docs/tasks/manage-kubernetes-objects/kustomization/",
+    type: "tool",
+  },
+  {
+    name: "Helm",
+    added: "2026-10-24",
+    description:
+      "Package manager for defining, installing, and upgrading Kubernetes applications",
+    website: "https://helm.sh",
+    type: "tool",
+  },
+  {
     name: "kube-state-metrics",
     added: "2026-09-12",
     description:

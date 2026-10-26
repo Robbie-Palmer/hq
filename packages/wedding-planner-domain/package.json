@@ -6,7 +6,6 @@
   "exports": {
     ".": "./src/index.ts",
     "./accommodation": "./src/accommodation/index.ts",
-    "./integrations/joy": "./src/integrations/joy/index.ts",
     "./seating": "./src/seating/index.ts",
     "./values": "./src/values.ts",
     "./money": "./src/money.ts"
@@ -17,6 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {

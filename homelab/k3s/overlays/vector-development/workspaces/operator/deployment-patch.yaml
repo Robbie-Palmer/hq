@@ -1,0 +1,221 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: t3-code
+  namespace: t3-code
+  annotations:
+    secrets.doppler.com/reload: "true"
+spec:
+  template:
+    spec:
+      runtimeClassName: nvidia
+      nodeSelector:
+        homelab.dev/accelerator: nvidia
+        homelab.dev/capability: agent-workspace
+        homelab.dev/location: home
+        homelab.dev/power-profile: mains-dependent
+      initContainers:
+        - name: prepare-data-directories
+          env:
+            - name: CONFIGURE_RECIPE_AGENT_MCP
+              value: "true"
+        - name: prepare-docker-data
+          image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
+          command:
+            - /bin/sh
+            - -eu
+            - -c
+            - chown 1000:1000 /home/rootless/.local/share/docker
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+            readOnlyRootFilesystem: true
+            runAsGroup: 0
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: docker-data
+              mountPath: /home/rootless/.local/share/docker
+      containers:
+        - name: t3-code
+          env:
+            - name: DOCKER_HOST
+              value: tcp://127.0.0.1:2375
+            - name: SHARED_TASK_CACHE_DIR
+              value: /data/cache/shared-task-cache
+            - name: SHARED_TASK_CACHE_MAX_BYTES
+              value: "107374182400"
+            - name: SHARED_TASK_CACHE_MAX_AGE_SECONDS
+              value: "1209600"
+            - name: PATH
+              value: /opt/vector/bin:/data/home/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+            - name: CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CF_ACCESS_CLIENT_ID
+                  optional: false
+            - name: CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CF_ACCESS_CLIENT_SECRET
+                  optional: false
+            - name: CLOUDFLARE_PAGES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-preview-access
+                  key: CLOUDFLARE_PAGES_HOST
+                  optional: false
+            - name: WORK_GRAPH_API_URL
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_API_URL
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_ID
+                  optional: false
+            - name: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-work-graph
+                  key: WORK_GRAPH_CF_ACCESS_CLIENT_SECRET
+                  optional: false
+            - name: AGENT_AUTH_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-runtime
+                  key: AGENT_AUTH_ENCRYPTION_KEY
+                  optional: false
+          envFrom:
+            - secretRef:
+                name: t3-code-runtime
+                optional: true
+          resources:
+            requests:
+              cpu: "2"
+              ephemeral-storage: 2Gi
+              memory: 4Gi
+            limits:
+              cpu: "20"
+              ephemeral-storage: 24Gi
+              memory: 40Gi
+              nvidia.com/gpu: "1"
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - name: vector-doppler-wrapper
+              mountPath: /opt/vector/bin
+              readOnly: true
+            - name: cache
+              mountPath: /data/home/.cache
+              subPath: home-cache
+            - name: cache
+              mountPath: /data/home/.local/share/mise
+              subPath: mise
+            - name: cache
+              mountPath: /data/home/.local/share/pnpm
+              subPath: pnpm
+            - name: cache
+              mountPath: /data/home/.arduino15
+              subPath: arduino15
+            - name: cache
+              mountPath: /data/cache/shared-task-cache
+              subPath: shared-task-cache
+        - name: docker
+          image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
+          env:
+            - name: DOCKERD_ROOTLESS_ROOTLESSKIT_FLAGS
+              value: -p 127.0.0.1:2375:2375/tcp
+          args:
+            - dockerd
+            - --host=tcp://0.0.0.0:2375
+            - --tls=false
+          startupProbe:
+            exec:
+              command:
+                - docker
+                - --host=tcp://127.0.0.1:2375
+                - info
+            failureThreshold: 30
+            periodSeconds: 2
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command:
+                - docker
+                - --host=tcp://127.0.0.1:2375
+                - info
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            exec:
+              command:
+                - docker
+                - --host=tcp://127.0.0.1:2375
+                - info
+            failureThreshold: 3
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 500m
+              ephemeral-storage: 2Gi
+              memory: 1Gi
+            limits:
+              cpu: "8"
+              ephemeral-storage: 32Gi
+              memory: 12Gi
+          securityContext:
+            privileged: true # NOSONAR -- Rootless DinD requires a privileged outer container.
+            readOnlyRootFilesystem: false
+            runAsGroup: 1000
+            runAsNonRoot: true
+            runAsUser: 1000
+            seccompProfile:
+              type: Unconfined
+          volumeMounts:
+            - name: docker-data
+              mountPath: /home/rootless/.local/share/docker
+      volumes:
+        - name: vector-doppler-wrapper
+          configMap:
+            name: vector-doppler-wrapper
+            defaultMode: 365
+        - name: cache
+          persistentVolumeClaim:
+            claimName: t3-code-cache
+        - name: docker-data
+          emptyDir:
+            sizeLimit: 24Gi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 16Gi

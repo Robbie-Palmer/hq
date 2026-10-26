@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: prepare-data-directories
-          image: ghcr.io/robbie-palmer/t3-code:0.1.0-agent-tools-18
+          image: ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-19
           command:
             - /bin/sh
             - -eu
@@ -48,6 +48,19 @@ spec:
               && [ ! -L /data/home/.codex-personal/.sqlite-maintenance.lock ];
               then rm -f /data/home/.codex-personal/.sqlite-maintenance.lock;
               fi
+              && if [ -e /data/home/.codex-personal/.tmp ]
+              && [ ! -L /data/home/.codex-personal/.tmp ];
+              then rm -rf /data/home/.codex-personal/.tmp;
+              fi
+              && for source in /data/home/.codex/*
+              /data/home/.codex/.[!.]* /data/home/.codex/..?*;
+              do [ -e "$source" ] || [ -L "$source" ] || continue;
+              name=${source##*/};
+              case "$name" in auth.json|models_cache.json|log|tmp) continue;; esac;
+              shadow=/data/home/.codex-personal/$name;
+              if { [ -e "$shadow" ] || [ -L "$shadow" ]; }
+              && [ ! -L "$shadow" ]; then rm -rf -- "$shadow"; fi;
+              done
               && node /usr/local/lib/t3-code/bootstrap-settings.mjs
           securityContext:
             allowPrivilegeEscalation: false
@@ -74,7 +87,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: t3-code
-          image: ghcr.io/robbie-palmer/t3-code:0.1.0-agent-tools-18
+          image: ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-19
           imagePullPolicy: IfNotPresent
           env:
             - name: HOME
@@ -120,6 +133,12 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
+            # Restored desktop state keeps absolute project paths. This alias
+            # lets those projects resolve inside the remote runtime while the
+            # canonical durable checkout remains under /data/workspaces.
+            - name: data
+              mountPath: /home/robbie/repos
+              subPath: workspaces
             - name: tmp
               mountPath: /tmp
       terminationGracePeriodSeconds: 120

@@ -1,3 +1,4 @@
+import { stringifyCsv } from "ts-base/csv";
 import { z } from "zod";
 
 const trimmedText = z.string().trim().min(1);
@@ -325,7 +326,10 @@ export function playlistDjBriefCsv(playlist: CollaborativePlaylist): string {
       song.service_url,
     ]),
   ];
-  return rows.map((row) => row.map(csvValue).join(",")).join("\n");
+  return stringifyCsv(rows, {
+    lineEnding: "\n",
+    escapeSpreadsheetFormulas: true,
+  });
 }
 
 export function playlistDjBriefMarkdown(
@@ -365,9 +369,4 @@ function normalizeSongOrder(playlist: CollaborativePlaylist): void {
 
 function uniqueById<T extends { id: string }>(items: T[]): T[] {
   return [...new Map(items.map((item) => [item.id, item])).values()];
-}
-
-function csvValue(value: string): string {
-  const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return /[",\n\r]/.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
 }

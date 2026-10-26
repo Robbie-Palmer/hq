@@ -505,6 +505,7 @@ describe("dynamic recipe pages", () => {
 
   it.each([
     "https://robbiepalmer.me/recipes/onboarding",
+    "https://robbiepalmer.me/recipes/planning",
     "https://robbiepalmer.me/recipes/edit?slug=lentil-soup",
   ])("leaves named application route %s to its static page", async (url) => {
     const requestContext = context(url);

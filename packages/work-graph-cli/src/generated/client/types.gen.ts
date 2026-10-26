@@ -137,6 +137,11 @@ export type KnowledgeScopeRelationship = {
     childKnowledgeScopeId: string;
 };
 
+export type WorkItemDetails = WorkItem & {
+    deliveryEvidence: DeliveryEvidenceList;
+    completionCandidate: CompletionCandidate | null;
+};
+
 export type DeliveryEvidenceList = {
     items: Array<DeliveryEvidence>;
     nextCursor: string | null;
@@ -164,19 +169,19 @@ export type DeliveryEvidence = {
     projectedAt: string | null;
 };
 
-export type CompletionCandidateResponse = {
-    candidate: CompletionCandidate | null;
-};
-
 export type CompletionCandidate = {
     id: string;
     workItemId: string;
     policyId: string;
     policyRevision: number;
     candidate: boolean;
-    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unresolved_blocking_attention'>;
+    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unsatisfied_dependencies' | 'unresolved_blocking_attention'>;
     evidenceObservationIds: Array<string>;
     evaluatedAt: string;
+};
+
+export type CompletionCandidateResponse = {
+    candidate: CompletionCandidate | null;
 };
 
 export type CompletionPolicyRevision = {
@@ -184,6 +189,7 @@ export type CompletionPolicyRevision = {
     revision: number;
     requiredCiNames: Array<string>;
     productionEnvironments: Array<string>;
+    automaticRelease: boolean;
     createdAt: string;
 };
 
@@ -582,6 +588,7 @@ export type PutCompletionPolicyRevisionData = {
     body: {
         requiredCiNames: Array<string>;
         productionEnvironments: Array<string>;
+        automaticRelease?: boolean;
         createdAt: string;
     };
     path: {
@@ -2324,6 +2331,61 @@ export type ListWorkItemDependenciesResponses = {
 };
 
 export type ListWorkItemDependenciesResponse = ListWorkItemDependenciesResponses[keyof ListWorkItemDependenciesResponses];
+
+export type GetWorkItemDetailsData = {
+    body?: never;
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/details';
+};
+
+export type GetWorkItemDetailsErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type GetWorkItemDetailsError = GetWorkItemDetailsErrors[keyof GetWorkItemDetailsErrors];
+
+export type GetWorkItemDetailsResponses = {
+    /**
+     * Current work-item details
+     */
+    200: WorkItemDetails;
+};
+
+export type GetWorkItemDetailsResponse = GetWorkItemDetailsResponses[keyof GetWorkItemDetailsResponses];
 
 export type ListWorkItemEventsData = {
     body?: never;

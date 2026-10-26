@@ -1,0 +1,8 @@
+_min_copier_version: "9.18.2"
+_subdirectory: "copier-templates/monorepo-project"
+
+project_id:
+  type: str
+
+blueprint:
+  type: yaml

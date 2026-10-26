@@ -1,6 +1,5 @@
 "use client";
 
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Check,
   CircleX,
@@ -19,7 +18,6 @@ import {
   type SubmitEvent,
   type SubmitEventHandler,
   useEffect,
-  useRef,
   useState,
 } from "react";
 import { errorMessage } from "ts-base/errors";
@@ -27,49 +25,19 @@ import { RecipeAvatar } from "@/components/recipes/recipe-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  acceptHouseholdInvitation,
-  addHouseholdEquipment,
-  createHousehold,
-  declineHouseholdInvitation,
-  deleteHousehold,
-  type EquipmentRecipeMatchMode,
-  type Household,
-  type HouseholdEquipment,
-  type HouseholdEquipmentItem,
-  type HouseholdInvitation,
-  type HouseholdMember,
-  type IncomingHouseholdInvitation,
-  inviteHouseholdMember,
-  leaveHousehold,
-  removeHouseholdEquipment,
-  removeHouseholdMember,
-  renameHousehold,
-  revokeHouseholdInvitation,
-  saveHouseholdEquipmentMatchMode,
+  type HouseholdMutation,
+  useHouseholdSettings,
+} from "@/hooks/use-household-settings";
+import type {
+  EquipmentRecipeMatchMode,
+  Household,
+  HouseholdEquipment,
+  HouseholdEquipmentItem,
+  HouseholdInvitation,
+  HouseholdMember,
+  IncomingHouseholdInvitation,
 } from "@/lib/api/households";
-import {
-  type HouseholdSettingsData,
-  householdSettingsQuery,
-} from "@/lib/query/household-queries";
-import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 import { PanelHead } from "./panel-head";
-
-type Mutation =
-  | "create"
-  | "rename"
-  | "invite"
-  | "remove"
-  | "revoke"
-  | "leave"
-  | "delete"
-  | "accept"
-  | "decline"
-  | "add-equipment"
-  | "remove-equipment"
-  | "save-equipment-mode"
-  | null;
-
-type ActiveMutation = Exclude<Mutation, null>;
 
 function friendlyDate(value: string) {
   return new Intl.DateTimeFormat(undefined, {
@@ -77,10 +45,6 @@ function friendlyDate(value: string) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
-}
-
-function excludeById<T extends { id: string }>(items: T[], id: string): T[] {
-  return items.filter((item) => item.id !== id);
 }
 
 function equipmentStatus(item: HouseholdEquipmentItem): string | undefined {
@@ -351,7 +315,7 @@ function EmptyHouseholdView({
   currentUserName: string;
   incoming: IncomingHouseholdInvitation[];
   busy: boolean;
-  mutation: Mutation;
+  mutation: HouseholdMutation;
   name: string;
   error: string | null;
   notice: string | null;
@@ -867,7 +831,7 @@ function ManagedHouseholdView({
   invitations: HouseholdInvitation[];
   currentUserId: string;
   busy: boolean;
-  mutation: Mutation;
+  mutation: HouseholdMutation;
   name: string;
   inviteEmail: string;
   equipmentSlug: string;
@@ -956,346 +920,68 @@ export function HouseholdPanel({
 }: Readonly<{
   currentUser: { id: string; email: string; name: string };
 }>) {
-  const queryClient = useQueryClient();
-  const settingsKey = recipeQueryKeys.householdSettings(currentUser.id);
-  const householdResult = useQuery(householdSettingsQuery(currentUser.id));
-  const [mutation, setMutation] = useState<Mutation>(null);
-  const mutationRef = useRef<Mutation>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [name, setName] = useState(householdResult.data?.household?.name ?? "");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [equipmentSlug, setEquipmentSlug] = useState("");
-  const household = householdResult.data?.household ?? null;
-  const members = householdResult.data?.members ?? [];
-  const equipment = householdResult.data?.equipment ?? null;
-  const invitations = householdResult.data?.invitations ?? [];
-  const incoming = householdResult.data?.incoming ?? [];
-  const error =
-    actionError ??
-    householdResult.data?.detailError ??
-    (householdResult.isError && householdResult.data
-      ? errorMessage(householdResult.error, "Couldn't refresh your household.")
-      : null);
+  const settings = useHouseholdSettings(currentUser.id);
 
-  useEffect(() => {
-    setName(household?.name ?? "");
-  }, [household?.name]);
-
-  function updateHouseholdData(
-    updater: (data: HouseholdSettingsData) => HouseholdSettingsData,
-  ) {
-    queryClient.setQueryData<HouseholdSettingsData>(settingsKey, (current) =>
-      current ? updater(current) : current,
-    );
-  }
-
-  async function refreshHouseholdData() {
-    await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: settingsKey,
-        exact: true,
-      }),
-      queryClient.invalidateQueries({
-        queryKey: recipeQueryKeys.pantry(currentUser.id),
-        exact: true,
-      }),
-      queryClient.invalidateQueries({
-        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
-        exact: true,
-      }),
-    ]);
-  }
-
-  function run(kind: ActiveMutation, action: () => Promise<void>) {
-    if (mutationRef.current) return;
-    mutationRef.current = kind;
-    setMutation(kind);
-    setActionError(null);
-    setNotice(null);
-    action()
-      .catch((actionError) => {
-        setActionError(
-          errorMessage(actionError, "Something went wrong. Please try again."),
-        );
-      })
-      .finally(() => {
-        mutationRef.current = null;
-        setMutation(null);
-      });
-  }
-
-  const busy = mutation !== null;
-
-  function onCreate(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const nextName = name.trim();
-    if (!nextName) {
-      setActionError("Give your household a name first.");
-      return;
-    }
-    run("create", async () => {
-      await createHousehold(nextName);
-      setNotice("Household created.");
-      await refreshHouseholdData();
-    });
-  }
-
-  function onRename(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!household) return;
-    const nextName = name.trim();
-    if (!nextName) {
-      setActionError("Household name can't be empty.");
-      return;
-    }
-    if (nextName === household.name) return;
-    run("rename", async () => {
-      const updated = await renameHousehold(household.id, nextName);
-      updateHouseholdData((current) => ({
-        ...current,
-        household: current.household
-          ? { ...current.household, ...updated }
-          : current.household,
-      }));
-      setName(updated.name);
-      setNotice("Household name saved.");
-    });
-  }
-
-  function onInvite(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!household) return;
-    const email = inviteEmail.trim().toLowerCase();
-    if (!email) return;
-    run("invite", async () => {
-      const invitation = await inviteHouseholdMember(household.id, email);
-      updateHouseholdData((current) => ({
-        ...current,
-        invitations: [...current.invitations, invitation],
-      }));
-      setInviteEmail("");
-      setNotice(`Invitation created for ${invitation.email}.`);
-    });
-  }
-
-  function retryLoad() {
-    void householdResult.refetch();
-  }
-
-  function acceptInvitation(invitation: IncomingHouseholdInvitation) {
-    run("accept", async () => {
-      await acceptHouseholdInvitation(invitation.id);
-      setNotice(`Welcome to ${invitation.household.name}.`);
-      await refreshHouseholdData();
-    });
-  }
-
-  function declineInvitation(invitation: IncomingHouseholdInvitation) {
-    run("decline", async () => {
-      await declineHouseholdInvitation(invitation.id);
-      updateHouseholdData((current) => ({
-        ...current,
-        incoming: excludeById(current.incoming, invitation.id),
-      }));
-      setNotice("Invitation declined.");
-    });
-  }
-
-  function removeMember(member: HouseholdMember) {
-    if (!household) return;
-    if (!window.confirm(`Remove ${member.user.name} from ${household.name}?`)) {
-      return;
-    }
-    run("remove", async () => {
-      await removeHouseholdMember(household.id, member.id);
-      updateHouseholdData((current) => ({
-        ...current,
-        members: excludeById(current.members, member.id),
-      }));
-      setNotice(`${member.user.name} was removed.`);
-    });
-  }
-
-  function revokeInvitation(invitation: HouseholdInvitation) {
-    if (!household) return;
-    run("revoke", async () => {
-      await revokeHouseholdInvitation(household.id, invitation.id);
-      updateHouseholdData((current) => ({
-        ...current,
-        invitations: excludeById(current.invitations, invitation.id),
-      }));
-      setNotice(`Invitation for ${invitation.email} revoked.`);
-    });
-  }
-
-  const onAddEquipment: SubmitEventHandler<HTMLFormElement> = (event) => {
-    event.preventDefault();
-    if (!household || !equipmentSlug) return;
-    run("add-equipment", async () => {
-      const added = await addHouseholdEquipment(household.id, equipmentSlug);
-      updateHouseholdData((current) => ({
-        ...current,
-        equipment: current.equipment
-          ? {
-              ...current.equipment,
-              owned: [
-                ...current.equipment.owned.filter(
-                  (item) => item.slug !== added.slug,
-                ),
-                added,
-              ].sort((left, right) => left.name.localeCompare(right.name)),
-            }
-          : current.equipment,
-      }));
-      setEquipmentSlug("");
-      await queryClient.invalidateQueries({
-        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
-        exact: true,
-      });
-      setNotice(`${added.name} added to the household.`);
-    });
-  };
-
-  function onRemoveEquipment(item: HouseholdEquipmentItem) {
-    if (!household) return;
-    run("remove-equipment", async () => {
-      await removeHouseholdEquipment(household.id, item.slug);
-      updateHouseholdData((current) => ({
-        ...current,
-        equipment: current.equipment
-          ? {
-              ...current.equipment,
-              owned: current.equipment.owned.filter(
-                (ownedItem) => ownedItem.slug !== item.slug,
-              ),
-            }
-          : current.equipment,
-      }));
-      await queryClient.invalidateQueries({
-        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
-        exact: true,
-      });
-      setNotice(`${item.name} removed from the household.`);
-    });
-  }
-
-  function onEquipmentMatchModeChange(mode: EquipmentRecipeMatchMode) {
-    if (!household || !equipment || equipment.recipeMatchMode === mode) return;
-    run("save-equipment-mode", async () => {
-      const updated = await saveHouseholdEquipmentMatchMode(household.id, mode);
-      updateHouseholdData((current) => ({
-        ...current,
-        equipment: current.equipment
-          ? { ...current.equipment, recipeMatchMode: updated.recipeMatchMode }
-          : current.equipment,
-      }));
-      await queryClient.invalidateQueries({
-        queryKey: recipeQueryKeys.equipmentReadiness(currentUser.id),
-        exact: true,
-      });
-      setNotice("Equipment matching preference saved.");
-    });
-  }
-
-  function deleteCurrentHousehold() {
-    if (!household) return;
-    if (!window.confirm(`Delete ${household.name}? This can't be undone.`)) {
-      return;
-    }
-    run("delete", async () => {
-      await deleteHousehold(household.id);
-      updateHouseholdData((current) => ({
-        ...current,
-        household: null,
-        equipment: null,
-        members: [],
-        invitations: [],
-      }));
-      setName("");
-      setNotice("Household deleted.");
-      await refreshHouseholdData();
-    });
-  }
-
-  function leaveCurrentHousehold() {
-    if (!household) return;
-    if (!window.confirm(`Leave ${household.name}?`)) return;
-    run("leave", async () => {
-      await leaveHousehold(household.id);
-      updateHouseholdData((current) => ({
-        ...current,
-        household: null,
-        equipment: null,
-        members: [],
-        invitations: [],
-      }));
-      setName("");
-      setNotice("You've left the household.");
-      await refreshHouseholdData();
-    });
-  }
-
-  if (householdResult.isPending) {
+  if (settings.result.isPending) {
     return <HouseholdLoading />;
   }
 
-  if (householdResult.isError && !householdResult.data) {
+  if (settings.result.isError && !settings.result.data) {
     return (
       <HouseholdLoadError
         error={errorMessage(
-          householdResult.error,
+          settings.result.error,
           "Couldn't load your household.",
         )}
-        onRetry={retryLoad}
+        onRetry={() => void settings.result.refetch()}
       />
     );
   }
 
-  if (!household) {
+  if (!settings.household) {
     return (
       <EmptyHouseholdView
         currentUserName={currentUser.name}
-        incoming={incoming}
-        busy={busy}
-        mutation={mutation}
-        name={name}
-        error={error}
-        notice={notice}
-        onNameChange={setName}
-        onCreate={onCreate}
-        onAccept={acceptInvitation}
-        onDecline={declineInvitation}
+        incoming={settings.incoming}
+        busy={settings.busy}
+        mutation={settings.mutation}
+        name={settings.name}
+        error={settings.error}
+        notice={settings.notice}
+        onNameChange={settings.setName}
+        onCreate={settings.onCreate}
+        onAccept={settings.acceptInvitation}
+        onDecline={settings.declineInvitation}
       />
     );
   }
 
   return (
     <ManagedHouseholdView
-      household={household}
-      members={members}
-      equipment={equipment}
-      invitations={invitations}
+      household={settings.household}
+      members={settings.members}
+      equipment={settings.equipment}
+      invitations={settings.invitations}
       currentUserId={currentUser.id}
-      busy={busy}
-      mutation={mutation}
-      name={name}
-      inviteEmail={inviteEmail}
-      equipmentSlug={equipmentSlug}
-      error={error}
-      notice={notice}
-      onNameChange={setName}
-      onInviteEmailChange={setInviteEmail}
-      onEquipmentSlugChange={setEquipmentSlug}
-      onRename={onRename}
-      onInvite={onInvite}
-      onRemove={removeMember}
-      onRevoke={revokeInvitation}
-      onAddEquipment={onAddEquipment}
-      onRemoveEquipment={onRemoveEquipment}
-      onEquipmentMatchModeChange={onEquipmentMatchModeChange}
-      onDelete={deleteCurrentHousehold}
-      onLeave={leaveCurrentHousehold}
+      busy={settings.busy}
+      mutation={settings.mutation}
+      name={settings.name}
+      inviteEmail={settings.inviteEmail}
+      equipmentSlug={settings.equipmentSlug}
+      error={settings.error}
+      notice={settings.notice}
+      onNameChange={settings.setName}
+      onInviteEmailChange={settings.setInviteEmail}
+      onEquipmentSlugChange={settings.setEquipmentSlug}
+      onRename={settings.onRename}
+      onInvite={settings.onInvite}
+      onRemove={settings.removeMember}
+      onRevoke={settings.revokeInvitation}
+      onAddEquipment={settings.onAddEquipment}
+      onRemoveEquipment={settings.onRemoveEquipment}
+      onEquipmentMatchModeChange={settings.onEquipmentMatchModeChange}
+      onDelete={settings.deleteCurrentHousehold}
+      onLeave={settings.leaveCurrentHousehold}
     />
   );
 }

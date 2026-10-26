@@ -175,29 +175,36 @@ function tokenizeStep(
   return { ok: true, tokens };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function tokenizeSection(
+  section: RecipeInstructionSdk["sections"][number],
+  instructionSdk: RecipeInstructionSdk,
+): InstructionTokenizationResult {
+  const steps: InstructionDisplayToken[][] = [];
+  for (const content of section.content) {
+    if (content.type === "text") continue;
+    if (content.type !== "step") {
+      return {
+        ok: false,
+        reason: `Unknown section content type: ${String((content as { type?: unknown }).type)}`,
+      };
+    }
+
+    const result = tokenizeStep(content.value.items, instructionSdk);
+    if (!result.ok) return result;
+    if (result.tokens.length > 0) steps.push(result.tokens);
+  }
+  return { ok: true, steps };
+}
+
 export function tokenizeInstructionSdk(
   instructionSdk: RecipeInstructionSdk,
 ): InstructionTokenizationResult {
   const steps: InstructionDisplayToken[][] = [];
 
   for (const section of instructionSdk.sections) {
-    for (const content of section.content) {
-      if (content.type === "text") {
-        continue;
-      }
-
-      if (content.type !== "step") {
-        return {
-          ok: false,
-          reason: `Unknown section content type: ${String((content as { type?: unknown }).type)}`,
-        };
-      }
-
-      const result = tokenizeStep(content.value.items, instructionSdk);
-      if (!result.ok) return result;
-      if (result.tokens.length > 0) steps.push(result.tokens);
-    }
+    const result = tokenizeSection(section, instructionSdk);
+    if (!result.ok) return result;
+    steps.push(...result.steps);
   }
 
   if (steps.length === 0) {

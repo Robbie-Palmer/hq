@@ -23,9 +23,15 @@ function profile(overrides: Record<string, unknown> = {}): ProjectProfile {
         id: "web",
         name: "Web application",
         kind: "ui",
-        task_exceptions: [{ task: "clean", reason: "The workspace owns cleanup." }],
       },
-      { id: "api", name: "API", kind: "worker" },
+      {
+        id: "api",
+        name: "API",
+        kind: "worker",
+        task_exceptions: [
+          { task: "clean", reason: "The workspace owns cleanup." },
+        ],
+      },
     ],
     layers: [
       { layer: "base" },
@@ -71,12 +77,22 @@ function contracts(overrides: {
         directory: "ui",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "generated",
       },
       {
         id: "project-ui",
         directory: "ui/app/_projects/{project}",
         mise_config_root: false,
         pnpm_workspace_package: false,
+        task_ownership: "delegated",
+        delegated_task_project: "//ui",
+      },
+      {
+        id: "project-content",
+        directory: "ui/content/projects/{project}",
+        mise_config_root: false,
+        pnpm_workspace_package: false,
+        task_ownership: "delegated",
         delegated_task_project: "//ui",
       },
       {
@@ -84,42 +100,56 @@ function contracts(overrides: {
         directory: "workers/{component}",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "inherited",
       },
       {
         id: "typescript-package",
         directory: "packages/{component}",
         mise_config_root: true,
         pnpm_workspace_package: true,
+        task_ownership: "inherited",
       },
       {
         id: "python-pipeline",
         directory: "ml-pipelines/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "cpp-project",
         directory: "cpp/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "terraform-root",
         directory: "infra/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "kubernetes-component",
         directory: "homelab/k3s/components/{component}",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
       {
         id: "homelab-system",
         directory: "homelab",
         mise_config_root: true,
         pnpm_workspace_package: false,
+        task_ownership: "inherited",
+      },
+      {
+        id: "homelab-subsystem",
+        directory: "homelab/{component}",
+        mise_config_root: false,
+        pnpm_workspace_package: false,
+        task_ownership: "inherited",
       },
     ],
     task_contract: {
@@ -236,16 +266,28 @@ describe("project profile contracts", () => {
       "../../../ui/content/projects/personal-engineering-platform/",
       import.meta.url,
     );
-    const [layout, platform, nix, opentelemetry] = await Promise.all([
+    const [layout, platform, nix, opentelemetry, agenticCodeReview] = await Promise.all([
       readFile(new URL("repository-layout.yaml", contentRoot), "utf8"),
       readFile(new URL("platform.yaml", contentRoot), "utf8"),
       readFile(new URL("nix-flake-contract.yaml", contentRoot), "utf8"),
       readFile(new URL("opentelemetry-contract.yaml", contentRoot), "utf8"),
+      readFile(new URL("../agentic-code-review/project-profile.yaml", contentRoot), "utf8"),
     ]);
-    expect(
-      parseProjectProfileContracts({ layout, platform, nix, opentelemetry })
-        .layout.schema_version,
-    ).toBe(1);
+    const currentContracts = parseProjectProfileContracts({ layout, platform, nix, opentelemetry });
+    expect(currentContracts.layout.schema_version).toBe(1);
+
+    const blueprint = resolveProjectProfile(
+      parseProjectProfile(agenticCodeReview),
+      currentContracts,
+      "2026-10-23T00:00:00Z",
+    );
+    expect(blueprint.selections).toContainEqual(expect.objectContaining({
+      slot: "database.olap-engine",
+      value: "duckdb",
+    }));
+    expect(blueprint.selections).not.toContainEqual(expect.objectContaining({
+      slot: "database.migration-discipline",
+    }));
   });
 
   it("parses a versioned YAML profile and supplies collection defaults", () => {
@@ -258,7 +300,12 @@ describe("project profile contracts", () => {
       opentelemetry: { enabled: false },
     }));
     expect(parsed.components[0]?.task_exceptions).toEqual([]);
-    expect(parsed).toMatchObject({ requirements: [], overrides: [] });
+    expect(parsed).toMatchObject({
+      requirements: [],
+      overrides: [],
+      checkpoint_fulfillment: [],
+      reconciliation: { mode: "tracking" },
+    });
   });
 
   it.each([
@@ -278,6 +325,15 @@ describe("project profile contracts", () => {
       { slot: "project.task-runner", kind: "technology", value: "mise", decision: "project:001-one" },
       { slot: "project.task-runner", kind: "technology", value: "other", decision: "project:002-two" },
     ] }, /duplicate override slots/],
+    [{ checkpoint_fulfillment: [
+      { checkpoint: "one", status: "pending" },
+      { checkpoint: "one", status: "pending" },
+    ] }, /duplicate checkpoint fulfillment records/],
+    [{ checkpoint_fulfillment: [
+      { checkpoint: "one", status: "verified" },
+    ] }, /must contain at least one item when a checkpoint is verified/],
+    [{ reconciliation: { mode: "tracking", defer: { effective_at: "later", reason: "Wait." } } }, /effective_at/],
+    [{ reconciliation: { mode: "frozen", frozen_at: effectiveAt } }, /reason/],
     [{ nix: { boundary: "none", packages: ["one"] } }, /no Nix boundary/],
     [{ nix: { boundary: "project" } }, /flake_path/],
     [{ opentelemetry: { enabled: true } }, /required when OpenTelemetry is enabled/],
@@ -301,10 +357,18 @@ describe("project profile resolution", () => {
       "component:sample-app/api",
       "component:sample-app/web",
     ]);
-    expect(blueprint.components[1]?.tasks).toContainEqual({
+    expect(blueprint.components[0]?.tasks).toContainEqual({
       name: "clean",
       disposition: "not-applicable",
       reason: "The workspace owns cleanup.",
+    });
+    expect(blueprint.components[1]?.tasks).toContainEqual({
+      name: "build",
+      disposition: "generated",
+    });
+    expect(blueprint.components[0]?.tasks).toContainEqual({
+      name: "build",
+      disposition: "inherited",
     });
     expect(blueprint.repository_paths).toEqual({
       copier_answers: ".copier/projects/sample-app.yml",
@@ -333,12 +397,67 @@ describe("project profile resolution", () => {
       resource_attributes: { "me.robbiepalmer.project.id": "project:sample-app" },
       transport: { protocol: "http/protobuf", route: "direct" },
     });
-    expect(blueprint.manual_checkpoints).toEqual([
-      "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry",
-      "Confirm telemetry retention.",
-      "Provision Exporter queue for observability-opentelemetry",
-      "Verify OTel conformance: //:otel-check",
+    expect(blueprint.schema_version).toBe(2);
+    expect(blueprint.fulfillment_checkpoints).toEqual([
+      {
+        id: "observability-opentelemetry-configuration-otel-exporter-otlp-endpoint",
+        action:
+          "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-manual-setup-confirm-telemetry-retention",
+        action: "Confirm telemetry retention.",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-operational-check-otel-conformance",
+        action: "Verify OTel conformance: //:otel-check",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
+      {
+        id: "observability-opentelemetry-state-exporter-queue",
+        action: "Provision Exporter queue for observability-opentelemetry",
+        fulfillment: "manual",
+        status: "pending",
+        evidence: [],
+      },
     ]);
+  });
+
+  it("records verified manual fulfillment only when evidence is supplied", () => {
+    const input = profile({
+      checkpoint_fulfillment: [
+        {
+          checkpoint:
+            "observability-opentelemetry-operational-check-otel-conformance",
+          status: "verified",
+          evidence: ["ci://runs/123"],
+        },
+      ],
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(
+      blueprint.fulfillment_checkpoints.find(
+        ({ id }) =>
+          id ===
+          "observability-opentelemetry-operational-check-otel-conformance",
+      ),
+    ).toEqual({
+      id: "observability-opentelemetry-operational-check-otel-conformance",
+      action: "Verify OTel conformance: //:otel-check",
+      fulfillment: "manual",
+      status: "verified",
+      evidence: ["ci://runs/123"],
+    });
   });
 
   it("serializes equivalent profiles byte-for-byte regardless of source ordering", () => {
@@ -422,12 +541,90 @@ describe("project profile resolution", () => {
     );
   });
 
+  it("inherits task applicability from an ancestor mise project", () => {
+    const input = profile({
+      project: {
+        id: "home-lab",
+        name: "Home Lab",
+        kind: "infrastructure",
+      },
+      components: [
+        {
+          id: "hosts",
+          name: "Host configurations",
+          kind: "homelab-subsystem",
+        },
+      ],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(blueprint.components[0]?.tasks).toHaveLength(7);
+    expect(
+      blueprint.components[0]?.tasks.every(
+        ({ disposition }) => disposition === "inherited",
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects delegated task ownership without a target project", () => {
+    const malformedContracts = contracts();
+    const projectUi = malformedContracts.layout.component_kinds.find(
+      ({ id }) => id === "project-ui",
+    );
+    if (!projectUi) throw new Error("Missing project-ui component kind");
+    delete projectUi.delegated_task_project;
+    const input = profile({
+      components: [
+        {
+          id: "web",
+          name: "Web application",
+          kind: "project-ui",
+          mount_path: "/web",
+        },
+      ],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    expect(() =>
+      resolveProjectProfile(input, malformedContracts, effectiveAt),
+    ).toThrow(/delegates tasks without a target project/);
+  });
+
+  it("deduplicates project content ownership", () => {
+    const input = profile({
+      components: [{
+        id: "content",
+        name: "Project publication",
+        kind: "project-content",
+      }],
+      layers: [{ layer: "base" }],
+      requirements: [],
+      nix: { boundary: "none" },
+      opentelemetry: { enabled: false },
+    });
+
+    const blueprint = resolveProjectProfile(input, contracts(), effectiveAt);
+
+    expect(blueprint.ownership.owned_paths).toEqual([
+      "ui/content/projects/sample-app",
+    ]);
+  });
+
   it.each([
     [profile({ layers: [{ layer: "future" }] }), contracts(), /Unknown current layer 'future'/],
     [profile({ layers: [{ layer: "base", slots: ["future.slot"] }] }), contracts(), /Unknown current slot 'future.slot'/],
     [profile({ requirements: [] }), contracts(), /undeclared operational prerequisite/],
     [profile({ overrides: [{ slot: "observability.telemetry-protocol", kind: "policy", value: "custom", decision: "sample-app:001-custom" }] }), contracts(), /kind does not match/],
     [profile({ overrides: [{ slot: "project.task-runner", kind: "technology", value: "mise", decision: "sample-app:001-custom" }], layers: [{ layer: "observability", slots: ["observability.telemetry-protocol"] }] }), contracts(), /not referenced by an active profile policy/],
+    [profile({ checkpoint_fulfillment: [{ checkpoint: "unknown-checkpoint", status: "pending" }] }), contracts(), /unknown current checkpoint/],
   ])("rejects profiles that contradict current contracts", (input, currentContracts, expected) => {
     expect(() => resolveProjectProfile(input, currentContracts, effectiveAt)).toThrow(expected);
   });

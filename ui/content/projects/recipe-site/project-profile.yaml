@@ -1,0 +1,124 @@
+schema_version: 1
+
+project:
+  id: "recipe-site"
+  name: "Recipe Site"
+  kind: "application"
+
+components:
+  - id: "recipe-api"
+    name: "Recipe API"
+    kind: "worker"
+  - id: "recipe-ingest"
+    name: "Recipe ingestion Worker"
+    kind: "worker"
+  - id: "recipe-db"
+    name: "Recipe database package"
+    kind: "typescript-package"
+  - id: "recipe-domain"
+    name: "Recipe domain package"
+    kind: "typescript-package"
+  - id: "recipe-parsing"
+    name: "Recipe parsing package"
+    kind: "typescript-package"
+  - id: "recipe-dataset"
+    name: "Recipe dataset pipeline"
+    kind: "python-pipeline"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "delivery.preview-environment"
+      - "security.preview-access"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+      - "web-app.server-state-client"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+      - "backend-api.http-framework"
+      - "backend-api.contract-format"
+      - "backend-api.contract-generator"
+      - "backend-api.relational-connection"
+  - layer: "identity"
+    slots:
+      - "identity.authentication-library"
+      - "identity.login-provider"
+      - "identity.session-transport"
+      - "identity.authorization-policy"
+  - layer: "api-governance"
+    slots:
+      - "api-governance.compatibility-check"
+  - layer: "database"
+    slots:
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+      - "database.preview-isolation"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+    slots:
+      - "observability.telemetry-protocol"
+      - "observability.application-telemetry"
+      - "observability.alert-evaluation"
+      - "observability.alert-delivery"
+  - layer: "storage"
+    slots:
+      - "storage.object-store"
+  - layer: "data"
+    slots:
+      - "data.artifact-versioning"
+
+requirements:
+  - "preview-scoped-credentials"
+  - "synthetic-preview-data"
+  - "preview-cleanup"
+  - "provider-registration"
+  - "interactive-browser-server-state"
+  - "runtime-derived-api-contract"
+  - "javascript-typescript-server-component"
+  - "durable-session-store"
+  - "server-side-authorization"
+  - "same-origin-auth-routes"
+  - "secure-http-only-cookie"
+  - "environment-specific-redirect-uri"
+  - "committed-api-contract"
+  - "published-api-baseline"
+  - "committed-migration-history"
+  - "serialized-migration-runner"
+  - "backup-key-custody"
+  - "backup-retention-policy"
+  - "restore-drill"
+  - "fresh-migration-baseline"
+  - "instrumented-runtime"
+  - "telemetry-redaction"
+  - "bounded-exporter-failure"
+  - "telemetry-retention"
+  - "responder-ownership"
+  - "alert-routing"
+  - "project-owned-slack-credentials"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
+  - "git-repository"
+  - "external-blob-remote"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: true
+  runtime: "typescript-worker"

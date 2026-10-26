@@ -50,6 +50,7 @@ vi.mock("@/content/experience", () => experienceContentMock);
 
 // Import after mocks are hoisted
 import * as fs from "node:fs";
+import { ADRRelationsSchema, ADRSchema } from "@/lib/domain/adr/adr";
 import { PlatformManifestSchema } from "@/lib/domain/platform";
 import {
   ProductDecisionRelationsSchema,
@@ -475,6 +476,7 @@ description: "Making patient-specific treatment decisions accessible"
 date: "2017-07-04"
 updated: "2021-11-01"
 status: "inactive"
+ideas: ["Digital Twins"]
 project_contributions:
   pathology-viewer: "Made model output inspectable."
 ---
@@ -497,6 +499,9 @@ project_contributions:
           "pathology-viewer": "Made model output inspectable.",
         },
         content: "\n# Goal",
+      });
+      expect(result.relations.get("personalized-medicine")).toEqual({
+        ideas: ["digital-twins"],
       });
     });
 
@@ -1089,6 +1094,91 @@ Content`;
           projectRelations,
           adrRelations: new Map(),
           roleRelations: new Map(),
+        });
+
+        expect(errors).toEqual([]);
+      });
+
+      it("allows a decision to supersede a local legacy ADR alias", () => {
+        const shortcut = ADRSchema.parse({
+          adrRef: "personal-knowledge-graph:034-shortcut",
+          slug: "034-shortcut",
+          projectSlug: "personal-knowledge-graph",
+          title: "ADR 034: Use Shortcut",
+          date: "2026-01-01",
+          status: "Accepted",
+          content: "Use Shortcut as the work tracker.",
+          readingTime: "1 min read",
+        });
+        const authority = ADRSchema.parse({
+          adrRef: "work-graph:007-authoritative-work-graph",
+          slug: "007-authoritative-work-graph",
+          projectSlug: "work-graph",
+          title: "ADR 007: Make Work Graph authoritative",
+          date: "2026-02-01",
+          status: "Accepted",
+          supersedes: "work-graph:007-shortcut",
+          content: "Use Work Graph as the work authority.",
+          readingTime: "1 min read",
+        });
+        const projects = new Map([
+          [
+            "personal-knowledge-graph",
+            {
+              slug: "personal-knowledge-graph",
+              title: "Personal Knowledge Graph",
+              description: "Knowledge graph",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Project content",
+            },
+          ],
+          [
+            "work-graph",
+            {
+              slug: "work-graph",
+              title: "Work Graph",
+              description: "Work graph",
+              date: "2026-01-01",
+              status: "live" as const,
+              content: "Project content",
+            },
+          ],
+        ]);
+        const projectRelations = new Map([
+          [
+            "personal-knowledge-graph",
+            ProjectRelationsSchema.parse({ adrs: [shortcut.adrRef] }),
+          ],
+          [
+            "work-graph",
+            ProjectRelationsSchema.parse({ adrs: [authority.adrRef] }),
+          ],
+        ]);
+        const adrRelations = new Map([
+          [
+            shortcut.adrRef,
+            ADRRelationsSchema.parse({ project: shortcut.projectSlug }),
+          ],
+          [
+            authority.adrRef,
+            ADRRelationsSchema.parse({ project: authority.projectSlug }),
+          ],
+        ]);
+
+        const errors = validateReferentialIntegrity({
+          technologies: new Map(),
+          initiatives: new Map(),
+          adrs: new Map([
+            [shortcut.adrRef, shortcut],
+            [authority.adrRef, authority],
+          ]),
+          projects,
+          blogRelations: new Map(),
+          projectRelations,
+          adrRelations,
+          roleRelations: new Map(),
+          adrAliases: new Map([["work-graph:007-shortcut", shortcut.adrRef]]),
         });
 
         expect(errors).toEqual([]);

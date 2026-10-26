@@ -112,6 +112,42 @@ function serviceWorkerHarness(fetchMock: typeof fetch) {
   };
 }
 
+type NavigationResponse = "install" | "rsc" | "offline";
+
+function recipeNavigationFetch(
+  getNavigationResponse: () => NavigationResponse,
+) {
+  return vi.fn<typeof fetch>(async (request) => {
+    const value =
+      typeof request === "string" || request instanceof URL
+        ? String(request)
+        : request.url;
+    const url = new URL(value, "https://recipes.example.test");
+    const navigationResponse = getNavigationResponse();
+    if (navigationResponse === "offline") throw new TypeError("offline");
+    const isRecipeDocument = [
+      "/recipes",
+      "/recipes/saved",
+      "/recipes/shopping",
+      "/recipes/offline",
+    ].includes(url.pathname);
+    if (!isRecipeDocument) return new Response("Not found", { status: 404 });
+    if (
+      navigationResponse === "rsc" &&
+      request instanceof Request &&
+      request.headers.get("rsc") === "1"
+    ) {
+      return new Response('1:"$Sreact.fragment"', {
+        headers: { "content-type": "text/x-component" },
+      });
+    }
+    const label = navigationResponse === "rsc" ? "fresh HTML" : url.pathname;
+    return new Response(`<main>${label}</main>`, {
+      headers: { "content-type": "text/html" },
+    });
+  });
+}
+
 describe("recipe service worker", () => {
   it("removes the previous shell caches when the worker updates", async () => {
     const worker = serviceWorkerHarness(vi.fn<typeof fetch>());
@@ -351,38 +387,8 @@ describe("recipe service worker", () => {
   });
 
   it("never serves a React Server Components payload as a document", async () => {
-    let navigationResponse = "install";
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const fetchMock = vi.fn<typeof fetch>(async (request) => {
-      const value =
-        typeof request === "string" || request instanceof URL
-          ? String(request)
-          : request.url;
-      const url = new URL(value, "https://recipes.example.test");
-      if (navigationResponse === "offline") throw new TypeError("offline");
-      if (
-        url.pathname === "/recipes" ||
-        url.pathname === "/recipes/saved" ||
-        url.pathname === "/recipes/shopping" ||
-        url.pathname === "/recipes/offline"
-      ) {
-        if (
-          navigationResponse === "rsc" &&
-          request instanceof Request &&
-          request.headers.get("rsc") === "1"
-        ) {
-          return new Response('1:"$Sreact.fragment"', {
-            headers: { "content-type": "text/x-component" },
-          });
-        }
-        const label =
-          navigationResponse === "rsc" ? "fresh HTML" : url.pathname;
-        return new Response(`<main>${label}</main>`, {
-          headers: { "content-type": "text/html" },
-        });
-      }
-      return new Response("Not found", { status: 404 });
-    });
+    let navigationResponse: NavigationResponse = "install";
+    const fetchMock = recipeNavigationFetch(() => navigationResponse);
     const worker = serviceWorkerHarness(fetchMock);
     await worker.install();
     const navigation = new Request("https://recipes.example.test/recipes", {

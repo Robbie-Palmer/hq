@@ -9,6 +9,7 @@ import {
 import { CopyIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import { type ReactNode, type SubmitEvent, useMemo, useState } from "react";
 import {
+  annualisedGrossPay,
   formatAssetTrackerError,
   type JobMoveScenario,
   type JobMoveScenarioComparison,
@@ -29,11 +30,25 @@ import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { JobMoveScenarioCharts } from "./job-move-scenario-charts";
 
-const HORIZONS = [1, 3, 5, 10] as const;
+const HORIZONS = [1, 3, 5, 10, 15, 20] as const;
 
 function jobLossAnchorDate(valuationDate: string | null): string {
   const today = todayIsoDate();
   return valuationDate != null && valuationDate > today ? valuationDate : today;
+}
+
+function scenarioAtTransitionDate(
+  scenario: JobMoveScenario,
+  transitionDate: string,
+): JobMoveScenario {
+  return {
+    ...scenario,
+    transitionDate,
+    currentRole:
+      scenario.currentRole == null
+        ? undefined
+        : { ...scenario.currentRole, activeTo: transitionDate },
+  };
 }
 
 type Draft = {
@@ -53,9 +68,19 @@ type Draft = {
   employerPensionRate: number;
   annualTakeHomeOverride?: number;
   annualSpendingOverride?: number;
+  currentEmployer: string;
+  currentAnnualTakeHomePay?: number;
+  currentBaseGrossPay?: number;
+  currentVariableGrossPay?: number;
+  currentEmployeePensionContribution?: number;
+  currentEmployerPensionContribution?: number;
+  currentCurrency: (typeof SUPPORTED_CURRENCIES)[number];
+  currentJurisdiction: string;
+  currentRoleStart: string;
   destinationAccountId: string;
   pensionAccountId: string;
   replacedRecurringFlowIds: string[];
+  includedFutureCashFlowIds: string[];
 };
 
 function Field({
@@ -90,9 +115,7 @@ function compensationFlowIdsForMember(
     .filter(
       (flow) =>
         ownershipShare(recurringFlowOwnership(tracker, flow.id), memberId) >
-          0 &&
-        (flow.compensationKind != null ||
-          /salary|pay|pension/i.test(flow.name)),
+          0 && flow.compensationKind != null,
     )
     .map(({ id }) => id);
 }
@@ -118,16 +141,71 @@ function scenarioDraft(
     employerPensionRate: scenario.employerPensionRate,
     annualTakeHomeOverride: scenario.annualTakeHomeOverride,
     annualSpendingOverride: scenario.annualSpendingOverride,
+    currentEmployer: scenario.currentRole?.employer ?? "",
+    currentAnnualTakeHomePay: scenario.currentRole?.annualTakeHomePay,
+    currentBaseGrossPay: scenario.currentRole?.baseGrossPay,
+    currentVariableGrossPay: scenario.currentRole?.variableGrossPay,
+    currentEmployeePensionContribution:
+      scenario.currentRole?.annualEmployeePensionContribution,
+    currentEmployerPensionContribution:
+      scenario.currentRole?.annualEmployerPensionContribution,
+    currentCurrency: scenario.currentRole?.currency ?? scenario.currency,
+    currentJurisdiction:
+      scenario.currentRole?.jurisdiction ?? scenario.jurisdiction,
+    currentRoleStart: scenario.currentRole?.activeFrom ?? "",
     destinationAccountId: scenario.destinationAccountId ?? "",
     pensionAccountId: scenario.pensionAccountId ?? "",
     replacedRecurringFlowIds: scenario.replacedRecurringFlowIds,
+    includedFutureCashFlowIds: scenario.includedFutureCashFlowIds ?? [],
   };
 }
 
 function inputFromDraft(draft: Draft): JobMoveScenarioInput {
+  const currentRole =
+    draft.currentEmployer.trim() === "" ||
+    draft.currentAnnualTakeHomePay == null ||
+    draft.currentRoleStart === ""
+      ? undefined
+      : {
+          employer: draft.currentEmployer,
+          annualTakeHomePay: draft.currentAnnualTakeHomePay,
+          baseGrossPay: draft.currentBaseGrossPay,
+          variableGrossPay: draft.currentVariableGrossPay,
+          annualEmployeePensionContribution:
+            draft.currentEmployeePensionContribution ?? 0,
+          annualEmployerPensionContribution:
+            draft.currentEmployerPensionContribution ?? 0,
+          currency: draft.currentCurrency,
+          jurisdiction: draft.currentJurisdiction,
+          activeFrom: draft.currentRoleStart,
+          activeTo: draft.transitionDate,
+        };
+  const scenario = {
+    name: draft.name,
+    householdMemberId: draft.householdMemberId,
+    employmentStatus: draft.employmentStatus,
+    transitionDate: draft.transitionDate,
+    roleStartDate: draft.roleStartDate,
+    employer: draft.employer,
+    baseGrossPay: draft.baseGrossPay,
+    variableGrossPay: draft.variableGrossPay,
+    payFrequency: draft.payFrequency,
+    currency: draft.currency,
+    jurisdiction: draft.jurisdiction,
+    employeePensionRate: draft.employeePensionRate,
+    employeePensionMethod: draft.employeePensionMethod,
+    employerPensionRate: draft.employerPensionRate,
+    annualTakeHomeOverride: draft.annualTakeHomeOverride,
+    annualSpendingOverride: draft.annualSpendingOverride,
+    currentRole,
+    destinationAccountId: draft.destinationAccountId,
+    pensionAccountId: draft.pensionAccountId,
+    includedFutureCashFlowIds: draft.includedFutureCashFlowIds,
+    replacedRecurringFlowIds: draft.replacedRecurringFlowIds,
+  };
   if (draft.employmentStatus === "unemployed") {
     return {
-      ...draft,
+      ...scenario,
       roleStartDate: undefined,
       employer: undefined,
       baseGrossPay: 0,
@@ -140,7 +218,7 @@ function inputFromDraft(draft: Draft): JobMoveScenarioInput {
     };
   }
   return {
-    ...draft,
+    ...scenario,
     employer: draft.employer || undefined,
     roleStartDate: draft.roleStartDate || undefined,
     annualTakeHomeOverride: draft.annualTakeHomeOverride,
@@ -169,6 +247,9 @@ function useScenarioForm(
   const defaultPensionAccount =
     openAccounts.find(({ name }) => /pension/i.test(name))?.id ?? "";
   const defaultFlowIds = compensationFlowIdsForMember(tracker, defaultMemberId);
+  const currentSalary = (tracker.currentSalaryHistory ?? []).at(-1);
+  const currentCompensation =
+    tracker.financialIndependence?.currentCompensation;
   const [draft, setDraft] = useState<Draft>(() =>
     editing == null
       ? {
@@ -186,9 +267,27 @@ function useScenarioForm(
           employeePensionRate: 0,
           employeePensionMethod: "salarySacrifice",
           employerPensionRate: 0,
+          currentEmployer: currentSalary?.employer ?? "",
+          currentAnnualTakeHomePay: currentCompensation?.annualTakeHomeIncome,
+          currentBaseGrossPay:
+            currentSalary == null
+              ? undefined
+              : (currentSalary.baseSalary ??
+                annualisedGrossPay(currentSalary) ??
+                undefined),
+          currentVariableGrossPay: currentSalary?.variablePay,
+          currentEmployeePensionContribution:
+            currentCompensation?.annualEmployeePensionContribution,
+          currentEmployerPensionContribution:
+            currentCompensation?.annualEmployerPensionContribution,
+          currentCurrency: currentSalary?.currency ?? tracker.baseCurrency,
+          currentJurisdiction: currentSalary?.jurisdiction ?? "England",
+          currentRoleStart:
+            currentSalary?.effectiveStart ?? tracker.valuationDate ?? "",
           destinationAccountId: defaultIncomeAccount,
           pensionAccountId: defaultPensionAccount,
           replacedRecurringFlowIds: defaultFlowIds,
+          includedFutureCashFlowIds: [],
         }
       : scenarioDraft(editing, defaultMemberId),
   );
@@ -202,6 +301,15 @@ function useScenarioForm(
       checked
         ? Array.from(new Set([...draft.replacedRecurringFlowIds, id]))
         : draft.replacedRecurringFlowIds.filter(
+            (candidate) => candidate !== id,
+          ),
+    );
+  const toggleFutureCashFlow = (id: string, checked: boolean) =>
+    update(
+      "includedFutureCashFlowIds",
+      checked
+        ? Array.from(new Set([...draft.includedFutureCashFlowIds, id]))
+        : draft.includedFutureCashFlowIds.filter(
             (candidate) => candidate !== id,
           ),
     );
@@ -239,6 +347,7 @@ function useScenarioForm(
     submit,
     selectMember,
     toggleFlow,
+    toggleFutureCashFlow,
     tracker,
     update,
   };
@@ -349,6 +458,163 @@ function ScenarioSpendingField({
         }
       />
     </Field>
+  );
+}
+
+function OptionalMoneyField({
+  id,
+  label,
+  onChange,
+  value,
+}: Readonly<{
+  id: string;
+  label: string;
+  onChange(value: number | undefined): void;
+  value?: number;
+}>) {
+  return (
+    <Field id={id} label={label}>
+      <Input
+        id={id}
+        type="number"
+        min="0"
+        step="0.01"
+        value={value ?? ""}
+        onChange={(event) =>
+          onChange(
+            event.target.value === "" ? undefined : Number(event.target.value),
+          )
+        }
+      />
+    </Field>
+  );
+}
+
+function CurrentRoleIdentityFields({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <>
+      <Field id="current-role-employer" label="Current employer">
+        <Input
+          id="current-role-employer"
+          value={draft.currentEmployer}
+          onChange={(event) => update("currentEmployer", event.target.value)}
+        />
+      </Field>
+      <Field id="current-role-start" label="Current role started">
+        <Input
+          id="current-role-start"
+          type="date"
+          value={draft.currentRoleStart}
+          onChange={(event) => update("currentRoleStart", event.target.value)}
+        />
+      </Field>
+    </>
+  );
+}
+
+function CurrentRoleCompensationFields({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <>
+      <OptionalMoneyField
+        id="current-role-take-home"
+        label="Annual take-home pay"
+        value={draft.currentAnnualTakeHomePay}
+        onChange={(value) => update("currentAnnualTakeHomePay", value)}
+      />
+      <OptionalMoneyField
+        id="current-role-base-gross"
+        label="Current annual base gross"
+        value={draft.currentBaseGrossPay}
+        onChange={(value) => update("currentBaseGrossPay", value)}
+      />
+      <OptionalMoneyField
+        id="current-role-variable-gross"
+        label="Annual variable gross"
+        value={draft.currentVariableGrossPay}
+        onChange={(value) => update("currentVariableGrossPay", value)}
+      />
+      <OptionalMoneyField
+        id="current-role-employee-pension"
+        label="Annual employee pension"
+        value={draft.currentEmployeePensionContribution}
+        onChange={(value) =>
+          update("currentEmployeePensionContribution", value)
+        }
+      />
+      <OptionalMoneyField
+        id="current-role-employer-pension"
+        label="Annual employer pension"
+        value={draft.currentEmployerPensionContribution}
+        onChange={(value) =>
+          update("currentEmployerPensionContribution", value)
+        }
+      />
+    </>
+  );
+}
+
+function CurrentRoleContextFields({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <>
+      <Field id="current-role-currency" label="Current role currency">
+        <select
+          id="current-role-currency"
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={draft.currentCurrency}
+          onChange={(event) =>
+            update(
+              "currentCurrency",
+              event.target.value as Draft["currentCurrency"],
+            )
+          }
+        >
+          {SUPPORTED_CURRENCIES.map((currency) => (
+            <option key={currency} value={currency}>
+              {currency}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field id="current-role-jurisdiction" label="Current role jurisdiction">
+        <Input
+          id="current-role-jurisdiction"
+          value={draft.currentJurisdiction}
+          onChange={(event) =>
+            update("currentJurisdiction", event.target.value)
+          }
+        />
+      </Field>
+    </>
+  );
+}
+
+function CurrentRoleFields(
+  props: Readonly<{ draft: Draft; update: DraftUpdate }>,
+) {
+  return (
+    <details className="rounded-md border p-3 sm:col-span-2 lg:col-span-3">
+      <summary className="cursor-pointer text-xs font-medium">
+        Current role facts
+      </summary>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Record these facts explicitly. The comparison uses flow IDs only to
+        route money, never a flow name to infer employment.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <CurrentRoleIdentityFields {...props} />
+        <CurrentRoleCompensationFields {...props} />
+        <CurrentRoleContextFields {...props} />
+      </div>
+    </details>
   );
 }
 
@@ -650,6 +916,42 @@ function FlowSelection({
   );
 }
 
+function PathCashFlowSelection({
+  cashFlows,
+  draft,
+  toggle,
+}: Readonly<{
+  cashFlows: Tracker["futureCashFlows"];
+  draft: Draft;
+  toggle(id: string, checked: boolean): void;
+}>) {
+  if (cashFlows.length === 0) return null;
+  return (
+    <fieldset className="space-y-2">
+      <legend className="text-xs font-medium">
+        Receipts and payments in this path
+      </legend>
+      <p className="text-xs text-muted-foreground">
+        Choose generic cash-flow records such as redundancy cash, notice pay,
+        benefits, or one-off costs. They stay out of the employed baseline and
+        other saved paths.
+      </p>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {cashFlows.map((cashFlow) => (
+          <label key={cashFlow.id} className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              checked={draft.includedFutureCashFlowIds.includes(cashFlow.id)}
+              onChange={(event) => toggle(cashFlow.id, event.target.checked)}
+            />
+            <span>{cashFlow.name}</span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function ScenarioFormHeader({ editing }: Readonly<{ editing: boolean }>) {
   return (
     <div>
@@ -720,6 +1022,7 @@ function ScenarioForm({
           selectMember={model.selectMember}
           update={model.update}
         />
+        <CurrentRoleFields draft={model.draft} update={model.update} />
         {model.draft.employmentStatus === "employed" && (
           <>
             <RolePayFields draft={model.draft} update={model.update} />
@@ -737,6 +1040,11 @@ function ScenarioForm({
         flows={model.tracker.recurringFlows}
         tracker={model.tracker}
         toggleFlow={model.toggleFlow}
+      />
+      <PathCashFlowSelection
+        cashFlows={model.tracker.futureCashFlows ?? []}
+        draft={model.draft}
+        toggle={model.toggleFutureCashFlow}
       />
       <ScenarioFormNotes
         unemployed={model.draft.employmentStatus === "unemployed"}
@@ -767,6 +1075,7 @@ function assumptionRows(
   scenario: JobMoveScenario,
   flowNames: ReadonlyMap<string, string>,
   memberNames: ReadonlyMap<string, string>,
+  cashFlowNames: ReadonlyMap<string, string>,
 ) {
   const rows: Array<[string, string]> = [
     [
@@ -784,6 +1093,31 @@ function assumptionRows(
         .join(", "),
     ],
   ];
+  if (scenario.currentRole != null) {
+    rows.push(
+      ["Current employer", scenario.currentRole.employer],
+      [
+        "Current role dates",
+        `${scenario.currentRole.activeFrom} to ${scenario.currentRole.activeTo}`,
+      ],
+      [
+        "Current annual take-home",
+        formatCurrency(
+          scenario.currentRole.annualTakeHomePay,
+          scenario.currentRole.currency,
+        ),
+      ],
+      ["Current role jurisdiction", scenario.currentRole.jurisdiction],
+    );
+  }
+  if ((scenario.includedFutureCashFlowIds?.length ?? 0) > 0) {
+    rows.push([
+      "Path-only receipts and payments",
+      (scenario.includedFutureCashFlowIds ?? [])
+        .map((id) => cashFlowNames.get(id) ?? id)
+        .join(", "),
+    ]);
+  }
   if (scenario.annualSpendingOverride != null) {
     rows.push([
       "Annual spending in scenario",
@@ -833,7 +1167,10 @@ function AssumptionSummary({
   const memberNames = new Map(
     tracker.household.members.map(({ id, displayName }) => [id, displayName]),
   );
-  const rows = assumptionRows(scenario, flowNames, memberNames);
+  const cashFlowNames = new Map(
+    (tracker.futureCashFlows ?? []).map(({ id, name }) => [id, name]),
+  );
+  const rows = assumptionRows(scenario, flowNames, memberNames, cashFlowNames);
   return (
     <details className="rounded-md border p-3">
       <summary className="cursor-pointer text-xs font-medium">
@@ -886,6 +1223,11 @@ function comparisonCardRows(
       formatCurrency(pensionTotal, comparison.compensation.currency),
     ],
     [
+      "Cash at horizon",
+      formatCurrency(horizon.baseline.cashBalance, currency),
+      formatCurrency(horizon.scenario.cashBalance, currency),
+    ],
+    [
       "Net worth at horizon",
       formatCurrency(horizon.baseline.totalBalance, currency),
       formatCurrency(horizon.scenario.totalBalance, currency),
@@ -894,6 +1236,33 @@ function comparisonCardRows(
       "Liquid assets at horizon",
       formatCurrency(horizon.baseline.liquidBalance, currency),
       formatCurrency(horizon.scenario.liquidBalance, currency),
+    ],
+    [
+      "Accessible retirement capital",
+      formatCurrency(
+        horizon.baseline.accessibleRetirementCapital ??
+          horizon.baseline.liquidBalance,
+        currency,
+      ),
+      formatCurrency(
+        horizon.scenario.accessibleRetirementCapital ??
+          horizon.scenario.liquidBalance,
+        currency,
+      ),
+    ],
+    [
+      "Pension capital",
+      formatCurrency(horizon.baseline.pensionCapital ?? 0, currency),
+      formatCurrency(horizon.scenario.pensionCapital ?? 0, currency),
+    ],
+    [
+      "Reserve coverage",
+      horizon.baseline.emergencyFundMonths == null
+        ? "Unavailable"
+        : `${horizon.baseline.emergencyFundMonths.toFixed(1)} months`,
+      horizon.scenario.emergencyFundMonths == null
+        ? "Unavailable"
+        : `${horizon.scenario.emergencyFundMonths.toFixed(1)} months`,
     ],
     [
       "Total runway at horizon",
@@ -914,7 +1283,7 @@ function ComparisonCards({
 }>) {
   const rows = comparisonCardRows(comparison, currency, horizon);
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {rows.map(([label, baseline, projected]) => (
         <div key={label} className="rounded-md bg-muted/40 p-3 text-xs">
           <p className="text-muted-foreground">{label}</p>
@@ -1131,7 +1500,7 @@ function useJobLossTimingModel({
   const alternativeComparison = useMemo(
     () =>
       tracker.compareJobMoveScenario(
-        { ...scenario, transitionDate: alternativeDate },
+        scenarioAtTransitionDate(scenario, alternativeDate),
         alternativeHorizonMonths,
       ),
     [
@@ -1229,7 +1598,7 @@ function useComparisonModel(scenario: JobMoveScenario) {
     initialAlternativeDate,
   );
   const scenarioAtDate = useMemo(
-    () => ({ ...scenario, transitionDate: primaryDate }),
+    () => scenarioAtTransitionDate(scenario, primaryDate),
     [primaryDate, scenario],
   );
   const comparison = useMemo(

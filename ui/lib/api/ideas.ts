@@ -3,6 +3,7 @@ import {
   getIdea as getIdeaEntity,
   getIdeaLinksForADR as getIdeaLinksForADREntity,
   getIdeaLinksForBlog as getIdeaLinksForBlogEntity,
+  getIdeaLinksForInitiative as getIdeaLinksForInitiativeEntity,
   getIdeaLinksForProject as getIdeaLinksForProjectEntity,
   getRelatedContentForIdea as getRelatedContentForIdeaEntity,
   getRelatedIdeaLinks,
@@ -29,12 +30,15 @@ export function getAllIdeas() {
         relatedIdeas.length +
         relatedContent.technologies.length +
         relatedContent.projects.length +
+        relatedContent.initiatives.length +
         relatedContent.blogs.length +
         relatedContent.adrs.length +
         relatedContent.productDecisions.length,
     };
   });
 }
+
+export type IdeaSummary = ReturnType<typeof getAllIdeas>[number];
 
 export function getIdea(slug: string) {
   const idea = getIdeaEntity(repository, slug);
@@ -52,6 +56,10 @@ export function getIdeasForProject(slug: string) {
 
 export function getIdeasForBlog(slug: string) {
   return getIdeaLinksForBlogEntity(repository, slug);
+}
+
+export function getIdeasForInitiative(slug: string) {
+  return getIdeaLinksForInitiativeEntity(repository, slug);
 }
 
 export function getIdeasForADR(adrRef: string) {

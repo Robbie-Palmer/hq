@@ -16,23 +16,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "IdeaPage",
-    "maximums": {
-      "lines": 134,
-      "renderComplexity": 11
-    },
-    "path": "app/(site)/ideas/[slug]/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "InitiativePage",
-    "maximums": {
-      "lines": 93
-    },
-    "path": "app/(site)/initiatives/[slug]/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "Home",
     "maximums": {
       "lines": 160
@@ -114,14 +97,6 @@
       "lines": 167
     },
     "path": "app/(site)/technologies/[slug]/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "RecipesLayout",
-    "maximums": {
-      "lines": 70
-    },
-    "path": "app/recipes/layout.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -268,14 +243,6 @@
       "lines": 260
     },
     "path": "app/_projects/personal-finance-app/components/asset-tracker-provider.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "AssetTrackerShell",
-    "maximums": {
-      "lines": 67
-    },
-    "path": "app/_projects/personal-finance-app/components/asset-tracker-shell.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -1226,14 +1193,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "AccountPanel",
-    "maximums": {
-      "lines": 114
-    },
-    "path": "components/recipes/settings/account-panel.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "AgentApprovalView",
     "maximums": {
       "lines": 302,
@@ -1636,26 +1595,18 @@
   {
     "component": "RoomScene",
     "maximums": {
-      "lines": 64
+      "lines": 67
     },
     "path": "components/wedding-planner/room-canvas/room-scene.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+    "reason": "The room scene gained one focused child layer for fixed venue elements; the exact line ceiling records the reviewed composition."
   },
   {
     "component": "TableEditor",
     "maximums": {
-      "lines": 81
+      "lines": 96
     },
     "path": "components/wedding-planner/table-editor.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "TableGuestList",
-    "maximums": {
-      "lines": 85
-    },
-    "path": "components/wedding-planner/table-editor.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+    "reason": "The editor composes the existing setup with separate constraint, lock, alternative, and export cards; each card owns its own behavior."
   },
   {
     "component": "TablePreferences",
@@ -1669,11 +1620,36 @@
   {
     "component": "TableResults",
     "maximums": {
-      "lines": 91,
-      "renderComplexity": 15
+      "lines": 123,
+      "renderComplexity": 20
     },
     "path": "components/wedding-planner/table-editor.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
+    "reason": "The reviewed result card now presents seat-level reasons and unsatisfied preferences alongside the prior table summary."
+  },
+  {
+    "component": "ConstraintSetup",
+    "maximums": {
+      "lines": 163,
+      "renderComplexity": 10
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "One card edits event, invitation-party, relationship-group, and role seating rules; the exact ceilings prevent further growth."
+  },
+  {
+    "component": "SeatingLocks",
+    "maximums": {
+      "lines": 113
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "One card edits table, guest, and seat locks against a calculated allocation; the exact ceiling prevents further growth."
+  },
+  {
+    "component": "SavedPlansAndExports",
+    "maximums": {
+      "lines": 148
+    },
+    "path": "components/wedding-planner/table-editor.tsx",
+    "reason": "One card owns named seating alternatives and the three handoff exports; the exact ceiling prevents further growth."
   },
   {
     "component": "TableSetup",

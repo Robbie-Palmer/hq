@@ -9,7 +9,7 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
   "answers": {
     "project_id": "mixed-app",
     "blueprint": {
-      "schema_version": 1,
+      "schema_version": 2,
       "profile_schema_version": 1,
       "effective_at": "2026-10-21T00:00:00Z",
       "project": {
@@ -28,31 +28,31 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
           "tasks": [
             {
               "name": "build",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "clean",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "format",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "install",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "lint",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "test",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "typecheck-or-compile",
-              "disposition": "generated"
+              "disposition": "inherited"
             }
           ]
         },
@@ -65,31 +65,31 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
           "tasks": [
             {
               "name": "build",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "clean",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "format",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "install",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "lint",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "test",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "typecheck-or-compile",
-              "disposition": "generated"
+              "disposition": "inherited"
             }
           ]
         }
@@ -243,8 +243,14 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
         },
         "failure_mode": "fail-open"
       },
-      "manual_checkpoints": [
-        "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry"
+      "fulfillment_checkpoints": [
+        {
+          "id": "observability-opentelemetry-configuration-otel-exporter-otlp-endpoint",
+          "action": "Configure OTEL_EXPORTER_OTLP_ENDPOINT for observability-opentelemetry",
+          "fulfillment": "manual",
+          "status": "pending",
+          "evidence": []
+        }
       ]
     }
   },
@@ -341,7 +347,7 @@ exports[`resolved profile plan adapter > maps the package-producing project into
   "answers": {
     "project_id": "package-kit",
     "blueprint": {
-      "schema_version": 1,
+      "schema_version": 2,
       "profile_schema_version": 1,
       "effective_at": "2026-10-21T00:00:00Z",
       "project": {
@@ -360,7 +366,7 @@ exports[`resolved profile plan adapter > maps the package-producing project into
           "tasks": [
             {
               "name": "build",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "clean",
@@ -369,23 +375,23 @@ exports[`resolved profile plan adapter > maps the package-producing project into
             },
             {
               "name": "format",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "install",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "lint",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "test",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "typecheck-or-compile",
-              "disposition": "generated"
+              "disposition": "inherited"
             }
           ]
         }
@@ -487,7 +493,7 @@ exports[`resolved profile plan adapter > maps the package-producing project into
       "opentelemetry": {
         "enabled": false
       },
-      "manual_checkpoints": []
+      "fulfillment_checkpoints": []
     }
   },
   "owned_paths": [
@@ -558,7 +564,7 @@ exports[`resolved profile plan adapter > maps the small single-technology projec
   "answers": {
     "project_id": "tiny-library",
     "blueprint": {
-      "schema_version": 1,
+      "schema_version": 2,
       "profile_schema_version": 1,
       "effective_at": "2026-10-21T00:00:00Z",
       "project": {
@@ -577,31 +583,31 @@ exports[`resolved profile plan adapter > maps the small single-technology projec
           "tasks": [
             {
               "name": "build",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "clean",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "format",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "install",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "lint",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "test",
-              "disposition": "generated"
+              "disposition": "inherited"
             },
             {
               "name": "typecheck-or-compile",
-              "disposition": "generated"
+              "disposition": "inherited"
             }
           ]
         }
@@ -678,7 +684,7 @@ exports[`resolved profile plan adapter > maps the small single-technology projec
       "opentelemetry": {
         "enabled": false
       },
-      "manual_checkpoints": []
+      "fulfillment_checkpoints": []
     }
   },
   "owned_paths": [

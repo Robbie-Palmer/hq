@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "db:generate": "drizzle-kit generate",
+    "db:check": "bash scripts/check-migrations.sh",
+    "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
     "db:migrate": "drizzle-kit migrate",
     "deploy:check": "bash scripts/deploy.sh --dry-run",
     "test": "vitest run",

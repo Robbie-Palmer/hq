@@ -1,0 +1,33 @@
+schema_version: 1
+
+project:
+  id: "autonomic-satellite-swarm"
+  name: "Autonomic Satellite Swarm"
+  kind: "embedded-system"
+
+components:
+  - id: "autonomic-satellite-swarm"
+    name: "Autonomic Satellite Swarm"
+    kind: "cpp-project"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+
+overrides:
+  - slot: "project.primary-language"
+    kind: "technology"
+    value: "c-plus-plus"
+    decision: "autonomic-satellite-swarm:001-c-plus-plus"
+
+reconciliation:
+  mode: "tracking"
+  defer:
+    effective_at: "2026-10-23T00:00:00Z"
+    reason: "Keep the research prototype on its reviewed CMake, Arduino, and WebAssembly contracts until the platform defines an embedded C++ layer."
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

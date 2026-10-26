@@ -9,6 +9,7 @@ import { z } from "zod";
 import { normalizeSlug } from "@/lib/generic/slugs";
 import {
   type Account,
+  AccountAccessPolicySchema,
   AccountContentSchema,
   type AccountId,
   AccountIdSchema,
@@ -167,6 +168,7 @@ export const CreateAccountInputSchema = z.object({
   currency: CurrencySchema,
   assetType: AssetTypeSchema,
   liquidity: LiquidityTierSchema.optional(),
+  accessPolicy: AccountAccessPolicySchema.optional(),
   expectedAnnualReturn: AnnualRateSchema,
   /** e.g. the property a mortgage is secured on */
   linkedAccountId: AccountIdSchema.optional(),
@@ -774,6 +776,7 @@ export function applyCreateAccount(
     currency: parsed.currency,
     assetType: parsed.assetType,
     liquidity: parsed.liquidity,
+    accessPolicy: parsed.accessPolicy,
     expectedAnnualReturn: parsed.expectedAnnualReturn,
     linkedAccountId: parsed.linkedAccountId,
     mortgageTerms: parsed.mortgageTerms,
@@ -1367,6 +1370,12 @@ export function applyDeletePlannedExpenditure(
       data.decisionRecords ?? [],
     ),
     futureCashFlows,
+    jobMoveScenarios: data.jobMoveScenarios?.map((scenario) => ({
+      ...scenario,
+      includedFutureCashFlowIds: scenario.includedFutureCashFlowIds?.filter(
+        (flowId) => flowId !== parsed.id,
+      ),
+    })),
     ownership: {
       ...data.ownership,
       futureCashFlows: Object.fromEntries(
@@ -1947,6 +1956,12 @@ export function applyDeleteFutureCashFlow(
       data.decisionRecords ?? [],
     ),
     futureCashFlows,
+    jobMoveScenarios: data.jobMoveScenarios?.map((scenario) => ({
+      ...scenario,
+      includedFutureCashFlowIds: scenario.includedFutureCashFlowIds?.filter(
+        (flowId) => flowId !== parsed.id,
+      ),
+    })),
     plannedExpenditures: data.plannedExpenditures.filter(
       ({ id }) => id !== parsed.id,
     ),
@@ -2725,6 +2740,15 @@ function validateJobMoveScenarioReferences(
       throw new AssetTrackerCommandError(
         "FLOW_NOT_FOUND",
         `No recurring flow found with ID ${flowId}`,
+      );
+    }
+  }
+  const futureCashFlowIds = new Set(data.futureCashFlows.map(({ id }) => id));
+  for (const flowId of input.includedFutureCashFlowIds ?? []) {
+    if (!futureCashFlowIds.has(flowId)) {
+      throw new AssetTrackerCommandError(
+        "FUTURE_CASH_FLOW_NOT_FOUND",
+        `No future cash flow found with ID ${flowId}`,
       );
     }
   }

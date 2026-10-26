@@ -12,7 +12,13 @@ import {
   Undo2,
   X,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { emptyPantryFreshness } from "recipe-domain/pantry";
 import { DietListNotice } from "@/components/recipes/diet-notice";
 import { useDiet } from "@/components/recipes/diet-provider";
@@ -58,6 +64,8 @@ import { cn } from "@/lib/generic/styles";
 import { toggleRecipe } from "@/lib/shopping/shoppingListStore";
 
 const CATALOG_RESULT_LIMIT = 18;
+type KitchenDiet = ReturnType<typeof useDiet>["diet"];
+type KitchenEquipment = ReturnType<typeof useEquipmentReadiness>["equipment"];
 
 const LOCATION_ICONS = {
   fridge: Refrigerator,
@@ -212,7 +220,308 @@ function KitchenHeader({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function KitchenCatalogIngredient({
+  ingredient,
+  isDietExcluded,
+  onAdd,
+}: Readonly<{
+  ingredient: KitchenIngredientView;
+  isDietExcluded: boolean;
+  onAdd: () => void;
+}>) {
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      aria-label={`Add ${ingredient.name}${isDietExcluded ? " — diet warning" : ""}`}
+      className={cn(
+        "flex min-w-0 items-center justify-between gap-3 rounded-md border bg-[var(--paper)] px-3 py-2 text-left transition-colors hover:border-[var(--terracotta)] hover:bg-[var(--butter-soft)]",
+        isDietExcluded ? "border-[var(--berry)]" : "border-[var(--line)]",
+      )}
+    >
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-medium text-[var(--ink)]">
+          {ingredient.name}
+        </span>
+        <span
+          className={cn(
+            "rt-mono flex items-center gap-1 truncate",
+            isDietExcluded ? "text-[var(--berry)]" : "text-[var(--ink-3)]",
+          )}
+        >
+          {isDietExcluded && <TriangleAlert className="size-3 shrink-0" />}
+          {isDietExcluded
+            ? "Diet warning"
+            : (ingredient.category ?? "ingredient")}
+        </span>
+      </span>
+      <CirclePlus className="size-4 shrink-0 text-[var(--terracotta)]" />
+    </button>
+  );
+}
+
+function KitchenDietExclusionNotice({
+  count,
+  mode,
+  shown,
+  onToggle,
+}: Readonly<{
+  count: number;
+  mode: ReturnType<typeof useDiet>["diet"]["mode"];
+  shown: boolean;
+  onToggle: () => void;
+}>) {
+  if (count === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <p className="rt-body text-sm text-[var(--ink-3)]">
+        {count} diet-excluded ingredient
+        {count === 1 ? " is" : "s are"}{" "}
+        {mode === "warn" || shown
+          ? "shown with warnings."
+          : "hidden from this catalog."}
+      </p>
+      {mode === "hide" && (
+        <Button type="button" variant="outline" size="sm" onClick={onToggle}>
+          {shown ? "Hide diet exclusions" : "Show anyway"}
+        </Button>
+      )}
+    </div>
+  );
+}
+
+function KitchenCatalogControls({
+  searchRef,
+  query,
+  onQueryChange,
+  targetLocation,
+  onTargetLocationChange,
+}: Readonly<{
+  searchRef: RefObject<HTMLInputElement | null>;
+  query: string;
+  onQueryChange: (value: string) => void;
+  targetLocation: KitchenLocation;
+  onTargetLocationChange: (location: KitchenLocation) => void;
+}>) {
+  return (
+    <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
+      <div className="relative min-w-0">
+        <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
+        <Input
+          ref={searchRef}
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          placeholder="Search ingredients..."
+          className="h-10 border-[var(--line-strong)] bg-[var(--paper)] pl-9"
+        />
+      </div>
+      <div className="grid grid-cols-4 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
+        {KITCHEN_LOCATIONS.map((location) => (
+          <button
+            key={location.id}
+            type="button"
+            onClick={() => onTargetLocationChange(location.id)}
+            aria-label={`Add ingredients to ${location.label}`}
+            className={cn(
+              "inline-flex items-center justify-center gap-1 rounded-sm px-2 py-1.5 text-sm transition-colors",
+              targetLocation === location.id
+                ? "bg-[var(--card)] text-[var(--ink)] shadow-xs"
+                : "text-[var(--ink-3)] hover:text-[var(--ink)]",
+            )}
+          >
+            <LocationIcon location={location.id} />
+            <span className="hidden sm:inline">{location.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+interface KitchenCatalogCardProps {
+  cardRef: RefObject<HTMLDivElement | null>;
+  searchRef: RefObject<HTMLInputElement | null>;
+  query: string;
+  onQueryChange: (value: string) => void;
+  diet: KitchenDiet;
+  dietExcludedCount: number;
+  showDietExcluded: boolean;
+  onToggleDietExcluded: () => void;
+  targetLocation: KitchenLocation;
+  onTargetLocationChange: (location: KitchenLocation) => void;
+  filteredCatalog: KitchenIngredientView[];
+  matchCount: number;
+  canAddCustom: boolean;
+  customIngredient: string;
+  onAddIngredient: (ingredient: KitchenIngredientView) => void;
+  onAddCustom: () => void;
+}
+
+function KitchenCatalogResults({
+  ingredients,
+  diet,
+  onAdd,
+}: Readonly<{
+  ingredients: KitchenIngredientView[];
+  diet: KitchenDiet;
+  onAdd: (ingredient: KitchenIngredientView) => void;
+}>) {
+  return (
+    <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      {ingredients.map((ingredient) => (
+        <KitchenCatalogIngredient
+          key={ingredient.slug}
+          ingredient={ingredient}
+          isDietExcluded={diet.excludedIngredientSlugs.has(ingredient.slug)}
+          onAdd={() => onAdd(ingredient)}
+        />
+      ))}
+    </div>
+  );
+}
+
+const KitchenCatalogCard = ({
+  cardRef,
+  searchRef,
+  query,
+  onQueryChange,
+  diet,
+  dietExcludedCount,
+  showDietExcluded,
+  onToggleDietExcluded,
+  targetLocation,
+  onTargetLocationChange,
+  filteredCatalog,
+  matchCount,
+  canAddCustom,
+  customIngredient,
+  onAddIngredient,
+  onAddCustom,
+}: Readonly<KitchenCatalogCardProps>) => (
+  <Card
+    ref={cardRef}
+    className="scroll-mt-24 rounded-lg border-[1.25px] border-[var(--line-strong)] bg-[var(--card)]"
+  >
+    <CardHeader className="gap-3">
+      <div>
+        <p className="rt-mono text-[var(--terracotta)]">Ingredient catalog</p>
+        <CardTitle className="rt-display text-4xl">
+          Add to your kitchen.
+        </CardTitle>
+        <KitchenDietExclusionNotice
+          count={dietExcludedCount}
+          mode={diet.mode}
+          shown={showDietExcluded}
+          onToggle={onToggleDietExcluded}
+        />
+      </div>
+      <KitchenCatalogControls
+        searchRef={searchRef}
+        query={query}
+        onQueryChange={onQueryChange}
+        targetLocation={targetLocation}
+        onTargetLocationChange={onTargetLocationChange}
+      />
+    </CardHeader>
+    <CardContent>
+      <KitchenCatalogResults
+        ingredients={filteredCatalog}
+        diet={diet}
+        onAdd={onAddIngredient}
+      />
+      <KitchenCatalogFooter
+        canAddCustom={canAddCustom}
+        customIngredient={customIngredient}
+        filteredCount={filteredCatalog.length}
+        matchCount={matchCount}
+        onAddCustom={onAddCustom}
+      />
+    </CardContent>
+  </Card>
+);
+
+function KitchenErrorNotice({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div
+      role="alert"
+      className="rt-body mb-6 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-4 py-3 text-sm text-[var(--berry)]"
+    >
+      {children}
+    </div>
+  );
+}
+
+interface KitchenStatusProps {
+  pantryError: boolean;
+  stockError: boolean;
+  pantryPending: boolean;
+  diet: KitchenDiet;
+  hiddenCount: number;
+  showingHidden: boolean;
+  onToggleHidden: () => void;
+  equipment: KitchenEquipment;
+  equipmentHiddenCount: number;
+  showingEquipmentHidden: boolean;
+  onToggleEquipmentHidden: () => void;
+}
+
+function KitchenStatus({
+  pantryError,
+  stockError,
+  pantryPending,
+  diet,
+  hiddenCount,
+  showingHidden,
+  onToggleHidden,
+  equipment,
+  equipmentHiddenCount,
+  showingEquipmentHidden,
+  onToggleEquipmentHidden,
+}: Readonly<KitchenStatusProps>) {
+  return (
+    <>
+      {pantryError && (
+        <KitchenErrorNotice>
+          Your pantry could not be loaded. Refresh the page to try again.
+        </KitchenErrorNotice>
+      )}
+      {stockError && (
+        <KitchenErrorNotice>
+          Your latest pantry change could not be saved. Please try again.
+        </KitchenErrorNotice>
+      )}
+      {diet.active && (
+        <DietListNotice
+          hiddenCount={hiddenCount}
+          labels={diet.labels}
+          mode={diet.mode}
+          showingHidden={showingHidden}
+          onToggleHidden={onToggleHidden}
+        />
+      )}
+      {equipment.active && (
+        <EquipmentListNotice
+          hiddenCount={equipmentHiddenCount}
+          mode={equipment.mode}
+          showingHidden={showingEquipmentHidden}
+          onToggleHidden={onToggleEquipmentHidden}
+        />
+      )}
+      {pantryPending && (
+        <Card
+          role="status"
+          aria-live="polite"
+          className="rounded-lg border-[1.25px] border-[var(--line-strong)] bg-[var(--card)]"
+        >
+          <CardContent className="rt-body py-8 text-[var(--ink-3)]">
+            Loading your pantry…
+          </CardContent>
+        </Card>
+      )}
+    </>
+  );
+}
+
 export function KitchenView({
   ingredients,
   recipes,
@@ -450,55 +759,21 @@ export function KitchenView({
   return (
     <div className="container mx-auto min-h-screen max-w-7xl px-4 pt-5 pb-16 md:pt-7">
       <KitchenHeader householdName={householdName} />
-
-      {pantry.error && (
-        <div
-          role="alert"
-          className="rt-body mb-6 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-4 py-3 text-sm text-[var(--berry)]"
-        >
-          Your pantry could not be loaded. Refresh the page to try again.
-        </div>
-      )}
-
-      {stockActions.error && (
-        <div
-          role="alert"
-          className="rt-body mb-6 rounded-md border border-[var(--berry)]/35 bg-[var(--berry)]/8 px-4 py-3 text-sm text-[var(--berry)]"
-        >
-          Your latest pantry change could not be saved. Please try again.
-        </div>
-      )}
-
-      {diet.active && (
-        <DietListNotice
-          hiddenCount={hiddenCount}
-          labels={diet.labels}
-          mode={diet.mode}
-          showingHidden={showHidden}
-          onToggleHidden={() => setShowHidden((current) => !current)}
-        />
-      )}
-
-      {equipment.active && (
-        <EquipmentListNotice
-          hiddenCount={equipmentHiddenCount}
-          mode={equipment.mode}
-          showingHidden={showEquipmentHidden}
-          onToggleHidden={() => setShowEquipmentHidden((current) => !current)}
-        />
-      )}
-
-      {pantry.isPending && (
-        <Card
-          role="status"
-          aria-live="polite"
-          className="rounded-lg border-[1.25px] border-[var(--line-strong)] bg-[var(--card)]"
-        >
-          <CardContent className="rt-body py-8 text-[var(--ink-3)]">
-            Loading your pantry…
-          </CardContent>
-        </Card>
-      )}
+      <KitchenStatus
+        pantryError={Boolean(pantry.error)}
+        stockError={Boolean(stockActions.error)}
+        pantryPending={pantry.isPending}
+        diet={diet}
+        hiddenCount={hiddenCount}
+        showingHidden={showHidden}
+        onToggleHidden={() => setShowHidden((current) => !current)}
+        equipment={equipment}
+        equipmentHiddenCount={equipmentHiddenCount}
+        showingEquipmentHidden={showEquipmentHidden}
+        onToggleEquipmentHidden={() =>
+          setShowEquipmentHidden((current) => !current)
+        }
+      />
 
       <div
         hidden={pantry.isPending}
@@ -584,131 +859,26 @@ export function KitchenView({
             </CardContent>
           </Card>
 
-          <Card
-            ref={catalogCardRef}
-            className="scroll-mt-24 rounded-lg border-[1.25px] border-[var(--line-strong)] bg-[var(--card)]"
-          >
-            <CardHeader className="gap-3">
-              <div>
-                <p className="rt-mono text-[var(--terracotta)]">
-                  Ingredient catalog
-                </p>
-                <CardTitle className="rt-display text-4xl">
-                  Add to your kitchen.
-                </CardTitle>
-                {dietExcludedIngredientCount > 0 && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <p className="rt-body text-sm text-[var(--ink-3)]">
-                      {dietExcludedIngredientCount} diet-excluded ingredient
-                      {dietExcludedIngredientCount === 1 ? " is" : "s are"}{" "}
-                      {diet.mode === "warn" || showDietExcludedIngredients
-                        ? "shown with warnings."
-                        : "hidden from this catalog."}
-                    </p>
-                    {diet.mode === "hide" && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          setShowDietExcludedIngredients((current) => !current)
-                        }
-                      >
-                        {showDietExcludedIngredients
-                          ? "Hide diet exclusions"
-                          : "Show anyway"}
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="relative min-w-0">
-                  <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
-                  <Input
-                    ref={catalogSearchRef}
-                    value={catalogQuery}
-                    onChange={(event) => setCatalogQuery(event.target.value)}
-                    placeholder="Search ingredients..."
-                    className="h-10 border-[var(--line-strong)] bg-[var(--paper)] pl-9"
-                  />
-                </div>
-                <div className="grid grid-cols-4 rounded-md border border-[var(--line-strong)] bg-[var(--paper-warm)] p-1">
-                  {KITCHEN_LOCATIONS.map((location) => (
-                    <button
-                      key={location.id}
-                      type="button"
-                      onClick={() => setTargetLocation(location.id)}
-                      aria-label={`Add ingredients to ${location.label}`}
-                      className={cn(
-                        "inline-flex items-center justify-center gap-1 rounded-sm px-2 py-1.5 text-sm transition-colors",
-                        targetLocation === location.id
-                          ? "bg-[var(--card)] text-[var(--ink)] shadow-xs"
-                          : "text-[var(--ink-3)] hover:text-[var(--ink)]",
-                      )}
-                    >
-                      <LocationIcon location={location.id} />
-                      <span className="hidden sm:inline">{location.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid min-w-0 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                {filteredCatalog.map((ingredient) => {
-                  const isDietExcluded = diet.excludedIngredientSlugs.has(
-                    ingredient.slug,
-                  );
-                  return (
-                    <button
-                      key={ingredient.slug}
-                      type="button"
-                      onClick={() => addIngredient(ingredient)}
-                      aria-label={`Add ${ingredient.name}${
-                        isDietExcluded ? " — diet warning" : ""
-                      }`}
-                      className={cn(
-                        "flex min-w-0 items-center justify-between gap-3 rounded-md border bg-[var(--paper)] px-3 py-2 text-left transition-colors hover:border-[var(--terracotta)] hover:bg-[var(--butter-soft)]",
-                        isDietExcluded
-                          ? "border-[var(--berry)]"
-                          : "border-[var(--line)]",
-                      )}
-                    >
-                      <span className="min-w-0">
-                        <span className="block truncate text-sm font-medium text-[var(--ink)]">
-                          {ingredient.name}
-                        </span>
-                        <span
-                          className={cn(
-                            "rt-mono flex items-center gap-1 truncate",
-                            isDietExcluded
-                              ? "text-[var(--berry)]"
-                              : "text-[var(--ink-3)]",
-                          )}
-                        >
-                          {isDietExcluded && (
-                            <TriangleAlert className="size-3 shrink-0" />
-                          )}
-                          {isDietExcluded
-                            ? "Diet warning"
-                            : (ingredient.category ?? "ingredient")}
-                        </span>
-                      </span>
-                      <CirclePlus className="size-4 shrink-0 text-[var(--terracotta)]" />
-                    </button>
-                  );
-                })}
-              </div>
-              <KitchenCatalogFooter
-                canAddCustom={canAddCustomIngredient}
-                customIngredient={customIngredient}
-                filteredCount={filteredCatalog.length}
-                matchCount={catalogMatches.length}
-                onAddCustom={addCustomIngredient}
-              />
-            </CardContent>
-          </Card>
+          <KitchenCatalogCard
+            cardRef={catalogCardRef}
+            searchRef={catalogSearchRef}
+            query={catalogQuery}
+            onQueryChange={setCatalogQuery}
+            diet={diet}
+            dietExcludedCount={dietExcludedIngredientCount}
+            showDietExcluded={showDietExcludedIngredients}
+            onToggleDietExcluded={() =>
+              setShowDietExcludedIngredients((current) => !current)
+            }
+            targetLocation={targetLocation}
+            onTargetLocationChange={setTargetLocation}
+            filteredCatalog={filteredCatalog}
+            matchCount={catalogMatches.length}
+            canAddCustom={canAddCustomIngredient}
+            customIngredient={customIngredient}
+            onAddIngredient={addIngredient}
+            onAddCustom={addCustomIngredient}
+          />
         </div>
 
         <aside className="min-w-0 space-y-6 lg:sticky lg:top-24 lg:self-start">

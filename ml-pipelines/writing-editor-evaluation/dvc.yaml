@@ -49,6 +49,22 @@ stages:
       - data/models/gector-2024:
           persist: true
 
+  prepare_punctuation_model:
+    cmd: bash scripts/prepare-punctuation-model.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - package.json
+      - punctuation-model-manifest.json
+      - scripts/prepare-punctuation-model.sh
+      - src/files.ts
+      - src/prepare-gector-model.ts
+      - src/prepare-punctuation-model.ts
+    outs:
+      - data/models/punctuation-restoration-small:
+          persist: true
+
   build_current_content_corpus:
     cmd: bash scripts/build-current-content-corpus.sh
     deps:
@@ -422,6 +438,54 @@ stages:
     outs:
       - outputs/producers/gector
 
+  run_punctuation_candidate:
+    cmd: bash scripts/run-punctuation-candidate.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/proposals.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - data/models/punctuation-restoration-small
+      - data/review-evidence/gector-broad-pilot
+      - package.json
+      - punctuation-experiment.json
+      - punctuation-model-manifest.json
+      - pyproject.toml
+      - python/punctuation_runtime.py
+      - scripts/adapt-punctuation-candidate.sh
+      - scripts/run-punctuation-candidate.sh
+      - src/evaluate-reviews.ts
+      - src/files.ts
+      - src/prepare-punctuation-model.ts
+      - src/run-punctuation-candidate.ts
+      - uv.lock
+    outs:
+      - outputs/punctuation-candidate/run
+
+  evaluate_punctuation_candidate:
+    cmd: bash scripts/evaluate-punctuation-candidate.sh
+    deps:
+      - ../../packages/writing-editor-domain/package.json
+      - ../../packages/writing-editor-domain/src/canonical-json.ts
+      - ../../packages/writing-editor-domain/src/decisions.ts
+      - ../../packages/writing-editor-domain/src/suggestions.ts
+      - ../../pnpm-lock.yaml
+      - data/review-evidence/deterministic-pilot-post-hardening
+      - data/review-evidence/gector-broad-pilot
+      - outputs/punctuation-candidate/run/run.json
+      - package.json
+      - punctuation-experiment.json
+      - scripts/evaluate-punctuation-candidate.sh
+      - src/evaluate-punctuation-candidate.ts
+      - src/evaluate-reviews.ts
+      - src/files.ts
+      - src/run-punctuation-candidate.ts
+    metrics:
+      - outputs/punctuation-candidate/evaluation.json
+    outs:
+      - outputs/punctuation-candidate/report.md
+
   run_vale:
     cmd: bash scripts/run-vale.sh
     params:
@@ -495,8 +559,8 @@ stages:
     outs:
       - data/review-evidence/gector-broad-pilot
 
-  evaluate_gector_decisions:
-    cmd: pnpm exec tsx src/evaluate-reviews.ts --manifest data/review-evidence/gector-broad-pilot/manifest.json --evidence data/review-evidence/gector-broad-pilot --params evaluation-params.json --output outputs/review-evaluation/gector-broad-pilot-scorecard.json
+  evaluate:
+    cmd: bash scripts/evaluate.sh
     deps:
       - ../../packages/writing-editor-domain/package.json
       - ../../packages/writing-editor-domain/src/canonical-json.ts
@@ -507,11 +571,19 @@ stages:
       - ../../pnpm-lock.yaml
       - data/review-evidence/gector-broad-pilot
       - evaluation-params.json
+      - outputs/frozen/cohort.json
+      - outputs/matched/vale.json
+      - outputs/producers/gector/run.json
+      - outputs/producers/vale.json
+      - outputs/review-baseline/customer/run.json
+      - outputs/review-baseline/developer/run.json
       - package.json
+      - scripts/evaluate.sh
       - src/evaluate-reviews.ts
       - src/files.ts
+      - src/schemas.ts
     metrics:
-      - outputs/review-evaluation/gector-broad-pilot-scorecard.json
+      - outputs/evaluation/scorecard.json
 
   finalize_cohort_readiness:
     cmd: bash scripts/finalize-cohort-readiness.sh

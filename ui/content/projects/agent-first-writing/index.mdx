@@ -2,7 +2,7 @@
 title: "Agent-first Writing Editor"
 description: "A layered writing system that turns dense agent output into prose people can absorb without erasing the author's voice"
 date: "2026-09-04"
-updated: "2026-10-19"
+updated: "2026-10-25"
 status: "in_progress"
 platform_layers:
   - layer: "governance"
@@ -120,19 +120,20 @@ does not need the same ceremony as restructuring an argument.
 
 ## Editorial data flow
 
-The implemented path runs repository text through Vale and GECToR. Vale stores
-detection-only findings against hashed source bytes. GECToR emits suggestions
-and grouped proposals, which enter a governed review stage. An observed edit is
-not an acceptance decision. Solid blue nodes and lines are implemented. Dashed
-orange nodes and lines are planned.
+The implemented path runs repository text through Vale, GECToR, and a narrow
+punctuation candidate. Vale stores detection-only findings against hashed
+source bytes. The model producers emit suggestions and grouped proposals, which
+enter a governed review stage. An observed edit is not an acceptance decision.
+Solid blue nodes and lines are implemented. Passage rewrites remain review-only
+until their evidence gate passes.
 
 <Mermaid
   chart={`flowchart LR
 Source["Source text<br/>[Implemented]<br/>Revision and SHA-256 hash"]
 Rules["Deterministic checks<br/>[Implemented]<br/>Vale rules"]
 Findings["Deterministic findings<br/>[Implemented]<br/>UTF-8 spans and provenance"]
-Local["Local suggestions<br/>[Implemented for GECToR]<br/>Replacement and confidence"]
-Rewrite["Passage rewrites<br/>[Planned]<br/>Grouped proposal and diff"]
+Local["Local suggestions<br/>[Implemented for model candidates]<br/>Replacement and confidence"]
+Rewrite["Passage rewrites<br/>[Implemented review-only]<br/>Graph context, grouped proposal, and diff"]
 Review["Human review<br/>[Implemented evidence stage]<br/>Accept, reject, or change"]
 Evidence["Evaluation evidence<br/>[Implemented foundation]<br/>Published-edit alignment"]
 Outcomes["Decision-backed evidence<br/>[Implemented]<br/>Hash-bound records and receipts"]
@@ -141,17 +142,15 @@ Source -->|"exact source bytes"| Rules
 Rules -->|"detection-only records"| Findings
 Findings -->|"finding IDs and published diffs"| Evidence
 Source -->|"bounded source spans"| Local
-Source -.->|"wider document context"| Rewrite
+Source -->|"bounded passage and graph context"| Rewrite
 Local -->|"grouped proposals"| Review
-Rewrite -.->|"multi-edit proposals"| Review
+Rewrite -->|"multi-edit proposals"| Review
 Review -->|"recorded editorial decisions"| Outcomes
 Evidence -->|"baseline comparisons"| Outcomes
 
 classDef implemented fill:#dbeafe,stroke:#2563eb,color:#1e3a5f,stroke-width:2px
-classDef planned fill:#ffedd5,stroke:#ea580c,color:#7c2d12,stroke-width:2px,stroke-dasharray:5 5
 class Source,Rules,Findings,Local,Review,Evidence,Outcomes implemented
-class Rewrite planned
-linkStyle 4,6 stroke:#ea580c,stroke-width:2px,stroke-dasharray:5 5
+class Rewrite implemented
 `}
 />
 
@@ -195,10 +194,27 @@ governed evidence contains 411 outcomes across the seed and broad cohorts: 87
 accepted, 9 changed, and 315 rejected. Manual review accepted clear grammar and
 preposition corrections, but also rejected changes that broke punctuation,
 contractions, product names, technical meaning, or Markdown. The model
-therefore remains a review-only
-baseline. Its generated files are never copied over the source documents. The
-holdout decisions remain evaluation-only and are excluded from future training
-or threshold tuning.
+therefore remains a review-only baseline. The pinned scorecard recommends
+rejecting default adoption because useful-edit yield is 23.4%, below the 25%
+rejection threshold. Its generated files are never copied over the source
+documents. The holdout decisions remain evaluation-only and are excluded from
+future training or threshold tuning.
+
+## Missing-comma candidate
+
+The broad review exposed one useful narrow gap. Reviewers accepted 34 of 41
+single-comma insertions from GECToR. A pre-registered experiment tested the
+140M-parameter `Horizon-Labs/punctuation-restoration-small` model against those
+fixed decisions. The candidate emitted 43 comma-only proposals across the 166
+documents that contained reviewed GECToR proposals. It recovered 4 of the 34
+accepted sites and none of the 7 rejected sites. This gives 100% useful yield
+on the four matched sites but only 11.8% recall. The target RTX 4080 run took a
+median 148.7 ms per artifact and peaked at 303.6 MiB of allocated CUDA memory.
+Both hardware limits passed.
+
+Another 39 proposals fall outside the fixed decisions. Their effects on facts,
+terminology, intent, and voice have not been reviewed. The experiment therefore
+ends with `gather-more-evidence`. The model stays out of the default editor.
 
 # First useful release
 
@@ -212,12 +228,21 @@ general editor:
 3. Measure factual preservation, unwanted voice changes, accepted edits, time
    saved, and regressions caught by deterministic rules.
 4. Run Vale and other deterministic checks through the shared finding format.
-5. Add a lightweight model only for failure classes that the evaluation set
-   proves Vale cannot handle.
+5. Evaluate lightweight models only for failure classes that the evaluation
+   set proves Vale cannot handle. The first missing-comma candidate needs more
+   evidence and is not part of the default editor.
 6. Add passage rewrites with diffs after local suggestions are reliable.
 7. Capture accept and reject decisions so the evaluation set grows through use.
 8. Extract the repository-specific implementation into a general product only
    after it improves real published pages.
+
+The repository reviewer now accepts one byte-bounded passage rewrite and
+decomposes it into ordered ADR 003 suggestions under a grouped proposal. Before
+the decision prompt it shows the combined diff, project and ADR citations,
+terminology context, evidence freshness warnings, and the author's retained
+fact-checking and publication authority. Per-case evaluation records facts,
+terminology, voice, useful-edit yield, and review time. The default-loop gate
+stays closed until every declared threshold passes.
 
 # Relationship to the knowledge graph
 

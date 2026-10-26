@@ -1,0 +1,6 @@
+outs:
+- md5: b6a58bfffae2a48b02bf3c710b426946.dir
+  size: 28837
+  nfiles: 15
+  hash: md5
+  path: deterministic-pilot

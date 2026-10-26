@@ -14,6 +14,11 @@ describe("shopping lists proxy", () => {
     ["GET", "/api/shopping-lists/current", "/shopping-lists/current"],
     ["PUT", "/api/shopping-lists/current", "/shopping-lists/current"],
     [
+      "PUT",
+      "/api/shopping-lists/list-1/commands/command-1",
+      "/shopping-lists/list-1/commands/command-1",
+    ],
+    [
       "POST",
       "/api/shopping-lists/current/shares",
       "/shopping-lists/current/shares",

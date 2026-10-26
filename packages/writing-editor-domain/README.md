@@ -80,11 +80,42 @@ mise //packages/writing-editor-domain:review -- \
   --records ../../path/to/evidence/records.json \
   --decisions ../../path/to/evidence/decisions.jsonl \
   --receipt ../../path/to/evidence/receipt.json \
-  --config ../../.vale.ini
+  --config ../../.vale.ini \
+  --measure-session
 ```
 
-Every Unslop rule has an explicit safety classification. Ambiguous rules emit
-findings only; only allowlisted exact replacements become proposals. The
-command writes the decision before atomically replacing the source, then emits
-a receipt that binds the records and decisions to the before and after content
-hashes. It still never commits or publishes changes.
+Every Unslop rule has an explicit safety classification. A finding identifies
+a source span that needs human judgment but does not specify an edit. A
+proposal includes an exact replacement that the reviewer can accept, reject,
+or change. Only allowlisted replacements become proposals. The command writes
+the decision before atomically replacing the source, then emits a receipt that
+binds the records and decisions to the before and after content hashes.
+`--measure-session` pauses after detection-only findings when there are no
+proposals, then stores the full review interval in the receipt. Proposal prompts
+already provide that review boundary. The command still never commits or
+publishes changes.
+
+## Context-bounded passage rewrites
+
+`retrievePassageContext` selects the requested project, linked ADRs,
+terminology nodes, and evidence signals from a knowledge-graph snapshot. Missing
+links and stale or unassessed evidence become warnings. Retrieved material is
+advisory; the record keeps fact checking and publication authority with the
+author.
+
+`createPassageRewrite` accepts the complete source plus one half-open UTF-8
+passage span and a proposed replacement for that passage. It decomposes the
+replacement into ordered ADR 003 suggestions under one proposal. The proposal
+schema rejects edits outside the selected passage and verifies that its member
+suggestions recreate the proposed passage byte for byte.
+
+The repository reviewer prints the rewrite reason, evidence-gate decision,
+context citations, warnings, authority boundary, and combined diff before it
+asks for a decision. A reviewer-changed outcome replaces the selected passage,
+not any surrounding text. The command still cannot commit or publish.
+
+`evaluatePassageRewrites` records factual preservation, terminology
+preservation, voice preservation, useful-edit yield, and review time. It also
+keeps each failing case visible when aggregate rates look acceptable. A passage
+producer is eligible for the default loop only when every declared gate passes;
+`reject` and `gather-more-evidence` decisions keep it review-only.
