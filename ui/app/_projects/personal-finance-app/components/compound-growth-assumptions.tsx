@@ -57,7 +57,7 @@ function PercentField({
     <NumberField
       label={label}
       step="0.1"
-      value={value * 100}
+      value={Number((value * 100).toFixed(6))}
       onChange={(next) => onChange(next / 100)}
     />
   );

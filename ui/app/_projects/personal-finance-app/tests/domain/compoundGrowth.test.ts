@@ -167,6 +167,12 @@ describe("projectCompoundGrowth", () => {
 
     expect(projection.points.at(-1)?.contributions).toBe(500);
   });
+
+  it("rejects horizons longer than 100 years", () => {
+    expect(() =>
+      projectCompoundGrowth(scenario({ horizonMonths: 1_201 })),
+    ).toThrow("Horizon must be a whole number of months from 1 to 1200");
+  });
 });
 
 describe("equivalentEffectiveAnnualRate", () => {

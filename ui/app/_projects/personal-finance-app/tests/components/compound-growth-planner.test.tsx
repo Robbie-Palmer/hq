@@ -98,8 +98,9 @@ describe("CompoundGrowthPlanner", () => {
       target: { value: "taxable" },
     });
     fireEvent.change(screen.getByLabelText("Annual return"), {
-      target: { value: "7" },
+      target: { value: "14" },
     });
+    expect(screen.getByLabelText("Annual return")).toHaveValue(14);
     fireEvent.change(screen.getByLabelText("Return convention"), {
       target: { value: "nominal-annual" },
     });
@@ -156,8 +157,66 @@ describe("CompoundGrowthPlanner", () => {
       target: { value: "0" },
     });
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Horizon must be a positive whole number of months",
+      "Horizon must be a whole number of months from 1 to 1200",
     );
+  });
+
+  it("falls back when saved assumptions have an invalid nested shape", async () => {
+    const firstRender = render(<CompoundGrowthPlanner />);
+    await waitFor(() =>
+      expect(
+        window.localStorage.getItem("assettracker:compound-growth-planner:v1"),
+      ).not.toBeNull(),
+    );
+    firstRender.unmount();
+    const saved = JSON.parse(
+      window.localStorage.getItem("assettracker:compound-growth-planner:v1") ??
+        "{}",
+    );
+    window.localStorage.setItem(
+      "assettracker:compound-growth-planner:v1",
+      JSON.stringify({ ...saved, recurringFlow: null }),
+    );
+
+    render(<CompoundGrowthPlanner />);
+
+    expect(screen.getByLabelText("Recurring cash flow")).toHaveValue(500);
+    expect(
+      screen.getByRole("table", { name: "Annual compound growth calculation" }),
+    ).toBeVisible();
+  });
+
+  it("remains usable when browser storage is unavailable", () => {
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage full", "QuotaExceededError");
+    });
+
+    render(<CompoundGrowthPlanner />);
+
+    expect(
+      screen.getByRole("heading", {
+        name: "Contribution and compound growth planner",
+      }),
+    ).toBeVisible();
+  });
+
+  it("remains usable when invalid-storage cleanup is blocked", () => {
+    window.localStorage.setItem(
+      "assettracker:compound-growth-planner:v1",
+      "{not-json",
+    );
+    vi.spyOn(Storage.prototype, "removeItem").mockImplementation(() => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    });
+
+    render(<CompoundGrowthPlanner />);
+
+    expect(
+      screen.getByRole("table", { name: "Annual compound growth calculation" }),
+    ).toBeVisible();
   });
 
   it("recovers corrupt saved assumptions and exports calculation lineage", async () => {

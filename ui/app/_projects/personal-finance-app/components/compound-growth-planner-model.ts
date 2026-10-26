@@ -2,6 +2,7 @@
 
 import type { InflationDatasetRelease } from "finance-inflation-indices";
 import { type Dispatch, type SetStateAction, useEffect, useState } from "react";
+import { z } from "zod";
 import {
   type AccountDetailView,
   type GrowthCashFlow,
@@ -26,6 +27,52 @@ export type GrowthPlannerAccount = Pick<
 >;
 
 export type GrowthProjections = ReturnType<typeof projectCompoundGrowth>;
+
+const GrowthCashFlowSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  kind: z.enum(["contribution", "withdrawal"]),
+  amount: z.number().finite(),
+  startDate: z.string(),
+  frequency: z.enum(["once", "monthly", "quarterly", "yearly"]),
+  endDate: z.string().optional(),
+  source: z
+    .enum([
+      "manual",
+      "internal-transfer",
+      "employee-pension",
+      "employer-pension",
+    ])
+    .optional(),
+  dedupeKey: z.string().optional(),
+});
+
+const PlannerDraftSchema: z.ZodType<PlannerDraft> = z.object({
+  id: z.string(),
+  name: z.string(),
+  startDate: z.string(),
+  horizonMonths: z.number().finite(),
+  principal: z.number().finite(),
+  selectedAccountIds: z.array(z.string()),
+  recurringFlow: GrowthCashFlowSchema,
+  oneOffFlow: GrowthCashFlowSchema,
+  contributionTiming: z.enum(["beginning", "end"]),
+  annualReturn: z.number().finite(),
+  returnConvention: z.discriminatedUnion("kind", [
+    z.object({ kind: z.literal("effective-annual") }),
+    z.object({
+      kind: z.literal("nominal-annual"),
+      compoundingPeriods: z.number().finite(),
+    }),
+  ]),
+  returnType: z.enum(["guaranteed-savings", "uncertain-investment"]),
+  annualFeeRate: z.number().finite(),
+  wrapper: z.enum(["taxable", "isa", "pension"]),
+  taxableGrowthTaxRate: z.number().finite(),
+  futureInflationRate: z.number().finite(),
+  stressReturnDelta: z.number().finite(),
+  stressInflationDelta: z.number().finite(),
+});
 
 function initialDraft(): PlannerDraft {
   const startDate = `${new Date().toISOString().slice(0, 7)}-01`;
@@ -67,6 +114,27 @@ function initialDraft(): PlannerDraft {
   };
 }
 
+function readStoredDraft(): PlannerDraft | null {
+  try {
+    const stored = window.localStorage.getItem(STORAGE_KEY);
+    if (stored == null) return null;
+    const parsed = PlannerDraftSchema.safeParse(JSON.parse(stored));
+    if (parsed.success) return parsed.data;
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function writeStoredDraft(draft: PlannerDraft): void {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // Storage can be disabled or full. The in-memory planner remains usable.
+  }
+}
+
 export function useStoredGrowthDraft(): [
   PlannerDraft,
   Dispatch<SetStateAction<PlannerDraft>>,
@@ -75,22 +143,13 @@ export function useStoredGrowthDraft(): [
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored != null) {
-      try {
-        setDraft({
-          ...initialDraft(),
-          ...(JSON.parse(stored) as PlannerDraft),
-        });
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
-      }
-    }
+    const stored = readStoredDraft();
+    if (stored != null) setDraft(stored);
     setLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (loaded) window.localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+    if (loaded) writeStoredDraft(draft);
   }, [draft, loaded]);
 
   return [draft, setDraft];

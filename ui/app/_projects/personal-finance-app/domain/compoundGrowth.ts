@@ -220,12 +220,20 @@ function unsupportedCases(scenario: GrowthScenario): string[] {
   return cases;
 }
 
+const MAX_HORIZON_MONTHS = 1_200;
+
 function validateScenario(
   scenario: GrowthScenario,
   futureInflationRate: number,
 ): void {
-  if (scenario.horizonMonths < 1 || !Number.isInteger(scenario.horizonMonths)) {
-    throw new RangeError("Horizon must be a positive whole number of months");
+  if (
+    scenario.horizonMonths < 1 ||
+    scenario.horizonMonths > MAX_HORIZON_MONTHS ||
+    !Number.isInteger(scenario.horizonMonths)
+  ) {
+    throw new RangeError(
+      `Horizon must be a whole number of months from 1 to ${MAX_HORIZON_MONTHS}`,
+    );
   }
   if (scenario.annualFeeRate < 0 || scenario.taxableGrowthTaxRate < 0) {
     throw new RangeError("Fee and tax rates cannot be negative");
