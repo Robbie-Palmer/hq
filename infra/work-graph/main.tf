@@ -3,10 +3,11 @@ data "cloudflare_zone" "domain" {
 }
 
 locals {
-  api_origin                  = "https://${var.work_graph_hostname}"
-  credential_handoff_revision = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
-  hyperdrive_connection_limit = 60
-  hyperdrive_name             = "work-graph-db"
+  api_origin                       = "https://${var.work_graph_hostname}"
+  credential_handoff_revision      = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
+  hyperdrive_connection_limit      = 60
+  hyperdrive_name                  = "work-graph-db"
+  r2_private_analytics_bucket_name = "work-graph-private-analytics"
 }
 
 # The public observer has one webhook route and no service binding to the
@@ -39,7 +40,7 @@ resource "cloudflare_r2_bucket" "database_backups" {
 # report readers use a separate bucket-scoped read-only credential.
 resource "cloudflare_r2_bucket" "private_analytics" {
   account_id = var.cloudflare_account_id
-  name       = var.r2_private_analytics_bucket_name
+  name       = local.r2_private_analytics_bucket_name
   location   = "ENAM"
 
   lifecycle {

@@ -118,6 +118,12 @@ only their lease ID and kind marker.
 Each scheduled invocation logs event and scope row counts, object bytes,
 duration, database query count, returned row count, and estimated database
 bytes. The record contains no SQL, credentials, event fields, or object bodies.
+Failures include one fixed `reason`: `checkpoint_conflict`,
+`checkpoint_schema_invalid`, `configuration_invalid`, `dependency_failure`,
+`event_schema_invalid`, `immutable_object_conflict`,
+`manifest_range_conflict`, `manifest_schema_invalid`,
+`published_object_invalid`, or `source_range_invalid`. The log never includes
+the caught error message.
 The infrastructure guide defines the separate read-only report credential and
 the manifest-only reader rule.
 

@@ -12,6 +12,8 @@ import {
 } from "work-graph-db";
 import { createWorkGraphApp } from "./app";
 import {
+  AnalyticsExportError,
+  analyticsExportFailureReason,
   exportAnalyticsBatch,
   R2AnalyticsObjectStore,
 } from "./analytics-export";
@@ -26,7 +28,8 @@ export interface WorkGraphBindings {
 const analyticsBatchSize = (raw: string | undefined): number => {
   const value = raw === undefined ? 1_000 : Number(raw);
   if (!Number.isSafeInteger(value) || value < 1 || value > 10_000) {
-    throw new Error(
+    throw new AnalyticsExportError(
+      "configuration_invalid",
       "ANALYTICS_BATCH_SIZE must be an integer from 1 through 10000.",
     );
   }
@@ -101,7 +104,10 @@ export default {
         metrics: databaseMetrics,
       });
       if (env.ANALYTICS === undefined) {
-        throw new Error("The ANALYTICS bucket binding is missing.");
+        throw new AnalyticsExportError(
+          "configuration_invalid",
+          "The ANALYTICS bucket binding is missing.",
+        );
       }
       const result = await exportAnalyticsBatch(
         new WorkGraphRepository(db),
@@ -122,7 +128,7 @@ export default {
         throughSequence: result.throughSequence,
         workerVersion: env.WORKER_VERSION?.id ?? "local",
       });
-    } catch {
+    } catch (error) {
       console.error({
         message: "Work Graph analytics export failed",
         route: "worker.scheduled.analytics",
@@ -133,6 +139,7 @@ export default {
         databaseResultBytesEstimated: databaseMetrics.resultBytesEstimated,
         workerVersion: env.WORKER_VERSION?.id ?? "local",
         exceptionClass: "analytics_export_error",
+        reason: analyticsExportFailureReason(error),
       });
       throw new Error("The Work Graph analytics export failed.");
     } finally {

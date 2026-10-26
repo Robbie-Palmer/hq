@@ -97,17 +97,6 @@ variable "r2_database_backups_bucket_name" {
   }
 }
 
-variable "r2_private_analytics_bucket_name" {
-  description = "Name of the private R2 bucket for redacted Work Graph analytics exports"
-  type        = string
-  default     = "work-graph-private-analytics"
-
-  validation {
-    condition     = can(regex("^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$", var.r2_private_analytics_bucket_name))
-    error_message = "r2_private_analytics_bucket_name must be a 3-63 character lowercase R2 bucket name."
-  }
-}
-
 variable "neon_org_id" {
   description = "Neon organization ID"
   type        = string

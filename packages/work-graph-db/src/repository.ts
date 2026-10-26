@@ -3644,13 +3644,11 @@ export class WorkGraphRepository {
                   initiativeId: owner.schedulingInitiativeId,
                 };
               })
-              .sort((left, right) =>
-                left.workItemId < right.workItemId
-                  ? -1
-                  : left.workItemId > right.workItemId
-                    ? 1
-                    : 0,
-              ),
+              .sort((left, right) => {
+                if (left.workItemId < right.workItemId) return -1;
+                if (left.workItemId > right.workItemId) return 1;
+                return 0;
+              }),
           );
         }
         const capturedAt = await readDatabaseClock(transaction);

@@ -96,6 +96,33 @@ export interface AnalyticsExportResult {
   readonly throughSequence: number;
 }
 
+export type AnalyticsExportFailureReason =
+  | "checkpoint_conflict"
+  | "checkpoint_schema_invalid"
+  | "configuration_invalid"
+  | "dependency_failure"
+  | "event_schema_invalid"
+  | "immutable_object_conflict"
+  | "manifest_range_conflict"
+  | "manifest_schema_invalid"
+  | "published_object_invalid"
+  | "source_range_invalid";
+
+export class AnalyticsExportError extends Error {
+  constructor(
+    readonly reason: AnalyticsExportFailureReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "AnalyticsExportError";
+  }
+}
+
+export const analyticsExportFailureReason = (
+  error: unknown,
+): AnalyticsExportFailureReason =>
+  error instanceof AnalyticsExportError ? error.reason : "dependency_failure";
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -112,7 +139,15 @@ const parseCheckpoint = (
       version: null,
     };
   }
-  const parsed = JSON.parse(object.body) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(object.body) as unknown;
+  } catch {
+    throw new AnalyticsExportError(
+      "checkpoint_schema_invalid",
+      "The analytics checkpoint has an unknown schema.",
+    );
+  }
   if (
     !isRecord(parsed) ||
     parsed.schemaVersion !== 1 ||
@@ -121,7 +156,10 @@ const parseCheckpoint = (
     (parsed.lastManifestKey !== null &&
       typeof parsed.lastManifestKey !== "string")
   ) {
-    throw new Error("The analytics checkpoint has an unknown schema.");
+    throw new AnalyticsExportError(
+      "checkpoint_schema_invalid",
+      "The analytics checkpoint has an unknown schema.",
+    );
   }
   return {
     checkpoint: parsed as unknown as ExportCheckpoint,
@@ -130,8 +168,11 @@ const parseCheckpoint = (
 };
 
 const byteLength = (value: string): number => encoder.encode(value).byteLength;
-const compareIds = (left: string, right: string): number =>
-  left < right ? -1 : left > right ? 1 : 0;
+const compareIds = (left: string, right: string): number => {
+  if (left < right) return -1;
+  if (left > right) return 1;
+  return 0;
+};
 
 const sha256 = async (value: string): Promise<string> => {
   const bytes = new Uint8Array(
@@ -151,7 +192,8 @@ const stringField = (
 ): string => {
   const value = event.data[field];
   if (typeof value !== "string" || value.length === 0) {
-    throw new Error(
+    throw new AnalyticsExportError(
+      "event_schema_invalid",
       `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
     );
   }
@@ -161,7 +203,8 @@ const stringField = (
 const timestampField = (event: StoredEvent, field: string): string => {
   const value = stringField(event, field);
   if (!Number.isFinite(Date.parse(value))) {
-    throw new Error(
+    throw new AnalyticsExportError(
+      "event_schema_invalid",
       `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
     );
   }
@@ -175,7 +218,8 @@ const sanitizeEventData = (
     case "attention.requested": {
       const kind = stringField(event, "kind");
       if (typeof event.data.blocking !== "boolean") {
-        throw new Error(
+        throw new AnalyticsExportError(
+          "event_schema_invalid",
           `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
         );
       }
@@ -198,7 +242,8 @@ const sanitizeEventData = (
     case "lease.ended": {
       const outcome = stringField(event, "outcome");
       if (!LEASE_OUTCOMES.has(outcome)) {
-        throw new Error(
+        throw new AnalyticsExportError(
+          "event_schema_invalid",
           `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
         );
       }
@@ -212,7 +257,8 @@ const sanitizeEventData = (
         (leaseId !== null && typeof leaseId !== "string") ||
         (kind === "work" && (typeof leaseId !== "string" || leaseId.length === 0))
       ) {
-        throw new Error(
+        throw new AnalyticsExportError(
+          "event_schema_invalid",
           `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
         );
       }
@@ -225,7 +271,10 @@ const sanitizeEventData = (
 
 const sanitizeEvent = (event: StoredEvent): Record<string, unknown> => {
   if (!allowedEventType(event.type)) {
-    throw new Error(`Unknown Work Graph event type '${event.type}'.`);
+    throw new AnalyticsExportError(
+      "event_schema_invalid",
+      `Unknown Work Graph event type '${event.type}'.`,
+    );
   }
   return {
     schemaVersion: EVENT_SCHEMA_VERSION,
@@ -251,7 +300,10 @@ const validateEventOrder = (
       event.sequence <= previous ||
       event.sequence > sourceUpperWatermark
     ) {
-      throw new Error("The analytics source returned an invalid event range.");
+      throw new AnalyticsExportError(
+        "source_range_invalid",
+        "The analytics source returned an invalid event range.",
+      );
     }
     previous = event.sequence;
   }
@@ -286,7 +338,15 @@ const isObjectDescriptor = (
   SHA256_PATTERN.test(value.checksumSha256);
 
 const parseManifest = (body: string): ExportManifest => {
-  const parsed = JSON.parse(body) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body) as unknown;
+  } catch {
+    throw new AnalyticsExportError(
+      "manifest_schema_invalid",
+      "The analytics manifest has an unknown schema.",
+    );
+  }
   if (
     !isRecord(parsed) ||
     parsed.manifestSchemaVersion !== MANIFEST_SCHEMA_VERSION ||
@@ -303,7 +363,10 @@ const parseManifest = (body: string): ExportManifest => {
     !isObjectDescriptor(parsed.eventObject, "work-state/v1/events/") ||
     !isObjectDescriptor(parsed.scopeObject, "work-state/v1/scopes/")
   ) {
-    throw new Error("The analytics manifest has an unknown schema.");
+    throw new AnalyticsExportError(
+      "manifest_schema_invalid",
+      "The analytics manifest has an unknown schema.",
+    );
   }
   return parsed as unknown as ExportManifest;
 };
@@ -318,7 +381,8 @@ const validatePublishedObject = async (
     byteLength(object.body) !== descriptor.bytes ||
     (await sha256(object.body)) !== descriptor.checksumSha256
   ) {
-    throw new Error(
+    throw new AnalyticsExportError(
+      "published_object_invalid",
       `Published analytics object '${descriptor.key}' is incomplete.`,
     );
   }
@@ -346,7 +410,10 @@ const advanceCheckpoint = async (
       checkpointBody(throughSequence, manifestKey),
     ))
   ) {
-    throw new Error("The analytics checkpoint changed during publication.");
+    throw new AnalyticsExportError(
+      "checkpoint_conflict",
+      "The analytics checkpoint changed during publication.",
+    );
   }
 };
 
@@ -390,7 +457,8 @@ export async function exportAnalyticsBatch(
       manifest.throughSequence !== throughSequence ||
       manifest.sourceUpperWatermark < throughSequence
     ) {
-      throw new Error(
+      throw new AnalyticsExportError(
+        "manifest_range_conflict",
         "The published analytics manifest conflicts with the source range.",
       );
     }
@@ -481,7 +549,10 @@ export class R2AnalyticsObjectStore implements AnalyticsObjectStore {
     if (created !== null) return;
     const existing = await this.get(key);
     if (existing?.body !== body) {
-      throw new Error(`Immutable analytics object '${key}' already differs.`);
+      throw new AnalyticsExportError(
+        "immutable_object_conflict",
+        `Immutable analytics object '${key}' already differs.`,
+      );
     }
   }
 

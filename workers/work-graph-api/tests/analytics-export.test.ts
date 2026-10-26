@@ -5,6 +5,7 @@ import type {
 } from "work-graph-db";
 import {
   exportAnalyticsBatch,
+  R2AnalyticsObjectStore,
   type AnalyticsObjectStore,
   type StoredAnalyticsObject,
 } from "../src/analytics-export";
@@ -296,7 +297,10 @@ describe("Work Graph analytics export", () => {
     const store = new FakeStore();
     await expect(
       exportAnalyticsBatch(new FakeSource([unknownEvent]), store, 10),
-    ).rejects.toThrow("Unknown Work Graph event type");
+    ).rejects.toMatchObject({
+      reason: "event_schema_invalid",
+      message: expect.stringContaining("Unknown Work Graph event type"),
+    });
     expect(store.objects.has("work-state/v1/checkpoint.json")).toBe(false);
 
     await expect(
@@ -305,7 +309,10 @@ describe("Work Graph analytics export", () => {
         store,
         10,
       ),
-    ).rejects.toThrow("Unknown schema for Work Graph event");
+    ).rejects.toMatchObject({
+      reason: "event_schema_invalid",
+      message: expect.stringContaining("Unknown schema for Work Graph event"),
+    });
 
     const invalidManifestStore = new FakeStore();
     invalidManifestStore.seed(
@@ -327,7 +334,10 @@ describe("Work Graph analytics export", () => {
         invalidManifestStore,
         10,
       ),
-    ).rejects.toThrow("manifest has an unknown schema");
+    ).rejects.toMatchObject({
+      reason: "manifest_schema_invalid",
+      message: expect.stringContaining("manifest has an unknown schema"),
+    });
 
     store.seed(
       "work-state/v1/checkpoint.json",
@@ -335,7 +345,46 @@ describe("Work Graph analytics export", () => {
     );
     await expect(
       exportAnalyticsBatch(new FakeSource([]), store, 10),
-    ).rejects.toThrow("unknown schema");
+    ).rejects.toMatchObject({
+      reason: "checkpoint_schema_invalid",
+      message: expect.stringContaining("unknown schema"),
+    });
+  });
+
+  it.each([
+    ["attention.requested", { attentionRequestId: "request", kind: "review" }],
+    [
+      "lease.claimed",
+      { leaseId: "lease", expiresAt: "not-a-timestamp" },
+    ],
+    ["lease.ended", { leaseId: "lease", outcome: "future-outcome" }],
+    ["note.created", { kind: "work", leaseId: null }],
+  ])("assigns a fixed reason to invalid %s data", async (type, data) => {
+    await expect(
+      exportAnalyticsBatch(
+        new FakeSource([event(1, type, data)]),
+        new FakeStore(),
+        10,
+      ),
+    ).rejects.toMatchObject({ reason: "event_schema_invalid" });
+  });
+
+  it("assigns fixed reasons to malformed checkpoint and manifest JSON", async () => {
+    const checkpointStore = new FakeStore();
+    checkpointStore.seed("work-state/v1/checkpoint.json", "{");
+    await expect(
+      exportAnalyticsBatch(new FakeSource([]), checkpointStore, 10),
+    ).rejects.toMatchObject({ reason: "checkpoint_schema_invalid" });
+
+    const manifestStore = new FakeStore();
+    manifestStore.seed("work-state/v1/manifests/1-1.json", "{");
+    await expect(
+      exportAnalyticsBatch(
+        new FakeSource([event(1, "work_item.created")]),
+        manifestStore,
+        10,
+      ),
+    ).rejects.toMatchObject({ reason: "manifest_schema_invalid" });
   });
 
   it("rejects a concurrent checkpoint change", async () => {
@@ -347,6 +396,96 @@ describe("Work Graph analytics export", () => {
 
     await expect(exportAnalyticsBatch(source, store, 10)).rejects.toThrow(
       "checkpoint changed",
+    );
+  });
+});
+
+describe("R2 analytics object storage", () => {
+  const object = (body: string, etag = "etag") =>
+    ({ etag, text: vi.fn().mockResolvedValue(body) }) as unknown as R2ObjectBody;
+
+  it("reads missing and existing objects", async () => {
+    const bucket = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(object("body")),
+    } as unknown as R2Bucket;
+    const store = new R2AnalyticsObjectStore(bucket);
+
+    await expect(store.get("missing")).resolves.toBeNull();
+    await expect(store.get("existing")).resolves.toEqual({
+      body: "body",
+      version: "etag",
+    });
+  });
+
+  it("creates immutable objects and accepts an identical retry", async () => {
+    const bucket = {
+      get: vi.fn().mockResolvedValue(object("body")),
+      put: vi
+        .fn()
+        .mockResolvedValueOnce({ etag: "created" })
+        .mockResolvedValueOnce(null),
+    } as unknown as R2Bucket;
+    const store = new R2AnalyticsObjectStore(bucket);
+
+    await expect(
+      store.putImmutable("key", "body", "application/json"),
+    ).resolves.toBeUndefined();
+    await expect(
+      store.putImmutable("key", "body", "application/json"),
+    ).resolves.toBeUndefined();
+    expect(bucket.put).toHaveBeenCalledWith("key", "body", {
+      onlyIf: { etagDoesNotMatch: "*" },
+      httpMetadata: { contentType: "application/json" },
+    });
+  });
+
+  it("rejects an immutable object conflict with a fixed reason", async () => {
+    const bucket = {
+      get: vi.fn().mockResolvedValue(object("different")),
+      put: vi.fn().mockResolvedValue(null),
+    } as unknown as R2Bucket;
+    const store = new R2AnalyticsObjectStore(bucket);
+
+    await expect(
+      store.putImmutable("key", "body", "application/json"),
+    ).rejects.toMatchObject({ reason: "immutable_object_conflict" });
+  });
+
+  it("fences initial and subsequent checkpoint writes by ETag", async () => {
+    const bucket = {
+      put: vi
+        .fn()
+        .mockResolvedValueOnce({ etag: "created" })
+        .mockResolvedValueOnce(null),
+    } as unknown as R2Bucket;
+    const store = new R2AnalyticsObjectStore(bucket);
+
+    await expect(store.compareAndSetCheckpoint(null, "first")).resolves.toBe(
+      true,
+    );
+    await expect(
+      store.compareAndSetCheckpoint("etag", "second"),
+    ).resolves.toBe(false);
+    expect(bucket.put).toHaveBeenNthCalledWith(
+      1,
+      "work-state/v1/checkpoint.json",
+      "first",
+      {
+        onlyIf: { etagDoesNotMatch: "*" },
+        httpMetadata: { contentType: "application/json" },
+      },
+    );
+    expect(bucket.put).toHaveBeenNthCalledWith(
+      2,
+      "work-state/v1/checkpoint.json",
+      "second",
+      {
+        onlyIf: { etagMatches: "etag" },
+        httpMetadata: { contentType: "application/json" },
+      },
     );
   });
 });

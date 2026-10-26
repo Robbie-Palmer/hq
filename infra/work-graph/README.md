@@ -190,7 +190,8 @@ and bucket-scoped R2 token by following
 The apply creates `work-graph-private-analytics` without a public development
 URL or custom domain. The Work Graph Worker receives the `ANALYTICS` binding and
 can write only through that Worker deployment. Do not reuse the backup key pair
-for analytics.
+for analytics. The bucket name is fixed because Terraform and Wrangler must
+bind the same bucket; this deployment does not support a name override.
 
 Create a separate R2 API token named `work-graph-analytics-reader` with Object
 Read permission scoped only to `work-graph-private-analytics`. Store its S3
