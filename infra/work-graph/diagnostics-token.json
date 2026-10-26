@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "providerOrigins": {
+    "cloudflare": "https://api.cloudflare.com",
+    "doppler": "https://api.doppler.com",
+    "github": "https://api.github.com"
+  },
+  "token": {
+    "name": "work-graph-diagnostics",
+    "accountIdEnvironment": "CLOUDFLARE_ACCOUNT_ID",
+    "provisionerTokenEnvironment": "CLOUDFLARE_TOKEN_PROVISIONER_TOKEN",
+    "permissions": [
+      {
+        "id": "82c075da3f4647a2a03becd0fe240f8a",
+        "name": "Workers Observability Write"
+      },
+      {
+        "id": "b89a480218d04ceb98b4fe57ca29dc1f",
+        "name": "Account Analytics Read"
+      }
+    ]
+  },
+  "systemOfRecord": {
+    "project": "work-graph",
+    "config": "prd_work_graph",
+    "secretName": "CLOUDFLARE_DIAGNOSTICS_API_TOKEN",
+    "managedTokenIdName": "CLOUDFLARE_DIAGNOSTICS_API_TOKEN_ID",
+    "credentialEnvironment": "DOPPLER_BOOTSTRAP_TOKEN"
+  },
+  "githubConsumer": {
+    "repository": "Robbie-Palmer/hq",
+    "environment": "production-work-graph",
+    "secretName": "CLOUDFLARE_DIAGNOSTICS_API_TOKEN",
+    "credentialEnvironment": "GH_BOOTSTRAP_TOKEN"
+  },
+  "verification": {
+    "environment": "production-work-graph",
+    "task": "//workers/work-graph-api:diagnostics:query"
+  }
+}

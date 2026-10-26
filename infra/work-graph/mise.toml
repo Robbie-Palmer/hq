@@ -53,6 +53,30 @@ CF_ACCESS_SERVICE_TOKEN_NAME=work-graph-agents \
 bash scripts/doppler-terraform-env.sh bash ../../scripts/rotate-preview-access-token.sh
 """
 
+[tasks."diagnostics-token:plan"]
+description = "Show the redacted Work Graph diagnostic-token lifecycle plan"
+run = "bash scripts/manage-diagnostics-token.sh plan"
+
+[tasks."diagnostics-token:prepare"]
+description = "Reconcile or rotate the Work Graph diagnostic token without revoking prior tokens"
+run = "bash scripts/manage-diagnostics-token.sh prepare"
+
+[tasks."diagnostics-token:finalize"]
+description = "Revoke prior Work Graph diagnostic tokens after production verification"
+run = "bash scripts/manage-diagnostics-token.sh finalize"
+
+[tasks."diagnostics-token:verify-consumer"]
+description = "Verify that a diagnostic-token consumer holds the prepared provider ID"
+run = "bash scripts/manage-diagnostics-token.sh verify-consumer"
+
+[tasks."diagnostics-token:retire"]
+description = "Remove the Work Graph diagnostic token and both consumers"
+run = "bash scripts/manage-diagnostics-token.sh retire"
+
+[tasks."diagnostics-token:test"]
+description = "Test Work Graph diagnostic-token lifecycle and credential boundaries"
+run = "bash scripts/manage-diagnostics-token.test.sh"
+
 [tasks.check]
 description = "Check and plan Work Graph infrastructure"
 depends = ["format:check", "lint", "lint:tflint", "plan"]
