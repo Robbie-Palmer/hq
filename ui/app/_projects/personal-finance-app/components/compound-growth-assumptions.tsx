@@ -4,7 +4,6 @@ import { type Dispatch, type SetStateAction, useId } from "react";
 import type {
   Currency,
   GrowthCashFlow,
-  GrowthScenario,
 } from "@/app/_projects/personal-finance-app/domain";
 import { formatCurrency } from "@/app/_projects/personal-finance-app/lib";
 import { Input } from "@/components/ui/input";
@@ -64,6 +63,35 @@ function PercentField({
   );
 }
 
+function SelectField<T extends string>({
+  label,
+  onChange,
+  options,
+  value,
+}: Readonly<{
+  label: string;
+  onChange: (value: T) => void;
+  options: ReadonlyArray<{ label: string; value: T }>;
+  value: T;
+}>) {
+  return (
+    <label className="grid gap-1 text-sm">
+      <span>{label}</span>
+      <select
+        className="h-9 rounded-md border bg-background px-3"
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function ScenarioFields({
   draft,
   patch,
@@ -110,6 +138,49 @@ function ScenarioFields({
   );
 }
 
+function RecurringFlowSettings({
+  draft,
+  patch,
+  patchFlow,
+}: Readonly<{
+  draft: PlannerDraft;
+  patch: DraftPatch;
+  patchFlow: FlowPatch;
+}>) {
+  return (
+    <>
+      <SelectField
+        label="Recurring direction"
+        value={draft.recurringFlow.kind}
+        options={[
+          { label: "Contribution", value: "contribution" },
+          { label: "Withdrawal", value: "withdrawal" },
+        ]}
+        onChange={(kind) => patchFlow("recurringFlow", { kind })}
+      />
+      <SelectField
+        label="Recurring frequency"
+        value={draft.recurringFlow.frequency}
+        options={[
+          { label: "Monthly", value: "monthly" },
+          { label: "Quarterly", value: "quarterly" },
+          { label: "Yearly", value: "yearly" },
+        ]}
+        onChange={(frequency) => patchFlow("recurringFlow", { frequency })}
+      />
+      <SelectField
+        label="Contribution timing"
+        value={draft.contributionTiming}
+        options={[
+          { label: "Beginning of period", value: "beginning" },
+          { label: "End of period", value: "end" },
+        ]}
+        onChange={(contributionTiming) => patch({ contributionTiming })}
+      />
+    </>
+  );
+}
+
 function RecurringFlowFields({
   draft,
   patch,
@@ -126,53 +197,11 @@ function RecurringFlowFields({
         value={draft.recurringFlow.amount}
         onChange={(amount) => patchFlow("recurringFlow", { amount })}
       />
-      <label className="grid gap-1 text-sm">
-        <span>Recurring direction</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.recurringFlow.kind}
-          onChange={(event) =>
-            patchFlow("recurringFlow", {
-              kind: event.target.value as GrowthCashFlow["kind"],
-            })
-          }
-        >
-          <option value="contribution">Contribution</option>
-          <option value="withdrawal">Withdrawal</option>
-        </select>
-      </label>
-      <label className="grid gap-1 text-sm">
-        <span>Recurring frequency</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.recurringFlow.frequency}
-          onChange={(event) =>
-            patchFlow("recurringFlow", {
-              frequency: event.target.value as GrowthCashFlow["frequency"],
-            })
-          }
-        >
-          <option value="monthly">Monthly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
-        </select>
-      </label>
-      <label className="grid gap-1 text-sm">
-        <span>Contribution timing</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.contributionTiming}
-          onChange={(event) =>
-            patch({
-              contributionTiming: event.target
-                .value as GrowthScenario["contributionTiming"],
-            })
-          }
-        >
-          <option value="beginning">Beginning of period</option>
-          <option value="end">End of period</option>
-        </select>
-      </label>
+      <RecurringFlowSettings
+        draft={draft}
+        patch={patch}
+        patchFlow={patchFlow}
+      />
     </>
   );
 }
@@ -191,21 +220,15 @@ function OneOffFlowFields({
         value={draft.oneOffFlow.amount}
         onChange={(amount) => patchFlow("oneOffFlow", { amount })}
       />
-      <label className="grid gap-1 text-sm">
-        <span>One-off direction</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.oneOffFlow.kind}
-          onChange={(event) =>
-            patchFlow("oneOffFlow", {
-              kind: event.target.value as GrowthCashFlow["kind"],
-            })
-          }
-        >
-          <option value="contribution">Contribution</option>
-          <option value="withdrawal">Withdrawal</option>
-        </select>
-      </label>
+      <SelectField
+        label="One-off direction"
+        value={draft.oneOffFlow.kind}
+        options={[
+          { label: "Contribution", value: "contribution" },
+          { label: "Withdrawal", value: "withdrawal" },
+        ]}
+        onChange={(kind) => patchFlow("oneOffFlow", { kind })}
+      />
       <label className="grid gap-1 text-sm" htmlFor="growth-one-off-date">
         <span>One-off date</span>
         <Input
@@ -221,49 +244,28 @@ function OneOffFlowFields({
   );
 }
 
-function ReturnFields({
+function ReturnConventionFields({
   draft,
   patch,
 }: Readonly<{ draft: PlannerDraft; patch: DraftPatch }>) {
   return (
     <>
-      <label className="grid gap-1 text-sm">
-        <span>Account wrapper</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.wrapper}
-          onChange={(event) =>
-            patch({ wrapper: event.target.value as GrowthScenario["wrapper"] })
-          }
-        >
-          <option value="taxable">Taxable</option>
-          <option value="isa">ISA</option>
-          <option value="pension">Pension</option>
-        </select>
-      </label>
-      <PercentField
-        label="Annual return"
-        value={draft.annualReturn}
-        onChange={(annualReturn) => patch({ annualReturn })}
+      <SelectField
+        label="Return convention"
+        value={draft.returnConvention.kind}
+        options={[
+          { label: "Effective annual", value: "effective-annual" },
+          { label: "Nominal annual", value: "nominal-annual" },
+        ]}
+        onChange={(kind) =>
+          patch({
+            returnConvention:
+              kind === "effective-annual"
+                ? { kind: "effective-annual" }
+                : { kind: "nominal-annual", compoundingPeriods: 12 },
+          })
+        }
       />
-      <label className="grid gap-1 text-sm">
-        <span>Return convention</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.returnConvention.kind}
-          onChange={(event) =>
-            patch({
-              returnConvention:
-                event.target.value === "effective-annual"
-                  ? { kind: "effective-annual" }
-                  : { kind: "nominal-annual", compoundingPeriods: 12 },
-            })
-          }
-        >
-          <option value="effective-annual">Effective annual</option>
-          <option value="nominal-annual">Nominal annual</option>
-        </select>
-      </label>
       {draft.returnConvention.kind === "nominal-annual" ? (
         <NumberField
           label="Compounds per year"
@@ -279,25 +281,56 @@ function ReturnFields({
           }
         />
       ) : null}
-      <label className="grid gap-1 text-sm">
-        <span>Return type</span>
-        <select
-          className="h-9 rounded-md border bg-background px-3"
-          value={draft.returnType}
-          onChange={(event) =>
-            patch({
-              returnType: event.target.value as GrowthScenario["returnType"],
-            })
-          }
-        >
-          <option value="guaranteed-savings">
-            Guaranteed savings interest
-          </option>
-          <option value="uncertain-investment">
-            Uncertain investment return
-          </option>
-        </select>
-      </label>
+    </>
+  );
+}
+
+function ReturnClassificationFields({
+  draft,
+  patch,
+}: Readonly<{ draft: PlannerDraft; patch: DraftPatch }>) {
+  return (
+    <>
+      <SelectField
+        label="Account wrapper"
+        value={draft.wrapper}
+        options={[
+          { label: "Taxable", value: "taxable" },
+          { label: "ISA", value: "isa" },
+          { label: "Pension", value: "pension" },
+        ]}
+        onChange={(wrapper) => patch({ wrapper })}
+      />
+      <PercentField
+        label="Annual return"
+        value={draft.annualReturn}
+        onChange={(annualReturn) => patch({ annualReturn })}
+      />
+      <SelectField
+        label="Return type"
+        value={draft.returnType}
+        options={[
+          {
+            label: "Guaranteed savings interest",
+            value: "guaranteed-savings",
+          },
+          {
+            label: "Uncertain investment return",
+            value: "uncertain-investment",
+          },
+        ]}
+        onChange={(returnType) => patch({ returnType })}
+      />
+    </>
+  );
+}
+
+function RateAssumptionFields({
+  draft,
+  patch,
+}: Readonly<{ draft: PlannerDraft; patch: DraftPatch }>) {
+  return (
+    <>
       <PercentField
         label="Annual fee"
         value={draft.annualFeeRate}
@@ -323,6 +356,19 @@ function ReturnFields({
         value={draft.stressInflationDelta}
         onChange={(stressInflationDelta) => patch({ stressInflationDelta })}
       />
+    </>
+  );
+}
+
+function ReturnFields({
+  draft,
+  patch,
+}: Readonly<{ draft: PlannerDraft; patch: DraftPatch }>) {
+  return (
+    <>
+      <ReturnClassificationFields draft={draft} patch={patch} />
+      <ReturnConventionFields draft={draft} patch={patch} />
+      <RateAssumptionFields draft={draft} patch={patch} />
     </>
   );
 }
