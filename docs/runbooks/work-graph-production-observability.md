@@ -23,8 +23,9 @@ mise //workers/work-graph-api:diagnostics:query -- \
   --from 2026-09-30T21:00:00Z --to 2026-09-30T22:00:00Z
 ```
 
-The query selects native invocation events with HTTP status `>= 500` and
-`< 600`, plus structured application error records in the same time window.
+The query selects structured per-route usage records, native invocation events
+with HTTP status `>= 500` and `< 600`, and structured application error records
+in the same time window.
 The Hyperdrive query is GraphQL and lives in
 [`hyperdrive-pools.graphql`](../../workers/work-graph-api/queries/hyperdrive-pools.graphql).
 The diagnostic helper loads that file directly. Workers Logs uses the telemetry
@@ -43,8 +44,14 @@ the live diagnostic query checks API compatibility.
 The GraphQL query selects Hyperdrive pool size, waiting clients, available
 slots, and failed queries for the production Hyperdrive configuration over
 that exact window.
-Output includes sanitized application records and pool metrics. It does not
-print native URLs, headers, stacks, SQL, or historical exception messages.
+Output includes `usageByRoute`, sanitized application records, and pool metrics.
+Route usage reports request count, database query count, result-row count,
+estimated database result bytes, response bytes, total duration, and the first
+and last observation timestamps. The byte estimate measures decoded row values
+and excludes PostgreSQL protocol overhead, so use it to rank routes and compare
+time windows rather than reconcile Neon billing exactly. Output does not print
+native URLs, headers, stacks, SQL, parameters, database values, ticket IDs, or
+historical exception messages.
 
 Match the CLI's `X-Request-Id` response header to `errors[].requestId`.
 The record's `invocationId` links it to Cloudflare's native request identifier.
@@ -54,9 +61,9 @@ they do not identify an individual SQL request. `workerVersion` identifies
 the deployed Worker version, and `route` uses the registered route template
 rather than a ticket identifier supplied in the URL.
 
-The event query returns at most 2,000 records per selection. If `truncated`
-is true, counts are lower bounds. Split the window and query again until each
-result is below the limit. The default query window is the last 15 minutes.
+Each event query returns at most 2,000 records. If `truncated` is true, counts
+are lower bounds. Split the window and query again until each result is below
+the limit. The default query window is the last 15 minutes.
 
 For investigations in the Cloudflare dashboard, open Workers Observability,
 filter `$metadata.service = work-graph-api`, then

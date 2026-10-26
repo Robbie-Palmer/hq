@@ -707,11 +707,53 @@ function validatePropertyComparableSearchReferences(
   }
 }
 
+function validateJobMoveScenarioReference(
+  data: AssetTrackerData,
+  accounts: Map<AccountId, Account>,
+  recurringFlowIds: ReadonlySet<string>,
+  futureCashFlowIds: ReadonlySet<string>,
+  scenario: JobMoveScenario,
+) {
+  if (
+    scenario.householdMemberId != null &&
+    !data.household.members.some(({ id }) => id === scenario.householdMemberId)
+  ) {
+    throw new AssetTrackerDataError(
+      `Job-move scenario "${scenario.name}" references unknown household member "${scenario.householdMemberId}"`,
+    );
+  }
+  assertKnownAccount(
+    accounts,
+    scenario.destinationAccountId,
+    `Job-move scenario "${scenario.name}"`,
+  );
+  assertKnownAccount(
+    accounts,
+    scenario.pensionAccountId,
+    `Job-move scenario "${scenario.name}"`,
+  );
+  for (const flowId of scenario.replacedRecurringFlowIds) {
+    if (!recurringFlowIds.has(flowId)) {
+      throw new AssetTrackerDataError(
+        `Job-move scenario "${scenario.name}" replaces unknown recurring flow "${flowId}"`,
+      );
+    }
+  }
+  for (const flowId of scenario.includedFutureCashFlowIds ?? []) {
+    if (!futureCashFlowIds.has(flowId)) {
+      throw new AssetTrackerDataError(
+        `Job-move scenario "${scenario.name}" includes unknown future cash flow "${flowId}"`,
+      );
+    }
+  }
+}
+
 function validateJobMoveScenarioReferences(
   data: AssetTrackerData,
   accounts: Map<AccountId, Account>,
 ): void {
   const recurringFlowIds = new Set(data.recurringFlows.map(({ id }) => id));
+  const futureCashFlowIds = new Set(data.futureCashFlows.map(({ id }) => id));
   const scenarioIds = new Set<string>();
   for (const scenario of data.jobMoveScenarios ?? []) {
     if (scenarioIds.has(scenario.id)) {
@@ -720,33 +762,13 @@ function validateJobMoveScenarioReferences(
       );
     }
     scenarioIds.add(scenario.id);
-    if (
-      scenario.householdMemberId != null &&
-      !data.household.members.some(
-        ({ id }) => id === scenario.householdMemberId,
-      )
-    ) {
-      throw new AssetTrackerDataError(
-        `Job-move scenario "${scenario.name}" references unknown household member "${scenario.householdMemberId}"`,
-      );
-    }
-    assertKnownAccount(
+    validateJobMoveScenarioReference(
+      data,
       accounts,
-      scenario.destinationAccountId,
-      `Job-move scenario "${scenario.name}"`,
+      recurringFlowIds,
+      futureCashFlowIds,
+      scenario,
     );
-    assertKnownAccount(
-      accounts,
-      scenario.pensionAccountId,
-      `Job-move scenario "${scenario.name}"`,
-    );
-    for (const flowId of scenario.replacedRecurringFlowIds) {
-      if (!recurringFlowIds.has(flowId)) {
-        throw new AssetTrackerDataError(
-          `Job-move scenario "${scenario.name}" replaces unknown recurring flow "${flowId}"`,
-        );
-      }
-    }
   }
 }
 

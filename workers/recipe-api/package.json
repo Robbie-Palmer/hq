@@ -12,7 +12,7 @@
     "test:integration": "bash scripts/test-integration.sh",
     "test:watch": "vitest",
     "db:check": "bash scripts/check-migrations.sh",
-    "db:generate": "drizzle-kit generate",
+    "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "openapi:generate": "tsx scripts/generate-openapi.ts",

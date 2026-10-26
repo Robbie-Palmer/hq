@@ -79,6 +79,16 @@ locals {
               "prd_remote_development_host",
               "prd_remote_development_infra",
               "prd_remote_development_observability",
+              "prd_vector_development",
+            ]
+          }
+          prd_tailnet_values = {
+            name             = "Production Tailnet Values"
+            personal_configs = false
+            configs = [
+              "prd_tailnet_values",
+              "prd_tailnet_values_infra",
+              "prd_tailnet_values_infra_plan",
             ]
           }
         }
@@ -92,6 +102,24 @@ locals {
           }
           remote-development-plan = {
             name = "production-remote-development-infra-plan"
+          }
+          tailnet-apply = {
+            name                 = "production-tailnet-infra"
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-drift = {
+            name                 = "production-tailnet-infra-drift"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+            imported             = false
+          }
+          tailnet-plan = {
+            name               = "production-tailnet-infra-plan"
+            reviewer_usernames = ["Robbie-Palmer"]
+            imported           = false
           }
         }
       }
@@ -143,7 +171,7 @@ locals {
           ops = {
             name             = "Operations"
             personal_configs = false
-            # The three account-foundation configs are part of the manual seed.
+            # The account-foundation seed configs stay outside this registry.
             configs = ["ops", "ops_preview_agent_access"]
           }
         }
@@ -276,6 +304,35 @@ locals {
         }
       }
     }
+    cloudflare-token-bootstrap = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "cloudflare-token-bootstrap"
+          description = "Cloudflare account-owned API token provisioning authority"
+        }
+        environments = {
+          ops = {
+            name             = "Operations"
+            personal_configs = false
+            configs          = ["ops_provisioner"]
+          }
+        }
+      }
+      github = {
+        repository = "hq"
+        environments = {
+          provision = {
+            name                 = "production-cloudflare-token-bootstrap"
+            can_admins_bypass    = false
+            reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+        }
+      }
+    }
     personal-finance = {
       deletion_protected = true
       imported           = false
@@ -347,6 +404,7 @@ locals {
       ]
     ])
   ])
+  cloudflare_token_bootstrap_config_id = "cloudflare-token-bootstrap/ops/ops_provisioner"
   github_environment_ids = flatten([
     for entry in local.delivery_registry_entries : [
       for environment in values(entry.root.github.environments) :
@@ -402,7 +460,10 @@ locals {
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config_name
-          imported    = root.imported && var.enable_existing_imports
+          imported = (
+            root.imported ||
+            "${root.doppler.project.name}/${environment_slug}/${config_name}" == local.cloudflare_token_bootstrap_config_id
+          ) && var.enable_existing_imports
         }
       }
     ]
@@ -415,7 +476,7 @@ locals {
         root_id    = root_id
         purpose    = purpose
         repository = root.github.repository
-        imported   = root.imported && var.enable_existing_imports
+        imported   = try(environment.imported, root.imported) && var.enable_existing_imports
       })
     }
   ]...)
@@ -470,6 +531,7 @@ locals {
   managed_doppler_projects     = merge(doppler_project.managed, doppler_project.disposable)
   managed_doppler_environments = merge(doppler_environment.managed, doppler_environment.disposable)
   managed_github_environments  = merge(github_repository_environment.managed, github_repository_environment.disposable)
+
 }
 
 data "github_user" "reviewer" {

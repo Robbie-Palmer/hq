@@ -189,15 +189,14 @@ export function getProjectWithADRs(
     .filter((adr) => adr.status === "Accepted")
     .flatMap((adr) => adr.technologies);
 
-  const seenSlugs = new Set<string>();
-  const mergedTechnologies = [
-    ...projectTechnologies,
-    ...adrTechnologies,
-  ].filter((tech) => {
-    if (seenSlugs.has(tech.slug)) return false;
-    seenSlugs.add(tech.slug);
-    return true;
-  });
+  const seenLocalTechnologySlugs = new Set<string>();
+  const localTechnologies = [...projectTechnologies, ...adrTechnologies].filter(
+    (tech) => {
+      if (seenLocalTechnologySlugs.has(tech.slug)) return false;
+      seenLocalTechnologySlugs.add(tech.slug);
+      return true;
+    },
+  );
 
   const adrSlugs = getADRSlugsForProject(repository.graph, slug);
   const role = getRoleView(repository, slug);
@@ -258,6 +257,12 @@ export function getProjectWithADRs(
           ]
         : [];
     });
+  const platformTechnologySlugs = new Set(
+    platformTechnologies.map((technology) => technology.slug),
+  );
+  const currentLocalTechnologies = localTechnologies.filter(
+    (technology) => !platformTechnologySlugs.has(technology.slug),
+  );
   const platformPolicies = stack.policies.map((use) => ({
     value: use.value,
     source: use.source,
@@ -331,7 +336,7 @@ export function getProjectWithADRs(
     paperTitle: project.paperTitle,
     pitch: project.pitch,
     content: project.content,
-    technologies: mergedTechnologies,
+    technologies: currentLocalTechnologies,
     adrSlugs: adrSlugs.map((adrRef) => parseADRRef(adrRef).adrSlug),
     adrs,
     role,

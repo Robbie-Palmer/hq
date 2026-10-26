@@ -5,6 +5,7 @@ import {
   boolean,
   check,
   date,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -29,6 +30,11 @@ import {
   LEFTOVER_STORAGE_LOCATIONS,
 } from "recipe-domain/cook-log";
 import {
+  INGREDIENT_PROPERTY_KINDS,
+  type IngredientPropertyReconciliationDecision,
+  type IngredientPropertyValue,
+} from "recipe-domain/ingredient-property";
+import {
   RECIPE_IMPORT_STAGES,
   RECIPE_IMPORT_STATUSES,
 } from "recipe-domain/import-storage";
@@ -39,6 +45,7 @@ import {
   type PantryFreshnessEstimate,
   type PantryMutationValue,
 } from "recipe-domain/pantry";
+import type { ShoppingListChecklistCommand } from "recipe-domain/shopping-list";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 
 export type { CookLogMutationValue } from "recipe-domain/cook-log";
@@ -599,6 +606,238 @@ export const ingredient = pgTable("ingredient", {
     .$onUpdate(() => new Date()),
 });
 
+export const ingredientPropertyKindEnum = pgEnum(
+  "ingredient_property_kind",
+  INGREDIENT_PROPERTY_KINDS,
+);
+export const ingredientPropertyReleaseStatusEnum = pgEnum(
+  "ingredient_property_release_status",
+  ["staged", "validated", "rejected"],
+);
+export const ingredientPropertyCatalogStatusEnum = pgEnum(
+  "ingredient_property_catalog_status",
+  ["draft", "published"],
+);
+
+export const ingredientPropertySource = pgTable(
+  "ingredient_property_source",
+  {
+    id: text().primaryKey(),
+    publisher: text().notNull(),
+    dataset: text().notNull(),
+    canonicalUrl: text().notNull(),
+    license: text().notNull(),
+    licenseUrl: text(),
+    attribution: text().notNull(),
+    redistributionAllowed: boolean().notNull(),
+    derivativeUseAllowed: boolean().notNull(),
+    admittedAt: timestamp({ withTimezone: true }).notNull(),
+    admissionNotes: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "ingredient_property_source_identity_check",
+      sql`length(${table.publisher}) > 0 and length(${table.dataset}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_license_check",
+      sql`length(${table.license}) > 0 and length(${table.attribution}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_admission_check",
+      sql`length(${table.admissionNotes}) > 0`,
+    ),
+  ],
+);
+
+export const ingredientPropertySourceRelease = pgTable(
+  "ingredient_property_source_release",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    sourceId: text().notNull(),
+    effectiveVersion: text().notNull(),
+    effectiveAt: timestamp({ withTimezone: true }).notNull(),
+    retrievedAt: timestamp({ withTimezone: true }).notNull(),
+    checksumSha256: text().notNull(),
+    connectorVersion: text().notNull(),
+    status: ingredientPropertyReleaseStatusEnum().notNull().default("staged"),
+    diagnostics: jsonb().$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "property_release_source_fk",
+      columns: [table.sourceId],
+      foreignColumns: [ingredientPropertySource.id],
+    }).onDelete("restrict"),
+    uniqueIndex("ingredient_property_source_release_version_uidx").on(
+      table.sourceId,
+      table.effectiveVersion,
+    ),
+    uniqueIndex("ingredient_property_source_release_checksum_uidx").on(
+      table.sourceId,
+      table.checksumSha256,
+    ),
+    check(
+      "ingredient_property_source_release_version_check",
+      sql`length(${table.effectiveVersion}) > 0 and length(${table.connectorVersion}) > 0`,
+    ),
+    check(
+      "ingredient_property_source_release_checksum_check",
+      sql`${table.checksumSha256} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+export const ingredientPropertyObservation = pgTable(
+  "ingredient_property_observation",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    sourceReleaseId: uuid().notNull(),
+    sourceRecordId: text().notNull(),
+    ingredientSlug: text().notNull(),
+    preparationState: text().notNull(),
+    propertyKind: ingredientPropertyKindEnum().notNull(),
+    propertyKey: text().notNull(),
+    value: jsonb().$type<IngredientPropertyValue>().notNull(),
+    confidence: numeric({ precision: 5, scale: 4 }).notNull(),
+    originalRecord: jsonb().$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "property_observation_release_fk",
+      columns: [table.sourceReleaseId],
+      foreignColumns: [ingredientPropertySourceRelease.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_observation_ingredient_fk",
+      columns: [table.ingredientSlug],
+      foreignColumns: [ingredient.slug],
+    }).onDelete("restrict"),
+    uniqueIndex("ingredient_property_observation_source_record_uidx").on(
+      table.sourceReleaseId,
+      table.sourceRecordId,
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    index("ingredient_property_observation_lookup_idx").on(
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    check(
+      "ingredient_property_observation_identity_check",
+      sql`length(${table.sourceRecordId}) > 0 and length(${table.preparationState}) > 0 and length(${table.propertyKey}) > 0`,
+    ),
+    check(
+      "ingredient_property_observation_confidence_check",
+      sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+  ],
+);
+
+export const ingredientPropertyCatalogVersion = pgTable(
+  "ingredient_property_catalog_version",
+  {
+    version: text().primaryKey(),
+    status: ingredientPropertyCatalogStatusEnum().notNull().default("draft"),
+    effectiveAt: timestamp({ withTimezone: true }).notNull(),
+    publishedAt: timestamp({ withTimezone: true }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    check(
+      "ingredient_property_catalog_version_name_check",
+      sql`length(${table.version}) > 0`,
+    ),
+    check(
+      "ingredient_property_catalog_version_publish_check",
+      sql`(${table.status} = 'published') = (${table.publishedAt} is not null)`,
+    ),
+    index("ingredient_property_catalog_version_effective_idx").on(
+      table.status,
+      table.effectiveAt.desc(),
+    ),
+  ],
+);
+
+export const ingredientPropertyCatalogSourceRelease = pgTable(
+  "ingredient_property_catalog_source_release",
+  {
+    catalogVersion: text().notNull(),
+    sourceReleaseId: uuid().notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "property_catalog_source_version_fk",
+      columns: [table.catalogVersion],
+      foreignColumns: [ingredientPropertyCatalogVersion.version],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_catalog_source_release_fk",
+      columns: [table.sourceReleaseId],
+      foreignColumns: [ingredientPropertySourceRelease.id],
+    }).onDelete("restrict"),
+    primaryKey({
+      columns: [table.catalogVersion, table.sourceReleaseId],
+      name: "ingredient_property_catalog_source_release_pk",
+    }),
+  ],
+);
+
+export const ingredientPropertySelection = pgTable(
+  "ingredient_property_selection",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    catalogVersion: text().notNull(),
+    ingredientSlug: text().notNull(),
+    preparationState: text().notNull(),
+    propertyKey: text().notNull(),
+    observationId: uuid().notNull(),
+    confidence: numeric({ precision: 5, scale: 4 }).notNull(),
+    reconciliationDecision:
+      jsonb().$type<IngredientPropertyReconciliationDecision>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "property_selection_catalog_fk",
+      columns: [table.catalogVersion],
+      foreignColumns: [ingredientPropertyCatalogVersion.version],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_selection_ingredient_fk",
+      columns: [table.ingredientSlug],
+      foreignColumns: [ingredient.slug],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "property_selection_observation_fk",
+      columns: [table.observationId],
+      foreignColumns: [ingredientPropertyObservation.id],
+    }).onDelete("restrict"),
+    uniqueIndex("ingredient_property_selection_catalog_property_uidx").on(
+      table.catalogVersion,
+      table.ingredientSlug,
+      table.preparationState,
+      table.propertyKey,
+    ),
+    index("ingredient_property_selection_observation_idx").on(
+      table.observationId,
+    ),
+    check(
+      "ingredient_property_selection_identity_check",
+      sql`length(${table.preparationState}) > 0 and length(${table.propertyKey}) > 0`,
+    ),
+    check(
+      "ingredient_property_selection_confidence_check",
+      sql`${table.confidence} >= 0 and ${table.confidence} <= 1`,
+    ),
+  ],
+);
+
 export const authoredTermKindEnum = pgEnum(
   "authored_term_kind",
   AUTHORED_TERM_KINDS,
@@ -953,6 +1192,37 @@ export const shoppingList = pgTable(
     index("shopping_list_household_history_idx").on(
       table.organizationId,
       table.createdAt.desc(),
+    ),
+  ],
+);
+
+/**
+ * Receipt for a replay-safe shopping-list command issued by one signed-in
+ * actor. The command result is kept so a retry after a lost acknowledgement
+ * can return the same canonical projection without applying the command again.
+ */
+export const shoppingListCommandReceipt = pgTable(
+  "shopping_list_command_receipt",
+  {
+    commandId: uuid().notNull(),
+    actorUserId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    resourceId: text().notNull(),
+    listId: uuid()
+      .notNull()
+      .references(() => shoppingList.id, { onDelete: "cascade" }),
+    baseRevision: bigint({ mode: "bigint" }).notNull(),
+    command: jsonb().$type<ShoppingListChecklistCommand>().notNull(),
+    resultRevision: bigint({ mode: "bigint" }).notNull(),
+    resultSnapshot: jsonb().$type<ShoppingListSnapshot>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.actorUserId, table.commandId] }),
+    index("shopping_list_command_receipt_list_idx").on(
+      table.listId,
+      table.createdAt,
     ),
   ],
 );

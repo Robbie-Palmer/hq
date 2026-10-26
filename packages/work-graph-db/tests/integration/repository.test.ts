@@ -12,6 +12,8 @@ import {
   classifyRetryableDatabaseFailure,
   closeDb,
   createDb,
+  createDatabaseQueryMetrics,
+  estimateDatabaseResultRowBytes,
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
@@ -25,6 +27,30 @@ if (!databaseURL) {
 
 const db = createDb(databaseURL);
 const repository = new WorkGraphRepository(db);
+
+describe("database query metrics", () => {
+  it("counts executed queries, result rows, and estimated result bytes", async () => {
+    const metrics = createDatabaseQueryMetrics();
+    const measuredDb = createDb(databaseURL, { metrics });
+    try {
+      const rows = await measuredDb.execute<{
+        label: string;
+        amount: number;
+      }>(sql`select 'measured'::text as label, 42::integer as amount`);
+      const [row] = rows;
+
+      expect(rows).toEqual([{ label: "measured", amount: 42 }]);
+      if (row === undefined) throw new Error("Expected one measured row.");
+      expect(metrics.queryCount).toBe(1);
+      expect(metrics.resultRowCount).toBe(1);
+      expect(metrics.resultBytesEstimated).toBe(
+        estimateDatabaseResultRowBytes(row),
+      );
+    } finally {
+      await closeDb(measuredDb);
+    }
+  });
+});
 
 const recordId = (suffix: number): string =>
   `00000000-0000-4000-8000-${suffix.toString().padStart(12, "0")}`;
@@ -3149,6 +3175,38 @@ describe("lease-backed claiming", () => {
       "urgent",
       "shared",
     ]);
+  });
+
+  it("matches full-graph projections for targeted point reads", async () => {
+    await repository.createWorkItem({ id: "routine", title: "Routine work" });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    await repository.createWorkItem({ id: "middle", title: "Middle" });
+    await repository.createWorkItem({
+      id: "urgent-parent",
+      title: "Urgent parent",
+      expedited: true,
+      expediteReason: "Restore service.",
+    });
+    await repository.createWorkItem({
+      id: "urgent-child",
+      title: "Urgent child",
+      parentId: "urgent-parent",
+    });
+    await repository.addDependency(dependency("urgent-child", "middle"));
+    await repository.addDependency(dependency("middle", "blocker"));
+
+    const listed = await repository.listWorkItems();
+    for (const expected of listed) {
+      await expect(repository.getWorkItem(expected.id)).resolves.toEqual(
+        expected,
+      );
+    }
+    expect(
+      (await repository.getWorkItem("blocker")).priority,
+    ).toMatchObject({
+      effectiveExpedited: true,
+      donatedFromWorkItemId: "urgent-child",
+    });
   });
 
   it("reclaims stale work with a higher epoch and expires the old lease", async () => {

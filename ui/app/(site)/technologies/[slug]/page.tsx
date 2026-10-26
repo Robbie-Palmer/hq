@@ -4,6 +4,7 @@ import {
   ExternalLink,
   FileText,
   FolderKanban,
+  GitBranch,
   Globe2,
   Lightbulb,
   type LucideIcon,
@@ -38,6 +39,7 @@ import {
   getAllTechnologySlugs,
   getRelatedContentForTechnology,
   getTechnologyDetail,
+  type TechnologyRelatedContentView,
 } from "@/lib/domain/technology";
 
 interface RelatedItem {
@@ -81,6 +83,23 @@ function RelatedContentSection({
         ))}
       </div>
     </section>
+  );
+}
+
+function ArchitectureDecisionSection({
+  adrs,
+}: Readonly<{ adrs: TechnologyRelatedContentView["adrs"] }>) {
+  return (
+    <RelatedContentSection
+      icon={GitBranch}
+      heading="Architecture Decisions"
+      items={adrs.map((adr) => ({
+        key: `${adr.projectSlug}:${adr.slug}`,
+        href: `/projects/${adr.projectSlug}/adrs/${adr.slug}`,
+        title: adr.title,
+        subtitle: adr.status,
+      }))}
+    />
   );
 }
 
@@ -155,6 +174,24 @@ const TECHNOLOGY_DEMOS: Record<
   },
 };
 
+function TechnologyDemo({ slug }: Readonly<{ slug: string }>) {
+  const demo = TECHNOLOGY_DEMOS[slug];
+  if (!demo) return null;
+  const DemoIcon = demo.icon;
+  return (
+    <>
+      <Separator />
+      <section>
+        <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
+          <DemoIcon className="w-5 h-5 text-primary" />
+          Demo
+        </h2>
+        {demo.component}
+      </section>
+    </>
+  );
+}
+
 export default async function TechnologyPage({ params }: Readonly<PageProps>) {
   const { slug } = await params;
   const repository = loadDomainRepository();
@@ -180,7 +217,8 @@ export default async function TechnologyPage({ params }: Readonly<PageProps>) {
     relatedContent.ideas.length > 0 ||
     relatedContent.projects.length > 0 ||
     relatedContent.blogs.length > 0 ||
-    relatedContent.roles.length > 0;
+    relatedContent.roles.length > 0 ||
+    relatedContent.adrs.length > 0;
 
   return (
     <div className="max-w-4xl">
@@ -248,23 +286,7 @@ export default async function TechnologyPage({ params }: Readonly<PageProps>) {
           </>
         )}
 
-        {(() => {
-          const demo = TECHNOLOGY_DEMOS[slug];
-          if (!demo) return null;
-          const DemoIcon = demo.icon;
-          return (
-            <>
-              <Separator />
-              <section>
-                <h2 className="text-2xl font-semibold mb-4 flex items-center gap-2">
-                  <DemoIcon className="w-5 h-5 text-primary" />
-                  Demo
-                </h2>
-                {demo.component}
-              </section>
-            </>
-          );
-        })()}
+        <TechnologyDemo slug={slug} />
 
         {hasRelatedContent && (
           <>
@@ -305,6 +327,7 @@ export default async function TechnologyPage({ params }: Readonly<PageProps>) {
                   subtitle: `${blog.date} \u00b7 ${blog.readingTime}`,
                 }))}
               />
+              <ArchitectureDecisionSection adrs={relatedContent.adrs} />
               <RelatedContentSection
                 icon={Briefcase}
                 heading="Experience"

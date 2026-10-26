@@ -285,8 +285,8 @@ beforeAll(async () => {
     )
     order by group_key, ingredient_slug
   `;
-  expect(migrationCount?.count).toBe(30);
-  expect(tableCount?.count).toBe(56);
+  expect(migrationCount?.count).toBe(32);
+  expect(tableCount?.count).toBe(63);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
     {
@@ -1770,6 +1770,111 @@ describe("recipe API PostgreSQL integration", () => {
     expect(await ownerNotifications.json()).toMatchObject({
       unreadCount: 0,
       items: [],
+    });
+  });
+
+  it("applies a shopping checklist command exactly once", async () => {
+    const owner = await createUser("Offline shopper", "offline@example.test");
+    const currentResponse = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current",
+    );
+    const current = (await currentResponse.json()) as {
+      id: string;
+      revision: string;
+    };
+    const commandId = "019a1d20-1111-7111-8111-111111111111";
+    const request = {
+      baseRevision: current.revision,
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: "garlic",
+        checked: true,
+      },
+    };
+
+    const applied = await authenticatedRequest(
+      owner,
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
+    );
+    expect(applied.status).toBe(200);
+    expect(await applied.json()).toMatchObject({
+      id: current.id,
+      revision: "1",
+      snapshot: { checked: ["garlic"] },
+    });
+
+    const replayed = await authenticatedRequest(
+      owner,
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
+    );
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toMatchObject({
+      revision: "1",
+      snapshot: { checked: ["garlic"] },
+    });
+    expect(
+      await db
+        .select()
+        .from(schema.shoppingListCommandReceipt)
+        .where(eq(schema.shoppingListCommandReceipt.actorUserId, owner.id)),
+    ).toHaveLength(1);
+
+    const advancedSnapshot = {
+      recipes: [],
+      checked: ["garlic"],
+      extras: [
+        {
+          id: "extra-bread",
+          text: "Bread",
+          checked: false,
+        },
+      ],
+      plan: [],
+    };
+    const advanced = await authenticatedRequest(
+      owner,
+      "/shopping-lists/current",
+      {
+        method: "PUT",
+        body: {
+          listId: current.id,
+          revision: "1",
+          snapshot: advancedSnapshot,
+        },
+      },
+    );
+    expect(advanced.status).toBe(200);
+    expect(await advanced.json()).toMatchObject({
+      revision: "2",
+      snapshot: advancedSnapshot,
+    });
+
+    const replayedAfterAdvance = await authenticatedRequest(
+      owner,
+      `/shopping-lists/${current.id}/commands/${commandId}`,
+      { method: "PUT", body: request },
+    );
+    expect(replayedAfterAdvance.status).toBe(200);
+    expect(await replayedAfterAdvance.json()).toMatchObject({
+      revision: "1",
+      snapshot: { checked: ["garlic"], extras: [] },
+    });
+
+    const stale = await authenticatedRequest(
+      owner,
+      `/shopping-lists/${current.id}/commands/019a1d20-2222-7222-8222-222222222222`,
+      {
+        method: "PUT",
+        body: request,
+      },
+    );
+    expect(stale.status).toBe(409);
+    expect(await stale.json()).toEqual({
+      error: "The shopping list changed while this command was offline",
     });
   });
 

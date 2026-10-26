@@ -61,8 +61,19 @@ created environments until their branch and reviewer policy is in place.
 `delivery.tf` declares the non-secret Doppler and GitHub structure for managed
 roots. It owns the existing `ai-review`, `homelab`, `personal-site`, and
 `work-graph` containers, plus the structure created for `cloudflare-access`
-and `personal-finance`. Secret values remain with the workload that uses each
-config.
+`cloudflare-token-bootstrap`, and `personal-finance`. Secret values remain with
+the workload that uses each config.
+
+The same root owns the existing `homelab/prd_vector_development` delivery
+config. The Vector workload owns its four config-scoped service tokens, and
+their generated values must stay out of Terraform state. The
+[Vector commissioning guide](../../homelab/docs/vector-development.md)
+describes their guarded creation, rotation, and runtime health check.
+
+The tailnet baseline capture created its three Doppler configs before this
+registry adopted them. Account foundation imports those containers without
+reading their values. New GitHub environments can set `imported = false` so
+the same imported root creates their branch and reviewer policy.
 
 Personal Finance uses three Doppler environments named `ops`, `drift`, and
 `apply`. Their automatically created root configs hold the separated delivery
@@ -81,6 +92,18 @@ read-only checks can run. The apply environment accepts only `main` and
 requires review. The declaration manages environment names and protection
 rules only. GitHub secrets and variables still come from Doppler through the
 existing sync flow and are absent from Terraform configuration and state.
+
+The same registry creates `cloudflare-token-bootstrap/ops_provisioner` and
+`production-cloudflare-token-bootstrap` for the account-owned Cloudflare API
+token provisioner. That GitHub environment accepts only `main`, requires a
+reviewer, and disables administrator bypass.
+The account-foundation apply creates the empty config and environment. A human
+then installs the first masked token and runs the dedicated credential-sync
+task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).
+The config has a declarative import because Doppler's provider can create the
+config and then return a paid-inheritance error on workplaces without config
+inheritance. The import records that created config on the next apply without
+reading its secret values.
 
 Resource keys use the same names as provider import IDs, but some separators
 are different. Use the first column as the Terraform import target and the

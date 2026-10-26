@@ -1,5 +1,6 @@
 import {
   getAllInitiatives as getAllInitiativeEntities,
+  getIdeaLinksForInitiative,
   getInitiative as getInitiativeEntity,
   getInitiativeProjects,
   getProjectInitiatives as getProjectInitiativeEntities,
@@ -7,6 +8,7 @@ import {
   loadDomainRepository,
   type ProjectWithADRsView,
 } from "@/lib/domain";
+import type { IdeaLinkView } from "@/lib/domain/idea";
 import type { Initiative } from "@/lib/domain/initiative";
 
 const repository = loadDomainRepository();
@@ -17,6 +19,7 @@ export interface InitiativeProject extends ProjectWithADRsView {
 
 export interface InitiativeWithProjects extends Initiative {
   projects: InitiativeProject[];
+  ideas: IdeaLinkView[];
 }
 
 function withProjects(initiative: Initiative): InitiativeWithProjects {
@@ -29,7 +32,9 @@ function withProjects(initiative: Initiative): InitiativeWithProjects {
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  return { ...initiative, projects };
+  const ideas = getIdeaLinksForInitiative(repository, initiative.slug);
+
+  return { ...initiative, projects, ideas };
 }
 
 export function getAllInitiativeSlugs(): string[] {

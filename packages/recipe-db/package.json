@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema.ts",
-    "./batch-drafts": "./src/batch-drafts.ts"
+    "./batch-drafts": "./src/batch-drafts.ts",
+    "./ingredient-properties": "./src/ingredient-properties.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit"
@@ -14,7 +15,8 @@
   "dependencies": {
     "drizzle-orm": "^0.45.0",
     "postgres": "^3.4.5",
-    "recipe-domain": "workspace:*"
+    "recipe-domain": "workspace:*",
+    "ts-base": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^6.0.0"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18
+image=ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-19
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version.txt")"
 package_json="${script_dir}/../images/t3-code/package.json"
@@ -121,7 +121,8 @@ docker run --rm \
     case ":$PATH:" in
       *:/usr/local/lib/t3-code/node_modules/.bin:*) exit 1 ;;
     esac
-    for cli in auth-agent claude codex grok opencode pnpm t3; do
+    work-graph prime >/dev/null
+    for cli in auth-agent claude codex grok opencode pnpm t3 work-graph; do
       test "$(command -v "$cli")" = "/usr/local/bin/$cli"
     done
     command -v bwrap chromium git gh lsof t3 >/dev/null

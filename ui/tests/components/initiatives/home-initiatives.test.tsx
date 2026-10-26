@@ -13,6 +13,7 @@ function initiativeFixture(): InitiativeWithProjects {
     status: "inactive",
     content: "",
     projectContributions: {},
+    ideas: [],
     projects: [
       {
         slug: "pathology-viewer",

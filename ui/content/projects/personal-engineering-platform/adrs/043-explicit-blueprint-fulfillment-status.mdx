@@ -1,0 +1,57 @@
+---
+title: "ADR 043: Explicit fulfillment status in resolved blueprints"
+date: "2026-10-25"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+defines resolved blueprint version 1. It stores configuration, state, setup, and
+operational work as strings under `manual_checkpoints`.
+
+The name does not say whether the work is outstanding. In normal use,
+"manual" can mean that someone completed the work outside the generator. A
+receipt containing a manual checkpoint can therefore be read as evidence of
+completion even though the compiler only discovered a task it could not
+perform.
+
+## Decision
+
+Emit resolved blueprint version 2. Replace `manual_checkpoints` with structured
+`fulfillment_checkpoints`. Each checkpoint has a stable ID, an action,
+`fulfillment: manual`, a separate `pending` or `verified` status, and an
+evidence list.
+
+The compiler assigns `pending` and an empty evidence list by default. A project
+profile may mark a checkpoint `verified` only when it supplies at least one
+evidence reference. Profile compilation rejects evidence for an unknown
+current checkpoint. Reconciliation presents pending checkpoints as work and
+does not present verified checkpoints as outstanding decisions.
+
+The project profile remains at schema version 1 because the new
+`checkpoint_fulfillment` field is optional. Reconciliation continues to read
+blueprint version 1 receipts so existing projects can move to version 2 during
+their next reviewed Copier update.
+
+## Alternatives
+
+Renaming the field to `pending_manual_checkpoints` would describe today's
+state, but it would still combine the fulfillment method and completion state.
+It would also need another representation once a person completed a
+checkpoint.
+
+Treating every manual checkpoint as completed would match one interpretation
+of the name but invent operational evidence that the generator does not have.
+
+## Consequences
+
+A blueprint receipt no longer implies that out-of-band work happened merely
+because the generator could not perform it. Reviewers can distinguish declared
+intent, pending work, and evidenced completion without reading prose or
+provider state.
+
+Projects that want to record completion must maintain checkpoint evidence in
+their profile. Checkpoint IDs become part of the compiler contract. Changing a
+platform requirement's name changes its derived ID and requires the adopting
+profile to update its evidence reference.

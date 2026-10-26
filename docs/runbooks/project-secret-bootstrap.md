@@ -18,9 +18,10 @@ secret inventory for a small Worker service. Each secret declares:
 The plan also lists the credentials used to perform the handoff. Give the
 Doppler token write access only to the named project and configs. Limit the
 GitHub token to environment-secret administration for the named repository.
-The Cloudflare token needs Workers Scripts Write for the named account. Keep
-these operator credentials in a supervised shell or a dedicated Doppler
-config. They are not project runtime secrets.
+The ordinary Cloudflare handoff token needs Workers Scripts Write for the named
+account. Token provisioning uses the separate identity described below. Keep
+these operator credentials in a supervised shell or a dedicated Doppler config.
+They are not project runtime secrets.
 
 ## Plan and apply
 
@@ -34,9 +35,9 @@ mise //:project:secret-bootstrap:plan -- \
 The output names every destination and reports each secret as `waiting`,
 `ready`, or `complete`. It does not read the value environment variables.
 
-Complete a manual provider action, export the value into the environment name
-recorded by `creation.value_env`, then acknowledge its checkpoint while
-applying:
+Complete the provider action, then acknowledge its checkpoint while applying.
+For a `manual` source, export the value under `creation.value_env` first. An
+extension obtains its value from the provider without an intermediate export:
 
 ```bash
 mise //:project:secret-bootstrap:apply -- \
@@ -63,11 +64,83 @@ origins. It rejects a changed origin before reading or sending a value. The
 plan parser also rejects a Doppler config, GitHub environment, or Worker that
 is not in the matching identity allowlist.
 
-The core flow does not create Cloudflare API tokens. Manually issued tokens
-are ordinary `manual` inputs, as shown in the example. An optional token
-provisioner can implement a named `extension` source through the executor's
-extension interface. Adding one does not change project profiles or bootstrap
-plan schema version 1.
+The built-in `cloudflare-account-token` extension creates
+[account-owned API tokens](https://developers.cloudflare.com/api/resources/accounts/subresources/tokens/).
+It calls `POST /accounts/{account_id}/tokens`; it never uses the user-owned
+`POST /user/tokens` endpoint. Cloudflare's
+[token creation guide](https://developers.cloudflare.com/fundamentals/api/how-to/create-via-api/)
+requires `Account API Tokens Write`, scoped to the one declared account.
+Cloudflare calls the same dashboard permission `Account API Tokens Edit`. Do
+not add Workers, DNS, zone, or account-settings permissions to this credential.
+
+Create the first bootstrap token in the Cloudflare dashboard. This human action
+is the resumable checkpoint in the plan. Store the value as the masked
+`CLOUDFLARE_TOKEN_PROVISIONER_TOKEN` secret in
+`cloudflare-token-bootstrap/ops_provisioner`. Store
+`CLOUDFLARE_ACCOUNT_ID` unmasked in the same config. The
+`production-cloudflare-token-bootstrap` GitHub environment requires review,
+blocks administrator bypass, and accepts only `main`.
+Routine deployment, Terraform, drift, and application environments do not
+receive either value.
+
+Declare this credential under `identities.cloudflare_token_provisioner`. The
+ordinary `identities.cloudflare` token remains a different credential for
+writing Worker secrets. A bootstrap plan that needs both operations can name
+both identities, but neither token receives the other's permissions.
+
+The protected environment also needs `DOPPLER_BOOTSTRAP_TOKEN` and
+`GH_BOOTSTRAP_TOKEN`. Scope the first credential to write only the Doppler
+configs named by the reviewed plan. Scope the second to secret administration
+for this repository's GitHub environments named by the plan. Sync the dedicated
+config only after its environment protection has been applied and checked:
+
+```bash
+mise //infra/account-foundation:cloudflare-token-bootstrap:credentials:sync
+```
+
+## Cloudflare token checks
+
+Declare every downstream permission by its immutable 32-character ID and its
+current display name. The plan output shows both, the token name, the account ID
+environment variable, and any expiry. It does not contact Cloudflare or read a
+credential:
+
+```bash
+mise //:project:secret-bootstrap:plan -- path/to/plan.yaml
+```
+
+Run the read-only live check before an apply:
+
+```bash
+mise //:project:secret-bootstrap:conformance -- path/to/plan.yaml
+```
+
+The check uses Cloudflare's account token permission-group, verify, and detail
+endpoints. It rejects a bootstrap token unless it is active, has one allow
+policy, grants only `Account API Tokens Write`, and names exactly the declared
+account resource. It also rejects a downstream permission ID if Cloudflare has
+renamed it, marked it unselectable, or does not report it as account-scoped.
+
+The apply repeats those checks, creates the token, and passes the one-time value
+straight to the existing Doppler and GitHub stdin adapters. The value is absent
+from command arguments, output, the resume file, Terraform configuration,
+plans, outputs, and state. API failures report only the operation and HTTP
+status. The executor never includes the response body in an error.
+
+Use the `Cloudflare Token Bootstrap` workflow for reviewed remote execution.
+Its default `apply: false` run prints only the redacted plan. An apply runs only
+from `main`, crosses the protected environment review, performs conformance,
+then resumes the named checkpoint.
+
+After the generated credential works from every declared consumer, revoke the
+old downstream token. Keep the bootstrap token disabled or revoked between
+provisioning sessions when the operating process permits it. Recovery starts
+in the Cloudflare owner account: create a replacement account-owned bootstrap
+token with the same one permission and account scope, replace the masked
+Doppler value, sync the protected environment, run conformance, and resume the
+unchanged plan. If token creation succeeded but distribution failed, revoke the
+orphan by its reviewed token name before retrying. The resume file deliberately
+stores no token ID or value.
 
 Identity-provider consoles often require a consent screen, callback URI, or
 human approval. Record that action as a checkpoint and make the issued secret

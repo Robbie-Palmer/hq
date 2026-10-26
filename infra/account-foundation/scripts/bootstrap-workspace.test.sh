@@ -180,6 +180,22 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "personal-site",
     "computedVisibility": "unmasked"
   },
+  "DOPPLER_BOOTSTRAP_TOKEN": {
+    "computed": "fixture-project-bootstrap-token",
+    "computedVisibility": "masked"
+  },
+  "GH_BOOTSTRAP_TOKEN": {
+    "computed": "fixture-github-bootstrap-token",
+    "computedVisibility": "masked"
+  },
+  "CLOUDFLARE_ACCOUNT_ID": {
+    "computed": "fixture-cloudflare-account-id",
+    "computedVisibility": "unmasked"
+  },
+  "CLOUDFLARE_TOKEN_PROVISIONER_TOKEN": {
+    "computed": "fixture-cloudflare-token",
+    "computedVisibility": "masked"
+  },
   "DOPPLER_TOKEN": {
     "computed": "fixture-doppler-token",
     "computedVisibility": "masked"
@@ -201,6 +217,10 @@ chmod +x "$mock_bin/doppler"
 cat > "$mock_bin/gh" <<'MOCK_GH'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ " $* " != *" --repo Robbie-Palmer/hq "* ]]; then
+  echo "Missing explicit GitHub repository: $*" >&2
+  exit 1
+fi
 if [[ "${2:-}" == "list" ]]; then
   echo '[]'
   exit 0
@@ -229,5 +249,51 @@ for github_environment in \
     exit 1
   fi
 done
+
+: > "$work_dir/github-calls"
+SYNC_TEST_DIRECTORY="$work_dir" \
+  PATH="$mock_bin:$PATH" \
+  bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+    production-cloudflare-token-bootstrap
+
+grep -Fxq -- \
+  "secret set DOPPLER_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "secret set GH_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "secret set CLOUDFLARE_TOKEN_PROVISIONER_TOKEN production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "variable set CLOUDFLARE_ACCOUNT_ID production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+if grep -Fq -- "DOPPLER_TOKEN" "$work_dir/github-calls"; then
+  echo "The token-bootstrap sync exported the config-reader credential." >&2
+  exit 1
+fi
+
+jq '. + {
+  "GITHUB_BOOTSTRAP_TOKEN": {
+    "computed": "reserved-github-token",
+    "computedVisibility": "masked"
+  }
+}' "$work_dir/account-foundation-secrets.json" > "$work_dir/reserved-secrets.json"
+mv "$work_dir/reserved-secrets.json" "$work_dir/account-foundation-secrets.json"
+: > "$work_dir/github-calls"
+if reserved_name_output="$(
+  SYNC_TEST_DIRECTORY="$work_dir" \
+    PATH="$mock_bin:$PATH" \
+    bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+      production-cloudflare-token-bootstrap 2>&1
+)"; then
+  echo "Expected a GitHub-reserved secret name to fail before sync." >&2
+  exit 1
+fi
+[[ "$reserved_name_output" == *"Refusing to sync GitHub-reserved secret names"* ]]
+if [[ -s "$work_dir/github-calls" ]]; then
+  echo "The reserved GitHub secret check ran after a partial sync." >&2
+  exit 1
+fi
 
 echo "Account-foundation bootstrap boundary tests passed."

@@ -630,6 +630,77 @@ describe("temporal platform layers", () => {
     ).toBe("2026-09-12T00:00:00Z");
   });
 
+  it("resolves the Personal Finance platform adoption without copied defaults", () => {
+    const repository = loadDomainRepository();
+    const uses = repository.platform.projectLayerUses.get(
+      "personal-finance-app",
+    );
+    const stack = resolveEffectiveProjectStack(
+      repository,
+      "personal-finance-app",
+      "2026-10-25T12:00:00Z",
+    );
+    const view = getProjectWithADRs(repository, "personal-finance-app");
+
+    expect(uses?.map(({ layer }) => layer)).not.toContain("typescript");
+    expect(stack.layers).toEqual(
+      expect.arrayContaining([
+        "governance",
+        "base",
+        "typescript",
+        "web-app",
+        "backend-api",
+        "database",
+        "infrastructure",
+        "observability",
+        "storage",
+      ]),
+    );
+    expect(stack.technologies).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          technology: "typescript",
+          source: "required-layer",
+        }),
+        expect.objectContaining({ technology: "cloudflare-pages" }),
+        expect.objectContaining({
+          technology: "cloudflare-workers",
+          adoptionDecision:
+            "personal-finance-app:003-online-only-shared-financial-writes",
+        }),
+        expect.objectContaining({
+          technology: "postgresql",
+          adoptionDecision:
+            "personal-finance-app:000-financial-fact-and-calculation-provenance",
+        }),
+        expect.objectContaining({ technology: "neon" }),
+        expect.objectContaining({ technology: "drizzle" }),
+        expect.objectContaining({ technology: "hyperdrive" }),
+        expect.objectContaining({
+          technology: "opentelemetry",
+          adoptionDecision:
+            "personal-finance-app:002-private-data-lifecycle-and-telemetry",
+        }),
+        expect.objectContaining({ technology: "posthog" }),
+        expect.objectContaining({ technology: "cloudflare-r2" }),
+      ]),
+    );
+    expect(stack.policies).toContainEqual(
+      expect.objectContaining({
+        slot: "database.backup-restore",
+        value: "Encrypted PostgreSQL archives with tested restores",
+        adoptionDecision:
+          "personal-finance-app:002-private-data-lifecycle-and-telemetry",
+      }),
+    );
+    expect(view?.technologies.map(({ slug }) => slug)).not.toContain(
+      "typescript",
+    );
+    expect(view?.platformTechnologies?.map(({ slug }) => slug)).toContain(
+      "typescript",
+    );
+  });
+
   it("requires OpenAPI linting while keeping compatibility checks opt-in", () => {
     const repository = loadDomainRepository();
     const manifest = repository.platform.manifest;
@@ -1936,6 +2007,60 @@ describe("temporal platform layers", () => {
     expect(writingTechnologies).not.toContain("github-secrets");
   });
 
+  it.each([
+    {
+      project: "personal-knowledge-graph",
+      technology: "typescript",
+      source: "required-layer",
+      adoptionDecision: "personal-knowledge-graph:058-temporal-platform-layers",
+    },
+    {
+      project: "recipe-site",
+      technology: "cloudflare-workers",
+      source: "preferred-layer",
+      adoptionDecision:
+        "recipe-site:004-backend-platform-for-authenticated-features",
+    },
+    {
+      project: "agentic-code-review",
+      technology: "cloudflare-workers",
+      source: "preferred-layer",
+      adoptionDecision: "agentic-code-review:001-stateful-ai-code-review",
+    },
+    {
+      project: "work-graph",
+      technology: "hono",
+      source: "preferred-layer",
+      adoptionDecision: "work-graph:003-rest-api-and-cli-first",
+    },
+  ] as const)(
+    "deduplicates $technology in the current $project stack without changing ADR history",
+    ({ project, technology, source, adoptionDecision }) => {
+      const view = getProjectWithADRs(loadDomainRepository(), project);
+      expect(view).not.toBeNull();
+      if (!view) return;
+
+      const currentTechnologySlugs = [
+        ...view.technologies.map((item) => item.slug),
+        ...(view.platformTechnologies ?? []).map((item) => item.slug),
+      ];
+      expect(new Set(currentTechnologySlugs).size).toBe(
+        currentTechnologySlugs.length,
+      );
+      expect(view.technologies.map((item) => item.slug)).not.toContain(
+        technology,
+      );
+      expect(
+        view.platformTechnologies?.find((item) => item.slug === technology),
+      ).toMatchObject({ source, adoptionDecision });
+      expect(
+        view.adrs.some((adr) =>
+          adr.technologies.some((item) => item.slug === technology),
+        ),
+      ).toBe(true);
+    },
+  );
+
   it("resolves a project ADR override for a governance value", () => {
     const repository = loadDomainRepository();
     const overrideRef = "personal-knowledge-graph:058-temporal-platform-layers";
@@ -2693,6 +2818,7 @@ describe("temporal platform layers", () => {
     );
     expect(objectStore?.adopters).toEqual([
       "agentic-code-review",
+      "personal-finance-app",
       "personal-knowledge-graph",
       "recipe-site",
       "work-graph",

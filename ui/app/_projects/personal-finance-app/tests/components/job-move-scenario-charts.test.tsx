@@ -66,6 +66,8 @@ function balance(
     cashBalance: 20_000,
     totalBalance,
     liquidBalance: 40_000,
+    accessibleRetirementCapital: 60_000,
+    pensionCapital: 20_000,
     liquidMonths: 20,
     totalMonths: 50,
     emergencyFundBalance: 10_000,

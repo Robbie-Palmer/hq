@@ -1,0 +1,109 @@
+name: Tailnet Terraform Drift
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: tailnet-infrastructure
+  cancel-in-progress: false
+
+jobs:
+  terraform:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production-tailnet-infra-drift
+    defaults:
+      run:
+        working-directory: infra/tailnet
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check for Terraform drift
+        id: drift
+        shell: bash
+        run: |
+          drift_log="$RUNNER_TEMP/tailnet-drift.log"
+          set +e
+          mise run //infra/tailnet:plan:drift >"$drift_log" 2>&1
+          status=$?
+          set -e
+
+          case "$status" in
+            0)
+              echo "detected=false" >>"$GITHUB_OUTPUT"
+              ;;
+            2)
+              echo "detected=true" >>"$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "Tailnet drift check failed. Review the protected run without copying its command output." >&2
+              exit "$status"
+              ;;
+          esac
+        env:
+          CI: "true"
+          TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+          TAILSCALE_OAUTH_CLIENT_ID: ${{ secrets.TAILSCALE_OAUTH_CLIENT_ID }}
+          TAILSCALE_OAUTH_CLIENT_SECRET: ${{ secrets.TAILSCALE_OAUTH_CLIENT_SECRET }}
+          TAILSCALE_TAILNET: ${{ secrets.TAILSCALE_TAILNET }}
+          TAILNET_PRIVATE_ADDRESS_LAB_HOST: ${{ secrets.TAILNET_PRIVATE_ADDRESS_LAB_HOST }}
+          TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS: ${{ secrets.TAILNET_PRIVATE_ADDRESS_PRIMARY_DNS }}
+          TAILNET_USER_LOGIN_OPERATOR: ${{ secrets.TAILNET_USER_LOGIN_OPERATOR }}
+
+      - name: Open or update the drift issue
+        if: steps.drift.outputs.detected == 'true'
+        shell: bash
+        run: |
+          issue_title="Tailnet Terraform drift detected"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          issue_number="$(
+            gh issue list \
+              --state open \
+              --search "${issue_title} in:title" \
+              --json number,title \
+              --jq "[.[] | select(.title == \"${issue_title}\") | .number][0] // empty"
+          )"
+          issue_body="The scheduled tailnet Terraform check detected drift. Review the protected workflow run: ${run_url}"
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue edit "$issue_number" --body "$issue_body"
+          else
+            gh issue create --title "$issue_title" --body "$issue_body"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Close the drift issue after a clean plan
+        if: steps.drift.outputs.detected == 'false'
+        shell: bash
+        run: |
+          issue_title="Tailnet Terraform drift detected"
+          issue_number="$(
+            gh issue list \
+              --state open \
+              --search "${issue_title} in:title" \
+              --json number,title \
+              --jq "[.[] | select(.title == \"${issue_title}\") | .number][0] // empty"
+          )"
+
+          if [[ -n "$issue_number" ]]; then
+            gh issue close "$issue_number" --comment "The latest protected drift check reported no changes."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Remove captured Terraform output
+        if: ${{ always() }}
+        run: rm -f "$RUNNER_TEMP/tailnet-drift.log"

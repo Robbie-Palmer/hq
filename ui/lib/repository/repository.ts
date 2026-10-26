@@ -34,6 +34,8 @@ import {
 } from "../domain/idea/idea";
 import {
   type Initiative,
+  type InitiativeRelations,
+  InitiativeRelationsSchema,
   InitiativeSchema,
   type InitiativeSlug,
 } from "../domain/initiative/initiative";
@@ -422,13 +424,15 @@ export function validateBlogPost(
 
 interface InitiativeLoadResult {
   entities: Map<InitiativeSlug, Initiative>;
+  relations: Map<InitiativeSlug, InitiativeRelations>;
 }
 
 export function loadInitiatives(): InitiativeLoadResult {
   const entities = new Map<InitiativeSlug, Initiative>();
+  const relations = new Map<InitiativeSlug, InitiativeRelations>();
 
   if (!fs.existsSync(INITIATIVES_DIR)) {
-    return { entities };
+    return { entities, relations };
   }
 
   const files = fs
@@ -460,9 +464,14 @@ export function loadInitiatives(): InitiativeLoadResult {
       throw new Error(`Initiative ${slug} failed validation`);
     }
     entities.set(slug, validation.data);
+
+    const initiativeRelations = InitiativeRelationsSchema.parse({
+      ideas: (data.ideas ?? []).map(normalizeSlug),
+    });
+    relations.set(slug, initiativeRelations);
   }
 
-  return { entities };
+  return { entities, relations };
 }
 
 export function validateInitiative(
@@ -1154,6 +1163,7 @@ interface ValidationInput {
   ideas?: Map<IdeaSlug, Idea>;
   ideaRelations?: Map<IdeaSlug, IdeaRelations>;
   initiatives: Map<InitiativeSlug, Initiative>;
+  initiativeRelations?: Map<InitiativeSlug, InitiativeRelations>;
   adrs: Map<ADRRef, ADR>;
   projects: Map<ProjectSlug, Project>;
   blogRelations: Map<BlogSlug, BlogRelations>;
@@ -1724,6 +1734,55 @@ function validateADRProductDecisionLinks(
   }
 }
 
+function resolveADRReference(input: ValidationInput, adrRef: ADRRef): ADRRef {
+  return input.adrAliases?.get(adrRef) ?? adrRef;
+}
+
+function validateADRSupersession(
+  input: ValidationInput,
+  relations: ADRRelations,
+  adrRef: ADRRef,
+  errors: ReferentialIntegrityError[],
+): void {
+  const supersedes = input.adrs.get(adrRef)?.supersedes;
+  if (!supersedes) return;
+
+  const supersededRef = resolveADRReference(input, supersedes);
+  if (!input.adrs.has(supersededRef)) {
+    errors.push({
+      type: "missing_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: supersedes,
+      message: `ADR '${supersedes}' referenced by supersedes does not exist`,
+    });
+  }
+
+  const allowedTargets = input.projectRelations.get(relations.project)?.adrs;
+  const isLocalLegacyAlias =
+    input.adrAliases?.has(supersedes) === true &&
+    parseADRRef(supersedes).projectSlug === relations.project;
+  if (!isLocalLegacyAlias && !allowedTargets?.includes(supersededRef)) {
+    errors.push({
+      type: "invalid_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: supersedes,
+      message: `ADR '${adrRef}' cannot supersede '${supersedes}' because it is not local or inherited in project '${relations.project}'`,
+    });
+  }
+
+  if (supersededRef === adrRef) {
+    errors.push({
+      type: "circular_reference",
+      entity: `ADR[${adrRef}]`,
+      field: "supersedes",
+      value: adrRef,
+      message: `ADR '${adrRef}' cannot supersede itself`,
+    });
+  }
+}
+
 function validateProductDecisionSupersession(
   decision: ProductDecision,
   slug: ProductDecisionRef,
@@ -1839,6 +1898,12 @@ export function validateReferentialIntegrity(
   input.technologies.forEach((technology, techSlug) => {
     technology.ideas.forEach((ideaSlug) => {
       checkIdea(ideaSlug, `Technology[${techSlug}]`, "ideas");
+    });
+  });
+
+  input.initiativeRelations?.forEach((relations, initiativeSlug) => {
+    relations.ideas.forEach((ideaSlug) => {
+      checkIdea(ideaSlug, `Initiative[${initiativeSlug}]`, "ideas");
     });
   });
 
@@ -1961,44 +2026,14 @@ export function validateReferentialIntegrity(
       checkIdea(ideaSlug, `ADR[${adrRef}]`, "ideas");
     });
     validateADRProductDecisionLinks(input, relations, adrRef, errors);
-    const adr = input.adrs.get(adrRef);
-    if (adr?.supersedes && !input.adrs.has(adr.supersedes)) {
-      errors.push({
-        type: "missing_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "supersedes",
-        value: adr.supersedes,
-        message: `ADR '${adr.supersedes}' referenced by supersedes does not exist`,
-      });
-    }
-    if (adr?.supersedes) {
-      const allowedTargets = input.projectRelations.get(
-        relations.project,
-      )?.adrs;
-      if (!allowedTargets?.includes(adr.supersedes)) {
-        errors.push({
-          type: "invalid_reference",
-          entity: `ADR[${adrRef}]`,
-          field: "supersedes",
-          value: adr.supersedes,
-          message: `ADR '${adrRef}' cannot supersede '${adr.supersedes}' because it is not local or inherited in project '${relations.project}'`,
-        });
-      }
-    }
-    if (adr?.supersedes === adrRef) {
-      errors.push({
-        type: "circular_reference",
-        entity: `ADR[${adrRef}]`,
-        field: "supersedes",
-        value: adrRef,
-        message: `ADR '${adrRef}' cannot supersede itself`,
-      });
-    }
+    validateADRSupersession(input, relations, adrRef, errors);
   });
 
   input.adrs.forEach((adr, startRef) => {
     const seen = new Set<ADRRef>([startRef]);
-    let current = adr.supersedes;
+    let current = adr.supersedes
+      ? resolveADRReference(input, adr.supersedes)
+      : undefined;
     while (current) {
       if (seen.has(current)) {
         errors.push({
@@ -2011,7 +2046,8 @@ export function validateReferentialIntegrity(
         break;
       }
       seen.add(current);
-      current = input.adrs.get(current)?.supersedes;
+      const next = input.adrs.get(current)?.supersedes;
+      current = next ? resolveADRReference(input, next) : undefined;
     }
   });
 
@@ -2171,6 +2207,15 @@ function addProductDecisionRelationData(
   }
 }
 
+function addInitiativeRelationData(
+  relations: RelationData,
+  loaders: LoaderResults,
+): void {
+  for (const [slug, initiativeRels] of loaders.initiatives.relations) {
+    relations.initiativeIdeas.set(slug, initiativeRels.ideas);
+  }
+}
+
 function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
   const relations = createEmptyRelationData();
 
@@ -2184,6 +2229,8 @@ function buildRelationDataFromLoaders(loaders: LoaderResults): RelationData {
     relations.projectInitiatives.set(slug, projectRels.initiatives);
     relations.projectIdeas.set(slug, projectRels.ideas);
   }
+
+  addInitiativeRelationData(relations, loaders);
 
   for (const [slug, blogRels] of loaders.blogs.relations) {
     relations.blogTechnologies.set(slug, blogRels.technologies);
@@ -2244,6 +2291,7 @@ function buildDomainRepository(): DomainRepository {
     ideas: ideasResult.entities,
     ideaRelations: ideasResult.relations,
     initiatives: initiativesResult.entities,
+    initiativeRelations: initiativesResult.relations,
     adrs: adrsResult.entities,
     projects: projectsResult.entities,
     blogRelations: blogsResult.relations,

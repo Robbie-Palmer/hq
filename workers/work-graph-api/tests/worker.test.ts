@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fakes = vi.hoisted(() => ({
   appFetch: vi.fn(),
   closeDb: vi.fn(),
+  createDatabaseQueryMetrics: vi.fn(),
   createDb: vi.fn(),
   createWorkGraphApp: vi.fn(),
   repositoryConstructor: vi.fn(),
@@ -10,6 +11,7 @@ const fakes = vi.hoisted(() => ({
 
 vi.mock("work-graph-db", () => ({
   closeDb: fakes.closeDb,
+  createDatabaseQueryMetrics: fakes.createDatabaseQueryMetrics,
   createDb: fakes.createDb,
   WorkGraphRepository: class {
     constructor(db: unknown) {
@@ -29,6 +31,11 @@ type WorkerRequest = Parameters<typeof worker.fetch>[0];
 const connectionString =
   "postgresql://work_graph_owner:unused@db.invalid:5432/work_graph";
 const db = { kind: "test-db" };
+const databaseMetrics = {
+  queryCount: 2,
+  resultRowCount: 3,
+  resultBytesEstimated: 128,
+};
 const env = {
   HYPERDRIVE: { connectionString } as Hyperdrive,
   WORKER_VERSION: { id: "version-123" },
@@ -38,6 +45,7 @@ const context = {} as ExecutionContext;
 describe("Given the deployed Worker entrypoint", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fakes.createDatabaseQueryMetrics.mockReturnValue(databaseMetrics);
     fakes.createDb.mockReturnValue(db);
     fakes.createWorkGraphApp.mockReturnValue({ fetch: fakes.appFetch });
   });
@@ -54,8 +62,10 @@ describe("Given the deployed Worker entrypoint", () => {
     expect(actual).toBe(expected);
     expect(fakes.createDb).toHaveBeenCalledWith(connectionString, {
       maxConnections: 1,
+      metrics: databaseMetrics,
     });
     expect(fakes.createWorkGraphApp).toHaveBeenCalledWith(expect.anything(), {
+      databaseMetrics,
       workerVersion: "version-123",
     });
     expect(fakes.repositoryConstructor).toHaveBeenCalledWith(db);

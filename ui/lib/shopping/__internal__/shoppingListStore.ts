@@ -11,6 +11,7 @@
 
 // Internal implementation. The public facade excludes test reset hooks.
 
+import type { ShoppingListCommandRequest } from "recipe-domain/shopping-list";
 import { isRecord } from "ts-base/records";
 import { captureRecipeProductActivity } from "@/lib/analytics/recipe-product";
 import { type MealPlanEntry, parseMealPlan } from "@/lib/domain/meal-plan";
@@ -44,7 +45,16 @@ export type AddCommittedMealsResult = {
   eligibleMealCount: number;
 };
 
-export type ShoppingListChangeSource = "install" | "local" | "storage";
+export type ShoppingListChangeSource =
+  | "command"
+  | "install"
+  | "local"
+  | "storage";
+
+export type ShoppingListCommandIntent = Pick<
+  ShoppingListCommandRequest,
+  "command" | "commandId"
+>;
 
 const LEGACY_STORAGE_KEY = "recipe-shopping-list:v1";
 const STORAGE_KEY_PREFIX = "recipe-shopping-list:v2:";
@@ -68,6 +78,7 @@ let confirmedSnapshot: ShoppingListState | undefined;
 let hasUnsavedChanges = false;
 let completedTripRecordedFallback = false;
 const listeners = new Set<(source: ShoppingListChangeSource) => void>();
+const commandListeners = new Set<(intent: ShoppingListCommandIntent) => void>();
 
 /**
  * Persistently remember that the current checked-list cycle already produced
@@ -219,11 +230,17 @@ function emit(source: ShoppingListChangeSource): void {
   for (const listener of listeners) listener(source);
 }
 
-function setState(next: ShoppingListState): void {
+function setState(
+  next: ShoppingListState,
+  command?: ShoppingListCommandIntent,
+): void {
   state = next;
   hasUnsavedChanges = true;
   persist();
-  emit("local");
+  emit(command ? "command" : "local");
+  if (command) {
+    for (const listener of commandListeners) listener(command);
+  }
 }
 
 // A single, module-wide storage listener (hooked once on first subscribe, like
@@ -286,6 +303,13 @@ export function subscribeShoppingList(
   return () => {
     listeners.delete(callback);
   };
+}
+
+export function subscribeShoppingListCommands(
+  callback: (intent: ShoppingListCommandIntent) => void,
+): () => void {
+  commandListeners.add(callback);
+  return () => commandListeners.delete(callback);
 }
 
 export function getShoppingListSnapshot(): ShoppingListState {
@@ -481,7 +505,18 @@ export function toggleChecked(key: string): void {
   const checked = wasChecked
     ? state.checked.filter((k) => k !== key)
     : [...state.checked, key];
-  setState({ ...state, checked });
+  setState(
+    { ...state, checked },
+    {
+      commandId: crypto.randomUUID(),
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: key,
+        checked: !wasChecked,
+      },
+    },
+  );
   if (!wasChecked) {
     captureRecipeProductActivity("shopping_item_checked", {
       checked_item_count: state.checked.length,
@@ -518,12 +553,25 @@ export function addExtra(text: string): void {
 }
 
 export function toggleExtra(id: string): void {
-  setState({
-    ...state,
-    extras: state.extras.map((e) =>
-      e.id === id ? { ...e, checked: !e.checked } : e,
-    ),
-  });
+  const extra = state.extras.find((item) => item.id === id);
+  if (!extra) return;
+  setState(
+    {
+      ...state,
+      extras: state.extras.map((e) =>
+        e.id === id ? { ...e, checked: !e.checked } : e,
+      ),
+    },
+    {
+      commandId: crypto.randomUUID(),
+      command: {
+        type: "set_checked",
+        itemType: "extra",
+        itemId: id,
+        checked: !extra.checked,
+      },
+    },
+  );
 }
 
 export function removeExtra(id: string): void {
@@ -573,4 +621,5 @@ export function __resetShoppingListForTests(): void {
   hasUnsavedChanges = false;
   completedTripRecordedFallback = false;
   listeners.clear();
+  commandListeners.clear();
 }

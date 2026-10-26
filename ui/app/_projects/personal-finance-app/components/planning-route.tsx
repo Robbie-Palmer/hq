@@ -1,6 +1,165 @@
 "use client";
 
+import type {
+  ChecklistStatus,
+  PlanningCase,
+  PlanningChecklistItem,
+} from "planning-case-domain";
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useAssetTracker } from "./asset-tracker-provider";
+import { CompoundGrowthPlanner } from "./compound-growth-planner";
 import { PortfolioGoal } from "./portfolio-goal";
+
+const checklistStatuses: Array<{
+  value: ChecklistStatus;
+  label: string;
+}> = [
+  { value: "not_started", label: "Not started" },
+  { value: "in_progress", label: "In progress" },
+  { value: "blocked", label: "Blocked" },
+  { value: "complete", label: "Complete" },
+  { value: "not_applicable", label: "Not applicable" },
+];
+
+type StatusUpdate = (itemId: string, status: ChecklistStatus) => void;
+
+function checklistScheduleLabel(item: PlanningChecklistItem): string {
+  if (item.schedule?.kind === "due_date")
+    return ` · Due ${item.schedule.dueDate}`;
+  if (item.schedule?.kind === "date_range")
+    return ` · ${item.schedule.startsOn} to ${item.schedule.endsOn}`;
+  return "";
+}
+
+function ChecklistItem({
+  item,
+  updateStatus,
+}: Readonly<{
+  item: PlanningChecklistItem;
+  updateStatus: StatusUpdate;
+}>) {
+  const schedule = checklistScheduleLabel(item);
+  return (
+    <li
+      className="grid gap-3 p-4 sm:grid-cols-[minmax(0,1fr)_11rem] sm:items-center"
+      id={`task-${item.id}`}
+    >
+      <div className="min-w-0">
+        <p className="font-medium">{item.title}</p>
+        <p className="text-sm text-muted-foreground">
+          {item.owner}
+          {schedule}
+        </p>
+      </div>
+      <label className="grid gap-1 text-sm">
+        <span className="sr-only">Status for {item.title}</span>
+        <select
+          aria-label={`Status for ${item.title}`}
+          className="h-9 rounded-md border border-input bg-background px-3"
+          onChange={(event) =>
+            updateStatus(item.id, event.target.value as ChecklistStatus)
+          }
+          value={item.status}
+        >
+          {checklistStatuses.map((status) => (
+            <option key={status.value} value={status.value}>
+              {status.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    </li>
+  );
+}
+
+function PlanningCaseChecklist({
+  planningCase,
+  updateStatus,
+}: Readonly<{
+  planningCase: PlanningCase;
+  updateStatus: StatusUpdate;
+}>) {
+  return (
+    <section className="space-y-3">
+      <div>
+        <h3 className="font-semibold">{planningCase.name}</h3>
+        {planningCase.targetDate ? (
+          <p className="text-sm text-muted-foreground">
+            Target date: {planningCase.targetDate}
+          </p>
+        ) : null}
+      </div>
+      {planningCase.checklistItems.length ? (
+        <ul className="divide-y rounded-lg border">
+          {planningCase.checklistItems.map((item) => (
+            <ChecklistItem
+              key={item.id}
+              item={item}
+              updateStatus={updateStatus}
+            />
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-muted-foreground">No checklist tasks yet.</p>
+      )}
+    </section>
+  );
+}
+
+function PlanningCaseChecklists() {
+  const { planningCases, setPlanningChecklistItemStatus } = useAssetTracker();
+  const [error, setError] = useState<string | null>(null);
+  if (!planningCases?.length) return null;
+  const updateStatus =
+    (planningCaseId: string): StatusUpdate =>
+    async (itemId, status) => {
+      setError(null);
+      try {
+        await setPlanningChecklistItemStatus({
+          planningCaseId,
+          itemId,
+          status,
+          changedBy: "asset-tracker-ui",
+        });
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Could not update the task",
+        );
+      }
+    };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Planning checklists</CardTitle>
+        <CardDescription>
+          Track the dated work behind larger financial plans.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {planningCases.map((planningCase) => (
+          <PlanningCaseChecklist
+            key={planningCase.id}
+            planningCase={planningCase}
+            updateStatus={updateStatus(planningCase.id)}
+          />
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
 
 export function PlanningRoute() {
   return (
@@ -13,7 +172,9 @@ export function PlanningRoute() {
           Track your FI target, runway, planned spending, and portfolio growth.
         </p>
       </div>
+      <CompoundGrowthPlanner />
       <PortfolioGoal showIncomeTools={false} />
+      <PlanningCaseChecklists />
     </div>
   );
 }

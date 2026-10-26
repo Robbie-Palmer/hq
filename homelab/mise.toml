@@ -4,7 +4,7 @@
 [tools]
 python = "3.12.14"
 "aqua:abiosoft/colima" = "0.10.3"
-"aqua:lima-vm/lima" = "2.2.0"
+"aqua:lima-vm/lima" = "2.2.1"
 "pipx:ansible-core" = "2.21.4"
 "pipx:ansible-lint" = "26.9.0"
 "aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
@@ -266,6 +266,14 @@ run = "bash scripts/rebuild-vector-development.sh"
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
 run = "bash scripts/vector-development-health.sh"
 
+[tasks.vector-agent-auth-health]
+description = "Verify Vector T3 GitHub and scoped Doppler authentication without printing secrets"
+run = "bash scripts/vector-development-agent-auth-health.sh"
+
+[tasks.vector-agent-auth-install]
+description = "Install Vector T3 GitHub and Doppler credentials after an idle guard"
+run = "bash scripts/install-vector-development-agent-credentials.sh"
+
 [tasks.vector-remote-boot-provision]
 description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
 run = "bash scripts/provision-vector-development-remote-boot.sh"
@@ -293,6 +301,10 @@ bash -n \
   scripts/fetch-vector-development-kubeconfig.sh \
   scripts/rebuild-vector-development.sh \
   scripts/vector-development-health.sh \
+  scripts/vector-development-agent-auth-health.sh \
+  scripts/install-vector-development-agent-credentials.sh \
+  k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh \
+  k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh \
   scripts/provision-vector-development-remote-boot.sh \
   scripts/wake-vector-development.sh \
   scripts/shutdown-vector-development.sh
@@ -424,8 +436,9 @@ docker build \
   --platform linux/amd64 \
   --build-context shared-tool-config=../.config/mise \
   --build-context agent-auth-mcp=../packages/agent-auth-mcp \
+  --build-context work-graph-cli=../packages/work-graph-cli \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-19 \
   images/t3-code
 '''
 
@@ -439,7 +452,7 @@ run = "bash scripts/build-and-check-t3-image.sh"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-18"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.2-agent-tools-19"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"

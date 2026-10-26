@@ -32,7 +32,7 @@ tflint --format compact
 
 [tasks."test:scripts"]
 description = "Test tailnet credential and apply guards"
-run = "bash scripts/doppler-terraform-env.test.sh && bash scripts/guarded-apply.test.sh"
+run = "bash scripts/doppler-terraform-env.test.sh && bash scripts/guarded-apply.test.sh && bash scripts/import-baseline.test.sh && bash scripts/sync-github-environments.test.sh"
 
 [tasks.test]
 description = "Test tailnet operator scripts"
@@ -48,9 +48,24 @@ depends = ["validate"]
 
 [tasks.plan]
 description = "Plan tailnet policy with read-only credentials"
-depends = ["init"]
+depends = ["validate:policy"]
 run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .planfile"
 outputs = [".planfile"]
+
+[tasks."plan:drift"]
+description = "Check the live tailnet for drift with read-only credentials"
+depends = ["validate:policy"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -detailed-exitcode -input=false -no-color"
+
+[tasks."validate:policy"]
+description = "Validate the rendered policy and its tests with the Tailscale API"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan bash scripts/validate-policy.sh"
+
+[tasks."plan:refresh-only"]
+description = "Refresh imported tailnet state without proposing changes"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -refresh-only -input=false"
 
 [tasks.import]
 description = "Import an existing tailnet resource with read-only API credentials"
@@ -65,10 +80,19 @@ fi
 bash scripts/doppler-terraform-env.sh plan terraform import -input=false "$1" "$2"
 """
 
+[tasks."import:baseline"]
+description = "Import the current policy and complete DNS configuration"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan bash scripts/import-baseline.sh terraform"
+
 [tasks.apply]
 description = "Apply a reviewed tailnet Terraform plan behind an explicit guard"
 depends = ["init"]
 run = "bash scripts/doppler-terraform-env.sh apply bash scripts/guarded-apply.sh .planfile terraform apply -input=false .planfile"
+
+[tasks."credentials:sync"]
+description = "Sync scoped tailnet values to protected GitHub environments"
+run = "../../scripts/sync-doppler-github-envs.sh production-tailnet-infra-plan production-tailnet-infra-drift production-tailnet-infra"
 
 [tasks.check]
 description = "Run secretless tailnet Terraform checks"

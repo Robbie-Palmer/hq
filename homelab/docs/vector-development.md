@@ -104,6 +104,48 @@ The health check covers GNOME, encrypted storage, zram, the host NVIDIA driver,
 the K3s NVIDIA runtime, GPU advertisement and allocation, the T3 rollout, and
 the local HTTP endpoint.
 
+## Agent GitHub and Doppler access
+
+The current Doppler plan does not include
+[service accounts](https://docs.doppler.com/docs/service-accounts) or custom
+roles. Vector therefore uses four write-enabled
+[service tokens](https://docs.doppler.com/docs/service-tokens), each bound by
+Doppler to one config: `ai-review/dev`, `homelab/dev`, `personal-site/dev`, or
+`work-graph/dev`. A checked-in wrapper selects the matching token from an
+explicit `--project`, `-p`, or `DOPPLER_PROJECT` value. It rejects every other
+project. The workload receives no personal or CLI token and cannot reach
+staging, production, operations configs, or Doppler administration APIs.
+
+Account foundation owns the existing `homelab/prd_vector_development` delivery
+config, but generated service-token values remain outside Terraform state. The
+guarded installer creates and rotates the four service tokens through the
+authenticated controller. Separately create a fine-grained GitHub token limited
+to `Robbie-Palmer/hq`, with repository contents, pull requests, workflows, and
+the read permissions needed for checks. Do not paste it into chat or a shell
+argument.
+
+Wait until the Vector server has no active T3 work, then run the guarded
+interactive installer from the controller:
+
+```bash
+mise run //homelab:vector-agent-auth-install
+mise run //homelab:vector-agent-auth-health
+```
+
+The installer refuses to continue while T3 has active work. It accepts the
+GitHub credential without echoing it, creates four config-scoped Doppler
+tokens, and uploads all five credentials plus a revision marker to
+`homelab/prd_vector_development` in one request. It waits through the configured
+Doppler sync interval for the managed Secret and a replacement `t3-code`
+Deployment pod to load that revision, then configures Git to use GitHub CLI as
+its credential helper. The health task performs a dry-run Git push and a
+temporary write-and-delete probe in all four development configs without
+printing secret names or values. It also checks the image-installed
+`work-graph` command against the production API using credentials injected via
+a separate read-only Doppler token. Agent sessions inherit that ready-to-use
+command and do not need a personal Doppler login. The installer revokes the
+previous four service tokens only after those checks pass.
+
 ## Connect and operate
 
 The T3 Code desktop application appears in GNOME. Create a pairing URL inside

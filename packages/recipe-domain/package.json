@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./ingredient": "./src/ingredient.ts",
+    "./ingredient-property": "./src/ingredient-property.ts",
     "./authored-term": "./src/authored-term.ts",
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
@@ -13,6 +14,7 @@
     "./pantry": "./src/pantry.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
+    "./shopping-list": "./src/shopping-list.ts",
     "./visibility": "./src/visibility.ts",
     "./unit": "./src/unit.ts",
     "./slugs": "./src/slugs.ts",

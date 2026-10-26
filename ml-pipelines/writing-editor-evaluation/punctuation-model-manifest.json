@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.oci.image.manifest.v1+json",
+  "artifactType": "application/vnd.cncf.model.manifest.v1+json",
+  "config": {
+    "mediaType": "application/vnd.cncf.model.config.v1+json",
+    "digest": "sha256:5111a99116f37a8640410c0683678a86eafd9239031a931d77f1f85c42e6e600",
+    "size": 1016,
+    "data": "eyJkZXNjcmlwdG9yIjp7ImZhbWlseSI6InB1bmN0dWF0aW9uLXJlc3RvcmF0aW9uIiwibmFtZSI6Imhvcml6b24tcHVuY3R1YXRpb24tcmVzdG9yYXRpb24tc21hbGwiLCJ0aXRsZSI6Ikhvcml6b24gTGFicyBwdW5jdHVhdGlvbiByZXN0b3JhdGlvbiBzbWFsbCIsImRlc2NyaXB0aW9uIjoiQSAxNDBNIHBhcmFtZXRlciB0b2tlbiBjbGFzc2lmaWVyIGV2YWx1YXRlZCBmb3IgbWlzc2luZy1jb21tYSBzdWdnZXN0aW9ucyBpbiByZXBvc2l0b3J5IHByb3NlLiIsImRvY1VSTCI6Imh0dHBzOi8vaHVnZ2luZ2ZhY2UuY28vSG9yaXpvbi1MYWJzL3B1bmN0dWF0aW9uLXJlc3RvcmF0aW9uLXNtYWxsIiwic291cmNlVVJMIjoiaHR0cHM6Ly9odWdnaW5nZmFjZS5jby9Ib3Jpem9uLUxhYnMvcHVuY3R1YXRpb24tcmVzdG9yYXRpb24tc21hbGwiLCJyZXZpc2lvbiI6ImVlMzFmZGZjNTMwNGY4NzZlYTNiMGRkNzJkMzBlZGE3ZTk0MGIyYjEifSwiY29uZmlnIjp7ImFyY2hpdGVjdHVyZSI6InRyYW5zZm9ybWVyIiwiZm9ybWF0Ijoic2FmZXRlbnNvcnMiLCJjYXBhYmlsaXRpZXMiOnsiaW5wdXRUeXBlcyI6WyJ0ZXh0Il0sIm91dHB1dFR5cGVzIjpbInRva2VuLWxhYmVscyJdfX0sIm1vZGVsZnMiOnsidHlwZSI6ImxheWVycyIsImRpZmZJZHMiOlsic2hhMjU2Ojg1ZjcyNGI2MTQxNWMxMzFhZmExZWIzMDhiYWZlZmE5OTc5OTIyMWIxZmJhZGU1ZTU5NTY4ZTU1YjNkYzZlNDgiLCJzaGEyNTY6ZjQ1N2M3Nzk1NGYwNzIwZmYyYzA2MjRiOTI3MTRmYjU1MWJkMTljNDJmYmEwNjI1ZWU3YWYxNzQwZGY0OWUwNSIsInNoYTI1NjpmMzRiNDRhNmRjOGEwZWVmNjUxYmZhMTBlODMyNTA1NzUzMDE1MjYwNmE2OWQ5YzNiNmFlMDJlZmIxNTU4ZjBhIiwic2hhMjU2OmVhMzQ5NDk1NzY0YjI0NTcwYjQ1NjBmZTJlNGE1NTdlNWMwYTQ3ZTZiY2U3ODJjMjQwOWIxZDY0NDVjZjg2MzMiLCJzaGEyNTY6YmFlYzMwZWExMDkwNmYxNmFkYjhjMThhZjdhMzQwMjMwMDJjMTc0NjU0MjYxMmI4YjQxYzlmMDllMTM1MTM1MSJdfX0=",
+    "annotations": {
+      "org.opencontainers.image.title": "punctuation-model-config.json"
+    }
+  },
+  "layers": [
+    {
+      "mediaType": "application/vnd.cncf.model.weight.v1.raw",
+      "digest": "sha256:85f724b61415c131afa1eb308bafefa99799221b1fbade5e59568e55b3dc6e48",
+      "size": 562589552,
+      "urls": ["https://huggingface.co/Horizon-Labs/punctuation-restoration-small/resolve/ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1/model.safetensors"],
+      "annotations": {
+        "org.cncf.model.filepath": "model.safetensors",
+        "org.opencontainers.image.title": "model.safetensors",
+        "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+        "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:f457c77954f0720ff2c0624b92714fb551bd19c42fba0625ee7af1740df49e05",
+      "size": 2110,
+      "urls": ["https://huggingface.co/Horizon-Labs/punctuation-restoration-small/resolve/ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1/config.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "config.json",
+        "org.opencontainers.image.title": "config.json",
+        "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+        "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:f34b44a6dc8a0eef651bfa10e8325057530152606a69d9c3b6ae02efb1558f0a",
+      "size": 34363286,
+      "urls": ["https://huggingface.co/Horizon-Labs/punctuation-restoration-small/resolve/ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1/tokenizer.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "tokenizer.json",
+        "org.opencontainers.image.title": "tokenizer.json",
+        "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+        "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:ea349495764b24570b4560fe2e4a557e5c0a47e6bce782c2409b1d6445cf8633",
+      "size": 46440,
+      "urls": ["https://huggingface.co/Horizon-Labs/punctuation-restoration-small/resolve/ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1/tokenizer_config.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "tokenizer_config.json",
+        "org.opencontainers.image.title": "tokenizer_config.json",
+        "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+        "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1"
+      }
+    },
+    {
+      "mediaType": "application/vnd.cncf.model.weight.config.v1.raw",
+      "digest": "sha256:baec30ea10906f16adb8c18af7a34023002c1746542612b8b41c9f09e1351351",
+      "size": 636,
+      "urls": ["https://huggingface.co/Horizon-Labs/punctuation-restoration-small/resolve/ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1/special_tokens_map.json"],
+      "annotations": {
+        "org.cncf.model.filepath": "special_tokens_map.json",
+        "org.opencontainers.image.title": "special_tokens_map.json",
+        "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+        "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1"
+      }
+    }
+  ],
+  "annotations": {
+    "org.opencontainers.image.title": "Horizon Labs punctuation restoration small",
+    "org.opencontainers.image.source": "https://huggingface.co/Horizon-Labs/punctuation-restoration-small",
+    "org.opencontainers.image.revision": "ee31fdfc5304f876ea3b0dd72d30eda7e940b2b1",
+    "org.opencontainers.image.licenses": "Apache-2.0",
+    "me.robbiepalmer.model.usage": "evaluation-only",
+    "me.robbiepalmer.modelpack.spec-version": "v0.0.7"
+  }
+}

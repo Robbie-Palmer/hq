@@ -46,6 +46,10 @@ work-graph release cli-8 \
   --deployment-evidence https://work-graph.example.com/health
 ```
 
+`ready` and the other commands in this loop already write compact JSON to
+stdout. Do not add a bare `--json` output flag. `critical-path --json` is the
+one exception because that command otherwise renders a human-readable summary.
+
 Codex sessions use their thread ID as worker provenance. Other clients should
 set `WORK_GRAPH_WORKER_ID` once. Commands that already name a ticket find that
 worker's active lease and fencing epoch. Scripts may instead pass `--lease-id`
@@ -275,8 +279,13 @@ decision, source ticket, and inheritance depth.
 `show` returns the work-item projection, current delivery evidence, and the
 latest completion-candidate evaluation. The evaluation includes the policy ID
 and revision used to produce it. A null `completionCandidate` means no
-evaluation has been recorded. Evidence history remains available through the
-REST collection.
+evaluation has been recorded. The CLI caches released and cancelled ticket
+details under `WORK_GRAPH_CACHE_DIR`, `$XDG_CACHE_HOME/work-graph`, or
+`$HOME/.cache/work-graph`, in that order. Open tickets always use the API. Run
+`show <ticket> --refresh` when an audit needs delivery evidence that arrived
+after the terminal transition. Set `WORK_GRAPH_CACHE_DIR` to an empty value to
+disable the cache. Evidence history remains available through the REST
+collection.
 
 `completion-policy put` creates an immutable policy revision.
 `completion-policy assign` assigns a revision to a ticket and immediately
@@ -411,15 +420,16 @@ and its request ID.
 
 ## JSON and exit codes
 
-Every completed command writes one compact JSON document to stdout. Errors
-write one JSON document to stderr:
+Except for the default `critical-path` summary, every completed command writes
+one compact JSON document to stdout. Errors write one JSON document to stderr:
 
 ```json
 {"error":{"code":"WORK_ITEM_NOT_FOUND","message":"Work item not found","status":404,"requestId":"request-123"}}
 ```
 
-Every command also accepts its complete Zod input through `--json`, which is
-useful when an agent already has a structured object:
+Every command also accepts its complete Zod input through `--json '<object>'`,
+which is useful when an agent already has a structured object. A bare `--json`
+is not an output-format flag except on `critical-path`:
 
 ```sh
 work-graph create --json '{"id":"cli-8","title":"Build the TypeScript CLI"}'

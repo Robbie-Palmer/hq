@@ -4,6 +4,7 @@ import {
   getWorkItem,
   isWorkItemInSelectionScope,
   orderWorkItemsByPriority,
+  projectWorkItemPriorityFromCandidates,
   projectWorkItemPriorities,
   projectWorkItemPriority,
   validateWorkGraph,
@@ -50,6 +51,36 @@ describe("priority projection", () => {
         projectWorkItemPriority(graph, item.id),
       ]),
     );
+  });
+
+  it("projects an effective priority from reverse-reachable donors", () => {
+    expect(
+      projectWorkItemPriorityFromCandidates("blocker", [
+        {
+          workItemId: "blocker",
+          initiativeRank: 1,
+          projectRank: 1,
+          ticketRank: 2,
+          expedited: false,
+          path: [{ id: "blocker", rank: null }],
+        },
+        {
+          workItemId: "urgent",
+          initiativeRank: 1,
+          projectRank: 1,
+          ticketRank: 3,
+          expedited: true,
+          path: [{ id: "urgent", rank: null }],
+        },
+      ]),
+    ).toEqual({
+      initiativeRank: 1,
+      projectRank: 1,
+      ticketRank: 2,
+      expedited: false,
+      effectiveExpedited: true,
+      donatedFromWorkItemId: "urgent",
+    });
   });
 
   it("preserves relative order when a queue is filtered", () => {

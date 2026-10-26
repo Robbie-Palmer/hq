@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.1.2-agent-tools-18`. Its leading version matches the bundled T3
+release tag `0.1.2-agent-tools-19`. Its leading version matches the bundled T3
 release, which lets Renovate update the image references in the same pull
 request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its
@@ -48,6 +48,12 @@ Its state stays under
 `/data/home/.codex/agent-auth/recipes`, and Codex forwards the
 `AGENT_AUTH_ENCRYPTION_KEY` supplied by the remote K3s deployment. The home
 overlay does not enable this MCP entry.
+
+The image builds and installs `packages/work-graph-cli` as
+`/usr/local/bin/work-graph`. Agent sessions can use the CLI immediately. The
+remote and Vector operator overlays inject the production API URL and its
+scoped Cloudflare Access pair, so API commands do not need an interactive
+Doppler login.
 
 Run repository tasks with `mise run`. Mise installs versions declared by each
 repository on first use and keeps them under `/data/home/.local/share/mise`.

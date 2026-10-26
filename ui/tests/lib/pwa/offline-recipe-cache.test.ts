@@ -9,6 +9,12 @@ import {
   saveOfflineRecipeSnapshot,
   saveOfflineShoppingListSnapshot,
 } from "@/lib/pwa/offline-recipe-cache";
+import {
+  enqueueShoppingCommand,
+  listShoppingCommands,
+  removeShoppingCommand,
+  updateShoppingCommand,
+} from "@/lib/pwa/shopping-command-outbox";
 
 type MutableRequest<T> = Omit<IDBRequest<T>, "error" | "result"> & {
   error: DOMException | null;
@@ -112,19 +118,25 @@ function fakeIndexedDb(
   const objectStore = (name: string, transaction?: FakeTransaction) => {
     const records = stores.get(name);
     if (!records) throw new Error(`Missing object store ${name}`);
+    const completingRequest = <T>(action: () => T) => {
+      const request = successfulRequest(action);
+      finishFakeTransaction(transaction, false, () => undefined);
+      return request;
+    };
     return {
       clear: () =>
-        successfulRequest(() => {
+        completingRequest(() => {
           records.clear();
         }),
       delete: (key: IDBValidKey) =>
-        successfulRequest(() => {
+        completingRequest(() => {
           records.delete(String(key));
         }),
       get: (key: IDBValidKey) =>
         options.failRead
           ? failingRequest()
           : successfulRequest(() => records.get(String(key))),
+      getAll: () => completingRequest(() => [...records.values()]),
       put: (value: { key: string }) => {
         const hadPreviousValue = records.has(value.key);
         const previousValue = records.get(value.key);
@@ -163,15 +175,20 @@ function fakeIndexedDb(
     objectStoreNames: {
       contains: (name: string) => stores.has(name),
     },
-    transaction: vi.fn((name: string) => {
+    transaction: vi.fn((names: string | string[]) => {
+      const allowed = new Set(Array.isArray(names) ? names : [names]);
       const transaction: FakeTransaction & {
-        objectStore: () => IDBObjectStore;
+        objectStore: (name: string) => IDBObjectStore;
       } = {
         error: null,
         onabort: null,
         oncomplete: null,
         onerror: null,
-        objectStore: () => objectStore(name, transaction),
+        objectStore: (name) => {
+          if (!allowed.has(name))
+            throw new Error(`Store ${name} not in transaction`);
+          return objectStore(name, transaction);
+        },
       };
       return transaction;
     }),
@@ -276,6 +293,20 @@ describe("offline recipe cache", () => {
   it("keeps accounts separate and clears all snapshots on sign-out", async () => {
     await saveOfflineRecipeSnapshot("user-1", bootstrap);
     await saveOfflineRecipeSnapshot("user-2", bootstrap);
+    await enqueueShoppingCommand({
+      commandId: "00000000-0000-4000-8000-000000000090",
+      actorUserId: "user-1",
+      resourceId: "household-1",
+      householdId: "household-1",
+      listId: "00000000-0000-4000-8000-000000000080",
+      baseRevision: "3",
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: "garlic",
+        checked: true,
+      },
+    });
 
     expect(await loadOfflineRecipeSnapshot("user-1")).toMatchObject({
       scope: { userId: "user-1" },
@@ -286,6 +317,68 @@ describe("offline recipe cache", () => {
 
     await clearOfflineRecipeSnapshots();
     expect(harness.stores.get("offline-snapshots")).toHaveLength(0);
+    expect(harness.stores.get("shopping-command-outbox")).toHaveLength(0);
+  });
+
+  it("persists scoped shopping commands and their retry outcome", async () => {
+    const record = await enqueueShoppingCommand({
+      commandId: "00000000-0000-4000-8000-000000000090",
+      actorUserId: "user-1",
+      resourceId: "household-1",
+      householdId: "household-1",
+      listId: "00000000-0000-4000-8000-000000000080",
+      baseRevision: "3",
+      command: {
+        type: "set_checked",
+        itemType: "ingredient",
+        itemId: "garlic",
+        checked: true,
+      },
+    });
+
+    await expect(listShoppingCommands("user-1")).resolves.toEqual([record]);
+    await expect(listShoppingCommands("user-2")).resolves.toEqual([]);
+
+    const conflicted = await updateShoppingCommand(record, {
+      attempts: 1,
+      outcome: "conflict",
+      lastError: "The list changed",
+    });
+    expect(await listShoppingCommands("user-1")).toEqual([conflicted]);
+
+    await removeShoppingCommand("user-1", record.commandId);
+    expect(await listShoppingCommands("user-1")).toEqual([]);
+  });
+
+  it("keeps rapid shopping commands in enqueue order", async () => {
+    vi.spyOn(Date, "now").mockReturnValue(100);
+    const command = {
+      actorUserId: "user-1",
+      resourceId: "household-1",
+      householdId: "household-1",
+      listId: "00000000-0000-4000-8000-000000000080",
+      baseRevision: "3",
+      command: {
+        type: "set_checked" as const,
+        itemType: "ingredient" as const,
+        itemId: "garlic",
+        checked: true,
+      },
+    };
+    const first = await enqueueShoppingCommand({
+      ...command,
+      commandId: "00000000-0000-4000-8000-000000000091",
+    });
+    const second = await enqueueShoppingCommand({
+      ...command,
+      commandId: "00000000-0000-4000-8000-000000000090",
+      command: { ...command.command, checked: false },
+    });
+
+    expect(second.createdAt).toBeGreaterThan(first.createdAt);
+    expect(
+      (await listShoppingCommands("user-1")).map(({ commandId }) => commandId),
+    ).toEqual([first.commandId, second.commandId]);
   });
 
   it("tracks the oldest current snapshot after a data class is refreshed", async () => {
@@ -350,6 +443,9 @@ describe("offline recipe cache", () => {
       saveOfflineRecipeSnapshot("user-1", bootstrap),
     ).resolves.toEqual({ status: "unavailable" });
     await expect(clearOfflineRecipeSnapshots()).resolves.toBeUndefined();
+    await expect(listShoppingCommands("user-1")).rejects.toThrow(
+      new TypeError("IndexedDB is unavailable"),
+    );
   });
 
   it("reports quota exhaustion when the write transaction aborts", async () => {

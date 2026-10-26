@@ -238,6 +238,11 @@ export const zCompletionCandidate = z.object({
     evaluatedAt: z.iso.datetime().max(30)
 });
 
+export const zWorkItemDetails = zWorkItem.and(z.object({
+    deliveryEvidence: zDeliveryEvidenceList,
+    completionCandidate: zCompletionCandidate.nullable()
+}));
+
 export const zCompletionCandidateResponse = z.object({
     candidate: zCompletionCandidate.nullable()
 });
@@ -1096,6 +1101,15 @@ export const zListWorkItemDependenciesQuery = z.object({
  * Current dependency edges involving the work item
  */
 export const zListWorkItemDependenciesResponse = zWorkItemDependencyList;
+
+export const zGetWorkItemDetailsPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Current work-item details
+ */
+export const zGetWorkItemDetailsResponse = zWorkItemDetails;
 
 export const zListWorkItemEventsPath = z.object({
     workItemId: z.string().min(1).max(200)

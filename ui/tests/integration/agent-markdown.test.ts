@@ -116,7 +116,10 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("paradigm-shift.html");
     expect(htmlPages).toContain("incommensurability.html");
     expect(htmlPages).toContain("postpositivism.html");
-    expect(htmlPages).toHaveLength(38);
+    expect(htmlPages).toContain("knowledge-graphs.html");
+    expect(htmlPages).toContain("data-provenance.html");
+    expect(htmlPages).toContain("digital-twins.html");
+    expect(htmlPages).toHaveLength(41);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);
@@ -131,6 +134,17 @@ describe("agent markdown generation", () => {
 
     expect(read("llms.txt")).toContain(
       "links to related ideas, technologies, projects, ADRs, and posts",
+    );
+  });
+
+  it("includes initiative backlinks on idea markdown pages", () => {
+    const digitalTwins = read("ideas/digital-twins.md");
+
+    expect(digitalTwins).toContain(
+      "Initiative: [Digital Twin of the Yard](https://robbiepalmer.me/initiatives/digital-twin-of-the-yard.md)",
+    );
+    expect(read("initiatives/digital-twin-of-the-yard.md")).toContain(
+      "[Digital Twins](https://robbiepalmer.me/ideas/digital-twins.md)",
     );
   });
 
@@ -233,9 +247,9 @@ describe("agent markdown generation", () => {
       'Rules -->|"detection-only records"| Findings',
       'Findings -->|"finding IDs and published diffs"| Evidence',
       'Source -->|"bounded source spans"| Local',
-      'Source -.->|"wider document context"| Rewrite',
+      'Source -->|"bounded passage and graph context"| Rewrite',
       'Local -->|"grouped proposals"| Review',
-      'Rewrite -.->|"multi-edit proposals"| Review',
+      'Rewrite -->|"multi-edit proposals"| Review',
       'Review -->|"recorded editorial decisions"| Outcomes',
       'Evidence -->|"baseline comparisons"| Outcomes',
     ]) {

@@ -649,6 +649,10 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         thread_id TEXT NOT NULL,
         status TEXT NOT NULL
       );
+      CREATE TABLE orchestration_v2_projection_threads (
+        thread_id TEXT PRIMARY KEY,
+        deleted_at TEXT
+      );
       CREATE TABLE orchestration_v2_projection_turn_items (
         thread_id TEXT NOT NULL,
         type TEXT NOT NULL,
@@ -659,6 +663,10 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
         kind TEXT NOT NULL,
         status TEXT NOT NULL
       );
+      INSERT INTO orchestration_v2_projection_threads
+        VALUES ('v2-thread', NULL);
+      INSERT INTO orchestration_v2_projection_threads
+        VALUES ('deleted-v2-thread', '2026-10-24T20:49:08.914Z');
       INSERT INTO orchestration_v2_projection_provider_threads
         VALUES (
           'v2-thread',
@@ -678,6 +686,32 @@ test("the T3 deployment idle check fails closed for legacy and v2 work", () => {
     `);
     v2Idle.close();
     assert.equal(check(v2Path).status, 0);
+
+    const staleTodo = new DatabaseSync(v2Path);
+    staleTodo.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('v2-thread', 'todo_list', 'running')
+    `);
+    staleTodo.close();
+    assert.equal(check(v2Path).status, 0);
+
+    const deletedExecutionNode = new DatabaseSync(v2Path);
+    deletedExecutionNode.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('deleted-v2-thread', 'tool_call', 'running')
+    `);
+    deletedExecutionNode.close();
+    assert.equal(check(v2Path).status, 0);
+
+    const liveExecutionNode = new DatabaseSync(v2Path);
+    liveExecutionNode.exec(`
+      INSERT INTO orchestration_v2_projection_nodes
+        VALUES ('v2-thread', 'root_turn', 'running')
+    `);
+    liveExecutionNode.close();
+    const liveExecutionNodeResult = check(v2Path);
+    assert.equal(liveExecutionNodeResult.status, 20);
+    assert.match(liveExecutionNodeResult.stderr, /execution node root_turn running/);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -1397,6 +1431,13 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     "t3-code",
     "t3-code",
   );
+  const dopplerWrapper = resources.find(
+    ({ kind, metadata }) =>
+      kind === "ConfigMap" &&
+      metadata.namespace === "t3-code" &&
+      metadata.name.startsWith("vector-doppler-wrapper-"),
+  );
+  assert.ok(dopplerWrapper);
   const podSpec = valueAt(deployment, ["spec", "template", "spec"]);
   assert.ok(typeof podSpec === "object" && podSpec !== null);
   assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
@@ -1422,6 +1463,72 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   assert.equal(
     valueAt(t3Container, ["resources", "limits", "nvidia.com/gpu"]),
     "1",
+  );
+  const t3Environment = valueAt(t3Container, ["env"]);
+  assert.ok(Array.isArray(t3Environment));
+  assert.deepEqual(
+    t3Environment.find(
+      (variable) =>
+        typeof variable === "object" &&
+        variable !== null &&
+        (variable as Record<string, unknown>).name === "PATH",
+    ),
+    {
+      name: "PATH",
+      value:
+        "/opt/vector/bin:/data/home/.local/share/mise/shims:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+    },
+  );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "doppler"])),
+    /DOPPLER_TOKEN_PERSONAL_SITE/,
+  );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "work-graph"])),
+    /exec \/usr\/local\/bin\/work-graph "\$@"/,
+  );
+  const t3VolumeMounts = valueAt(t3Container, ["volumeMounts"]);
+  assert.ok(Array.isArray(t3VolumeMounts));
+  assert.deepEqual(
+    t3VolumeMounts.find(
+      (volumeMount) =>
+        typeof volumeMount === "object" &&
+        volumeMount !== null &&
+        (volumeMount as Record<string, unknown>).name ===
+          "vector-doppler-wrapper",
+    ),
+    {
+      mountPath: "/opt/vector/bin",
+      name: "vector-doppler-wrapper",
+      readOnly: true,
+    },
+  );
+  const podVolumes = valueAt(podSpec, ["volumes"]);
+  assert.ok(Array.isArray(podVolumes));
+  const dopplerWrapperVolume = podVolumes.find(
+    (volume) =>
+      typeof volume === "object" &&
+      volume !== null &&
+      (volume as Record<string, unknown>).name === "vector-doppler-wrapper",
+  );
+  assert.ok(
+    typeof dopplerWrapperVolume === "object" &&
+      dopplerWrapperVolume !== null,
+  );
+  const dopplerWrapperConfigMapName = valueAt(dopplerWrapperVolume, [
+    "configMap",
+    "name",
+  ]);
+  assert.equal(dopplerWrapperConfigMapName, dopplerWrapper.metadata.name);
+  assert.deepEqual(
+    dopplerWrapperVolume,
+    {
+      configMap: {
+        defaultMode: 365,
+        name: dopplerWrapperConfigMapName,
+      },
+      name: "vector-doppler-wrapper",
+    },
   );
   assert.equal(valueAt(dockerContainer, ["resources", "limits", "cpu"]), "8");
   assert.equal(
@@ -2413,6 +2520,176 @@ test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
     /command -v nvidia-container-runtime/,
     "the tools output is intentionally not linked into the global system PATH",
   );
+});
+
+test("Vector agent credentials use an idle guard and non-secret health checks", () => {
+  const installer = readFileSync(
+    new URL(
+      "../scripts/install-vector-development-agent-credentials.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const healthCheck = readFileSync(
+    new URL(
+      "../scripts/vector-development-agent-auth-health.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const dopplerWrapper = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const workGraphWrapper = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(installer.includes('check-t3-idle.mjs'));
+  assert.ok(installer.includes('read -r -s -p'));
+  assert.equal(installer.match(/doppler secrets upload/g)?.length, 1);
+  assert.ok(installer.includes('--rawfile github_token'));
+  assert.equal(installer.match(/doppler configs tokens create/g)?.length, 1);
+  assert.ok(installer.includes('--access read/write'));
+  assert.ok(installer.includes('--rawfile doppler_ai_review'));
+  assert.ok(installer.includes('--rawfile doppler_homelab'));
+  assert.ok(installer.includes('--rawfile doppler_personal_site'));
+  assert.ok(installer.includes('--rawfile doppler_work_graph'));
+  assert.doesNotMatch(installer, /doppler secrets set/);
+  assert.ok(installer.includes('--config prd_vector_development'));
+  assert.ok(installer.includes('for _ in $(seq 1 180)'));
+  assert.ok(installer.includes('.data.AGENT_CREDENTIALS_REVISION'));
+  assert.ok(installer.includes('${AGENT_CREDENTIALS_REVISION:-}'));
+  assert.ok(installer.includes('gh auth setup-git --hostname github.com'));
+  assert.doesNotMatch(installer, /gh auth setup-git[^\n]*--force/);
+  assert.doesNotMatch(installer, /echo[^\n]*(github_token|doppler_tokens)/);
+
+  assert.ok(healthCheck.includes('gh auth status --hostname github.com'));
+  assert.ok(
+    healthCheck.includes(
+      'test "$(command -v work-graph)" = /opt/vector/bin/work-graph',
+    ),
+  );
+  assert.ok(healthCheck.includes('work-graph prime >/dev/null'));
+  assert.ok(healthCheck.includes('work-graph ready >/dev/null'));
+  assert.match(
+    healthCheck,
+    /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
+  );
+  assert.ok(!healthCheck.includes('.permissions.push'));
+  assert.ok(
+    healthCheck.includes(
+      'for project in ai-review homelab personal-site work-graph',
+    ),
+  );
+  assert.match(
+    healthCheck,
+    /doppler secrets --project "\$\{project\}" --config dev --only-names --json/,
+  );
+  assert.match(
+    healthCheck,
+    /jq -e --arg probe "\$\{probe\}" "has\(\\\$probe\)"/,
+  );
+  assert.match(healthCheck, /doppler secrets set "\$\{probe\}"/);
+  assert.match(healthCheck, /doppler secrets delete "\$\{probe\}"/);
+  assert.ok(!healthCheck.includes('--raw'));
+  assert.ok(!healthCheck.includes('--plain'));
+
+  for (const project of [
+    "ai-review",
+    "homelab",
+    "personal-site",
+    "work-graph",
+  ]) {
+    assert.ok(dopplerWrapper.includes(project));
+  }
+  for (const variable of [
+    "DOPPLER_TOKEN_AI_REVIEW",
+    "DOPPLER_TOKEN_HOMELAB",
+    "DOPPLER_TOKEN_PERSONAL_SITE",
+    "DOPPLER_TOKEN_WORK_GRAPH",
+  ]) {
+    assert.ok(dopplerWrapper.includes(variable));
+  }
+  assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
+  assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
+});
+
+test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-doppler-wrapper-"));
+  const dopplerWrapper = fileURLToPath(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh",
+      import.meta.url,
+    ),
+  );
+  const realDoppler = join(temporaryDirectory, "doppler-real");
+  writeFileSync(
+    realDoppler,
+    [
+      "#!/usr/bin/env bash",
+      'printf \'token=%s\\n\' "$' + '{DOPPLER_TOKEN:-}"',
+      'printf \'args=%s\\n\' "$*"',
+      "",
+    ].join("\n"),
+  );
+  chmodSync(realDoppler, 0o755);
+
+  const baseEnvironment: NodeJS.ProcessEnv = {
+    ...process.env,
+    DOPPLER_REAL_BIN: realDoppler,
+    DOPPLER_PROJECT_TOKEN_DIRECTORY: temporaryDirectory,
+    DOPPLER_TOKEN: "caller-token",
+    DOPPLER_TOKEN_HOMELAB: "managed-homelab-token",
+  };
+  const invoke = (
+    args: readonly string[],
+    environment: NodeJS.ProcessEnv = baseEnvironment,
+  ) =>
+    spawnSync(dopplerWrapper, args, {
+      encoding: "utf8",
+      env: environment,
+      timeout: 5000,
+    });
+
+  try {
+    for (const configArguments of [
+      ["--config", "dev"],
+      ["-c", "dev"],
+      ["--config=dev"],
+      ["-c=dev"],
+    ]) {
+      const result = invoke(["secrets", "--project", "homelab", ...configArguments]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.match(result.stdout, /^token=managed-homelab-token$/m);
+      assert.doesNotMatch(result.stdout, /^token=caller-token$/m);
+    }
+
+    for (const disallowedArguments of [
+      ["secrets", "--project", "homelab", "--config", "prd"],
+      ["secrets", "--project", "homelab", "--token", "caller-token"],
+      ["secrets", "--project", "homelab", "--no-read-env"],
+      ["secrets", "--project", "unknown", "--config", "dev"],
+    ]) {
+      const result = invoke(disallowedArguments);
+      assert.equal(result.status, 2, disallowedArguments.join(" "));
+    }
+
+    const environmentConfig = invoke(["secrets", "--project", "homelab"], {
+      ...baseEnvironment,
+      DOPPLER_CONFIG: "prd",
+    });
+    assert.equal(environmentConfig.status, 2);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
 });
 
 test("the Vector tailnet scripts avoid local DNS collisions", () => {

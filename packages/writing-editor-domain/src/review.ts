@@ -12,6 +12,7 @@ import {
 import {
   ProposalSchema,
   type Proposal,
+  verifyPassageReviewSource,
   verifyProposalSource,
 } from "./proposals";
 import { compareSuggestions, type Suggestion } from "./suggestions";
@@ -93,6 +94,14 @@ function recordConflicts(
       `${id} failed source verification: ${verification.conflicts.map(({ kind }) => kind).join(", ")}`,
     );
   }
+  if (record.recordType === "writing-proposal") {
+    const passageVerification = verifyPassageReviewSource(record, source);
+    if (!passageVerification.ok) {
+      conflicts.push(
+        `${id} failed passage verification: ${passageVerification.conflicts.map(({ kind }) => kind).join(", ")}`,
+      );
+    }
+  }
   return conflicts;
 }
 
@@ -124,6 +133,36 @@ export function renderProposalDiff(
     "proposed",
     { context: 3 },
   );
+}
+
+export function renderProposalReview(
+  proposal: Proposal,
+  source: string,
+  path: string,
+): string {
+  if (!proposal.review) return renderProposalDiff(proposal, source, path);
+  const { review } = proposal;
+  const citations = review.context.citations.map((citation) => {
+    const location = citation.href ? ` | ${citation.href}` : "";
+    return `- ${citation.kind}: ${citation.label} [${citation.freshness}]${location}`;
+  });
+  const warnings = review.context.warnings.length === 0
+    ? ["- none"]
+    : review.context.warnings.map((warning) => `- ${warning.message}`);
+  return [
+    `Passage rewrite ${proposal.proposalId}`,
+    `Reason: ${review.reason}`,
+    `Evidence gate: ${review.evidenceGate.gateId} = ${review.evidenceGate.decision}`,
+    `Evaluation: ${review.evidenceGate.evaluationId}`,
+    `Default loop: ${review.defaultLoopEligible ? "eligible" : "disabled"}`,
+    "Context citations:",
+    ...citations,
+    "Warnings:",
+    ...warnings,
+    "Authority: the author verifies facts and controls publication.",
+    "",
+    renderProposalDiff(proposal, source, path),
+  ].join("\n");
 }
 
 export function validateRecordedDecisions(
@@ -175,9 +214,10 @@ function decisionEdits(decision: Decision): ByteEdit[] {
   const first = suggestions[0];
   const last = suggestions.at(-1);
   if (!first || !last) return [];
+  const passage = decision.proposal.review?.passage;
   return [{
-    startByte: first.span.startByte,
-    endByte: last.span.endByte,
+    startByte: passage?.startByte ?? first.span.startByte,
+    endByte: passage?.endByte ?? last.span.endByte,
     replacement: decision.replacement,
     ownerId: decision.proposalId,
   }];

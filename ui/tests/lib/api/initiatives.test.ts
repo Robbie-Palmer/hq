@@ -37,4 +37,12 @@ describe("initiatives API", () => {
   it("returns null for an unknown initiative", () => {
     expect(getInitiative("missing")).toBeNull();
   });
+
+  it("includes ideas referenced by an initiative", () => {
+    const initiative = getInitiative("digital-twins-for-everyday-life");
+
+    expect(initiative?.ideas.map((idea) => idea.slug)).toEqual([
+      "digital-twins",
+    ]);
+  });
 });

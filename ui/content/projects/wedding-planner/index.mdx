@@ -7,13 +7,13 @@ status: "in_progress"
 
 # Wedding planner
 
-This is a place for the wedding decisions that need more than a checklist. It matches guests to beds, rooms and cottages while respecting who is comfortable sharing and working out fair costs. The same guest list and confirmed couples also feed a table planner. A shared music list collects guest requests without handing over the final DJ brief.
+This is a place for the wedding decisions that need more than a checklist. It matches guests to beds, rooms and cottages while respecting who is comfortable sharing and working out fair costs. The same guest list and confirmed couples feed a table planner. A shared music list collects guest requests without handing over the final DJ brief.
 
-Services such as [Joy](https://withjoy.com/) cover wedding websites, guest lists and RSVPs. This project can handle planning gaps alongside a service like that. Later it could become a more personal guest-facing wedding site.
+The private planning data stays in the browser. The MVP does not sync with Joy, finance systems, or other third-party services.
 
 [Open the planner](/wedding-planner)
 
-The private planner stores guests and choices in your browser. Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. Accommodation and table choices do not sync between devices. Music suggestions and votes use a separate guest link, while moderation stays in the private planner.
+Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. Accommodation and table choices do not sync between devices. Music suggestions and votes use a separate guest link, while moderation stays in the private planner.
 
 The shared guest model records attendance, invitations, couples and wedding roles independently of sleeping arrangements. Both planners use a domain package, with a repository for saving plans and adapters for browser storage and optimisation. Existing backups migrate when loaded. Guests can be bridesmaids, groomsmen, parents of the bride or groom, and other wedding-party members. Their roles are separate from top-table placement and accommodation payments.
 
@@ -21,4 +21,23 @@ The accommodation planner records shared bed groups and allows individual sharin
 
 The table planner fixes the wedding party at the top table and keeps other confirmed couples together. It respects keep-apart rules, maximizes preferred pairs at the same table, then balances table sizes. Guest table counts and individual capacities can change between calculations. Wedding attendance is separate from overnight stays, so day guests can have a seat too.
 
-The music planner groups songs by moments such as arrivals, dinner, first dance and last song. Guests can suggest tracks and vote through a link suitable for the Joy website. The couple can approve, reject, merge and order songs, hide choices, and mark must-play or do-not-play entries. The final brief downloads as CSV or Markdown for the DJ.
+The music planner groups songs by moments such as arrivals, dinner, first dance and last song. Guests can suggest tracks and vote through a dedicated link. The couple can approve, reject, merge and order songs, hide choices, and mark must-play or do-not-play entries. The final brief downloads as CSV or Markdown for the DJ.
+
+## MVP boundary
+
+| Route or capability                                         | Decision | MVP treatment                                                                                                     |
+| ----------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
+| `/wedding-planner`                                          | Keep     | One private entry point for guest, accommodation, seating, readiness and music workflows.                         |
+| Guest directory, attendance, couples and wedding roles      | Keep     | One guest record feeds accommodation and seating.                                                                 |
+| Accommodation preferences, inventory and room allocation    | Keep     | Includes prices, payer choices, amounts paid, guest contributions, cancellations and refunds for accommodation.   |
+| Seating calculation, saved plans and room layout            | Keep     | Supports manual locks and venue layout changes.                                                                   |
+| Readiness milestones and configurable checks                | Keep     | Tracks wedding-specific guest, accommodation, seating and export decisions without becoming a general task list.  |
+| Collaborative music planning                                | Keep     | The couple moderates requests and votes, then exports a DJ brief.                                                 |
+| `/wedding-planner/playlist` and `/api/wedding-playlists/*`  | Keep     | The separate guest link stores only playlist data and uses invite and admin tokens.                               |
+| JSON backups and venue, caterer and floor-plan exports      | Keep     | Backups remain the transfer mechanism for private planning data.                                                  |
+| Whole-wedding budgets and a general finance ledger          | Defer    | Accommodation money stays with the room plan. The UI does not expose commitment or payment IDs from another tool. |
+| Generic tasks, assignees and project-management workflows   | Defer    | Readiness stays tied to facts already held by the wedding plan.                                                   |
+| Joy import/export, live sync and other service integrations | Defer    | The package does not publish the unfinished adapter and the UI makes no sync claim.                               |
+| Unowned integration controls and sync copy                  | Remove   | No control appears until the integration has authentication, ownership and a defined failure path.                |
+
+New capabilities enter the MVP when they support a wedding decision and reuse the existing guest or plan model. A separate data boundary is justified only when the audience, privacy rules or concurrency needs differ, as they do for the guest playlist. Every addition needs backup or migration behavior and tests. External services also need an authenticated adapter and a defined failure path before any control or copy appears in the planner.
