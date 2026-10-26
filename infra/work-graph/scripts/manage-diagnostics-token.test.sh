@@ -21,6 +21,7 @@ output=""
 url=""
 body=""
 auth_config=""
+candidate_token_placeholder="${MOCK_CANDIDATE_TOKEN_PLACEHOLDER:?}"
 while (($#)); do
   case "$1" in
     --request) method="$2"; shift 2 ;;
@@ -60,7 +61,7 @@ case "$method:$path" in
     ;;
   GET:/tokens/verify)
     verified_id="$bootstrap_id"
-    if grep -Fq "candidate-token-placeholder" "$auth_config"; then
+    if grep -Fq "$candidate_token_placeholder" "$auth_config"; then
       verified_id="$MOCK_NEW_TOKEN_ID"
     elif grep -Fq "existing-token-placeholder" "$auth_config"; then
       verified_id="$MOCK_EXISTING_TOKEN_ID"
@@ -130,7 +131,7 @@ case "$method:$path" in
     ' "$body" >/dev/null
     jq -n \
       --arg id "$MOCK_NEW_TOKEN_ID" \
-      --arg value "candidate-token-placeholder" '
+      --arg value "$candidate_token_placeholder" '
       {success: true, errors: [], result: {id: $id, value: $value}}
     ' >"$output"
     ;;
@@ -152,6 +153,7 @@ set -euo pipefail
 
 operation="${1:-} ${2:-}"
 name="${3:-}"
+candidate_token_placeholder="${MOCK_CANDIDATE_TOKEN_PLACEHOLDER:?}"
 case "$operation" in
   "secrets get")
     printf 'doppler get %s\n' "$name" >>"$MOCK_OPERATION_LOG"
@@ -166,7 +168,7 @@ case "$operation" in
     if [[ "$name" == "CLOUDFLARE_DIAGNOSTICS_API_TOKEN" && "${MOCK_DOPPLER_SET_FAIL:-false}" == "true" ]]; then
       exit 1
     fi
-    if [[ "$name" == "CLOUDFLARE_DIAGNOSTICS_API_TOKEN" && "$value" != "candidate-token-placeholder" ]]; then
+    if [[ "$name" == "CLOUDFLARE_DIAGNOSTICS_API_TOKEN" && "$value" != "$candidate_token_placeholder" ]]; then
       echo "Unexpected diagnostic token placeholder." >&2
       exit 1
     fi
@@ -193,6 +195,7 @@ set -euo pipefail
 
 operation="${1:-} ${2:-}"
 name="${3:-}"
+candidate_token_placeholder="${MOCK_CANDIDATE_TOKEN_PLACEHOLDER:?}"
 case "$operation" in
   "secret list")
     printf 'github list\n' >>"$MOCK_OPERATION_LOG"
@@ -207,7 +210,7 @@ case "$operation" in
     if [[ "${MOCK_GITHUB_SET_FAIL:-false}" == "true" ]]; then
       exit 1
     fi
-    [[ "$value" == "candidate-token-placeholder" ]]
+    [[ "$value" == "$candidate_token_placeholder" ]]
     printf 'github set %s\n' "$name" >>"$MOCK_OPERATION_LOG"
     ;;
   "secret delete")
@@ -224,6 +227,7 @@ chmod +x "$mock_bin/gh"
 account_id="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 new_id="cccccccccccccccccccccccccccccccc"
 old_id="dddddddddddddddddddddddddddddddd"
+candidate_token_placeholder="candidate-token-placeholder"
 request_log="$test_dir/requests.log"
 operation_log="$test_dir/operations.log"
 
@@ -235,6 +239,7 @@ run_lifecycle() {
     MOCK_INVENTORY="${MOCK_INVENTORY:-}" \
     MOCK_MANAGED_ID="${MOCK_MANAGED_ID:-}" \
     MOCK_DOPPLER_CONSUMER_TOKEN="${MOCK_DOPPLER_CONSUMER_TOKEN:-}" \
+    MOCK_CANDIDATE_TOKEN_PLACEHOLDER="$candidate_token_placeholder" \
     MOCK_NEW_TOKEN_ID="$new_id" \
     MOCK_EXISTING_TOKEN_ID="$old_id" \
     MOCK_GITHUB_SECRET_EXISTS="${MOCK_GITHUB_SECRET_EXISTS:-false}" \
@@ -269,7 +274,7 @@ grep -Fxq "doppler set CLOUDFLARE_DIAGNOSTICS_API_TOKEN_ID" "$operation_log"
 
 all_safe_output="$plan_output$prepare_output$(<"$request_log")$(<"$operation_log")"
 for secret_placeholder in \
-  candidate-token-placeholder \
+  "$candidate_token_placeholder" \
   provisioner-token-placeholder \
   doppler-token-placeholder \
   github-token-placeholder; do
@@ -284,7 +289,7 @@ done
 reuse_output="$(
   MOCK_INVENTORY="$new_id" \
   MOCK_MANAGED_ID="$new_id" \
-  MOCK_DOPPLER_CONSUMER_TOKEN="candidate-token-placeholder" \
+  MOCK_DOPPLER_CONSUMER_TOKEN="$candidate_token_placeholder" \
   run_lifecycle prepare
 )"
 jq -e --arg id "$new_id" '.action == "reused" and .currentTokenId == $id' <<<"$reuse_output" >/dev/null
@@ -309,7 +314,7 @@ jq -e --arg current "$new_id" --arg old "$old_id" '
 grep -Fq "POST https://api.cloudflare.com/client/v4/accounts/$account_id/tokens" "$request_log"
 
 : >"$request_log"
-CLOUDFLARE_DIAGNOSTICS_API_TOKEN="candidate-token-placeholder" \
+CLOUDFLARE_DIAGNOSTICS_API_TOKEN="$candidate_token_placeholder" \
   run_lifecycle verify-consumer --expected-id "$new_id" >/dev/null
 
 : >"$request_log"
@@ -338,7 +343,7 @@ if grep -Fq "DELETE " "$request_log"; then
   echo "A failed handoff revoked an existing or candidate token." >&2
   exit 1
 fi
-if grep -Fq "candidate-token-placeholder" "$test_dir/failed-prepare.err"; then
+if grep -Fq "$candidate_token_placeholder" "$test_dir/failed-prepare.err"; then
   echo "A failed handoff printed the candidate token." >&2
   exit 1
 fi
@@ -355,7 +360,7 @@ if grep -Fq "DELETE " "$request_log"; then
   echo "A partial consumer handoff revoked an existing or candidate token." >&2
   exit 1
 fi
-if grep -Fq "candidate-token-placeholder" "$test_dir/failed-doppler.err"; then
+if grep -Fq "$candidate_token_placeholder" "$test_dir/failed-doppler.err"; then
   echo "A failed Doppler handoff printed the candidate token." >&2
   exit 1
 fi
@@ -365,7 +370,7 @@ fi
 MOCK_INVENTORY="$old_id,$new_id" \
 MOCK_GITHUB_SECRET_EXISTS=true \
 MOCK_MANAGED_ID="$new_id" \
-MOCK_DOPPLER_CONSUMER_TOKEN="candidate-token-placeholder" \
+MOCK_DOPPLER_CONSUMER_TOKEN="$candidate_token_placeholder" \
 run_lifecycle retire work-graph-diagnostics >/dev/null
 grep -Fxq "github delete CLOUDFLARE_DIAGNOSTICS_API_TOKEN" "$operation_log"
 grep -Fxq "doppler delete CLOUDFLARE_DIAGNOSTICS_API_TOKEN CLOUDFLARE_DIAGNOSTICS_API_TOKEN_ID" "$operation_log"

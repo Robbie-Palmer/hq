@@ -71,6 +71,7 @@ github_repository="$(jq -er '.githubConsumer.repository' "$plan_path")"
 github_environment="$(jq -er '.githubConsumer.environment' "$plan_path")"
 github_secret_name="$(jq -er '.githubConsumer.secretName' "$plan_path")"
 github_credential_environment="$(jq -er '.githubConsumer.credentialEnvironment' "$plan_path")"
+doppler_api_origin="$(jq -er '.providerOrigins.doppler' "$plan_path")"
 
 if [[ "$mode" == "plan" ]]; then
   jq '{
@@ -277,7 +278,7 @@ preflight_consumers() {
     doppler secrets get "$managed_id_name" \
       --project "$doppler_project" \
       --config "$doppler_config" \
-      --api-host "https://api.doppler.com" \
+      --api-host "$doppler_api_origin" \
       --no-exit-on-missing-secret \
       --plain \
       --silent >"$work_dir/managed-id.txt"
@@ -286,7 +287,7 @@ preflight_consumers() {
     doppler secrets get "$doppler_secret_name" \
       --project "$doppler_project" \
       --config "$doppler_config" \
-      --api-host "https://api.doppler.com" \
+      --api-host "$doppler_api_origin" \
       --no-exit-on-missing-secret \
       --plain \
       --silent >"$work_dir/doppler-consumer-token.txt"
@@ -345,7 +346,7 @@ write_candidate_to_consumers() {
         --project "$doppler_project" \
         --config "$doppler_config" \
         --visibility masked \
-        --api-host "https://api.doppler.com" \
+        --api-host "$doppler_api_origin" \
         --no-interactive \
         --silent >/dev/null; then
     echo "The candidate token could not be written to Doppler. It remains active for recovery." >&2
@@ -374,7 +375,7 @@ write_managed_id() {
         --project "$doppler_project" \
         --config "$doppler_config" \
         --visibility unmasked \
-        --api-host "https://api.doppler.com" \
+        --api-host "$doppler_api_origin" \
         --no-interactive \
         --silent >/dev/null
 }
@@ -548,7 +549,7 @@ retire_token() {
       doppler secrets delete "${doppler_names[@]}" \
         --project "$doppler_project" \
         --config "$doppler_config" \
-        --api-host "https://api.doppler.com" \
+        --api-host "$doppler_api_origin" \
         --yes \
         --silent >/dev/null
   fi
