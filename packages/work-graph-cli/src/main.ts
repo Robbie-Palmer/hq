@@ -114,7 +114,10 @@ const findCause = <ErrorType extends Error>(
 const validationMessage = (error: CliValidationError): string =>
   error.message.split("\n\nUsage:", 1)[0]?.trim() || "Invalid arguments.";
 
-const toCliError = (cause: unknown): CliError => {
+const toCliError = (
+  cause: unknown,
+  commandName: string | undefined,
+): CliError => {
   const cliError = findCause(cause, CliError);
   if (cliError) return cliError;
 
@@ -123,10 +126,16 @@ const toCliError = (cause: unknown): CliError => {
 
   if (cause instanceof FailedToExitError && cause.exitCode !== 0) {
     const parserError = nestedCause(cause);
-    const message =
+    let message =
       parserError instanceof Error
         ? parserError.message.replace(/^error:\s*/u, "")
         : "Invalid arguments.";
+    if (
+      commandName !== undefined &&
+      message === "option '--json <json>' argument missing"
+    ) {
+      message = `The --json option for ${commandName} requires a JSON object. Command output is already JSON; run 'work-graph ${commandName}' without --json.`;
+    }
     return usageError(message);
   }
 
@@ -237,7 +246,7 @@ export const runCli = async (
     if (cause instanceof FailedToExitError && cause.exitCode === 0) {
       return EXIT_CODES.success;
     }
-    const error = toCliError(cause);
+    const error = toCliError(cause, commandName);
     stderr(`${JSON.stringify(errorDocument(error))}\n`);
     return error.exitCode;
   }
