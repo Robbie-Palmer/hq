@@ -9,6 +9,7 @@ export * from "./assetTrackerRepository";
 export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
 export * from "./capitalFlow";
+export * from "./compoundGrowth";
 export * from "./currency";
 export * from "./currentExchangeRate";
 export * from "./decisionRecord";
