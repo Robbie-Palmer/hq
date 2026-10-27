@@ -69,3 +69,9 @@ output "resource_ids" {
 output "preview_enabled" {
   value = var.preview_enabled
 }
+
+output "preview_connection_uri" {
+  description = "Sensitive connection URI for the isolated preview database."
+  value       = try(neon_project.preview[0].connection_uri, null)
+  sensitive   = true
+}

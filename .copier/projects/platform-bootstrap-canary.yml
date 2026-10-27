@@ -3,15 +3,6 @@ _src_path: https://github.com/Robbie-Palmer/hq.git
 blueprint:
   catalog:
     components:
-      - id: component:platform-bootstrap-canary/knowledge
-        kind: component
-        name: Bootstrap canary operating record
-        project: project:platform-bootstrap-canary
-        relations:
-          - target: system:platform-bootstrap-canary/application
-            type: part_of
-        source_paths:
-          - ui/content/projects/platform-bootstrap-canary
       - id: component:platform-bootstrap-canary/web
         kind: component
         mount_path: /platform-bootstrap-canary
@@ -29,35 +20,7 @@ blueprint:
       project: project:platform-bootstrap-canary
       source_paths:
         - ui/app/_projects/platform-bootstrap-canary
-        - ui/content/projects/platform-bootstrap-canary
   components:
-    - id: knowledge
-      kind: project-content
-      name: Bootstrap canary operating record
-      path: ui/content/projects/platform-bootstrap-canary
-      stable_id: component:platform-bootstrap-canary/knowledge
-      tasks:
-        - disposition: delegated
-          name: build
-          target: //ui:build
-        - disposition: delegated
-          name: clean
-          target: //ui:clean
-        - disposition: delegated
-          name: format
-          target: //ui:format
-        - disposition: delegated
-          name: install
-          target: //ui:install
-        - disposition: delegated
-          name: lint
-          target: //ui:lint
-        - disposition: delegated
-          name: test
-          target: //ui:test
-        - disposition: delegated
-          name: typecheck-or-compile
-          target: //ui:typecheck
     - id: web
       kind: project-ui
       mount_path: /platform-bootstrap-canary
@@ -86,7 +49,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-10-27 00:00:00+00:00
+  effective_at: 2026-10-27 22:50:00+00:00
   fulfillment_checkpoints:
     - action: "Verify Preview migrations and synthetic fixtures:
         .github/workflows/preview-environment.yml"
@@ -164,17 +127,15 @@ blueprint:
   ownership:
     owned_paths:
       - ui/app/_projects/platform-bootstrap-canary
-      - ui/content/projects/platform-bootstrap-canary
     structural_edits:
       - .mise.toml#monorepo.config_roots
       - pnpm-workspace.yaml#packages
-      - ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records
-      - ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects
   profile_schema_version: 1
   project:
     id: platform-bootstrap-canary
     kind: application
     name: Platform bootstrap canary
+    published: false
     stable_id: project:platform-bootstrap-canary
   repository_paths:
     architecture_decisions: ui/content/projects/platform-bootstrap-canary/adrs/{sequence}-{slug}.mdx

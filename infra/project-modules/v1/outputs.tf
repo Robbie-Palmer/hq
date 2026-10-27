@@ -39,3 +39,9 @@ output "resource_ownership" {
     telemetry_dashboard = try(module.telemetry["selected"].dashboard_id, module.disposable[0].resource_ownership.telemetry_dashboard, null)
   }
 }
+
+output "preview_database_connection_uri" {
+  description = "Sensitive connection URI for the isolated Neon preview database."
+  value       = try(module.neon["selected"].preview_connection_uri, module.disposable[0].preview_connection_uri, null)
+  sensitive   = true
+}

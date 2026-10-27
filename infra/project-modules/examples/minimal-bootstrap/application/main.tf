@@ -13,7 +13,7 @@ locals {
 module "preview" {
   source = "../../../v1"
 
-  state_scope          = "application"
+  state_scope         = "application"
   deletion_protection = false
   resolved_profile    = local.resolved_profile
 
@@ -21,8 +21,8 @@ module "preview" {
     account_id         = var.cloudflare_account_id
     name               = "platform-bootstrap-canary"
     production_branch  = "never-production"
-    build_command      = "mise //ui:build"
-    destination_dir    = "ui/.next"
+    build_command      = ""
+    destination_dir    = "site"
     compatibility_date = "2026-10-27"
     preview_variables = {
       DATA_CLASSIFICATION = "synthetic-only"
@@ -32,14 +32,24 @@ module "preview" {
   cloudflare_worker = var.enabled ? {
     account_id         = var.cloudflare_account_id
     name               = "platform-bootstrap-canary-preview"
-    content            = "export default { fetch() { return new Response('unconfigured', { status: 503 }); } };"
+    content            = <<-JAVASCRIPT
+      export default {
+        fetch() {
+          return Response.json({
+            project: "platform-bootstrap-canary",
+            environment: "preview",
+            dataClassification: "synthetic-only"
+          });
+        }
+      };
+    JAVASCRIPT
     compatibility_date = "2026-10-27"
   } : null
 
   cloudflare_access = var.enabled ? {
     account_id     = var.cloudflare_account_id
     name           = "Platform bootstrap canary preview"
-    domain         = "platform-bootstrap-canary.preview.robbiepalmer.me"
+    domain         = "bootstrap-canary.platform-bootstrap-canary.pages.dev"
     allowed_emails = var.reviewer_emails
   } : null
 
@@ -61,4 +71,9 @@ output "selected_capabilities" {
 
 output "resource_ownership" {
   value = module.preview.resource_ownership
+}
+
+output "preview_database_connection_uri" {
+  value     = module.preview.preview_database_connection_uri
+  sensitive = true
 }

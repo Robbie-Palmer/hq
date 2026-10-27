@@ -16,7 +16,8 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
         "id": "mixed-app",
         "stable_id": "project:mixed-app",
         "name": "Mixed app",
-        "kind": "application"
+        "kind": "application",
+        "published": true
       },
       "components": [
         {
@@ -354,7 +355,8 @@ exports[`resolved profile plan adapter > maps the package-producing project into
         "id": "package-kit",
         "stable_id": "project:package-kit",
         "name": "Package kit",
-        "kind": "library"
+        "kind": "library",
+        "published": true
       },
       "components": [
         {
@@ -571,7 +573,8 @@ exports[`resolved profile plan adapter > maps the small single-technology projec
         "id": "tiny-library",
         "stable_id": "project:tiny-library",
         "name": "Tiny library",
-        "kind": "library"
+        "kind": "library",
+        "published": true
       },
       "components": [
         {

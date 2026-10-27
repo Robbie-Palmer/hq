@@ -23,7 +23,7 @@ variables {
   cloudflare_worker = {
     account_id         = "dcd7cd68dd892d610267ded6b1af567b"
     name               = "platform-bootstrap-canary-preview"
-    content            = "export default { fetch() { return new Response('unconfigured', { status: 503 }); } };"
+    content            = "export default { fetch() { return Response.json({ environment: 'preview' }); } };"
     compatibility_date = "2026-10-27"
   }
   cloudflare_access = {
@@ -61,7 +61,8 @@ run "create_isolated_preview" {
       output.resource_ownership.worker != null &&
       output.resource_ownership.access_application != null &&
       output.resource_ownership.neon.production_project != null &&
-      output.resource_ownership.neon.preview_project != null
+      output.resource_ownership.neon.preview_project != null &&
+      nonsensitive(output.preview_database_connection_uri) != null
     )
     error_message = "The application state must create only the profile-selected Cloudflare and isolated Neon resources."
   }
@@ -103,7 +104,8 @@ run "remove_isolated_preview" {
       output.resource_ownership.pages_project == null &&
       output.resource_ownership.worker == null &&
       output.resource_ownership.access_application == null &&
-      output.resource_ownership.neon == null
+      output.resource_ownership.neon == null &&
+      nonsensitive(output.preview_database_connection_uri) == null
     )
     error_message = "Removing the profile selections must clean up every disposable preview resource."
   }

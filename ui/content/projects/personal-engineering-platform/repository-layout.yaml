@@ -54,9 +54,6 @@ projects:
   - id: wedding-planner
     kind: application
     catalog_record: system:wedding-planner/application
-  - id: platform-bootstrap-canary
-    kind: application
-    catalog_record: system:platform-bootstrap-canary/application
 
 component_kinds:
   - id: "ui"

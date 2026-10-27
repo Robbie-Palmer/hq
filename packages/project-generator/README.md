@@ -44,6 +44,11 @@ explicit instant selects dated platform defaults. `--contracts`, `--registry`,
 `--repository`, and `--template-id` replace their repository defaults when a
 test or migration needs another input.
 
+Set `project.published: false` for an internal fixture. Copier still records
+its resolved blueprint and owns its declared component paths, but it does not
+add the fixture to the public repository-layout or platform catalogs and does
+not claim a project-content directory.
+
 `profile:resolve` prints the complete non-secret blueprint consumed by Copier
 and the versioned Terraform module library. Save that output only when a
 reviewed infrastructure plan needs a stable input. Regenerate it from the same

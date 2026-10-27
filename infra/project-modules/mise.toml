@@ -1,10 +1,16 @@
 [tasks.format]
-description = "Format the versioned project infrastructure modules"
-run = "terraform -chdir=v1 fmt -recursive ."
+description = "Format the project infrastructure modules and executable examples"
+run = [
+  "terraform -chdir=v1 fmt -recursive .",
+  "terraform -chdir=examples/minimal-bootstrap/application fmt .",
+]
 
 [tasks."format:check"]
-description = "Check project infrastructure module formatting"
-run = "terraform -chdir=v1 fmt -check -recursive ."
+description = "Check project infrastructure module and executable example formatting"
+run = [
+  "terraform -chdir=v1 fmt -check -recursive .",
+  "terraform -chdir=examples/minimal-bootstrap/application fmt -check .",
+]
 
 [tasks.validate]
 description = "Validate the project infrastructure composition without credentials"
@@ -32,7 +38,7 @@ terraform -chdir=v1 test
 
 [tasks."minimal-bootstrap:init"]
 description = "Initialize the disposable managed-project preview state"
-run = "terraform -chdir=examples/minimal-bootstrap/application init -input=false"
+run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview terraform -chdir=examples/minimal-bootstrap/application init -input=false"
 
 [tasks."minimal-bootstrap:validate"]
 description = "Validate the disposable managed-project preview without its remote backend"
@@ -49,7 +55,7 @@ terraform -chdir=examples/minimal-bootstrap/application validate
 [tasks."minimal-bootstrap:plan"]
 description = "Create a saved plan for the disposable managed-project preview"
 depends = ["minimal-bootstrap:init"]
-run = "terraform -chdir=examples/minimal-bootstrap/application plan -input=false -out .planfile"
+run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview terraform -chdir=examples/minimal-bootstrap/application plan -input=false -out .planfile"
 outputs = ["examples/minimal-bootstrap/application/.planfile"]
 
 [tasks."minimal-bootstrap:show"]
@@ -59,12 +65,52 @@ run = "terraform -chdir=examples/minimal-bootstrap/application show .planfile"
 [tasks."minimal-bootstrap:apply"]
 description = "Apply the reviewed disposable managed-project preview plan"
 depends = ["minimal-bootstrap:init"]
-run = "terraform -chdir=examples/minimal-bootstrap/application apply -input=false .planfile"
+run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh apply terraform -chdir=examples/minimal-bootstrap/application apply -input=false .planfile"
+
+[tasks."minimal-bootstrap:deploy"]
+description = "Deploy the disposable static canary to its isolated Pages preview"
+depends = ["//ui:install"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+repository_root="$(git rev-parse --show-toplevel)"
+bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh apply \
+  pnpm --dir "$repository_root/ui" exec wrangler pages deploy \
+  "$repository_root/infra/project-modules/examples/minimal-bootstrap/site" \
+  --project-name platform-bootstrap-canary \
+  --branch bootstrap-canary
+"""
+
+[tasks."minimal-bootstrap:smoke:database"]
+description = "Prove isolated Neon preview reads and writes without printing credentials"
+depends = ["minimal-bootstrap:init", "//packages/drizzle-postgres:install"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+database_url="$(bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview terraform -chdir=examples/minimal-bootstrap/application output -raw preview_database_connection_uri)"
+export MINIMAL_BOOTSTRAP_DATABASE_URL="$database_url"
+pnpm exec tsx examples/minimal-bootstrap/scripts/smoke-database.ts
+unset MINIMAL_BOOTSTRAP_DATABASE_URL
+"""
+
+[tasks."minimal-bootstrap:smoke:preview"]
+description = "Verify the canary preview is protected by Cloudflare Access"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+url="https://bootstrap-canary.platform-bootstrap-canary.pages.dev/"
+status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$url")"
+if [[ "$status" != "302" && "$status" != "403" ]]; then
+  echo "Expected Cloudflare Access to reject an unauthenticated request, got HTTP $status" >&2
+  exit 1
+fi
+echo "Cloudflare Access rejected the unauthenticated canary request with HTTP $status."
+"""
 
 [tasks."minimal-bootstrap:cleanup:plan"]
 description = "Create a saved plan that removes the disposable managed-project preview"
 depends = ["minimal-bootstrap:init"]
-run = "terraform -chdir=examples/minimal-bootstrap/application plan -input=false -var-file=cleanup.tfvars -out .cleanup-planfile"
+run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview terraform -chdir=examples/minimal-bootstrap/application plan -input=false -var-file=cleanup.tfvars -out .cleanup-planfile"
 outputs = ["examples/minimal-bootstrap/application/.cleanup-planfile"]
 
 [tasks."minimal-bootstrap:cleanup:show"]
@@ -74,7 +120,7 @@ run = "terraform -chdir=examples/minimal-bootstrap/application show .cleanup-pla
 [tasks."minimal-bootstrap:cleanup:apply"]
 description = "Apply the reviewed disposable managed-project preview cleanup"
 depends = ["minimal-bootstrap:init"]
-run = "terraform -chdir=examples/minimal-bootstrap/application apply -input=false .cleanup-planfile"
+run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh apply terraform -chdir=examples/minimal-bootstrap/application apply -input=false .cleanup-planfile"
 
 [tasks.lint]
 description = "Check and test the versioned project infrastructure modules"

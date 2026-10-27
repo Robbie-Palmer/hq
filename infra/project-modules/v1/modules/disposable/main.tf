@@ -399,3 +399,9 @@ output "resource_ownership" {
     telemetry_dashboard = try(posthog_dashboard.project["selected"].id, null)
   }
 }
+
+output "preview_connection_uri" {
+  description = "Sensitive connection URI for the isolated preview database."
+  value       = try(neon_project.preview["selected"].connection_uri, null)
+  sensitive   = true
+}

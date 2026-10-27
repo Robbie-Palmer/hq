@@ -4,15 +4,13 @@ project:
   id: "platform-bootstrap-canary"
   name: "Platform bootstrap canary"
   kind: "application"
+  published: false
 
 components:
   - id: "web"
     name: "Bootstrap canary web application"
     kind: "project-ui"
     mount_path: "/platform-bootstrap-canary"
-  - id: "knowledge"
-    name: "Bootstrap canary operating record"
-    kind: "project-content"
 
 layers:
   - layer: "governance"

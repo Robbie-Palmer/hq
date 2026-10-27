@@ -51,10 +51,11 @@ describe("minimal managed-project bootstrap", () => {
 
     expect(blueprint.schema_version).toBe(2);
     expect(blueprint.project.id).toBe("platform-bootstrap-canary");
-    expect(blueprint.components.map(({ kind }) => kind)).toEqual([
-      "project-content",
-      "project-ui",
-    ]);
+    expect(blueprint.project.published).toBe(false);
+    expect(blueprint.components.map(({ kind }) => kind)).toEqual(["project-ui"]);
+    expect(blueprint.ownership.owned_paths).not.toContain(
+      "ui/content/projects/platform-bootstrap-canary",
+    );
     expect(Object.fromEntries(selections)).toMatchObject({
       "delivery.ci": "github-actions",
       "web-app.host": "cloudflare-pages",
@@ -116,6 +117,12 @@ describe("minimal managed-project bootstrap", () => {
 
     expect(plan.answers.blueprint).toEqual(blueprint);
     expect(plan.owned_paths).toEqual(blueprint.ownership.owned_paths);
+    expect(plan.shared_manifest_edits).not.toContainEqual(
+      expect.objectContaining({ kind: "repository_project" }),
+    );
+    expect(plan.shared_manifest_edits).not.toContainEqual(
+      expect.objectContaining({ kind: "catalog_record" }),
+    );
     expect(JSON.stringify(plan)).not.toMatch(
       /(?:api[_-]?key|password|private[_-]?key|secret|token)["']?\s*:/i,
     );

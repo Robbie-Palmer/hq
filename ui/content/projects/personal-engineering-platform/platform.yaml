@@ -486,32 +486,6 @@ catalog:
       relations:
         - type: part_of
           target: system:wedding-planner/application
-    - id: system:platform-bootstrap-canary/application
-      kind: system
-      name: Platform bootstrap canary
-      project: project:platform-bootstrap-canary
-      source_paths:
-        - ui/app/_projects/platform-bootstrap-canary
-        - ui/content/projects/platform-bootstrap-canary
-    - id: component:platform-bootstrap-canary/knowledge
-      kind: component
-      name: Bootstrap canary operating record
-      project: project:platform-bootstrap-canary
-      source_paths:
-        - ui/content/projects/platform-bootstrap-canary
-      relations:
-        - type: part_of
-          target: system:platform-bootstrap-canary/application
-    - id: component:platform-bootstrap-canary/web
-      kind: component
-      name: Bootstrap canary web application
-      project: project:platform-bootstrap-canary
-      source_paths:
-        - ui/app/_projects/platform-bootstrap-canary
-      mount_path: /platform-bootstrap-canary
-      relations:
-        - type: part_of
-          target: system:platform-bootstrap-canary/application
 layers:
   - slug: "base"
     title: "Base"

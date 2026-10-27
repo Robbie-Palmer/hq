@@ -4,7 +4,8 @@ This canary connects the repository's public Copier, account-foundation, and
 project-infrastructure commands. It is disposable. Its profile selects a web
 application plus a Worker and Neon database, while OCI, Kubernetes, Flux,
 NixOS, self-managed targets, automatic Cloudflare token creation, telemetry,
-object storage, and feature flags remain out of scope.
+object storage, and feature flags remain out of scope. The fixture has no
+public project page. Its temporary provider URLs are the only live interface.
 
 The profile is the source of truth. `infrastructure-profile.json` is the small
 projection consumed by Terraform. The project-generator test fails if that
@@ -52,9 +53,9 @@ The first run needs the same account-foundation plan and apply credentials as
 the ordinary root. A human must then put the canary's HCP, Cloudflare, and Neon
 credentials plus these non-secret variables into the new Doppler configs:
 
-- `TF_VAR_cloudflare_account_id`
-- `TF_VAR_neon_org_id`
-- `TF_VAR_reviewer_emails`, encoded as a Terraform set value
+- `CLOUDFLARE_ACCOUNT_ID`
+- `NEON_ORG_ID`
+- `MINIMAL_BOOTSTRAP_REVIEWER_EMAIL`
 
 Do not put provider credentials in Terraform variables or committed files.
 The profile's pending fulfillment checkpoints record the Access identity
@@ -68,37 +69,40 @@ project whose production branch does not exist, a placeholder preview Worker,
 an Access application, and separate empty Neon projects. Both Neon projects
 use zero history retention. Nothing reads or clones production data.
 
+The public mise tasks load the `preview` config for read-only plans and the
+`apply` config for writes. Their wrapper maps the readable names above to the
+Terraform variables without printing secret values.
+
 ```bash
-doppler run --project platform-bootstrap-canary --config preview -- \
-  mise //infra/project-modules:minimal-bootstrap:plan
-
+mise //infra/project-modules:minimal-bootstrap:plan
 mise //infra/project-modules:minimal-bootstrap:show
-
-doppler run --project platform-bootstrap-canary --config apply -- \
-  mise //infra/project-modules:minimal-bootstrap:apply
-
-doppler run --project platform-bootstrap-canary --config preview -- \
-  mise //infra/project-modules:minimal-bootstrap:plan
+mise //infra/project-modules:minimal-bootstrap:apply
+mise //infra/project-modules:minimal-bootstrap:deploy
+mise //infra/project-modules:minimal-bootstrap:smoke:database
+mise //infra/project-modules:minimal-bootstrap:smoke:preview
+mise //infra/project-modules:minimal-bootstrap:plan
 ```
 
 The first plan must contain only the five selected application capabilities.
-The final plan must report no changes. The placeholder Worker returns 503 on
-purpose. A later golden-path ticket owns application deployment and
-authenticated read/write behavior.
+The Pages deploy publishes a single synthetic-data notice on the
+`bootstrap-canary` preview branch. The Worker returns a small JSON health
+response containing only its project, environment, and data classification.
+The database smoke opens the sensitive Neon
+connection URI directly from Terraform output, creates a temporary table,
+writes and reads one synthetic row in a transaction, then disconnects without
+printing the URI. The HTTP smoke proves that Cloudflare Access rejects an
+unauthenticated request. A reviewer must also open the preview in a browser and
+complete the configured identity-provider login before cleanup. The final plan
+must report no changes.
 
 ## Cleanup
 
 Remove application resources before deleting their HCP workspace:
 
 ```bash
-doppler run --project platform-bootstrap-canary --config preview -- \
-  mise //infra/project-modules:minimal-bootstrap:cleanup:plan
-
+mise //infra/project-modules:minimal-bootstrap:cleanup:plan
 mise //infra/project-modules:minimal-bootstrap:cleanup:show
-
-doppler run --project platform-bootstrap-canary --config apply -- \
-  mise //infra/project-modules:minimal-bootstrap:cleanup:apply
-
+mise //infra/project-modules:minimal-bootstrap:cleanup:apply
 mise //infra/account-foundation:minimal-bootstrap:cleanup:plan
 mise //infra/account-foundation:minimal-bootstrap:cleanup:show
 mise //infra/account-foundation:minimal-bootstrap:cleanup:apply
