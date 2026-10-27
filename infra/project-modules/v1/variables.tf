@@ -13,8 +13,8 @@ variable "resolved_profile" {
   })
 
   validation {
-    condition     = var.resolved_profile.schema_version == 1
-    error_message = "The v1 module library accepts only resolved blueprint schema version 1."
+    condition     = var.resolved_profile.schema_version == 2
+    error_message = "The v1 module library accepts only resolved blueprint schema version 2."
   }
 }
 
@@ -26,6 +26,12 @@ variable "state_scope" {
     condition     = contains(["bootstrap", "application"], var.state_scope)
     error_message = "state_scope must be bootstrap or application."
   }
+}
+
+variable "deletion_protection" {
+  description = "Keep durable provider resources behind Terraform prevent_destroy guards. Set false only for a reviewed disposable canary."
+  type        = bool
+  default     = true
 }
 
 variable "terraform_state" {

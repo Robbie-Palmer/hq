@@ -52,6 +52,9 @@ next-env.d.ts
 *.tfvars.local
 .planfile
 .canary-planfile
+.minimal-bootstrap-planfile
+.minimal-bootstrap-cleanup-planfile
+.cleanup-planfile
 gha-creds-*.json
 crash.log
 crash.*.log

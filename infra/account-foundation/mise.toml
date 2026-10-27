@@ -102,6 +102,36 @@ description = "Apply the reviewed disposable account-foundation onboarding canar
 depends = ["init"]
 run = "bash scripts/doppler-terraform-env.sh apply terraform apply -input=false .canary-planfile"
 
+[tasks."minimal-bootstrap:plan"]
+description = "Plan the disposable managed-project foundation"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -var-file=minimal-bootstrap.tfvars -out .minimal-bootstrap-planfile"
+outputs = [".minimal-bootstrap-planfile"]
+
+[tasks."minimal-bootstrap:show"]
+description = "Show the saved disposable managed-project foundation plan"
+run = "terraform show .minimal-bootstrap-planfile"
+
+[tasks."minimal-bootstrap:apply"]
+description = "Apply the reviewed disposable managed-project foundation plan"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh apply terraform apply -input=false .minimal-bootstrap-planfile"
+
+[tasks."minimal-bootstrap:cleanup:plan"]
+description = "Plan removal of the disposable managed-project foundation"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh plan terraform plan -input=false -out .minimal-bootstrap-cleanup-planfile"
+outputs = [".minimal-bootstrap-cleanup-planfile"]
+
+[tasks."minimal-bootstrap:cleanup:show"]
+description = "Show the saved disposable managed-project foundation cleanup plan"
+run = "terraform show .minimal-bootstrap-cleanup-planfile"
+
+[tasks."minimal-bootstrap:cleanup:apply"]
+description = "Apply the reviewed disposable managed-project foundation cleanup"
+depends = ["init"]
+run = "bash scripts/doppler-terraform-env.sh apply terraform apply -input=false .minimal-bootstrap-cleanup-planfile"
+
 [tasks.apply]
 description = "Apply a reviewed account-foundation Terraform plan with write credentials"
 depends = ["init"]

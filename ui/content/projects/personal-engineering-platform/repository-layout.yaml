@@ -54,6 +54,9 @@ projects:
   - id: wedding-planner
     kind: application
     catalog_record: system:wedding-planner/application
+  - id: platform-bootstrap-canary
+    kind: application
+    catalog_record: system:platform-bootstrap-canary/application
 
 component_kinds:
   - id: "ui"
@@ -111,8 +114,8 @@ component_kinds:
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "homelab-subsystem"
-    description: "A project-specific Home Lab subtree that inherits task applicability
-      from the Home Lab mise hierarchy."
+    description: "A project-specific Home Lab subtree that inherits task
+      applicability from the Home Lab mise hierarchy."
     directory: "homelab/{component}"
     mise_config_root: false
     pnpm_workspace_package: false

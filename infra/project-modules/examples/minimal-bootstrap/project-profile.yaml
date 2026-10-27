@@ -1,0 +1,61 @@
+schema_version: 1
+
+project:
+  id: "platform-bootstrap-canary"
+  name: "Platform bootstrap canary"
+  kind: "application"
+
+components:
+  - id: "web"
+    name: "Bootstrap canary web application"
+    kind: "project-ui"
+    mount_path: "/platform-bootstrap-canary"
+  - id: "knowledge"
+    name: "Bootstrap canary operating record"
+    kind: "project-content"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+    slots:
+      - "delivery.preview-environment"
+      - "security.preview-access"
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+      - "backend-api.relational-connection"
+  - layer: "database"
+    slots:
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.preview-isolation"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+
+requirements:
+  - "preview-scoped-credentials"
+  - "synthetic-preview-data"
+  - "preview-cleanup"
+  - "provider-registration"
+  - "committed-migration-history"
+  - "serialized-migration-runner"
+  - "fresh-migration-baseline"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

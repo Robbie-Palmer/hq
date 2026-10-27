@@ -30,10 +30,56 @@ terraform -chdir=v1 init -backend=false -input=false > /dev/null
 terraform -chdir=v1 test
 """
 
+[tasks."minimal-bootstrap:init"]
+description = "Initialize the disposable managed-project preview state"
+run = "terraform -chdir=examples/minimal-bootstrap/application init -input=false"
+
+[tasks."minimal-bootstrap:validate"]
+description = "Validate the disposable managed-project preview without its remote backend"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/minimal-bootstrap-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform -chdir=examples/minimal-bootstrap/application init -backend=false -input=false > /dev/null
+terraform -chdir=examples/minimal-bootstrap/application validate
+"""
+
+[tasks."minimal-bootstrap:plan"]
+description = "Create a saved plan for the disposable managed-project preview"
+depends = ["minimal-bootstrap:init"]
+run = "terraform -chdir=examples/minimal-bootstrap/application plan -input=false -out .planfile"
+outputs = ["examples/minimal-bootstrap/application/.planfile"]
+
+[tasks."minimal-bootstrap:show"]
+description = "Show the saved disposable managed-project preview plan"
+run = "terraform -chdir=examples/minimal-bootstrap/application show .planfile"
+
+[tasks."minimal-bootstrap:apply"]
+description = "Apply the reviewed disposable managed-project preview plan"
+depends = ["minimal-bootstrap:init"]
+run = "terraform -chdir=examples/minimal-bootstrap/application apply -input=false .planfile"
+
+[tasks."minimal-bootstrap:cleanup:plan"]
+description = "Create a saved plan that removes the disposable managed-project preview"
+depends = ["minimal-bootstrap:init"]
+run = "terraform -chdir=examples/minimal-bootstrap/application plan -input=false -var-file=cleanup.tfvars -out .cleanup-planfile"
+outputs = ["examples/minimal-bootstrap/application/.cleanup-planfile"]
+
+[tasks."minimal-bootstrap:cleanup:show"]
+description = "Show the saved disposable managed-project preview cleanup plan"
+run = "terraform -chdir=examples/minimal-bootstrap/application show .cleanup-planfile"
+
+[tasks."minimal-bootstrap:cleanup:apply"]
+description = "Apply the reviewed disposable managed-project preview cleanup"
+depends = ["minimal-bootstrap:init"]
+run = "terraform -chdir=examples/minimal-bootstrap/application apply -input=false .cleanup-planfile"
+
 [tasks.lint]
 description = "Check and test the versioned project infrastructure modules"
 depends = ["format:check", "validate", "test"]
 
 [tasks.check]
 description = "Check the versioned project infrastructure modules"
-depends = ["lint"]
+depends = ["lint", "minimal-bootstrap:validate"]

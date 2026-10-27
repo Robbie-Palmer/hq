@@ -14,7 +14,7 @@ mock_provider "tfe" {}
 variables {
   state_scope = "application"
   resolved_profile = {
-    schema_version = 1
+    schema_version = 2
     project = {
       id   = "minimal-project"
       name = "Minimal project"
@@ -48,7 +48,7 @@ run "pages_and_storage_are_composed_independently" {
 
   variables {
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "static-site"
         name = "Static site"
@@ -102,7 +102,7 @@ run "state_delivery_and_runtime_capabilities_compose" {
   variables {
     state_scope = "bootstrap"
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "stateful-service"
         name = "Stateful service"
@@ -171,7 +171,7 @@ run "application_state_excludes_bootstrap_resources" {
 
   variables {
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "stateful-service"
         name = "Stateful service"
@@ -263,7 +263,7 @@ run "selected_capability_requires_configuration" {
 
   variables {
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "missing-config"
         name = "Missing config"
@@ -282,7 +282,7 @@ run "preview_database_requires_a_distinct_project" {
 
   variables {
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "invalid-preview-database"
         name = "Invalid preview database"
@@ -311,7 +311,7 @@ run "alternative_preview_access_provider_is_not_selected" {
 
   variables {
     resolved_profile = {
-      schema_version = 1
+      schema_version = 2
       project = {
         id   = "alternative-preview-access"
         name = "Alternative preview access"

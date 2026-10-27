@@ -29,6 +29,7 @@ than a prebuilt engine plan:
 
 ```sh
 mise //:project:profile:plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
+mise //:project:profile:resolve -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:adoption-plan -- path/to/profile.yaml --effective-at 2026-10-21T00:00:00Z
 mise //:project:profile:reconcile -- path/to/profile.yaml --effective-at 2026-11-01T00:00:00Z
 mise //:project:profile:reconcile:apply -- path/to/profile.yaml --effective-at 2026-11-01T00:00:00Z --reviewed-plan path/to/reconciliation.json
@@ -42,6 +43,11 @@ and OpenTelemetry contract from the Personal Engineering Platform project. The
 explicit instant selects dated platform defaults. `--contracts`, `--registry`,
 `--repository`, and `--template-id` replace their repository defaults when a
 test or migration needs another input.
+
+`profile:resolve` prints the complete non-secret blueprint consumed by Copier
+and the versioned Terraform module library. Save that output only when a
+reviewed infrastructure plan needs a stable input. Regenerate it from the same
+profile and effective instant before reusing it.
 
 `profile:adoption-plan` is for an existing project that has no Copier answers
 file. It renders the pinned template in an empty temporary directory, then

@@ -152,6 +152,11 @@ description = "Resolve a project profile and produce a checked Copier plan"
 depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-plan"
 
+[tasks."project:profile:resolve"]
+description = "Resolve a project profile to its infrastructure-ready blueprint"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts profile-resolve"
+
 [tasks."project:profile:adoption-plan"]
 description = "Plan Copier adoption for an existing project without a receipt"
 depends = ["//packages/project-generator:install"]
