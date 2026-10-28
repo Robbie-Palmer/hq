@@ -12,6 +12,7 @@
         "cpp/autonomic-satellite-swarm/scripts/*.ts",
         "homelab/scripts/codex-add-provider.mjs",
         "homelab/tests/**/*.test.ts",
+        "infra/project-modules/examples/minimal-bootstrap/scripts/*.ts",
         "scripts/launch-work-graph-agent.ts",
         "scripts/prose-lint.ts"
       ],

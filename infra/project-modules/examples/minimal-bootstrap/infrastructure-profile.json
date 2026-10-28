@@ -1,0 +1,37 @@
+{
+  "schema_version": 2,
+  "project": {
+    "id": "platform-bootstrap-canary",
+    "name": "Platform bootstrap canary"
+  },
+  "selections": [
+    {
+      "slot": "backend-api.runtime",
+      "value": "cloudflare-workers"
+    },
+    {
+      "slot": "database.preview-isolation",
+      "value": "Fresh pull-request database from committed migrations and synthetic fixtures"
+    },
+    {
+      "slot": "database.relational-host",
+      "value": "neon"
+    },
+    {
+      "slot": "delivery.ci",
+      "value": "github-actions"
+    },
+    {
+      "slot": "infrastructure.state-backend",
+      "value": "terraform-cloud"
+    },
+    {
+      "slot": "security.preview-access",
+      "value": "cloudflare-access"
+    },
+    {
+      "slot": "web-app.host",
+      "value": "cloudflare-pages"
+    }
+  ]
+}

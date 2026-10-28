@@ -19,18 +19,35 @@ output "state_scope" {
   value       = var.state_scope
 }
 
+output "deletion_protection" {
+  description = "Whether the selected resources use the durable prevent_destroy modules."
+  value       = var.deletion_protection
+}
+
 output "resource_ownership" {
   description = "Provider resource IDs grouped by the state owner represented by this module instance."
   value = {
     project_id          = var.resolved_profile.project.id
-    terraform_workspace = try(module.terraform_state["selected"].workspace_id, null)
-    delivery            = try(module.delivery["selected"].resource_ids, null)
-    pages_project       = try(module.cloudflare_pages["selected"].project_id, null)
-    worker              = try(module.cloudflare_worker["selected"].worker_id, null)
-    access_application  = try(module.cloudflare_access["selected"].application_id, null)
-    r2_buckets          = try(module.cloudflare_r2["selected"].bucket_ids, null)
-    dns_records         = try(module.cloudflare_dns["selected"].record_ids, null)
-    neon                = try(module.neon["selected"].resource_ids, null)
-    telemetry_dashboard = try(module.telemetry["selected"].dashboard_id, null)
+    terraform_workspace = try(module.terraform_state["selected"].workspace_id, module.disposable[0].resource_ownership.terraform_workspace, null)
+    delivery            = try(module.delivery["selected"].resource_ids, module.disposable[0].resource_ownership.delivery, null)
+    pages_project       = try(module.cloudflare_pages["selected"].project_id, module.disposable[0].resource_ownership.pages_project, null)
+    pages_domain        = try(module.cloudflare_pages["selected"].domain_id, module.disposable[0].resource_ownership.pages_domain, null)
+    pages_access_applications = try(
+      module.cloudflare_pages["selected"].access_application_ids,
+      module.disposable[0].resource_ownership.pages_access_applications,
+      {},
+    )
+    worker              = try(module.cloudflare_worker["selected"].worker_id, module.disposable[0].resource_ownership.worker, null)
+    access_application  = try(module.cloudflare_access["selected"].application_id, module.disposable[0].resource_ownership.access_application, null)
+    r2_buckets          = try(module.cloudflare_r2["selected"].bucket_ids, module.disposable[0].resource_ownership.r2_buckets, null)
+    dns_records         = try(module.cloudflare_dns["selected"].record_ids, module.disposable[0].resource_ownership.dns_records, null)
+    neon                = try(module.neon["selected"].resource_ids, module.disposable[0].resource_ownership.neon, null)
+    telemetry_dashboard = try(module.telemetry["selected"].dashboard_id, module.disposable[0].resource_ownership.telemetry_dashboard, null)
   }
+}
+
+output "preview_database_connection_uri" {
+  description = "Sensitive connection URI for the isolated Neon preview database."
+  value       = try(module.neon["selected"].preview_connection_uri, module.disposable[0].preview_connection_uri, null)
+  sensitive   = true
 }
