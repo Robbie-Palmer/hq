@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
 import { diffChars } from "diff";
+import { meanOrZero, medianOrZero, ratioOrZero } from "ts-base/numbers";
 import { canonicalJson } from "writing-editor-domain/canonical-json";
 import { DecisionSchema } from "writing-editor-domain/decisions";
 import { ReviewReceiptSchema } from "writing-editor-domain/review-receipt";
@@ -366,25 +367,6 @@ function comparisonCognitiveLoadDelta(comparison: ReaderComparison): number {
   return reviewed - raw;
 }
 
-function mean(values: number[]): number {
-  return values.length === 0
-    ? 0
-    : values.reduce((total, value) => total + value, 0) / values.length;
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  const upper = sorted[middle] ?? 0;
-  const lower = sorted[middle - 1] ?? upper;
-  return sorted.length % 2 === 0 ? (lower + upper) / 2 : upper;
-}
-
-function ratio(numerator: number, denominator: number): number {
-  return denominator === 0 ? 0 : numerator / denominator;
-}
-
 function assertPublicationChronology(
   preregistration: Preregistration,
   artifact: ArtifactEvidence,
@@ -584,7 +566,7 @@ function readerSummary(comparisons: ReaderComparison[]) {
     reviewedPreferred: preferenceOutcomes.filter((outcome) => outcome === "reviewed").length,
     rawPreferred: preferenceOutcomes.filter((outcome) => outcome === "raw").length,
     ties: preferenceOutcomes.filter((outcome) => outcome === "tie").length,
-    meanCognitiveLoadDelta: mean(comparisons.map(comparisonCognitiveLoadDelta)),
+    meanCognitiveLoadDelta: meanOrZero(comparisons.map(comparisonCognitiveLoadDelta)),
   };
 }
 
@@ -595,7 +577,10 @@ function artifactFailures(
   timing: ReturnType<typeof reviewTiming>,
   usefulEditYield: number,
 ): string[] {
-  const reviewedPreferenceRate = ratio(readers.reviewedPreferred, readers.comparisons);
+  const reviewedPreferenceRate = ratioOrZero(
+    readers.reviewedPreferred,
+    readers.comparisons,
+  );
   return [
     ...(artifact.quality.factualPreservation === "fail" ? ["factual-regression"] : []),
     ...(artifact.quality.terminologyPreservation === "fail"
@@ -643,7 +628,7 @@ function evaluateArtifact(options: {
   const accepted = countOutcome(session.decisions, "accepted");
   const changed = countOutcome(session.decisions, "changed");
   const rejected = countOutcome(session.decisions, "rejected");
-  const usefulEditYield = ratio(accepted + changed, session.decisions.length);
+  const usefulEditYield = ratioOrZero(accepted + changed, session.decisions.length);
   const timing = reviewTiming(
     artifact,
     comparisons,
@@ -745,20 +730,23 @@ export function evaluatePublicationPilot(options: {
     },
     unwantedVoiceChanges: artifacts.filter(({ quality: result }) => result.unwantedVoiceChange).length,
     regressions: artifacts.filter(({ quality: result }) => result.regression === "present").length,
-    regressionRate: ratio(
+    regressionRate: ratioOrZero(
       artifacts.filter(({ quality: result }) => result.regression === "present").length,
       artifacts.length,
     ),
   };
   const readerDeltas = evidence.readerComparisons.map(comparisonCognitiveLoadDelta);
   const metrics = {
-    usefulEditYield: ratio(accepted + changed, proposals),
-    medianTimeSavedFraction: median(
+    usefulEditYield: ratioOrZero(accepted + changed, proposals),
+    medianTimeSavedFraction: medianOrZero(
       artifacts.map(({ timing }) => timing.timeSavedFraction),
     ),
-    reviewedPreferenceRate: ratio(reviewedPreferred, allComparisons),
-    meanCognitiveLoadDelta: mean(readerDeltas),
-    unwantedVoiceChangeRate: ratio(quality.unwantedVoiceChanges, artifacts.length),
+    reviewedPreferenceRate: ratioOrZero(reviewedPreferred, allComparisons),
+    meanCognitiveLoadDelta: meanOrZero(readerDeltas),
+    unwantedVoiceChangeRate: ratioOrZero(
+      quality.unwantedVoiceChanges,
+      artifacts.length,
+    ),
   };
   const cohortGates = {
     cohortSize: artifacts.length >= preregistration.cohort.minimumArtifacts,

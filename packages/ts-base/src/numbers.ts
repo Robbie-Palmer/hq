@@ -3,6 +3,27 @@ export function finiteNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(number) ? number : fallback;
 }
 
+export function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
+}
+
+export function meanOrZero(values: readonly number[]): number {
+  return values.length === 0 ? 0 : sum(values) / values.length;
+}
+
+export function medianOrZero(values: readonly number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  const upper = sorted[middle] ?? 0;
+  const lower = sorted[middle - 1] ?? upper;
+  return sorted.length % 2 === 0 ? (lower + upper) / 2 : upper;
+}
+
+export function ratioOrZero(numerator: number, denominator: number): number {
+  return denominator === 0 ? 0 : numerator / denominator;
+}
+
 export type Fraction = { numerator: bigint; denominator: bigint };
 
 /** Parse a plain decimal string without passing through floating-point math. */

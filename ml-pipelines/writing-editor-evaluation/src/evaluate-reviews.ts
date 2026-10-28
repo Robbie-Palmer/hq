@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
+import { medianOrZero, sum } from "ts-base/numbers";
 import { canonicalJson } from "writing-editor-domain/canonical-json";
 import { DecisionSchema } from "writing-editor-domain/decisions";
 import { ReviewReceiptSchema } from "writing-editor-domain/review-receipt";
@@ -623,7 +624,7 @@ function aggregateArtifacts(artifacts: EvaluatedArtifact[]) {
     regressions,
     regressionRate: assessedRegressions === 0 ? 0 : regressions.present / assessedRegressions,
     measuredReviewTimes,
-    medianSeconds: median(measuredReviewTimes),
+    medianSeconds: medianOrZero(measuredReviewTimes),
     qualityAssessed: qualityMetrics.every(({ notAssessed }) => notAssessed === 0) &&
       regressions.notAssessed === 0,
     qualityPreserved: qualityMetrics.every(({ fail }) => fail === 0) && regressions.present === 0,
@@ -779,18 +780,6 @@ function uniqueProducers(
   ])).values()].sort((left, right) =>
     left.id.localeCompare(right.id) || left.version.localeCompare(right.version)
   );
-}
-
-function sum(values: number[]): number {
-  return values.reduce((total, value) => total + value, 0);
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const middle = Math.floor(values.length / 2);
-  return values.length % 2 === 1
-    ? values[middle] ?? 0
-    : ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2;
 }
 
 /* v8 ignore start -- exercised by the mise and DVC command wrappers */
