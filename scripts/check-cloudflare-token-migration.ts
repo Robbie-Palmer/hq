@@ -1,8 +1,12 @@
+import { execFile } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
 import { parse } from "yaml";
 import { z } from "zod";
+
+const execFileAsync = promisify(execFile);
 
 export const MANIFEST_PATH =
   "infra/account-foundation/cloudflare-token-migration.yaml";
@@ -49,7 +53,10 @@ const credentialSchema = z
       .array(z.string().regex(/^mise \/\/[a-zA-Z0-9/:.-]+/))
       .min(1),
     rotation_order: z.number().int().positive(),
-    recovery_path: z.string().regex(/^[^#]+\.md#[a-z0-9-]+$/),
+    recovery_path: z
+      .string()
+      .regex(/^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))[a-zA-Z0-9_./-]+\.md#[a-z0-9-]+$/),
+    bootstrap_plan_status: z.enum(["planned", "committed"]),
     bootstrap_plan_path: z
       .string()
       .regex(/^infra\/account-foundation\/cloudflare-token-plans\/[a-z0-9-]+\.yaml$/),
@@ -179,6 +186,119 @@ export function validateCloudflareTokenMigrationManifest(
   return errors;
 }
 
+function markdownHeadingAnchors(source: string): Set<string> {
+  const occurrences = new Map<string, number>();
+  const anchors = new Set<string>();
+
+  for (const line of source.split("\n")) {
+    const match = /^(?:#{1,6})\s+(.+?)\s*$/.exec(line);
+    if (!match) continue;
+    const base = match[1]
+      .replace(/\s+#+\s*$/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s-]/gu, "")
+      .replace(/\s/g, "-");
+    const count = occurrences.get(base) ?? 0;
+    occurrences.set(base, count + 1);
+    anchors.add(count === 0 ? base : `${base}-${count}`);
+  }
+
+  return anchors;
+}
+
+async function loadMiseTaskNames(repositoryRoot: string): Promise<Set<string>> {
+  const { stdout } = await execFileAsync("mise", ["task", "--all", "--json"], {
+    cwd: repositoryRoot,
+  });
+  const tasks = z.array(z.object({ name: z.string() })).parse(JSON.parse(stdout));
+  return new Set(tasks.map(({ name }) => name));
+}
+
+type Credential = CloudflareTokenMigrationManifest["credentials"][number];
+
+function verificationTaskErrors(
+  credential: Credential,
+  taskNames: ReadonlySet<string>,
+): string[] {
+  return credential.consumer_verification.flatMap((command) => {
+    const taskName = command.slice("mise ".length);
+    return taskNames.has(taskName)
+      ? []
+      : [`${credential.id}: verification task '${taskName}' does not exist`];
+  });
+}
+
+function isMissingFile(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "ENOENT";
+}
+
+async function recoveryReferenceErrors(
+  credential: Credential,
+  repositoryRoot: string,
+): Promise<string[]> {
+  const [recoveryFile, recoveryAnchor] = credential.recovery_path.split("#", 2) as [
+    string,
+    string,
+  ];
+  try {
+    const recoverySource = await readFile(path.join(repositoryRoot, recoveryFile), "utf8");
+    return markdownHeadingAnchors(recoverySource).has(recoveryAnchor)
+      ? []
+      : [
+          `${credential.id}: recovery anchor '#${recoveryAnchor}' does not exist in '${recoveryFile}'`,
+        ];
+  } catch (error) {
+    if (!isMissingFile(error)) throw error;
+    return [`${credential.id}: recovery file '${recoveryFile}' does not exist`];
+  }
+}
+
+async function bootstrapPlanReferenceErrors(
+  credential: Credential,
+  repositoryRoot: string,
+): Promise<string[]> {
+  if (credential.bootstrap_plan_status === "planned") return [];
+  try {
+    await readFile(path.join(repositoryRoot, credential.bootstrap_plan_path));
+    return [];
+  } catch (error) {
+    if (!isMissingFile(error)) throw error;
+    return [
+      `${credential.id}: committed bootstrap plan '${credential.bootstrap_plan_path}' does not exist`,
+    ];
+  }
+}
+
+async function credentialRepositoryReferenceErrors(
+  credential: Credential,
+  repositoryRoot: string,
+  taskNames: ReadonlySet<string>,
+): Promise<string[]> {
+  const [recoveryErrors, bootstrapPlanErrors] = await Promise.all([
+    recoveryReferenceErrors(credential, repositoryRoot),
+    bootstrapPlanReferenceErrors(credential, repositoryRoot),
+  ]);
+  return [
+    ...verificationTaskErrors(credential, taskNames),
+    ...recoveryErrors,
+    ...bootstrapPlanErrors,
+  ];
+}
+
+export async function validateCloudflareTokenMigrationRepositoryReferences(
+  manifest: CloudflareTokenMigrationManifest,
+  repositoryRoot: string,
+): Promise<string[]> {
+  const taskNames = await loadMiseTaskNames(repositoryRoot);
+  const errors = await Promise.all(
+    manifest.credentials.map((credential) =>
+      credentialRepositoryReferenceErrors(credential, repositoryRoot, taskNames),
+    ),
+  );
+  return errors.flat();
+}
+
 function validateCredential(
   manifest: CloudflareTokenMigrationManifest,
   credential: CloudflareTokenMigrationManifest["credentials"][number],
@@ -232,7 +352,10 @@ export async function loadCloudflareTokenMigrationManifest(
 async function main(): Promise<void> {
   const repositoryRoot = path.resolve(import.meta.dirname, "..");
   const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
-  const errors = validateCloudflareTokenMigrationManifest(manifest);
+  const errors = [
+    ...validateCloudflareTokenMigrationManifest(manifest),
+    ...(await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot)),
+  ];
   if (errors.length > 0) throw new Error(errors.join("\n"));
   process.stdout.write(
     `Cloudflare token migration manifest covers ${manifest.credentials.length} credential groups.\n`,

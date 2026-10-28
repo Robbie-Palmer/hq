@@ -4,6 +4,7 @@ import {
   loadCloudflareTokenMigrationManifest,
   parseCloudflareTokenMigrationManifest,
   validateCloudflareTokenMigrationManifest,
+  validateCloudflareTokenMigrationRepositoryReferences,
 } from "./check-cloudflare-token-migration.js";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
@@ -12,6 +13,9 @@ describe("Cloudflare token migration manifest", () => {
   it("covers every known config and consumer", async () => {
     const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
     expect(validateCloudflareTokenMigrationManifest(manifest)).toEqual([]);
+    expect(
+      await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot),
+    ).toEqual([]);
   });
 
   it("rejects a config without an owned migration entry", async () => {
@@ -120,6 +124,48 @@ describe("Cloudflare token migration manifest", () => {
         expect.stringMatching(/^Unknown source location /),
         expect.stringMatching(/^Unknown github consumer /),
       ]),
+    );
+  });
+
+  it("rejects verification tasks that do not exist", async () => {
+    const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
+    const credential = manifest.credentials[0];
+    credential.consumer_verification[0] = "mise //:missing-cloudflare-task";
+
+    expect(
+      await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot),
+    ).toContain(
+      `${credential.id}: verification task '//:missing-cloudflare-task' does not exist`,
+    );
+  });
+
+  it("rejects missing recovery files and anchors", async () => {
+    const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
+    const missingFileCredential = manifest.credentials[0];
+    const missingAnchorCredential = manifest.credentials[1];
+    missingFileCredential.recovery_path = "docs/runbooks/missing.md#recovery";
+    missingAnchorCredential.recovery_path =
+      "docs/runbooks/project-secret-bootstrap.md#missing-anchor";
+
+    expect(
+      await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot),
+    ).toEqual(
+      expect.arrayContaining([
+        `${missingFileCredential.id}: recovery file 'docs/runbooks/missing.md' does not exist`,
+        `${missingAnchorCredential.id}: recovery anchor '#missing-anchor' does not exist in 'docs/runbooks/project-secret-bootstrap.md'`,
+      ]),
+    );
+  });
+
+  it("requires committed bootstrap plans to exist", async () => {
+    const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
+    const credential = manifest.credentials[0];
+    credential.bootstrap_plan_status = "committed";
+
+    expect(
+      await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot),
+    ).toContain(
+      `${credential.id}: committed bootstrap plan '${credential.bootstrap_plan_path}' does not exist`,
     );
   });
 

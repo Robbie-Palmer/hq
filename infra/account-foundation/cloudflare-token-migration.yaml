@@ -33,6 +33,7 @@ credentials:
       - mise //:project:secret-bootstrap:conformance
     rotation_order: 10
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/token-provisioner.yaml
 
   - id: cloudflare-worker-secret-handoff
@@ -70,6 +71,7 @@ credentials:
       - mise //:project:secret-bootstrap:conformance
     rotation_order: 20
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/worker-secret-handoff.yaml
 
   - id: cloudflare-access-plan
@@ -111,6 +113,7 @@ credentials:
       - mise //infra/cloudflare-access:state:check
     rotation_order: 30
     recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
 
   - id: cloudflare-access-drift
@@ -152,6 +155,7 @@ credentials:
       - mise //infra/cloudflare-access:state:check
     rotation_order: 40
     recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
 
   - id: cloudflare-access-apply
@@ -193,6 +197,7 @@ credentials:
       - mise //infra/cloudflare-access:state:check
     rotation_order: 50
     recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
 
   - id: public-platform-terraform
@@ -263,6 +268,7 @@ credentials:
       - mise //infra/public-platform:apply
     rotation_order: 60
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/public-platform.yaml
 
   - id: preview-access-administration
@@ -297,6 +303,7 @@ credentials:
       - mise //:preview:access:rotate
     rotation_order: 70
     recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/preview-access-administration.yaml
 
   - id: recipe-preview-deploy
@@ -342,6 +349,7 @@ credentials:
       - mise //workers/recipe-ingest:preview:delete
     rotation_order: 80
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/recipe-preview.yaml
 
   - id: recipe-production-deploy
@@ -390,6 +398,7 @@ credentials:
       - mise //ui:build
     rotation_order: 90
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/recipe-production.yaml
 
   - id: work-graph-infrastructure
@@ -451,6 +460,7 @@ credentials:
       - mise //infra/work-graph:state:check
     rotation_order: 100
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-infrastructure.yaml
 
   - id: work-graph-api-deploy
@@ -483,6 +493,7 @@ credentials:
       - mise //workers/work-graph-api:smoke:production
     rotation_order: 110
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-deploy.yaml
 
   - id: work-graph-observer-deploy
@@ -520,6 +531,7 @@ credentials:
       - mise //workers/work-graph-api:smoke:production
     rotation_order: 120
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-deploy.yaml
 
   - id: work-graph-diagnostics
@@ -556,6 +568,7 @@ credentials:
       - mise //workers/work-graph-api:diagnostics:monitor
     rotation_order: 130
     recovery_path: infra/work-graph/README.md#rotation-and-recovery
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-diagnostics.yaml
 
   - id: ai-review-staging-deploy
@@ -588,6 +601,7 @@ credentials:
       - mise //ai-review:e2e:staging
     rotation_order: 140
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/ai-review-staging.yaml
 
   - id: ai-review-production-deploy
@@ -623,4 +637,5 @@ credentials:
       - mise //ai-review:lifecycle:verify
     rotation_order: 150
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/ai-review-production.yaml
