@@ -123,6 +123,31 @@ describe("secret bootstrap contract", () => {
     expect(JSON.stringify(result)).not.toContain("secret-value");
   });
 
+  it("accepts Doppler config slugs with underscores", () => {
+    const base = plan();
+    const parsed = plan({
+      identities: {
+        ...base.identities,
+        doppler: {
+          ...base.identities.doppler,
+          configs: ["ops_plan"],
+        },
+      },
+      secrets: [
+        {
+          ...base.secrets[0],
+          system_of_record: {
+            ...base.secrets[0]?.system_of_record,
+            config: "ops_plan",
+          },
+        },
+      ],
+    });
+
+    expect(parsed.identities.doppler.configs).toEqual(["ops_plan"]);
+    expect(parsed.secrets[0]?.system_of_record.config).toBe("ops_plan");
+  });
+
   it.each([
     [
       { provider_origins: { doppler: "https://api.doppler.com/v3", github: "https://api.github.com" } },

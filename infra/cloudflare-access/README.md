@@ -64,6 +64,15 @@ The plan and drift Cloudflare tokens must not receive write permission. The
 apply token does not need Workers, R2, DNS, API-token management, or account
 settings permissions.
 
+The reviewed token definitions live in
+[`../account-foundation/cloudflare-token-plans/cloudflare-access.yaml`](../account-foundation/cloudflare-token-plans/cloudflare-access.yaml).
+The bootstrap creates three account-owned tokens named
+`hq-cloudflare-access-plan`, `hq-cloudflare-access-drift`, and
+`hq-cloudflare-access-apply`. Cloudflare scopes Access permission groups to an
+account, so each policy names only the audited account. The migration inventory
+lists the Access organization, application, identity provider, and service
+tokens that this root owns.
+
 The HCP organization currently uses the free Personal Developer plan. That
 plan exposes only the owners team and does not support workspace team access,
 so it cannot issue a workspace-scoped API token. Until the organization moves
