@@ -2,7 +2,7 @@ bubblewrap ==0.8.0-2+deb12u1
 ca-certificates ==20250419~deb12u2
 chromium ==156.0.8078.47-1~deb12u1
 curl ==7.88.1-10+deb12u15
-dnsutils ==1:9.18.49-1~deb12u2
+dnsutils ==1:9.18.49-1~deb12u3
 fonts-liberation ==1:1.07.4-11
 fonts-noto-color-emoji ==2.042-0+deb12u1
 gh ==2.23.0+dfsg1-1
