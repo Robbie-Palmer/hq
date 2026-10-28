@@ -141,7 +141,7 @@ module "cloudflare_access" {
   for_each = var.deletion_protection && local.selected.cloudflare_access && local.supplied.cloudflare_access ? { selected = var.cloudflare_access } : {}
   source   = "./modules/cloudflare-access"
 
-  depends_on = [terraform_data.profile_guard]
+  depends_on = [terraform_data.profile_guard, module.cloudflare_pages]
 
   account_id       = each.value.account_id
   name             = each.value.name

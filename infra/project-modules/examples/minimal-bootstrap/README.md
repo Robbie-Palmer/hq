@@ -52,8 +52,11 @@ Review the saved plan before apply. It may create only resources named
 `platform-bootstrap-canary`. The second plan must report no changes.
 
 The first run needs the same account-foundation plan and apply credentials as
-the ordinary root. A human must then copy these credentials into both new
-Doppler configs:
+the ordinary root. A human must then issue separate credentials for the two new
+Doppler configs. Give `preview` read-only credentials for refresh and plan, and
+give `apply` write credentials for apply, deploy, and teardown. Do not copy a
+write-capable credential from `apply` into `preview`. Both configs need their
+own values for:
 
 - `TF_API_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
@@ -61,7 +64,7 @@ Doppler configs:
   an unselected capability
 - `NEON_API_KEY`
 
-Set these non-secret values in the same configs:
+Set these non-secret values in both configs:
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_ZONE_ID`

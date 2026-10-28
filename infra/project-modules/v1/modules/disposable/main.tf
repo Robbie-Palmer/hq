@@ -373,6 +373,8 @@ resource "cloudflare_zero_trust_access_application" "application" {
   session_duration          = each.value.session_duration
   service_auth_401_redirect = false
   app_launcher_visible      = false
+
+  depends_on = [cloudflare_pages_domain.project]
 }
 
 resource "cloudflare_zero_trust_access_policy" "reviewers" {

@@ -108,14 +108,17 @@ deployment_url="$(
     | jq -er 'first | .Deployment'
 )"
 
-for url in "https://bootstrap-canary.robbiepalmer.me/" "$deployment_url"; do
+for url in \
+  "https://bootstrap-canary.robbiepalmer.me/" \
+  "https://platform-bootstrap-canary.pages.dev/" \
+  "$deployment_url"; do
   status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$url")"
   if [[ "$status" != "302" && "$status" != "403" ]]; then
     echo "Expected Cloudflare Access to reject $url, got HTTP $status" >&2
     exit 1
   fi
 done
-echo "Cloudflare Access rejected the custom domain and immutable Pages deployment URL."
+echo "Cloudflare Access rejected the custom domain, production hostname, and immutable deployment URL."
 """
 
 [tasks."minimal-bootstrap:smoke:worker"]
@@ -125,6 +128,7 @@ run = """
 set -euo pipefail
 response="$(curl --fail --silent --show-error https://bootstrap-canary-worker.robbiepalmer.me/)"
 jq -e '
+  keys == ["dataClassification", "environment", "project"] and
   .project == "platform-bootstrap-canary" and
   .environment == "preview" and
   .dataClassification == "synthetic-only"
