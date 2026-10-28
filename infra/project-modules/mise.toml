@@ -3,6 +3,7 @@ description = "Format the project infrastructure modules and executable examples
 run = [
   "terraform -chdir=v1 fmt -recursive .",
   "terraform -chdir=examples/minimal-bootstrap/application fmt .",
+  "terraform -chdir=tests/provider-isolation fmt .",
 ]
 
 [tasks."format:check"]
@@ -10,6 +11,7 @@ description = "Check project infrastructure module and executable example format
 run = [
   "terraform -chdir=v1 fmt -check -recursive .",
   "terraform -chdir=examples/minimal-bootstrap/application fmt -check .",
+  "terraform -chdir=tests/provider-isolation fmt -check .",
 ]
 
 [tasks.validate]
@@ -34,6 +36,18 @@ trap 'rm -rf "$test_data_dir"' EXIT
 export TF_DATA_DIR="$test_data_dir"
 terraform -chdir=v1 init -backend=false -input=false > /dev/null
 terraform -chdir=v1 test
+"""
+
+[tasks."test:provider-isolation"]
+description = "Test a Cloudflare-and-Neon consumer without unrelated providers"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-provider-isolation.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform -chdir=tests/provider-isolation init -backend=false -input=false -lockfile=readonly > /dev/null
+terraform -chdir=tests/provider-isolation test
 """
 
 [tasks."minimal-bootstrap:init"]
@@ -164,7 +178,7 @@ fi
 
 [tasks.lint]
 description = "Check and test the versioned project infrastructure modules"
-depends = ["format:check", "validate", "test"]
+depends = ["format:check", "validate", "test", "test:provider-isolation"]
 
 [tasks.check]
 description = "Check the versioned project infrastructure modules"

@@ -60,8 +60,6 @@ own values for:
 
 - `TF_API_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
-- `GITHUB_TOKEN`, until the static provider set no longer validates GitHub for
-  an unselected capability
 - `NEON_API_KEY`
 
 Set these non-secret values in both configs:
@@ -86,11 +84,9 @@ use zero history retention. Nothing reads or clones production data.
 
 The public mise tasks load the `preview` config for read-only plans and the
 `apply` config for writes. Their wrapper maps the readable names above to the
-Terraform variables without printing secret values. It gives lazy unselected
-providers inert values. The GitHub provider performs an eager identity lookup,
-so the canary temporarily needs a read-only GitHub token even though its plan
-contains no GitHub resources. Work Graph ticket
-`pep-isolate-project-module-provider-credentials` owns that follow-up.
+Terraform variables without printing secret values. The application uses the
+provider-scoped Cloudflare-and-Neon composition, so Terraform never configures
+GitHub, Doppler, TFE, or PostHog for its plan, apply, or cleanup.
 
 ```bash
 mise //infra/project-modules:minimal-bootstrap:plan

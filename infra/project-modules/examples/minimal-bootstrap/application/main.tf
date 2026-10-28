@@ -11,7 +11,12 @@ locals {
 }
 
 module "preview" {
-  source = "../../../v1"
+  source = "../../../v1/compositions/cloudflare-neon"
+
+  providers = {
+    cloudflare = cloudflare
+    neon       = neon
+  }
 
   state_scope         = "application"
   deletion_protection = false

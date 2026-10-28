@@ -43,6 +43,40 @@ self-managed infrastructure, not a temporary omission. Work Graph ticket
 Those modules must consume the same resolved profile and compose without
 adding providers, state, or credentials to projects that do not select them.
 
+## Provider-scoped compositions
+
+Terraform decides its provider graph from configuration, before it evaluates
+`count` or `for_each`. The aggregate `v1` source therefore remains useful for
+profiles that configure every provider, but it cannot isolate credentials for
+an arbitrary subset at runtime.
+
+Use `v1/compositions/cloudflare-neon` for an application profile that selects
+resources from both Cloudflare and Neon and no other provider. The source
+rejects selections owned by TFE, Doppler, GitHub, or PostHog. Pass both
+selected provider configurations explicitly:
+
+```hcl
+module "project" {
+  source = "../../project-modules/v1/compositions/cloudflare-neon"
+
+  providers = {
+    cloudflare = cloudflare
+    neon       = neon
+  }
+
+  state_scope      = "application"
+  resolved_profile = jsondecode(file("resolved-blueprint.json"))
+  # Supply only the selected Cloudflare and Neon capability inputs.
+}
+```
+
+An existing Cloudflare-and-Neon v1 consumer can change only the module
+`source` and add the `providers` map. Keep the caller's module label unchanged.
+The scoped composition retains `terraform_data.profile_guard`, each protected
+capability module label, `module.disposable[0]`, and every disposable resource
+label, so the next plan requires no import or state move. Stop if the migration
+plan reports any address change.
+
 ## State boundaries
 
 Use two module instances in two independently stateful roots. Do not combine
