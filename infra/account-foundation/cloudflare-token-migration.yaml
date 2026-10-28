@@ -1,0 +1,641 @@
+schema_version: 1
+audited_at: 2026-10-25
+cloudflare_account_id: dcd7cd68dd892d610267ded6b1af567b
+
+# This file records names and routing only. It must never contain token values,
+# hashes, token IDs, or any other credential fingerprint.
+credentials:
+  - id: cloudflare-token-provisioner
+    current_group: cloudflare-account-token-provisioner
+    repeated_name_relation: distinct
+    source_locations:
+      - project: cloudflare-token-bootstrap
+        config: ops_provisioner
+        key: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: cloudflare-token-bootstrap
+        config: ops_provisioner
+        key: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+      - kind: github-environment
+        environment: production-cloudflare-token-bootstrap
+        key: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    owner_root: infra/account-foundation
+    migration_ticket: pep-cloudflare-token-provisioner-rotation
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - account-api-tokens:account-owned
+    permission_groups:
+      - id: 5bc3f8b21c554832afc660159ab75fa4
+        name: Account API Tokens Write
+        scope: account
+    consumer_verification:
+      - mise //:project:secret-bootstrap:conformance
+    rotation_order: 10
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/token-provisioner.yaml
+
+  - id: cloudflare-worker-secret-handoff
+    current_group: cloudflare-worker-secret-handoff
+    repeated_name_relation: distinct
+    source_locations:
+      - project: cloudflare-token-bootstrap
+        config: ops_provisioner
+        key: CLOUDFLARE_BOOTSTRAP_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: cloudflare-token-bootstrap
+        config: ops_provisioner
+        key: CLOUDFLARE_BOOTSTRAP_TOKEN
+      - kind: github-environment
+        environment: production-cloudflare-token-bootstrap
+        key: CLOUDFLARE_BOOTSTRAP_TOKEN
+    owner_root: packages/project-generator
+    migration_ticket: pep-cloudflare-worker-secret-handoff-token
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:ai-review
+      - worker:ai-review-staging
+      - worker:recipe-api
+      - worker:recipe-api-pr-*
+      - worker:recipe-ingest
+      - worker:recipe-ingest-pr-*
+      - worker:work-graph-api
+      - worker:work-graph-github-observer
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+    consumer_verification:
+      - mise //:project:secret-bootstrap:conformance
+    rotation_order: 20
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/worker-secret-handoff.yaml
+
+  - id: cloudflare-access-plan
+    current_group: cloudflare-access-plan
+    repeated_name_relation: distinct
+    source_locations:
+      - project: cloudflare-access
+        config: ops_plan
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: cloudflare-access
+        config: ops_plan
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-cloudflare-access-plan
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: infra/cloudflare-access
+    migration_ticket: pep-cloudflare-access-infra-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - access-organization:personal-site-cloudflare-access
+      - access-application:personal-site-cloudflare-pages
+      - access-identity-provider:69e998ae-23eb-45a4-b2ed-6f13bb62040b
+      - access-service-token:5083f895-a6cd-430c-85c7-e422baa934de # gitleaks:allow -- public resource UUID
+      - access-service-token:c95f960c-8f05-4d9b-a172-ea48efada399 # gitleaks:allow -- public resource UUID
+    permission_groups:
+      - id: 7ea222f6d5064cfa89ea366d7c1fee89
+        name: "Access: Apps and Policies Read"
+        scope: account
+      - id: 26bc23f853634eb4bff59983b9064fde
+        name: "Access: Organizations, Identity Providers, and Groups Read"
+        scope: account
+      - id: 91f7ce32fa614d73b7e1fc8f0e78582b
+        name: "Access: Service Tokens Read"
+        scope: account
+    consumer_verification:
+      - mise //infra/cloudflare-access:plan
+      - mise //infra/cloudflare-access:state:check
+    rotation_order: 30
+    recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
+
+  - id: cloudflare-access-drift
+    current_group: cloudflare-access-drift
+    repeated_name_relation: distinct
+    source_locations:
+      - project: cloudflare-access
+        config: ops_drift
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: cloudflare-access
+        config: ops_drift
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-cloudflare-access-drift
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: infra/cloudflare-access
+    migration_ticket: pep-cloudflare-access-infra-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - access-organization:personal-site-cloudflare-access
+      - access-application:personal-site-cloudflare-pages
+      - access-identity-provider:69e998ae-23eb-45a4-b2ed-6f13bb62040b
+      - access-service-token:5083f895-a6cd-430c-85c7-e422baa934de # gitleaks:allow -- public resource UUID
+      - access-service-token:c95f960c-8f05-4d9b-a172-ea48efada399 # gitleaks:allow -- public resource UUID
+    permission_groups:
+      - id: 7ea222f6d5064cfa89ea366d7c1fee89
+        name: "Access: Apps and Policies Read"
+        scope: account
+      - id: 26bc23f853634eb4bff59983b9064fde
+        name: "Access: Organizations, Identity Providers, and Groups Read"
+        scope: account
+      - id: 91f7ce32fa614d73b7e1fc8f0e78582b
+        name: "Access: Service Tokens Read"
+        scope: account
+    consumer_verification:
+      - mise //infra/cloudflare-access:plan:drift
+      - mise //infra/cloudflare-access:state:check
+    rotation_order: 40
+    recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
+
+  - id: cloudflare-access-apply
+    current_group: cloudflare-access-apply
+    repeated_name_relation: distinct
+    source_locations:
+      - project: cloudflare-access
+        config: ops_apply
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: cloudflare-access
+        config: ops_apply
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-cloudflare-access
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: infra/cloudflare-access
+    migration_ticket: pep-cloudflare-access-infra-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - access-organization:personal-site-cloudflare-access
+      - access-application:personal-site-cloudflare-pages
+      - access-identity-provider:69e998ae-23eb-45a4-b2ed-6f13bb62040b
+      - access-service-token:5083f895-a6cd-430c-85c7-e422baa934de # gitleaks:allow -- public resource UUID
+      - access-service-token:c95f960c-8f05-4d9b-a172-ea48efada399 # gitleaks:allow -- public resource UUID
+    permission_groups:
+      - id: 1e13c5124ca64b72b1969a67e8829049
+        name: "Access: Apps and Policies Write"
+        scope: account
+      - id: bfe0d8686a584fa680f4c53b5eb0de6d
+        name: "Access: Organizations, Identity Providers, and Groups Write"
+        scope: account
+      - id: a1c0fec57cf94af79479a6d827fa518c
+        name: "Access: Service Tokens Write"
+        scope: account
+    consumer_verification:
+      - mise //infra/cloudflare-access:apply
+      - mise //infra/cloudflare-access:state:check
+    rotation_order: 50
+    recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/cloudflare-access.yaml
+
+  - id: public-platform-terraform
+    current_group: personal-site-terraform
+    repeated_name_relation: shared
+    source_locations:
+      - project: personal-site
+        config: dev_infra
+        key: CLOUDFLARE_API_TOKEN
+      - project: personal-site
+        config: prd_infra
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: personal-site
+        config: dev_infra
+        key: CLOUDFLARE_API_TOKEN
+      - kind: doppler-config
+        project: personal-site
+        config: prd_infra
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-infra
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: infra/public-platform
+    migration_ticket: pep-public-platform-cloudflare-infra-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - zone:robbiepalmer.me
+      - pages-project:personal-site
+      - r2-bucket:ai-review-data
+      - r2-bucket:dvc
+      - r2-bucket:map-tiles
+      - r2-bucket:personal-site-database-backups
+      - r2-bucket:recipe-artifacts
+      - r2-bucket:recipe-artifacts-preview
+      - r2-bucket:remote-development-workspace-backups
+      - r2-bucket:wedding-playlists
+      - r2-bucket:wedding-playlists-preview
+      - hyperdrive:recipe-db
+    permission_groups:
+      - id: 8d28297797f24fb8a0c332fe0866ec89
+        name: Pages Write
+        scope: account
+      - id: bf7481a1826f439697cb59a20b22293e
+        name: Workers R2 Storage Write
+        scope: account
+      - id: 721b2f51fba74871bd361de65aeb7e03
+        name: Hyperdrive Write
+        scope: account
+      - id: c3c847c5802d4ce3ba00e3e97b3c8555
+        name: Notifications Write
+        scope: account
+      - id: 4755a26eedb94da69e1066d98aa820be
+        name: DNS Write
+        scope: zone
+      - id: c8fed203ed3043cba015a93ad1616f1f
+        name: Zone Read
+        scope: zone
+      - id: 9ff81cbbe65c400b97d92c3c1033cab6
+        name: Cache Settings Write
+        scope: zone
+      - id: fb6778dc191143babbfaa57993f1d275
+        name: Zone WAF Write
+        scope: zone
+    consumer_verification:
+      - mise //infra/public-platform:plan
+      - mise //infra/public-platform:apply
+    rotation_order: 60
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/public-platform.yaml
+
+  - id: preview-access-administration
+    current_group: preview-access-administration
+    repeated_name_relation: distinct
+    source_locations:
+      - project: personal-site
+        config: ops_preview_agent_access
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: personal-site
+        config: ops_preview_agent_access
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: preview-agent-access
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: scripts/rotate-preview-access-token.sh
+    migration_ticket: pep-preview-access-admin-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - access-service-token:personal-site-preview-qa-agents
+      - access-service-token:personal-site-preview-qa-workflow
+    permission_groups:
+      - id: 91f7ce32fa614d73b7e1fc8f0e78582b
+        name: "Access: Service Tokens Read"
+        scope: account
+      - id: a1c0fec57cf94af79479a6d827fa518c
+        name: "Access: Service Tokens Write"
+        scope: account
+    consumer_verification:
+      - mise //:preview:access:rotate
+    rotation_order: 70
+    recovery_path: infra/account-foundation/recovery.md#reconcile-cloudflare-access
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/preview-access-administration.yaml
+
+  - id: recipe-preview-deploy
+    current_group: recipe-preview-deploy
+    repeated_name_relation: shared
+    source_locations:
+      - project: personal-site
+        config: stg_recipe_api
+        key: CLOUDFLARE_API_TOKEN
+      - project: personal-site
+        config: stg_site_ui
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: personal-site
+        config: stg_recipe_api
+        key: CLOUDFLARE_API_TOKEN
+      - kind: doppler-config
+        project: personal-site
+        config: stg_site_ui
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: preview-recipe-api
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: preview-site-ui
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: workers/recipe-api
+    migration_ticket: recipe-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:recipe-api-pr-*
+      - worker:recipe-ingest-pr-*
+      - r2-bucket:recipe-artifacts-preview
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+    consumer_verification:
+      - mise //workers/recipe-api:preview:deploy
+      - mise //workers/recipe-api:preview:delete
+      - mise //workers/recipe-ingest:preview:deploy
+      - mise //workers/recipe-ingest:preview:delete
+    rotation_order: 80
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/recipe-preview.yaml
+
+  - id: recipe-production-deploy
+    current_group: personal-site-production-deploy
+    repeated_name_relation: distinct
+    source_locations:
+      - project: personal-site
+        config: prd_site_ui
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: personal-site
+        config: prd_site_ui
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-recipe-api
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-recipe-ingest
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-site-ui
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: workers/recipe-api
+    migration_ticket: recipe-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:recipe-api
+      - worker:recipe-ingest
+      - pages-project:personal-site
+      - r2-bucket:recipe-artifacts
+      - images:account
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+      - id: 8d28297797f24fb8a0c332fe0866ec89
+        name: Pages Write
+        scope: account
+      - id: 0cf6473ad41449e7b7b743d14fc20c60
+        name: Images Read
+        scope: account
+    consumer_verification:
+      - mise //workers/recipe-api:check
+      - mise //workers/recipe-ingest:check
+      - mise //ui:build
+    rotation_order: 90
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/recipe-production.yaml
+
+  - id: work-graph-infrastructure
+    current_group: work-graph-infrastructure
+    repeated_name_relation: distinct
+    source_locations:
+      - project: work-graph
+        config: prd_work_graph_infra
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: work-graph
+        config: prd_work_graph_infra
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-work-graph-infra
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: infra/work-graph
+    migration_ticket: work-graph-cloudflare-infra-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - zone:robbiepalmer.me
+      - worker:work-graph-api
+      - worker:work-graph-github-observer
+      - queue:work-graph-github-deliveries
+      - queue:work-graph-github-deliveries-dlq
+      - r2-bucket:work-graph-database-backups
+      - hyperdrive:work-graph-db
+      - access-application:work-graph-api
+      - access-service-token:work-graph-agents
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+      - id: 366f57075ffc42689627bcf8242a1b6d
+        name: Queues Write
+        scope: account
+      - id: bf7481a1826f439697cb59a20b22293e
+        name: Workers R2 Storage Write
+        scope: account
+      - id: 721b2f51fba74871bd361de65aeb7e03
+        name: Hyperdrive Write
+        scope: account
+      - id: 1e13c5124ca64b72b1969a67e8829049
+        name: "Access: Apps and Policies Write"
+        scope: account
+      - id: a1c0fec57cf94af79479a6d827fa518c
+        name: "Access: Service Tokens Write"
+        scope: account
+      - id: c8fed203ed3043cba015a93ad1616f1f
+        name: Zone Read
+        scope: zone
+      - id: 28f4b596e7d643029c524985477ae49a
+        name: Workers Routes Write
+        scope: zone
+    consumer_verification:
+      - mise //infra/work-graph:plan
+      - mise //infra/work-graph:apply
+      - mise //infra/work-graph:state:check
+    rotation_order: 100
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-infrastructure.yaml
+
+  - id: work-graph-api-deploy
+    current_group: work-graph-api-deploy
+    repeated_name_relation: distinct
+    source_locations:
+      - project: work-graph
+        config: prd_work_graph
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: work-graph
+        config: prd_work_graph
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-work-graph
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: workers/work-graph-api
+    migration_ticket: work-graph-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:work-graph-api
+      - hyperdrive:work-graph-db
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+    consumer_verification:
+      - mise //workers/work-graph-api:deploy
+      - mise //workers/work-graph-api:smoke:production
+    rotation_order: 110
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-deploy.yaml
+
+  - id: work-graph-observer-deploy
+    current_group: work-graph-observer-deploy
+    repeated_name_relation: distinct
+    source_locations:
+      - project: work-graph
+        config: prd_work_graph
+        key: OBSERVER_CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: work-graph
+        config: prd_work_graph
+        key: OBSERVER_CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-work-graph
+        key: OBSERVER_CLOUDFLARE_API_TOKEN
+    owner_root: workers/work-graph-observer
+    migration_ticket: work-graph-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:work-graph-github-observer
+      - queue:work-graph-github-deliveries
+      - queue:work-graph-github-deliveries-dlq
+      - hyperdrive:work-graph-db
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+      - id: 366f57075ffc42689627bcf8242a1b6d
+        name: Queues Write
+        scope: account
+    consumer_verification:
+      - mise //workers/work-graph-observer:deploy
+      - mise //workers/work-graph-api:smoke:production
+    rotation_order: 120
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-deploy.yaml
+
+  - id: work-graph-diagnostics
+    current_group: work-graph-diagnostics
+    repeated_name_relation: distinct
+    source_locations:
+      - project: work-graph
+        config: prd_work_graph
+        key: CLOUDFLARE_DIAGNOSTICS_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: work-graph
+        config: prd_work_graph
+        key: CLOUDFLARE_DIAGNOSTICS_API_TOKEN
+      - kind: github-environment
+        environment: production-work-graph
+        key: CLOUDFLARE_DIAGNOSTICS_API_TOKEN
+    owner_root: workers/work-graph-api
+    migration_ticket: work-graph-diagnostics-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:work-graph-api
+      - worker:work-graph-github-observer
+      - hyperdrive:work-graph-db
+    permission_groups:
+      - id: 82c075da3f4647a2a03becd0fe240f8a
+        name: Workers Observability Write
+        scope: account
+      - id: b89a480218d04ceb98b4fe57ca29dc1f
+        name: Account Analytics Read
+        scope: account
+    consumer_verification:
+      - mise //workers/work-graph-api:diagnostics:query
+      - mise //workers/work-graph-api:diagnostics:monitor
+    rotation_order: 130
+    recovery_path: infra/work-graph/README.md#rotation-and-recovery
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/work-graph-diagnostics.yaml
+
+  - id: ai-review-staging-deploy
+    current_group: ai-review-staging-deploy
+    repeated_name_relation: distinct
+    source_locations:
+      - project: ai-review
+        config: stg
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: ai-review
+        config: stg
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: ai-review
+    migration_ticket: ai-review-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:ai-review-staging
+      - r2-bucket:ai-review-data-staging
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+      - id: b4992e1108244f5d8bfbd5744320c2e1
+        name: Workers R2 Storage Read
+        scope: account
+    consumer_verification:
+      - mise //ai-review:deploy:staging
+      - mise //ai-review:e2e:staging
+    rotation_order: 140
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/ai-review-staging.yaml
+
+  - id: ai-review-production-deploy
+    current_group: ai-review-production-deploy
+    repeated_name_relation: distinct
+    source_locations:
+      - project: ai-review
+        config: prd
+        key: CLOUDFLARE_API_TOKEN
+    destinations:
+      - kind: doppler-config
+        project: ai-review
+        config: prd
+        key: CLOUDFLARE_API_TOKEN
+      - kind: github-environment
+        environment: production-ai-review
+        key: CLOUDFLARE_API_TOKEN
+    owner_root: ai-review
+    migration_ticket: ai-review-cloudflare-deploy-token-lifecycle
+    resources:
+      - account:dcd7cd68dd892d610267ded6b1af567b
+      - worker:ai-review
+      - r2-bucket:ai-review-data
+    permission_groups:
+      - id: e086da7e2179491d91ee5f35b3ca210a
+        name: Workers Scripts Write
+        scope: account
+      - id: b4992e1108244f5d8bfbd5744320c2e1
+        name: Workers R2 Storage Read
+        scope: account
+    consumer_verification:
+      - mise //ai-review:deploy
+      - mise //ai-review:lifecycle:verify
+    rotation_order: 150
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
+    bootstrap_plan_status: planned
+    bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/ai-review-production.yaml
