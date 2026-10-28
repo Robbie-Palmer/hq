@@ -78,6 +78,10 @@ variable "cloudflare_pages" {
     preview_variables    = optional(map(string), {})
     compatibility_date   = string
     compatibility_flags  = optional(set(string), [])
+    custom_domain = optional(object({
+      hostname = string
+      zone_id  = string
+    }))
   })
   default  = null
   nullable = true

@@ -19,6 +19,10 @@ variables {
     preview_variables = {
       DATA_CLASSIFICATION = "synthetic-only"
     }
+    custom_domain = {
+      hostname = "bootstrap-canary.example.com"
+      zone_id  = "0da42c8d2132a9ddaf714f9e7c920711"
+    }
   }
   cloudflare_worker = {
     account_id         = "dcd7cd68dd892d610267ded6b1af567b"
@@ -58,6 +62,7 @@ run "create_isolated_preview" {
         "web-app.host",
       ]) &&
       output.resource_ownership.pages_project != null &&
+      output.resource_ownership.pages_domain != null &&
       output.resource_ownership.worker != null &&
       output.resource_ownership.access_application != null &&
       output.resource_ownership.neon.production_project != null &&
@@ -102,6 +107,7 @@ run "remove_isolated_preview" {
     condition = (
       length(output.selected_capabilities) == 0 &&
       output.resource_ownership.pages_project == null &&
+      output.resource_ownership.pages_domain == null &&
       output.resource_ownership.worker == null &&
       output.resource_ownership.access_application == null &&
       output.resource_ownership.neon == null &&

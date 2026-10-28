@@ -20,12 +20,16 @@ module "preview" {
   cloudflare_pages = var.enabled ? {
     account_id         = var.cloudflare_account_id
     name               = "platform-bootstrap-canary"
-    production_branch  = "never-production"
+    production_branch  = "bootstrap-canary"
     build_command      = ""
     destination_dir    = "site"
     compatibility_date = "2026-10-27"
     preview_variables = {
       DATA_CLASSIFICATION = "synthetic-only"
+    }
+    custom_domain = {
+      hostname = "bootstrap-canary.robbiepalmer.me"
+      zone_id  = var.cloudflare_zone_id
     }
   } : null
 
@@ -44,12 +48,14 @@ module "preview" {
       };
     JAVASCRIPT
     compatibility_date = "2026-10-27"
+    zone_id            = var.cloudflare_zone_id
+    hostname           = "bootstrap-canary-worker.robbiepalmer.me"
   } : null
 
   cloudflare_access = var.enabled ? {
     account_id     = var.cloudflare_account_id
     name           = "Platform bootstrap canary preview"
-    domain         = "bootstrap-canary.platform-bootstrap-canary.pages.dev"
+    domain         = "bootstrap-canary.robbiepalmer.me"
     allowed_emails = var.reviewer_emails
   } : null
 

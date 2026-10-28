@@ -9,6 +9,11 @@ variable "cloudflare_account_id" {
   type        = string
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone that owns the disposable preview hostname."
+  type        = string
+}
+
 variable "neon_org_id" {
   description = "Neon organization that owns the disposable preview project."
   type        = string

@@ -49,6 +49,10 @@ variable "cloudflare_pages" {
     preview_variables    = optional(map(string), {})
     compatibility_date   = string
     compatibility_flags  = optional(set(string), [])
+    custom_domain = optional(object({
+      hostname = string
+      zone_id  = string
+    }))
   })
   default  = null
   nullable = true
@@ -146,7 +150,13 @@ locals {
   reviewer_usernames = toset(flatten([
     for environment in values(local.delivery_environments) : environment.reviewer_usernames
   ]))
-  cloudflare_pages  = var.cloudflare_pages == null ? {} : { selected = var.cloudflare_pages }
+  cloudflare_pages = var.cloudflare_pages == null ? {} : { selected = var.cloudflare_pages }
+  cloudflare_pages_custom_domain = var.cloudflare_pages == null || var.cloudflare_pages.custom_domain == null ? {} : {
+    selected = merge(var.cloudflare_pages.custom_domain, {
+      account_id   = var.cloudflare_pages.account_id
+      project_name = var.cloudflare_pages.name
+    })
+  }
   cloudflare_worker = var.cloudflare_worker == null ? {} : { selected = var.cloudflare_worker }
   cloudflare_access = var.cloudflare_access == null ? {} : { selected = var.cloudflare_access }
   cloudflare_r2     = var.cloudflare_r2 == null ? {} : var.cloudflare_r2.buckets
@@ -268,6 +278,29 @@ resource "cloudflare_pages_project" "project" {
   }
 }
 
+resource "cloudflare_record" "pages_custom_domain" {
+  for_each = local.cloudflare_pages_custom_domain
+
+  zone_id = each.value.zone_id
+  name    = each.value.hostname
+  content = "${each.value.project_name}.pages.dev"
+  type    = "CNAME"
+  proxied = true
+  ttl     = 1
+
+  depends_on = [cloudflare_pages_project.project]
+}
+
+resource "cloudflare_pages_domain" "project" {
+  for_each = local.cloudflare_pages_custom_domain
+
+  account_id   = each.value.account_id
+  project_name = each.value.project_name
+  domain       = each.value.hostname
+
+  depends_on = [cloudflare_record.pages_custom_domain]
+}
+
 resource "cloudflare_workers_script" "worker" {
   for_each           = local.cloudflare_worker
   account_id         = each.value.account_id
@@ -384,6 +417,7 @@ output "resource_ownership" {
       }
     }
     pages_project      = try(cloudflare_pages_project.project["selected"].id, null)
+    pages_domain       = try(cloudflare_pages_domain.project["selected"].id, null)
     worker             = try(cloudflare_workers_script.worker["selected"].id, null)
     access_application = try(cloudflare_zero_trust_access_application.application["selected"].id, null)
     r2_buckets = var.cloudflare_r2 == null ? null : {

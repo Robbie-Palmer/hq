@@ -5,7 +5,9 @@ project-infrastructure commands. It is disposable. Its profile selects a web
 application plus a Worker and Neon database, while OCI, Kubernetes, Flux,
 NixOS, self-managed targets, automatic Cloudflare token creation, telemetry,
 object storage, and feature flags remain out of scope. The fixture has no
-public project page. Its temporary provider URLs are the only live interface.
+public project page or knowledge-graph record. The shared site mounts its
+project-owned UI at `/platform-bootstrap-canary`, and the disposable provider
+preview uses a separate temporary URL.
 
 The profile is the source of truth. `infrastructure-profile.json` is the small
 projection consumed by Terraform. The project-generator test fails if that
@@ -50,10 +52,19 @@ Review the saved plan before apply. It may create only resources named
 `platform-bootstrap-canary`. The second plan must report no changes.
 
 The first run needs the same account-foundation plan and apply credentials as
-the ordinary root. A human must then put the canary's HCP, Cloudflare, and Neon
-credentials plus these non-secret variables into the new Doppler configs:
+the ordinary root. A human must then copy these credentials into both new
+Doppler configs:
+
+- `TF_API_TOKEN`
+- `CLOUDFLARE_API_TOKEN`
+- `GITHUB_TOKEN`, until the static provider set no longer validates GitHub for
+  an unselected capability
+- `NEON_API_KEY`
+
+Set these non-secret values in the same configs:
 
 - `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_ZONE_ID`
 - `NEON_ORG_ID`
 - `MINIMAL_BOOTSTRAP_REVIEWER_EMAIL`
 
@@ -65,13 +76,18 @@ smoke tests.
 ## Plan and apply the isolated preview
 
 The application root uses the HCP workspace created above. It creates a Pages
-project whose production branch does not exist, a placeholder preview Worker,
-an Access application, and separate empty Neon projects. Both Neon projects
-use zero history retention. Nothing reads or clones production data.
+project whose `bootstrap-canary` production branch contains only the disposable
+fixture, a preview Worker, an Access application, and separate empty Neon
+projects. Both Neon projects use zero history retention. Nothing reads or
+clones production data.
 
 The public mise tasks load the `preview` config for read-only plans and the
 `apply` config for writes. Their wrapper maps the readable names above to the
-Terraform variables without printing secret values.
+Terraform variables without printing secret values. It gives lazy unselected
+providers inert values. The GitHub provider performs an eager identity lookup,
+so the canary temporarily needs a read-only GitHub token even though its plan
+contains no GitHub resources. Work Graph ticket
+`pep-isolate-project-module-provider-credentials` owns that follow-up.
 
 ```bash
 mise //infra/project-modules:minimal-bootstrap:plan
@@ -80,13 +96,15 @@ mise //infra/project-modules:minimal-bootstrap:apply
 mise //infra/project-modules:minimal-bootstrap:deploy
 mise //infra/project-modules:minimal-bootstrap:smoke:database
 mise //infra/project-modules:minimal-bootstrap:smoke:preview
+mise //infra/project-modules:minimal-bootstrap:smoke:worker
 mise //infra/project-modules:minimal-bootstrap:plan
 ```
 
 The first plan must contain only the five selected application capabilities.
 The Pages deploy publishes a single synthetic-data notice on the
-`bootstrap-canary` preview branch. The Worker returns a small JSON health
-response containing only its project, environment, and data classification.
+`bootstrap-canary` preview branch. The Worker smoke reads a small JSON health
+response from `bootstrap-canary-worker.robbiepalmer.me` and checks that it
+contains only its project, environment, and data classification.
 The database smoke opens the sensitive Neon
 connection URI directly from Terraform output, creates a temporary table,
 writes and reads one synthetic row in a transaction, then disconnects without
@@ -112,7 +130,9 @@ mise //infra/account-foundation:plan
 Reject either cleanup plan if it updates, replaces, or deletes an address that
 does not contain `platform-bootstrap-canary` or the application root's
 `module.preview.module.disposable` prefix. The last account-foundation plan
-must report no changes.
+must report no changes. Application cleanup removes the local-only profile
+validation guard from state after deleting provider resources, so HCP can then
+delete the empty workspace.
 
 If an apply stops, keep the state and generate a new plan. Do not finish the
 cleanup in provider consoles. If HCP state is unavailable, restore its latest

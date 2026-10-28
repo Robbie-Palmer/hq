@@ -47,13 +47,25 @@ fi
 
 set_if_unset TF_TOKEN_app_terraform_io "${TF_API_TOKEN:-}"
 set_if_unset TF_VAR_cloudflare_account_id "${CLOUDFLARE_ACCOUNT_ID:-}"
+set_if_unset TF_VAR_cloudflare_zone_id "${CLOUDFLARE_ZONE_ID:-}"
 set_if_unset TF_VAR_neon_org_id "${NEON_ORG_ID:-}"
 set_if_unset TF_VAR_reviewer_emails "$(jq -cn --arg email "$reviewer_email" '[$email]')"
+
+# The v1 composition declares every supported provider statically. Terraform
+# configures those default providers even when the resolved profile selects no
+# resources from them. Give lazy unselected providers inert, non-secret values
+# so this proof does not need their production credentials. The GitHub provider
+# validates eagerly, so the temporary config still needs a development token.
+export TFE_TOKEN="unselected-capability"
+export DOPPLER_TOKEN="unselected-capability"
+export POSTHOG_API_KEY="unselected-capability"
 
 for required_name in \
   TF_TOKEN_app_terraform_io \
   CLOUDFLARE_API_TOKEN \
   TF_VAR_cloudflare_account_id \
+  TF_VAR_cloudflare_zone_id \
+  GITHUB_TOKEN \
   NEON_API_KEY \
   TF_VAR_neon_org_id; do
   if [[ -z "${!required_name:-}" ]]; then
