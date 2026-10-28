@@ -119,6 +119,8 @@ module "cloudflare_pages" {
   preview_variables    = each.value.preview_variables
   compatibility_date   = each.value.compatibility_date
   compatibility_flags  = each.value.compatibility_flags
+  custom_domain        = each.value.custom_domain
+  access               = local.selected.cloudflare_access ? var.cloudflare_access : null
 }
 
 module "cloudflare_worker" {

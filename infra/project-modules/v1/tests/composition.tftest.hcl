@@ -96,6 +96,51 @@ run "pages_and_storage_are_composed_independently" {
   }
 }
 
+run "protected_pages_cover_project_and_deployment_hostnames" {
+  command = plan
+
+  variables {
+    resolved_profile = {
+      schema_version = 2
+      project = {
+        id   = "protected-site"
+        name = "Protected site"
+      }
+      selections = [
+        { slot = "web-app.host", value = "cloudflare-pages" },
+        { slot = "security.preview-access", value = "cloudflare-access" },
+      ]
+    }
+    cloudflare_pages = {
+      account_id         = "dcd7cd68dd892d610267ded6b1af567b"
+      name               = "protected-site"
+      production_branch  = "main"
+      build_command      = "mise //ui:build"
+      destination_dir    = "ui/out"
+      compatibility_date = "2026-10-24"
+      custom_domain = {
+        hostname = "protected.example.com"
+        zone_id  = "023e105f4ecef8ad9ca31a8372d0c353"
+      }
+    }
+    cloudflare_access = {
+      account_id     = "dcd7cd68dd892d610267ded6b1af567b"
+      name           = "Protected site"
+      domain         = "protected.example.com"
+      allowed_emails = ["reviewer@example.com"]
+    }
+  }
+
+  assert {
+    condition = (
+      length(module.cloudflare_pages) == 1 &&
+      length(module.cloudflare_access) == 1 &&
+      toset(keys(module.cloudflare_pages["selected"].access_application_ids)) == toset(["project", "previews"])
+    )
+    error_message = "Protected Pages hosting must cover its custom domain, project hostname, and immutable deployment hostnames."
+  }
+}
+
 run "state_delivery_and_runtime_capabilities_compose" {
   command = plan
 

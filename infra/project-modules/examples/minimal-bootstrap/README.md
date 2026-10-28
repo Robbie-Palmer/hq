@@ -77,9 +77,9 @@ smoke tests.
 
 The application root uses the HCP workspace created above. It creates a Pages
 project whose `bootstrap-canary` production branch contains only the disposable
-fixture, a preview Worker, an Access application, and separate empty Neon
-projects. Both Neon projects use zero history retention. Nothing reads or
-clones production data.
+fixture, a preview Worker, Access applications for its custom domain and every
+Pages deployment hostname, and separate empty Neon projects. Both Neon projects
+use zero history retention. Nothing reads or clones production data.
 
 The public mise tasks load the `preview` config for read-only plans and the
 `apply` config for writes. Their wrapper maps the readable names above to the
@@ -102,7 +102,9 @@ mise //infra/project-modules:minimal-bootstrap:plan
 
 The first plan must contain only the five selected application capabilities.
 The Pages deploy publishes a single synthetic-data notice on the
-`bootstrap-canary` preview branch. The Worker smoke reads a small JSON health
+`bootstrap-canary` branch. The HTTP smoke checks both the custom domain and the
+latest immutable Pages deployment URL, so a hash URL cannot bypass Access. The
+Worker smoke reads a small JSON health
 response from `bootstrap-canary-worker.robbiepalmer.me` and checks that it
 contains only its project, environment, and data classification.
 The database smoke opens the sensitive Neon
@@ -153,6 +155,6 @@ resource. The application and foundation stay in separate states.
 
 Run the live proof only while the provider accounts have free capacity. It
 uses one temporary HCP workspace, one Doppler project with two root configs,
-two GitHub environments, one Pages project, one Worker, one Access
-application, and two empty Neon projects. Stop before apply if any provider
+two GitHub environments, one Pages project, one Worker, three Access
+applications, and two empty Neon projects. Stop before apply if any provider
 quotes a paid upgrade. Clean up during the same operator session.

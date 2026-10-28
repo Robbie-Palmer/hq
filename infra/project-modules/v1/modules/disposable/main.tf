@@ -157,6 +157,22 @@ locals {
       project_name = var.cloudflare_pages.name
     })
   }
+  cloudflare_pages_access = var.cloudflare_pages == null || var.cloudflare_access == null ? {} : {
+    project = {
+      account_id       = var.cloudflare_pages.account_id
+      allowed_emails   = var.cloudflare_access.allowed_emails
+      domain           = "${var.cloudflare_pages.name}.pages.dev"
+      name             = "${var.cloudflare_pages.name} Pages"
+      session_duration = var.cloudflare_access.session_duration
+    }
+    previews = {
+      account_id       = var.cloudflare_pages.account_id
+      allowed_emails   = var.cloudflare_access.allowed_emails
+      domain           = "*.${var.cloudflare_pages.name}.pages.dev"
+      name             = "${var.cloudflare_pages.name} Pages previews"
+      session_duration = var.cloudflare_access.session_duration
+    }
+  }
   cloudflare_worker = var.cloudflare_worker == null ? {} : { selected = var.cloudflare_worker }
   cloudflare_access = var.cloudflare_access == null ? {} : { selected = var.cloudflare_access }
   cloudflare_r2     = var.cloudflare_r2 == null ? {} : var.cloudflare_r2.buckets
@@ -301,6 +317,31 @@ resource "cloudflare_pages_domain" "project" {
   depends_on = [cloudflare_record.pages_custom_domain]
 }
 
+resource "cloudflare_zero_trust_access_application" "pages" {
+  for_each = local.cloudflare_pages_access
+
+  account_id                = each.value.account_id
+  name                      = each.value.name
+  domain                    = each.value.domain
+  type                      = "self_hosted"
+  session_duration          = each.value.session_duration
+  service_auth_401_redirect = false
+  app_launcher_visible      = false
+
+  depends_on = [cloudflare_pages_project.project]
+}
+
+resource "cloudflare_zero_trust_access_policy" "pages_reviewers" {
+  for_each = local.cloudflare_pages_access
+
+  account_id     = each.value.account_id
+  application_id = cloudflare_zero_trust_access_application.pages[each.key].id
+  name           = "Approved preview reviewers"
+  decision       = "allow"
+  precedence     = 1
+  include { email = each.value.allowed_emails }
+}
+
 resource "cloudflare_workers_script" "worker" {
   for_each           = local.cloudflare_worker
   account_id         = each.value.account_id
@@ -416,8 +457,11 @@ output "resource_ownership" {
         for key, config in doppler_config.project : key => config.id
       }
     }
-    pages_project      = try(cloudflare_pages_project.project["selected"].id, null)
-    pages_domain       = try(cloudflare_pages_domain.project["selected"].id, null)
+    pages_project = try(cloudflare_pages_project.project["selected"].id, null)
+    pages_domain  = try(cloudflare_pages_domain.project["selected"].id, null)
+    pages_access_applications = {
+      for key, application in cloudflare_zero_trust_access_application.pages : key => application.id
+    }
     worker             = try(cloudflare_workers_script.worker["selected"].id, null)
     access_application = try(cloudflare_zero_trust_access_application.application["selected"].id, null)
     r2_buckets = var.cloudflare_r2 == null ? null : {

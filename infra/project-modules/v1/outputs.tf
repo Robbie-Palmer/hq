@@ -31,7 +31,12 @@ output "resource_ownership" {
     terraform_workspace = try(module.terraform_state["selected"].workspace_id, module.disposable[0].resource_ownership.terraform_workspace, null)
     delivery            = try(module.delivery["selected"].resource_ids, module.disposable[0].resource_ownership.delivery, null)
     pages_project       = try(module.cloudflare_pages["selected"].project_id, module.disposable[0].resource_ownership.pages_project, null)
-    pages_domain        = try(module.disposable[0].resource_ownership.pages_domain, null)
+    pages_domain        = try(module.cloudflare_pages["selected"].domain_id, module.disposable[0].resource_ownership.pages_domain, null)
+    pages_access_applications = try(
+      module.cloudflare_pages["selected"].access_application_ids,
+      module.disposable[0].resource_ownership.pages_access_applications,
+      {},
+    )
     worker              = try(module.cloudflare_worker["selected"].worker_id, module.disposable[0].resource_ownership.worker, null)
     access_application  = try(module.cloudflare_access["selected"].application_id, module.disposable[0].resource_ownership.access_application, null)
     r2_buckets          = try(module.cloudflare_r2["selected"].bucket_ids, module.disposable[0].resource_ownership.r2_buckets, null)

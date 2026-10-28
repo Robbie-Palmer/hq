@@ -63,6 +63,7 @@ run "create_isolated_preview" {
       ]) &&
       output.resource_ownership.pages_project != null &&
       output.resource_ownership.pages_domain != null &&
+      toset(keys(output.resource_ownership.pages_access_applications)) == toset(["project", "previews"]) &&
       output.resource_ownership.worker != null &&
       output.resource_ownership.access_application != null &&
       output.resource_ownership.neon.production_project != null &&
@@ -108,6 +109,7 @@ run "remove_isolated_preview" {
       length(output.selected_capabilities) == 0 &&
       output.resource_ownership.pages_project == null &&
       output.resource_ownership.pages_domain == null &&
+      length(output.resource_ownership.pages_access_applications) == 0 &&
       output.resource_ownership.worker == null &&
       output.resource_ownership.access_application == null &&
       output.resource_ownership.neon == null &&
