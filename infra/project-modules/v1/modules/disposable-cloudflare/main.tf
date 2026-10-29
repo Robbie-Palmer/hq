@@ -1,11 +1,9 @@
 terraform {
   required_providers {
     cloudflare = { source = "cloudflare/cloudflare" }
-    neon       = { source = "kislerdm/neon" }
   }
 }
 
-variable "project_id" { type = string }
 variable "cloudflare_pages" {
   type = object({
     account_id           = string
@@ -26,6 +24,7 @@ variable "cloudflare_pages" {
   default  = null
   nullable = true
 }
+
 variable "cloudflare_worker" {
   type = object({
     account_id         = string
@@ -38,6 +37,7 @@ variable "cloudflare_worker" {
   default  = null
   nullable = true
 }
+
 variable "cloudflare_access" {
   type = object({
     account_id       = string
@@ -49,6 +49,7 @@ variable "cloudflare_access" {
   default  = null
   nullable = true
 }
+
 variable "cloudflare_r2" {
   type = object({
     account_id = string
@@ -60,6 +61,7 @@ variable "cloudflare_r2" {
   default  = null
   nullable = true
 }
+
 variable "cloudflare_dns" {
   type = object({
     zone_id = string
@@ -73,24 +75,6 @@ variable "cloudflare_dns" {
   })
   default  = null
   nullable = true
-}
-variable "neon" {
-  type = object({
-    org_id                    = string
-    project_name              = string
-    database_name             = string
-    role_name                 = string
-    region_id                 = string
-    pg_version                = number
-    history_retention_seconds = optional(number, 21600)
-    preview_project_name      = optional(string)
-  })
-  default  = null
-  nullable = true
-}
-variable "neon_preview_enabled" {
-  type    = bool
-  default = false
 }
 
 locals {
@@ -121,7 +105,6 @@ locals {
   cloudflare_access = var.cloudflare_access == null ? {} : { selected = var.cloudflare_access }
   cloudflare_r2     = var.cloudflare_r2 == null ? {} : var.cloudflare_r2.buckets
   cloudflare_dns    = var.cloudflare_dns == null ? {} : var.cloudflare_dns.records
-  neon              = var.neon == null ? {} : { selected = var.neon }
 }
 
 resource "cloudflare_pages_project" "project" {
@@ -259,43 +242,10 @@ resource "cloudflare_record" "record" {
   ttl      = each.value.ttl
 }
 
-resource "neon_project" "production" {
-  for_each   = local.neon
-  name       = each.value.project_name
-  region_id  = each.value.region_id
-  pg_version = each.value.pg_version
-  org_id     = each.value.org_id
-
-  history_retention_seconds = each.value.history_retention_seconds
-  branch {
-    name          = "main"
-    database_name = each.value.database_name
-    role_name     = each.value.role_name
-  }
-}
-
-resource "neon_project" "preview" {
-  for_each   = var.neon_preview_enabled ? local.neon : {}
-  name       = each.value.preview_project_name
-  region_id  = each.value.region_id
-  pg_version = each.value.pg_version
-  org_id     = each.value.org_id
-
-  history_retention_seconds = 0
-  branch {
-    name          = "preview-base"
-    database_name = each.value.database_name
-    role_name     = each.value.role_name
-  }
-}
-
 output "resource_ownership" {
   value = {
-    project_id          = var.project_id
-    terraform_workspace = null
-    delivery            = null
-    pages_project       = try(cloudflare_pages_project.project["selected"].id, null)
-    pages_domain        = try(cloudflare_pages_domain.project["selected"].id, null)
+    pages_project = try(cloudflare_pages_project.project["selected"].id, null)
+    pages_domain  = try(cloudflare_pages_domain.project["selected"].id, null)
     pages_access_applications = {
       for key, application in cloudflare_zero_trust_access_application.pages : key => application.id
     }
@@ -307,16 +257,5 @@ output "resource_ownership" {
     dns_records = var.cloudflare_dns == null ? null : {
       for key, record in cloudflare_record.record : key => record.id
     }
-    neon = var.neon == null ? null : {
-      production_project = try(neon_project.production["selected"].id, null)
-      preview_project    = try(neon_project.preview["selected"].id, null)
-    }
-    telemetry_dashboard = null
   }
-}
-
-output "preview_connection_uri" {
-  description = "Sensitive connection URI for the isolated preview database."
-  value       = try(neon_project.preview["selected"].connection_uri, null)
-  sensitive   = true
 }

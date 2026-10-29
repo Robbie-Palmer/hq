@@ -1,8 +1,17 @@
 _min_copier_version: "9.18.2"
 _subdirectory: "copier-templates/monorepo-project"
+_exclude:
+  - "__no_terraform_root__"
 
 project_id:
   type: str
 
 blueprint:
   type: yaml
+
+terraform_root_path:
+  type: str
+  when: false
+  default: >-
+    {%- set roots = blueprint.components | selectattr("kind", "equalto", "terraform-root") | list -%}
+    {{ roots[0].path if roots | length == 1 else "__no_terraform_root__" }}

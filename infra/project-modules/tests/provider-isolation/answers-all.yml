@@ -1,0 +1,22 @@
+project_id: all-capabilities
+blueprint:
+  schema_version: 2
+  project:
+    id: all-capabilities
+    name: All application capabilities
+    kind: application
+    published: false
+  components:
+    - id: all-capabilities
+      kind: terraform-root
+      name: All application capabilities fixture
+      path: infra/all-capabilities
+  selections:
+    - { slot: web-app.host, value: cloudflare-pages }
+    - { slot: backend-api.runtime, value: cloudflare-workers }
+    - { slot: security.preview-access, value: cloudflare-access }
+    - { slot: storage.object-store, value: cloudflare-r2 }
+    - { slot: network.public-ingress, value: cloudflare-dns }
+    - { slot: database.relational-host, value: neon }
+    - { slot: database.preview-isolation, value: fresh-preview }
+    - { slot: observability.application-telemetry, value: posthog }

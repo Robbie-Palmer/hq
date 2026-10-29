@@ -43,39 +43,30 @@ self-managed infrastructure, not a temporary omission. Work Graph ticket
 Those modules must consume the same resolved profile and compose without
 adding providers, state, or credentials to projects that do not select them.
 
-## Provider-scoped compositions
+## Compiled provider graph
 
-Terraform decides its provider graph from configuration, before it evaluates
-`count` or `for_each`. The aggregate `v1` source therefore remains useful for
-profiles that configure every provider, but it cannot isolate credentials for
-an arbitrary subset at runtime.
+Terraform decides its provider graph before it evaluates `count` or
+`for_each`. The resolved blueprint therefore does not select providers inside
+the aggregate `v1` module. Copier compiles the blueprint first and writes a
+static `generated-project.tf` into the project's `terraform-root` component.
+That file declares only selected provider requirements, explicit provider
+configurations, capability variables, and capability module calls.
 
-Use `v1/compositions/cloudflare-neon` for an application profile that selects
-resources from both Cloudflare and Neon and no other provider. The source
-rejects selections owned by TFE, Doppler, GitHub, or PostHog. Pass both
-selected provider configurations explicitly:
+Capability modules remain additive: supporting a provider adds its template
+fragment once. Do not add provider-subset compositions such as
+`cloudflare-neon`; six providers would already create 63 non-empty subsets.
+The provider-isolation test renders a Cloudflare-and-Neon blueprint, checks the
+resulting provider graph, and runs it with Terraform mock providers. GitHub,
+Doppler, TFE, and PostHog are absent from the rendered configuration and need
+no credentials.
 
-```hcl
-module "project" {
-  source = "../../project-modules/v1/compositions/cloudflare-neon"
-
-  providers = {
-    cloudflare = cloudflare
-    neon       = neon
-  }
-
-  state_scope      = "application"
-  resolved_profile = jsondecode(file("resolved-blueprint.json"))
-  # Supply only the selected Cloudflare and Neon capability inputs.
-}
-```
-
-An existing Cloudflare-and-Neon v1 consumer can change only the module
-`source` and add the `providers` map. Keep the caller's module label unchanged.
-The scoped composition retains `terraform_data.profile_guard`, each protected
-capability module label, `module.disposable[0]`, and every disposable resource
-label, so the next plan requires no import or state move. Stop if the migration
-plan reports any address change.
+The aggregate `v1` source remains a compatibility surface for existing state.
+Do not replace an existing aggregate module call with a compiled root during a
+routine template update. New projects use compiled roots. A deliberate legacy
+migration must keep the old provider configuration available for the destroy
+or state-move phase, move each capability address under review, and reach a
+no-change plan before removing the aggregate call. The generated file is
+Copier-owned and must not be edited by hand.
 
 ## State boundaries
 

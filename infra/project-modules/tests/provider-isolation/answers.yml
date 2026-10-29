@@ -1,0 +1,20 @@
+project_id: provider-isolation
+blueprint:
+  schema_version: 2
+  project:
+    id: provider-isolation
+    name: Provider isolation
+    kind: application
+    published: false
+  components:
+    - id: provider-isolation
+      kind: terraform-root
+      name: Provider isolation fixture
+      path: infra/provider-isolation
+  selections:
+    - slot: web-app.host
+      value: cloudflare-pages
+    - slot: database.relational-host
+      value: neon
+    - slot: database.preview-isolation
+      value: fresh-preview
