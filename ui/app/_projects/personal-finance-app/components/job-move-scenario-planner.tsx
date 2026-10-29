@@ -64,8 +64,20 @@ type Draft = {
   currency: (typeof SUPPORTED_CURRENCIES)[number];
   jurisdiction: string;
   employeePensionRate: number;
-  employeePensionMethod: "salarySacrifice" | "netPay";
+  employeePensionMethod: "salarySacrifice" | "netPay" | "reliefAtSource";
+  employeePensionBasis:
+    | ""
+    | "grossPay"
+    | "qualifyingEarnings"
+    | "pensionablePay";
   employerPensionRate: number;
+  employerPensionBasis:
+    | ""
+    | "grossPay"
+    | "qualifyingEarnings"
+    | "pensionablePay";
+  annualPensionablePay?: number;
+  variablePayPensionTreatment: "" | "singlePayment" | "spreadEvenly";
   annualTakeHomeOverride?: number;
   annualSpendingOverride?: number;
   currentEmployer: string;
@@ -138,7 +150,11 @@ function scenarioDraft(
     jurisdiction: scenario.jurisdiction,
     employeePensionRate: scenario.employeePensionRate,
     employeePensionMethod: scenario.employeePensionMethod,
+    employeePensionBasis: scenario.employeePensionBasis ?? "",
     employerPensionRate: scenario.employerPensionRate,
+    employerPensionBasis: scenario.employerPensionBasis ?? "",
+    annualPensionablePay: scenario.annualPensionablePay,
+    variablePayPensionTreatment: scenario.variablePayPensionTreatment ?? "",
     annualTakeHomeOverride: scenario.annualTakeHomeOverride,
     annualSpendingOverride: scenario.annualSpendingOverride,
     currentEmployer: scenario.currentRole?.employer ?? "",
@@ -194,7 +210,11 @@ function inputFromDraft(draft: Draft): JobMoveScenarioInput {
     jurisdiction: draft.jurisdiction,
     employeePensionRate: draft.employeePensionRate,
     employeePensionMethod: draft.employeePensionMethod,
+    employeePensionBasis: draft.employeePensionBasis || undefined,
     employerPensionRate: draft.employerPensionRate,
+    employerPensionBasis: draft.employerPensionBasis || undefined,
+    annualPensionablePay: draft.annualPensionablePay,
+    variablePayPensionTreatment: draft.variablePayPensionTreatment || undefined,
     annualTakeHomeOverride: draft.annualTakeHomeOverride,
     annualSpendingOverride: draft.annualSpendingOverride,
     currentRole,
@@ -266,7 +286,10 @@ function useScenarioForm(
           jurisdiction: "England",
           employeePensionRate: 0,
           employeePensionMethod: "salarySacrifice",
+          employeePensionBasis: "",
           employerPensionRate: 0,
+          employerPensionBasis: "",
+          variablePayPensionTreatment: "",
           currentEmployer: currentSalary?.employer ?? "",
           currentAnnualTakeHomePay: currentCompensation?.annualTakeHomeIncome,
           currentBaseGrossPay:
@@ -764,6 +787,29 @@ function EmployeePensionFields({
         >
           <option value="salarySacrifice">Salary sacrifice</option>
           <option value="netPay">Net pay</option>
+          <option value="reliefAtSource">Relief at source</option>
+        </select>
+      </Field>
+      <Field
+        id="job-employee-pension-basis"
+        label="Employee contribution basis"
+      >
+        <select
+          id="job-employee-pension-basis"
+          required={draft.employeePensionRate > 0}
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={draft.employeePensionBasis}
+          onChange={(event) =>
+            update(
+              "employeePensionBasis",
+              event.target.value as Draft["employeePensionBasis"],
+            )
+          }
+        >
+          <option value="">Choose basis</option>
+          <option value="grossPay">Full gross pay</option>
+          <option value="qualifyingEarnings">Qualifying earnings</option>
+          <option value="pensionablePay">Pensionable pay</option>
         </select>
       </Field>
     </>
@@ -788,6 +834,63 @@ function EmployerPensionFields({
             update("employerPensionRate", Number(event.target.value) / 100)
           }
         />
+      </Field>
+      <Field
+        id="job-employer-pension-basis"
+        label="Employer contribution basis"
+      >
+        <select
+          id="job-employer-pension-basis"
+          required={draft.employerPensionRate > 0}
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={draft.employerPensionBasis}
+          onChange={(event) =>
+            update(
+              "employerPensionBasis",
+              event.target.value as Draft["employerPensionBasis"],
+            )
+          }
+        >
+          <option value="">Choose basis</option>
+          <option value="grossPay">Full gross pay</option>
+          <option value="qualifyingEarnings">Qualifying earnings</option>
+          <option value="pensionablePay">Pensionable pay</option>
+        </select>
+      </Field>
+      <Field id="job-pensionable-pay" label="Annual pensionable pay">
+        <Input
+          id="job-pensionable-pay"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Required for pensionable-pay schemes"
+          value={draft.annualPensionablePay ?? ""}
+          onChange={(event) =>
+            update(
+              "annualPensionablePay",
+              event.target.value === ""
+                ? undefined
+                : Number(event.target.value),
+            )
+          }
+        />
+      </Field>
+      <Field id="job-variable-pension-treatment" label="Variable pay timing">
+        <select
+          id="job-variable-pension-treatment"
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={draft.variablePayPensionTreatment}
+          onChange={(event) =>
+            update(
+              "variablePayPensionTreatment",
+              event.target.value as Draft["variablePayPensionTreatment"],
+            )
+          }
+        >
+          <option value="">Not recorded</option>
+          <option value="singlePayment">One bonus payment</option>
+          <option value="spreadEvenly">Spread across pay periods</option>
+        </select>
       </Field>
       <Field id="job-take-home-override" label="Annual take-home override">
         <Input

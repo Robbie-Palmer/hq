@@ -115,6 +115,31 @@ const pensionMethodSchema = z.object({
   furtherReliefMayRequireClaim: z.boolean(),
 });
 
+export const pensionPayPeriodSchema = z.enum([
+  "weekly",
+  "fortnightly",
+  "four-weekly",
+  "monthly",
+  "quarterly",
+  "half-yearly",
+  "annual",
+]);
+
+const qualifyingEarningsBandSchema = z.object({
+  lowerPence: moneyPenceSchema,
+  upperPence: moneyPenceSchema,
+});
+
+const qualifyingEarningsBandsSchema = z.object({
+  weekly: qualifyingEarningsBandSchema,
+  fortnightly: qualifyingEarningsBandSchema,
+  "four-weekly": qualifyingEarningsBandSchema,
+  monthly: qualifyingEarningsBandSchema,
+  quarterly: qualifyingEarningsBandSchema,
+  "half-yearly": qualifyingEarningsBandSchema,
+  annual: qualifyingEarningsBandSchema,
+});
+
 export const pensionRuleSchema = baseRuleSchema.extend({
   kind: z.literal("pension"),
   jurisdictions: z.array(jurisdictionSchema).min(1),
@@ -133,6 +158,25 @@ export const pensionRuleSchema = baseRuleSchema.extend({
     .nullable(),
   moneyPurchaseAnnualAllowancePence: moneyPenceSchema,
   methods: z.array(pensionMethodSchema).length(3),
+  qualifyingEarnings: z.object({
+    bands: qualifyingEarningsBandsSchema,
+    includedComponents: z.array(
+      z.enum([
+        "salary",
+        "wages",
+        "commission",
+        "bonus",
+        "overtime",
+        "statutory-sick-pay",
+        "statutory-maternity-pay",
+        "statutory-paternity-pay",
+        "statutory-adoption-pay",
+        "statutory-shared-parental-pay",
+        "statutory-parental-bereavement-pay",
+        "statutory-neonatal-care-pay",
+      ]),
+    ).min(10),
+  }),
 });
 
 export const householdTaxRuleSchema = baseRuleSchema.extend({
@@ -196,3 +240,4 @@ export type PayPeriod = z.infer<typeof payPeriodSchema>;
 export type PensionContributionMethod = z.infer<
   typeof pensionContributionMethodSchema
 >;
+export type PensionPayPeriod = z.infer<typeof pensionPayPeriodSchema>;

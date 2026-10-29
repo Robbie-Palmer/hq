@@ -1,7 +1,7 @@
 {
-  "datasetVersion": "2026.10.3",
-  "releasedAt": "2026-10-05",
-  "supersedes": "2026.10.2",
+  "datasetVersion": "2026.10.4",
+  "releasedAt": "2026-10-29",
+  "supersedes": "2026.10.3",
   "corrections": [],
   "dataLicence": {
     "name": "Open Government Licence v3.0",
@@ -11,16 +11,20 @@
   },
   "artifacts": [
     {
-      "path": "artifacts/enacted/2026.10.3.json",
-      "sha256": "f4a8540d26ffc105c6a7ab0708c68f0683bb21a3d304be122c2acc9c645a54c5"
+      "path": "artifacts/enacted/2026.10.4.json",
+      "sha256": "8a75018a2d5f65e1b06b32dde76d4faf3908496796f085a6f077844e1cd70dbd"
     },
     {
-      "path": "artifacts/coverage-matrix/2026.10.3.json",
-      "sha256": "c809761878be2b31c74ad0f7e980742d157cedac6f5b25f4f97d4dfa06c85ef2"
+      "path": "artifacts/coverage-matrix/2026.10.4.json",
+      "sha256": "a7c818fb3316d1ee6fe1e34f59c9006bd7e5ce4ddc98bcfbe4bb53fc387bd272"
     },
     {
-      "path": "artifacts/validation/2026.10.3.json",
-      "sha256": "833d0d625a92ede786b52b189d27904499d589e03882707fbde1e2b02d93904c"
+      "path": "artifacts/validation/2026.10.4.json",
+      "sha256": "6b0eb3813ceb302be02ea9b199c2e92a3dfa98b2f836dc86530e87b54e4ca7fa"
+    },
+    {
+      "path": "artifacts/workplace-pension/2026.10.4.json",
+      "sha256": "cde3fb577a58e5ee540fa7ef01f57d841d3593e03e9a024200e6a26b9ac4b7fd"
     }
   ],
   "sourceSnapshots": [
@@ -103,6 +107,12 @@
       "sourceContentSha256": "a6315ba6c7166c712c66094523334ab27b1f94f9922af74a223c6380d20fc7d0"
     },
     {
+      "id": "dwp-automatic-enrolment-earnings-bands",
+      "path": "source-snapshots/automatic-enrolment-earnings-bands.md",
+      "snapshotSha256": "65b1980d3e6283852cef0e1090f179b555842be4ca15b81b7e54b03d69ee2846",
+      "sourceContentSha256": "65b1980d3e6283852cef0e1090f179b555842be4ca15b81b7e54b03d69ee2846"
+    },
+    {
       "id": "hmrc-pension-scheme-rates",
       "path": "source-snapshots/pension-scheme-rates.md",
       "snapshotSha256": "03929cadbfed9a498614cf2337b44071f0ea3a8836e082c001f2b212299f5210",
@@ -146,9 +156,9 @@
     }
   ],
   "validation": {
-    "corpusVersion": "2026.10.3",
+    "corpusVersion": "2026.10.4",
     "libraryVersion": "finance-tax-rules@0.1.0",
-    "ruleDatasetVersion": "2026.10.3",
+    "ruleDatasetVersion": "2026.10.4",
     "calculationContractVersion": "salary-validation-v1",
     "fixtureCount": 16,
     "sourceSnapshots": [

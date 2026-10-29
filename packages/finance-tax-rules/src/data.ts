@@ -243,6 +243,98 @@ const pensionMethods = (): RuleDataset["pensions"][number]["methods"] => [
   },
 ];
 
+type QualifyingEarningsBandAmounts = {
+  lower: [number, number, number, number, number, number, number];
+  upper: [number, number, number, number, number, number, number];
+};
+
+const qualifyingEarningsAmounts: Record<string, QualifyingEarningsBandAmounts> = {
+  "2015-16": {
+    lower: [112, 224, 448, 486, 1_456, 2_912, 5_824],
+    upper: [815, 1_631, 3_261, 3_532, 10_597, 21_193, 42_385],
+  },
+  "2016-17": {
+    lower: [112, 224, 448, 486, 1_456, 2_912, 5_824],
+    upper: [827, 1_654, 3_308, 3_583, 10_750, 21_500, 43_000],
+  },
+  "2017-18": {
+    lower: [113, 226, 452, 490, 1_469, 2_938, 5_876],
+    upper: [866, 1_731, 3_462, 3_750, 11_250, 22_500, 45_000],
+  },
+  "2018-19": {
+    lower: [116, 232, 464, 503, 1_508, 3_016, 6_032],
+    upper: [892, 1_783, 3_566, 3_863, 11_588, 23_175, 46_350],
+  },
+  "2019-20": {
+    lower: [118, 236, 472, 512, 1_534, 3_068, 6_136],
+    upper: [962, 1_924, 3_847, 4_167, 12_500, 25_000, 50_000],
+  },
+  "2020-21": {
+    lower: [120, 240, 480, 520, 1_560, 3_120, 6_240],
+    upper: [962, 1_924, 3_847, 4_167, 12_500, 25_000, 50_000],
+  },
+};
+
+const currentQualifyingEarningsAmounts: QualifyingEarningsBandAmounts = {
+  lower: [120, 240, 480, 520, 1_560, 3_120, 6_240],
+  upper: [967, 1_934, 3_867, 4_189, 12_568, 25_135, 50_270],
+};
+
+for (const taxYear of [
+  "2021-22",
+  "2022-23",
+  "2023-24",
+  "2024-25",
+  "2025-26",
+  "2026-27",
+]) {
+  qualifyingEarningsAmounts[taxYear] = currentQualifyingEarningsAmounts;
+}
+
+const qualifyingEarnings = (
+  taxYear: string,
+): RuleDataset["pensions"][number]["qualifyingEarnings"] => {
+  const amounts = qualifyingEarningsAmounts[taxYear];
+  if (amounts == null) {
+    throw new Error(`Missing qualifying-earnings bands for ${taxYear}`);
+  }
+  const band = (index: number) => ({
+    lowerPence: gbp(amounts.lower[index] ?? 0),
+    upperPence: gbp(amounts.upper[index] ?? 0),
+  });
+  const startYear = Number(taxYear.slice(0, 4));
+  const includedComponents: RuleDataset["pensions"][number]["qualifyingEarnings"]["includedComponents"] = [
+    "salary",
+    "wages",
+    "commission",
+    "bonus",
+    "overtime",
+    "statutory-sick-pay",
+    "statutory-maternity-pay",
+    "statutory-paternity-pay",
+    "statutory-adoption-pay",
+    "statutory-shared-parental-pay",
+  ];
+  if (startYear >= 2020) {
+    includedComponents.push("statutory-parental-bereavement-pay");
+  }
+  if (startYear >= 2025) {
+    includedComponents.push("statutory-neonatal-care-pay");
+  }
+  return {
+    bands: {
+      weekly: band(0),
+      fortnightly: band(1),
+      "four-weekly": band(2),
+      monthly: band(3),
+      quarterly: band(4),
+      "half-yearly": band(5),
+      annual: band(6),
+    },
+    includedComponents,
+  };
+};
+
 type TaperedAnnualAllowance = {
   thresholdIncomeLimit: number;
   adjustedIncomeLimit: number;
@@ -291,14 +383,16 @@ const pensionRule = (
         },
   moneyPurchaseAnnualAllowancePence: gbp(moneyPurchaseAnnualAllowance),
   methods: pensionMethods(),
+  qualifyingEarnings: qualifyingEarnings(taxYear),
   provenance: review(
     [
       "hmrc-pension-scheme-rates",
       "hmrc-pension-relief-at-source",
       "hmrc-pension-net-pay",
       "hmrc-salary-sacrifice",
+      "dwp-automatic-enrolment-earnings-bands",
     ],
-    "Allowance values and the payroll effects of each contribution method were reviewed separately.",
+    "Allowance values, qualifying-earnings bands, and the payroll effects of each contribution method were reviewed separately.",
   ),
 });
 
@@ -561,9 +655,9 @@ const historicalPensionRules: RuleDataset["pensions"] = [
 ];
 
 export const ruleDataset = {
-  datasetVersion: "2026.10.3",
-  releasedAt: "2026-10-05",
-  supersedes: "2026.10.2",
+  datasetVersion: "2026.10.4",
+  releasedAt: "2026-10-29",
+  supersedes: "2026.10.3",
   corrections: [],
   dataLicence,
   sources: [
@@ -620,6 +714,21 @@ export const ruleDataset = {
       sourceContentSha256: sourceContentSha256 ?? "",
       snapshotPath: `source-snapshots/employer-${year}.md`,
     })),
+    hmrcSource({
+      id: "dwp-automatic-enrolment-earnings-bands",
+      title: "Automatic enrolment earnings trigger and qualifying earnings band",
+      url: "https://www.gov.uk/government/collections/automatic-enrolment-earnings-trigger-and-qualifying-earnings-band",
+      archiveUrl: null,
+      publicationDate: "2016-12-02",
+      retrievalDate: "2026-10-29",
+      coverageFrom: "2015-04-06",
+      coverageTo: "2027-04-05",
+      sourceContentSha256:
+        "65b1980d3e6283852cef0e1090f179b555842be4ca15b81b7e54b03d69ee2846",
+      snapshotPath:
+        "source-snapshots/automatic-enrolment-earnings-bands.md",
+      publisher: "Department for Work and Pensions",
+    }),
     hmrcSource({
       id: "hmrc-pension-scheme-rates",
       title: "Pension schemes rates",
