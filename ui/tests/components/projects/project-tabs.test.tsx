@@ -101,7 +101,7 @@ describe("ProjectTabs", () => {
     );
 
     expect(
-      screen.getByRole("link", { name: "Building Philosophy" }),
+      screen.getByRole("link", { name: "Read Building Philosophy" }),
     ).toHaveAttribute("href", "/building-philosophy");
   });
 });

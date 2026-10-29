@@ -823,14 +823,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "ProjectsPageTabs",
-    "maximums": {
-      "lines": 74
-    },
-    "path": "components/projects/projects-page-tabs.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "DeferredSatelliteSwarmSimulation",
     "maximums": {
       "lines": 148
