@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
+import { parseFeatureFlagContract } from "../src/feature-flags";
 import { parseNixFlakeContract } from "../src/nix-flake";
 import { parseOpenTelemetryContract } from "../src/opentelemetry";
 import { parseContract } from "../src/parse";
@@ -19,18 +20,23 @@ async function load(name: string): Promise<unknown> {
 
 describe("shared platform contract parsers", () => {
   it("parses every current production contract", async () => {
-    const [layout, platform, nix, opentelemetry] = await Promise.all([
-      load("repository-layout.yaml"),
-      load("platform.yaml"),
-      load("nix-flake-contract.yaml"),
-      load("opentelemetry-contract.yaml"),
-    ]);
+    const [layout, platform, nix, opentelemetry, featureFlags] =
+      await Promise.all([
+        load("repository-layout.yaml"),
+        load("platform.yaml"),
+        load("nix-flake-contract.yaml"),
+        load("opentelemetry-contract.yaml"),
+        load("feature-flag-contract.yaml"),
+      ]);
 
     expect(parseRepositoryLayoutContract(layout).schema_version).toBe(1);
     expect(parsePlatformManifestSource(platform).schema_version).toBe(1);
     expect(parseNixFlakeContract(nix).contract).toBe("nix-flake");
     expect(parseOpenTelemetryContract(opentelemetry).contract).toBe(
       "opentelemetry",
+    );
+    expect(parseFeatureFlagContract(featureFlags).contract).toBe(
+      "feature-flags",
     );
   });
 
@@ -193,6 +199,7 @@ describe("shared platform contract parsers", () => {
     [parsePlatformManifestSource, {}],
     [parseNixFlakeContract, {}],
     [parseOpenTelemetryContract, {}],
+    [parseFeatureFlagContract, {}],
   ])("reports invalid contract fields", (parser, value) => {
     expect(() => parser(value)).toThrow(/Invalid/);
   });

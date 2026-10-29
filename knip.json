@@ -54,6 +54,9 @@
       "entry": ["src/cli.ts"]
     },
     "packages/planning-case-domain": {},
+    "packages/platform-contracts": {
+      "entry": ["fixtures/cloudflare-worker.ts"]
+    },
     "packages/work-graph-domain": {
       "ignoreBinaries": ["vitest"]
     },

@@ -1300,6 +1300,14 @@ Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-mi
     type: "tool",
   },
   {
+    name: "OpenFeature",
+    added: "2026-10-29",
+    description:
+      "Vendor-neutral feature flag evaluation API with provider and hook contracts",
+    website: "https://openfeature.dev",
+    type: "library",
+  },
+  {
     name: "OpenTelemetry Collector",
     added: "2026-09-12",
     description:

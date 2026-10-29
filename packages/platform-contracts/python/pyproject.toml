@@ -1,0 +1,38 @@
+[project]
+name = "platform-feature-flag-conformance"
+version = "0.1.0"
+description = "Python conformance proof for the platform feature-flag contract"
+requires-python = "==3.12.*"
+dependencies = [
+    "openfeature-provider-posthog==0.1.134",
+    "openfeature-sdk==0.10.0",
+    "posthog==7.80.3",
+]
+
+[dependency-groups]
+dev = [
+    "mypy==2.4.1",
+    "pytest==9.2.0",
+    "ruff==0.17.3",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "B", "E", "F", "I", "N", "RUF", "S", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S106"]

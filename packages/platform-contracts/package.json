@@ -5,6 +5,7 @@
   "description": "Versioned source contracts for the personal engineering platform",
   "type": "module",
   "exports": {
+    "./feature-flags": "./src/feature-flags.ts",
     "./nix-flake": "./src/nix-flake.ts",
     "./opentelemetry": "./src/opentelemetry.ts",
     "./platform-manifest": "./src/platform-manifest.ts",
@@ -20,10 +21,17 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@openfeature/server-sdk": "1.23.0",
+    "@openfeature/web-sdk": "1.10.0",
+    "@posthog/openfeature-node-provider": "0.1.3",
+    "@posthog/openfeature-web-provider": "0.1.1",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
+    "posthog-js": "1.442.1",
+    "posthog-node": "5.60.1",
     "typescript": "^5",
     "vitest": "^5.0.0",
+    "wrangler": "^4",
     "yaml": "2.9.1"
   }
 }
