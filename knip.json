@@ -83,6 +83,7 @@
       "ignoreDependencies": ["@stoplight/spectral-owasp-ruleset"]
     },
     "workers/recipe-ingest": {
+      "entry": ["vitest.integration.config.ts"],
       "ignoreDependencies": ["cloudflare"]
     },
     "workers/finance-tax-monitor": {
