@@ -2,7 +2,7 @@
 title: "Work Graph"
 description: "A public source of truth for outcomes, dependencies, evidence, leases, and the human decisions that keep work moving"
 date: "2026-09-04"
-updated: "2026-10-25"
+updated: "2026-10-29"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
@@ -10,6 +10,7 @@ tech_stack:
   - "Cloudflare Queues"
   - "Drizzle"
   - "DuckDB"
+  - "dbt"
   - "GitHub"
   - "Hono"
   - "Hyperdrive"
@@ -464,11 +465,13 @@ latency, private logs, and detailed cost data should flow to the data lake. The
 Work Graph can keep the evidence and summary needed to govern work without
 becoming an analytics warehouse.
 
-[ADR 010](/projects/work-graph/adrs/010-private-lake-analytics) chooses scheduled,
-bounded incremental export to private R2 storage, versioned Parquet datasets,
-and DuckDB analytics. Reports read the exported datasets. PostgreSQL remains
-the coordination store, with analytics reads limited to extraction rather than
-repeated analytical replay.
+[ADR 011](/projects/work-graph/adrs/011-dbt-lakehouse-marts) chooses scheduled,
+bounded capture of privacy-safe ticket and event records into private R2. dbt
+uses DuckDB to transform those raw captures into canonical Parquet facts and
+versioned lakehouse marts. DuckDB reports read the marts without PostgreSQL
+access. Verified canonical facts survive terminal-ticket pruning, while
+private operational fields remain subject to the database-backup recovery
+window rather than entering a permanent analytics archive.
 
 # Market test
 
