@@ -44,7 +44,6 @@ export const sourceSchema = z.object({
 
 const provenanceSchema = z.object({
   sourceIds: z.array(z.string().min(1)).min(1),
-  reviewedBy: z.string().min(1),
   reviewedAt: isoDateSchema,
   reviewNotes: z.string().min(1),
 });

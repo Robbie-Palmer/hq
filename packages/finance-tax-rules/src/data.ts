@@ -3,7 +3,6 @@ import type { RuleDataset } from "./schema";
 const gbp = (amount: number) => amount * 100;
 const review = (sourceIds: string[], reviewNotes: string) => ({
   sourceIds,
-  reviewedBy: "codex:finance-tax-historical-rule-data",
   reviewedAt: "2026-10-01",
   reviewNotes,
 });
