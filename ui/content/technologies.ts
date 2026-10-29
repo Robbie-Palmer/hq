@@ -1155,6 +1155,21 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     added: "2026-02-28",
     description:
       "Rust parser and scaling engine for the Cooklang recipe format, with WASM/TypeScript bindings for in-browser use",
+    overview: `## Cooklang syntax
+
+Cooklang keeps ingredients, cookware, timers, and quantities inline with each instruction. The recipe stays readable as plain text while \`cooklang-rs\` turns the annotations into structured data for scaling, shopping lists, and cooking timers.
+
+A small tomato pasta recipe shows the core syntax:
+
+\`\`\`cooklang
+Bring @water{2%l} to a boil in a #large pot{}.
+Add @spaghetti{200%g} and cook for ~pasta{10%minutes}.
+Warm @olive oil{2%tbsp} in a #frying pan{}.
+Stir in @garlic{2%cloves} and @tomatoes{400%g}, then simmer for ~sauce{8%minutes}.
+Toss with @salt{} and @black pepper{} to taste.
+\`\`\`
+
+Ingredients start with \`@\`, cookware with \`#\`, and timers with \`~\`. Braces hold quantities and units when the recipe needs them.`,
     website: "https://github.com/cooklang/cooklang-rs",
     type: "library",
   },
