@@ -1,0 +1,54 @@
+---
+title: "ADR 000: Domain, persistence, and UI ownership"
+date: "2026-10-29"
+status: "Accepted"
+---
+
+## Context
+
+The wedding planner has one browser application, but its code was split across shared component and
+library directories. Domain rules already existed in `wedding-planner-domain`, while saved plans
+could be parsed in the React editor, browser repository, or plan codec. That made ownership hard to
+enforce and gave migrations more than one entry point.
+
+[Personal Engineering Platform ADR 042](/projects/personal-engineering-platform/adrs/042-project-owned-ui-in-the-shared-app)
+defines the repository convention for product UI hosted by the shared Next.js application. The
+wedding planner also needs to keep existing browser storage and JSON backups compatible.
+
+## Decision
+
+The canonical model and business rules belong to `packages/wedding-planner-domain`. The package
+defines `WeddingPlan`, commands, calculations, and the `WeddingPlanRepository` port. It must not
+depend on React, Next.js routes, browser storage, or project UI code.
+
+The hosted product belongs to `ui/app/_projects/wedding-planner`. Public route files under
+`ui/app/wedding-planner` only mount project-owned components. React components handle interaction
+and presentation. They call wedding-owned application functions and interfaces instead of reading
+saved plan or guest session storage directly. The application layer may use shared UI-host utilities
+and the wedding domain package, but it must not import another project's private `_projects` files.
+
+`application/plan-codec.ts` is the only boundary that parses serialized private plans. It accepts
+current backups and the supported legacy formats, runs their migrations, and returns the canonical
+`WeddingPlan`. The browser repository uses that codec for current and legacy storage keys. The
+editor's `WeddingPlanDraft` is a transient projection and is never a second persisted model.
+
+Source-scanning tests enforce these import rules and keep browser persistence and saved-plan parsing
+out of React components.
+
+## Alternatives
+
+Keeping wedding files in shared `components` and `lib` directories would avoid moving imports, but
+directory ownership would remain implicit and cross-project imports would be difficult to detect.
+
+Making the editor draft the persisted model would remove a projection step. It would also preserve
+UI concerns as a second long-lived schema and make future UI changes part of the backup contract.
+
+## Consequences
+
+Dependencies point from routes and components into the wedding application layer and domain package.
+Persistence implements wedding-owned interfaces at the edge. Existing v1 storage keys and exported
+backups still migrate to version 2 through one codec.
+
+The editor projection remains necessary, so changes to it need round-trip tests against
+`WeddingPlan`. New persistence adapters must implement the domain port and use the codec rather than
+adding another parser.

@@ -1,4 +1,4 @@
-import { AccommodationEditor } from "@/components/wedding-planner/accommodation-editor";
+import { AccommodationEditor } from "@/app/_projects/wedding-planner/components/accommodation-editor";
 
 export default function WeddingPlannerPage() {
   return <AccommodationEditor />;
