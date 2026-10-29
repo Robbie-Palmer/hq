@@ -1,0 +1,100 @@
+---
+title: "ADR 044: Compile selected Terraform provider roots"
+date: "2026-10-29"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 003](/projects/personal-engineering-platform/adrs/003-terraform) adopts
+Terraform for infrastructure provisioning. [ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+defines the resolved project blueprint, and [ADR 028](/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding)
+selects Copier for deterministic project generation.
+
+The first project infrastructure module exposed every supported provider from
+one aggregate module. Terraform discovers provider requirements while loading
+the configuration, before resource `count` and `for_each` expressions can
+remove unselected resources. A project that selected Cloudflare and Neon still
+needed the other aggregate providers to initialize and could be asked for
+credentials it did not use.
+
+Maintaining one root module for each provider subset would avoid those
+credentials, but the number of non-empty subsets is `2^n - 1`. Six providers
+would require 63 compositions. Adding another capability would change many
+compositions even though its implementation exists once.
+
+## Decision
+
+Compile each new project's application Terraform root from its resolved
+blueprint. Copier writes a static `generated-project.tf` into the project's
+sole `terraform-root` component. The generated file contains only the provider
+requirements, provider configurations, variables, capability module calls,
+and outputs selected by accepted blueprint values.
+
+Each provider or capability contributes one template fragment. The compiler
+combines fragments; the repository will not maintain provider-subset modules.
+Tests render representative single-provider, multi-provider, policy-only, and
+no-root blueprints. They run `terraform validate`, inspect the rendered
+provider graph, and use mock providers for the selected composition.
+
+Copier owns the generated root. Projects must not edit it by hand. A platform
+selection may enter the provider graph only when its exact accepted value maps
+to that provider. A policy slot on its own is not enough.
+
+The aggregate `v1` module remains a compatibility boundary for existing
+state. Moving an existing project to a compiled root requires reviewed
+`moved` blocks or state moves and a no-change plan before the old module call
+is removed. Provider configuration must remain available until resources have
+left the old addresses.
+
+This choice does not decide the Terraform executor or state backend. An
+OpenTofu and R2 migration can proceed separately. OpenTofu also places provider
+configuration in the root module, so changing executors does not remove the
+need to compile the selected root.
+
+## Alternatives
+
+**Provider-subset modules.** Static subsets work for a small fixed set, but
+their number grows exponentially and duplicates composition tests and
+migrations. Rejected.
+
+**OpenTofu.** OpenTofu is a credible replacement executor. Its [provider
+configuration model](https://opentofu.org/docs/v1.11/language/providers/configuration/)
+still assigns provider configurations to the root module. Validate the current
+HCL and provider availability during that migration; keep it independent from
+provider selection.
+
+**Terraform Stacks.** Stacks make provider configurations explicit at the
+component level, but the [component configuration still declares required
+providers at the top level](https://developer.hashicorp.com/terraform/language/stacks/component/declare-providers).
+Adopting Stacks would also change deployment and state operations. It does not
+remove the blueprint-to-provider mapping, so it is too large a change for this
+problem.
+
+**Terragrunt generation.** Terragrunt can [generate Terraform configuration](https://docs.terragrunt.com/reference/hcl/blocks/#generate),
+but the repository already has a versioned profile compiler and Copier update
+workflow. Adding a second generator would split ownership of the same root.
+
+**Programmatic infrastructure as code.** Pulumi supports provider programs in
+[general-purpose languages](https://www.pulumi.com/docs/iac/concepts/), which
+would make conditional composition ordinary program logic. It would also
+replace the current modules, state workflow, plans, and operating knowledge.
+CDK for Terraform would have retained Terraform state, but HashiCorp
+[deprecated it in December 2025](https://developer.hashicorp.com/terraform/cdktf/cli-reference/commands).
+Neither migration is justified by this composition problem alone.
+
+## Consequences
+
+New projects initialize only the providers and credentials they selected.
+Adding a provider adds one compiler fragment and its focused tests instead of
+new subset compositions.
+
+The project generator now owns deployable HCL, not only repository layout.
+Compiler changes need Terraform formatting, initialization, validation, and
+provider-isolation tests. Selection mappings must track accepted platform
+values exactly.
+
+Removing a selected capability requires a state migration. The old provider
+remains necessary until Terraform has destroyed or moved its resources.
+Existing aggregate roots therefore need a deliberate migration outside
+routine Copier reconciliation.

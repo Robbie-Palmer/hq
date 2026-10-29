@@ -45,28 +45,18 @@ adding providers, state, or credentials to projects that do not select them.
 
 ## Compiled provider graph
 
-Terraform decides its provider graph before it evaluates `count` or
-`for_each`. The resolved blueprint therefore does not select providers inside
-the aggregate `v1` module. Copier compiles the blueprint first and writes a
-static `generated-project.tf` into the project's `terraform-root` component.
-That file declares only selected provider requirements, explicit provider
-configurations, capability variables, and capability module calls.
-
-Capability modules remain additive: supporting a provider adds its template
-fragment once. Do not add provider-subset compositions such as
-`cloudflare-neon`; six providers would already create 63 non-empty subsets.
-The provider-isolation test renders a Cloudflare-and-Neon blueprint, checks the
-resulting provider graph, and runs it with Terraform mock providers. GitHub,
-Doppler, TFE, and PostHog are absent from the rendered configuration and need
-no credentials.
+New projects follow [ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
+Copier writes `generated-project.tf` into the project's `terraform-root`
+component. The file is Copier-owned and contains only the selected application
+providers and capability modules. Do not edit it or add provider-subset
+composition modules.
 
 The aggregate `v1` source remains a compatibility surface for existing state.
 Do not replace an existing aggregate module call with a compiled root during a
 routine template update. New projects use compiled roots. A deliberate legacy
 migration must keep the old provider configuration available for the destroy
 or state-move phase, move each capability address under review, and reach a
-no-change plan before removing the aggregate call. The generated file is
-Copier-owned and must not be edited by hand.
+no-change plan before removing the aggregate call.
 
 ## State boundaries
 

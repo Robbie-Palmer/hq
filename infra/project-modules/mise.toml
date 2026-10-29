@@ -2,7 +2,7 @@
 description = "Format the project infrastructure modules and executable examples"
 run = [
   "terraform -chdir=v1 fmt -recursive .",
-  "terraform -chdir=examples/minimal-bootstrap/application fmt .",
+  "terraform -chdir=examples/minimal-bootstrap fmt -recursive .",
   "terraform -chdir=tests/provider-isolation fmt .",
 ]
 
@@ -10,115 +10,21 @@ run = [
 description = "Check project infrastructure module and executable example formatting"
 run = [
   "terraform -chdir=v1 fmt -check -recursive .",
-  "terraform -chdir=examples/minimal-bootstrap/application fmt -check .",
+  "terraform -chdir=examples/minimal-bootstrap fmt -check -recursive .",
   "terraform -chdir=tests/provider-isolation fmt -check .",
 ]
 
 [tasks.validate]
 description = "Validate the project infrastructure composition without credentials"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-terraform-validate.XXXXXX")"
-trap 'rm -rf "$validate_data_dir"' EXIT
-export TF_DATA_DIR="$validate_data_dir"
-terraform -chdir=v1 init -backend=false -input=false > /dev/null
-terraform -chdir=v1 validate
-"""
+run = "bash scripts/validate.sh"
 
 [tasks.test]
 description = "Test capability composition with mocked providers"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-terraform-test.XXXXXX")"
-trap 'rm -rf "$test_data_dir"' EXIT
-export TF_DATA_DIR="$test_data_dir"
-terraform -chdir=v1 init -backend=false -input=false > /dev/null
-terraform -chdir=v1 test
-"""
+run = "bash scripts/test.sh"
 
 [tasks."test:provider-isolation"]
 description = "Render and test a Cloudflare-and-Neon root without unrelated providers"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-repository_root="$(git rev-parse --show-toplevel)"
-test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/project-modules-provider-isolation.XXXXXX")"
-trap 'rm -rf "$test_data_dir"' EXIT
-
-render_fixture() {
-  local fixture="$1"
-  local root_name="$2"
-  local render_dir="$test_data_dir/$fixture"
-  mkdir -p "$render_dir/infra"
-  ln -s "$repository_root/infra/project-modules" "$render_dir/infra/project-modules"
-  copier copy \
-    --quiet \
-    --defaults \
-    --skip-tasks \
-    --data-file "$repository_root/infra/project-modules/tests/provider-isolation/$fixture" \
-    "$repository_root" \
-    "$render_dir"
-  local rendered_root="$render_dir/infra/$root_name"
-  terraform -chdir="$rendered_root" fmt -check
-  export TF_DATA_DIR="$test_data_dir/terraform-data-$root_name"
-  terraform -chdir="$rendered_root" init -backend=false -input=false > /dev/null
-  terraform -chdir="$rendered_root" validate > /dev/null
-}
-
-render_fixture answers-cloudflare.yml cloudflare-only
-render_fixture answers-neon.yml neon-only
-render_fixture answers-all.yml all-capabilities
-render_fixture answers-policy-only.yml policy-only
-
-policy_only_root="$test_data_dir/answers-policy-only.yml/infra/policy-only/generated-project.tf"
-for forbidden in cloudflare/cloudflare kislerdm/neon; do
-  if grep -Fq "$forbidden" "$policy_only_root"; then
-    echo "Policy-only selections unexpectedly enabled provider $forbidden" >&2
-    exit 1
-  fi
-done
-
-no_root_dir="$test_data_dir/no-terraform-root"
-copier copy \
-  --quiet \
-  --defaults \
-  --skip-tasks \
-  --data-file "$repository_root/infra/project-modules/tests/provider-isolation/answers-no-root.yml" \
-  "$repository_root" \
-  "$no_root_dir"
-if find "$no_root_dir" -name generated-project.tf -print -quit | grep -q .; then
-  echo "Template generated Terraform for a blueprint without a terraform-root component" >&2
-  exit 1
-fi
-
-render_dir="$test_data_dir/provider-isolation"
-mkdir -p "$render_dir/infra"
-ln -s "$repository_root/infra/project-modules" "$render_dir/infra/project-modules"
-copier copy \
-  --quiet \
-  --defaults \
-  --skip-tasks \
-  --data-file "$repository_root/infra/project-modules/tests/provider-isolation/answers.yml" \
-  "$repository_root" \
-  "$render_dir"
-rendered_root="$render_dir/infra/provider-isolation"
-cp tests/provider-isolation/.terraform.lock.hcl "$rendered_root/.terraform.lock.hcl"
-cp tests/provider-isolation/provider-isolation.tftest.hcl "$rendered_root/provider-isolation.tftest.hcl"
-
-terraform -chdir="$rendered_root" fmt -check
-export TF_DATA_DIR="$test_data_dir/terraform-data"
-terraform -chdir="$rendered_root" init -backend=false -input=false -lockfile=readonly > /dev/null
-providers="$(terraform -chdir="$rendered_root" providers)"
-for forbidden in DopplerHQ/doppler integrations/github PostHog/posthog hashicorp/tfe; do
-  if grep -Fq "$forbidden" <<<"$providers"; then
-    echo "Generated provider graph unexpectedly contains $forbidden" >&2
-    exit 1
-  fi
-done
-terraform -chdir="$rendered_root" test
-"""
+run = "bash scripts/test-provider-isolation.sh"
 
 [tasks."minimal-bootstrap:init"]
 description = "Initialize the disposable managed-project preview state"
@@ -126,15 +32,7 @@ run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview 
 
 [tasks."minimal-bootstrap:validate"]
 description = "Validate the disposable managed-project preview without its remote backend"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/minimal-bootstrap-terraform-validate.XXXXXX")"
-trap 'rm -rf "$validate_data_dir"' EXIT
-export TF_DATA_DIR="$validate_data_dir"
-terraform -chdir=examples/minimal-bootstrap/application init -backend=false -input=false > /dev/null
-terraform -chdir=examples/minimal-bootstrap/application validate
-"""
+run = "bash examples/minimal-bootstrap/scripts/validate.sh"
 
 [tasks."minimal-bootstrap:plan"]
 description = "Create a saved plan for the disposable managed-project preview"
@@ -154,71 +52,20 @@ run = "bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh apply te
 [tasks."minimal-bootstrap:deploy"]
 description = "Deploy the disposable static canary to its isolated Pages preview"
 depends = ["//ui:install"]
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-repository_root="$(git rev-parse --show-toplevel)"
-bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh apply \
-  pnpm --dir "$repository_root/ui" exec wrangler pages deploy \
-  "$repository_root/infra/project-modules/examples/minimal-bootstrap/site" \
-  --project-name platform-bootstrap-canary \
-  --branch bootstrap-canary
-"""
+run = "bash examples/minimal-bootstrap/scripts/deploy.sh"
 
 [tasks."minimal-bootstrap:smoke:database"]
 description = "Prove isolated Neon preview reads and writes without printing credentials"
 depends = ["minimal-bootstrap:init", "//packages/drizzle-postgres:install"]
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-database_url="$(bash examples/minimal-bootstrap/scripts/doppler-terraform-env.sh preview terraform -chdir=examples/minimal-bootstrap/application output -raw preview_database_connection_uri)"
-export MINIMAL_BOOTSTRAP_DATABASE_URL="$database_url"
-pnpm exec tsx examples/minimal-bootstrap/scripts/smoke-database.ts
-unset MINIMAL_BOOTSTRAP_DATABASE_URL
-"""
+run = "bash examples/minimal-bootstrap/scripts/smoke-database.sh"
 
 [tasks."minimal-bootstrap:smoke:preview"]
 description = "Verify the canary domain and immutable deployment URL are protected by Access"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-repository_root="$(git rev-parse --show-toplevel)"
-wrapper="examples/minimal-bootstrap/scripts/doppler-terraform-env.sh"
-deployment_url="$(
-  bash "$wrapper" apply pnpm --dir "$repository_root/ui" exec wrangler pages deployment list \
-    --project-name platform-bootstrap-canary \
-    --environment production \
-    --json \
-    | jq -er 'first | .Deployment'
-)"
-
-for url in \
-  "https://bootstrap-canary.robbiepalmer.me/" \
-  "https://platform-bootstrap-canary.pages.dev/" \
-  "$deployment_url"; do
-  status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$url")"
-  if [[ "$status" != "302" && "$status" != "403" ]]; then
-    echo "Expected Cloudflare Access to reject $url, got HTTP $status" >&2
-    exit 1
-  fi
-done
-echo "Cloudflare Access rejected the custom domain, production hostname, and immutable deployment URL."
-"""
+run = "bash examples/minimal-bootstrap/scripts/smoke-preview.sh"
 
 [tasks."minimal-bootstrap:smoke:worker"]
 description = "Verify the disposable Worker returns only its synthetic health payload"
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-response="$(curl --fail --silent --show-error https://bootstrap-canary-worker.robbiepalmer.me/)"
-jq -e '
-  keys == ["dataClassification", "environment", "project"] and
-  .project == "platform-bootstrap-canary" and
-  .environment == "preview" and
-  .dataClassification == "synthetic-only"
-' <<<"$response" >/dev/null
-echo "Cloudflare Worker synthetic health smoke passed."
-"""
+run = "bash examples/minimal-bootstrap/scripts/smoke-worker.sh"
 
 [tasks."minimal-bootstrap:cleanup:plan"]
 description = "Create a saved plan that removes the disposable managed-project preview"
@@ -233,18 +80,7 @@ run = "terraform -chdir=examples/minimal-bootstrap/application show .cleanup-pla
 [tasks."minimal-bootstrap:cleanup:apply"]
 description = "Apply the reviewed disposable managed-project preview cleanup"
 depends = ["minimal-bootstrap:init"]
-run = """
-#!/usr/bin/env bash
-set -euo pipefail
-wrapper="examples/minimal-bootstrap/scripts/doppler-terraform-env.sh"
-application="examples/minimal-bootstrap/application"
-bash "$wrapper" apply terraform -chdir="$application" apply -input=false .cleanup-planfile
-if bash "$wrapper" apply terraform -chdir="$application" state list \
-  | grep -Fxq 'module.preview.terraform_data.profile_guard'; then
-  bash "$wrapper" apply terraform -chdir="$application" state rm \
-    'module.preview.terraform_data.profile_guard'
-fi
-"""
+run = "bash examples/minimal-bootstrap/scripts/cleanup-apply.sh"
 
 [tasks.lint]
 description = "Check and test the versioned project infrastructure modules"

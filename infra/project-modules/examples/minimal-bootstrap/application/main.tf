@@ -7,7 +7,7 @@ locals {
 
 module "cloudflare" {
   count     = var.enabled ? 1 : 0
-  source    = "../../../v1/modules/disposable-cloudflare"
+  source    = "../modules/cloudflare"
   providers = { cloudflare = cloudflare }
 
   cloudflare_pages = {
@@ -55,7 +55,7 @@ module "cloudflare" {
 
 module "neon" {
   count     = var.enabled ? 1 : 0
-  source    = "../../../v1/modules/disposable-neon"
+  source    = "../modules/neon"
   providers = { neon = neon }
 
   preview_enabled = true

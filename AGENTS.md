@@ -17,6 +17,10 @@ NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH=placeholder pnpm build
 T3 Code reads the checked-in `t3.json`. Its synchronous new-worktree setup script trusts this
 repository's `.mise.toml` before the agent starts, so mise tasks work in each generated worktree.
 
+Keep mise task definitions declarative. A task that needs a multi-line shell program must call a
+checked-in script owned by that project; do not embed long Bash bodies in `.mise.toml` or
+`mise.toml`. Short single-command tasks may remain inline.
+
 After changing frontend code, run `mise //ui:lint`. The `@shadcn/lint` policy lives in
 `ui/.oxlintrc.json`; keep recipe-specific color and class guidance scoped to the recipe overrides.
 

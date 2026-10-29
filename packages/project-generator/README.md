@@ -128,11 +128,8 @@ profiles.
 
 The adapter records the complete resolved blueprint as a non-secret Copier
 answer. When the blueprint contains one `terraform-root` component, the
-template compiles its application capability selections into a static
-`generated-project.tf`. Only selected provider requirements, configurations,
-and module calls enter that root; Terraform does not receive the unselected
-provider graph or its credentials. Provider support is added as an independent
-template fragment rather than as combinations of providers.
+template compiles its application capability selections into the static root
+defined by [Personal Engineering Platform ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
 
 Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace
