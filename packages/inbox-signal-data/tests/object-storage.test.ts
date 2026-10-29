@@ -94,6 +94,12 @@ describe("encrypted object layout", () => {
     expect(() =>
       validateEnvelopeMetadata({
         ...metadata(),
+        accountId: { mailbox: "person@example.com" },
+      }),
+    ).toThrow("accountId must be an opaque UUID");
+    expect(() =>
+      validateEnvelopeMetadata({
+        ...metadata(),
         nonceBase64: "too-short",
       }),
     ).toThrow("96-bit AES-GCM nonce");
@@ -103,6 +109,39 @@ describe("encrypted object layout", () => {
         ciphertextAlgorithm: "AES-128-GCM",
       }),
     ).toThrow("ciphertextAlgorithm must be AES-256-GCM");
+  });
+
+  it("rejects malformed envelope identity fields", () => {
+    expect(() => validateEnvelopeMetadata(null)).toThrow(
+      "envelope metadata must be an object",
+    );
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), objectId: {} }),
+    ).toThrow("objectId must be an opaque UUID");
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), objectVersion: "3" }),
+    ).toThrow("objectVersion must be a positive integer");
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), envelopeVersion: "1" }),
+    ).toThrow("envelopeVersion must be a positive integer");
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), contentClass: "plaintext" }),
+    ).toThrow("contentClass is not supported");
+  });
+
+  it("rejects unsupported or incomplete encryption metadata", () => {
+    expect(() =>
+      validateEnvelopeMetadata({
+        ...metadata(),
+        keyWrapAlgorithm: "RSA-OAEP",
+      }),
+    ).toThrow("keyWrapAlgorithm must be AES-256-KW");
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), keyVersion: " " }),
+    ).toThrow("keyVersion must not be blank");
+    expect(() =>
+      validateEnvelopeMetadata({ ...metadata(), wrappedDataKeyBase64: "%" }),
+    ).toThrow("wrappedDataKeyBase64 must contain valid base64");
   });
 });
 

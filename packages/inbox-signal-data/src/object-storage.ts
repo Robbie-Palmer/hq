@@ -57,7 +57,7 @@ export const lifecycleRules = [
 
 export interface EncryptedObjectBucket {
   delete(key: string): Promise<void>;
-  get(key: string): Promise<unknown | null>;
+  get(key: string): Promise<object | null>;
   list(options: {
     prefix: string;
     cursor?: string;
@@ -83,7 +83,7 @@ function assertPositiveInteger(name: string, value: number): void {
 function isContentClass(value: unknown): value is EncryptedContentClass {
   return (
     typeof value === "string" &&
-    encryptedContentClasses.some((candidate) => candidate === value)
+    encryptedContentClasses.includes(value as EncryptedContentClass)
   );
 }
 
@@ -146,10 +146,22 @@ export function validateEnvelopeMetadata(
     throw new Error("envelope metadata must be an object");
   }
   const metadata = value as Record<string, unknown>;
-  assertUuid("accountId", String(metadata.accountId ?? ""));
-  assertUuid("objectId", String(metadata.objectId ?? ""));
-  assertPositiveInteger("objectVersion", Number(metadata.objectVersion));
-  assertPositiveInteger("envelopeVersion", Number(metadata.envelopeVersion));
+  if (typeof metadata.accountId !== "string") {
+    throw new Error("accountId must be an opaque UUID");
+  }
+  if (typeof metadata.objectId !== "string") {
+    throw new Error("objectId must be an opaque UUID");
+  }
+  if (typeof metadata.objectVersion !== "number") {
+    throw new Error("objectVersion must be a positive integer");
+  }
+  if (typeof metadata.envelopeVersion !== "number") {
+    throw new Error("envelopeVersion must be a positive integer");
+  }
+  assertUuid("accountId", metadata.accountId);
+  assertUuid("objectId", metadata.objectId);
+  assertPositiveInteger("objectVersion", metadata.objectVersion);
+  assertPositiveInteger("envelopeVersion", metadata.envelopeVersion);
   if (!isContentClass(metadata.contentClass)) {
     throw new Error("contentClass is not supported");
   }
