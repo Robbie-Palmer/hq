@@ -10,7 +10,7 @@ As the technical scope of my projects grows, I need to manage multiple related c
 Splitting these into separate repositories would introduce significant friction:
 
 * **Dependency Drift**: Keeping shared tooling (like `mise`) and linting configurations in sync across multiple repos is painful.
-* **Complexity**: It requires setting up and maintaining an artifact store (npm/pypi packages) to share code, which adds unnecessary overhead, [Less Is More](/projects?tab=philosophy#less-is-more), for a personal project where velocity is paramount.
+* **Complexity**: It requires setting up and maintaining an artifact store (npm/pypi packages) to share code, which adds unnecessary overhead, [Less Is More](/building-philosophy#less-is-more), for a personal project where velocity is paramount.
 * **Context Switching**: "Agentic" development works best when the AI has the full context of the system available in one place.
 
 # Decision
@@ -27,7 +27,7 @@ This centralizes all code, frontend, infrastructure, and tooling, into a single 
 * **Shared Tooling & Standards**: I can enforce common linting, formatting, and `mise` configurations at the root level.
 * **Reusable Workflows**: CI/CD workflows and secrets can be defined once and reused across different projects within the repo.
 * **Velocity**: Avoids the complexity of versioning and publishing internal packages. I can change a shared utility and update its consumers in a single atomic commit.
-* **Agentic Optimization**: AI agents can inspect the entire codebase to understand cross-component dependencies and impact, leading to better code generation and debugging. This supports [LLM-Optimized](/projects?tab=philosophy#llm-optimized) development.
+* **Agentic Optimization**: AI agents can inspect the entire codebase to understand cross-component dependencies and impact, leading to better code generation and debugging. This supports [LLM-Optimized](/building-philosophy#llm-optimized) development.
 
 ### Cons
 

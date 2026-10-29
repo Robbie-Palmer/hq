@@ -56,6 +56,7 @@ import {
   mdxToAgentMarkdown,
   renderPage,
 } from "@/lib/content/agent-markdown";
+import { buildingPhilosophyPage } from "@/lib/content/building-philosophy";
 import {
   compareUtcInstants,
   isEffectiveAt,
@@ -192,7 +193,6 @@ function projectFacts(project: ProjectWithADRs): [string, string][] {
 function buildProjectsIndexPage(
   projects: ProjectWithADRs[],
   initiatives: InitiativeWithProjects[],
-  philosophyMdx: string,
 ): GeneratedPage {
   const sections = [
     "## Initiatives",
@@ -217,15 +217,27 @@ function buildProjectsIndexPage(
         "",
       ];
     }),
-    convert(philosophyMdx).trim(),
+    "## Building Philosophy",
+    "",
+    `Read the [Building Philosophy](${markdownUrl(buildingPhilosophyPage.path)}) that guides these projects and decisions.`,
   ];
   return {
     htmlPath: "/projects",
     filePath: "projects.md",
     title: "Projects",
     description:
-      "Technical projects with architecture decision records (ADRs), plus the building philosophy that guides them. The building philosophy is included in full at the end of this page.",
+      "Technical projects with architecture decision records (ADRs), plus a link to the building philosophy that guides them.",
     content: sections.join("\n"),
+  };
+}
+
+function buildBuildingPhilosophyPage(philosophyMdx: string): GeneratedPage {
+  return {
+    htmlPath: buildingPhilosophyPage.path,
+    filePath: buildingPhilosophyPage.markdownPath.slice(1),
+    title: buildingPhilosophyPage.title,
+    description: buildingPhilosophyPage.description,
+    content: convert(philosophyMdx).trim(),
   };
 }
 
@@ -1108,7 +1120,8 @@ function buildHomePage(): GeneratedPage {
       "## Sections",
       "",
       `- [Experience](${markdownUrl("/experience")}): career history, roles, and technologies`,
-      `- [Projects](${markdownUrl("/projects")}): projects, ADRs, and building philosophy`,
+      `- [Projects](${markdownUrl("/projects")}): projects and architecture decision records (ADRs)`,
+      `- [Building philosophy](${markdownUrl(buildingPhilosophyPage.path)}): engineering principles that guide architectural decisions and technology choices`,
       `- [Ideas](${markdownUrl("/ideas")}): recurring laws, methods, and mental models`,
       `- [Blog](${markdownUrl("/blog")}): ${siteConfig.blog.description}`,
       `- [Recipes](${markdownUrl("/recipes")}): a digital recipe book`,
@@ -1144,7 +1157,8 @@ function buildLlmsTxt(
     "",
     `- [About](${markdownUrl("/")}): site overview and contact links`,
     `- [Experience](${markdownUrl("/experience")}): career history, roles, responsibilities, and technologies`,
-    `- [Projects](${markdownUrl("/projects")}): all projects plus the building philosophy that guides them`,
+    `- [Projects](${markdownUrl("/projects")}): all projects and their architecture decision records (ADRs)`,
+    `- [Building philosophy](${markdownUrl(buildingPhilosophyPage.path)}): ${buildingPhilosophyPage.description}`,
     `- [Component catalog](${siteConfig.url}/catalog.json): derived project, technology, decision, platform-policy, and component records`,
     `- [Ideas](${markdownUrl("/ideas")}): recurring laws, methods, and mental models`,
     `- [Satellite swarm](${markdownUrl("/satellite-swarm")}): a deterministic C++ WebAssembly mission on a CesiumJS globe`,
@@ -1263,6 +1277,7 @@ function buildRoutesJson(): string {
         "/projects/*",
         "/blog",
         "/blog/*",
+        buildingPhilosophyPage.path,
         "/recipes",
         "/recipes/*",
         "/satellite-swarm",
@@ -1350,7 +1365,8 @@ function main(): void {
   const pages: GeneratedPage[] = [
     buildHomePage(),
     buildExperiencePage(),
-    buildProjectsIndexPage(projects, initiatives, philosophy),
+    buildProjectsIndexPage(projects, initiatives),
+    buildBuildingPhilosophyPage(philosophy),
     buildIdeasIndexPage(ideas),
     buildProductDecisionIndexPage(productDecisions),
     ...productDecisionPages,
