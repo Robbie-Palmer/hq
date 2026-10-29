@@ -1,0 +1,42 @@
+[tasks.install]
+description = "Install Inbox Signal data dependencies"
+run = "pnpm install --frozen-lockfile --filter inbox-signal-data..."
+
+[tasks.typecheck]
+description = "Typecheck Inbox Signal data contracts"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test Inbox Signal object storage contracts"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test Inbox Signal data contracts with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."test:integration"]
+description = "Test Inbox Signal migrations against disposable PostgreSQL"
+depends = ["install"]
+run = "pnpm test:integration"
+
+[tasks."db:generate"]
+description = "Generate Inbox Signal PostgreSQL migrations"
+depends = ["install"]
+run = "pnpm db:generate"
+
+[tasks."db:check"]
+description = "Validate Inbox Signal migration names, history, and schema snapshot"
+depends = ["install"]
+run = "pnpm db:check"
+
+[tasks."db:migrate"]
+description = "Apply committed Inbox Signal migrations to DATABASE_URL"
+depends = ["install"]
+run = "pnpm db:migrate"
+
+[tasks.check]
+description = "Check Inbox Signal data contracts"
+depends = ["typecheck", "test", "test:integration", "db:check"]
