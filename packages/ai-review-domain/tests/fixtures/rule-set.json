@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "ruleSetVersion": "frozen-cohort-rules-v1",
+  "rules": [
+    {
+      "ruleId": "global-focus",
+      "key": "focus",
+      "instruction": "Review concrete defects.",
+      "scope": { "kind": "global" },
+      "source": {
+        "kind": "builtin",
+        "reference": "fixture/global",
+        "revision": "v1"
+      }
+    },
+    {
+      "ruleId": "repository-focus",
+      "key": "focus",
+      "instruction": "Apply the repository review policy.",
+      "scope": { "kind": "repository", "repository": "Robbie-Palmer/hq" },
+      "source": {
+        "kind": "configuration",
+        "reference": "fixture/repository",
+        "revision": "v1"
+      }
+    },
+    {
+      "ruleId": "ui-directory-focus",
+      "key": "focus",
+      "instruction": "Review UI behavior and accessibility.",
+      "scope": { "kind": "directory", "directory": "ui" },
+      "source": {
+        "kind": "repository",
+        "reference": "ui/AGENTS.md",
+        "revision": "fixture-head"
+      }
+    },
+    {
+      "ruleId": "ui-test-verification",
+      "key": "verification",
+      "instruction": "Check that assertions cover the changed behavior.",
+      "scope": { "kind": "directory", "directory": "ui/tests" },
+      "source": {
+        "kind": "repository",
+        "reference": "ui/tests/AGENTS.md",
+        "revision": "fixture-head"
+      }
+    },
+    {
+      "ruleId": "typescript-focus",
+      "key": "focus",
+      "instruction": "Review TypeScript runtime and type boundaries.",
+      "scope": { "kind": "language", "language": "typescript" },
+      "source": {
+        "kind": "configuration",
+        "reference": "fixture/languages/typescript",
+        "revision": "v1"
+      }
+    },
+    {
+      "ruleId": "shopping-list-focus",
+      "key": "focus",
+      "instruction": "Review shopping-list quantity and state transitions.",
+      "scope": {
+        "kind": "file",
+        "path": "ui/components/recipes/shopping/shopping-list.tsx"
+      },
+      "source": {
+        "kind": "repository",
+        "reference": "ui/components/recipes/shopping/shopping-list.rules.json",
+        "revision": "fixture-head"
+      }
+    }
+  ]
+}

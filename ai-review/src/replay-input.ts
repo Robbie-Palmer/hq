@@ -194,7 +194,9 @@ export async function persistReplayInput(options: {
       fullDiff: prepared.fullDiff,
       reviewedDiff: prepared.diff ?? "",
       boundedFileContext: prepared.context ?? "",
-      repositoryGuidelines: prepared.guidelines ?? "",
+      repositoryGuidelines:
+        prepared.repositoryGuidelines ?? prepared.guidelines ?? "",
+      effectiveReviewRules: prepared.guidelines ?? "",
       reviewThreads: prepared.threads ?? "",
       priorOpenFindings: prepared.priorOpenFindings ?? [],
       affectedOpenFindings: prepared.replayFindings ?? [],
@@ -203,6 +205,7 @@ export async function persistReplayInput(options: {
       changeProfile: prepared.changeProfile,
       coverage: prepared.coverage,
       coverageManifest: prepared.coverageManifest,
+      rulePreview: prepared.rulePreview,
       paths: prepared.paths,
       omittedPaths: prepared.omitted,
       reviewedHunks: prepared.hunks,

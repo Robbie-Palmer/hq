@@ -59,6 +59,13 @@ import {
   type ReviewPathCoverage,
 } from "ai-review-domain/coverage-manifest";
 import {
+  assertReviewRulePreviewResolved,
+  productionReviewRuleSet,
+  renderReviewRulePreview,
+  resolveReviewRules,
+  type ReviewRulePreview,
+} from "ai-review-domain/rule-resolution";
+import {
   inferOriginatingAgent,
   inferPullRequestTaskType,
 } from "ai-review-domain/pull-request-metadata";
@@ -104,8 +111,10 @@ export interface PreparedReview {
   changeProfile?: ChangeProfile;
   coverage?: ReviewCoverage;
   coverageManifest?: ReviewCoverageManifest;
+  rulePreview?: ReviewRulePreview;
   pullRequest?: PullRequestMetadata;
   context?: string;
+  repositoryGuidelines?: string;
   guidelines?: string;
   threads?: string;
   replayFindings?: OpenFindingBaseline[];
@@ -832,6 +841,44 @@ async function reviewBaseline(
   );
 }
 
+async function prepareRuleContext(options: {
+  reviewer: Reviewer;
+  repository: string;
+  headSha: string;
+  selectedDiff: string;
+  selectedPaths: string[];
+}): Promise<{
+  context: string;
+  repositoryGuidelines: string;
+  guidelines: string;
+  rulePreview: ReviewRulePreview;
+}> {
+  const hasSelectedDiff = Boolean(options.selectedDiff.trim());
+  const context = hasSelectedDiff
+    ? await options.reviewer.fileContext(options.selectedPaths, options.headSha)
+    : "";
+  const guidelineDocument = hasSelectedDiff
+    ? await options.reviewer.headGuidelineDocument(options.headSha)
+    : undefined;
+  const repositoryGuidelines = guidelineDocument?.content ?? "";
+  const rulePreview = resolveReviewRules({
+    repository: options.repository,
+    paths: options.selectedPaths,
+    ruleSet: productionReviewRuleSet({
+      repository: options.repository,
+      headSha: options.headSha,
+      repositoryGuidelines,
+      repositoryGuidelineSource: guidelineDocument?.path,
+    }),
+  });
+  return {
+    context,
+    repositoryGuidelines,
+    guidelines: hasSelectedDiff ? renderReviewRulePreview(rulePreview) : "",
+    rulePreview,
+  };
+}
+
 export async function prepareReview(
   env: Env,
   params: ReviewWorkflowParams,
@@ -934,6 +981,18 @@ export async function prepareReview(
   const labels = (pr.labels ?? [])
     .map(({ name }) => name?.trim())
     .filter((name): name is string => Boolean(name));
+  const {
+    context,
+    repositoryGuidelines,
+    guidelines,
+    rulePreview,
+  } = await prepareRuleContext({
+    reviewer,
+    repository: params.repository,
+    headSha,
+    selectedDiff,
+    selectedPaths,
+  });
   const config = JSON.stringify({
     promptVersion: env.AI_REVIEW_PROMPT_VERSION,
     openRouterScouts: settings.openRouterScouts,
@@ -947,11 +1006,9 @@ export async function prepareReview(
     statefulMergerSchema,
     guardrails: guardrailPolicy(env),
     reviewSelectorVersion: DEFAULT_REVIEW_SELECTION_POLICY.version,
+    reviewRuleResolverVersion: rulePreview.resolverVersion,
+    reviewRuleSetVersion: rulePreview.ruleSetVersion,
   });
-  const context = selectedDiff.trim()
-    ? await reviewer.fileContext(selectedPaths, headSha)
-    : "";
-  const guidelines = selectedDiff.trim() ? await reviewer.headGuidelines(headSha) : "";
   const reviewContext = selectedDiff.trim()
     ? await reviewer.pullRequestReviewContext(selectedPaths)
     : { threads: "", reviewers: [] };
@@ -969,6 +1026,7 @@ export async function prepareReview(
     allHunks: rawHunks,
     coverage,
     coverageManifest,
+    rulePreview,
     changeProfile: {
       ...preliminaryProfile,
       reviewableFiles: new Set(eligibleHunks.map(({ file }) => file)).size,
@@ -994,6 +1052,7 @@ export async function prepareReview(
       reviewers: reviewContext.reviewers,
     },
     context,
+    repositoryGuidelines,
     guidelines,
     replayFindings: baseline.openFindings.filter((finding) =>
       coverage.affectedFindingIds.includes(finding.findingId),
@@ -1214,6 +1273,9 @@ export async function runScouts(
 ): Promise<ScoutRun> {
   if (!prepared.diff || !prepared.headSha) {
     throw new Error("Cannot run scouts without a prepared diff");
+  }
+  if (prepared.rulePreview) {
+    assertReviewRulePreviewResolved(prepared.rulePreview, prepared.paths);
   }
   const settings = modelSettings(env, params, "not-used-for-model-calls");
   const reviewer = new Reviewer(settings);
@@ -1503,6 +1565,9 @@ export async function mergeFindings(
   scouts: ScoutRun,
   options: MergeRunOptions = {},
 ): Promise<MergedRun> {
+  if (prepared.rulePreview) {
+    assertReviewRulePreviewResolved(prepared.rulePreview, prepared.paths);
+  }
   if (Object.keys(scouts.candidates).length === 0) {
     const findingResolutions = (prepared.replayFindings ?? []).map(
       ({ findingId }) => ({
@@ -1897,6 +1962,7 @@ export async function recordReviewTerminal(options: {
           }
         : undefined,
       coverageManifest,
+      rulePreview: prepared?.rulePreview,
       hunks: artifacts?.hunks ?? prepared?.hunks ?? [],
       candidates: artifacts?.candidates ?? {},
       findings:
