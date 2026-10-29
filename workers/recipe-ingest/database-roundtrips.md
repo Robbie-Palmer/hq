@@ -33,7 +33,7 @@ upsert with an ownership condition on conflicts.
 | Queries, including connection startup | 6 | 2 | 67% fewer | 2 |
 | Application statements | 4 | 1 | 75% fewer | 1 |
 
-The integration suite also runs the bulk upsert twice, verifies that an alias
-owned by another user does not move, and forces a foreign-key failure to prove
-that PostgreSQL rolls back the complete statement. Existing `withDb` tests
-continue to cover client cleanup after success and failure.
+The Recipe API integration suite also runs the bulk upsert twice, verifies that
+an alias owned by another user does not move, and forces a foreign-key failure
+to prove that PostgreSQL rolls back the complete statement. Existing `withDb`
+tests continue to cover client cleanup after success and failure.

@@ -10,7 +10,6 @@ on:
       - "patches/**"
       - ".github/workflows/recipe-ingest-ci.yml"
       - "workers/recipe-api/scripts/test-integration.sh"
-      - "workers/recipe-api/src/user-emails.ts"
       # Mirrored in tests/config-parity.test.ts, so drift in any copy of the
       # shared model/bucket/Hyperdrive settings fails this workflow.
       - "workers/recipe-api/wrangler.toml"
