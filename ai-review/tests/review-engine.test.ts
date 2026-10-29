@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { previewReviewRules } from "ai-review-domain/rule-resolution";
 import {
   DEFAULT_OPENROUTER_SCOUTS,
   Reviewer,
@@ -369,7 +370,9 @@ describe("stateful review engine", () => {
       omitted: [],
     });
     vi.spyOn(Reviewer.prototype, "fileContext").mockResolvedValue("");
-    vi.spyOn(Reviewer.prototype, "headGuidelines").mockResolvedValue("");
+    vi.spyOn(Reviewer.prototype, "headGuidelineDocument").mockResolvedValue(
+      undefined,
+    );
     vi.spyOn(Reviewer.prototype, "pullRequestReviewContext").mockResolvedValue({ threads: "", reviewers: [] });
 
     const automatic = await prepareReview(environment(), params);
@@ -418,7 +421,9 @@ describe("stateful review engine", () => {
       omitted: [],
     });
     vi.spyOn(Reviewer.prototype, "fileContext").mockResolvedValue("");
-    vi.spyOn(Reviewer.prototype, "headGuidelines").mockResolvedValue("");
+    vi.spyOn(Reviewer.prototype, "headGuidelineDocument").mockResolvedValue(
+      undefined,
+    );
     vi.spyOn(Reviewer.prototype, "pullRequestReviewContext").mockResolvedValue({ threads: "", reviewers: [] });
 
     const prepared = await prepareReview(environment(), params);
@@ -426,6 +431,21 @@ describe("stateful review engine", () => {
     expect(prepared.skipReason).toBeUndefined();
     expect(prepared.coverage).toMatchObject({ mode: "full", totalHunks: 1 });
     expect(prepared.diff).toContain("----\n++++");
+    expect(prepared.rulePreview).toMatchObject({
+      schemaVersion: 1,
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      conflicts: [],
+      paths: [{
+        path: "config.txt",
+        effectiveRules: [{
+          key: "review-focus",
+          layer: "global",
+          ruleIds: ["builtin:concrete-defects"],
+        }],
+      }],
+    });
+    expect(prepared.guidelines).toContain('"path":"config.txt"');
   });
 
   it("does not resend an unchanged hunk after synchronize", async () => {
@@ -437,6 +457,7 @@ describe("stateful review engine", () => {
     const [reviewedHunk, newHunk] = await identifyDiffHunks(fullDiff);
     expect(reviewedHunk).toBeDefined();
     expect(newHunk).toBeDefined();
+    if (!reviewedHunk || !newHunk) throw new Error("Expected two diff hunks");
 
     vi.stubGlobal(
       "fetch",
@@ -507,7 +528,7 @@ describe("stateful review engine", () => {
             Promise.resolve(
               json({
                 headSha: "b".repeat(40),
-                hunkIds: [reviewedHunk!.hunkId],
+                hunkIds: [reviewedHunk.hunkId],
                 openFindings: [],
               }),
             ),
@@ -520,8 +541,8 @@ describe("stateful review engine", () => {
 
     expect(prepared.coverage).toMatchObject({
       mode: "incremental",
-      reviewedHunkIds: [newHunk!.hunkId],
-      unchangedHunkIds: [reviewedHunk!.hunkId],
+      reviewedHunkIds: [newHunk.hunkId],
+      unchangedHunkIds: [reviewedHunk.hunkId],
     });
     expect(prepared.diff).toContain("+new second");
     expect(prepared.diff).not.toContain("+reviewed first");
@@ -567,6 +588,46 @@ describe("stateful review engine", () => {
         omitted: [],
       }),
     ).rejects.toThrow("without a prepared diff");
+  });
+
+  it("rejects unresolved file-rule conflicts before model dispatch", async () => {
+    const modelCall = vi.spyOn(
+      Reviewer.prototype,
+      "callOpenRouterScout",
+    );
+    const rulePreview = previewReviewRules({
+      repository: params.repository,
+      paths: ["app.ts"],
+      ruleSet: {
+        schemaVersion: 1,
+        ruleSetVersion: "conflict-v1",
+        rules: [
+          {
+            ruleId: "file-a",
+            key: "focus",
+            instruction: "Review behavior.",
+            scope: { kind: "file", path: "app.ts" },
+            source: { kind: "configuration", reference: "rules/a" },
+          },
+          {
+            ruleId: "file-b",
+            key: "focus",
+            instruction: "Review types.",
+            scope: { kind: "file", path: "app.ts" },
+            source: { kind: "configuration", reference: "rules/b" },
+          },
+        ],
+      },
+    });
+
+    await expect(runScouts(environment(), params, {
+      headSha: params.headSha,
+      diff: "diff",
+      paths: ["app.ts"],
+      omitted: [],
+      rulePreview,
+    })).rejects.toThrow("Unresolved review rule conflicts: app.ts:focus");
+    expect(modelCall).not.toHaveBeenCalled();
   });
 
   it("uses reviewer defaults when optional model settings are absent", async () => {
@@ -1858,6 +1919,16 @@ describe("stateful review engine", () => {
         paths: Array<{ path: string; decision: string; reasonCode: string }>;
         summary: Record<string, number>;
       };
+      rulePreview: {
+        resolverVersion: string;
+        ruleSetVersion: string;
+        paths: Array<{
+          path: string;
+          effectiveRules: Array<{
+            sources: Array<{ reference: string; revision?: string }>;
+          }>;
+        }>;
+      };
     };
     expect(record.status).toBe("published");
     expect(record.schemaVersion).toBe(2);
@@ -1884,6 +1955,21 @@ describe("stateful review engine", () => {
       }],
       summary: { selected: 0, completed: 1 },
     });
+    expect(record.rulePreview).toMatchObject({
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      paths: [{ path: "app.ts" }],
+    });
+    expect(
+      record.rulePreview.paths[0]?.effectiveRules.flatMap(
+        ({ sources }) => sources.map(({ revision }) => revision),
+      ),
+    ).toContain(HEAD_SHA);
+    expect(
+      record.rulePreview.paths[0]?.effectiveRules.flatMap(
+        ({ sources }) => sources.map(({ reference }) => reference),
+      ),
+    ).toContain("AGENTS.md");
   });
 
   it("keeps hunk identities stable when only unified-diff coordinates move", async () => {

@@ -60,6 +60,27 @@ multiline-single-secret',"ａｐｉＫｅｙ":"compatibility-secret","pаssword"
     },
     paths: ["src/app.ts"],
     omitted: [],
+    rulePreview: {
+      schemaVersion: 1,
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      paths: [{
+        path: "src/app.ts",
+        language: "typescript",
+        effectiveRules: [{
+          key: "review-focus",
+          instruction: "Review concrete defects.",
+          layer: "global",
+          ruleIds: ["builtin:concrete-defects"],
+          sources: [{
+            kind: "builtin",
+            reference: "ai-review-domain/reviewer",
+            revision: "production-review-rules-v1",
+          }],
+        }],
+      }],
+      conflicts: [],
+    },
     priorOpenFindings: [finding],
     replayFindings: mode === "incremental" ? [finding] : [],
     coverage: {
@@ -136,14 +157,25 @@ describe("replay input corpus", () => {
       assertReplaySchemaCompatible(parsed);
       const snapshot = parsed as typeof parsed & {
         git: { baseSha: string; headSha: string };
-        decision: { coverage: { mode: string } };
-        input: { priorOpenFindings: unknown[]; affectedOpenFindings: unknown[] };
+        decision: {
+          coverage: { mode: string };
+          rulePreview: { ruleSetVersion: string };
+        };
+        input: {
+          priorOpenFindings: unknown[];
+          affectedOpenFindings: unknown[];
+          effectiveReviewRules: string;
+        };
         pullRequest: { author: string; reviewers: string[] };
         policy: { credentials: { algorithm: string } };
         provenance: { liveCredentialsIncluded: boolean };
       };
       expect(snapshot.git).toEqual({ baseSha: "a".repeat(40), headSha: "b".repeat(40) });
       expect(snapshot.decision.coverage.mode).toBe(mode);
+      expect(snapshot.decision.rulePreview.ruleSetVersion).toBe(
+        "production-review-rules-v1",
+      );
+      expect(snapshot.input.effectiveReviewRules).toContain("Review carefully");
       expect(snapshot.input.priorOpenFindings).toHaveLength(1);
       expect(snapshot.input.affectedOpenFindings).toHaveLength(mode === "incremental" ? 1 : 0);
       expect(snapshot.pullRequest).toMatchObject({ author: "octocat", reviewers: ["hubot"] });
