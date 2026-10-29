@@ -665,6 +665,13 @@ function calculateIngredient(input: {
   const nutrients = preciseNutrients.map(({ result }) => result);
 
   const unsupported = mass === null || nutrients.length === 0;
+  let status: IngredientNutritionResult["status"] = "complete";
+  if (unsupported) {
+    status = "unsupported";
+  } else if (gaps.length > 0) {
+    status = "partial";
+  }
+
   return {
     preciseNutrients,
     result: {
@@ -683,11 +690,7 @@ function calculateIngredient(input: {
         : null,
       nutrients,
       gaps,
-      status: unsupported
-        ? "unsupported"
-        : gaps.length > 0
-          ? "partial"
-          : "complete",
+      status,
     },
   };
 }
