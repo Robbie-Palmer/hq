@@ -39,6 +39,12 @@ const PensionMethodSchema = z.enum([
   "reliefAtSource",
 ]);
 
+const employeeTaxTreatment = {
+  salarySacrifice: "salary-sacrifice",
+  netPay: "net-pay",
+  reliefAtSource: "relief-at-source",
+} as const;
+
 export const EmploymentRoleFactsSchema = z
   .object({
     employer: z.string().trim().min(1, "Current employer is required"),
@@ -346,12 +352,7 @@ function reviewedTaxResult(
     isCompanyDirector: false,
     pension: hasPension
       ? {
-          method:
-            scenario.employeePensionMethod === "salarySacrifice"
-              ? "salary-sacrifice"
-              : scenario.employeePensionMethod === "reliefAtSource"
-                ? "relief-at-source"
-                : "net-pay",
+          method: employeeTaxTreatment[scenario.employeePensionMethod],
           employeeGrossContributionPence: employeePensionPence,
           employeeCashDeductionPence: Math.round(
             annualEmployeePensionCashDeduction * 100,
@@ -390,12 +391,6 @@ const contributionBasis = {
   grossPay: "gross-pay",
   qualifyingEarnings: "qualifying-earnings",
   pensionablePay: "pensionable-pay",
-} as const;
-
-const employeeTaxTreatment = {
-  salarySacrifice: "salary-sacrifice",
-  netPay: "net-pay",
-  reliefAtSource: "relief-at-source",
 } as const;
 
 const pensionPayPeriod = {

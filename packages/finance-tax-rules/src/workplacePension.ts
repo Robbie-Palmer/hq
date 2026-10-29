@@ -281,14 +281,14 @@ function calculationReasons(
         "The employer contribution rule is unknown. Supply the scheme policy or an explicit amount override.",
     });
   }
-  const requiredBases = [
+  const requiredBases = new Set([
     request.employee.kind === "percentage" ? request.employee.basis : null,
     request.employer.kind === "flat-rate" || request.employer.kind === "matching"
       ? request.employer.basis
       : null,
-  ];
+  ]);
   if (
-    requiredBases.includes("qualifying-earnings") &&
+    requiredBases.has("qualifying-earnings") &&
     qualifyingEarningsPence == null
   ) {
     reasons.push({
@@ -298,7 +298,7 @@ function calculationReasons(
     });
   }
   if (
-    requiredBases.includes("pensionable-pay") &&
+    requiredBases.has("pensionable-pay") &&
     request.annualPensionablePayPence == null
   ) {
     reasons.push({
