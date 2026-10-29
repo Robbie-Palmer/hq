@@ -202,17 +202,25 @@ export type WorkGraphApplicationFetch = (
 const applicationUrl = (path: string): URL =>
   new URL(path, "https://work-graph.application.internal");
 
+type QueryScalar = boolean | number | string;
+type QueryValue = QueryScalar | QueryScalar[] | undefined;
+
+const encodeQueryScalar = (value: QueryScalar): string =>
+  typeof value === "string" ? value : value.toString();
+
 const appendQuery = (
   url: URL,
-  values: Readonly<Record<string, unknown>>,
+  values: Readonly<Record<string, QueryValue>>,
 ): void => {
   for (const [name, value] of Object.entries(values)) {
     if (value === undefined) continue;
     if (Array.isArray(value)) {
-      for (const item of value) url.searchParams.append(name, String(item));
+      for (const item of value) {
+        url.searchParams.append(name, encodeQueryScalar(item));
+      }
       continue;
     }
-    url.searchParams.set(name, String(value));
+    url.searchParams.set(name, encodeQueryScalar(value));
   }
 };
 
@@ -246,7 +254,7 @@ const callApplication = async (
     body?: unknown;
     idempotencyKey?: string;
     method?: "DELETE" | "GET" | "POST" | "PUT";
-    query?: Readonly<Record<string, unknown>>;
+    query?: Readonly<Record<string, QueryValue>>;
     signal?: AbortSignal;
   } = {},
 ): Promise<CallToolResult> => {
