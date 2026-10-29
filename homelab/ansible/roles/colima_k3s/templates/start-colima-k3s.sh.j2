@@ -5,7 +5,41 @@ HOME={{ ansible_facts.env.HOME | quote }}
 PATH={{ colima_k3s_wrapper_path | quote }}
 export HOME PATH
 
+COLIMA={{ colima_k3s_colima_binary.stdout | quote }}
+KUBECTL={{ colima_k3s_kubectl_binary.stdout | quote }}
+PROFILE={{ colima_k3s_profile | quote }}
+CONTEXT={{ colima_k3s_context | quote }}
+MEDIA_DISK={{ colima_k3s_media_disk_location | quote }}
+MEDIA_DISK_UUID={{ colima_k3s_media_disk_uuid | quote }}
+
+media_disk_is_ready() {
+  current_uuid="$(diskutil info "$MEDIA_DISK" 2>/dev/null \
+    | awk -F: '/Volume UUID/ { value=$2; gsub(/^[[:space:]]+|[[:space:]]+$/, "", value); print value }')"
+  [[ "$current_uuid" == "$MEDIA_DISK_UUID" ]]
+}
+
+while ! media_disk_is_ready; do
+  echo "$(date '+%F %T') waiting for $MEDIA_DISK before starting K3s"
+  sleep 10
+done
+
 # qBittorrent's Gluetun sidecar owns its internet route and kill switch. The
 # cluster must start without a host-wide VPN so Jellyfin and management remain
 # available after an unattended reboot.
-exec {{ colima_k3s_colima_binary.stdout | quote }} start {{ colima_k3s_profile | quote }} --foreground
+if ! "$COLIMA" status "$PROFILE" >/dev/null 2>&1; then
+  exec "$COLIMA" start "$PROFILE" --foreground
+fi
+
+# A failed boot-time start can leave the Lima VM running before Colima enables
+# K3s. Repair that partial state, then keep checking it until the VM stops and
+# launchd restarts this wrapper.
+while "$COLIMA" status "$PROFILE" >/dev/null 2>&1; do
+  if ! "$KUBECTL" --context "$CONTEXT" get --raw=/readyz \
+      --request-timeout=5s >/dev/null 2>&1; then
+    echo "$(date '+%F %T') Colima is running but K3s is unavailable; starting Kubernetes"
+    "$COLIMA" kubernetes start --profile "$PROFILE" || true
+  fi
+  sleep 30
+done
+
+exit 1

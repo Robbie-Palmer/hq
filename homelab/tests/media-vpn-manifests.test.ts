@@ -203,6 +203,10 @@ test("the host starts K3s without an interactive VPN and no longer scales media 
     "utf8",
   );
   assert.doesNotMatch(wrapper, /route -n get|utun/);
+  assert.match(wrapper, /diskutil info.*MEDIA_DISK/s);
+  assert.match(wrapper, /MEDIA_DISK_UUID/);
+  assert.match(wrapper, /get --raw=\/readyz/);
+  assert.match(wrapper, /kubernetes start --profile/);
   assert.doesNotMatch(reconciler, /route -n get|utun/);
   assert.doesNotMatch(provisioner, /route -n get|utun/);
   assert.match(reconciler, /desired=1/);
