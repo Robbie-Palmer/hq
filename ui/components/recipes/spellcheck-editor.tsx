@@ -146,7 +146,6 @@ export function SpellcheckEditor({
           placeholder={placeholder}
           maxLength={maxLength}
           aria-label={ariaLabel}
-          data-cooklang-editor
           // Our curated check replaces the browser's, so its squiggles don't
           // double up with ours.
           spellCheck={false}
@@ -405,6 +404,46 @@ const TOKEN_CLASSES = {
   punctuation: "text-[var(--ink-3)]",
 } satisfies Record<CooklangTokenKind, string>;
 
+function HighlightSegment({
+  segment,
+  onMarkClick,
+}: {
+  readonly segment: BackdropSegment;
+  readonly onMarkClick: (misspelling: Misspelling, rect: DOMRect) => void;
+}) {
+  const flagged = segment.misspelling;
+  if (!flagged) {
+    return (
+      <span
+        data-cooklang-token={segment.token}
+        className={TOKEN_CLASSES[segment.token]}
+      >
+        {segment.text}
+      </span>
+    );
+  }
+  // The inline button preserves the backdrop's text metrics. The aria-hidden
+  // parent and tabIndex keep it out of the accessibility and keyboard trees;
+  // those users act through the issues list instead.
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      data-spellcheck-mark
+      data-cooklang-token={segment.token}
+      onClick={(event) =>
+        onMarkClick(flagged, event.currentTarget.getBoundingClientRect())
+      }
+      className={cn(
+        TOKEN_CLASSES[segment.token],
+        "pointer-events-auto inline cursor-pointer border-0 bg-transparent p-0 underline decoration-[var(--terracotta)] decoration-wavy decoration-2 underline-offset-2",
+      )}
+    >
+      {segment.text}
+    </button>
+  );
+}
+
 function HighlightBackdrop({
   ref,
   value,
@@ -434,42 +473,13 @@ function HighlightBackdrop({
         "pointer-events-none absolute inset-0 z-10 select-none overflow-hidden whitespace-pre-wrap break-words border-transparent text-[var(--ink)]",
       )}
     >
-      {segments.map((segment) => {
-        const flagged = segment.misspelling;
-        if (!flagged) {
-          return (
-            <span
-              key={segment.offset}
-              data-cooklang-token={segment.token}
-              className={TOKEN_CLASSES[segment.token]}
-            >
-              {segment.text}
-            </span>
-          );
-        }
-        // A real (inline) button is keyboard/AT-native so it satisfies the a11y
-        // linters, while inline display keeps the highlight metrically identical
-        // to the textarea text. It sits in the aria-hidden layer with tabIndex
-        // -1, so screen-reader and keyboard users act through the issues list.
-        return (
-          <button
-            key={segment.offset}
-            type="button"
-            tabIndex={-1}
-            data-spellcheck-mark
-            data-cooklang-token={segment.token}
-            onClick={(event) =>
-              onMarkClick(flagged, event.currentTarget.getBoundingClientRect())
-            }
-            className={cn(
-              TOKEN_CLASSES[segment.token],
-              "pointer-events-auto inline cursor-pointer border-0 bg-transparent p-0 underline decoration-[var(--terracotta)] decoration-wavy decoration-2 underline-offset-2",
-            )}
-          >
-            {segment.text}
-          </button>
-        );
-      })}
+      {segments.map((segment) => (
+        <HighlightSegment
+          key={segment.offset}
+          segment={segment}
+          onMarkClick={onMarkClick}
+        />
+      ))}
       {/* Keeps the backdrop's final line height in step with the textarea when
           the text ends on a newline. */}
       {"\n"}
