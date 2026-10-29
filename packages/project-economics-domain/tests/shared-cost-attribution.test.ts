@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   SharedCostAllocationRequestSchema,
   SharedCostAllocationRuleSchema,
+  SharedCostConsumerSchema,
   allocateSharedCost,
   reportSharedCostAllocation,
   selectSharedCostAllocationRule,
@@ -118,6 +119,26 @@ describe("shared platform cost attribution", () => {
     });
   });
 
+  it("rejects allocation reports for a different rule reference", () => {
+    const allocationRule = rule({
+      method: "direct",
+      consumerId: "consumer:site",
+    });
+    const run = allocateSharedCost(
+      request(allocationRule, [consumer("consumer:site", "project:site")]),
+    );
+
+    expect(() =>
+      reportSharedCostAllocation({ ...run, costPoolId: "pool:other" }, allocationRule),
+    ).toThrow(/does not reference/);
+    expect(() =>
+      reportSharedCostAllocation({ ...run, ruleId: "rule:other" }, allocationRule),
+    ).toThrow(/does not reference/);
+    expect(() =>
+      reportSharedCostAllocation({ ...run, ruleRevision: 2 }, allocationRule),
+    ).toThrow(/does not reference/);
+  });
+
   it("splits equally among active layer adopters and excludes closed projects", () => {
     const allocationRule = rule({ method: "equal" });
     const closed = consumer("consumer:closed", "project:closed", {
@@ -150,6 +171,95 @@ describe("shared platform cost attribution", () => {
         amount: { currency: "USD", amount: 50 },
       },
     ]);
+  });
+
+  it("matches every coordinate of an adoption eligibility", () => {
+    const allocationRule = rule({ method: "equal" });
+    const run = allocateSharedCost(
+      request(allocationRule, [
+        consumer("consumer:correct", "project:correct"),
+        consumer("consumer:wrong-platform", "project:wrong-platform", {
+          adoptions: [
+            {
+              kind: "layer",
+              platformId: "platform:other",
+              layerId: "layer:base",
+              effectivePeriod,
+            },
+          ],
+        }),
+        consumer("consumer:wrong-layer", "project:wrong-layer", {
+          adoptions: [
+            {
+              kind: "layer",
+              platformId: "platform:engineering",
+              layerId: "layer:other",
+              effectivePeriod,
+            },
+          ],
+        }),
+        consumer("consumer:wrong-kind", "project:wrong-kind", {
+          adoptions: [
+            {
+              kind: "slot",
+              platformId: "platform:engineering",
+              layerId: "layer:base",
+              slotId: "slot:telemetry",
+              effectivePeriod,
+            },
+          ],
+        }),
+      ]),
+    );
+
+    expect(run.outputs).toEqual([
+      {
+        kind: "allocated",
+        consumerId: "consumer:correct",
+        projectId: "project:correct",
+        amount: { currency: "USD", amount: 100 },
+      },
+    ]);
+  });
+
+  it("rejects overlapping lifecycle periods but permits adjacent periods", () => {
+    const january = {
+      state: "active" as const,
+      effectivePeriod: {
+        startsAt: "2026-01-01T00:00:00.000Z",
+        endsAt: "2026-02-01T00:00:00.000Z",
+      },
+    };
+    const february = {
+      state: "closed" as const,
+      effectivePeriod: {
+        startsAt: "2026-02-01T00:00:00.000Z",
+        endsAt: "2026-03-01T00:00:00.000Z",
+      },
+    };
+    const candidate = consumer("consumer:site", "project:site");
+
+    expect(
+      SharedCostConsumerSchema.parse({
+        ...candidate,
+        lifecycle: [january, february],
+      }).lifecycle,
+    ).toHaveLength(2);
+    expect(() =>
+      SharedCostConsumerSchema.parse({
+        ...candidate,
+        lifecycle: [
+          january,
+          {
+            ...february,
+            effectivePeriod: {
+              ...february.effectivePeriod,
+              startsAt: "2026-01-31T00:00:00.000Z",
+            },
+          },
+        ],
+      }),
+    ).toThrow(/cannot overlap/);
   });
 
   it("uses preferred-slot adoption periods and leaves inactive weights unallocated", () => {
@@ -239,6 +349,7 @@ describe("shared platform cost attribution", () => {
         },
       ),
     );
+    const report = reportSharedCostAllocation(run, allocationRule);
 
     expect(run.outputs).toEqual([
       {
@@ -252,6 +363,53 @@ describe("shared platform cost attribution", () => {
         consumerId: null,
         projectId: null,
         amount: { currency: "USD", amount: 40 },
+      },
+    ]);
+    expect(report.allocated.amount).toBe(60);
+    expect(report.unallocated.amount).toBe(40);
+    expect(report.reconciles).toBe(true);
+  });
+
+  it("rejects usage above the evidenced total and handles a zero denominator", () => {
+    const allocationRule = rule({
+      method: "usage",
+      metricDefinitionId: "metric:requests",
+      unit: "request",
+    });
+    const measured = consumer("consumer:site", "project:site", {
+      usage: {
+        quantity: 101,
+        metricObservationId: "metric-observation:site",
+      },
+    });
+
+    expect(() =>
+      allocateSharedCost(
+        request(allocationRule, [measured], {
+          usageTotal: {
+            quantity: 100,
+            metricObservationId: "metric-observation:provider-total",
+          },
+        }),
+      ),
+    ).toThrow(/cannot exceed/);
+
+    const zeroRun = allocateSharedCost(
+      request(allocationRule, [
+        consumer("consumer:zero", "project:zero", {
+          usage: {
+            quantity: 0,
+            metricObservationId: "metric-observation:zero",
+          },
+        }),
+      ]),
+    );
+    expect(zeroRun.outputs).toEqual([
+      {
+        kind: "unallocated",
+        consumerId: null,
+        projectId: null,
+        amount: { currency: "USD", amount: 100 },
       },
     ]);
   });
@@ -357,6 +515,20 @@ describe("shared platform cost attribution", () => {
         period,
       ),
     ).toThrow(/Multiple/);
+    expect(() =>
+      selectSharedCostAllocationRule(
+        [january, january],
+        "pool:platform",
+        period,
+      ),
+    ).toThrow(/duplicated/);
+    expect(() =>
+      selectSharedCostAllocationRule(
+        [january],
+        "pool:other",
+        period,
+      ),
+    ).toThrow(/No shared cost allocation rule/);
   });
 
   it("reconciles repeating equal shares without a duplicate gross charge", () => {

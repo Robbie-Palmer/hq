@@ -17,6 +17,16 @@ description = "Test the project economics domain with coverage"
 depends = ["install"]
 run = "pnpm test:coverage"
 
+[tasks."test:mutation"]
+description = "Mutation-test the project economics domain"
+depends = ["install"]
+run = "pnpm test:mutation"
+
+[tasks."test:mutation:full"]
+description = "Mutation-test project economics domain logic and static schemas"
+depends = ["install"]
+run = "pnpm test:mutation:full"
+
 [tasks.check]
 description = "Check the project economics domain"
 depends = ["typecheck", "test"]

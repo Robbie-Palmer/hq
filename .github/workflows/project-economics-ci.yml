@@ -1,0 +1,31 @@
+name: Project economics CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/project-economics-ci.yml"
+      - ".mise.toml"
+      - "package.json"
+      - "packages/project-economics-domain/**"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check project economics domain
+        run: mise run //packages/project-economics-domain:check
+
+      - name: Enforce project economics mutation score
+        run: mise run //packages/project-economics-domain:test:mutation
