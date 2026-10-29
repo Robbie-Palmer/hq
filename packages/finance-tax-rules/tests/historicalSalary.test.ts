@@ -223,7 +223,7 @@ describe("historical salary calculation", () => {
     expect(result.lineage).toMatchObject({
       calculationVersion: "historical-salary-v1",
       engineVersion: "3.0.1",
-      ruleDatasetVersion: "2026.10.3",
+      ruleDatasetVersion: "2026.10.4",
       taxYear: "2025-26",
       effectiveDate: "2025-06-30",
     });

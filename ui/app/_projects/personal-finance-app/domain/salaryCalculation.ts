@@ -5,6 +5,12 @@ import {
   type PensionContributionMethod,
   ruleDataset,
 } from "finance-tax-rules/historical-salary";
+import {
+  calculateWorkplacePension,
+  type WorkplacePensionContributionBasis,
+  type WorkplacePensionEmployeeContribution,
+  type WorkplacePensionEmployerPolicy,
+} from "finance-tax-rules/workplace-pension";
 import type {
   PensionContribution,
   SalaryHistoryRecord,
@@ -176,89 +182,207 @@ function annualMoney(
   return value == null ? undefined : Math.round(value * multiplier * 100);
 }
 
-function contributionAmount(
+const pensionPayPeriod = {
+  weekly: "weekly",
+  fortnightly: "fortnightly",
+  fourWeekly: "four-weekly",
+  monthly: "monthly",
+  quarterly: "quarterly",
+  annual: "annual",
+  irregular: null,
+} as const;
+
+function needsQualifyingEarningsPeriod(
+  employee: WorkplacePensionEmployeeContribution,
+  employer: WorkplacePensionEmployerPolicy,
+): boolean {
+  return (
+    (employee.kind === "percentage" &&
+      employee.basis === "qualifying-earnings") ||
+    ((employer.kind === "flat-rate" || employer.kind === "matching") &&
+      employer.basis === "qualifying-earnings")
+  );
+}
+
+function contributionBasis(
+  contribution: PensionContribution,
+): WorkplacePensionContributionBasis | null {
+  if (contribution.basis === "grossPay") return "gross-pay";
+  if (contribution.basis === "qualifyingEarnings") {
+    return "qualifying-earnings";
+  }
+  if (contribution.basis === "pensionablePay") return "pensionable-pay";
+  return null;
+}
+
+function employeeContribution(
   contribution: PensionContribution | undefined,
-  record: SalaryHistoryRecord,
   multiplier: number,
-  label: string,
-): { amountPence?: number; reasons: CalculationReason[] } {
+): {
+  contribution: WorkplacePensionEmployeeContribution;
+  reasons: CalculationReason[];
+} {
   if (contribution == null) {
     return {
+      contribution: { kind: "unknown" },
       reasons: [
         {
-          code: `missing-${label}-pension`,
-          detail: `Confirm whether the ${label} pension contribution was zero or enter its amount.`,
+          code: "missing-employee-pension",
+          detail:
+            "Confirm whether the employee pension contribution was zero or enter its amount.",
         },
       ],
     };
   }
   if (contribution.arrangement === "none") {
-    return { amountPence: 0, reasons: [] };
+    return { contribution: { kind: "none" }, reasons: [] };
   }
   if (
     contribution.arrangement === "unknown" ||
-    (label === "employee" && contribution.arrangement === "other")
+    contribution.arrangement === "other"
   ) {
     return {
+      contribution: { kind: "unknown" },
       reasons: [
         {
-          code: `unsupported-${label}-pension-method`,
-          detail: `The ${label} pension method must be salary sacrifice, net pay, relief at source, or explicitly none.`,
+          code: "unsupported-employee-pension-method",
+          detail:
+            "The employee pension method must be salary sacrifice, net pay, relief at source, or explicitly none.",
+        },
+      ],
+    };
+  }
+  const taxTreatment = {
+    salarySacrifice: "salary-sacrifice",
+    netPay: "net-pay",
+    reliefAtSource: "relief-at-source",
+  } as const;
+  if (contribution.amount != null) {
+    const cashAmountPence = Math.round(contribution.amount * multiplier * 100);
+    return {
+      contribution: {
+        kind: "explicit-amount",
+        taxTreatment: taxTreatment[contribution.arrangement],
+        grossAmountPence:
+          contribution.arrangement === "reliefAtSource"
+            ? Math.round(cashAmountPence / 0.8)
+            : cashAmountPence,
+      },
+      reasons: [],
+    };
+  }
+  if (contribution.rate == null) {
+    return {
+      contribution: { kind: "unknown" },
+      reasons: [
+        {
+          code: "missing-employee-pension-value",
+          detail: "Enter the employee pension amount or rate.",
+        },
+      ],
+    };
+  }
+  const basis = contributionBasis(contribution);
+  if (basis == null) {
+    return {
+      contribution: { kind: "unknown" },
+      reasons: [
+        {
+          code: "missing-employee-pension-basis",
+          detail: "Choose the pay basis for the employee pension rate.",
+        },
+      ],
+    };
+  }
+  const cashRateBasisPoints = Math.round(contribution.rate * 10_000);
+  return {
+    contribution: {
+      kind: "percentage",
+      taxTreatment: taxTreatment[contribution.arrangement],
+      basis,
+      rateBasisPoints:
+        contribution.arrangement === "reliefAtSource"
+          ? Math.round(cashRateBasisPoints / 0.8)
+          : cashRateBasisPoints,
+    },
+    reasons: [],
+  };
+}
+
+function employerPolicy(
+  record: SalaryHistoryRecord,
+  multiplier: number,
+): { policy: WorkplacePensionEmployerPolicy; reasons: CalculationReason[] } {
+  if (record.employerPensionPolicy != null) {
+    return { policy: record.employerPensionPolicy, reasons: [] };
+  }
+  const contribution = record.employerPension;
+  if (contribution == null) {
+    return {
+      policy: { kind: "unknown" },
+      reasons: [
+        {
+          code: "missing-employer-pension",
+          detail:
+            "Confirm whether the employer pension contribution was zero or enter its rule.",
+        },
+      ],
+    };
+  }
+  if (contribution.arrangement === "none") {
+    return { policy: { kind: "none" }, reasons: [] };
+  }
+  if (contribution.arrangement === "unknown") {
+    return {
+      policy: { kind: "unknown" },
+      reasons: [
+        {
+          code: "unsupported-employer-pension-method",
+          detail:
+            "The employer pension rule is unknown. Enter the scheme rule or an explicit amount.",
         },
       ],
     };
   }
   if (contribution.amount != null) {
     return {
-      amountPence: Math.round(contribution.amount * multiplier * 100),
+      policy: {
+        kind: "explicit-amount",
+        amountPence: Math.round(contribution.amount * multiplier * 100),
+      },
       reasons: [],
     };
   }
   if (contribution.rate == null) {
     return {
+      policy: { kind: "unknown" },
       reasons: [
         {
-          code: `missing-${label}-pension-value`,
-          detail: `Enter the ${label} pension amount or rate.`,
+          code: "missing-employer-pension-value",
+          detail: "Enter the employer pension amount or rate.",
         },
       ],
     };
   }
-  if (contribution.basis === "qualifyingEarnings") {
-    return {
-      reasons: [
-        {
-          code: "unsupported-qualifying-earnings",
-          detail:
-            "Qualifying-earnings pension bands are not included in the reviewed historical rule set.",
-        },
-      ],
-    };
-  }
-  if (contribution.basis === "unknown") {
-    return {
-      reasons: [
-        {
-          code: `missing-${label}-pension-basis`,
-          detail: `Choose the pay basis for the ${label} pension rate.`,
-        },
-      ],
-    };
-  }
-  const basis =
-    contribution.basis === "grossPay" ? record.grossPay : record.baseSalary;
+  const basis = contributionBasis(contribution);
   if (basis == null) {
     return {
+      policy: { kind: "unknown" },
       reasons: [
         {
-          code: `missing-${label}-pensionable-pay`,
-          detail: `Enter pensionable pay before using a ${label} pensionable-pay rate.`,
+          code: "missing-employer-pension-basis",
+          detail: "Choose the pay basis for the employer pension rate.",
         },
       ],
     };
   }
   return {
-    amountPence: Math.round(basis * multiplier * contribution.rate * 100),
+    policy: {
+      kind: "flat-rate",
+      basis,
+      rateBasisPoints: Math.round(contribution.rate * 10_000),
+      schemeMinimumRateBasisPoints: 0,
+    },
     reasons: [],
   };
 }
@@ -270,6 +394,8 @@ function unavailable(reasons: CalculationReason[]): HistoricalSalaryResult {
 function buildPension(
   record: SalaryHistoryRecord,
   multiplier: number,
+  effectiveDate: string,
+  oneOffGrossPay: number,
 ): {
   pension: {
     method: PensionContributionMethod;
@@ -281,76 +407,72 @@ function buildPension(
   } | null;
   reasons: CalculationReason[];
 } {
-  const employee = contributionAmount(
-    record.employeePension,
-    record,
-    multiplier,
-    "employee",
-  );
-  const employer = contributionAmount(
-    record.employerPension,
-    record,
-    multiplier,
-    "employer",
-  );
+  const employee = employeeContribution(record.employeePension, multiplier);
+  const employer = employerPolicy(record, multiplier);
   const reasons = [...employee.reasons, ...employer.reasons];
   if (reasons.length > 0) return { pension: null, reasons };
-  const employeeAmount = employee.amountPence ?? 0;
-  const employerAmount = employer.amountPence ?? 0;
-  if (record.employeePension?.arrangement === "none") {
-    return {
-      pension:
-        employerAmount === 0
-          ? null
-          : {
-              method: "net-pay",
-              employeeGrossContributionPence: 0,
-              employeeCashDeductionPence: 0,
-              salarySacrificePence: 0,
-              employerContributionPence: employerAmount,
-              providerTaxReliefPence: 0,
-            },
-      reasons: [],
-    };
-  }
-  const methodMap = {
-    salarySacrifice: "salary-sacrifice",
-    netPay: "net-pay",
-    reliefAtSource: "relief-at-source",
-  } as const;
-  const arrangement = record.employeePension?.arrangement;
+  const selectedPeriod = pensionPayPeriod[record.payFrequency];
   if (
-    arrangement !== "salarySacrifice" &&
-    arrangement !== "netPay" &&
-    arrangement !== "reliefAtSource"
+    selectedPeriod == null &&
+    needsQualifyingEarningsPeriod(employee.contribution, employer.policy)
   ) {
     return {
       pension: null,
       reasons: [
         {
-          code: "unsupported-employee-pension-method",
-          detail: "The employee pension method is not supported.",
+          code: "unsupported-pension-pay-period",
+          detail: "Irregular pay needs an explicit pension amount.",
         },
       ],
     };
   }
-  const grossEmployee =
-    arrangement === "reliefAtSource"
-      ? Math.round(employeeAmount / 0.8)
-      : employeeAmount;
-  const providerRelief =
-    arrangement === "reliefAtSource" ? grossEmployee - employeeAmount : 0;
+  if (record.grossPay == null) {
+    return {
+      pension: null,
+      reasons: [
+        {
+          code: "missing-gross-pay",
+          detail: "Pension calculations need gross pay.",
+        },
+      ],
+    };
+  }
+  const period = selectedPeriod ?? "annual";
+  const annualGrossPay = record.grossPay * multiplier + oneOffGrossPay;
+  const calculation = calculateWorkplacePension({
+    effectiveDate,
+    payPeriod: period,
+    annualGrossPayPence: Math.round(annualGrossPay * 100),
+    annualQualifyingEarningsPayPence: Math.round(annualGrossPay * 100),
+    qualifyingEarningsVariablePaymentsPence:
+      oneOffGrossPay === 0 ? [] : [Math.round(oneOffGrossPay * 100)],
+    annualPensionablePayPence: annualMoney(record.pensionablePay, multiplier),
+    employee: employee.contribution,
+    employer: employer.policy,
+  });
+  if (!calculation.available) {
+    return { pension: null, reasons: calculation.reasons };
+  }
+  const method =
+    employee.contribution.kind === "explicit-amount" ||
+    employee.contribution.kind === "percentage"
+      ? employee.contribution.taxTreatment
+      : "net-pay";
+  const hasContribution =
+    calculation.employeeGrossContributionPence > 0 ||
+    calculation.employerContributionPence > 0;
   return {
-    pension: {
-      method: methodMap[arrangement],
-      employeeGrossContributionPence: grossEmployee,
-      employeeCashDeductionPence:
-        arrangement === "salarySacrifice" ? 0 : employeeAmount,
-      salarySacrificePence:
-        arrangement === "salarySacrifice" ? employeeAmount : 0,
-      employerContributionPence: employerAmount,
-      providerTaxReliefPence: providerRelief,
-    },
+    pension: hasContribution
+      ? {
+          method,
+          employeeGrossContributionPence:
+            calculation.employeeGrossContributionPence,
+          employeeCashDeductionPence: calculation.employeeCashDeductionPence,
+          salarySacrificePence: calculation.salarySacrificePence,
+          employerContributionPence: calculation.employerContributionPence,
+          providerTaxReliefPence: calculation.providerTaxReliefPence,
+        }
+      : null,
     reasons: [],
   };
 }
@@ -358,16 +480,13 @@ function buildPension(
 function buildNoEmployeePension(
   record: SalaryHistoryRecord,
   multiplier: number,
+  effectiveDate: string,
+  oneOffGrossPay: number,
 ): ReturnType<typeof buildPension> & {
   employerContributionPence: number | null;
   employerUnavailableReasons: CalculationReason[];
 } {
-  const employer = contributionAmount(
-    record.employerPension,
-    record,
-    multiplier,
-    "employer",
-  );
+  const employer = employerPolicy(record, multiplier);
   if (employer.reasons.length > 0) {
     return {
       pension: null,
@@ -376,7 +495,59 @@ function buildNoEmployeePension(
       employerUnavailableReasons: employer.reasons,
     };
   }
-  const employerAmount = employer.amountPence ?? 0;
+  const selectedPeriod = pensionPayPeriod[record.payFrequency];
+  if (
+    selectedPeriod == null &&
+    needsQualifyingEarningsPeriod({ kind: "none" }, employer.policy)
+  ) {
+    const unavailableReasons = [
+      {
+        code: "unsupported-pension-pay-period",
+        detail: "Irregular pay needs an explicit pension amount.",
+      },
+    ];
+    return {
+      pension: null,
+      reasons: [],
+      employerContributionPence: null,
+      employerUnavailableReasons: unavailableReasons,
+    };
+  }
+  if (record.grossPay == null) {
+    return {
+      pension: null,
+      reasons: [],
+      employerContributionPence: null,
+      employerUnavailableReasons: [
+        {
+          code: "missing-gross-pay",
+          detail: "Pension calculations need gross pay.",
+        },
+      ],
+    };
+  }
+  const period = selectedPeriod ?? "annual";
+  const annualGrossPay = record.grossPay * multiplier + oneOffGrossPay;
+  const calculation = calculateWorkplacePension({
+    effectiveDate,
+    payPeriod: period,
+    annualGrossPayPence: Math.round(annualGrossPay * 100),
+    annualQualifyingEarningsPayPence: Math.round(annualGrossPay * 100),
+    qualifyingEarningsVariablePaymentsPence:
+      oneOffGrossPay === 0 ? [] : [Math.round(oneOffGrossPay * 100)],
+    annualPensionablePayPence: annualMoney(record.pensionablePay, multiplier),
+    employee: { kind: "none" },
+    employer: employer.policy,
+  });
+  if (!calculation.available) {
+    return {
+      pension: null,
+      reasons: [],
+      employerContributionPence: null,
+      employerUnavailableReasons: calculation.reasons,
+    };
+  }
+  const employerAmount = calculation.employerContributionPence;
   return {
     pension:
       employerAmount === 0
@@ -610,7 +781,7 @@ function calculateSegment(
   const pension =
     multiplier == null || record.grossPay == null
       ? { pension: null, reasons: [] }
-      : buildPension(record, multiplier);
+      : buildPension(record, multiplier, segment.from, oneOffGrossPay);
   reasons.push(...pension.reasons);
   const result = calculateResult(
     record,
@@ -698,7 +869,12 @@ function calculateNoPensionSegment(
           employerContributionPence: null,
           employerUnavailableReasons: [],
         }
-      : buildNoEmployeePension(record, multiplier);
+      : buildNoEmployeePension(
+          record,
+          multiplier,
+          segment.from,
+          oneOffGrossPay,
+        );
   reasons.push(...pension.reasons);
   const result = calculateResult(
     record,
