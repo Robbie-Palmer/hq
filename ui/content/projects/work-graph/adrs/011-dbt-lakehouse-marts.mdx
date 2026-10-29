@@ -1,0 +1,124 @@
+---
+title: "ADR 011: dbt lakehouse marts over privacy-safe ticket captures"
+date: "2026-10-29"
+status: "Accepted"
+supersedes: "work-graph:010-private-lake-analytics"
+tech_stack: ["dbt"]
+---
+
+## Context
+
+[ADR 010](/projects/work-graph/adrs/010-private-lake-analytics) chose bounded
+exports to private R2, Parquet datasets, and DuckDB reports. That separates
+analytics from the PostgreSQL coordination workload, but it does not settle
+which exported detail should survive after terminal tickets leave PostgreSQL.
+
+Keeping only aggregate metrics would prevent a corrected transformation or a
+new metric from using historical tickets. Keeping full operational records
+would retain note text, attention text, worker identities, prompts, and other
+private execution detail after the coordination service no longer needs them.
+The encrypted PostgreSQL backups are for recovery and expire on their own
+schedule. They are not the analytics source or a permanent ticket archive.
+
+Work Graph needs a durable analytical record that can reproduce its reports
+without retaining the private fields those reports do not use.
+
+## Decision
+
+Use an ELT pipeline in the private R2 data lake. Capture source-shaped ticket
+and event records first, then use dbt with DuckDB to produce versioned Parquet
+models and lakehouse marts.
+
+The extraction boundary applies an explicit analytics allowlist before upload.
+The raw layer preserves the source shape of that allowlist and excludes every
+other PostgreSQL field. It may contain stable ticket and event identities,
+lifecycle transitions, timestamps, scheduling-scope attribution, lease and
+attention categories, delivery-evidence categories, and documented presence or
+count signals. It
+must not contain note text, request or resolution text, worker identities,
+prompts, tokens, model calls, private logs, or unrestricted event payloads.
+
+Publish raw captures in immutable, manifest-listed batches. Each batch records
+its schema version, source sequence coverage, scope snapshot, row counts, and
+checksums. Advance the extraction checkpoint only after the batch and manifest
+are complete. Continue to capture events appended after release, including
+allowed signals from post-release comments, rather than treating release as a
+final snapshot.
+
+Run dbt models against complete raw manifests. Use DuckDB as the transformation
+engine and materialise these layers as Parquet:
+
+1. staging models that validate and normalise captured records;
+2. canonical ticket, event, wait-episode, and scope facts that preserve enough
+   detail to recalculate metrics; and
+3. lakehouse marts for recurring waits, interventions, stale leases, handoffs,
+   and other operator reports.
+
+Keep dbt model definitions, tests, documentation, and lineage in the
+repository. Incremental models must identify their source watermark and input
+manifest versions. Corrections publish a new complete model version rather
+than changing a manifest-listed version in place.
+
+Treat the canonical per-ticket facts as the compacted analytical record. A
+newer model may replace an older analytical state for the same ticket while
+immutable manifests retain publication provenance. Reports query complete
+Parquet mart versions with DuckDB and require no PostgreSQL credentials.
+
+Retain raw captures long enough to rebuild canonical models, correct pipeline
+faults, and cover the agreed late-event window. After dbt tests, row-count and
+checksum checks, and model publication succeed, retention may compact or expire
+superseded raw batches. Keep the canonical facts and required marts for the
+long-term analytics horizon.
+
+Do not create a permanent full-fidelity ticket archive for analytics. Existing
+encrypted database backups remain a time-bounded recovery mechanism. A
+separate decision is required if audit or recovery requirements later justify
+retaining private operational records beyond that window.
+
+PostgreSQL pruning must wait until the extraction watermark covers the
+ticket's latest allowed event and a tested dbt model version contains its
+canonical facts. The pruning process records the source cutoff and model
+version that authorised deletion.
+
+## Consequences
+
+Historical reports can be rebuilt and new metrics can use privacy-safe facts
+after PostgreSQL rows are removed. dbt supplies explicit models, tests,
+documentation, and lineage, while DuckDB keeps transformation and report
+execution on portable Parquet files.
+
+The lake deliberately cannot reconstruct private ticket content. Recovery of
+that content is limited to the database-backup window. A mistake in the
+extraction allowlist can also make a future metric impossible without a source
+backfill, so schema review and a measured late-event window matter.
+
+The project must operate dbt state, incremental watermarks, Parquet compaction,
+schema migrations, and retention jobs. Published marts remain derived data;
+their manifests and tests must prevent partial versions from authorising
+PostgreSQL deletion.
+
+Revisit the decision if required metrics cannot be computed from the canonical
+facts, if correction windows exceed raw retention, or if a legal or recovery
+requirement calls for a permanent full-fidelity archive.
+
+## Alternatives
+
+### Retain full-fidelity tickets in R2
+
+This would allow ticket-level reconstruction after PostgreSQL pruning. It
+would also keep private text and identities indefinitely for an analytics use
+case that does not need them. The existing encrypted backups already provide a
+bounded recovery path.
+
+### Retain only aggregate marts
+
+This minimises storage, but every new metric or transformation correction
+would be limited to the dimensions chosen when the aggregate was first built.
+Canonical privacy-safe facts preserve analytical flexibility at lower privacy
+risk than operational records.
+
+### Retain every privacy-safe raw batch indefinitely
+
+This maximises replay flexibility. It also leaves small objects and superseded
+states accumulating without bound. Verified canonical facts and versioned
+marts allow older raw batches to expire after the correction window.
