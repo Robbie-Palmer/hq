@@ -1850,14 +1850,8 @@ export async function recordReviewTerminal(options: {
     merged && typeof merged.result.summary === "string"
       ? merged.result.summary
       : undefined;
-  const coverageManifest = prepared
-    ? finalizeReviewCoverageManifest(
-        prepared.coverageManifest ?? selectReviewPaths([
-          ...prepared.paths,
-          ...prepared.omitted,
-        ]),
-        status,
-      )
+  const coverageManifest = prepared?.coverageManifest
+    ? finalizeReviewCoverageManifest(prepared.coverageManifest, status)
     : undefined;
   await env.REVIEW_DATA.put(
     key,
