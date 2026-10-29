@@ -15,7 +15,7 @@ const cooklangLanguage: LanguageRegistration = {
   patterns: [
     {
       name: "meta.ingredient.cooklang",
-      match: "(@)([^@#~{}\\n]+?)(\\{)([^%{}\\n]+)(%)([^{}\\n]+)(\\})",
+      match: String.raw`(@)([^@#~{}\n]+?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
       captures: {
         1: punctuation,
         2: { name: "string.quoted.other.ingredient.cooklang" },
@@ -28,7 +28,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.ingredient.cooklang",
-      match: "(@)([^@#~{}\\n]+?)(\\{)([^{}\\n]+)(\\})",
+      match: String.raw`(@)([^@#~{}\n]+?)(\{)([^{}\n]+)(\})`,
       captures: {
         1: punctuation,
         2: { name: "string.quoted.other.ingredient.cooklang" },
@@ -39,7 +39,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.ingredient.cooklang",
-      match: "(@)([^@#~{}\\n]+?)(\\{\\})",
+      match: String.raw`(@)([^@#~{}\n]+?)(\{\})`,
       captures: {
         1: punctuation,
         2: { name: "string.quoted.other.ingredient.cooklang" },
@@ -48,7 +48,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.ingredient.cooklang",
-      match: "(@)([\\p{L}\\p{N}_'-]+)",
+      match: String.raw`(@)([\p{L}\p{N}_'-]+)`,
       captures: {
         1: punctuation,
         2: { name: "string.quoted.other.ingredient.cooklang" },
@@ -56,7 +56,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.cookware.cooklang",
-      match: "(#)([^@#~{}\\n]+?)(\\{\\})",
+      match: String.raw`(#)([^@#~{}\n]+?)(\{\})`,
       captures: {
         1: punctuation,
         2: { name: "entity.name.type.cookware.cooklang" },
@@ -65,7 +65,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.cookware.cooklang",
-      match: "(#)([\\p{L}\\p{N}_'-]+)",
+      match: String.raw`(#)([\p{L}\p{N}_'-]+)`,
       captures: {
         1: punctuation,
         2: { name: "entity.name.type.cookware.cooklang" },
@@ -73,7 +73,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.timer.cooklang",
-      match: "(~)([^@#~{}\\n]*?)(\\{)([^%{}\\n]+)(%)([^{}\\n]+)(\\})",
+      match: String.raw`(~)([^@#~{}\n]*?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
       captures: {
         1: timer,
         2: timer,
@@ -86,7 +86,7 @@ const cooklangLanguage: LanguageRegistration = {
     },
     {
       name: "meta.timer.cooklang",
-      match: "(~)([^@#~{}\\n]*?)(\\{)([^{}\\n]+)(\\})",
+      match: String.raw`(~)([^@#~{}\n]*?)(\{)([^{}\n]+)(\})`,
       captures: {
         1: timer,
         2: timer,
@@ -98,7 +98,7 @@ const cooklangLanguage: LanguageRegistration = {
   ],
 };
 
-const getMarkdownHighlighter: NonNullable<Options["getHighlighter"]> = async (
+const getMarkdownHighlighter: NonNullable<Options["getHighlighter"]> = (
   options,
 ) =>
   createHighlighter({
