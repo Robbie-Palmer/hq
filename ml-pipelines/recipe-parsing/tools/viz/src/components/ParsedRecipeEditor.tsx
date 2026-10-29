@@ -5,7 +5,7 @@ import { UNIT_LABELS } from "recipe-domain";
 import { formatAmount } from "../lib/format";
 import type { CanonicalizationDecision } from "../types/canonicalization";
 
-interface CanonicalizationEditorOptions {
+export interface CanonicalizationEditorOptions {
   canonicalSlugs: Set<string>;
   categories: Map<string, string>;
   normalizationSource: ParsedRecipe | null;
@@ -470,7 +470,7 @@ function StandardIngredientRow({
   );
 }
 
-function IngredientRow({
+export function IngredientRow({
   item,
   isExpanded,
   adding,

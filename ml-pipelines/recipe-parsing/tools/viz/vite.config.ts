@@ -58,7 +58,7 @@ function contentTypeFor(filePath: string): string {
   return "application/octet-stream";
 }
 
-function endStreamError(
+export function endStreamError(
   res: import("node:http").ServerResponse,
   error: NodeJS.ErrnoException,
 ): void {

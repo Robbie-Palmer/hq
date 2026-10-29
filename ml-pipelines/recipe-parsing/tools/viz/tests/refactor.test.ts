@@ -1,42 +1,44 @@
 import { describe, expect, it, vi } from "vitest";
-import type { ParsedRecipe } from "recipe-domain";
+import type { ParsedRecipe, RecipeIngredient } from "recipe-domain";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import {
   diffEquipment,
   diffIngredients,
   ParsedRecipeDiff,
-} from "../components/ParsedRecipeDiff";
+} from "../src/components/ParsedRecipeDiff";
 import {
+  IngredientRow,
   ParsedRecipeEditor,
   updateIngredientAt,
-} from "../components/ParsedRecipeEditor";
-import { buildComparisonRows, StatsView } from "../views/StatsView";
-import { ExtractionDetailView } from "../views/ExtractionDetailView";
-import { NormalizationDetailView } from "../views/NormalizationDetailView";
-import { CanonicalizeDetailView } from "../views/CanonicalizeDetailView";
+} from "../src/components/ParsedRecipeEditor";
+import { buildComparisonRows, StatsView } from "../src/views/StatsView";
+import { ExtractionDetailView } from "../src/views/ExtractionDetailView";
+import { NormalizationDetailView } from "../src/views/NormalizationDetailView";
+import { CanonicalizeDetailView } from "../src/views/CanonicalizeDetailView";
 import {
   detailTitle,
   findCanonicalizationDecisions,
   findCanonicalizedPrediction,
   findExtractionPrediction,
   findNormalizationDetailData,
-} from "./detailData";
+} from "../src/lib/detailData";
 import {
   formatAmount,
   formatIngredient,
   formatTime,
   humanizeSlug,
-} from "./format";
+} from "../src/lib/format";
 import {
   handleDetailKeyDown,
   subscribeDetailKeyboard,
-} from "./detailNavigation";
+} from "../src/lib/detailNavigation";
 import type {
   ExtractionRecipe,
   GroundTruthEntry,
   StageMetrics,
-} from "../types/extraction";
+} from "../src/types/extraction";
+import { endStreamError } from "../vite.config";
 
 const BASE_RECIPE: ParsedRecipe = {
   title: "Tomato soup",
@@ -184,6 +186,72 @@ describe("recipe visualization edits and comparisons", () => {
     );
   });
 
+  it("renders standard and canonical ingredient edit variants", () => {
+    const callbacks = {
+      onChange: vi.fn(),
+      onRemove: vi.fn(),
+      onToggle: vi.fn(),
+      onStartAdding: vi.fn(),
+      onStopAdding: vi.fn(),
+    };
+    const standardMarkup = renderToStaticMarkup(
+      createElement(IngredientRow, {
+        item: {
+          ingredient: "red-onion",
+          amount: 2,
+          unit: "piece",
+          preparation: "diced",
+          note: "divided",
+        },
+        isExpanded: false,
+        adding: false,
+        normSlug: null,
+        decision: null,
+        ...callbacks,
+      }),
+    );
+    const canonicalMarkup = renderToStaticMarkup(
+      createElement(IngredientRow, {
+        item: {
+          ingredient: "tomato-puree",
+          amount: 1.5,
+          unit: "cup",
+          preparation: "strained",
+          note: "optional",
+        },
+        isExpanded: true,
+        adding: true,
+        normSlug: "tomatoes",
+        decision: {
+          originalSlug: "tomatoes",
+          baseSlug: "tomatoes",
+          canonicalSlug: "tomato",
+          method: "fuzzy",
+          score: 0.92,
+          candidates: [],
+        },
+        canonicalization: {
+          canonicalSlugs: new Set<string>(),
+          categories: new Map<string, string>(),
+          normalizationSource: BASE_RECIPE,
+          decisions: [],
+          onAddCanonicalIngredient: vi.fn(),
+        },
+        ...callbacks,
+      }),
+    );
+
+    expect(standardMarkup).toContain("red-onion");
+    expect(standardMarkup).toContain("diced");
+    expect(standardMarkup).toContain("divided");
+    expect(canonicalMarkup).toContain("tomato-puree");
+    expect(canonicalMarkup).toContain("tomato");
+    expect(canonicalMarkup).toContain("0.92");
+    expect(canonicalMarkup).toContain("was:");
+    expect(canonicalMarkup).toContain("Add to canonical ontology");
+    expect(canonicalMarkup).toContain("Preparation");
+  });
+
   it("routes edit shortcuts and entry navigation", () => {
     const onSave = vi.fn();
     const onNavigate = vi.fn();
@@ -236,7 +304,11 @@ describe("recipe visualization edits and comparisons", () => {
 
   it("subscribes detail shortcuts and ignores form controls", () => {
     class FakeInput {}
+    class FakeTextArea {}
+    class FakeSelect {}
     vi.stubGlobal("HTMLInputElement", FakeInput);
+    vi.stubGlobal("HTMLTextAreaElement", FakeTextArea);
+    vi.stubGlobal("HTMLSelectElement", FakeSelect);
     const onNavigate = vi.fn();
     const listeners = new Set<(event: KeyboardEvent) => void>();
     const target = {
@@ -257,18 +329,111 @@ describe("recipe visualization edits and comparisons", () => {
       target,
     );
     const listener = [...listeners][0];
-    listener({
-      metaKey: false,
-      ctrlKey: false,
-      key: "ArrowRight",
-      target: new FakeInput(),
-      preventDefault: vi.fn(),
-    } as unknown as KeyboardEvent);
+    for (const targetElement of [
+      new FakeInput(),
+      new FakeTextArea(),
+      new FakeSelect(),
+    ]) {
+      listener({
+        metaKey: false,
+        ctrlKey: false,
+        key: "ArrowRight",
+        target: targetElement,
+        preventDefault: vi.fn(),
+      } as unknown as KeyboardEvent);
+    }
 
     expect(onNavigate).not.toHaveBeenCalled();
     unsubscribe();
     expect(listeners).toHaveLength(0);
     vi.unstubAllGlobals();
+  });
+
+  it("handles shortcut boundaries and clean saves", () => {
+    const onBack = vi.fn();
+    const onNavigate = vi.fn();
+    const onSave = vi.fn();
+    const preventDefault = vi.fn();
+    const options = {
+      dirty: false,
+      entryIndex: 0,
+      totalEntries: 1,
+      onBack,
+      onNavigate,
+      onSave,
+    };
+
+    handleDetailKeyDown(
+      {
+        metaKey: true,
+        ctrlKey: false,
+        key: "s",
+        target: null,
+        preventDefault,
+      } as unknown as KeyboardEvent,
+      options,
+    );
+    handleDetailKeyDown(
+      {
+        metaKey: false,
+        ctrlKey: false,
+        key: "Escape",
+        target: null,
+        preventDefault: vi.fn(),
+      } as unknown as KeyboardEvent,
+      options,
+    );
+    for (const key of ["ArrowLeft", "ArrowRight"]) {
+      handleDetailKeyDown(
+        {
+          metaKey: false,
+          ctrlKey: false,
+          key,
+          target: null,
+          preventDefault: vi.fn(),
+        } as unknown as KeyboardEvent,
+        options,
+      );
+    }
+
+    expect(preventDefault).toHaveBeenCalledOnce();
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onBack).toHaveBeenCalledOnce();
+    expect(onNavigate).not.toHaveBeenCalled();
+  });
+
+  it("maps Vite stream failures to stable HTTP responses", () => {
+    const notFound = {
+      headersSent: false,
+      statusCode: 200,
+      end: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const failed = {
+      headersSent: false,
+      statusCode: 200,
+      end: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const streaming = {
+      headersSent: true,
+      statusCode: 200,
+      end: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const missingError = Object.assign(new Error("missing"), { code: "ENOENT" });
+    const readError = Object.assign(new Error("denied"), { code: "EACCES" });
+
+    endStreamError(notFound as never, missingError);
+    endStreamError(failed as never, readError);
+    endStreamError(streaming as never, readError);
+
+    expect(notFound.statusCode).toBe(404);
+    expect(notFound.end).toHaveBeenCalledWith("Not found");
+    expect(failed.statusCode).toBe(500);
+    expect(failed.end).toHaveBeenCalledWith("Failed to read file");
+    expect(streaming.destroy).toHaveBeenCalledWith(readError);
+    expect(streaming.end).not.toHaveBeenCalled();
   });
 
   it("preserves amount and diff display contracts", () => {
@@ -285,11 +450,24 @@ describe("recipe visualization edits and comparisons", () => {
         [{ ingredient: "tomato", amount: 3 }],
       ).expectedRows[0].status,
     ).toBe("amount-mismatch");
+    expect(
+      diffIngredients(
+        [
+          { ingredient: "tomato", amount: 1, unit: "piece" },
+          { ingredient: "tomato", amount: 1, unit: "g" },
+        ],
+        [
+          { ingredient: "tomato", amount: 1 },
+          { ingredient: "tomato", amount: 1, unit: "ml" },
+        ],
+      ).expectedRows.map((row) => row.status),
+    ).toEqual(["matched", "unit-mismatch"]);
   });
 
   it("renders representative diff and canonical edit states", () => {
     const predicted: ParsedRecipe = {
       ...BASE_RECIPE,
+      cuisine: ["Italian", "French"],
       ingredientGroups: [
         {
           items: [
@@ -337,12 +515,77 @@ describe("recipe visualization edits and comparisons", () => {
     expect(standardEditorMarkup).toContain("Instructions (from normalization)");
   });
 
+  it("omits disabled and empty diff sections", () => {
+    const recipe: ParsedRecipe = {
+      ...BASE_RECIPE,
+      description: "",
+      cuisine: [],
+      prepTime: undefined,
+      cookTime: undefined,
+      cookware: [],
+    };
+    const markup = renderToStaticMarkup(
+      createElement(ParsedRecipeDiff, {
+        expected: recipe,
+        predicted: recipe,
+        scalarFields: [],
+        showInstructions: false,
+      }),
+    );
+
+    expect(markup).toContain("Ingredients");
+    expect(markup).not.toContain("Expected</span>");
+    expect(markup).not.toContain("Equipment");
+    expect(markup).not.toContain("Instructions");
+  });
+
+  it("renders equal text and explicit equipment overrides without badges", () => {
+    const emptyRecipe: ParsedRecipe = {
+      ...BASE_RECIPE,
+      description: "",
+      cuisine: [],
+      prepTime: undefined,
+      cookTime: undefined,
+    };
+    const equalMarkup = renderToStaticMarkup(
+      createElement(ParsedRecipeDiff, {
+        expected: emptyRecipe,
+        predicted: emptyRecipe,
+        expectedCookware: ["Pan"],
+        predictedCookware: [" pan "],
+      }),
+    );
+    const changedCuisineMarkup = renderToStaticMarkup(
+      createElement(ParsedRecipeDiff, {
+        expected: BASE_RECIPE,
+        predicted: { ...BASE_RECIPE, cuisine: ["Mexican"] },
+        scalarFields: ["cuisine"],
+        showInstructions: false,
+      }),
+    );
+
+    expect(equalMarkup).toContain("Pan");
+    expect(equalMarkup).not.toContain("missing words");
+    expect(equalMarkup).not.toContain("extra words");
+    expect(changedCuisineMarkup).toContain("Mexican");
+  });
+
   it("keeps human-readable formatting stable", () => {
     expect(humanizeSlug("extra-virgin-olive-oil")).toBe(
       "extra virgin olive oil",
     );
     expect(formatAmount({ ingredient: "salt", unit: "pinch" })).toBe("pinch");
     expect(formatAmount({ ingredient: "salt" })).toBe("");
+    expect(formatIngredient({ ingredient: "tomato", unit: "piece" })).toBe(
+      "tomato",
+    );
+    expect(
+      formatAmount({
+        ingredient: "tomato",
+        amount: 1,
+        unit: "unknown-unit",
+      } as RecipeIngredient),
+    ).toBe("1");
     expect(
       formatIngredient({
         ingredient: "red-onion",
@@ -367,6 +610,37 @@ describe("recipe visualization edits and comparisons", () => {
     expect(rows.find((row) => row.key === "overall")?.delta).toBeCloseTo(0.1);
     expect(rows.find((row) => row.key === "ingredientParsing")?.delta).toBeCloseTo(0.15);
     expect(buildComparisonRows(null, stageMetrics(0.8, 0.75))).toEqual([]);
+  });
+
+  it("keeps sparse statistics nullable instead of inventing scores", () => {
+    const sparse = stageMetrics(0.7, 0.6);
+    sparse.byCategory.equipmentParsing = undefined;
+    sparse.byCategory.ingredientParsing.fieldScores = undefined;
+    sparse.byCategory.scalarFields = {
+      cuisine: { accuracy: 0.55 },
+    };
+    const rows = buildComparisonRows(sparse, sparse);
+    const complete = stageMetrics(0.8, 0.75);
+    const sparseBaselineRows = buildComparisonRows(sparse, complete);
+    const sparseCanonicalRows = buildComparisonRows(complete, sparse);
+
+    expect(rows.find((row) => row.key === "equipmentParsing")).toMatchObject({
+      normalization: null,
+      canonicalization: null,
+      delta: null,
+    });
+    expect(rows.find((row) => row.key === "ingredientAmount")?.delta).toBeNull();
+    expect(rows.find((row) => row.key === "ingredientUnit")?.delta).toBeNull();
+    expect(
+      rows.find((row) => row.key === "ingredientPreparation")?.delta,
+    ).toBeNull();
+    expect(rows.find((row) => row.key === "cuisine")?.normalization).toBe(0.55);
+    expect(
+      sparseBaselineRows.find((row) => row.key === "equipmentParsing")?.delta,
+    ).toBeNull();
+    expect(
+      sparseCanonicalRows.find((row) => row.key === "equipmentParsing")?.delta,
+    ).toBeNull();
   });
 
   it("renders the statistics dashboard before datasets load", () => {
