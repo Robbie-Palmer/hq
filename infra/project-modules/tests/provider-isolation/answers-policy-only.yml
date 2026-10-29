@@ -1,0 +1,18 @@
+project_id: policy-only
+blueprint:
+  schema_version: 2
+  project:
+    id: policy-only
+    name: Policy-only fixture
+    kind: application
+    published: false
+  components:
+    - id: policy-only
+      kind: terraform-root
+      name: Policy-only fixture
+      path: infra/policy-only
+  selections:
+    - slot: database.preview-isolation
+      value: Fresh pull-request database from committed migrations and synthetic fixtures
+    - slot: network.public-ingress
+      value: Declare services private-only or govern their public ingress separately

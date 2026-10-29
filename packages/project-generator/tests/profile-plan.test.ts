@@ -338,6 +338,40 @@ describe("resolved profile plan adapter", () => {
     ).toThrow(/must declare an immutable revision/);
   });
 
+  it("rejects an ambiguous Terraform render target", () => {
+    const currentContracts = contracts();
+    const profile = parseProjectProfile(
+      stringify({
+        schema_version: 1,
+        project: {
+          id: "multi-root-platform",
+          name: "Multi-root platform",
+          kind: "platform",
+        },
+        components: [
+          { id: "foundation", name: "Foundation", kind: "terraform-root" },
+          { id: "workload", name: "Workload", kind: "terraform-root" },
+        ],
+        layers: [{ layer: "base" }],
+        nix: { boundary: "none" },
+        opentelemetry: { enabled: false },
+      }),
+    );
+    const blueprint = resolveProjectProfile(
+      profile,
+      currentContracts,
+      effectiveAt,
+    );
+
+    expect(() =>
+      projectPlanFromBlueprint({
+        blueprint,
+        contracts: currentContracts,
+        template,
+      }),
+    ).toThrow(/supports one terraform-root component, found 2/);
+  });
+
   it("owns hosted project UI without registering a nested workspace", () => {
     const currentContracts = contracts();
     const hostedFeature = parseProjectProfile(

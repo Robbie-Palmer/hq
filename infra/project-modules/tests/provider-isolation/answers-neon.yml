@@ -1,0 +1,15 @@
+project_id: neon-only
+blueprint:
+  schema_version: 2
+  project:
+    id: neon-only
+    name: Neon-only fixture
+    kind: application
+    published: false
+  components:
+    - id: neon-only
+      kind: terraform-root
+      name: Neon-only fixture
+      path: infra/neon-only
+  selections:
+    - { slot: database.relational-host, value: neon }

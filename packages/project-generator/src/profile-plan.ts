@@ -65,6 +65,14 @@ export function projectPlanFromBlueprint(input: {
   readonly template: PinnedTemplateSource;
 }): ProjectPlan {
   const { blueprint, contracts, template } = input;
+  const terraformRoots = blueprint.components.filter(
+    ({ kind }) => kind === "terraform-root",
+  );
+  if (terraformRoots.length > 1) {
+    throw new Error(
+      `The monorepo project template supports one terraform-root component, found ${terraformRoots.length}`,
+    );
+  }
   const published = blueprint.project.published !== false;
   const existingProject = contracts.layout.projects.find(
     ({ id }) => id === blueprint.project.id,

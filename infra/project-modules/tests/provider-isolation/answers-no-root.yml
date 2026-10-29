@@ -1,0 +1,14 @@
+project_id: no-terraform-root
+blueprint:
+  schema_version: 2
+  project:
+    id: no-terraform-root
+    name: No Terraform root fixture
+    kind: application
+    published: false
+  components:
+    - id: web
+      kind: project-ui
+      name: No Terraform root fixture
+      path: ui/app/_projects/no-terraform-root
+  selections: []

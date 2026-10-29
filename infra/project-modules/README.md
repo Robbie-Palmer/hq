@@ -43,6 +43,21 @@ self-managed infrastructure, not a temporary omission. Work Graph ticket
 Those modules must consume the same resolved profile and compose without
 adding providers, state, or credentials to projects that do not select them.
 
+## Compiled provider graph
+
+New projects follow [ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
+Copier writes `generated-project.tf` into the project's `terraform-root`
+component. The file is Copier-owned and contains only the selected application
+providers and capability modules. Do not edit it or add provider-subset
+composition modules.
+
+The aggregate `v1` source remains a compatibility surface for existing state.
+Do not replace an existing aggregate module call with a compiled root during a
+routine template update. New projects use compiled roots. A deliberate legacy
+migration must keep the old provider configuration available for the destroy
+or state-move phase, move each capability address under review, and reach a
+no-change plan before removing the aggregate call.
+
 ## State boundaries
 
 Use two module instances in two independently stateful roots. Do not combine

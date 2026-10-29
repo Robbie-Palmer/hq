@@ -9,9 +9,10 @@ public project page or knowledge-graph record. The shared site mounts its
 project-owned UI at `/platform-bootstrap-canary`, and the disposable provider
 preview uses a separate temporary URL.
 
-The profile is the source of truth. `infrastructure-profile.json` is the small
-projection consumed by Terraform. The project-generator test fails if that
-projection no longer matches the profile resolved at
+The profile is the source of truth. `infrastructure-profile.json` is a small
+reviewed projection used to check the canary selections; Terraform no longer
+interprets that selection set at runtime. The project-generator test fails if
+the projection no longer matches the profile resolved at
 `2026-10-27T00:00:00Z`.
 
 ## Check the repository change
@@ -60,8 +61,6 @@ own values for:
 
 - `TF_API_TOKEN`
 - `CLOUDFLARE_API_TOKEN`
-- `GITHUB_TOKEN`, until the static provider set no longer validates GitHub for
-  an unselected capability
 - `NEON_API_KEY`
 
 Set these non-secret values in both configs:
@@ -86,11 +85,11 @@ use zero history retention. Nothing reads or clones production data.
 
 The public mise tasks load the `preview` config for read-only plans and the
 `apply` config for writes. Their wrapper maps the readable names above to the
-Terraform variables without printing secret values. It gives lazy unselected
-providers inert values. The GitHub provider performs an eager identity lookup,
-so the canary temporarily needs a read-only GitHub token even though its plan
-contains no GitHub resources. Work Graph ticket
-`pep-isolate-project-module-provider-credentials` owns that follow-up.
+Terraform variables without printing secret values. The fixture composes
+separate disposable Cloudflare and Neon modules, so Terraform never configures
+GitHub, Doppler, TFE, or PostHog for its plan, apply, or cleanup. Production
+project roots use the equivalent Copier-compiled capability modules with
+deletion protection.
 
 ```bash
 mise //infra/project-modules:minimal-bootstrap:plan
@@ -103,7 +102,10 @@ mise //infra/project-modules:minimal-bootstrap:smoke:worker
 mise //infra/project-modules:minimal-bootstrap:plan
 ```
 
-The first plan must contain only the five selected application capabilities.
+The first plan after the provider-boundary refactor records state moves from
+the former aggregate module into the Cloudflare and Neon modules. Those moves
+must not recreate a remote object. Every plan must contain only the five
+selected application capabilities.
 The Pages deploy publishes a single synthetic-data notice on the
 `bootstrap-canary` branch. The HTTP smoke checks both the custom domain and the
 latest immutable Pages deployment URL, so a hash URL cannot bypass Access. The
@@ -134,10 +136,9 @@ mise //infra/account-foundation:plan
 
 Reject either cleanup plan if it updates, replaces, or deletes an address that
 does not contain `platform-bootstrap-canary` or the application root's
-`module.preview.module.disposable` prefix. The last account-foundation plan
-must report no changes. Application cleanup removes the local-only profile
-validation guard from state after deleting provider resources, so HCP can then
-delete the empty workspace.
+`module.cloudflare` or `module.neon` prefix. The last account-foundation plan
+must report no changes. HCP can delete the workspace only after the application
+state contains no provider resources.
 
 If an apply stops, keep the state and generate a new plan. Do not finish the
 cleanup in provider consoles. If HCP state is unavailable, restore its latest

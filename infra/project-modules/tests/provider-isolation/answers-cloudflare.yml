@@ -1,0 +1,15 @@
+project_id: cloudflare-only
+blueprint:
+  schema_version: 2
+  project:
+    id: cloudflare-only
+    name: Cloudflare-only fixture
+    kind: application
+    published: false
+  components:
+    - id: cloudflare-only
+      kind: terraform-root
+      name: Cloudflare-only fixture
+      path: infra/cloudflare-only
+  selections:
+    - { slot: web-app.host, value: cloudflare-pages }

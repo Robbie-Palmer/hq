@@ -127,7 +127,11 @@ entry to pin a full Git revision. Template revisions stay outside project
 profiles.
 
 The adapter records the complete resolved blueprint as a non-secret Copier
-answer. Component paths become Copier-owned paths. The layout contract decides
+answer. When the blueprint contains one `terraform-root` component, the
+template compiles its application capability selections into the static root
+defined by [Personal Engineering Platform ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
+
+Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace
 packages. Its task ownership policy marks each standard task as generated,
 inherited from the existing mise hierarchy, or delegated to a named mise
