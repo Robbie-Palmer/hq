@@ -1151,6 +1151,30 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "platform",
   },
   {
+    name: "Cooklang",
+    added: "2026-02-28",
+    description: "Plain-text markup language for structured, portable recipes",
+    overview: `## Cooklang syntax
+
+Cooklang keeps ingredients, cookware, timers, and quantities inline with each instruction. A recipe stays readable as plain text while parsers turn its annotations into structured data for scaling, shopping lists, and cooking timers.
+
+A small tomato pasta recipe shows the core syntax:
+
+\`\`\`cooklang
+Bring @water{2%l} to a boil in a #large pot{}.
+Add @spaghetti{200%g} and cook for ~{10%minutes}.
+Warm @olive oil{2%tbsp} in a #frying pan{}.
+Stir in @garlic{2%cloves} and @tomatoes{400%g}, then simmer for ~{8%minutes}.
+Toss with @salt{} and @black pepper{} to taste.
+\`\`\`
+
+Ingredients start with \`@\`, cookware with \`#\`, and timers with \`~\`. Braces hold quantities and units when the recipe needs them.
+
+Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-minute timer labelled "pasta" for an application to show in a notification. The name is only a label; it does not link the timer to the \`@spaghetti\` ingredient.`,
+    website: "https://cooklang.org",
+    type: "language",
+  },
+  {
     name: "cooklang-rs",
     added: "2026-02-28",
     description:
