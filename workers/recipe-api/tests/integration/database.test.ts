@@ -3024,3 +3024,126 @@ describe("durable recipe batches", () => {
     expect((await resumed.json() as { counts: { skipped: number } }).counts.skipped).toBe(1);
   });
 });
+
+describe("persisted recipe progress streams", () => {
+  it("authorizes owners and replays terminal photo and batch state", async () => {
+    const cook = await createUser("Progress Cook", "progress@example.test");
+    const stranger = await createUser(
+      "Other Progress Cook",
+      "other-progress@example.test",
+    );
+    const [photoJob] = await db
+      .insert(schema.recipeImportJob)
+      .values({
+        userId: cook.id,
+        imageCount: 1,
+        status: "succeeded",
+        currentStage: "finalize",
+        progressLabel: "Draft ready",
+        finishedAt: new Date("2026-10-29T20:00:00.000Z"),
+      })
+      .returning();
+    if (!photoJob) throw new Error("Photo progress fixture was not created");
+
+    const progress = await authenticatedRequest(
+      cook,
+      `/recipe-imports/${photoJob.id}/progress`,
+    );
+    expect(progress.status).toBe(200);
+    expect(progress.headers.get("content-type")).toBe(
+      "text/event-stream; charset=utf-8",
+    );
+    const firstBody = await progress.text();
+    expect(firstBody).toContain("event: terminal\n");
+    expect(firstBody).toContain('"status":"succeeded"');
+    const eventId = firstBody.match(/^id: (v1:[a-f0-9]{64})$/m)?.[1];
+    expect(eventId).toBeTruthy();
+
+    const replay = await app.request(
+      `/recipe-imports/${photoJob.id}/progress`,
+      {
+        headers: {
+          cookie: cook.cookie,
+          "last-event-id": eventId ?? "",
+        },
+      },
+      baseEnv,
+    );
+    expect(await replay.text()).toContain('"matched":true');
+    expect(
+      (
+        await authenticatedRequest(
+          stranger,
+          `/recipe-imports/${photoJob.id}/progress`,
+        )
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await app.request(
+          `/recipe-imports/${photoJob.id}/progress`,
+          {
+            headers: {
+              cookie: cook.cookie,
+              "last-event-id": "invalid",
+            },
+          },
+          baseEnv,
+        )
+      ).status,
+    ).toBe(400);
+
+    const [batch] = await db
+      .insert(schema.recipeImportBatch)
+      .values({
+        userId: cook.id,
+        idempotencyKey: crypto.randomUUID(),
+        fingerprint: "progress-fixture",
+        startedAt: new Date("2026-10-29T19:00:00.000Z"),
+      })
+      .returning();
+    if (!batch) throw new Error("Batch progress fixture was not created");
+    await db.insert(schema.recipeImportJob).values({
+      userId: cook.id,
+      batchId: batch.id,
+      position: 0,
+      imageCount: 0,
+      sourceType: "file",
+      sourceLabel: "fixture.cook",
+      status: "failed",
+      reviewState: "skipped",
+      errorType: "ParseError",
+      errorMessage: "Fixture failure",
+      finishedAt: new Date("2026-10-29T20:00:00.000Z"),
+    });
+
+    const batchProgress = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${batch.id}/progress`,
+    );
+    const batchBody = await batchProgress.text();
+    expect(batchProgress.status).toBe(200);
+    expect(batchBody).toContain("event: terminal\n");
+    expect(batchBody).toContain('"status":"completed"');
+    expect(batchBody).toContain('"skipped":1');
+    expect(
+      (
+        await authenticatedRequest(
+          stranger,
+          `/recipe-import-batches/${batch.id}/progress`,
+        )
+      ).status,
+    ).toBe(404);
+
+    const persistedPhoto = await authenticatedRequest(
+      cook,
+      `/recipe-imports/${photoJob.id}`,
+    );
+    const persistedBatch = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${batch.id}`,
+    );
+    expect(persistedPhoto.status).toBe(200);
+    expect(persistedBatch.status).toBe(200);
+  });
+});
