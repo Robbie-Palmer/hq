@@ -109,13 +109,12 @@ export async function readRecipeBatchProgress(
     .where(eq(jobs.batchId, batch.id))
     .orderBy(jobs.position);
   const progress = batchProgress(items);
-  const status = batch.undoStartedAt
-    ? batch.undoCompletedAt
-      ? "undone"
-      : "undoing"
-    : !batch.startedAt
-      ? "preparing"
-      : progress.status;
+  let status = progress.status;
+  if (!batch.startedAt) status = "preparing";
+  if (batch.undoStartedAt) {
+    status = "undoing";
+    if (batch.undoCompletedAt) status = "undone";
+  }
 
   return {
     state: {
