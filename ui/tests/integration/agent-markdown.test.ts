@@ -121,7 +121,8 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("data-provenance.html");
     expect(htmlPages).toContain("digital-twins.html");
     expect(htmlPages).toContain("mutation-testing.html");
-    expect(htmlPages).toHaveLength(42);
+    expect(htmlPages).toContain("property-based-testing.html");
+    expect(htmlPages).toHaveLength(43);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);

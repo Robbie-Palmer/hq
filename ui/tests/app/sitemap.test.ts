@@ -71,7 +71,10 @@ describe("sitemap", () => {
     expect(ideaUrls).toContain(
       "https://robbiepalmer.me/ideas/mutation-testing",
     );
-    expect(ideaUrls).toHaveLength(43);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/property-based-testing",
+    );
+    expect(ideaUrls).toHaveLength(44);
   });
 
   it("excludes legacy ADR aliases", () => {
