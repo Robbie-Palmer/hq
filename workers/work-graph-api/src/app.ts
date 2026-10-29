@@ -89,6 +89,7 @@ import {
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
+import { handleWorkGraphMcpRequest } from "./mcp";
 
 const MAX_IDENTIFIER_LENGTH = 200;
 const MAX_TITLE_LENGTH = 10_000;
@@ -3493,6 +3494,12 @@ export const createWorkGraphApp = (
       201,
     );
   });
+
+  app.all("/mcp", (context) =>
+    handleWorkGraphMcpRequest(context.req.raw, (request) =>
+      app.request(request),
+    ),
+  );
 
   return app;
 };
