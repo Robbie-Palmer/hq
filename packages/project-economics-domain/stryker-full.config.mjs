@@ -3,6 +3,7 @@ import config from "./stryker.config.mjs";
 /** @type {import("@stryker-mutator/api/core").PartialStrykerOptions} */
 const fullConfig = {
   ...config,
+  incremental: false,
   ignoreStatic: false,
   thresholds: {
     break: null,
