@@ -25,6 +25,13 @@ systemctl is-active --quiet display-manager.service
 systemctl is-active --quiet NetworkManager.service
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
+systemctl is-active --quiet vector-development-power-profile.service
+systemctl is-active --quiet vector-development-quiet-profile.service
+systemctl is-active --quiet vector-development-thermal-monitor.service
+test "$(powerprofilesctl get)" = power-saver
+test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = silent
+test "$(cat /sys/devices/platform/msi-ec/shift_mode)" = eco
+test -s /var/lib/vector-development-thermal-monitor/status.json
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader \
   | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
 test "$(cat /sys/module/nvidia_drm/parameters/modeset)" = Y

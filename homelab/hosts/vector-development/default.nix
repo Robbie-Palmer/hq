@@ -28,6 +28,7 @@ let
     builtins.readFile ./scripts/vector-remote-unlock.bash
   );
   t3CodeDesktop = pkgs.callPackage ../../packages/t3-code-desktop.nix { };
+  msiEc = config.boot.kernelPackages.callPackage ../../packages/msi-ec.nix { };
   nvidiaContainerTools = lib.getOutput "tools" config.hardware.nvidia-container-toolkit.package;
   tomlFormat = pkgs.formats.toml { };
   nvidiaContainerConfig = tomlFormat.generate "nvidia-container-runtime-config.toml" {
@@ -76,6 +77,25 @@ let
     ];
     text = builtins.readFile ./scripts/configure-tailscale-serve.bash;
   };
+  quietProfileScript = pkgs.writeShellApplication {
+    name = "vector-development-quiet-profile";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+    ];
+    text = builtins.readFile ./scripts/apply-quiet-profile.bash;
+  };
+  thermalMonitor = pkgs.writeShellApplication {
+    name = "vector-development-thermal-monitor";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gawk
+      gnugrep
+      jq
+      procps
+    ];
+    text = builtins.readFile ./scripts/thermal-monitor.bash;
+  };
 in
 {
   imports = [
@@ -122,6 +142,8 @@ in
   };
 
   boot = {
+    extraModulePackages = [ msiEc ];
+    kernelModules = [ "msi_ec" ];
     initrd = {
       network.ssh = {
         enable = true;
@@ -448,6 +470,56 @@ in
       VECTOR_CACHE_BLOCK_HARD_LIMIT = cacheBlockHardLimit;
       VECTOR_CACHE_BLOCK_HARD_LIMIT_KIB = cacheBlockHardLimitKiB;
       VECTOR_CACHE_INODE_HARD_LIMIT = cacheInodeHardLimit;
+    };
+  };
+
+  systemd.services.vector-development-power-profile = {
+    description = "Select the power-saver profile";
+    after = [ "power-profiles-daemon.service" ];
+    requires = [ "power-profiles-daemon.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set power-saver
+      test "$(${pkgs.power-profiles-daemon}/bin/powerprofilesctl get)" = power-saver
+    '';
+  };
+
+  systemd.services.vector-development-quiet-profile = {
+    description = "Select the MSI firmware quiet profile";
+    after = [ "systemd-modules-load.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${quietProfileScript}/bin/vector-development-quiet-profile";
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+  };
+
+  systemd.services.vector-development-thermal-monitor = {
+    description = "Record fan, temperature, and busy-process evidence";
+    after = [ "vector-development-quiet-profile.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      CapabilityBoundingSet = "";
+      CPUWeight = 1;
+      ExecStart = "${thermalMonitor}/bin/vector-development-thermal-monitor";
+      IOWeight = 1;
+      Nice = 19;
+      NoNewPrivileges = true;
+      PrivateTmp = true;
+      ProtectControlGroups = true;
+      ProtectHome = "read-only";
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectSystem = "strict";
+      Restart = "always";
+      RestartSec = "5s";
+      StateDirectory = "vector-development-thermal-monitor";
+      StateDirectoryMode = "0755";
     };
   };
 
