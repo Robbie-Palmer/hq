@@ -32,7 +32,7 @@ grep -Fx eco "${msi_ec}/available_shift_modes" >/dev/null
 printf 'eco\n' >"${msi_ec}/shift_mode"
 printf 'silent\n' >"${msi_ec}/fan_mode"
 
-test "$(cat "${msi_ec}/fan_mode")" = silent
-test "$(cat "${msi_ec}/shift_mode")" = eco
+[[ $(cat "${msi_ec}/fan_mode") == silent ]]
+[[ $(cat "${msi_ec}/shift_mode") == eco ]]
 
 echo "applied MSI quiet profile to EC firmware ${firmware}"

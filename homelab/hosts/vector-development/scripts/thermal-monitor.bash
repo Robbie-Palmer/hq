@@ -108,18 +108,19 @@ while true; do
   nvme_millicelsius=$(read_number "${nvme_hwmon}/temp2_input")
   gpu_runtime_status=$(cat "${gpu_runtime_status_path}" 2>/dev/null || printf 'unknown')
 
-  if ((fan_rpm >= fan_alert_rpm || cpu_millicelsius >= cpu_alert_millicelsius)); then
-    if ((now - last_alert >= alert_cooldown)); then
-      busiest=$(top_processes)
-      printf '%s fan_rpm=%d cpu_millicelsius=%d nvme_millicelsius=%d gpu_runtime_status=%s busiest_processes=%s\n' \
-        "${timestamp}" \
-        "${fan_rpm}" \
-        "${cpu_millicelsius}" \
-        "${nvme_millicelsius}" \
-        "${gpu_runtime_status}" \
-        "${busiest}"
-      last_alert=${now}
-    fi
+  if ((
+    (fan_rpm >= fan_alert_rpm || cpu_millicelsius >= cpu_alert_millicelsius)
+      && now - last_alert >= alert_cooldown
+  )); then
+    busiest=$(top_processes)
+    printf '%s fan_rpm=%d cpu_millicelsius=%d nvme_millicelsius=%d gpu_runtime_status=%s busiest_processes=%s\n' \
+      "${timestamp}" \
+      "${fan_rpm}" \
+      "${cpu_millicelsius}" \
+      "${nvme_millicelsius}" \
+      "${gpu_runtime_status}" \
+      "${busiest}"
+    last_alert=${now}
   fi
 
   if ((now - last_status >= status_interval)); then
