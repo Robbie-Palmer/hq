@@ -11,7 +11,7 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(41);
+    expect(getAllIdeaSlugs()).toHaveLength(42);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -20,7 +20,7 @@ describe("ideas API", () => {
     expect(ideas).toContainEqual(
       expect.objectContaining({
         slug: "goodharts-law",
-        referenceCount: 12,
+        referenceCount: 13,
       }),
     );
   });
@@ -33,6 +33,7 @@ describe("ideas API", () => {
       "adaptive-planning",
       "dora-metrics",
       "jevons-paradox",
+      "mutation-testing",
     ]);
     expect(idea.relatedContent.projects.map((project) => project.slug)).toEqual(
       ["agentic-code-review"],
@@ -64,6 +65,20 @@ describe("ideas API", () => {
         (technology) => technology.slug,
       ),
     ).toEqual(["kafka"]);
+
+    const mutationTesting = getIdea("mutation-testing");
+    if (!mutationTesting) throw new Error("Expected Mutation Testing to exist");
+    expect(
+      mutationTesting.relatedContent.technologies.map(
+        (technology) => technology.slug,
+      ),
+    ).toEqual(["strykerjs"]);
+    expect(mutationTesting.relatedIdeas.map((idea) => idea.slug)).toEqual([
+      "critical-rationalism",
+      "falsifiability",
+      "goodharts-law",
+      "postpositivism",
+    ]);
   });
 
   it("finds ideas attached to projects, posts, and ADRs", () => {

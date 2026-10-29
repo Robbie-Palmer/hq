@@ -110,6 +110,14 @@ export const technologies: TechnologyContent[] = [
     type: "library",
   },
   {
+    name: "StrykerJS",
+    added: "2026-10-29",
+    description: "Mutation testing for JavaScript and TypeScript test suites",
+    website: "https://stryker-mutator.io/docs/stryker-js/introduction/",
+    type: "tool",
+    ideas: ["mutation-testing"],
+  },
+  {
     name: "Biome",
     added: "2026-09-15",
     description: "Formatter and linter for JavaScript and TypeScript projects",

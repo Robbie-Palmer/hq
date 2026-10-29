@@ -68,7 +68,10 @@ describe("sitemap", () => {
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/data-provenance");
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/digital-twins");
-    expect(ideaUrls).toHaveLength(42);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/mutation-testing",
+    );
+    expect(ideaUrls).toHaveLength(43);
   });
 
   it("excludes legacy ADR aliases", () => {
