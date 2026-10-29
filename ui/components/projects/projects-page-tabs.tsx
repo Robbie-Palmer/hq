@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
@@ -43,8 +44,8 @@ export function ProjectsPageTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto">
-        <TabsList className="h-auto flex-1 justify-start rounded-md bg-muted p-1 sm:flex-none">
+      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
+        <TabsList className="h-auto w-full justify-start rounded-md bg-muted p-1 sm:w-auto">
           <TabsTrigger
             value="initiatives"
             className="flex-1 sm:w-[150px] sm:flex-none"
@@ -60,11 +61,16 @@ export function ProjectsPageTabs({
         </TabsList>
         <Button
           asChild
-          variant="ghost"
-          size="sm"
-          className="flex-1 text-muted-foreground sm:w-[200px] sm:flex-none"
+          variant="outline"
+          className="group w-full justify-between sm:w-[220px]"
         >
-          <Link href="/building-philosophy">Building Philosophy</Link>
+          <Link href="/building-philosophy">
+            Read Building Philosophy
+            <ArrowRight
+              aria-hidden="true"
+              className="transition-transform group-hover:translate-x-0.5"
+            />
+          </Link>
         </Button>
       </div>
 
