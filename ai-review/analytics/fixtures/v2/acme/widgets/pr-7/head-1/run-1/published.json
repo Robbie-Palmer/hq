@@ -32,6 +32,29 @@
       "h4"
     ]
   },
+  "coverageManifest": {
+    "schemaVersion": 1,
+    "selectorVersion": "default-path-selector-v1",
+    "paths": [
+      {
+        "path": "api/auth.ts",
+        "decision": "completed",
+        "reasonCode": "review-completed"
+      },
+      {
+        "path": "api/route.ts",
+        "decision": "waived",
+        "reasonCode": "review-waived-prior-coverage"
+      }
+    ],
+    "summary": {
+      "selected": 0,
+      "excluded": 0,
+      "completed": 1,
+      "failed": 0,
+      "waived": 1
+    }
+  },
   "findings": {
     "published": [
       {

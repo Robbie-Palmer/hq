@@ -1,0 +1,38 @@
+[
+  {
+    "pullRequestNumber": 1010,
+    "headSha": "d2d0301f6d86cb392b4bd9e562c6fdbbae30117a",
+    "changedPaths": [
+      ".agents/skills/unslop/SKILL.md",
+      ".claude/skills/unslop/SKILL.md"
+    ]
+  },
+  {
+    "pullRequestNumber": 1036,
+    "headSha": "202797c0434e81e104df1d6499963eabe0b691c4",
+    "changedPaths": [
+      "ui/components/recipes/shopping/shopping-list.tsx",
+      "ui/tests/components/recipes/shopping/shopping-list.test.tsx"
+    ]
+  },
+  {
+    "pullRequestNumber": 1037,
+    "headSha": "9afc1612efda36f2ca649d0be5ba264460631a72",
+    "changedPaths": [
+      "ui/components/recipes/recipe-list.tsx",
+      "ui/lib/domain/recipe/recipeDraft.ts",
+      "ui/tests/components/recipes/recipe-list.test.tsx",
+      "ui/tests/lib/domain/recipe/recipeDraft.test.ts"
+    ]
+  },
+  {
+    "pullRequestNumber": 1045,
+    "headSha": "4e887cca955cb997dbbba1a2b27c7ee2f6775b48",
+    "changedPaths": [
+      "homelab/hosts/mac-mini/jellyfin/scripts/probe.sh",
+      "homelab/hosts/mac-mini/jellyfin/scripts/probe_report.py",
+      "homelab/mise.toml",
+      "sonar-project.properties"
+    ]
+  }
+]

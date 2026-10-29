@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ReplayProviderSchema } from "./replay";
+import { ReviewCoverageManifestSchema } from "./coverage-manifest";
 
 export const FindingOutcomeValueSchema = z.enum([
   "confirmed-fixed",
@@ -123,6 +124,7 @@ export const ReplayInputSnapshotSchema = z.looseObject({
   decision: z.looseObject({
     changeProfile: ChangeProfileSchema.optional(),
     coverage: ReviewCoverageSchema.optional(),
+    coverageManifest: ReviewCoverageManifestSchema.optional(),
     paths: z.array(z.string()),
     omittedPaths: z.array(z.string()),
     reviewedHunks: z.array(ReviewHunkSchema).optional(),
@@ -162,6 +164,7 @@ export const ReviewTerminalRecordSchema = z.looseObject({
   pullRequest: PullRequestMetadataSchema.optional(),
   change: ChangeProfileSchema.partial().optional(),
   coverage: PartialReviewCoverageSchema.optional(),
+  coverageManifest: ReviewCoverageManifestSchema.optional(),
   findings: z.looseObject({ published: z.array(ReviewFindingSchema).optional() }).optional(),
 });
 export type ReviewTerminalRecord = z.infer<typeof ReviewTerminalRecordSchema>;

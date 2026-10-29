@@ -202,6 +202,7 @@ export async function persistReplayInput(options: {
     decision: {
       changeProfile: prepared.changeProfile,
       coverage: prepared.coverage,
+      coverageManifest: prepared.coverageManifest,
       paths: prepared.paths,
       omittedPaths: prepared.omitted,
       reviewedHunks: prepared.hunks,

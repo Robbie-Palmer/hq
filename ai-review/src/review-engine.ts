@@ -51,6 +51,14 @@ import type {
   ReviewHunk,
 } from "ai-review-domain/records";
 import {
+  DEFAULT_REVIEW_SELECTION_POLICY,
+  finalizeReviewCoverageManifest,
+  reviseReviewPathDecisions,
+  selectReviewPaths,
+  type ReviewCoverageManifest,
+  type ReviewPathCoverage,
+} from "ai-review-domain/coverage-manifest";
+import {
   inferOriginatingAgent,
   inferPullRequestTaskType,
 } from "ai-review-domain/pull-request-metadata";
@@ -95,6 +103,7 @@ export interface PreparedReview {
   allHunks?: ReviewHunk[];
   changeProfile?: ChangeProfile;
   coverage?: ReviewCoverage;
+  coverageManifest?: ReviewCoverageManifest;
   pullRequest?: PullRequestMetadata;
   context?: string;
   guidelines?: string;
@@ -563,6 +572,46 @@ function renderSelectedDiff(
   return blocks.length > 0 ? `${blocks.join("\n")}\n` : "";
 }
 
+function preparedCoverageManifest(options: {
+  rawPaths: string[];
+  omittedPaths: string[];
+  force: boolean;
+  eligibleHunks: ReviewHunk[];
+  selectedPaths: string[];
+}): ReviewCoverageManifest {
+  const eligiblePaths = new Set(options.eligibleHunks.map(({ file }) => file));
+  const reviewedPaths = new Set(options.selectedPaths);
+  const unavailablePaths = new Set(options.omittedPaths);
+  const initial = selectReviewPaths(
+    [...options.rawPaths, ...options.omittedPaths],
+    { force: options.force },
+  );
+  const revisions = new Map<
+    string,
+    Pick<ReviewPathCoverage, "decision" | "reasonCode">
+  >();
+  for (const entry of initial.paths) {
+    if (entry.decision === "excluded") continue;
+    if (unavailablePaths.has(entry.path)) {
+      revisions.set(entry.path, {
+        decision: "failed",
+        reasonCode: "review-failed-diff-unavailable",
+      });
+    } else if (!eligiblePaths.has(entry.path)) {
+      revisions.set(entry.path, {
+        decision: "waived",
+        reasonCode: "review-waived-no-semantic-change",
+      });
+    } else if (!reviewedPaths.has(entry.path)) {
+      revisions.set(entry.path, {
+        decision: "waived",
+        reasonCode: "review-waived-prior-coverage",
+      });
+    }
+  }
+  return reviseReviewPathDecisions(initial, revisions);
+}
+
 export function decideReviewCoverage(options: {
   force: boolean;
   riskSignals: string[];
@@ -874,6 +923,13 @@ export async function prepareReview(
     reviewedIds.has(hunkId),
   );
   const selectedPaths = [...new Set(selectedHunks.map(({ file }) => file))];
+  const coverageManifest = preparedCoverageManifest({
+    rawPaths,
+    omittedPaths: omitted,
+    force: params.force,
+    eligibleHunks,
+    selectedPaths,
+  });
   const selectedDiff = renderSelectedDiff(selectedParsed, reviewedIds);
   const labels = (pr.labels ?? [])
     .map(({ name }) => name?.trim())
@@ -890,6 +946,7 @@ export async function prepareReview(
     statefulMergerSystem,
     statefulMergerSchema,
     guardrails: guardrailPolicy(env),
+    reviewSelectorVersion: DEFAULT_REVIEW_SELECTION_POLICY.version,
   });
   const context = selectedDiff.trim()
     ? await reviewer.fileContext(selectedPaths, headSha)
@@ -911,6 +968,7 @@ export async function prepareReview(
     hunks: selectedHunks,
     allHunks: rawHunks,
     coverage,
+    coverageManifest,
     changeProfile: {
       ...preliminaryProfile,
       reviewableFiles: new Set(eligibleHunks.map(({ file }) => file)).size,
@@ -1792,6 +1850,15 @@ export async function recordReviewTerminal(options: {
     merged && typeof merged.result.summary === "string"
       ? merged.result.summary
       : undefined;
+  const coverageManifest = prepared
+    ? finalizeReviewCoverageManifest(
+        prepared.coverageManifest ?? selectReviewPaths([
+          ...prepared.paths,
+          ...prepared.omitted,
+        ]),
+        status,
+      )
+    : undefined;
   await env.REVIEW_DATA.put(
     key,
     JSON.stringify({
@@ -1829,6 +1896,7 @@ export async function recordReviewTerminal(options: {
             omitted: prepared.omitted,
           }
         : undefined,
+      coverageManifest,
       hunks: artifacts?.hunks ?? prepared?.hunks ?? [],
       candidates: artifacts?.candidates ?? {},
       findings:

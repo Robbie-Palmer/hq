@@ -316,6 +316,27 @@ describe("stateful review engine", () => {
           "src/client.generated.ts",
         ],
       },
+      coverageManifest: {
+        schemaVersion: 1,
+        selectorVersion: "default-path-selector-v1",
+        paths: [
+          {
+            path: "pnpm-lock.yaml",
+            decision: "excluded",
+            reasonCode: "configured-filename-exclusion",
+          },
+          {
+            path: "src/app.ts",
+            decision: "waived",
+            reasonCode: "review-waived-no-semantic-change",
+          },
+          {
+            path: "src/client.generated.ts",
+            decision: "excluded",
+            reasonCode: "configured-generated-exclusion",
+          },
+        ],
+      },
     });
   });
 
@@ -1832,6 +1853,11 @@ describe("stateful review engine", () => {
         provider: string;
         usage?: { cachedInputTokens: number };
       }>;
+      coverageManifest: {
+        schemaVersion: number;
+        paths: Array<{ path: string; decision: string; reasonCode: string }>;
+        summary: Record<string, number>;
+      };
     };
     expect(record.status).toBe("published");
     expect(record.schemaVersion).toBe(2);
@@ -1849,6 +1875,15 @@ describe("stateful review engine", () => {
     expect(record.hunks[0]?.hunkId).toMatch(/^h_[a-f0-9]{24}$/);
     expect(record.models.map(({ provider }) => provider)).toContain("opencode");
     expect(record.models.at(-1)?.usage?.cachedInputTokens).toBe(10);
+    expect(record.coverageManifest).toMatchObject({
+      schemaVersion: 1,
+      paths: [{
+        path: "app.ts",
+        decision: "completed",
+        reasonCode: "review-completed",
+      }],
+      summary: { selected: 0, completed: 1 },
+    });
   });
 
   it("keeps hunk identities stable when only unified-diff coordinates move", async () => {

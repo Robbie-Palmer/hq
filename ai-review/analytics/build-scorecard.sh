@@ -61,13 +61,13 @@ duckdb "$work/scorecard.duckdb" < "$work/build.sql" >/dev/null
 
 publish="$work/$MART_VERSION"
 mkdir -p "$publish"
-for mart in finding_latest review_run_fact model_run_fact pull_request_fact; do
+for mart in finding_latest review_path_fact review_run_fact model_run_fact pull_request_fact; do
   duckdb "$work/scorecard.duckdb" \
     "COPY (SELECT * FROM $mart ORDER BY ALL) TO '$publish/$mart.parquet' (FORMAT PARQUET, COMPRESSION uncompressed);"
 done
 
 manifest_tmp="$work/manifest.json"
-marts=(finding_latest review_run_fact model_run_fact pull_request_fact)
+marts=(finding_latest review_path_fact review_run_fact model_run_fact pull_request_fact)
 manifest_entries=()
 for mart in "${marts[@]}"; do
   checksum=$(shasum -a 256 "$publish/$mart.parquet" | awk '{print $1}')
