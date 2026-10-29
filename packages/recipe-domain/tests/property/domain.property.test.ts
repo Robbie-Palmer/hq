@@ -82,77 +82,90 @@ const compatibleUnitPairArbitrary = fc.oneof(
 
 describe("recipe domain properties", () => {
   it("round-trips valid saved recipes through JSON and schema parsing", () => {
-    fc.assert(
-      fc.property(recipeContentArbitrary, (recipe) => {
-        const payload = { version: 1 as const, source: "property-test", recipe };
-        const serialized = JSON.parse(JSON.stringify(payload));
-        const decoded = SavedRecipePayloadSchema.parse(serialized);
-        return JSON.stringify(decoded) === JSON.stringify(serialized);
-      }),
-      propertyParameters(),
-    );
+    expect(() =>
+      fc.assert(
+        fc.property(recipeContentArbitrary, (recipe) => {
+          const payload = {
+            version: 1 as const,
+            source: "property-test",
+            recipe,
+          };
+          const serialized = JSON.parse(JSON.stringify(payload));
+          const decoded = SavedRecipePayloadSchema.parse(serialized);
+          return JSON.stringify(decoded) === JSON.stringify(serialized);
+        }),
+        propertyParameters(),
+      ),
+    ).not.toThrow();
   });
 
   it("normalizes ingredient slugs idempotently", () => {
-    fc.assert(
-      fc.property(fc.string({ maxLength: 120 }), (rawSlug) => {
-        const normalized = normalizeIngredientSlugForOutput(rawSlug);
-        return (
-          normalizeIngredientSlugForOutput(normalized) === normalized &&
-          (normalized === "" || /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized))
-        );
-      }),
-      propertyParameters(),
-    );
+    expect(() =>
+      fc.assert(
+        fc.property(fc.string({ maxLength: 120 }), (rawSlug) => {
+          const normalized = normalizeIngredientSlugForOutput(rawSlug);
+          return (
+            normalizeIngredientSlugForOutput(normalized) === normalized &&
+            (normalized === "" ||
+              /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(normalized))
+          );
+        }),
+        propertyParameters(),
+      ),
+    ).not.toThrow();
   });
 
   it("round-trips finite quantities between compatible units", () => {
-    fc.assert(
-      fc.property(
-        finiteAmountArbitrary,
-        compatibleUnitPairArbitrary,
-        (amount, [from, to]) => {
-          const converted = convertUnit(amount, from, to);
-          if (converted === null) return false;
-          const roundTrip = convertUnit(converted, to, from);
-          if (roundTrip === null) return false;
-          const tolerance = Math.max(1, amount) * 1e-12;
-          return Math.abs(roundTrip - amount) <= tolerance;
-        },
+    expect(() =>
+      fc.assert(
+        fc.property(
+          finiteAmountArbitrary,
+          compatibleUnitPairArbitrary,
+          (amount, [from, to]) => {
+            const converted = convertUnit(amount, from, to);
+            if (converted === null) return false;
+            const roundTrip = convertUnit(converted, to, from);
+            if (roundTrip === null) return false;
+            const tolerance = Math.max(1, amount) * 1e-12;
+            return Math.abs(roundTrip - amount) <= tolerance;
+          },
+        ),
+        propertyParameters(),
       ),
-      propertyParameters(),
-    );
+    ).not.toThrow();
   });
 
   it("preserves recipe model invariants and rejects non-positive amounts", () => {
-    fc.assert(
-      fc.property(
-        recipeContentArbitrary,
-        fc.integer({ min: -2_000, max: 0 }),
-        (recipe, invalidAmount) => {
-          const invalidRecipe = {
-            ...recipe,
-            ingredientGroups: recipe.ingredientGroups.map((group, index) =>
-              index === 0
-                ? {
-                    ...group,
-                    items: group.items.map((item, itemIndex) =>
-                      itemIndex === 0
-                        ? { ...item, amount: invalidAmount }
-                        : item,
-                    ),
-                  }
-                : group,
-            ),
-          };
-          return (
-            RecipeContentSchema.safeParse(recipe).success &&
-            !RecipeContentSchema.safeParse(invalidRecipe).success
-          );
-        },
+    expect(() =>
+      fc.assert(
+        fc.property(
+          recipeContentArbitrary,
+          fc.integer({ min: -2_000, max: 0 }),
+          (recipe, invalidAmount) => {
+            const invalidRecipe = {
+              ...recipe,
+              ingredientGroups: recipe.ingredientGroups.map((group, index) =>
+                index === 0
+                  ? {
+                      ...group,
+                      items: group.items.map((item, itemIndex) =>
+                        itemIndex === 0
+                          ? { ...item, amount: invalidAmount }
+                          : item,
+                      ),
+                    }
+                  : group,
+              ),
+            };
+            return (
+              RecipeContentSchema.safeParse(recipe).success &&
+              !RecipeContentSchema.safeParse(invalidRecipe).success
+            );
+          },
+        ),
+        propertyParameters(),
       ),
-      propertyParameters(),
-    );
+    ).not.toThrow();
   });
 
   it("shrinks an invalid quantity invariant to a useful counterexample", () => {

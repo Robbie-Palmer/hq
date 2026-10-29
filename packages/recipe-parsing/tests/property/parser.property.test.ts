@@ -70,33 +70,37 @@ function sameRecipe(
 
 describe("recipe parser properties", () => {
   it("does not throw on bounded arbitrary recipe files", async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.constantFrom(
-          "recipe.cook",
-          "recipe.cooklang",
-          "recipe.json",
-          "recipe.jsonld",
-          "recipe.txt",
+    await expect(
+      fc.assert(
+        fc.asyncProperty(
+          fc.constantFrom(
+            "recipe.cook",
+            "recipe.cooklang",
+            "recipe.json",
+            "recipe.jsonld",
+            "recipe.txt",
+          ),
+          fc.string({ maxLength: 512 }),
+          async (filename, source) => {
+            const result = await parseRecipeFile(filename, source);
+            return result === null || typeof result.title === "string";
+          },
         ),
-        fc.string({ maxLength: 512 }),
-        async (filename, source) => {
-          const result = await parseRecipeFile(filename, source);
-          return result === null || typeof result.title === "string";
-        },
+        propertyParameters(),
       ),
-      propertyParameters(),
-    );
+    ).resolves.toBeUndefined();
   });
 
   it("round-trips normalized recipes through Cooklang", () => {
-    fc.assert(
-      fc.property(recipeArbitrary, (recipe) => {
-        const expected = recipeToCooklang(recipe).derived;
-        return sameRecipe(roundTrip(recipe), expected);
-      }),
-      propertyParameters(),
-    );
+    expect(() =>
+      fc.assert(
+        fc.property(recipeArbitrary, (recipe) => {
+          const expected = recipeToCooklang(recipe).derived;
+          return sameRecipe(roundTrip(recipe), expected);
+        }),
+        propertyParameters(),
+      ),
+    ).not.toThrow();
   });
 
   it("finds a dropped serving count as a round-trip counterexample", () => {
