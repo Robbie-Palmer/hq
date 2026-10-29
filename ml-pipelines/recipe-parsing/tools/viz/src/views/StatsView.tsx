@@ -66,6 +66,77 @@ interface ComparisonMetricRow {
   delta: number | null;
 }
 
+function comparisonRow(
+  key: string,
+  label: string,
+  normalization: number | null,
+  canonicalization: number | null,
+): ComparisonMetricRow {
+  return {
+    key,
+    label,
+    normalization,
+    canonicalization,
+    delta:
+      normalization == null || canonicalization == null
+        ? null
+        : canonicalization - normalization,
+  };
+}
+
+export function buildComparisonRows(
+  baseline: StageMetrics | null,
+  canonicalization: StageMetrics | null,
+): ComparisonMetricRow[] {
+  if (!baseline || !canonicalization) return [];
+  const baselineIngredients = baseline.byCategory.ingredientParsing;
+  const canonicalIngredients = canonicalization.byCategory.ingredientParsing;
+  return [
+    comparisonRow(
+      "overall",
+      "Overall",
+      baseline.overall.score,
+      canonicalization.overall.score,
+    ),
+    comparisonRow(
+      "ingredientParsing",
+      "Ingredients F1",
+      baselineIngredients.f1,
+      canonicalIngredients.f1,
+    ),
+    comparisonRow(
+      "equipmentParsing",
+      "Equipment F1",
+      baseline.byCategory.equipmentParsing?.f1 ?? null,
+      canonicalization.byCategory.equipmentParsing?.f1 ?? null,
+    ),
+    comparisonRow(
+      "ingredientAmount",
+      "Ingredient amount",
+      baselineIngredients.fieldScores?.amount?.accuracy ?? null,
+      canonicalIngredients.fieldScores?.amount?.accuracy ?? null,
+    ),
+    comparisonRow(
+      "ingredientUnit",
+      "Ingredient unit",
+      baselineIngredients.fieldScores?.unit?.accuracy ?? null,
+      canonicalIngredients.fieldScores?.unit?.accuracy ?? null,
+    ),
+    comparisonRow(
+      "ingredientPreparation",
+      "Ingredient preparation",
+      baselineIngredients.fieldScores?.preparation?.f1 ?? null,
+      canonicalIngredients.fieldScores?.preparation?.f1 ?? null,
+    ),
+    comparisonRow(
+      "cuisine",
+      "Cuisine",
+      getScalarMetric(baseline, "cuisine"),
+      getScalarMetric(canonicalization, "cuisine"),
+    ),
+  ];
+}
+
 interface ToplineComparisonDatum {
   label: string;
   normalization: number;
@@ -789,7 +860,159 @@ function RecipeDeltaChart({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+interface StatisticsDashboardProps {
+  totalEntries: number | null;
+  canonicalizationDelta: number | null;
+  pipelineExtractionSkipped: boolean;
+  pipelineNormalizationSkipped: boolean;
+  extractionClientMetrics: StageMetrics | null;
+  normalizationClientMetrics: StageMetrics | null;
+  extractionMetrics: StageMetrics | null;
+  normalizationMetrics: StageMetrics | null;
+  finalMetrics: StageMetrics | null;
+  comparisonRows: ComparisonMetricRow[];
+  metricDeltaData: MetricDeltaDatum[];
+  toplineComparisonData: ToplineComparisonDatum[];
+  improvedCount: number;
+  regressedCount: number;
+  entryCount: number;
+  weightedContributionData: WeightedContributionDatum[];
+  lowestFinalScoreData: RecipeScoreDatum[];
+  largestRecipeShiftData: RecipeDeltaDatum[];
+}
+
+function StageOverviewGrid({
+  extractionMetrics,
+  normalizationMetrics,
+  finalMetrics,
+  canonicalizationDelta,
+}: Readonly<{
+  extractionMetrics: StageMetrics | null;
+  normalizationMetrics: StageMetrics | null;
+  finalMetrics: StageMetrics | null;
+  canonicalizationDelta: number | null;
+}>) {
+  return (
+    <section className="grid gap-4 xl:grid-cols-3">
+      <StageOverviewCard
+        eyebrow="Stage 1"
+        title="Extraction"
+        summary="Image to recipe text"
+        metrics={extractionMetrics}
+        highlights={[
+          { label: "ROUGE-L", value: extractionMetrics?.diagnostics?.extractionText?.rougeL.f1 ?? null, precision: 1 },
+          { label: "WER", value: extractionMetrics?.diagnostics?.extractionText?.wordErrorRate ?? null, kind: "error", precision: 1 },
+          { label: "CER", value: extractionMetrics?.diagnostics?.extractionText?.charErrorRate ?? null, kind: "error", precision: 1 },
+        ]}
+        href="#extraction"
+        accentClassName="border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100"
+      />
+      <StageOverviewCard
+        eyebrow="Stage 2"
+        title="Normalization"
+        summary="Text to parsed recipe"
+        metrics={normalizationMetrics}
+        highlights={[
+          { label: "Ingredients", value: normalizationMetrics?.byCategory.ingredientParsing.f1 ?? null },
+          { label: "Cuisine", value: normalizationMetrics?.byCategory.scalarFields.cuisine.f1 ?? null },
+          { label: "Equipment", value: normalizationMetrics?.byCategory.equipmentParsing?.f1 ?? null },
+        ]}
+        href="#normalization"
+        accentClassName="border-amber-200 bg-gradient-to-br from-white via-amber-50 to-amber-100"
+      />
+      <StageOverviewCard
+        eyebrow="Stage 3"
+        title="Canonicalization"
+        summary="Parsed recipe after canonical cleanup"
+        metrics={finalMetrics}
+        highlights={[
+          { label: "Ingredients", value: finalMetrics?.byCategory.ingredientParsing.f1 ?? null },
+          { label: "Cuisine", value: finalMetrics?.byCategory.scalarFields.cuisine.f1 ?? null },
+          { label: "Equipment", value: finalMetrics?.byCategory.equipmentParsing?.f1 ?? null },
+        ]}
+        href="#canonicalize"
+        delta={canonicalizationDelta}
+        accentClassName="border-green-200 bg-gradient-to-br from-white via-green-50 to-emerald-100"
+      />
+    </section>
+  );
+}
+
+function metricScoreDelta(
+  baseline: StageMetrics | null,
+  finalMetrics: StageMetrics | null,
+): number | null {
+  if (!baseline || !finalMetrics) return null;
+  return finalMetrics.overall.score - baseline.overall.score;
+}
+
+function StatisticsDashboard({
+  totalEntries,
+  canonicalizationDelta,
+  pipelineExtractionSkipped,
+  pipelineNormalizationSkipped,
+  extractionClientMetrics,
+  normalizationClientMetrics,
+  extractionMetrics,
+  normalizationMetrics,
+  finalMetrics,
+  comparisonRows,
+  metricDeltaData,
+  toplineComparisonData,
+  improvedCount,
+  regressedCount,
+  entryCount,
+  weightedContributionData,
+  lowestFinalScoreData,
+  largestRecipeShiftData,
+}: Readonly<StatisticsDashboardProps>) {
+  const showFallbackNotice =
+    (pipelineExtractionSkipped && !extractionClientMetrics) ||
+    (pipelineNormalizationSkipped && !normalizationClientMetrics);
+  return (
+    <div className="space-y-8">
+      <PipelineStageSummary totalEntries={totalEntries} />
+      <PipelineFlow canonicalizationDelta={canonicalizationDelta} />
+
+      {showFallbackNotice && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Some pipeline metrics were skipped, so client-side fallbacks are
+          filling gaps where possible.
+        </div>
+      )}
+
+      <StageOverviewGrid
+        extractionMetrics={extractionMetrics}
+        normalizationMetrics={normalizationMetrics}
+        finalMetrics={finalMetrics}
+        canonicalizationDelta={canonicalizationDelta}
+      />
+
+      {comparisonRows.length > 0 && (
+        <section className="grid gap-6 xl:grid-cols-[1.45fr_0.85fr]">
+          <MetricDeltaChart data={metricDeltaData} />
+          <section className="space-y-4">
+            {toplineComparisonData.length > 0 && <ToplineComparisonChart data={toplineComparisonData} />}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <InsightStat label="Canonicalization uplift" value={formatDeltaPoints(canonicalizationDelta)} tone={deltaTone(canonicalizationDelta)} />
+              <InsightStat label="Improved" value={`${improvedCount}/${entryCount}`} tone="positive" />
+              <InsightStat label="Regressed" value={`${regressedCount}/${entryCount}`} tone={regressedCount > 0 ? "negative" : "neutral"} />
+            </div>
+          </section>
+        </section>
+      )}
+
+      {weightedContributionData.length > 0 && <ScoreWeightingCard contributions={weightedContributionData} />}
+      {lowestFinalScoreData.length > 0 && (
+        <section className="grid gap-6 xl:grid-cols-2">
+          <RecipeScoreChart data={lowestFinalScoreData} />
+          <RecipeDeltaChart data={largestRecipeShiftData} />
+        </section>
+      )}
+    </div>
+  );
+}
+
 export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps>) {
   const [groundTruth, setGroundTruth] = useState<GroundTruthDataset | null>(null);
   const [extractionPredictions, setExtractionPredictions] = useState<ExtractionPredictionsDataset | null>(null);
@@ -988,122 +1211,14 @@ export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps
 
   const totalEntries = groundTruth?.entries.length ?? null;
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-  const comparisonRows = useMemo<ComparisonMetricRow[]>(() => {
-    if (!canonicalizationBaselineMetricsResolved || !finalMetricsResolved) return [];
-    // Only include metrics for fields that canonicalization actually touches:
-    // ingredient identity, cookware, and cuisine.
-    // Both columns are scored against the same canonical ground truth
-    // (groundTruth.entries[].expected) so the delta reflects the true
-    // impact of the canonicalization stage.
-    const baseline = canonicalizationBaselineMetricsResolved;
-    const rows: ComparisonMetricRow[] = [
-      {
-        key: "overall",
-        label: "Overall",
-        normalization: baseline.overall.score,
-        canonicalization: finalMetricsResolved.overall.score,
-        delta:
-          finalMetricsResolved.overall.score - baseline.overall.score,
-      },
-      {
-        key: "ingredientParsing",
-        label: "Ingredients F1",
-        normalization: baseline.byCategory.ingredientParsing.f1,
-        canonicalization: finalMetricsResolved.byCategory.ingredientParsing.f1,
-        delta:
-          finalMetricsResolved.byCategory.ingredientParsing.f1 -
-          baseline.byCategory.ingredientParsing.f1,
-      },
-      {
-        key: "equipmentParsing",
-        label: "Equipment F1",
-        normalization: baseline.byCategory.equipmentParsing?.f1 ?? null,
-        canonicalization:
-          finalMetricsResolved.byCategory.equipmentParsing?.f1 ?? null,
-        delta:
-          baseline.byCategory.equipmentParsing?.f1 != null &&
-          finalMetricsResolved.byCategory.equipmentParsing?.f1 != null
-            ? finalMetricsResolved.byCategory.equipmentParsing.f1 -
-              baseline.byCategory.equipmentParsing.f1
-            : null,
-      },
-      {
-        key: "ingredientAmount",
-        label: "Ingredient amount",
-        normalization:
-          baseline.byCategory.ingredientParsing.fieldScores?.amount
-            ?.accuracy ?? null,
-        canonicalization:
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores?.amount
-            ?.accuracy ?? null,
-        delta:
-          baseline.byCategory.ingredientParsing.fieldScores?.amount
-            ?.accuracy != null &&
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores?.amount
-            ?.accuracy != null
-            ? finalMetricsResolved.byCategory.ingredientParsing.fieldScores.amount
-                .accuracy -
-              baseline.byCategory.ingredientParsing.fieldScores.amount.accuracy
-            : null,
-      },
-      {
-        key: "ingredientUnit",
-        label: "Ingredient unit",
-        normalization:
-          baseline.byCategory.ingredientParsing.fieldScores?.unit
-            ?.accuracy ?? null,
-        canonicalization:
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores?.unit
-            ?.accuracy ?? null,
-        delta:
-          baseline.byCategory.ingredientParsing.fieldScores?.unit
-            ?.accuracy != null &&
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores?.unit
-            ?.accuracy != null
-            ? finalMetricsResolved.byCategory.ingredientParsing.fieldScores.unit
-                .accuracy -
-              baseline.byCategory.ingredientParsing.fieldScores.unit.accuracy
-            : null,
-      },
-      {
-        key: "ingredientPreparation",
-        label: "Ingredient preparation",
-        normalization:
-          baseline.byCategory.ingredientParsing.fieldScores
-            ?.preparation?.f1 ?? null,
-        canonicalization:
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores
-            ?.preparation?.f1 ?? null,
-        delta:
-          baseline.byCategory.ingredientParsing.fieldScores
-            ?.preparation?.f1 != null &&
-          finalMetricsResolved.byCategory.ingredientParsing.fieldScores
-            ?.preparation?.f1 != null
-            ? finalMetricsResolved.byCategory.ingredientParsing.fieldScores
-                .preparation.f1 -
-              baseline.byCategory.ingredientParsing.fieldScores.preparation.f1
-            : null,
-      },
-      {
-        key: "cuisine",
-        label: "Cuisine",
-        normalization: getScalarMetric(baseline, "cuisine"),
-        canonicalization: getScalarMetric(finalMetricsResolved, "cuisine"),
-        delta:
-          getScalarMetric(baseline, "cuisine") != null &&
-          getScalarMetric(finalMetricsResolved, "cuisine") != null
-            ? getScalarMetric(finalMetricsResolved, "cuisine")! -
-              getScalarMetric(baseline, "cuisine")!
-            : null,
-      },
-    ];
-
-    return rows;
-  }, [
-    canonicalizationBaselineMetricsResolved,
-    finalMetricsResolved,
-  ]);
+  const comparisonRows = useMemo(
+    () =>
+      buildComparisonRows(
+        canonicalizationBaselineMetricsResolved,
+        finalMetricsResolved,
+      ),
+    [canonicalizationBaselineMetricsResolved, finalMetricsResolved],
+  );
 
   const toplineComparisonData = useMemo<ToplineComparisonDatum[]>(() => {
     const preferredOrder = [
@@ -1276,11 +1391,10 @@ export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps
 
   const improvedCount = entryDeltaRows.filter((entry) => entry.delta > SIGNIFICANT_DELTA).length;
   const regressedCount = entryDeltaRows.filter((entry) => entry.delta < -SIGNIFICANT_DELTA).length;
-  const canonicalizationDelta =
-    canonicalizationBaselineMetricsResolved && finalMetricsResolved
-      ? finalMetricsResolved.overall.score -
-        canonicalizationBaselineMetricsResolved.overall.score
-      : null;
+  const canonicalizationDelta = metricScoreDelta(
+    canonicalizationBaselineMetricsResolved,
+    finalMetricsResolved,
+  );
 
   if (error) {
     return (
@@ -1290,145 +1404,27 @@ export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps
     );
   }
 
+  void onSelectCanonicalizeEntry;
   return (
-    <div className="space-y-8">
-      <PipelineStageSummary totalEntries={totalEntries} />
-
-      <PipelineFlow canonicalizationDelta={canonicalizationDelta} />
-
-      {(pipelineExtractionSkipped && !extractionClientMetrics) ||
-      (pipelineNormalizationSkipped && !normalizationClientMetrics) ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Some pipeline metrics were skipped, so client-side fallbacks are
-          filling gaps where possible.
-        </div>
-      ) : null}
-
-      <section className="grid gap-4 xl:grid-cols-3">
-        <StageOverviewCard
-          eyebrow="Stage 1"
-          title="Extraction"
-          summary="Image to recipe text"
-          metrics={extractionMetricsResolved}
-          highlights={[
-            {
-              label: "ROUGE-L",
-              value:
-                extractionMetricsResolved?.diagnostics?.extractionText?.rougeL.f1 ??
-                null,
-              precision: 1,
-            },
-            {
-              label: "WER",
-              value:
-                extractionMetricsResolved?.diagnostics?.extractionText?.wordErrorRate ??
-                null,
-              kind: "error",
-              precision: 1,
-            },
-            {
-              label: "CER",
-              value:
-                extractionMetricsResolved?.diagnostics?.extractionText?.charErrorRate ??
-                null,
-              kind: "error",
-              precision: 1,
-            },
-          ]}
-          href="#extraction"
-          accentClassName="border-slate-200 bg-gradient-to-br from-white via-slate-50 to-slate-100"
-        />
-
-        <StageOverviewCard
-          eyebrow="Stage 2"
-          title="Normalization"
-          summary="Text to parsed recipe"
-          metrics={normalizationMetricsResolved}
-          highlights={[
-            {
-              label: "Ingredients",
-              value: normalizationMetricsResolved?.byCategory.ingredientParsing.f1 ?? null,
-            },
-            {
-              label: "Cuisine",
-              value:
-                normalizationMetricsResolved?.byCategory.scalarFields.cuisine.f1 ?? null,
-            },
-            {
-              label: "Equipment",
-              value:
-                normalizationMetricsResolved?.byCategory.equipmentParsing?.f1 ?? null,
-            },
-          ]}
-          href="#normalization"
-          accentClassName="border-amber-200 bg-gradient-to-br from-white via-amber-50 to-amber-100"
-        />
-
-        <StageOverviewCard
-          eyebrow="Stage 3"
-          title="Canonicalization"
-          summary="Parsed recipe after canonical cleanup"
-          metrics={finalMetricsResolved}
-          highlights={[
-            {
-              label: "Ingredients",
-              value: finalMetricsResolved?.byCategory.ingredientParsing.f1 ?? null,
-            },
-            {
-              label: "Cuisine",
-              value: finalMetricsResolved?.byCategory.scalarFields.cuisine.f1 ?? null,
-            },
-            {
-              label: "Equipment",
-              value: finalMetricsResolved?.byCategory.equipmentParsing?.f1 ?? null,
-            },
-          ]}
-          href="#canonicalize"
-          delta={canonicalizationDelta}
-          accentClassName="border-green-200 bg-gradient-to-br from-white via-green-50 to-emerald-100"
-        />
-      </section>
-
-      {comparisonRows.length > 0 && (
-        <section className="grid gap-6 xl:grid-cols-[1.45fr_0.85fr]">
-          <MetricDeltaChart data={metricDeltaData} />
-
-          <section className="space-y-4">
-            {toplineComparisonData.length > 0 && (
-              <ToplineComparisonChart data={toplineComparisonData} />
-            )}
-
-            <div className="grid gap-3 sm:grid-cols-3">
-              <InsightStat
-                label="Canonicalization uplift"
-                value={formatDeltaPoints(canonicalizationDelta)}
-                tone={deltaTone(canonicalizationDelta)}
-              />
-              <InsightStat
-                label="Improved"
-                value={`${improvedCount}/${entryDeltaRows.length || 0}`}
-                tone="positive"
-              />
-              <InsightStat
-                label="Regressed"
-                value={`${regressedCount}/${entryDeltaRows.length || 0}`}
-                tone={regressedCount > 0 ? "negative" : "neutral"}
-              />
-            </div>
-          </section>
-        </section>
-      )}
-
-      {weightedContributionData.length > 0 && (
-        <ScoreWeightingCard contributions={weightedContributionData} />
-      )}
-
-      {lowestFinalScoreData.length > 0 && (
-        <section className="grid gap-6 xl:grid-cols-2">
-          <RecipeScoreChart data={lowestFinalScoreData} />
-          <RecipeDeltaChart data={largestRecipeShiftData} />
-        </section>
-      )}
-    </div>
+    <StatisticsDashboard
+      totalEntries={totalEntries}
+      canonicalizationDelta={canonicalizationDelta}
+      pipelineExtractionSkipped={pipelineExtractionSkipped}
+      pipelineNormalizationSkipped={pipelineNormalizationSkipped}
+      extractionClientMetrics={extractionClientMetrics}
+      normalizationClientMetrics={normalizationClientMetrics}
+      extractionMetrics={extractionMetricsResolved}
+      normalizationMetrics={normalizationMetricsResolved}
+      finalMetrics={finalMetricsResolved}
+      comparisonRows={comparisonRows}
+      metricDeltaData={metricDeltaData}
+      toplineComparisonData={toplineComparisonData}
+      improvedCount={improvedCount}
+      regressedCount={regressedCount}
+      entryCount={entryDeltaRows.length}
+      weightedContributionData={weightedContributionData}
+      lowestFinalScoreData={lowestFinalScoreData}
+      largestRecipeShiftData={largestRecipeShiftData}
+    />
   );
 }

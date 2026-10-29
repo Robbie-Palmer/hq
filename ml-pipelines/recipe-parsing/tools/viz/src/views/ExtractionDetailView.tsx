@@ -22,6 +22,8 @@ import type {
 import { ImagePanel } from "../components/ImagePanel";
 import { ImageViewer } from "../components/ImageViewer";
 import { ExtractionDiff } from "../components/ExtractionDiff";
+import { useDetailKeyboard } from "../lib/detailNavigation";
+import { detailTitle, findExtractionPrediction } from "../lib/detailData";
 
 interface ExtractionDetailViewProps {
   entryIndex: number;
@@ -143,7 +145,6 @@ function ExtractionPanel({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function ExtractionDetailView({
   entryIndex,
   onBack,
@@ -163,12 +164,8 @@ export function ExtractionDetailView({
   }, []);
 
   const gtEntry = groundTruth?.entries[entryIndex];
-  const predictionKey = gtEntry?.images.join("\0");
-  const predictedExtraction =
-    predictionKey == null
-      ? null
-      : extractions?.entries.find((entry) => entry.images.join("\0") === predictionKey)
-          ?.extracted ?? null;
+  const predictedExtraction = findExtractionPrediction(gtEntry, extractions);
+  const totalEntries = groundTruth?.entries.length ?? 0;
 
   const handleCopyPrediction = useCallback(async () => {
     if (!groundTruth || !predictedExtraction) return;
@@ -191,31 +188,7 @@ export function ExtractionDetailView({
     }
   }, [groundTruth, predictedExtraction, entryIndex]);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      const totalEntries = groundTruth?.entries.length ?? 0;
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
-      if (e.key === "Escape") {
-        onBack();
-      } else if (e.key === "ArrowLeft" && entryIndex > 0) {
-        onNavigate(entryIndex - 1);
-      } else if (e.key === "ArrowRight" && entryIndex < totalEntries - 1) {
-        onNavigate(entryIndex + 1);
-      }
-    },
-    [entryIndex, groundTruth, onBack, onNavigate],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  useDetailKeyboard({ entryIndex, totalEntries, onBack, onNavigate });
 
   const textFidelity = useMemo(() => {
     if (!predictedExtraction || !gtEntry?.expectedExtraction) return null;
@@ -245,10 +218,7 @@ export function ExtractionDetailView({
     return <div className="text-gray-400 py-12 text-center">Loading...</div>;
   }
 
-  const title =
-    predictedExtraction?.title ?? gtEntry.expected.title;
-  const totalEntries = groundTruth.entries.length;
-
+  const title = detailTitle(predictedExtraction, gtEntry.expected.title);
   const hasBothSides = predictedExtraction && gtEntry.expectedExtraction;
 
   return (

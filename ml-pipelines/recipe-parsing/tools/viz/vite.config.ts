@@ -58,6 +58,19 @@ function contentTypeFor(filePath: string): string {
   return "application/octet-stream";
 }
 
+function endStreamError(
+  res: import("node:http").ServerResponse,
+  error: NodeJS.ErrnoException,
+): void {
+  if (res.headersSent) {
+    res.destroy(error);
+    return;
+  }
+  const notFound = error.code === "ENOENT";
+  res.statusCode = notFound ? 404 : 500;
+  res.end(notFound ? "Not found" : "Failed to read file");
+}
+
 /**
  * Serves files from the pipeline root under the /pipeline/ URL prefix.
  * e.g. /pipeline/data/recipe-images/PXL_123.jpg -> ../../data/recipe-images/PXL_123.jpg
@@ -155,16 +168,10 @@ function servePipelineFiles(): Plugin {
             res.off("finish", cleanup);
             res.off("close", onResponseClose);
           }
-          // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
           function onStreamError(error: NodeJS.ErrnoException) {
             cleanup();
             stream.destroy();
-            if (!res.headersSent) {
-              res.statusCode = error.code === "ENOENT" ? 404 : 500;
-              res.end(error.code === "ENOENT" ? "Not found" : "Failed to read file");
-            } else {
-              res.destroy(error);
-            }
+            endStreamError(res, error);
           }
           function onResponseError() {
             cleanup();

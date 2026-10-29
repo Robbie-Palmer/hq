@@ -24,6 +24,8 @@ import { ParsedRecipeDiff } from "../components/ParsedRecipeDiff";
 import { RecipePanel } from "../components/RecipePanel";
 import { ScoresPanel } from "../components/ScoresPanel";
 import { computeNormalizationDetailScores } from "../lib/detailScores";
+import { useDetailKeyboard } from "../lib/detailNavigation";
+import { findNormalizationDetailData } from "../lib/detailData";
 
 interface NormalizationDetailViewProps {
   entryIndex: number;
@@ -106,7 +108,6 @@ function ExtractionContextPanel({
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function NormalizationDetailView({
   entryIndex,
   onBack,
@@ -133,21 +134,16 @@ export function NormalizationDetailView({
 
   const gtEntry = groundTruth?.entries[entryIndex];
   const predictionKey = gtEntry?.images.join("\0");
-  const predictedNormalizationFallback =
-    predictionKey == null
-      ? null
-      : predictions?.entries.find((e) => e.images.join("\0") === predictionKey)
-          ?.predicted ?? null;
-  const predictedExtraction =
-    predictionKey == null
-      ? null
-      : extractions?.entries.find((e) => e.images.join("\0") === predictionKey)
-          ?.extracted ?? null;
-  const predictedCooklang =
-    predictionKey == null
-      ? null
-      : cooklangPredictions?.entries.find((e) => e.images.join("\0") === predictionKey)
-          ?.cooklang ?? null;
+  const {
+    normalizedFallback: predictedNormalizationFallback,
+    extraction: predictedExtraction,
+    cooklang: predictedCooklang,
+  } = findNormalizationDetailData(
+    gtEntry,
+    predictions,
+    extractions,
+    cooklangPredictions,
+  );
 
   const predictedNormalization = useMemo(() => {
     if (predictedCooklang) {
@@ -155,6 +151,7 @@ export function NormalizationDetailView({
     }
     return predictedNormalizationFallback;
   }, [predictedCooklang, predictedNormalizationFallback]);
+  const totalEntries = groundTruth?.entries.length ?? 0;
 
   // Initialize editor when navigating to a new entry
   useEffect(() => {
@@ -194,33 +191,14 @@ export function NormalizationDetailView({
     }
   }, [edited, entryIndex, groundTruth]);
 
-  useEffect(() => {
-    const totalEntries = groundTruth?.entries.length ?? 0;
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    function onKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (dirty) void handleSave();
-        return;
-      }
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
-      if (e.key === "Escape") {
-        onBack();
-      } else if (e.key === "ArrowLeft" && entryIndex > 0) {
-        onNavigate(entryIndex - 1);
-      } else if (e.key === "ArrowRight" && entryIndex < totalEntries - 1) {
-        onNavigate(entryIndex + 1);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dirty, entryIndex, groundTruth, handleSave, onBack, onNavigate]);
+  useDetailKeyboard({
+    dirty,
+    entryIndex,
+    totalEntries,
+    onBack,
+    onNavigate,
+    onSave: handleSave,
+  });
 
   const livePreview = useMemo(() => {
     if (!edited) return null;
@@ -254,7 +232,6 @@ export function NormalizationDetailView({
     return <div className="text-gray-400 py-12 text-center">Loading...</div>;
   }
 
-  const totalEntries = groundTruth.entries.length;
   const saveButtonContent = (() => {
     if (saveStatus === "saving") return "Saving...";
     if (saveStatus === "saved") {
