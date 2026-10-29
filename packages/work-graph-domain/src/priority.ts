@@ -344,10 +344,37 @@ const dependencyWaits = (graph: WorkGraph): ReadonlyMap<string, string[]> => {
   return waits;
 };
 
+const donatePriorityToDependencies = (
+  waitingItem: WorkItem,
+  inherited: EffectivePriority,
+  waits: ReadonlyMap<string, readonly string[]>,
+  effective: Map<string, EffectivePriority>,
+) => {
+  const pending = [...(waits.get(waitingItem.id) ?? [])];
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const blockerId = pending.pop();
+    if (!blockerId || visited.has(blockerId)) continue;
+    visited.add(blockerId);
+
+    const current = effective.get(blockerId);
+    if (
+      current === undefined ||
+      comparePriorityKey(inherited.key, current.key) < 0
+    ) {
+      effective.set(blockerId, {
+        donatedFromWorkItemId:
+          inherited.donatedFromWorkItemId ?? waitingItem.id,
+        key: inherited.key,
+      });
+    }
+    pending.push(...(waits.get(blockerId) ?? []));
+  }
+};
+
 const effectivePriorities = (
   graph: WorkGraph,
   base: ReadonlyMap<string, BasePriority>,
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 ): ReadonlyMap<string, EffectivePriority> => {
   const effective = new Map<string, EffectivePriority>(
     [...base].map(([id, priority]) => [
@@ -361,27 +388,7 @@ const effectivePriorities = (
     if (waitingItem.lifecycle !== "open") continue;
     const inherited = effective.get(waitingItem.id);
     if (!inherited) continue;
-
-    const pending = [...(waits.get(waitingItem.id) ?? [])];
-    const visited = new Set<string>();
-    while (pending.length > 0) {
-      const blockerId = pending.pop();
-      if (!blockerId || visited.has(blockerId)) continue;
-      visited.add(blockerId);
-
-      const current = effective.get(blockerId);
-      if (
-        current === undefined ||
-        comparePriorityKey(inherited.key, current.key) < 0
-      ) {
-        effective.set(blockerId, {
-          donatedFromWorkItemId:
-            inherited.donatedFromWorkItemId ?? waitingItem.id,
-          key: inherited.key,
-        });
-      }
-      pending.push(...(waits.get(blockerId) ?? []));
-    }
+    donatePriorityToDependencies(waitingItem, inherited, waits, effective);
   }
   return effective;
 };

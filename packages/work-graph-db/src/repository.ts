@@ -1151,88 +1151,111 @@ export class WorkGraphRepository {
       requireIdempotencyKey(options.idempotencyKey);
     }
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    return this.db.transaction(async (transaction) => {
-      await this.lockEventSequence(transaction);
-      if (options.idempotencyKey !== undefined) {
-        const replayed = await this.beginIdempotentMutation(
-          transaction,
-          options.idempotencyKey,
-          "put-knowledge-scope",
-          JSON.stringify(normalized),
-        );
-        if (replayed) {
-          return this.requireStoredKnowledgeScope(transaction, normalized.id);
-        }
-      }
-
-      await this.lockGraphMutation(transaction);
-      const [existing] = await transaction
-        .select({
-          kind: knowledgeScope.kind,
-          lifecycle: knowledgeScope.lifecycle,
-          archiveReason: knowledgeScope.archiveReason,
-          rank: knowledgeScope.rank,
-        })
-        .from(knowledgeScope)
-        .where(eq(knowledgeScope.id, normalized.id))
-        .limit(1);
-      if (existing && existing.kind !== normalized.kind) {
-        throw new WorkGraphError(
-          "invalid_knowledge_scope_kind",
-          `Knowledge scope ${normalized.id} cannot change kind after creation.`,
-        );
-      }
-
-      const [stored] = await transaction
-        .insert(knowledgeScope)
-        .values({
-          ...normalized,
-          lifecycle: existing?.lifecycle ?? "active",
-          archiveReason: existing?.archiveReason ?? null,
-          rank: existing?.rank ?? null,
-        })
-        .onConflictDoUpdate({
-          target: knowledgeScope.id,
-          set: {
-            kind: normalized.kind,
-            title: normalized.title,
-            canonicalUrl: normalized.canonicalUrl,
-            markdownUrl: normalized.markdownUrl,
-            sourceRevision: normalized.sourceRevision,
-            lifecycle: existing?.lifecycle ?? "active",
-            archiveReason: existing?.archiveReason ?? null,
-            rank: existing?.rank ?? null,
-          },
-        })
-        .returning();
-      if (!stored) throw new Error("Knowledge scope upsert returned no row.");
-      if (!existing) {
-        await this.placeKnowledgeScopeAtMedian(
-          transaction,
-          normalized.id,
-          normalized.kind,
-        );
-      }
-      const result = await this.requireStoredKnowledgeScope(
+    return this.db.transaction((transaction) =>
+      this.putKnowledgeScopeInTransaction(
         transaction,
-        normalized.id,
+        normalized,
+        options.idempotencyKey,
+      ),
+    );
+  }
+
+  private async replayKnowledgeScopePut(
+    transaction: DbTransaction,
+    normalized: KnowledgeScope,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<KnowledgeScope | null> {
+    if (idempotencyKeyValue === undefined) return null;
+    const replayed = await this.beginIdempotentMutation(
+      transaction,
+      idempotencyKeyValue,
+      "put-knowledge-scope",
+      JSON.stringify(normalized),
+    );
+    return replayed
+      ? this.requireStoredKnowledgeScope(transaction, normalized.id)
+      : null;
+  }
+
+  private async putKnowledgeScopeInTransaction(
+    transaction: DbTransaction,
+    normalized: KnowledgeScope,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<KnowledgeScope> {
+    await this.lockEventSequence(transaction);
+    const replayed = await this.replayKnowledgeScopePut(
+      transaction,
+      normalized,
+      idempotencyKeyValue,
+    );
+    if (replayed) return replayed;
+
+    await this.lockGraphMutation(transaction);
+    const [existing] = await transaction
+      .select({
+        kind: knowledgeScope.kind,
+        lifecycle: knowledgeScope.lifecycle,
+        archiveReason: knowledgeScope.archiveReason,
+        rank: knowledgeScope.rank,
+      })
+      .from(knowledgeScope)
+      .where(eq(knowledgeScope.id, normalized.id))
+      .limit(1);
+    if (existing && existing.kind !== normalized.kind) {
+      throw new WorkGraphError(
+        "invalid_knowledge_scope_kind",
+        `Knowledge scope ${normalized.id} cannot change kind after creation.`,
       );
-      await this.appendEvent(transaction, {
-        type: "knowledge_scope.put",
-        data: {
-          id: normalized.id,
+    }
+
+    const [stored] = await transaction
+      .insert(knowledgeScope)
+      .values({
+        ...normalized,
+        lifecycle: existing?.lifecycle ?? "active",
+        archiveReason: existing?.archiveReason ?? null,
+        rank: existing?.rank ?? null,
+      })
+      .onConflictDoUpdate({
+        target: knowledgeScope.id,
+        set: {
           kind: normalized.kind,
           title: normalized.title,
           canonicalUrl: normalized.canonicalUrl,
           markdownUrl: normalized.markdownUrl,
           sourceRevision: normalized.sourceRevision,
-          lifecycle: result.lifecycle,
-          rank: result.rank,
+          lifecycle: existing?.lifecycle ?? "active",
+          archiveReason: existing?.archiveReason ?? null,
+          rank: existing?.rank ?? null,
         },
-      });
-      return result;
+      })
+      .returning();
+    if (!stored) throw new Error("Knowledge scope upsert returned no row.");
+    if (!existing) {
+      await this.placeKnowledgeScopeAtMedian(
+        transaction,
+        normalized.id,
+        normalized.kind,
+      );
+    }
+    const result = await this.requireStoredKnowledgeScope(
+      transaction,
+      normalized.id,
+    );
+    await this.appendEvent(transaction, {
+      type: "knowledge_scope.put",
+      data: {
+        id: normalized.id,
+        kind: normalized.kind,
+        title: normalized.title,
+        canonicalUrl: normalized.canonicalUrl,
+        markdownUrl: normalized.markdownUrl,
+        sourceRevision: normalized.sourceRevision,
+        lifecycle: result.lifecycle,
+        rank: result.rank,
+      },
     });
+    return result;
   }
 
   async archiveKnowledgeScope(
@@ -3057,101 +3080,14 @@ export class WorkGraphRepository {
     }
 
     try {
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      return await this.db.transaction(async (transaction) => {
-        await this.lockEventSequence(transaction);
-        if (options.idempotencyKey !== undefined) {
-          const replayed = await this.beginIdempotentMutation(
-            transaction,
-            options.idempotencyKey,
-            "create-work-item",
-            JSON.stringify([
-              normalized.id,
-              normalized.title,
-              parentId,
-              normalized.schedulingInitiativeId,
-              normalized.schedulingProjectId,
-              normalized.expedited,
-              normalized.expediteReason,
-            ]),
-          );
-          if (replayed) {
-            const replayedGraph = await this.loadGraph(transaction);
-            const replayedItem = replayedGraph.workItems.find(
-              ({ id }) => id === normalized.id,
-            );
-            if (!replayedItem) throw workItemNotFound(normalized.id);
-            return replayedItem;
-          }
-        }
-
-        await this.lockGraphMutation(transaction);
-        if (
-          parentId !== null &&
-          (normalized.schedulingInitiativeId !== null ||
-            normalized.schedulingProjectId !== null)
-        ) {
-          throw new WorkGraphError(
-            "invalid_scheduling_scope",
-            "Only a priority-owning ticket can set scheduling scopes; children inherit them.",
-          );
-        }
-        const scheduling =
-          parentId === null
-            ? await this.validateSchedulingScopes(transaction, normalized)
-            : { initiativeId: null, projectId: null };
-
-        await transaction.insert(workItem).values({
-          id: normalized.id,
-          title: normalized.title,
-          expedited: normalized.expedited,
-          expediteReason: normalized.expediteReason,
-        });
-
-        if (parentId !== null) {
-          await transaction.insert(workItemHierarchy).values({
-            childWorkItemId: normalized.id,
-            parentWorkItemId: parentId,
-          });
-          await this.rejectCycle(transaction);
-        } else {
-          await transaction.insert(workItemPriorityContext).values({
-            workItemId: normalized.id,
-            schedulingInitiativeId: scheduling.initiativeId,
-            schedulingProjectId: scheduling.projectId,
-            rank: null,
-          });
-          await this.placeWorkItemAtMedian(
-            transaction,
-            normalized.id,
-            scheduling.projectId,
-          );
-        }
-
-        await this.appendEvent(transaction, {
-          type: "work_item.created",
-          workItemId: normalized.id,
-          data: {
-            title: normalized.title,
-            parentId,
-            rank: null,
-            priorityRank:
-              parentId === null
-                ? (
-                    await this.requireStoredPriorityContext(
-                      transaction,
-                      normalized.id,
-                    )
-                  ).rank
-                : null,
-            schedulingInitiativeId: scheduling.initiativeId,
-            schedulingProjectId: scheduling.projectId,
-          },
-        });
-
-        const createdGraph = await this.loadGraph(transaction);
-        return createdGraph.workItems.find(({ id }) => id === normalized.id)!;
-      });
+      return await this.db.transaction((transaction) =>
+        this.createWorkItemInTransaction(
+          transaction,
+          normalized,
+          parentId,
+          options.idempotencyKey,
+        ),
+      );
     } catch (error) {
       const databaseError = getDatabaseError(error);
       if (databaseError?.code === "23505") {
@@ -3171,6 +3107,146 @@ export class WorkGraphRepository {
       }
       return translateForeignKeyError(error, parentId ?? normalized.id);
     }
+  }
+
+  private async replayCreatedWorkItem(
+    transaction: DbTransaction,
+    normalized: WorkItem,
+    parentId: string | null,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<WorkItem | null> {
+    if (idempotencyKeyValue === undefined) return null;
+    const replayed = await this.beginIdempotentMutation(
+      transaction,
+      idempotencyKeyValue,
+      "create-work-item",
+      JSON.stringify([
+        normalized.id,
+        normalized.title,
+        parentId,
+        normalized.schedulingInitiativeId,
+        normalized.schedulingProjectId,
+        normalized.expedited,
+        normalized.expediteReason,
+      ]),
+    );
+    if (!replayed) return null;
+    return this.requireLoadedGraphWorkItem(transaction, normalized.id);
+  }
+
+  private requireValidChildSchedulingScope(
+    normalized: WorkItem,
+    parentId: string | null,
+  ): void {
+    if (
+      parentId !== null &&
+      (normalized.schedulingInitiativeId !== null ||
+        normalized.schedulingProjectId !== null)
+    ) {
+      throw new WorkGraphError(
+        "invalid_scheduling_scope",
+        "Only a priority-owning ticket can set scheduling scopes; children inherit them.",
+      );
+    }
+  }
+
+  private async insertWorkItemPlacement(
+    transaction: DbTransaction,
+    normalized: WorkItem,
+    parentId: string | null,
+    scheduling: { initiativeId: string | null; projectId: string | null },
+  ): Promise<void> {
+    if (parentId !== null) {
+      await transaction.insert(workItemHierarchy).values({
+        childWorkItemId: normalized.id,
+        parentWorkItemId: parentId,
+      });
+      await this.rejectCycle(transaction);
+      return;
+    }
+    await transaction.insert(workItemPriorityContext).values({
+      workItemId: normalized.id,
+      schedulingInitiativeId: scheduling.initiativeId,
+      schedulingProjectId: scheduling.projectId,
+      rank: null,
+    });
+    await this.placeWorkItemAtMedian(
+      transaction,
+      normalized.id,
+      scheduling.projectId,
+    );
+  }
+
+  private async createdWorkItemPriorityRank(
+    transaction: DbTransaction,
+    workItemId: string,
+    parentId: string | null,
+  ): Promise<number | null> {
+    if (parentId !== null) return null;
+    return (await this.requireStoredPriorityContext(transaction, workItemId))
+      .rank;
+  }
+
+  private async requireLoadedGraphWorkItem(
+    transaction: DbTransaction,
+    workItemId: string,
+  ): Promise<WorkItem> {
+    const graph = await this.loadGraph(transaction);
+    const stored = graph.workItems.find(({ id }) => id === workItemId);
+    if (!stored) throw workItemNotFound(workItemId);
+    return stored;
+  }
+
+  private async createWorkItemInTransaction(
+    transaction: DbTransaction,
+    normalized: WorkItem,
+    parentId: string | null,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<WorkItem> {
+    await this.lockEventSequence(transaction);
+    const replayed = await this.replayCreatedWorkItem(
+      transaction,
+      normalized,
+      parentId,
+      idempotencyKeyValue,
+    );
+    if (replayed) return replayed;
+
+    await this.lockGraphMutation(transaction);
+    this.requireValidChildSchedulingScope(normalized, parentId);
+    const scheduling =
+      parentId === null
+        ? await this.validateSchedulingScopes(transaction, normalized)
+        : { initiativeId: null, projectId: null };
+    await transaction.insert(workItem).values({
+      id: normalized.id,
+      title: normalized.title,
+      expedited: normalized.expedited,
+      expediteReason: normalized.expediteReason,
+    });
+    await this.insertWorkItemPlacement(
+      transaction,
+      normalized,
+      parentId,
+      scheduling,
+    );
+    await this.appendEvent(transaction, {
+      type: "work_item.created",
+      workItemId: normalized.id,
+      data: {
+        title: normalized.title,
+        parentId,
+        rank: null,
+        priorityRank: await this.createdWorkItemPriorityRank(
+          transaction,
+          normalized.id,
+          parentId,
+        ),
+        schedulingInitiativeId: scheduling.initiativeId,
+        schedulingProjectId: scheduling.projectId,
+      },
+    });
+    return this.requireLoadedGraphWorkItem(transaction, normalized.id);
   }
 
   async moveWorkItemPriority(
@@ -3788,100 +3864,13 @@ export class WorkGraphRepository {
     }
 
     try {
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      return await this.db.transaction(async (transaction) => {
-        await this.lockEventSequence(transaction);
-        if (options.idempotencyKey !== undefined) {
-          const replayed = await this.beginIdempotentMutation(
-            transaction,
-            options.idempotencyKey,
-            "create-attention-request",
-            JSON.stringify([
-              input.id,
-              input.workItemId,
-              input.leaseId,
-              input.epoch,
-              input.kind,
-              input.question,
-              input.note ?? null,
-              input.blocking,
-            ]),
-          );
-          if (replayed) {
-            const storedRequest = await this.requireStoredAttentionRequest(
-              transaction,
-              input.id,
-            );
-            return {
-              attentionRequest: storedRequest,
-              endedLease: storedRequest.blocking
-                ? await this.requireStoredLease(transaction, input.leaseId)
-                : null,
-            };
-          }
-        }
-
-        const { storedLease, now } =
-          await this.lockWorkItemAndRequireLease(transaction, input);
-        const [created] = await transaction
-          .insert(attentionRequest)
-          .values({
-            id: input.id,
-            workItemId: input.workItemId,
-            requestingLeaseId: input.leaseId,
-            kind: input.kind,
-            question: input.question,
-            note: input.note ?? null,
-            blocking: input.blocking,
-          })
-          .returning();
-        if (!created) {
-          throw new Error("Attention request creation returned no request.");
-        }
-
-        await this.appendEvent(transaction, {
-          type: "attention.requested",
-          workItemId: input.workItemId,
-          occurredAt: now,
-          data: {
-            attentionRequestId: input.id,
-            leaseId: input.leaseId,
-            kind: input.kind,
-            question: input.question,
-            note: input.note ?? null,
-            blocking: input.blocking,
-          },
-        });
-
-        if (!input.blocking) {
-          return { attentionRequest: created, endedLease: null };
-        }
-        const [endedLease] = await transaction
-          .update(lease)
-          .set({ endedAt: now, outcome: "attention_requested" })
-          .where(
-            and(
-              eq(lease.id, storedLease.id),
-              eq(lease.epoch, input.epoch),
-              isNull(lease.endedAt),
-              gt(lease.expiresAt, now),
-            ),
-          )
-          .returning();
-        if (!endedLease) throw leaseNotCurrent(input.leaseId, input.epoch);
-        await this.appendEvent(transaction, {
-          type: "lease.ended",
-          workItemId: input.workItemId,
-          occurredAt: now,
-          data: {
-            leaseId: endedLease.id,
-            epoch: endedLease.epoch,
-            workerId: endedLease.workerId,
-            outcome: endedLease.outcome,
-          },
-        });
-        return { attentionRequest: created, endedLease };
-      });
+      return await this.db.transaction((transaction) =>
+        this.createAttentionRequestInTransaction(
+          transaction,
+          input,
+          options.idempotencyKey,
+        ),
+      );
     } catch (error) {
       if (getDatabaseError(error)?.code === "23505") {
         throw new WorkGraphError(
@@ -3891,6 +3880,130 @@ export class WorkGraphRepository {
       }
       throw error;
     }
+  }
+
+  private async replayAttentionRequest(
+    transaction: DbTransaction,
+    input: CreateAttentionRequestInput,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<CreateAttentionRequestResult | null> {
+    if (idempotencyKeyValue === undefined) return null;
+    const replayed = await this.beginIdempotentMutation(
+      transaction,
+      idempotencyKeyValue,
+      "create-attention-request",
+      JSON.stringify([
+        input.id,
+        input.workItemId,
+        input.leaseId,
+        input.epoch,
+        input.kind,
+        input.question,
+        input.note ?? null,
+        input.blocking,
+      ]),
+    );
+    if (!replayed) return null;
+    const storedRequest = await this.requireStoredAttentionRequest(
+      transaction,
+      input.id,
+    );
+    return {
+      attentionRequest: storedRequest,
+      endedLease: storedRequest.blocking
+        ? await this.requireStoredLease(transaction, input.leaseId)
+        : null,
+    };
+  }
+
+  private async endLeaseForAttentionRequest(
+    transaction: DbTransaction,
+    input: CreateAttentionRequestInput,
+    storedLease: StoredLease,
+    now: Date,
+  ): Promise<StoredLease> {
+    const [endedLease] = await transaction
+      .update(lease)
+      .set({ endedAt: now, outcome: "attention_requested" })
+      .where(
+        and(
+          eq(lease.id, storedLease.id),
+          eq(lease.epoch, input.epoch),
+          isNull(lease.endedAt),
+          gt(lease.expiresAt, now),
+        ),
+      )
+      .returning();
+    if (!endedLease) throw leaseNotCurrent(input.leaseId, input.epoch);
+    await this.appendEvent(transaction, {
+      type: "lease.ended",
+      workItemId: input.workItemId,
+      occurredAt: now,
+      data: {
+        leaseId: endedLease.id,
+        epoch: endedLease.epoch,
+        workerId: endedLease.workerId,
+        outcome: endedLease.outcome,
+      },
+    });
+    return endedLease;
+  }
+
+  private async createAttentionRequestInTransaction(
+    transaction: DbTransaction,
+    input: CreateAttentionRequestInput,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<CreateAttentionRequestResult> {
+    await this.lockEventSequence(transaction);
+    const replayed = await this.replayAttentionRequest(
+      transaction,
+      input,
+      idempotencyKeyValue,
+    );
+    if (replayed) return replayed;
+
+    const { storedLease, now } = await this.lockWorkItemAndRequireLease(
+      transaction,
+      input,
+    );
+    const [created] = await transaction
+      .insert(attentionRequest)
+      .values({
+        id: input.id,
+        workItemId: input.workItemId,
+        requestingLeaseId: input.leaseId,
+        kind: input.kind,
+        question: input.question,
+        note: input.note ?? null,
+        blocking: input.blocking,
+      })
+      .returning();
+    if (!created) {
+      throw new Error("Attention request creation returned no request.");
+    }
+    await this.appendEvent(transaction, {
+      type: "attention.requested",
+      workItemId: input.workItemId,
+      occurredAt: now,
+      data: {
+        attentionRequestId: input.id,
+        leaseId: input.leaseId,
+        kind: input.kind,
+        question: input.question,
+        note: input.note ?? null,
+        blocking: input.blocking,
+      },
+    });
+    if (!input.blocking) {
+      return { attentionRequest: created, endedLease: null };
+    }
+    const endedLease = await this.endLeaseForAttentionRequest(
+      transaction,
+      input,
+      storedLease,
+      now,
+    );
+    return { attentionRequest: created, endedLease };
   }
 
   async resolveAttentionRequest(
@@ -4581,97 +4694,14 @@ export class WorkGraphRepository {
     }
 
     try {
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      await this.db.transaction(async (transaction) => {
-        await this.lockEventSequence(transaction);
-        const replayed =
-          options.idempotencyKey === undefined
-            ? false
-            : await this.beginIdempotentMutation(
-                transaction,
-                options.idempotencyKey,
-                "reparent-work-item",
-                JSON.stringify([workItemId, parentId]),
-              );
-        if (replayed) return;
-
-        await this.lockGraphMutation(transaction);
-        await this.requireStoredWorkItem(transaction, workItemId);
-
-        const [currentHierarchy] = await transaction
-          .select({
-            parentWorkItemId: workItemHierarchy.parentWorkItemId,
-            rank: workItemHierarchy.rank,
-          })
-          .from(workItemHierarchy)
-          .where(eq(workItemHierarchy.childWorkItemId, workItemId))
-          .limit(1);
-        const [priorityContext] = await transaction
-          .select()
-          .from(workItemPriorityContext)
-          .where(eq(workItemPriorityContext.workItemId, workItemId))
-          .limit(1);
-
-        if (parentId === null) {
-          await transaction
-            .delete(workItemHierarchy)
-            .where(eq(workItemHierarchy.childWorkItemId, workItemId));
-          if (currentHierarchy && !priorityContext) {
-            await transaction.insert(workItemPriorityContext).values({
-              workItemId,
-              schedulingInitiativeId: null,
-              schedulingProjectId: null,
-              rank: null,
-            });
-            await this.placeWorkItemAtMedian(transaction, workItemId, null);
-          }
-        } else {
-          const preservedRank =
-            currentHierarchy?.parentWorkItemId === parentId
-              ? currentHierarchy.rank
-              : null;
-          await transaction
-            .insert(workItemHierarchy)
-            .values({
-              childWorkItemId: workItemId,
-              parentWorkItemId: parentId,
-              rank: preservedRank,
-            })
-            .onConflictDoUpdate({
-              target: workItemHierarchy.childWorkItemId,
-              set: { parentWorkItemId: parentId, rank: preservedRank },
-            });
-          if (!currentHierarchy && priorityContext) {
-            await transaction
-              .delete(workItemPriorityContext)
-              .where(eq(workItemPriorityContext.workItemId, workItemId));
-            await this.writeWorkItemPriorityRanks(
-              transaction,
-              await this.listPriorityOwnerIds(
-                transaction,
-                priorityContext.schedulingProjectId,
-              ),
-            );
-          }
-        }
-
-        await this.rejectCycle(transaction);
-        const previousParentId = currentHierarchy?.parentWorkItemId ?? null;
-        if (previousParentId !== parentId) {
-          await this.appendEvent(transaction, {
-            type: "work_item.reparented",
-            workItemId,
-            data: {
-              previousParentId,
-              parentId,
-              rank:
-                currentHierarchy?.parentWorkItemId === parentId
-                  ? currentHierarchy.rank
-                  : null,
-            },
-          });
-        }
-      });
+      await this.db.transaction((transaction) =>
+        this.reparentWorkItemInTransaction(
+          transaction,
+          workItemId,
+          parentId,
+          options.idempotencyKey,
+        ),
+      );
     } catch (error) {
       const databaseError = getDatabaseError(error);
       if (
@@ -4685,6 +4715,159 @@ export class WorkGraphRepository {
       }
       translateForeignKeyError(error, parentId ?? workItemId);
     }
+  }
+
+  private async replayReparentWorkItem(
+    transaction: DbTransaction,
+    workItemId: string,
+    parentId: string | null,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<boolean> {
+    if (idempotencyKeyValue === undefined) return false;
+    return this.beginIdempotentMutation(
+      transaction,
+      idempotencyKeyValue,
+      "reparent-work-item",
+      JSON.stringify([workItemId, parentId]),
+    );
+  }
+
+  private async moveWorkItemToRoot(
+    transaction: DbTransaction,
+    workItemId: string,
+    currentHierarchy:
+      | { parentWorkItemId: string; rank: number | null }
+      | undefined,
+    hasPriorityContext: boolean,
+  ): Promise<void> {
+    await transaction
+      .delete(workItemHierarchy)
+      .where(eq(workItemHierarchy.childWorkItemId, workItemId));
+    if (!currentHierarchy || hasPriorityContext) return;
+    await transaction.insert(workItemPriorityContext).values({
+      workItemId,
+      schedulingInitiativeId: null,
+      schedulingProjectId: null,
+      rank: null,
+    });
+    await this.placeWorkItemAtMedian(transaction, workItemId, null);
+  }
+
+  private async moveWorkItemUnderParent(
+    transaction: DbTransaction,
+    workItemId: string,
+    parentId: string,
+    currentHierarchy:
+      | { parentWorkItemId: string; rank: number | null }
+      | undefined,
+    priorityContext: typeof workItemPriorityContext.$inferSelect | undefined,
+  ): Promise<void> {
+    const preservedRank =
+      currentHierarchy?.parentWorkItemId === parentId
+        ? currentHierarchy.rank
+        : null;
+    await transaction
+      .insert(workItemHierarchy)
+      .values({
+        childWorkItemId: workItemId,
+        parentWorkItemId: parentId,
+        rank: preservedRank,
+      })
+      .onConflictDoUpdate({
+        target: workItemHierarchy.childWorkItemId,
+        set: { parentWorkItemId: parentId, rank: preservedRank },
+      });
+    if (currentHierarchy || !priorityContext) return;
+    await transaction
+      .delete(workItemPriorityContext)
+      .where(eq(workItemPriorityContext.workItemId, workItemId));
+    await this.writeWorkItemPriorityRanks(
+      transaction,
+      await this.listPriorityOwnerIds(
+        transaction,
+        priorityContext.schedulingProjectId,
+      ),
+    );
+  }
+
+  private async appendReparentedEvent(
+    transaction: DbTransaction,
+    workItemId: string,
+    parentId: string | null,
+    currentHierarchy:
+      | { parentWorkItemId: string; rank: number | null }
+      | undefined,
+  ): Promise<void> {
+    const previousParentId = currentHierarchy?.parentWorkItemId ?? null;
+    if (previousParentId === parentId) return;
+    await this.appendEvent(transaction, {
+      type: "work_item.reparented",
+      workItemId,
+      data: {
+        previousParentId,
+        parentId,
+        rank:
+          currentHierarchy?.parentWorkItemId === parentId
+            ? currentHierarchy.rank
+            : null,
+      },
+    });
+  }
+
+  private async reparentWorkItemInTransaction(
+    transaction: DbTransaction,
+    workItemId: string,
+    parentId: string | null,
+    idempotencyKeyValue: string | undefined,
+  ): Promise<void> {
+    await this.lockEventSequence(transaction);
+    const replayed = await this.replayReparentWorkItem(
+      transaction,
+      workItemId,
+      parentId,
+      idempotencyKeyValue,
+    );
+    if (replayed) return;
+
+    await this.lockGraphMutation(transaction);
+    await this.requireStoredWorkItem(transaction, workItemId);
+    const [currentHierarchy] = await transaction
+      .select({
+        parentWorkItemId: workItemHierarchy.parentWorkItemId,
+        rank: workItemHierarchy.rank,
+      })
+      .from(workItemHierarchy)
+      .where(eq(workItemHierarchy.childWorkItemId, workItemId))
+      .limit(1);
+    const [priorityContext] = await transaction
+      .select()
+      .from(workItemPriorityContext)
+      .where(eq(workItemPriorityContext.workItemId, workItemId))
+      .limit(1);
+
+    if (parentId === null) {
+      await this.moveWorkItemToRoot(
+        transaction,
+        workItemId,
+        currentHierarchy,
+        priorityContext !== undefined,
+      );
+    } else {
+      await this.moveWorkItemUnderParent(
+        transaction,
+        workItemId,
+        parentId,
+        currentHierarchy,
+        priorityContext,
+      );
+    }
+    await this.rejectCycle(transaction);
+    await this.appendReparentedEvent(
+      transaction,
+      workItemId,
+      parentId,
+      currentHierarchy,
+    );
   }
 
   async addDependency(
