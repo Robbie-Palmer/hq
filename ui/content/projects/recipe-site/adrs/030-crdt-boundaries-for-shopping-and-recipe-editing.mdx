@@ -1,0 +1,201 @@
+---
+title: "ADR 030: CRDT Boundaries for Shopping and Recipe Editing"
+date: "2026-10-25"
+status: "Accepted"
+---
+
+# Summary
+
+Keep the server-authoritative command model for shopping lists and meal plans. It already supports
+offline checklist changes with small, attributed, idempotent commands. A stale command returns an
+explicit conflict instead of silently choosing a value. Current product requirements do not justify
+the browser cost, new persistence model, and weaker command-level observability of a CRDT.
+
+Do not adopt Automerge or Yjs now. If unrestricted offline editing of one bounded shopping or
+planning aggregate becomes a firm requirement, evaluate Automerge again and make its document the
+only authoritative representation for that aggregate. If simultaneous character-level recipe
+editing becomes a firm requirement, evaluate Yjs for the live draft only. A Yjs draft must commit
+as one immutable recipe revision. Never dual-write a mutable JSON or text model beside a CRDT
+document.
+
+# Context
+
+[ADR 022](/projects/recipe-site/adrs/022-realtime-household-collaboration) keeps shared pantry and
+shopping data in Postgres and sends post-commit snapshots through a household Durable Object. It
+names unrestricted offline shared editing as the point at which to evaluate a local-first CRDT.
+[ADR 029](/projects/recipe-site/adrs/029-immutable-recipe-revisions-and-scope-owned-branches) keeps
+recipe history in immutable Postgres revisions and permits a CRDT only inside an authorized editing
+session.
+
+The shopping-list implementation now has a narrower offline path than ADR 022 anticipated. A
+checklist change is a typed `set_checked` command with a command ID, actor, list ID, base revision,
+item ID, and desired boolean value. The browser stores it in IndexedDB. The API checks current
+household membership and the base revision, commits the change once, and retains a receipt so a
+retry returns the original result. Later commands from the same local queue rebase in order. A
+command based on a revision changed by another actor returns `409` and the UI offers the canonical
+server version.
+
+This is deliberately not arbitrary offline editing. Recipe selection, extras, and meal-plan edits
+still save a complete optimistic snapshot. Automatic merging across long partitions would require a
+different data model and product conflict policy.
+
+# Spike evidence
+
+The spike used Node 24.21.0, `@automerge/automerge` 3.5.0, Yjs 13.6.33, and esbuild 0.25.12 on 25
+October 2026. It exercised two independent actors, exchanged updates in both orders, asserted equal
+materialized results, and measured one local run. Treat the timings as diagnostics. They do not
+define service targets.
+
+| Scenario            |                                                                 Current commands |                                                                                                                 Automerge 3.5.0 |                                                                                                                      Yjs 13.6.33 |
+| ------------------- | -------------------------------------------------------------------------------: | ------------------------------------------------------------------------------------------------------------------------------: | -------------------------------------------------------------------------------------------------------------------------------: |
+| Seed                |                                                  111-byte checklist request body |                                                                             2,472-byte JSON becomes a 1,497-byte saved document |                                                                         4,303-byte recipe text becomes a 4,347-byte state update |
+| Simultaneous edits  |            Different base revisions serialize; a stale shared base returns `409` |                      Different item fields converged; concurrent titles preserved two values and chose one deterministic winner |                                                                      Inserts from both actors converged in either delivery order |
+| Long partition      | Local commands replay in order; the first cross-actor stale base stops the queue | 2,000 toggles or quantity edits produced 364,433 bytes of encoded changes and a 10,284-byte saved document; merge took 27.77 ms | 2,000 single-character inserts produced 33,793 bytes of deltas and a 51,722-byte merged state; applying both deltas took 2.82 ms |
+| Undo                |                                        Product commands need an explicit inverse |                                                No undo manager in the core package; the application must define inverse actions |                                           `Y.UndoManager` removed the tracked local insertion while retaining a remote insertion |
+| Core browser bundle |                                                                  Already shipped |                                                                   4,905,669 bytes minified, 1,639,362 gzip, or 1,116,309 Brotli |                                                                             83,516 bytes minified, 25,513 gzip, or 22,852 Brotli |
+
+The Automerge bundle used the browser entry point with its WASM embedded through esbuild's binary
+loader. It excludes Automerge Repo, IndexedDB storage, and a network adapter. The Yjs bundle includes
+`Doc`, shared text, updates, and undo. It excludes an editor binding, IndexedDB persistence, and a
+network provider. Production integrations would be larger than both figures.
+
+The long-partition traces expose different costs. Automerge compresses the final bounded document
+well, but every change remains part of its history and synchronization contract. Yjs carries much
+less code and smaller incremental updates for text, but the merged state grew to twelve times the
+seed update after inserting only 2,000 visible characters. Yjs documents need compaction and size
+limits even with garbage collection enabled. Neither trace includes HTTP, WebSocket framing,
+presence, authentication, or persistence overhead.
+
+# Decision
+
+## Keep commands for shopping and planning
+
+Continue to make the Postgres shopping-list snapshot and revision authoritative. Send constrained,
+idempotent offline commands to `recipe-api`; authorize each command at commit time; retain receipts
+for replay; and stop on a cross-actor stale base. Extend the command vocabulary only when a new
+operation has deterministic domain semantics, a bounded payload, an explicit inverse or conflict
+response, and server-side validation.
+
+Meal-plan changes remain optimistic snapshot updates until their offline operations are designed.
+Do not add a CRDT merely to avoid defining those operations. Dates, meal types, recipe references,
+servings, and list lifecycle have business constraints that convergence alone cannot enforce.
+
+This model preserves useful telemetry. A trace can name the actor, command ID, base and result
+revisions, operation type, validation result, retry count, and conflict. The 111-byte example also
+shows that checklist synchronization is not currently bandwidth-bound.
+
+## Reserve Automerge for a bounded local-first aggregate
+
+Reopen the Automerge decision only when all of these conditions hold:
+
+1. People must make arbitrary changes to the same shopping or planning aggregate through long
+   network partitions, and rejecting the second actor's stale base is unacceptable.
+2. Product rules define the result of concurrent scalar changes, delete-versus-edit, list ordering,
+   trip closure, and undo. A deterministic library winner is not a product decision.
+3. A prototype covers the maximum valid recipes, checked ingredients, extras, and plan entries. It
+   measures initial load, incremental sync, saved history, compaction, and low-memory mobile use.
+4. The accepted performance budget includes Automerge's WASM and the chosen storage and network
+   adapters. The current 1.64 MB gzip core measurement is the baseline to beat or approve.
+5. The server can reject an update from an expired session or closed household membership period
+   without trusting a convergent replica to authorize itself.
+
+If those conditions are met, store one Automerge document as the canonical active aggregate.
+Postgres may keep custody, status, authorization, and a document head, while search or analytics
+tables remain disposable projections. Do not update the current JSON snapshot and an Automerge
+document in parallel.
+
+The document must carry a schema version. The server owns migrations and rejects versions it does
+not understand. An incompatible change creates a new document generation after active clients meet
+a minimum version. Compaction or history pruning may begin only after the old replica window closes;
+otherwise a long-offline replica may no longer share the history needed to synchronize.
+
+## Reserve Yjs for a live recipe draft
+
+Reopen the Yjs decision when two or more authorized editors need simultaneous character-level or
+rich-text recipe editing, or when an editor must merge recipe text changed independently while
+offline. Yjs fits this case better than Automerge because its shared text, editor bindings, and
+selective local undo match the interaction, and its measured core gzip cost was 25.5 KB.
+
+A Yjs room owns one live draft for one branch and one base recipe revision. Persist the binary Yjs
+state as the authoritative draft. Do not mirror every update into a mutable Cooklang or rich-text
+column. A checkpoint validates and materializes the draft once, then appends one immutable recipe
+revision under ADR 029. Advancing the branch head remains an authorized Postgres transaction. A
+checkpoint does not grant a replica permission to publish.
+
+Use a new room or document generation for an incompatible editor schema. Seed it once from the last
+valid checkpoint, stop writes to the old generation, and keep enough provenance to attribute the
+new revision. Do not run two writable formats during a migration.
+
+## Keep authorization outside convergence
+
+CRDT libraries merge data; they do not decide who may write. The Worker must authenticate the
+WebSocket, validate its origin, resolve current branch or household access, cap authorization
+lifetime, limit message and document size, and close a connection when access changes. Each accepted
+update needs server-derived actor, session, membership-period, document-generation, and byte-count
+metadata.
+
+A household update created during a closed membership period cannot advance the household document
+after reconnection. The application may offer to import its materialized content into a personal
+aggregate or recipe branch, where normal validation and attribution apply.
+
+Do not log document contents or raw binary updates. Record update bytes, state vector or Automerge
+heads, apply and checkpoint latency, persisted size, compaction ratio, connected peers,
+authorization result, rejected generation, and recovery source. Keep a privileged diagnostic tool
+that can decode a retained test document without making production logs carry private recipe text.
+
+# Alternatives
+
+## Adopt Automerge for shopping lists now
+
+Automerge merged independent item changes and compressed the final bounded state well. It also adds
+more than 1.6 MB gzip before persistence and networking, has no core selective undo, and retains
+concurrent scalar values that the UI must resolve. The current checklist command is smaller, easier
+to authorize, and easier to explain. Rejected until unrestricted offline editing is required.
+
+## Adopt Yjs for every shared aggregate
+
+Yjs has a small core bundle and handled the text trace well. Its strongest advantage here is the
+text and editor ecosystem. Using shared maps and arrays for shopping state would still require
+domain validation, authorization, persistence, garbage collection, schema migration, and relational
+projections. Rejected for shopping and planning data.
+
+## Store a CRDT beside the existing canonical rows
+
+Dual writes create two histories that may disagree after a partial failure, rejected update,
+migration, or restore. A projection is safe only when it is derived from one authoritative form and
+can be rebuilt. Rejected in every case.
+
+## Use a CRDT as canonical recipe history
+
+A CRDT can merge text but cannot replace custody, immutable evidence, retained access, branch
+heads, or reviewed reconciliation. Rejected by ADR 029. A bounded live draft may use Yjs before it
+becomes one immutable revision.
+
+# Consequences
+
+Shopping and planning keep the existing Postgres, IndexedDB outbox, command receipts, and explicit
+conflict UI. This avoids new production dependencies and keeps authorization at each mutation.
+Arbitrary offline snapshot edits from two actors still do not merge automatically.
+
+Automerge remains a credible option for a future bounded local-first aggregate, but only after the
+product accepts its conflict semantics and browser cost. Yjs remains a credible option for a future
+collaborative recipe editor, with a strict boundary between the live draft and committed revision.
+
+Any later adoption needs a new ADR with the chosen provider, persistence layout, document limits,
+compaction policy, migration rehearsal, authorization tests, telemetry, and measured production
+budget. This ADR should also be revisited if the measured core costs fall materially, the current
+command conflict rate becomes a user problem, or a supported Cloudflare-native provider removes a
+large part of the operational work without weakening these boundaries.
+
+# References
+
+* [Automerge concepts](https://automerge.org/docs/reference/concepts/)
+* [Automerge conflict semantics](https://automerge.org/docs/reference/documents/conflicts/)
+* [Automerge compaction trade-offs](https://automerge.org/docs/reference/glossary/)
+* [Automerge 3.5.0 API](https://automerge.org/automerge/api-docs/js/)
+* [Yjs document updates](https://docs.yjs.dev/api/document-updates)
+* [Yjs shared text](https://docs.yjs.dev/api/shared-types/y.text)
+* [Yjs selective undo](https://docs.yjs.dev/api/undo-manager)
+* [Yjs offline persistence](https://docs.yjs.dev/getting-started/allowing-offline-editing)
+* [Yjs WebSocket authentication guidance](https://github.com/yjs/y-websocket/blob/master/README.md)
+* [Yjs storage and garbage-collection notes](https://github.com/yjs/yjs)
