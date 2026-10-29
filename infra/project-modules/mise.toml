@@ -70,13 +70,22 @@ render_fixture() {
 render_fixture answers-cloudflare.yml cloudflare-only
 render_fixture answers-neon.yml neon-only
 render_fixture answers-all.yml all-capabilities
+render_fixture answers-policy-only.yml policy-only
+
+policy_only_root="$test_data_dir/answers-policy-only.yml/infra/policy-only/generated-project.tf"
+for forbidden in cloudflare/cloudflare kislerdm/neon; do
+  if grep -Fq "$forbidden" "$policy_only_root"; then
+    echo "Policy-only selections unexpectedly enabled provider $forbidden" >&2
+    exit 1
+  fi
+done
 
 no_root_dir="$test_data_dir/no-terraform-root"
 copier copy \
   --quiet \
   --defaults \
   --skip-tasks \
-  --data-file "$repository_root/.copier/projects/platform-bootstrap-canary.yml" \
+  --data-file "$repository_root/infra/project-modules/tests/provider-isolation/answers-no-root.yml" \
   "$repository_root" \
   "$no_root_dir"
 if find "$no_root_dir" -name generated-project.tf -print -quit | grep -q .; then
