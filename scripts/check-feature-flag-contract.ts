@@ -315,8 +315,10 @@ const invokedPath = process.argv[1]
   ? pathToFileURL(path.resolve(process.argv[1])).href
   : undefined;
 if (invokedPath === import.meta.url) {
-  main().catch((error: unknown) => {
+  try {
+    await main();
+  } catch (error: unknown) {
     console.error(errorMessage(error));
     process.exitCode = 1;
-  });
+  }
 }
