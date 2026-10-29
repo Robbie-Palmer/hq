@@ -205,11 +205,7 @@ interface AccountHistoryImportDrawerProps {
   trigger?: ReactNode;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export function AccountHistoryImportDrawer({
-  account: fixedAccount,
-  trigger,
-}: Readonly<AccountHistoryImportDrawerProps>) {
+function useAccountHistoryImport(fixedAccount?: AccountDetailView) {
   const { accountDetails, importAccountHistory } = useAssetTracker();
   const availableAccounts = fixedAccount
     ? [fixedAccount]
@@ -302,6 +298,68 @@ export function AccountHistoryImportDrawer({
       setSubmitting(false);
     }
   }
+
+  return {
+    account,
+    accountKey,
+    availableAccounts,
+    balanceResult,
+    balances,
+    balanceTextareaId,
+    capitalFlows,
+    capitalFlowRows,
+    capitalKind,
+    capitalResult,
+    capitalTextareaId,
+    contributionFormat,
+    error,
+    handleSubmit,
+    hasIssues,
+    open,
+    rowCount,
+    selectedAccountId,
+    setBalances,
+    setCapitalFlows,
+    setCapitalKind,
+    setContributionFormat,
+    setOpen,
+    setSelectedAccountId,
+    submitting,
+  };
+}
+
+export function AccountHistoryImportDrawer({
+  account: fixedAccount,
+  trigger,
+}: Readonly<AccountHistoryImportDrawerProps>) {
+  const history = useAccountHistoryImport(fixedAccount);
+  const {
+    account,
+    accountKey,
+    availableAccounts,
+    balanceResult,
+    balances,
+    balanceTextareaId,
+    capitalFlows,
+    capitalFlowRows,
+    capitalKind,
+    capitalResult,
+    capitalTextareaId,
+    contributionFormat,
+    error,
+    handleSubmit,
+    hasIssues,
+    open,
+    rowCount,
+    selectedAccountId,
+    setBalances,
+    setCapitalFlows,
+    setCapitalKind,
+    setContributionFormat,
+    setOpen,
+    setSelectedAccountId,
+    submitting,
+  } = history;
 
   return (
     <Drawer open={open} onOpenChange={setOpen}>
