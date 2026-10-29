@@ -110,8 +110,9 @@ plan-and-apply flow.
 
 ## Diagnostic access
 
-Create a dedicated token named `work-graph-diagnostics` scoped to the Work Graph
-Cloudflare account, with these permissions only:
+`diagnostics-token.json` declares the account-owned token named
+`work-graph-diagnostics`, scoped to the Work Graph Cloudflare account with these
+permissions only:
 
 - Workers Observability Write. Cloudflare requires this permission to execute
   historical telemetry queries, even though the query reads logs.
@@ -122,20 +123,31 @@ or account administration. Observability queries are account-scoped, so this
 token can read other Workers' logs in that account. The checked-in queries
 filter to `work-graph-api`; that filter is not an authorization boundary.
 
-Store the token as `CLOUDFLARE_DIAGNOSTICS_API_TOKEN` in Doppler project
-`work-graph`, config `prd_work_graph`. Sync that one secret to the GitHub
-`production-work-graph` environment. The health workflow also uses existing
-account and Hyperdrive IDs and the production smoke-test Access pair.
-Do not replace or expand the deployment or infrastructure token.
-Never print the token or pass it as a command-line argument.
+The `Work Graph diagnostics token` workflow creates the account-owned token
+through the separate `production-cloudflare-token-bootstrap` authority. It
+writes the one-time value directly to masked
+`work-graph/prd_work_graph/CLOUDFLARE_DIAGNOSTICS_API_TOKEN` and the matching
+GitHub `production-work-graph` environment secret. The value passes through
+standard input and a mode-0700 temporary directory. It does not enter logs,
+command arguments, Terraform state, outputs, plans, or source files.
+
+The same Doppler config stores the public provider ID as unmasked
+`CLOUDFLARE_DIAGNOSTICS_API_TOKEN_ID`. A reconcile reuses that token when its
+live name, account resource, status, and complete permission set still match
+the declaration. The first reconcile safely replaces the manually provisioned
+token because it has no managed ID. Do not replace or expand the deployment or
+infrastructure token.
 
 Cloudflare documents the historical query permission in its
 [telemetry query API](https://developers.cloudflare.com/api/resources/workers/subresources/observability/subresources/telemetry/methods/query/).
 
-This token is an operator-provisioned prerequisite. The existing infrastructure
-credential does not have API token creation authority. Automating its creation
-would require a token-management credential and a direct-to-Doppler handoff to
-keep the generated secret out of Terraform state, as described above.
+Before the first run, scope `DOPPLER_BOOTSTRAP_TOKEN` in the bootstrap authority
+to update only `work-graph/prd_work_graph`. Scope `GH_BOOTSTRAP_TOKEN` to manage
+Actions secrets for the `production-work-graph` environment. Keep
+`CLOUDFLARE_TOKEN_PROVISIONER_TOKEN` limited to Account API Tokens Write for the
+declared account. The workflow checks that authority and the two requested
+permission IDs against Cloudflare's live permission catalog before writing a
+consumer.
 
 For incident queries and monitoring, use the
 [production observability runbook](../../docs/runbooks/work-graph-production-observability.md).
@@ -214,6 +226,25 @@ mise run //infra/work-graph:access:rotate
 The task calls the shared overlap-safe rotation helper with the Work Graph
 config and token name. The previous secret remains valid for seven days so
 clients can refresh their Doppler environment before the old value expires.
+
+Reconcile the diagnostic token from the protected workflow with operation
+`reconcile`. The first run and a requested `rotate` both create a candidate
+without revoking any same-name token. A separate job then loads the GitHub
+consumer from `production-work-graph` and runs the real historical Workers Logs
+and Hyperdrive GraphQL queries. Only a successful query allows the final job to
+revoke older same-name tokens. A failed handoff or verification leaves every
+prior token active.
+
+Retry the same operation after a partial failure. If Doppler contains a managed
+ID, reconcile verifies and reuses it. If the candidate did not reach both
+consumers, the retry creates another candidate and removes the orphan only after
+the new handoff passes production verification. Concurrency prevents two
+lifecycle runs from racing.
+
+To stop diagnostics permanently, dispatch the workflow with operation `retire`
+and enter `work-graph-diagnostics` as the confirmation. Retirement removes the
+GitHub and Doppler consumers first, then revokes every active token with the
+declared name. Do not use retirement as a rotation shortcut.
 
 Resetting the Neon role password requires a Hyperdrive reinstall. Update
 `DATABASE_URL` in Doppler, then force only the installer and apply the reviewed

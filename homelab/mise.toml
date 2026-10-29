@@ -294,6 +294,8 @@ bash -n \
   hosts/vector-development/scripts/create-data-layout.bash \
   hosts/vector-development/scripts/apply-project-quotas.bash \
   hosts/vector-development/scripts/configure-tailscale-serve.bash \
+  hosts/vector-development/scripts/apply-quiet-profile.bash \
+  hosts/vector-development/scripts/thermal-monitor.bash \
   hosts/vector-development/scripts/vector-remote-unlock.bash \
   scripts/vector-development-ssh.sh \
   scripts/install-vector-development.sh \

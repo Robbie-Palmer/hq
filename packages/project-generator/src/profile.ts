@@ -259,6 +259,7 @@ const projectProfileFieldsSchema = z
         id: slugSchema,
         name: z.string().min(1),
         kind: projectKindSchema,
+        published: z.boolean().default(true),
       })
       .strict(),
     components: z.array(componentSchema).min(1),
@@ -399,6 +400,7 @@ export interface ResolvedProjectBlueprint {
     readonly stable_id: string;
     readonly name: string;
     readonly kind: string;
+    readonly published?: boolean;
   };
   readonly components: readonly {
     readonly id: string;
@@ -922,7 +924,9 @@ export function resolveProjectProfile(
   const ownedPaths = [
     ...new Set([
       ...components.map(({ path: componentPath }) => componentPath),
-      `ui/content/projects/${profile.project.id}`,
+      ...(profile.project.published
+        ? [`ui/content/projects/${profile.project.id}`]
+        : []),
     ]),
   ].toSorted(compareStrings);
   const otelRuntime = profile.opentelemetry.runtime;
@@ -938,6 +942,7 @@ export function resolveProjectProfile(
       stable_id: `project:${profile.project.id}`,
       name: profile.project.name,
       kind: profile.project.kind,
+      published: profile.project.published,
     },
     components,
     repository_paths: {
@@ -964,8 +969,12 @@ export function resolveProjectProfile(
       structural_edits: [
         ".mise.toml#monorepo.config_roots",
         "pnpm-workspace.yaml#packages",
-        "ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records",
-        "ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects",
+        ...(profile.project.published
+          ? [
+              "ui/content/projects/personal-engineering-platform/platform.yaml#catalog.records",
+              "ui/content/projects/personal-engineering-platform/repository-layout.yaml#projects",
+            ]
+          : []),
       ],
     },
     nix: profile.nix.boundary === "none" ? { enabled: false } : {

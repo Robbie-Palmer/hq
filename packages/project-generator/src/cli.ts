@@ -211,6 +211,14 @@ async function runProfileCommand(
   return mode === "dry-run" ? result.diff || "No changes.\n" : result;
 }
 
+async function runProfileResolveCommand(
+  context: CommandContext,
+  input: ProfileCommandInput,
+) {
+  const prepared = await prepareProfileCommand(context, input);
+  return prepared.blueprint;
+}
+
 async function prepareProfileCommand(
   context: CommandContext,
   input: ProfileCommandInput,
@@ -441,6 +449,12 @@ export const projectGeneratorRouter = t.router({
     })
     .input(profileCommandInput)
     .query(({ ctx, input }) => runProfileCommand(ctx, input, "plan")),
+  profileResolve: t.procedure
+    .meta({
+      description: "Resolve a project profile to its infrastructure-ready blueprint",
+    })
+    .input(profileCommandInput)
+    .query(({ ctx, input }) => runProfileResolveCommand(ctx, input)),
   profileAdoptionPlan: t.procedure
     .meta({
       description:

@@ -11,6 +11,10 @@ The `v1` directory is immutable apart from compatible fixes. Add `v2` before
 changing a capability name, provider source, state address, input type, or
 resource ownership rule in a way that requires callers to migrate state.
 
+The [minimal bootstrap canary](examples/minimal-bootstrap/README.md) connects a
+committed project profile to the v1 module and the protected account-foundation
+state. It is the executable proof for the managed serverless path.
+
 ## Capability map
 
 | Resolved profile selection | Provider resources | State scope |
@@ -136,6 +140,11 @@ All durable resources use `prevent_destroy`. A rename or provider field that
 forces replacement fails the plan instead of deleting the live object. Review
 the replacement reason, choose an import or state move, and document the
 exception before changing the lifecycle guard in a new module version.
+
+`deletion_protection = false` selects separate resource addresses without
+`prevent_destroy`. Use that mode only for a named disposable canary whose
+creation and cleanup plans are reviewed together. It never changes the
+addresses or lifecycle of the default protected resources.
 
 Adopt existing resources one capability at a time:
 

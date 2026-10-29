@@ -954,6 +954,7 @@ describe("CLI", () => {
     expect(stdout.join("")).toContain("profile-reconcile");
     expect(stdout.join("")).toContain("profile-reconcile-apply");
     expect(stdout.join("")).toContain("profile-dry-run");
+    expect(stdout.join("")).toContain("profile-resolve");
     stdout.length = 0;
 
     expect(await runCli(["create", "--help"], dependencies)).toBe(0);
@@ -1137,6 +1138,13 @@ describe("CLI", () => {
         taskExceptions: [],
         preservedPaths: [],
       },
+    });
+    output.length = 0;
+    expect(await runCli(["profile-resolve", ...args], dependencies)).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      schema_version: 2,
+      effective_at: "2026-10-21T00:00:00Z",
+      project: { id: "alpha" },
     });
     output.length = 0;
     expect(await runCli(["profile-plan", ...args], dependencies)).toBe(0);

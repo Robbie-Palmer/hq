@@ -6,7 +6,11 @@ import {
   divideFractions,
   finiteNumber,
   formatFraction,
+  meanOrZero,
+  medianOrZero,
   multiplyFractions,
+  ratioOrZero,
+  sum,
 } from "../src/numbers";
 
 describe("finiteNumber", () => {
@@ -15,6 +19,32 @@ describe("finiteNumber", () => {
     expect(finiteNumber(null)).toBe(0);
     expect(finiteNumber(Number.POSITIVE_INFINITY, 4)).toBe(4);
     expect(finiteNumber("not-a-number", 3)).toBe(3);
+  });
+});
+
+describe("numeric aggregates", () => {
+  it("sums values using zero as the additive identity", () => {
+    expect(sum([1, 2, 3])).toBe(6);
+    expect(sum([])).toBe(0);
+  });
+
+  it("calculates the mean and names its empty-input fallback", () => {
+    expect(meanOrZero([1, 2, 6])).toBe(3);
+    expect(meanOrZero([])).toBe(0);
+  });
+
+  it("calculates medians without mutating the input", () => {
+    const values = [8, 2, 4, 1];
+
+    expect(medianOrZero(values)).toBe(3);
+    expect(medianOrZero([8, 2, 4])).toBe(4);
+    expect(medianOrZero([])).toBe(0);
+    expect(values).toEqual([8, 2, 4, 1]);
+  });
+
+  it("names its zero-denominator fallback", () => {
+    expect(ratioOrZero(3, 4)).toBe(0.75);
+    expect(ratioOrZero(3, 0)).toBe(0);
   });
 });
 

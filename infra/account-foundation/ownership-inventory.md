@@ -210,6 +210,14 @@ This table names credentials and their storage locations only. It does not
 record values, fingerprints, or masked exports. A repeated name can refer to
 different scoped credentials in different configs.
 
+The checked-in
+[`cloudflare-token-migration.yaml`](cloudflare-token-migration.yaml) expands
+the Cloudflare rows below into one migration record per credential boundary.
+It names current configs, protected GitHub consumers, exact resources,
+permission-group IDs, verification commands, recovery paths, and the ticket
+and bootstrap-plan path that own each migration. Validate it with
+`mise //:cloudflare-token-migration:check`.
+
 | Credential class and current locations | Intended owner | Migration or rotation risk |
 | --- | --- | --- |
 | HCP `TF_API_TOKEN` in `personal-site/dev_personal`, `personal-site/dev_bootstrap_infra`, `personal-site/prd_bootstrap_infra`, `personal-site/prd_bootstrap_plan`, `personal-site/dev_infra`, `personal-site/prd_infra`, `homelab/prd_remote_development_cluster`, `homelab/prd_remote_development_infra`, and `work-graph/prd_work_graph_infra` | The matching workload root; only the first account-foundation owner credential belongs to the manual seed | Replace broad user tokens with root-scoped plan and apply identities after imports. Revoking a shared token early can stop every Terraform root. |

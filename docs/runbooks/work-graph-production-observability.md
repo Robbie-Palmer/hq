@@ -9,7 +9,24 @@ the repository root. All diagnostic requests go to `api.cloudflare.com`.
 The dedicated `CLOUDFLARE_DIAGNOSTICS_API_TOKEN` lives in Doppler config
 `work-graph/prd_work_graph` and the GitHub `production-work-graph` environment.
 See [infrastructure prerequisites](../../infra/work-graph/README.md#diagnostic-access)
-for permissions and credential provisioning.
+for the declared permissions and bootstrap-authority prerequisites. Do not
+create or rotate this token in the Cloudflare dashboard.
+
+Use the `Work Graph diagnostics token` workflow for lifecycle changes:
+
+- `plan` prints the checked-in token name, account binding, permissions,
+  consumers, and verification task without reading credentials.
+- `reconcile` adopts the repository-owned lifecycle. It reuses a conformant
+  managed token or replaces the older manual token with overlap.
+- `rotate` always creates a new candidate. The workflow keeps prior tokens
+  active until the production consumer completes both historical queries.
+- `retire` removes both consumers before revoking all tokens with the declared
+  name and requires the exact token name as confirmation.
+
+If prepare or verification fails, rerun the same operation after correcting the
+reported provider or query failure. Do not revoke the candidate or older token
+by hand. The retry uses the public managed token ID when possible and cleans up
+same-name orphans only after a verified handoff.
 
 The diagnostic helper loads Doppler if the dedicated token is absent. In CI,
 all required values come from environment secrets. Missing credentials, API

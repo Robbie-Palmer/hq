@@ -1,0 +1,143 @@
+name: Work Graph diagnostics token
+
+run-name: ${{ inputs.operation }} Work Graph diagnostics token
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Reconcile, rotate, or retire the managed diagnostic token
+        required: true
+        default: plan
+        type: choice
+        options:
+          - plan
+          - reconcile
+          - rotate
+          - retire
+      confirm_retirement:
+        description: Enter work-graph-diagnostics when retiring the token
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: work-graph-diagnostics-token
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: inputs.operation == 'plan'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - run: mise //infra/work-graph:diagnostics-token:plan
+
+  prepare:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (inputs.operation == 'reconcile' || inputs.operation == 'rotate')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-cloudflare-token-bootstrap
+    outputs:
+      current-token-id: ${{ steps.prepare.outputs.current-token-id }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - id: prepare
+        name: Provision and hand off the candidate
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_TOKEN_PROVISIONER_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN_PROVISIONER_TOKEN }}
+          DOPPLER_BOOTSTRAP_TOKEN: ${{ secrets.DOPPLER_BOOTSTRAP_TOKEN }}
+          GH_BOOTSTRAP_TOKEN: ${{ secrets.GH_BOOTSTRAP_TOKEN }}
+          ROTATE: ${{ inputs.operation == 'rotate' }}
+        run: |
+          result="$RUNNER_TEMP/diagnostics-token-prepare.json"
+          arguments=()
+          if [[ "$ROTATE" == "true" ]]; then
+            arguments+=(--rotate)
+          fi
+          mise //infra/work-graph:diagnostics-token:prepare -- "${arguments[@]}" > "$result"
+          jq -e '
+            (.action == "created" or .action == "reused") and
+            (.currentTokenId | test("^[0-9a-f]{32}$")) and
+            .requiresVerification == true
+          ' "$result" >/dev/null
+          echo "current-token-id=$(jq -r .currentTokenId "$result")" >> "$GITHUB_OUTPUT"
+          jq '{action, currentTokenId, previousTokenIds, requiresVerification}' "$result"
+
+  verify:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-work-graph
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - name: Verify the GitHub consumer has the prepared token
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_DIAGNOSTICS_API_TOKEN: ${{ secrets.CLOUDFLARE_DIAGNOSTICS_API_TOKEN }}
+          CURRENT_TOKEN_ID: ${{ needs.prepare.outputs.current-token-id }}
+        run: >-
+          mise //infra/work-graph:diagnostics-token:verify-consumer --
+          --expected-id "$CURRENT_TOKEN_ID"
+      - name: Query historical Workers Logs and Hyperdrive analytics
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_DIAGNOSTICS_API_TOKEN: ${{ secrets.CLOUDFLARE_DIAGNOSTICS_API_TOKEN }}
+          WORK_GRAPH_HYPERDRIVE_ID: ${{ secrets.WORK_GRAPH_HYPERDRIVE_ID }}
+        run: mise //workers/work-graph-api:diagnostics:query
+
+  finalize:
+    needs:
+      - prepare
+      - verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-cloudflare-token-bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - name: Revoke superseded same-name tokens
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_TOKEN_PROVISIONER_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN_PROVISIONER_TOKEN }}
+          CURRENT_TOKEN_ID: ${{ needs.prepare.outputs.current-token-id }}
+        run: >-
+          mise //infra/work-graph:diagnostics-token:finalize --
+          --current-id "$CURRENT_TOKEN_ID"
+
+  retire:
+    if: github.ref == 'refs/heads/main' && inputs.operation == 'retire'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-cloudflare-token-bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - name: Remove consumers before revoking provider tokens
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_TOKEN_PROVISIONER_TOKEN: ${{ secrets.CLOUDFLARE_TOKEN_PROVISIONER_TOKEN }}
+          DOPPLER_BOOTSTRAP_TOKEN: ${{ secrets.DOPPLER_BOOTSTRAP_TOKEN }}
+          GH_BOOTSTRAP_TOKEN: ${{ secrets.GH_BOOTSTRAP_TOKEN }}
+          RETIREMENT_CONFIRMATION: ${{ inputs.confirm_retirement }}
+        run: >-
+          mise //infra/work-graph:diagnostics-token:retire --
+          "$RETIREMENT_CONFIRMATION"

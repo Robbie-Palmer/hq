@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { CompoundGrowthPlanner } from "./compound-growth-planner";
 import { PortfolioGoal } from "./portfolio-goal";
 
 const checklistStatuses: Array<{
@@ -171,6 +172,7 @@ export function PlanningRoute() {
           Track your FI target, runway, planned spending, and portfolio growth.
         </p>
       </div>
+      <CompoundGrowthPlanner />
       <PortfolioGoal showIncomeTools={false} />
       <PlanningCaseChecklists />
     </div>

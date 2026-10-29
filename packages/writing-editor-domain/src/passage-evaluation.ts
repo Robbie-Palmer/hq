@@ -1,3 +1,4 @@
+import { medianOrZero, ratioOrZero } from "ts-base/numbers";
 import { z } from "zod";
 
 import { canonicalJson } from "./canonical-json";
@@ -122,11 +123,11 @@ export function evaluatePassageRewrites(input: {
     factualPreservation,
     terminologyPreservation,
     voicePreservation,
-    usefulEditYield: ratio(
+    usefulEditYield: ratioOrZero(
       assessments.filter(({ usefulEdit }) => usefulEdit).length,
       assessments.length,
     ),
-    medianReviewMilliseconds: median(
+    medianReviewMilliseconds: medianOrZero(
       assessments.map(({ reviewMilliseconds }) => reviewMilliseconds),
     ),
   };
@@ -176,18 +177,8 @@ function assertUniqueCases(assessments: Assessment[]): void {
 
 function preservationRate(values: z.infer<typeof PreservationResultSchema>[]): number {
   const assessed = values.filter((value) => value !== "unassessed");
-  return ratio(assessed.filter((value) => value === "preserved").length, assessed.length);
-}
-
-function ratio(numerator: number, denominator: number): number {
-  return denominator === 0 ? 0 : numerator / denominator;
-}
-
-function median(values: number[]): number {
-  if (values.length === 0) return 0;
-  const sorted = [...values].sort((left, right) => left - right);
-  const middle = Math.floor(sorted.length / 2);
-  const upper = sorted[middle] ?? 0;
-  const lower = sorted[middle - 1] ?? upper;
-  return sorted.length % 2 === 0 ? (lower + upper) / 2 : upper;
+  return ratioOrZero(
+    assessed.filter((value) => value === "preserved").length,
+    assessed.length,
+  );
 }

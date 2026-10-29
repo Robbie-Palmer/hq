@@ -65,6 +65,7 @@ export function projectPlanFromBlueprint(input: {
   readonly template: PinnedTemplateSource;
 }): ProjectPlan {
   const { blueprint, contracts, template } = input;
+  const published = blueprint.project.published !== false;
   const existingProject = contracts.layout.projects.find(
     ({ id }) => id === blueprint.project.id,
   );
@@ -111,26 +112,30 @@ export function projectPlanFromBlueprint(input: {
         kind: "pnpm_workspace_package",
         value,
       })),
-      {
-        kind: "repository_project",
-        value: {
-          id: blueprint.project.id,
-          kind: blueprint.project.kind,
-          catalog_record: recordId(
-            systemCatalogRecord,
-            "resolved system catalog record",
-          ),
-        },
-        expected: expectedProject,
-      },
-      ...catalogTargets.map((value) => ({
-        kind: "catalog_record",
-        value,
-        expected: recordById(
-          existingCatalog,
-          recordId(value, "resolved catalog record"),
-        ),
-      })),
+      ...(published
+        ? [
+            {
+              kind: "repository_project" as const,
+              value: {
+                id: blueprint.project.id,
+                kind: blueprint.project.kind,
+                catalog_record: recordId(
+                  systemCatalogRecord,
+                  "resolved system catalog record",
+                ),
+              },
+              expected: expectedProject,
+            },
+            ...catalogTargets.map((value) => ({
+              kind: "catalog_record" as const,
+              value,
+              expected: recordById(
+                existingCatalog,
+                recordId(value, "resolved catalog record"),
+              ),
+            })),
+          ]
+        : []),
     ],
   });
 }

@@ -126,6 +126,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.6,
     },
     {
+      url: `${siteConfig.url}/platform-bootstrap-canary`,
+      lastModified: new Date().toISOString(),
+      priority: 0.3,
+    },
+    {
       url: `${siteConfig.url}/posthog`,
       lastModified: new Date().toISOString(),
       priority: 0.5,
