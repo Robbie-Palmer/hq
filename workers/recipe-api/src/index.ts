@@ -174,6 +174,13 @@ import {
 import { readableRecipeFilter } from "./recipe-access";
 import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
 import {
+  parseLastEventId,
+  progressStreamResponse,
+  readRecipeBatchProgress,
+  readRecipeImportProgress,
+  type ProgressSnapshot,
+} from "./progress-stream";
+import {
   normalizeEmail,
   userOwnsVerifiedEmail,
   verifiedEmailOwnerId,
@@ -1030,9 +1037,52 @@ type RouteMetadata = {
   headersSchema?: z.ZodObject;
   successStatuses?: readonly SuccessStatus[];
   successResponseSchema?: z.ZodType;
+  successContentType?: "application/json" | "text/event-stream";
   additionalErrorStatuses?: readonly number[];
   rateLimited?: true;
+  description?: string;
 };
+
+const progressEventIdHeaderSchema = z.object({
+  "last-event-id": z
+    .string()
+    .regex(/^v1:[a-f0-9]{64}$/)
+    .max(67)
+    .optional()
+    .openapi({
+      description:
+        "ID from the last received progress or terminal event. The server always replays the current persisted snapshot and reports whether its ID matched.",
+    }),
+});
+
+const progressEventStreamSchema = z
+  .object({
+    protocolVersion: z.literal(1),
+    terminal: z.boolean(),
+    replay: z
+      .object({
+        window: z.literal("current-state"),
+        requestedEventId: z
+          .string()
+          .regex(/^v1:[a-f0-9]{64}$/)
+          .max(67)
+          .nullable(),
+        matched: z.boolean(),
+      })
+      .strict(),
+    state: z.object({}).catchall(z.unknown()),
+  })
+  .strict()
+  .openapi("RecipeProgressEvent", {
+    description:
+      "JSON data envelope carried by each SSE progress or terminal event. Heartbeats are SSE comments without data.",
+  });
+
+const recipeImportProgressDescription =
+  "Authenticated owners receive the current persisted import snapshot first, followed by changed snapshots in observation order. Event IDs are opaque, non-sortable, v1-prefixed SHA-256 hashes of the durable projection. Delivery is at least once, so a reconnect may repeat an ID. The replay window contains the current snapshot only; missed intermediate transitions collapse into that state. An SSE comment heartbeat is sent after 15 seconds without a changed snapshot. A terminal event is sent for succeeded or failed jobs, then the stream closes. Clients must stop reconnecting after terminal. Disconnecting stops only this subscriber and never cancels ingestion. GET /recipe-imports/{jobId} remains the source of truth and keeps terminal results queryable.";
+
+const recipeBatchProgressDescription =
+  "Authenticated owners receive the current persisted batch and item snapshot first, followed by changed snapshots in observation order. Event IDs are opaque, non-sortable, v1-prefixed SHA-256 hashes of the durable projection. Delivery is at least once, so a reconnect may repeat an ID. The replay window contains the current snapshot only; missed intermediate transitions collapse into that state. An SSE comment heartbeat is sent after 15 seconds without a changed snapshot. The stream stays open through processing and review, then sends a terminal event after every item is accepted or skipped, or after undo completes. Clients must stop reconnecting after terminal. Disconnecting stops only this subscriber and never cancels batch work. GET /recipe-import-batches/{batchId} remains the source of truth and keeps terminal results queryable.";
 
 export const routeMetadata = {
   "GET /health": {},
@@ -1197,11 +1247,23 @@ export const routeMetadata = {
   },
   "GET /recipe-imports": {},
   "GET /recipe-imports/:jobId": {},
+  "GET /recipe-imports/:jobId/progress": {
+    headersSchema: progressEventIdHeaderSchema,
+    successResponseSchema: progressEventStreamSchema,
+    successContentType: "text/event-stream",
+    description: recipeImportProgressDescription,
+  },
   "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201], additionalErrorStatuses: [413] },
   "GET /recipe-import-batches/:batchId/undo": {},
   "PUT /recipe-import-batches/:batchId/undo": { requestBodySchema: z.object({ state: z.literal("started") }), successStatuses: [202] },
   "GET /recipe-import-batches": {},
   "GET /recipe-import-batches/:batchId": {},
+  "GET /recipe-import-batches/:batchId/progress": {
+    headersSchema: progressEventIdHeaderSchema,
+    successResponseSchema: progressEventStreamSchema,
+    successContentType: "text/event-stream",
+    description: recipeBatchProgressDescription,
+  },
   "GET /recipe-import-batches/:batchId/execution": {},
   "PUT /recipe-import-batches/:batchId/execution": { requestBodySchema: z.object({ state: z.literal("started") }) },
   "GET /recipe-import-batches/:batchId/items/:jobId/draft": {},
@@ -1310,7 +1372,9 @@ function successResponsesFor(
       responses[status] = {
         description: successDescription(status),
         content: {
-          "application/json": { schema: responseSchema },
+          [metadata.successContentType ?? "application/json"]: {
+            schema: responseSchema,
+          },
         },
       };
     }
@@ -1401,7 +1465,9 @@ function registerRoute(
     path: openApiPath(path),
     operationId: operationId(method, path),
     summary: `${method.toUpperCase()} ${path}`,
-    description: `Recipe API operation for ${method.toUpperCase()} ${path}.`,
+    description:
+      metadata.description ??
+      `Recipe API operation for ${method.toUpperCase()} ${path}.`,
     tags: [routeTag],
     security: securityFor(path),
     request: {
@@ -7011,6 +7077,37 @@ function importJobResponse(job: RecipeImportJob) {
   };
 }
 
+function progressResponse<State>(
+  c: Context<AppEnv>,
+  initialSnapshot: ProgressSnapshot<State>,
+  resource: "recipe-import" | "recipe-import-batch",
+  readSnapshot: (db: Db) => Promise<ProgressSnapshot<State> | undefined>,
+): Response {
+  const lastEventId = parseLastEventId(c.req.header("Last-Event-ID"));
+  if (!lastEventId.success) {
+    return c.json({ error: "Last-Event-ID is invalid" }, 400);
+  }
+
+  const connectionString = databaseConnection(c.env);
+  if (!connectionString) {
+    return c.json({ error: "Recipe progress is not configured" }, 503);
+  }
+  const liveConnection = createDb(connectionString);
+
+  return progressStreamResponse({
+    initialSnapshot,
+    resource,
+    lastEventId: lastEventId.value,
+    signal: c.req.raw.signal,
+    readSnapshot: async () => {
+      const snapshot = await readSnapshot(liveConnection.db);
+      if (!snapshot) throw new Error("Progress resource no longer exists");
+      return snapshot;
+    },
+    onDisconnect: () => closeDbClient(liveConnection.client),
+  });
+}
+
 async function parseImportImages(
   c: Context<AppEnv>,
   form: FormData,
@@ -7283,6 +7380,14 @@ registerRoute("post", "/recipe-import-batches", batchHandler(async (c, { db, ses
 }));
 registerRoute("get", "/recipe-import-batches", batchHandler(async (c, { db, session }) => c.json({ batches: await listBatches(db, session.user.id) }), false));
 registerRoute("get", "/recipe-import-batches/:batchId", batchHandler(async (c, { db, session }) => c.json(await readBatch(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute("get", "/recipe-import-batches/:batchId/progress", batchHandler(async (c, { db, session }) => {
+  const batchId = batchParam(c, "batchId");
+  const initial = await readRecipeBatchProgress(db, session.user.id, batchId);
+  if (!initial) throw new BatchImportError("Batch not found", 404);
+  return progressResponse(c, initial, "recipe-import-batch", liveDb =>
+    readRecipeBatchProgress(liveDb, session.user.id, batchId),
+  );
+}, false));
 registerRoute("get", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => c.json(await previewBatchUndo(db, session.user.id, batchParam(c, "batchId"))), false));
 registerRoute("put", "/recipe-import-batches/:batchId/undo", batchHandler(async (c, { db, session }) => {
   const body = await parseJsonBody(c, z.object({ state: z.literal("started") }));
@@ -7350,6 +7455,28 @@ registerRoute("put", "/recipe-import-batches/:batchId/items/:jobId/acceptance", 
   if (body.data.recipe.visibility === "household" && !await findUserHouseholdMembership(db, session.user.id)) return authorizationResponse(c, forbidden());
   return c.json(await acceptDraft(db, session.user.id, batchParam(c, "batchId"), batchParam(c, "jobId"), body.data));
 }));
+
+registerRoute("get", "/recipe-imports/:jobId/progress", async (c) => {
+  const jobId = recipeImportIdSchema.safeParse(c.req.param("jobId"));
+  if (!jobId.success) return c.json({ error: "Import not found" }, 404);
+
+  return withRecipeSession(
+    c,
+    "lookup",
+    "GET /recipe-imports/:jobId/progress lookup failed",
+    async ({ db, session }) => {
+      const initial = await readRecipeImportProgress(
+        db,
+        session.user.id,
+        jobId.data,
+      );
+      if (!initial) return c.json({ error: "Import not found" }, 404);
+      return progressResponse(c, initial, "recipe-import", liveDb =>
+        readRecipeImportProgress(liveDb, session.user.id, jobId.data),
+      );
+    },
+  );
+});
 
 registerRoute("get", "/recipe-imports/:jobId", async (c) => {
   const jobId = recipeImportIdSchema.safeParse(c.req.param("jobId"));

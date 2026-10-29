@@ -51,6 +51,32 @@ Recipe creation accepts an optional `parentRecipeId` for a fork. The parent
 must be readable by the cook. The database retains that relationship and
 prevents deleting a parent with surviving forks.
 
+## Import progress streams
+
+Authenticated owners can follow photo ingestion at
+`GET /api/recipe-imports/{jobId}/progress` and batch processing and review at
+`GET /api/recipe-import-batches/{batchId}/progress`. Both resources use
+`text/event-stream`. The normal JSON `GET` resources remain authoritative and
+retain terminal results.
+
+Each connection sends the current database projection before it polls for
+changes. An event ID has the form `v1:<sha256>` and hashes the protocol version,
+resource kind, and complete persisted projection. The server performs one read
+at a time, so changed snapshots appear in observation order. IDs are opaque and
+must not be sorted. This is an at-least-once snapshot protocol. A reconnect with
+`Last-Event-ID` receives the current snapshot even when the ID matches, and the
+payload reports that match so clients can discard the duplicate.
+
+The replay window contains one current snapshot. The server does not recreate
+intermediate transitions that happened while a client was offline. The latest
+snapshot replaces them and contains the state needed to resume. Unchanged
+streams send an SSE comment heartbeat every 15 seconds. Photo streams send a
+`terminal` event for `succeeded` or `failed`. Batch streams remain open through
+review and send `terminal` when every item is accepted or skipped, or when undo
+finishes. The server closes after that event. Clients must treat `terminal` as
+final and stop reconnecting. A disconnect closes only the subscriber's database
+client and never signals or cancels the Workflow.
+
 ## Local OAuth setup
 
 Configure local credentials in Doppler config `dev_recipe_api`. Start both the
