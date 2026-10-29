@@ -12,6 +12,40 @@ interface ProjectsPageTabsProps {
   projects: React.ReactNode;
 }
 
+function ProjectsNavigation() {
+  return (
+    <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
+      <TabsList className="h-auto w-full justify-start rounded-md bg-muted p-1 sm:w-auto">
+        <TabsTrigger
+          value="initiatives"
+          className="flex-1 sm:w-[150px] sm:flex-none"
+        >
+          Initiatives
+        </TabsTrigger>
+        <TabsTrigger
+          value="projects"
+          className="flex-1 sm:w-[150px] sm:flex-none"
+        >
+          All Projects
+        </TabsTrigger>
+      </TabsList>
+      <Button
+        asChild
+        variant="outline"
+        className="group w-full justify-between sm:w-[220px]"
+      >
+        <Link href="/building-philosophy">
+          Read Building Philosophy
+          <ArrowRight
+            aria-hidden="true"
+            className="transition-transform group-hover:translate-x-0.5"
+          />
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
 export function ProjectsPageTabs({
   initiatives,
   projects,
@@ -44,35 +78,7 @@ export function ProjectsPageTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
-        <TabsList className="h-auto w-full justify-start rounded-md bg-muted p-1 sm:w-auto">
-          <TabsTrigger
-            value="initiatives"
-            className="flex-1 sm:w-[150px] sm:flex-none"
-          >
-            Initiatives
-          </TabsTrigger>
-          <TabsTrigger
-            value="projects"
-            className="flex-1 sm:w-[150px] sm:flex-none"
-          >
-            All Projects
-          </TabsTrigger>
-        </TabsList>
-        <Button
-          asChild
-          variant="outline"
-          className="group w-full justify-between sm:w-[220px]"
-        >
-          <Link href="/building-philosophy">
-            Read Building Philosophy
-            <ArrowRight
-              aria-hidden="true"
-              className="transition-transform group-hover:translate-x-0.5"
-            />
-          </Link>
-        </Button>
-      </div>
+      <ProjectsNavigation />
 
       <TabsContent
         value="projects"
