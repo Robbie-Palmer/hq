@@ -89,7 +89,9 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
         jurisdiction: "England",
         employeePensionRate: 0.08,
         employeePensionMethod: "salarySacrifice",
+        employeePensionBasis: "grossPay",
         employerPensionRate: 0.1,
+        employerPensionBasis: "grossPay",
         destinationAccountId: "nationwide-current",
         pensionAccountId: "workplace-pension",
         replacedRecurringFlowIds: [

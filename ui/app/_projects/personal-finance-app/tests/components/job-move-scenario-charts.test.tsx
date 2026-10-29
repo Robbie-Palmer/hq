@@ -89,6 +89,7 @@ function comparison(
       scenarioAnnualTakeHomePay: 48_000,
       scenarioAnnualEmployeePensionContribution: 4_000,
       scenarioAnnualEmployerPensionContribution: 4_000,
+      scenarioAnnualProviderPensionTaxRelief: 0,
       currency: "GBP",
     },
     calculation: { kind: "not-applicable" },
