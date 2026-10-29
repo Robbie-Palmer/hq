@@ -24,6 +24,8 @@ ui/public/simulations/autonomic-satellite-swarm/wasm/
 
 # Testing
 coverage/
+packages/project-economics-domain/reports/
+.stryker-tmp/
 lighthouse-reports/
 playwright-report/
 test-results/

@@ -171,6 +171,47 @@ describe("cost observations", () => {
       }).totals[0]?.amount,
     ).toBe(100);
   });
+
+  it("filters by project and enclosed service period and orders contributions", () => {
+    const directCost = (
+      id: string,
+      projectId: string,
+      servicePeriod: CostObservation["servicePeriod"],
+    ): CostObservation =>
+      cost({
+        ...baseCost,
+        id,
+        kind: "direct",
+        projectId,
+        servicePeriod,
+        amount: { currency: "USD", amount: 1 },
+        provenance: provenance(id),
+      });
+    const records = [
+      directCost("cost:z", "project:site", period),
+      directCost("cost:wrong-project", "project:api", period),
+      directCost("cost:a", "project:site", period),
+      directCost("cost:starts-before", "project:site", {
+        startsAt: "2025-12-31T00:00:00.000Z",
+        endsAt: "2026-01-31T00:00:00.000Z",
+      }),
+      directCost("cost:ends-after", "project:site", {
+        startsAt: "2026-01-02T00:00:00.000Z",
+        endsAt: "2026-02-02T00:00:00.000Z",
+      }),
+    ];
+
+    const result = queryCumulativeProjectCost(records, {
+      projectId: "project:site",
+      period,
+    });
+
+    expect(result.contributions.map(({ observationId }) => observationId)).toEqual([
+      "cost:a",
+      "cost:z",
+    ]);
+    expect(result.totals[0]?.amount).toBe(2);
+  });
 });
 
 describe("shared cost allocation", () => {
@@ -193,6 +234,12 @@ describe("shared cost allocation", () => {
 
   it("supports effective fixed and consumption rules", () => {
     expect(validateAllocationRuleForPeriod(fixedRule, period)).toEqual(fixedRule);
+    expect(
+      validateAllocationRuleForPeriod(fixedRule, {
+        startsAt: "2026-01-01T00:00:00.000Z",
+        endsAt: "2026-04-01T00:00:00.000Z",
+      }),
+    ).toEqual(fixedRule);
     expect(
       AllocationRuleSchema.parse({
         id: "rule:usage",
@@ -263,6 +310,12 @@ describe("shared cost allocation", () => {
   });
 
   it("rejects a rule outside its effective dates", () => {
+    expect(() =>
+      validateAllocationRuleForPeriod(fixedRule, {
+        startsAt: "2025-12-01T00:00:00.000Z",
+        endsAt: "2026-01-15T00:00:00.000Z",
+      }),
+    ).toThrow(/not effective/);
     expect(() =>
       validateAllocationRuleForPeriod(fixedRule, {
         startsAt: "2026-03-01T00:00:00.000Z",

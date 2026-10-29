@@ -1,9 +1,9 @@
 # Next research cycle
 
 **Status:** In progress. Bounded controller telemetry, rate-limited serial export, deterministic
-equal-score rotation, and the portable safe-state actuator lifecycle are implemented. Shared-radio
-budgets, resource evidence, durable journals, and validated hardware safe-state actions remain
-proposed.
+equal-score rotation, the portable safe-state actuator lifecycle, resource evidence, and portable
+shared-radio budgets are implemented. Durable journals, physical resource measurements, and
+validated hardware safe-state actions remain proposed.
 
 This document records research directions, not flight-software claims. The next cycle should make
 autonomy observable and governable without making local coordination depend on a continuously
@@ -32,11 +32,16 @@ simulation drains the same queue used by firmware builds and includes the record
 replay. See [Bounded telemetry](telemetry.md) for the exact admission policy.
 
 The portable transmitter now limits attempts, waits for platform-granted channel access, and retains
-a record when its sink rejects publication. The reference adapters send one fixed telemetry frame
-per second over a dedicated serial link after controller work. They do not send telemetry over IR or
-ESP-NOW. A shared-radio policy still needs measured capacity and duty-cycle limits. Resource
-evidence still awaits a platform interface. Losing mission control does not stop local behavior
-because the controller only enqueues records and never performs telemetry I/O.
+a record when its sink rejects publication. The portable scheduler gives coordination and safety
+traffic priority, then applies byte and airtime limits to telemetry. A resource-observation port
+records timestamped, partial measurements with explicit fresh, stale, unavailable, and invalid
+states. Neither component changes health or allocation policy.
+
+The reference adapters send one fixed telemetry frame per second over a dedicated serial link after
+controller work. They do not send telemetry over IR or ESP-NOW. Physical shared-radio capacity,
+duty-cycle, energy, stack, and controller-timing measurements remain absent, so the sketches do not
+instantiate the shared-channel scheduler. Losing mission control does not stop local behavior because
+the controller only enqueues records and never performs telemetry I/O.
 
 ## Mission-control observation and intervention
 

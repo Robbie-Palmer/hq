@@ -56,6 +56,33 @@ describe("repository snapshots", () => {
       }),
     ).toThrow(/reconcile/);
   });
+
+  it("rejects duplicate language and source-line inventory keys", () => {
+    expect(() =>
+      RepositorySnapshotSchema.parse({
+        ...snapshot,
+        languageInventory: {
+          ...snapshot.languageInventory,
+          languages: [
+            { language: "TypeScript", bytes: 100 },
+            { language: "TypeScript", bytes: 50 },
+          ],
+        },
+      }),
+    ).toThrow(/repeat a language/);
+    expect(() =>
+      RepositorySnapshotSchema.parse({
+        ...snapshot,
+        sourceLineInventory: {
+          ...snapshot.sourceLineInventory,
+          sourceLines: [
+            { language: "TypeScript", classification: "test", lines: 20 },
+            { language: "TypeScript", classification: "test", lines: 10 },
+          ],
+        },
+      }),
+    ).toThrow(/repeat a language and classification/);
+  });
 });
 
 describe("metric observations and derived series", () => {
@@ -107,6 +134,37 @@ describe("metric observations and derived series", () => {
     ).toThrow(/zero-denominator/);
   });
 
+  it("requires partial observations and ratio parts to be complete", () => {
+    expect(() =>
+      MetricObservationSchema.parse({
+        ...available,
+        state: "partial",
+        limitation: null,
+      }),
+    ).toThrow(/must state its limitation/);
+    expect(
+      MetricObservationSchema.parse({
+        ...available,
+        state: "partial",
+        limitation: "The provider sampled requests.",
+      }).state,
+    ).toBe("partial");
+    expect(() =>
+      MetricObservationSchema.parse({
+        ...available,
+        numerator: 2,
+        denominator: null,
+      }),
+    ).toThrow(/both numerator and denominator/);
+    expect(() =>
+      MetricObservationSchema.parse({
+        ...available,
+        numerator: null,
+        denominator: 100,
+      }),
+    ).toThrow(/both numerator and denominator/);
+  });
+
   it("projects ordered current observations and records derived inputs", () => {
     const later = MetricObservationSchema.parse({
       ...available,
@@ -147,5 +205,33 @@ describe("metric observations and derived series", () => {
       "observation:requests:2",
     ]);
     expect(derived.inputs).toHaveLength(2);
+  });
+
+  it("filters metric series by metric and project and breaks period ties by id", () => {
+    const tied = MetricObservationSchema.parse({
+      ...available,
+      id: "observation:requests:0",
+      provenance: provenance("metric:failure-rate:2026-01:tied"),
+    });
+    const otherMetric = MetricObservationSchema.parse({
+      ...available,
+      id: "observation:latency",
+      metricDefinitionId: "metric:latency",
+      provenance: provenance("metric:latency:2026-01"),
+    });
+    const otherProject = MetricObservationSchema.parse({
+      ...available,
+      id: "observation:other-project",
+      projectId: "project:api",
+      provenance: provenance("metric:failure-rate:api:2026-01"),
+    });
+
+    expect(
+      projectMetricSeries(
+        [available, otherMetric, otherProject, tied],
+        "metric:failure-rate",
+        "project:site",
+      ).map(({ id }) => id),
+    ).toEqual(["observation:requests:0", "observation:requests:1"]);
   });
 });

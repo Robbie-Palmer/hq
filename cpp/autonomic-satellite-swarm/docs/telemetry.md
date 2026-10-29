@@ -73,6 +73,12 @@ and consumes no record while access is withheld. The Uno and ESP32 reference ske
 dedicated serial diagnostic channel, call the controller first, and grant telemetry afterward. They
 attempt one frame per second.
 
+For a shared channel, `SharedRadioScheduler` turns that Boolean into a measured decision. The caller
+records coordination and safety cost first, then requests telemetry access with the frame's byte and
+airtime cost. Telemetry waits for priority work and must fit within the configured rolling-window
+budget. The scheduler reports priority deferrals, budget deferrals, priority overruns, and queue
+loss. See [Resource evidence and shared-radio budgets](resource-evidence.md).
+
 Export uses a fixed 34-byte binary frame identified by `0xB3`. It contains every record field in
 big-endian order, one reserved zero byte, and a CRC-8. This is separate from the 18-byte coordination
 packet. The serial experiment has no delivery acknowledgement, authentication, encryption, replay

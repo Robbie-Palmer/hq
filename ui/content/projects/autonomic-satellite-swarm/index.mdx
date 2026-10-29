@@ -126,10 +126,11 @@ reference adapter sends the same packet over ESP-NOW. ESP-NOW is useful for a be
 it is not presented as a spacecraft communication choice.
 
 The controller records bounded telemetry and uses mission keys to rotate equal-score assignments. A
-portable transmitter exports telemetry through a fixed frame at a configured rate. The reference
-firmware uses its serial diagnostic link, separate from IR or ESP-NOW coordination. The next research
-cycle still needs measured resource inputs, shared-radio budgets, a governed improvement loop, and a
-platform safe-state action hook.
+portable transmitter exports telemetry through a fixed frame at a configured rate. A resource port
+now records timestamped platform evidence without hiding it inside health or allocation decisions,
+and a shared-radio scheduler gives coordination and safety traffic priority over a byte or airtime
+telemetry budget. The reference firmware still uses its serial diagnostic link, separate from IR or
+ESP-NOW coordination, because the physical radio and stack measurements do not exist yet.
 
 # Coordination under unreliable links
 
@@ -223,8 +224,9 @@ validity remain outside the current evidence boundary.
 # Roadmap
 
 1. Complete the software revival and retain the original paper examples as characterization tests.
-2. Measure shared-radio capacity and duty cycle before moving the implemented serial telemetry export
-   onto a coordination link. Add measured resource evidence through platform interfaces.
+2. Measure physical shared-radio capacity, duty cycle, stack high-water use, and controller timing
+   before moving the implemented serial telemetry export onto a coordination link. Feed those
+   measurements through the implemented resource-observation port and scheduler.
 3. Feed validated resource and lifetime costs into candidacy scoring. Keep the implemented
    mission-keyed rotation as the final tie-break where candidates remain equal.
 4. Add a narrow, idempotent platform hook for physical safe-state actions and verify it with fault

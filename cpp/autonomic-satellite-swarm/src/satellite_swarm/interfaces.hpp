@@ -6,6 +6,7 @@
 namespace satellite_swarm {
 
 struct TelemetryEvent;
+struct ResourceObservation;
 
 class Transport {
 public:
@@ -47,6 +48,15 @@ public:
 
   // Implementations must copy the event before returning if publication continues asynchronously.
   virtual bool publish(const TelemetryEvent& event) = 0;
+};
+
+class ResourceObserver {
+public:
+  virtual ~ResourceObserver() = default;
+
+  // Returns false when the platform cannot provide a sample. Available fields and their timestamp
+  // travel with each successful observation so missing or old values are never inferred as zero.
+  virtual bool observe(ResourceObservation& observation) = 0;
 };
 
 } // namespace satellite_swarm
