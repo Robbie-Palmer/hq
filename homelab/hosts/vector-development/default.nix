@@ -478,7 +478,10 @@ in
     after = [ "power-profiles-daemon.service" ];
     requires = [ "power-profiles-daemon.service" ];
     wantedBy = [ "multi-user.target" ];
-    serviceConfig.Type = "oneshot";
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
     script = ''
       ${pkgs.power-profiles-daemon}/bin/powerprofilesctl set power-saver
       test "$(${pkgs.power-profiles-daemon}/bin/powerprofilesctl get)" = power-saver

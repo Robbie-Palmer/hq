@@ -47,6 +47,17 @@ read_number() {
   fi
 }
 
+read_required_number() {
+  local path=$1
+
+  if [[ ! -r ${path} ]]; then
+    printf 'required sensor unreadable: %s\n' "${path}" >&2
+    return 1
+  fi
+
+  cat "${path}"
+}
+
 top_processes() {
   ps --no-headers \
     -eo pid,ppid,user,comm,%cpu,%mem \
@@ -103,8 +114,8 @@ busiest=$(top_processes)
 while true; do
   now=$(date +%s)
   timestamp=$(date --utc --iso-8601=seconds)
-  fan_rpm=$(read_number "${fan_hwmon}/fan1_input")
-  cpu_millicelsius=$(read_number "${cpu_zone}/temp")
+  fan_rpm=$(read_required_number "${fan_hwmon}/fan1_input")
+  cpu_millicelsius=$(read_required_number "${cpu_zone}/temp")
   nvme_millicelsius=$(read_number "${nvme_hwmon}/temp2_input")
   gpu_runtime_status=$(cat "${gpu_runtime_status_path}" 2>/dev/null || printf 'unknown')
 
