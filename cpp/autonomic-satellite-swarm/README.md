@@ -129,13 +129,14 @@ simulation/                 deterministic trace runner and observable simulation
 third_party/sgp4/            pinned CelesTrak SGP4 reference source used by simulation only
 browser/                    C ABI, Emscripten entry point, and native/WASM parity test
 examples/simulation/       deterministic host-side three-node demonstration
+examples/resource_profile/ repeatable host controller timing probe
 firmware/uno_ir/           legacy Arduino Uno + infrared reference adapter
 firmware/esp32_espnow/     modern ESP32 + ESP-NOW reference adapter
 tests/                     host-side behavior and characterization tests
 docs/                      architecture, protocol, and modernization notes
 ```
 
-The core depends on five interfaces:
+The core and its platform boundary use six interfaces:
 
 - `Transport` moves semantic messages without exposing radio details.
 - `HealthMonitor` maps platform observations to nominal, quiescent, or fatal health.
@@ -143,9 +144,11 @@ The core depends on five interfaces:
 - `SafeStateActuator` accepts or rejects one non-blocking, idempotent request when the controller
   first enters safe-disabled and reports its eventual terminal status.
 - `TelemetrySink` accepts a diagnostic record when the platform grants output-channel access.
+- `ResourceObserver` supplies timestamped, explicitly available platform measurements without
+  deciding health or allocation policy.
 
-See [Architecture](docs/architecture.md) and [Wire protocol](docs/wire-protocol.md) for the detailed
-contracts.
+See [Architecture](docs/architecture.md), [Wire protocol](docs/wire-protocol.md), and [Resource
+evidence and shared-radio budgets](docs/resource-evidence.md) for the detailed contracts.
 
 ## Firmware builds
 
@@ -191,6 +194,7 @@ the controller records a rejected result and preserves its software latch.
 - [Architecture](docs/architecture.md)
 - [Wire protocol](docs/wire-protocol.md)
 - [Bounded telemetry](docs/telemetry.md)
+- [Resource evidence and shared-radio budgets](docs/resource-evidence.md)
 - [Deterministic orbit simulation](docs/orbit-simulation.md)
 - [Coordination semantics and invariant baseline](docs/invariant-baseline.md)
 - [Revival notes and corrected defects](docs/revival-notes.md)

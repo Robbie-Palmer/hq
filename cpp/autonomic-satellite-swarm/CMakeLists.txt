@@ -20,6 +20,8 @@ add_library(
   satellite_swarm
   src/satellite_swarm/controller.cpp
   src/satellite_swarm/historical_orbital_scorer.cpp
+  src/satellite_swarm/resource_observer.cpp
+  src/satellite_swarm/shared_radio_scheduler.cpp
   src/satellite_swarm/telemetry.cpp
   src/satellite_swarm/telemetry_codec.cpp
   src/satellite_swarm/telemetry_transmitter.cpp
@@ -86,6 +88,9 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
 
   add_executable(autonomic-satellite-swarm-simulation examples/simulation/main.cpp)
   target_link_libraries(autonomic-satellite-swarm-simulation PRIVATE satellite_swarm::simulation)
+  add_executable(autonomic-satellite-swarm-resource-profile examples/resource_profile/main.cpp)
+  target_link_libraries(autonomic-satellite-swarm-resource-profile
+                        PRIVATE satellite_swarm::coordination)
   if(SATELLITE_SWARM_SOURCE_REVISION STREQUAL "")
     set(SATELLITE_SWARM_SOURCE_REVISION "unknown")
   endif()
@@ -100,6 +105,8 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
 
   if(BUILD_TESTING)
     add_test(NAME satellite_swarm_simulation COMMAND autonomic-satellite-swarm-simulation)
+    add_test(NAME satellite_swarm_resource_profile
+             COMMAND autonomic-satellite-swarm-resource-profile)
     add_test(
       NAME satellite_swarm_browser_fixture
       COMMAND autonomic-satellite-swarm-simulation --json)
@@ -137,6 +144,10 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
       satellite_swarm_browser_fixture
       PROPERTIES PASS_REGULAR_EXPRESSION
                  "\"source\": \"portable C\\+\\+ SimulationTrace\".*\"events\"")
+    set_tests_properties(
+      satellite_swarm_resource_profile
+      PROPERTIES PASS_REGULAR_EXPRESSION
+                 "\"profile\":\"host-idle-controller\".*\"worstObservedStackBytes\":null")
     set_tests_properties(
       satellite_swarm_fair_allocation
       PROPERTIES PASS_REGULAR_EXPRESSION
@@ -226,6 +237,8 @@ if(BUILD_TESTING)
     tests/historical_orbital_scorer_test.cpp
     tests/invariant_test.cpp
     tests/orbit_test.cpp
+    tests/resource_observer_test.cpp
+    tests/shared_radio_scheduler_test.cpp
     tests/telemetry_codec_test.cpp
     tests/telemetry_test.cpp
     tests/telemetry_transmitter_test.cpp

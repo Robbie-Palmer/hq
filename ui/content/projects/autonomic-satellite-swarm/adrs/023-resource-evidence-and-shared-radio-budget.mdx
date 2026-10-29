@@ -1,0 +1,105 @@
+---
+title: "ADR 023: Resource Evidence and Shared-Radio Budget"
+status: "Accepted"
+date: "2026-10-25"
+---
+
+# Context
+
+[ADR 016](/projects/autonomic-satellite-swarm/adrs/016-rate-limited-telemetry-export) keeps telemetry
+outside the controller and lets the platform withhold channel access. A Boolean grant prevents one
+telemetry attempt, but it does not state how much shared capacity exists, why telemetry waited, or
+how much evidence the bounded queue lost during congestion.
+
+The controller also has no platform port for resource measurements. A scoring or health policy
+could read a battery, temperature, free storage, or wear counter directly, but that would hide the
+observation that produced the decision and make stale or missing data look like a real zero.
+
+The current reference hardware has only compile evidence. The build reports flash and global SRAM
+allocation for the Uno and ESP32. It does not measure controller time, stack high-water use, radio
+capacity, duty cycle, energy, temperature, storage, actuator life, or wear on a physical board. The
+network laboratory has exact packet and modeled airtime values, but its 14,400 bit/s rate and energy
+coefficients are scenario inputs.
+
+# Decision
+
+Add a portable `ResourceObserver` interface. Each observation carries a monotonic timestamp, an
+availability mask, and fixed-width values for energy, temperature, computation time, storage,
+actuator cycles, duty cycle, wear, flash, static RAM, stack high-water use, telemetry-frame size, and
+radio capacity.
+
+Put validation and freshness in `ResourceEvidenceRecorder`. A sampling attempt is fresh, stale,
+unavailable, or invalid. Retain the last valid observation across unavailable and invalid attempts.
+Do not map the observation to `HealthStatus`, change a candidacy score, or take an actuator action in
+the recorder. A policy that makes one of those decisions must preserve the raw evidence separately.
+
+Add `SharedRadioScheduler` outside `SwarmController`. Give it a rolling time window and an explicit
+byte limit, airtime limit, or both. The platform submits coordination and safety costs first. The
+scheduler always admits them and counts any budget overrun. It admits telemetry only when no
+priority work is waiting and the remaining budget covers the full request.
+
+Count telemetry admissions, priority deferrals, budget deferrals, and upstream queue loss. Read
+loss from the controller's cumulative drop counter so event-storm loss remains visible even though
+the scheduler does not own the queue. Saturate counters rather than wrapping them.
+
+Keep the Uno and ESP32 telemetry paths on dedicated serial links. The new scheduler establishes the
+portable rule and test evidence needed before a shared-radio adapter exists. It does not justify
+moving telemetry onto IR or ESP-NOW.
+
+# Alternatives
+
+## Put resource fields in the controller snapshot
+
+`SatelliteSnapshot` feeds the historical candidacy scorer. Adding raw platform measurements there
+would imply that every observation is valid for allocation and would blur missing data with zero.
+
+## Let each policy read hardware directly
+
+This avoids a shared record type, but the decision could not be replayed from the evidence that
+produced it. Tests would also need hardware-specific policy doubles.
+
+## Keep the Boolean telemetry grant
+
+The grant preserves priority when a caller uses it correctly, but it cannot enforce bytes or
+airtime and does not distinguish priority congestion from an exhausted budget.
+
+## Reject priority traffic at the budget limit
+
+That protects the nominal duty cycle at the cost of dropping coordination or safety work. The
+prototype instead records the overrun and blocks telemetry. A physical radio adapter may need a
+stricter regulatory fail-safe rule, which requires a separate platform decision.
+
+# Acceptance evidence
+
+The host tests cover valid partial observations, stale and unavailable samples, future timestamps,
+clock rollover, invalid availability metadata, impossible temperatures, invalid duty cycles, and
+zero frame or radio sizes. They prove that a later bad sample does not overwrite the last valid
+observation.
+
+Scheduler tests cover byte and airtime exhaustion, priority admission beyond the nominal budget,
+priority and budget deferral counters, queue-loss accounting, window rollover, missing-budget
+fail-closed behavior, and saturating counters. A 64-update event storm polls local health every
+time, attempts no telemetry publication while priority work is pending, fills the bounded queue,
+and exposes the resulting loss.
+
+`mise run resources:measure` builds both firmware profiles and runs the host timing probe. The 25
+October 2026 run measured 14,656 program bytes and 1,257 global bytes on Uno, 915,136 program bytes
+and 46,480 global bytes on ESP32, and a worst sampled idle host update of 167 nanoseconds. The host
+probe reports stack evidence as unavailable. Physical stack and controller timing remain required
+before a shared-radio adapter can claim readiness.
+
+# Consequences
+
+Platforms can supply partial resource evidence without pretending that absent measurements are
+zero. Freshness and validation now have one portable rule, while health and allocation policies
+remain replaceable.
+
+Telemetry has an enforceable budget and visible congestion reasons. Coordination and safety keep
+priority, and queue loss is no longer hidden behind a Boolean channel grant.
+
+The observation type is 56 bytes on the measured host build. Platforms choose when to sample and
+where to store records; the controller does not own an additional resource queue. The reference
+firmware does not instantiate the recorder or scheduler, so its current globals remain unchanged.
+
+Physical evidence is still missing. Compiler allocation, host timing, and simulated airtime are not
+substitutes for stack painting, target timers, calibrated sensors, or radio measurements.

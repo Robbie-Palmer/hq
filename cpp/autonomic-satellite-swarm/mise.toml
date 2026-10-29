@@ -65,6 +65,15 @@ description = "Run paired-seed network-laboratory experiments"
 depends = ["build"]
 run = "./build/dev/autonomic-satellite-swarm-simulation --batch-json"
 
+[tasks."resources:measure"]
+description = "Measure the host controller profile and compile both reference firmware targets"
+depends = ["build"]
+run = '''
+./build/dev/autonomic-satellite-swarm-resource-profile
+mise run firmware:uno
+mise run firmware:esp32
+'''
+
 [tasks."browser:fixture:check"]
 description = "Check that the committed browser fixture matches the native trace runner"
 depends = ["build"]
