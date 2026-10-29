@@ -3,10 +3,11 @@ data "cloudflare_zone" "domain" {
 }
 
 locals {
-  api_origin                  = "https://${var.work_graph_hostname}"
-  credential_handoff_revision = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
-  hyperdrive_connection_limit = 60
-  hyperdrive_name             = "work-graph-db"
+  api_origin                       = "https://${var.work_graph_hostname}"
+  credential_handoff_revision      = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
+  hyperdrive_connection_limit      = 60
+  hyperdrive_name                  = "work-graph-db"
+  r2_private_analytics_bucket_name = "work-graph-private-analytics"
 }
 
 # The public observer has one webhook route and no service binding to the
@@ -27,6 +28,19 @@ resource "cloudflare_queue" "github_deliveries_dead_letter" {
 resource "cloudflare_r2_bucket" "database_backups" {
   account_id = var.cloudflare_account_id
   name       = var.r2_database_backups_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# Redacted analytics exports are isolated from recovery archives. Worker
+# bindings grant the extractor access without issuing an S3 credential, while
+# report readers use a separate bucket-scoped read-only credential.
+resource "cloudflare_r2_bucket" "private_analytics" {
+  account_id = var.cloudflare_account_id
+  name       = local.r2_private_analytics_bucket_name
   location   = "ENAM"
 
   lifecycle {
@@ -168,6 +182,11 @@ resource "cloudflare_workers_script" "work_graph" {
   hyperdrive_config_binding {
     binding = "HYPERDRIVE"
     id      = data.external.resource_metadata.result.hyperdrive_id
+  }
+
+  r2_bucket_binding {
+    name        = "ANALYTICS"
+    bucket_name = cloudflare_r2_bucket.private_analytics.name
   }
 
   lifecycle {

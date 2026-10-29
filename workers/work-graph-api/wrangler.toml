@@ -19,6 +19,12 @@ binding = "WORKER_VERSION"
 [placement]
 mode = "smart"
 
+[vars]
+ANALYTICS_BATCH_SIZE = "1000"
+
+[triggers]
+crons = ["23 */6 * * *"]
+
 # Queue and critical-path requests project the complete dependency graph. The
 # production graph exceeds the Workers Free 10 ms CPU allowance, so this Worker
 # requires the Workers Paid plan. Keep an explicit ceiling to catch runaway
@@ -31,3 +37,7 @@ cpu_ms = 5_000
 [[hyperdrive]]
 binding = "HYPERDRIVE"
 id = "00000000000000000000000000000000"
+
+[[r2_buckets]]
+binding = "ANALYTICS"
+bucket_name = "work-graph-private-analytics"

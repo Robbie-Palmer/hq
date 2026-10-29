@@ -28,6 +28,11 @@ output "r2_database_backups_bucket_name" {
   value       = cloudflare_r2_bucket.database_backups.name
 }
 
+output "r2_private_analytics_bucket_name" {
+  description = "Dedicated private bucket for redacted Work Graph analytics exports"
+  value       = cloudflare_r2_bucket.private_analytics.name
+}
+
 output "worker_name" {
   description = "Work Graph Worker service name"
   value       = cloudflare_workers_script.work_graph.name

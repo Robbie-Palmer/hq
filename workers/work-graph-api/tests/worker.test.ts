@@ -6,10 +6,12 @@ const fakes = vi.hoisted(() => ({
   createDatabaseQueryMetrics: vi.fn(),
   createDb: vi.fn(),
   createWorkGraphApp: vi.fn(),
+  exportAnalyticsBatch: vi.fn(),
   repositoryConstructor: vi.fn(),
 }));
 
-vi.mock("work-graph-db", () => ({
+vi.mock("work-graph-db", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("work-graph-db")>()),
   closeDb: fakes.closeDb,
   createDatabaseQueryMetrics: fakes.createDatabaseQueryMetrics,
   createDb: fakes.createDb,
@@ -24,9 +26,16 @@ vi.mock("../src/app", () => ({
   createWorkGraphApp: fakes.createWorkGraphApp,
 }));
 
+vi.mock("../src/analytics-export", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/analytics-export")>()),
+  exportAnalyticsBatch: fakes.exportAnalyticsBatch,
+}));
+
+import { AnalyticsExportError } from "../src/analytics-export";
 import worker from "../src/index";
 
 type WorkerRequest = Parameters<typeof worker.fetch>[0];
+type ScheduleController = Parameters<typeof worker.scheduled>[0];
 
 const connectionString =
   "postgresql://work_graph_owner:unused@db.invalid:5432/work_graph";
@@ -148,6 +157,115 @@ describe("Given database cleanup fails after the app completes", () => {
     expect(response.headers.get("x-request-id")).toBe("app-request-id");
     expect(await response.json()).toEqual({ outcome: "app response" });
     expect(JSON.stringify(log.mock.calls)).not.toContain("private details");
+    log.mockRestore();
+  });
+});
+
+describe("Given a scheduled analytics export", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fakes.createDatabaseQueryMetrics
+      .mockReset()
+      .mockReturnValue(databaseMetrics);
+    fakes.createDb.mockReset().mockReturnValue(db);
+    fakes.closeDb.mockReset().mockResolvedValue(undefined);
+    fakes.exportAnalyticsBatch.mockReset();
+  });
+
+  it.each([
+    ["database", "dependency_failure"],
+    ["binding", "configuration_invalid"],
+  ])("sanitizes a %s failure", async (phase, reason) => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const secret = "postgresql://owner:SECRET@db.invalid/database";
+    if (phase === "database") {
+      fakes.createDb.mockImplementation(() => {
+        throw new Error(secret);
+      });
+    } else {
+      fakes.createDb.mockReturnValue(db);
+    }
+
+    await expect(
+      worker.scheduled({} as ScheduleController, env),
+    ).rejects.toThrow("analytics export failed");
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        exceptionClass: "analytics_export_error",
+        reason,
+      }),
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain("SECRET");
+    expect(fakes.closeDb).toHaveBeenCalledTimes(phase === "binding" ? 1 : 0);
+    log.mockRestore();
+  });
+
+  it("logs successful batch metrics without sensitive data", async () => {
+    const log = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const analytics = {} as R2Bucket;
+    fakes.exportAnalyticsBatch.mockResolvedValue({
+      eventRows: 2,
+      manifestKey: "work-state/v1/manifests/1-2.json",
+      objectBytes: 512,
+      scopeRows: 1,
+      status: "exported",
+      throughSequence: 2,
+    });
+
+    await expect(
+      worker.scheduled({} as ScheduleController, {
+        ...env,
+        ANALYTICS: analytics,
+      }),
+    ).resolves.toBeUndefined();
+    expect(fakes.exportAnalyticsBatch).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      1_000,
+    );
+    expect(log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventRows: 2,
+        scopeRows: 1,
+        throughSequence: 2,
+      }),
+    );
+    expect(fakes.closeDb).toHaveBeenCalledWith(db);
+    log.mockRestore();
+  });
+
+  it("logs fixed reasons for invalid configuration and permanent export errors", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const analytics = {} as R2Bucket;
+
+    await expect(
+      worker.scheduled(
+        {} as ScheduleController,
+        { ...env, ANALYTICS: analytics, ANALYTICS_BATCH_SIZE: "unbounded" },
+      ),
+    ).rejects.toThrow("analytics export failed");
+    expect(log).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reason: "configuration_invalid" }),
+    );
+
+    fakes.exportAnalyticsBatch.mockRejectedValue(
+      new AnalyticsExportError(
+        "manifest_schema_invalid",
+        "private manifest details",
+      ),
+    );
+    await expect(
+      worker.scheduled({} as ScheduleController, {
+        ...env,
+        ANALYTICS: analytics,
+      }),
+    ).rejects.toThrow("analytics export failed");
+    expect(log).toHaveBeenLastCalledWith(
+      expect.objectContaining({ reason: "manifest_schema_invalid" }),
+    );
+    expect(JSON.stringify(log.mock.calls)).not.toContain(
+      "private manifest details",
+    );
     log.mockRestore();
   });
 });

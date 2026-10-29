@@ -100,6 +100,33 @@ The database client disables Postgres.js array-type discovery. Drizzle handles
 the schema's built-in array columns, so each new Worker request avoids the
 otherwise automatic `pg_catalog` query and its 300-plus returned rows.
 
+### Scheduled analytics export
+
+The Worker runs a scheduled export at minute 23 every six hours. Each run reads
+at most `ANALYTICS_BATCH_SIZE` committed events above the R2 checkpoint. It
+fixes the database watermark before reading the range, so commits made during
+the export belong to a later run. Sequence gaps do not stop a batch.
+
+The exporter writes redacted NDJSON events and a current inherited-scope
+snapshot under `work-state/v1/`. It writes a complete manifest after both data
+objects and advances `checkpoint.json` last with an ETag condition. A retry
+validates an existing manifest and its checksums before advancing the missing
+checkpoint. Event objects contain no attention text, resolution text, note
+contents, worker IDs, prompts, tokens, logs, or model calls. Work notes retain
+only their lease ID and kind marker.
+
+Each scheduled invocation logs event and scope row counts, object bytes,
+duration, database query count, returned row count, and estimated database
+bytes. The record contains no SQL, credentials, event fields, or object bodies.
+Failures include one fixed `reason`: `checkpoint_conflict`,
+`checkpoint_schema_invalid`, `configuration_invalid`, `dependency_failure`,
+`event_schema_invalid`, `immutable_object_conflict`,
+`manifest_range_conflict`, `manifest_schema_invalid`,
+`published_object_invalid`, or `source_range_invalid`. The log never includes
+the caught error message.
+The infrastructure guide defines the separate read-only report credential and
+the manifest-only reader rule.
+
 The settings belong to the database role rather than a Worker session.
 Hyperdrive uses transaction pooling and does not support arbitrary per-session
 state. Apply migrations before deploying the Worker, then restart the

@@ -2,10 +2,11 @@
 
 This Terraform root provisions the production Work Graph service. It owns the
 Worker service name, custom domain, Cloudflare Access application and policy,
-the dedicated R2 database-backup bucket, and the desired shape of the dedicated
-Neon project and Hyperdrive configuration. It also creates the separate public
-GitHub observer hostname, verified-delivery queue, and dead-letter queue. HCP
-Terraform stores its state in the `personal-site-work-graph` workspace.
+the dedicated R2 database-backup and private analytics buckets, and the desired
+shape of the dedicated Neon project and Hyperdrive configuration. It also
+creates the separate public GitHub observer hostname, verified-delivery queue,
+and dead-letter queue. HCP Terraform stores its state in the
+`personal-site-work-graph` workspace.
 
 Production uses a Hyperdrive origin connection limit of 60. Neon permits 112
 connections and reserves four for superusers, so this leaves 48 ordinary
@@ -197,6 +198,25 @@ The apply also creates `work-graph-database-backups` with Terraform deletion
 protection. Configure its lifecycle rules, object locks, read-only Neon login,
 and bucket-scoped R2 token by following
 [the Work Graph backup runbook](../../backups/work-graph.md).
+
+The apply creates `work-graph-private-analytics` without a public development
+URL or custom domain. The Work Graph Worker receives the `ANALYTICS` binding and
+can write only through that Worker deployment. Do not reuse the backup key pair
+for analytics. The bucket name is fixed because Terraform and Wrangler must
+bind the same bucket; this deployment does not support a name override.
+
+Create a separate R2 API token named `work-graph-analytics-reader` with Object
+Read permission scoped only to `work-graph-private-analytics`. Store its S3
+access key ID and secret in the report runner's Doppler config. Do not put them
+in `work-graph/prd_work_graph`, because the exporter uses the Worker binding and
+does not need reader credentials. The infrastructure token cannot create this
+reader token. It intentionally lacks API token management permission.
+
+Objects under `work-state/v1/` are the analytics dataset. Readers must start
+from complete objects in `manifests/` and verify each listed checksum. They must
+not glob `events/` or `scopes/`, since interrupted exports may leave unreferenced
+objects. Only the exporter reads `checkpoint.json`. Database recovery archives
+remain in `work-graph-database-backups`.
 
 ## Rotation and recovery
 

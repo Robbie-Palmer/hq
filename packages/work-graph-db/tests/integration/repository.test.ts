@@ -4833,6 +4833,13 @@ describe("immutable event history", () => {
     try {
       await waitForDatabaseLock();
       await expect(repository.listEvents()).resolves.toEqual([]);
+      await expect(
+        repository.readAnalyticsExportBatch({ afterSequence: 0, limit: 100 }),
+      ).resolves.toMatchObject({
+        events: [],
+        scopes: [],
+        sourceUpperWatermark: 0,
+      });
     } finally {
       allowFirstCommit();
       await Promise.all([firstTransaction, secondTransaction]);
@@ -4845,8 +4852,97 @@ describe("immutable event history", () => {
       "test.second",
     ]);
     await expect(
+      repository.readAnalyticsExportBatch({ afterSequence: 0, limit: 100 }),
+    ).resolves.toMatchObject({
+      events: storedEvents,
+      sourceUpperWatermark: storedEvents.at(-1)?.sequence,
+    });
+    await expect(
       repository.listEvents({ afterSequence: storedEvents[0]?.sequence }),
     ).resolves.toEqual([storedEvents[1]]);
+  });
+
+  it("reads bounded analytics ranges with inherited scope from one snapshot", async () => {
+    await repository.putKnowledgeScope({
+      id: "initiative",
+      kind: "initiative",
+      title: "Initiative",
+      canonicalUrl: "https://example.test/initiatives/initiative",
+      markdownUrl: "https://example.test/initiatives/initiative.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "project",
+      kind: "project",
+      title: "Project",
+      canonicalUrl: "https://example.test/projects/project",
+      markdownUrl: "https://example.test/projects/project.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "initiative",
+      childKnowledgeScopeId: "project",
+    });
+    await repository.createWorkItem({
+      id: "root",
+      title: "Root",
+      priorityRank: 1024,
+      schedulingInitiativeId: "initiative",
+      schedulingProjectId: "project",
+    });
+    await repository.createWorkItem({
+      id: "child",
+      title: "Child",
+      parentId: "root",
+    });
+
+    const batch = await repository.readAnalyticsExportBatch({
+      afterSequence: 0,
+      limit: 2,
+    });
+
+    expect(batch.events).toHaveLength(2);
+    expect(batch.sourceUpperWatermark).toBeGreaterThan(
+      batch.events.at(-1)?.sequence ?? 0,
+    );
+    expect(batch.capturedAt).toMatch(/Z$/);
+    expect(batch.scopes).toEqual([
+      {
+        workItemId: "child",
+        initiativeId: "initiative",
+        projectId: "project",
+      },
+      {
+        workItemId: "root",
+        initiativeId: "initiative",
+        projectId: "project",
+      },
+    ]);
+    await expect(
+      repository.readAnalyticsExportBatch({ afterSequence: -1, limit: 1 }),
+    ).rejects.toThrow("checkpoint");
+    await expect(
+      repository.readAnalyticsExportBatch({ afterSequence: 0, limit: 0 }),
+    ).rejects.toThrow("batch limit");
+  });
+
+  it("uses the event sequence index for analytics range reads", async () => {
+    await repository.createWorkItem({ id: "first", title: "First" });
+    await repository.createWorkItem({ id: "second", title: "Second" });
+
+    const planRows = await db.transaction(async (transaction) => {
+      await transaction.execute(sql`set local enable_seqscan = off`);
+      return transaction.execute<Record<string, unknown>>(sql`
+        explain (costs off)
+        select *
+        from ${schema.event}
+        where ${schema.event.sequence} > 0
+          and ${schema.event.sequence} <= 100
+        order by ${schema.event.sequence}
+        limit 100
+      `);
+    });
+    const plan = JSON.stringify(planRows);
+    expect(plan).toContain("events_pkey");
+    expect(plan).toContain("sequence");
   });
 
   it("records lease, attention, and lifecycle changes", async () => {

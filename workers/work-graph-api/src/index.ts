@@ -11,11 +11,30 @@ import {
   WorkGraphRepository,
 } from "work-graph-db";
 import { createWorkGraphApp } from "./app";
+import {
+  AnalyticsExportError,
+  analyticsExportFailureReason,
+  exportAnalyticsBatch,
+  R2AnalyticsObjectStore,
+} from "./analytics-export";
 
 export interface WorkGraphBindings {
+  ANALYTICS?: R2Bucket;
+  ANALYTICS_BATCH_SIZE?: string;
   HYPERDRIVE: Hyperdrive;
   WORKER_VERSION?: { id: string };
 }
+
+const analyticsBatchSize = (raw: string | undefined): number => {
+  const value = raw === undefined ? 1_000 : Number(raw);
+  if (!Number.isSafeInteger(value) || value < 1 || value > 10_000) {
+    throw new AnalyticsExportError(
+      "configuration_invalid",
+      "ANALYTICS_BATCH_SIZE must be an integer from 1 through 10000.",
+    );
+  }
+  return value;
+};
 
 export default {
   async fetch(request, env, context) {
@@ -73,6 +92,70 @@ export default {
         },
         { status: 500, headers: { "X-Request-Id": requestId } },
       );
+    }
+  },
+  async scheduled(_controller, env) {
+    const startedAt = Date.now();
+    const databaseMetrics = createDatabaseQueryMetrics();
+    let db: ReturnType<typeof createDb> | undefined;
+    try {
+      db = createDb(env.HYPERDRIVE.connectionString, {
+        maxConnections: 1,
+        metrics: databaseMetrics,
+      });
+      if (env.ANALYTICS === undefined) {
+        throw new AnalyticsExportError(
+          "configuration_invalid",
+          "The ANALYTICS bucket binding is missing.",
+        );
+      }
+      const result = await exportAnalyticsBatch(
+        new WorkGraphRepository(db),
+        new R2AnalyticsObjectStore(env.ANALYTICS),
+        analyticsBatchSize(env.ANALYTICS_BATCH_SIZE),
+      );
+      console.info({
+        message: "Work Graph analytics export completed",
+        route: "worker.scheduled.analytics",
+        status: result.status,
+        eventRows: result.eventRows,
+        scopeRows: result.scopeRows,
+        bytes: result.objectBytes,
+        durationMilliseconds: Date.now() - startedAt,
+        databaseReads: databaseMetrics.queryCount,
+        databaseResultRows: databaseMetrics.resultRowCount,
+        databaseResultBytesEstimated: databaseMetrics.resultBytesEstimated,
+        throughSequence: result.throughSequence,
+        workerVersion: env.WORKER_VERSION?.id ?? "local",
+      });
+    } catch (error) {
+      console.error({
+        message: "Work Graph analytics export failed",
+        route: "worker.scheduled.analytics",
+        outcome: "error",
+        durationMilliseconds: Date.now() - startedAt,
+        databaseReads: databaseMetrics.queryCount,
+        databaseResultRows: databaseMetrics.resultRowCount,
+        databaseResultBytesEstimated: databaseMetrics.resultBytesEstimated,
+        workerVersion: env.WORKER_VERSION?.id ?? "local",
+        exceptionClass: "analytics_export_error",
+        reason: analyticsExportFailureReason(error),
+      });
+      throw new Error("The Work Graph analytics export failed.");
+    } finally {
+      if (db !== undefined) {
+        try {
+          await closeDb(db);
+        } catch {
+          console.error({
+            message: "Work Graph analytics database cleanup failed",
+            route: "worker.scheduled.analytics",
+            outcome: "error",
+            workerVersion: env.WORKER_VERSION?.id ?? "local",
+            exceptionClass: "analytics_cleanup_error",
+          });
+        }
+      }
     }
   },
 } satisfies ExportedHandler<WorkGraphBindings>;
