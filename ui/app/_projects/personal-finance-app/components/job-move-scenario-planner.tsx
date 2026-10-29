@@ -754,6 +754,84 @@ function RolePayFields(props: Readonly<{ draft: Draft; update: DraftUpdate }>) {
   );
 }
 
+type PensionBasis = Draft["employeePensionBasis"];
+
+function PensionBasisField({
+  id,
+  label,
+  rate,
+  value,
+  onChange,
+}: Readonly<{
+  id: string;
+  label: string;
+  rate: number;
+  value: PensionBasis;
+  onChange: (value: PensionBasis) => void;
+}>) {
+  return (
+    <Field id={id} label={label}>
+      <select
+        id={id}
+        required={rate > 0}
+        className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+        value={value}
+        onChange={(event) => onChange(event.target.value as PensionBasis)}
+      >
+        <option value="">Choose basis</option>
+        <option value="grossPay">Full gross pay</option>
+        <option value="qualifyingEarnings">Qualifying earnings</option>
+        <option value="pensionablePay">Pensionable pay</option>
+      </select>
+    </Field>
+  );
+}
+
+function PensionSchemePayFields({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <>
+      <Field id="job-pensionable-pay" label="Annual pensionable pay">
+        <Input
+          id="job-pensionable-pay"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Required for pensionable-pay schemes"
+          value={draft.annualPensionablePay ?? ""}
+          onChange={(event) =>
+            update(
+              "annualPensionablePay",
+              event.target.value === ""
+                ? undefined
+                : Number(event.target.value),
+            )
+          }
+        />
+      </Field>
+      <Field id="job-variable-pension-treatment" label="Variable pay timing">
+        <select
+          id="job-variable-pension-treatment"
+          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+          value={draft.variablePayPensionTreatment}
+          onChange={(event) =>
+            update(
+              "variablePayPensionTreatment",
+              event.target.value as Draft["variablePayPensionTreatment"],
+            )
+          }
+        >
+          <option value="">Not recorded</option>
+          <option value="singlePayment">One bonus payment</option>
+          <option value="spreadEvenly">Spread across pay periods</option>
+        </select>
+      </Field>
+    </>
+  );
+}
+
 function EmployeePensionFields({
   draft,
   update,
@@ -790,28 +868,13 @@ function EmployeePensionFields({
           <option value="reliefAtSource">Relief at source</option>
         </select>
       </Field>
-      <Field
+      <PensionBasisField
         id="job-employee-pension-basis"
         label="Employee contribution basis"
-      >
-        <select
-          id="job-employee-pension-basis"
-          required={draft.employeePensionRate > 0}
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-          value={draft.employeePensionBasis}
-          onChange={(event) =>
-            update(
-              "employeePensionBasis",
-              event.target.value as Draft["employeePensionBasis"],
-            )
-          }
-        >
-          <option value="">Choose basis</option>
-          <option value="grossPay">Full gross pay</option>
-          <option value="qualifyingEarnings">Qualifying earnings</option>
-          <option value="pensionablePay">Pensionable pay</option>
-        </select>
-      </Field>
+        rate={draft.employeePensionRate}
+        value={draft.employeePensionBasis}
+        onChange={(value) => update("employeePensionBasis", value)}
+      />
     </>
   );
 }
@@ -835,63 +898,14 @@ function EmployerPensionFields({
           }
         />
       </Field>
-      <Field
+      <PensionBasisField
         id="job-employer-pension-basis"
         label="Employer contribution basis"
-      >
-        <select
-          id="job-employer-pension-basis"
-          required={draft.employerPensionRate > 0}
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-          value={draft.employerPensionBasis}
-          onChange={(event) =>
-            update(
-              "employerPensionBasis",
-              event.target.value as Draft["employerPensionBasis"],
-            )
-          }
-        >
-          <option value="">Choose basis</option>
-          <option value="grossPay">Full gross pay</option>
-          <option value="qualifyingEarnings">Qualifying earnings</option>
-          <option value="pensionablePay">Pensionable pay</option>
-        </select>
-      </Field>
-      <Field id="job-pensionable-pay" label="Annual pensionable pay">
-        <Input
-          id="job-pensionable-pay"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="Required for pensionable-pay schemes"
-          value={draft.annualPensionablePay ?? ""}
-          onChange={(event) =>
-            update(
-              "annualPensionablePay",
-              event.target.value === ""
-                ? undefined
-                : Number(event.target.value),
-            )
-          }
-        />
-      </Field>
-      <Field id="job-variable-pension-treatment" label="Variable pay timing">
-        <select
-          id="job-variable-pension-treatment"
-          className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-          value={draft.variablePayPensionTreatment}
-          onChange={(event) =>
-            update(
-              "variablePayPensionTreatment",
-              event.target.value as Draft["variablePayPensionTreatment"],
-            )
-          }
-        >
-          <option value="">Not recorded</option>
-          <option value="singlePayment">One bonus payment</option>
-          <option value="spreadEvenly">Spread across pay periods</option>
-        </select>
-      </Field>
+        rate={draft.employerPensionRate}
+        value={draft.employerPensionBasis}
+        onChange={(value) => update("employerPensionBasis", value)}
+      />
+      <PensionSchemePayFields draft={draft} update={update} />
       <Field id="job-take-home-override" label="Annual take-home override">
         <Input
           id="job-take-home-override"
