@@ -29,8 +29,11 @@ function sessionKey(playlistId: string, field: "guest-id" | "guest-name") {
 }
 
 const memorySession = new Map<string, string>();
+const failedWrites = new Set<string>();
 
 function loadSessionValue(key: string): string | null {
+  if (failedWrites.has(key)) return memorySession.get(key) ?? null;
+
   try {
     const stored = window.localStorage.getItem(key);
     if (stored !== null) memorySession.set(key, stored);
@@ -44,7 +47,9 @@ function saveSessionValue(key: string, value: string): void {
   memorySession.set(key, value);
   try {
     window.localStorage.setItem(key, value);
+    failedWrites.delete(key);
   } catch {
+    failedWrites.add(key);
     // The in-memory value keeps the guest session stable for this page load.
   }
 }

@@ -32,4 +32,31 @@ describe("browser guest playlist session", () => {
     ).toEqual({ guestId: GUEST_ID, name: "Taylor" });
     expect(crypto.randomUUID).toHaveBeenCalledTimes(1);
   });
+
+  it("keeps a newer in-memory name when a browser storage write fails", () => {
+    const playlistId = "failed-write-playlist";
+    const guestIdKey = `wedding-playlist:${playlistId}:guest-id`;
+    const guestNameKey = `wedding-playlist:${playlistId}:guest-name`;
+    vi.spyOn(Storage.prototype, "getItem").mockImplementation((key) => {
+      if (key === guestIdKey) return GUEST_ID;
+      if (key === guestNameKey) return "Old name";
+      return null;
+    });
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage is full", "QuotaExceededError");
+    });
+
+    expect(browserGuestPlaylistSession.load(playlistId)).toEqual({
+      guestId: GUEST_ID,
+      name: "Old name",
+    });
+
+    browserGuestPlaylistSession.saveName(playlistId, "New name");
+
+    expect(browserGuestPlaylistSession.load(playlistId)).toEqual({
+      guestId: GUEST_ID,
+      name: "New name",
+    });
+    expect(Storage.prototype.getItem).toHaveBeenCalledWith(guestNameKey);
+  });
 });

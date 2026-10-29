@@ -72,6 +72,10 @@ function projectPath(path: string): string {
   return relative(repositoryRoot, path).replaceAll("\\", "/");
 }
 
+function sourceModulePath(path: string): string {
+  return path.replace(/\.(?:[cm]?[jt]sx?)$/u, "");
+}
+
 interface ImportReference {
   localPath: string | null;
   specifier: string;
@@ -83,9 +87,13 @@ function resolveImportReference(
 ): ImportReference {
   let localPath: string | null = null;
   if (specifier.startsWith("@/")) {
-    localPath = projectPath(join(repositoryRoot, "ui", specifier.slice(2)));
+    localPath = projectPath(
+      sourceModulePath(join(repositoryRoot, "ui", specifier.slice(2))),
+    );
   } else if (specifier.startsWith(".")) {
-    localPath = projectPath(resolve(dirname(path), specifier));
+    localPath = projectPath(
+      sourceModulePath(resolve(dirname(path), specifier)),
+    );
   }
   return { localPath, specifier };
 }
@@ -104,6 +112,7 @@ describe("wedding planner dependency boundaries", () => {
       import type { WeddingPlan } from "wedding-planner-domain";
       export { privateValue } from "../../personal-finance/private";
       void import("../application/state");
+      void import("../application/state.js");
       const legacy = require("../application/values");
     `;
 
@@ -112,6 +121,7 @@ describe("wedding planner dependency boundaries", () => {
       "wedding-planner-domain",
       "../../personal-finance/private",
       "../application/state",
+      "../application/state.js",
       "../application/values",
     ]);
     expect(
@@ -120,6 +130,12 @@ describe("wedding planner dependency boundaries", () => {
       localPath: "ui/app/_projects/personal-finance/private",
       specifier: "../../personal-finance/private",
     });
+    expect(resolveImportReference(importer, "../application/state.js")).toEqual(
+      {
+        localPath: "ui/app/_projects/wedding-planner/application/state",
+        specifier: "../application/state.js",
+      },
+    );
   });
 
   it("keeps the domain package independent of React, routes, and browser persistence", () => {
