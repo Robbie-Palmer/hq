@@ -52,7 +52,7 @@ describe("technology page", () => {
   it("sends a Cooklang example through the Markdown renderer", async () => {
     render(
       await TechnologyPage({
-        params: Promise.resolve({ slug: "cooklang-rs" }),
+        params: Promise.resolve({ slug: "cooklang" }),
       }),
     );
 
@@ -61,8 +61,29 @@ describe("technology page", () => {
     );
     expect(markdownSourceSpy).toHaveBeenCalledWith(
       expect.stringMatching(
-        /```cooklang[\s\S]*@water\{2%l\}[\s\S]*#large pot\{\}[\s\S]*~pasta\{10%minutes\}/,
+        /```cooklang[\s\S]*@water\{2%l\}[\s\S]*#large pot\{\}[\s\S]*~\{10%minutes\}/,
       ),
     );
+    expect(markdownSourceSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "The name is only a label; it does not link the timer to the `@spaghetti` ingredient.",
+      ),
+    );
+  });
+
+  it("keeps cooklang-rs as a separate parser library", async () => {
+    render(
+      await TechnologyPage({
+        params: Promise.resolve({ slug: "cooklang-rs" }),
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "cooklang-rs" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Rust parser and scaling engine/),
+    ).toBeInTheDocument();
+    expect(markdownSourceSpy).not.toHaveBeenCalled();
   });
 });
