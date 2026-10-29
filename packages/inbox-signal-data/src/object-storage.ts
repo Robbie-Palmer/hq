@@ -147,16 +147,16 @@ export function validateEnvelopeMetadata(
   }
   const metadata = value as Record<string, unknown>;
   if (typeof metadata.accountId !== "string") {
-    throw new Error("accountId must be an opaque UUID");
+    throw new TypeError("accountId must be an opaque UUID");
   }
   if (typeof metadata.objectId !== "string") {
-    throw new Error("objectId must be an opaque UUID");
+    throw new TypeError("objectId must be an opaque UUID");
   }
   if (typeof metadata.objectVersion !== "number") {
-    throw new Error("objectVersion must be a positive integer");
+    throw new TypeError("objectVersion must be a positive integer");
   }
   if (typeof metadata.envelopeVersion !== "number") {
-    throw new Error("envelopeVersion must be a positive integer");
+    throw new TypeError("envelopeVersion must be a positive integer");
   }
   assertUuid("accountId", metadata.accountId);
   assertUuid("objectId", metadata.objectId);
