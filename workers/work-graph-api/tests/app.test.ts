@@ -1888,24 +1888,22 @@ describe("Given a worker managing a lease", () => {
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      ["parent", "first", "second"].map((workItemId) => ({
-        ...item(
-          workItemId,
-          workItemId === "parent"
-            ? "blocked"
-            : workItemId === "first"
-              ? "in_progress"
-              : "blocked",
-          "open",
-          workItemId === "first"
-            ? { ...lease("first"), id: childLeaseId }
-            : null,
-        ),
-        parentId: workItemId === "parent" ? null : "parent",
-        rank:
-          workItemId === "first" ? 10 : workItemId === "second" ? 20 : null,
-      })),
+      [
+        { ...item("parent", "blocked"), parentId: null, rank: null },
+        {
+          ...item("first", "in_progress", "open", {
+            ...lease("first"),
+            id: childLeaseId,
+          }),
+          parentId: "parent",
+          rank: 10,
+        },
+        {
+          ...item("second", "blocked"),
+          parentId: "parent",
+          rank: 20,
+        },
+      ],
     );
     const app = createWorkGraphApp(repository);
     const body = {
