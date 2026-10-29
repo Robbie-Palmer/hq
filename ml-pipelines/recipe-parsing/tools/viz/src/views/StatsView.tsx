@@ -1013,7 +1013,7 @@ function StatisticsDashboard({
   );
 }
 
-export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps>) {
+export function StatsView(_props: Readonly<StatsViewProps>) {
   const [groundTruth, setGroundTruth] = useState<GroundTruthDataset | null>(null);
   const [extractionPredictions, setExtractionPredictions] = useState<ExtractionPredictionsDataset | null>(null);
 
@@ -1404,7 +1404,6 @@ export function StatsView({ onSelectCanonicalizeEntry }: Readonly<StatsViewProps
     );
   }
 
-  void onSelectCanonicalizeEntry;
   return (
     <StatisticsDashboard
       totalEntries={totalEntries}
