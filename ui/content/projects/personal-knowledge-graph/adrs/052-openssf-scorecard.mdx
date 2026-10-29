@@ -62,12 +62,12 @@ relationship in either direction.
 
 # Alternatives Considered
 
-| Tool                               | Role                  | Pros                                                                                         | Cons                                                                                                                          | Verdict                                                          |
-| ---------------------------------- | --------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **OpenSSF Scorecard** *(accepted)* | Posture meta-check    | Industry-standard rubric (OpenSSF/Linux Foundation); SARIF + badge; zero config to maintain. | Some checks are heuristic; a few (fuzzing, best-practices badge) aren't worth pursuing for this stack and stay red by choice. | **Accepted.**                                                    |
-| **GitHub security overview**       | Native settings page  | Zero setup.                                                                                  | A dashboard to remember to read, not a check with history, alerts, or a public score.                                         | Rejected: watch-it-or-lose-it.                                   |
-| **allstar** (OpenSSF)              | Posture *enforcement* | Can auto-enforce policies.                                                                   | An installed GitHub App with write access. Heavier trust footprint than a read-only weekly scan warrants here.                | Rejected: [Less Is More](/projects?tab=philosophy#less-is-more). |
-| **Manual periodic review**         | n/a                   | No tooling.                                                                                  | Exactly the silent-decay failure mode this closes.                                                                            | Rejected.                                                        |
+| Tool                               | Role                  | Pros                                                                                         | Cons                                                                                                                          | Verdict                                                      |
+| ---------------------------------- | --------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **OpenSSF Scorecard** *(accepted)* | Posture meta-check    | Industry-standard rubric (OpenSSF/Linux Foundation); SARIF + badge; zero config to maintain. | Some checks are heuristic; a few (fuzzing, best-practices badge) aren't worth pursuing for this stack and stay red by choice. | **Accepted.**                                                |
+| **GitHub security overview**       | Native settings page  | Zero setup.                                                                                  | A dashboard to remember to read, not a check with history, alerts, or a public score.                                         | Rejected: watch-it-or-lose-it.                               |
+| **allstar** (OpenSSF)              | Posture *enforcement* | Can auto-enforce policies.                                                                   | An installed GitHub App with write access. Heavier trust footprint than a read-only weekly scan warrants here.                | Rejected: [Less Is More](/building-philosophy#less-is-more). |
+| **Manual periodic review**         | n/a                   | No tooling.                                                                                  | Exactly the silent-decay failure mode this closes.                                                                            | Rejected.                                                    |
 
 # Where It Sits On The Adoption Curve
 
@@ -75,20 +75,20 @@ relationship in either direction.
 million-plus repos, and its rubric is referenced by supply-chain frameworks
 (SLSA, S2C2F); the scoring heuristics still evolve between releases. Mature
 enough to trust, standard enough that the badge means something to a reader. It
-comfortably sits inside the [Goldilocks zone](/projects?tab=philosophy#the-goldilocks-zone).
+comfortably sits inside the [Goldilocks zone](/building-philosophy#the-goldilocks-zone).
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). One workflow file, one
+* [Less Is More](/building-philosophy#less-is-more). One workflow file, one
   badge; findings in the same Security tab as Trivy and zizmor. The rejected
   alternative (allstar) would have added an app with write access.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). A
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). A
   posture regression surfaces within a week, with the specific check and
   remediation named, instead of at the next manual audit (i.e. never).
-* [Build Flywheels](/projects?tab=philosophy#build-flywheels). The hardening
+* [Build Flywheels](/building-philosophy#build-flywheels). The hardening
   work of ADRs 013–049 becomes a measured, maintained score rather than a
   one-time effort; each future repo inherits the rubric without setup.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   Treat the score as a diagnostic. Checks we deliberately skip, e.g.
   fuzzing, whose payoff doesn't map onto a memory-safe TS/Python site, stay
   red rather than being gamed green, and the number is published so the

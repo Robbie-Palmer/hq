@@ -32,7 +32,7 @@ It provides the best balance of speed, efficiency, and correctness.
 ### Pros
 
 * **Disk Efficiency**: pnpm uses a content-addressable store. If 100 projects use the same version of `react`, it is saved to disk only once.
-* **Speed**: Installation is significantly faster than npm and often faster than Yarn due to parallelized and efficient fetching, tighter [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops).
+* **Speed**: Installation is significantly faster than npm and often faster than Yarn due to parallelized and efficient fetching, tighter [Short Feedback Loops](/building-philosophy#short-feedback-loops).
 * **Security**: Mitigates risks associated with npm's handling of lifecycle scripts and arbitrary code execution (related to recent CVEs).
 * **Strictness**: pnpm prevents phantom dependencies by creating a non-flat `node_modules`. This forces me to explicitly declare every dependency used, preventing bugs that only appear in CI.
 * **Monorepo Support**: Excellent workspace support that integrates well with tools like `mise` and `Turborepo`.

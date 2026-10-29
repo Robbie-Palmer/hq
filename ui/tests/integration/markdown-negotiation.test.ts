@@ -55,13 +55,12 @@ describe("Markdown content negotiation middleware", () => {
   });
 
   it("serves markdown when the Accept header asks for it", async () => {
-    const response = await fetch(`${BASE_URL}/projects`, {
+    const response = await fetch(`${BASE_URL}/building-philosophy`, {
       headers: { Accept: "text/markdown", "User-Agent": BROWSER_UA },
     });
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/markdown");
     const body = await response.text();
-    expect(body).toContain("# Projects");
     expect(body).toContain("# Building Philosophy");
   });
 

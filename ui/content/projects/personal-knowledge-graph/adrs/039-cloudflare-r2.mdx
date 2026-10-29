@@ -40,7 +40,7 @@ This makes cost predictable and effectively zero at personal-project scale.
 ### Platform Consolidation
 
 The site already runs on Cloudflare: Pages for hosting [ADR 011](/projects/personal-knowledge-graph/adrs/011-cloudflare-pages), DNS [ADR 028](/projects/personal-knowledge-graph/adrs/028-cloudflare-dns), Images [ADR 029](/projects/personal-knowledge-graph/adrs/029-cloudflare-images), and Terraform for IaC [ADR 017](/projects/personal-knowledge-graph/adrs/017-terraform-cloud).
-Adding R2 keeps everything under one account, one billing relationship, and one set of API tokens, [Less Is More](/projects?tab=philosophy#less-is-more).
+Adding R2 keeps everything under one account, one billing relationship, and one set of API tokens, [Less Is More](/building-philosophy#less-is-more).
 No new platform to sign up for, no new IAM model to learn, and no cross-cloud networking to configure.
 
 ### S3 API Compatibility
@@ -85,7 +85,7 @@ No separate CDN configuration is needed. Cloudflare's edge network sits in front
 ### Positive
 
 * **Zero Egress**: Serving map tiles, datasets, and images to users costs nothing beyond storage and operations, ideal for a site where traffic is unpredictable.
-* **Consolidation**: All infrastructure remains under one Cloudflare account, managed via Terraform, [Less Is More](/projects?tab=philosophy#less-is-more).
+* **Consolidation**: All infrastructure remains under one Cloudflare account, managed via Terraform, [Less Is More](/building-philosophy#less-is-more).
 * **Scalable Image Strategy**: R2 + a Pages Function/Worker provides a path to replace or supplement Cloudflare Images [ADR 029](/projects/personal-knowledge-graph/adrs/029-cloudflare-images) with a pay-as-you-go model, eliminating the fixed $5/month cost.
 * **Tooling Compatibility**: S3-compatible API means DVC, AWS CLI, and any S3 SDK work out of the box with no custom integration.
 * **IaC**: Buckets, access controls, and caching rules are all defined in Terraform, versioned in git, and reviewed via Pull Requests.

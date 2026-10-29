@@ -89,7 +89,7 @@ environment secrets to forks.
 Out of scope: self-hosting the Community Edition (a JVM server plus its own Postgres), and treating
 the Sonar dashboard as a place work moves into. Both reintroduce the platform-sprawl cost
 [ADR 032](/projects/personal-knowledge-graph/adrs/032-codeql) declined to pay
-([Less Is More](/projects?tab=philosophy#less-is-more)).
+([Less Is More](/building-philosophy#less-is-more)).
 
 # SonarQube's AI Features
 
@@ -184,15 +184,15 @@ after an automated reviewer incorrectly claimed that the option was ignored.
 Weighted toward the test ADR 032 applied: does it surface in GitHub, or does it bring in a separate
 platform?
 
-| Tool                                          | GitHub-native?               | Pros                                                                                                             | Cons                                                                                         | Verdict                                                                                                                         |
-| --------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **SonarQube Cloud + GitHub App** *(accepted)* | Yes (PR check + annotations) | Free for public repos; mature TS/JS engine, additive over Biome; large LLM corpus.                               | Security rules overlap CodeQL (redundant, not harmful); gate metrics invite Goodhart gaming. | **Accepted**                                                                                                                    |
-| **Qodana** (JetBrains)                        | Weaker PR annotations        | Strong analysis; free for OSS.                                                                                   | Best inside the JetBrains IDEs we don't use; thinner community and LLM corpus.               | Rejected: weaker fit, less established ([Goldilocks](/projects?tab=philosophy#the-goldilocks-zone)).                            |
-| **Codacy**                                    | Yes (PR check)               | Free OSS tier; one gate.                                                                                         | Mostly wraps linters we already run (Biome) plus Semgrep; little net-new signal.             | Rejected: duplicates Biome without filling the health quadrant.                                                                 |
-| **Qlty** (Code Climate successor)             | Yes                          | Modern maintainability/duplication metrics.                                                                      | 2024 relaunch mid-pivot from Code Climate; smaller corpus; churn risk.                       | Rejected: [Build Flywheels](/projects?tab=philosophy#build-flywheels) favours not betting learning on a product mid-transition. |
-| **CodeScene**                                 | Partial                      | Behavioural/hotspot analysis from git history.                                                                   | Niche, premium, little LLM data; orthogonal to a PR gate.                                    | Rejected: past the early-majority window, weak [LLM-Optimized](/projects?tab=philosophy#llm-optimized) fit.                     |
-| **Semgrep**                                   | Yes (SARIF)                  | Fast custom rules; named future SAST candidate in [ADR 032](/projects/personal-knowledge-graph/adrs/032-codeql). | A SAST/rules engine, not a code-health gate; overlaps CodeQL.                                | Rejected for this gap; remains the separate CodeQL-successor question.                                                          |
-| **Status quo** (Biome + CodeQL + AI review)   | n/a                          | Zero new check.                                                                                                  | Code-health gate stays missing; the only decay watcher stays non-deterministic.              | Rejected: closing that gap is the point of this ADR.                                                                            |
+| Tool                                          | GitHub-native?               | Pros                                                                                                             | Cons                                                                                         | Verdict                                                                                                                     |
+| --------------------------------------------- | ---------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **SonarQube Cloud + GitHub App** *(accepted)* | Yes (PR check + annotations) | Free for public repos; mature TS/JS engine, additive over Biome; large LLM corpus.                               | Security rules overlap CodeQL (redundant, not harmful); gate metrics invite Goodhart gaming. | **Accepted**                                                                                                                |
+| **Qodana** (JetBrains)                        | Weaker PR annotations        | Strong analysis; free for OSS.                                                                                   | Best inside the JetBrains IDEs we don't use; thinner community and LLM corpus.               | Rejected: weaker fit, less established ([Goldilocks](/building-philosophy#the-goldilocks-zone)).                            |
+| **Codacy**                                    | Yes (PR check)               | Free OSS tier; one gate.                                                                                         | Mostly wraps linters we already run (Biome) plus Semgrep; little net-new signal.             | Rejected: duplicates Biome without filling the health quadrant.                                                             |
+| **Qlty** (Code Climate successor)             | Yes                          | Modern maintainability/duplication metrics.                                                                      | 2024 relaunch mid-pivot from Code Climate; smaller corpus; churn risk.                       | Rejected: [Build Flywheels](/building-philosophy#build-flywheels) favours not betting learning on a product mid-transition. |
+| **CodeScene**                                 | Partial                      | Behavioural/hotspot analysis from git history.                                                                   | Niche, premium, little LLM data; orthogonal to a PR gate.                                    | Rejected: past the early-majority window, weak [LLM-Optimized](/building-philosophy#llm-optimized) fit.                     |
+| **Semgrep**                                   | Yes (SARIF)                  | Fast custom rules; named future SAST candidate in [ADR 032](/projects/personal-knowledge-graph/adrs/032-codeql). | A SAST/rules engine, not a code-health gate; overlaps CodeQL.                                | Rejected for this gap; remains the separate CodeQL-successor question.                                                      |
+| **Status quo** (Biome + CodeQL + AI review)   | n/a                          | Zero new check.                                                                                                  | Code-health gate stays missing; the only decay watcher stays non-deterministic.              | Rejected: closing that gap is the point of this ADR.                                                                        |
 
 # Where It Sits On The Adoption Curve
 
@@ -203,11 +203,11 @@ SonarQube is two things at once, so its placement splits:
   adopters (shrinking community, looming deprecation) does not apply here: the community is large
   and the product is actively redeveloped. That maturity buys what we value: little API churn,
   thorough documentation, and a deep LLM training corpus
-  ([LLM-Optimized](/projects?tab=philosophy#llm-optimized)).
+  ([LLM-Optimized](/building-philosophy#llm-optimized)).
 * AI features (AI Code Assurance, MCP server, 2024–2025): early majority. These are recent and not
   yet ubiquitous, which puts them in the window we target, and they ride a rising tide of a mature
   vendor moving toward agentic, GitHub-native workflows
-  ([Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)). This layer is the
+  ([Goldilocks Zone](/building-philosophy#the-goldilocks-zone)). This layer is the
   differentiated reason to adopt now.
 
 The overall position is a stable, well-documented engine carrying an early-majority feature set
@@ -215,10 +215,10 @@ aimed at agent-authored code.
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). The GitHub-native delivery is what makes
+* [Less Is More](/building-philosophy#less-is-more). The GitHub-native delivery is what makes
   this adoptable: results are a PR check rather than a new console. We rent the analysis and surface
   it where we already work. The residual cost is one CI step and one status check.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized) and agentic coding (the main driver).
+* [LLM-Optimized](/building-philosophy#llm-optimized) and agentic coding (the main driver).
   When agents write most code, the constraint is trustworthy verification, and checking AI output
   with more AI (the six existing reviewers) is non-deterministic on both sides. SonarQube adds a
   deterministic floor: the same regression fails the same check every time. The MCP server lets the
@@ -226,14 +226,14 @@ aimed at agent-authored code.
   a stricter gate to agent-authored code. This is not redundant with the existing AI reviewers
   (ADRs 038–043): those comment on a finished PR non-deterministically, whereas the MCP loop feeds
   deterministic findings to the agent before the PR exists.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). Inline PR annotations put
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). Inline PR annotations put
   the signal on the diff, and the MCP loop moves it earlier, into the agent. The opposite risk is
   that a blocking gate tuned as a gatekeeper slows the path to production, mitigated by applying
   its conditions only to a pull request's diff or the current release's new-code window.
-* [Build Flywheels](/projects?tab=philosophy#build-flywheels). A trend line on code health
+* [Build Flywheels](/building-philosophy#build-flywheels). A trend line on code health
   compounds; one-off AI review comments do not. Gate configuration learned once carries over to
   every future service in the monorepo.
-* [Respect Goodhart's & Conway's Laws](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's & Conway's Laws](/building-philosophy#respect-goodharts-and-conways-laws).
   Maintainability ratings, and coverage especially, are Goodhart targets that an agent can farm
   rather than satisfy honestly. The free "Sonar way" gate makes those metrics blocking, so the
   countermeasure is an honest, explicit release boundary and a rule against threshold-driven source
@@ -262,7 +262,7 @@ aimed at agent-authored code.
 * Gives coding agents a reproducible in-loop target through the MCP server, and AI Code Assurance
   applies a stricter gate to agent-authored code.
 * Mature, well-documented, LLM-readable core, so a low learning curve and little API churn.
-* Free for the public repo, consistent with [Build in Public](/projects?tab=philosophy#build-in-public).
+* Free for the public repo, consistent with [Build in Public](/building-philosophy#build-in-public).
 
 ## Negative
 

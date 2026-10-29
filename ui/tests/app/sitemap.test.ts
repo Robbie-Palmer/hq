@@ -21,6 +21,12 @@ describe("sitemap", () => {
     );
   });
 
+  it("includes the building philosophy", () => {
+    expect(sitemap().map((entry) => entry.url)).toContain(
+      "https://robbiepalmer.me/building-philosophy",
+    );
+  });
+
   it("includes the ideas index and every idea detail page", () => {
     const ideaUrls = sitemap()
       .map((entry) => entry.url)

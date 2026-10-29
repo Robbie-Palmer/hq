@@ -33,8 +33,8 @@ Cloudflare AI Gateway, Vercel AI Gateway, custom abstraction layers) are not a b
 The recipe site is governed by a small set of strong constraints:
 
 1. **Solo developer, fast iteration.** Every platform, billing relationship, and SDK is friction.
-   [Less Is More](/projects?tab=philosophy#less-is-more) and
-   [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops) push hard against adding
+   [Less Is More](/building-philosophy#less-is-more) and
+   [Short Feedback Loops](/building-philosophy#short-feedback-loops) push hard against adding
    per-provider integrations.
 2. **Model churn will continue.** New frontier and open models ship monthly.
    Locking the codebase to one vendor's SDK has a high opportunity cost.
@@ -90,11 +90,11 @@ The existing `openrouter.ts` helper already uses the OpenAI SDK pointed at
 
 This aligns with:
 
-* **[Less Is More](/projects?tab=philosophy#less-is-more)**: one account, one key, one bill,
+* **[Less Is More](/building-philosophy#less-is-more)**: one account, one key, one bill,
   one SDK replaces N integrations per provider.
-* **[Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)**: trying a new model
+* **[Short Feedback Loops](/building-philosophy#short-feedback-loops)**: trying a new model
   is a one-line change in `params.yaml` or a request body, not a platform onboarding exercise.
-* **[The Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)**: OpenRouter has been
+* **[The Goldilocks Zone](/building-philosophy#the-goldilocks-zone)**: OpenRouter has been
   the de facto cross-provider LLM gateway since 2023: battle-tested API surface, large
   catalogue, good docs, and personal production use from Bestomer's
   [AI Shopping Assistant](/projects/chatbot) chatbot since 2023. Vercel AI Gateway is GA 2025

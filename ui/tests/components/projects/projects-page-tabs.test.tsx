@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,6 +19,7 @@ describe("ProjectsPageTabs", () => {
   beforeEach(() => {
     navigation.replace.mockReset();
     navigation.search = "";
+    window.location.hash = "";
   });
 
   it("puts the default initiatives tab first", () => {
@@ -26,15 +27,16 @@ describe("ProjectsPageTabs", () => {
       <ProjectsPageTabs
         initiatives={<div>Initiative list</div>}
         projects={<div>Project list</div>}
-        philosophy={<div>Building philosophy</div>}
       />,
     );
 
     expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
       "Initiatives",
       "All Projects",
-      "Building Philosophy",
     ]);
+    expect(
+      screen.getByRole("link", { name: "Building Philosophy" }),
+    ).toHaveAttribute("href", "/building-philosophy");
   });
 
   it("shows initiatives by default", () => {
@@ -42,7 +44,6 @@ describe("ProjectsPageTabs", () => {
       <ProjectsPageTabs
         initiatives={<div>Initiative list</div>}
         projects={<div>Project list</div>}
-        philosophy={<div>Building philosophy</div>}
       />,
     );
 
@@ -60,28 +61,28 @@ describe("ProjectsPageTabs", () => {
       <ProjectsPageTabs
         initiatives={<div>Initiative list</div>}
         projects={<div>Project list</div>}
-        philosophy={<div>Building philosophy</div>}
       />,
     );
 
     expect(screen.getByText("Initiative list")).toBeVisible();
   });
 
-  it("renders building philosophy when selected in the URL", () => {
+  it("redirects the legacy philosophy tab URL and preserves its section", async () => {
     navigation.search = "tab=philosophy";
+    window.location.hash = "#short-feedback-loops";
 
     render(
       <ProjectsPageTabs
         initiatives={<div>Initiative list</div>}
         projects={<div>Project list</div>}
-        philosophy={<div>Building philosophy</div>}
       />,
     );
 
-    expect(
-      screen.getByRole("tab", { name: "Building Philosophy" }),
-    ).toHaveAttribute("data-state", "active");
-    expect(screen.getByText("Building philosophy")).toBeVisible();
+    await waitFor(() => {
+      expect(navigation.replace).toHaveBeenCalledWith(
+        "/building-philosophy#short-feedback-loops",
+      );
+    });
   });
 
   it("uses the query-free projects URL for the default tab", async () => {
@@ -92,7 +93,6 @@ describe("ProjectsPageTabs", () => {
       <ProjectsPageTabs
         initiatives={<div>Initiative list</div>}
         projects={<div>Project list</div>}
-        philosophy={<div>Building philosophy</div>}
       />,
     );
 

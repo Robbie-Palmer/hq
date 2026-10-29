@@ -36,8 +36,8 @@ while publishing the values required by GitHub Actions to GitHub environments.
 
 This approach aligns with:
 
-* **[Less Is More](/projects?tab=philosophy#less-is-more)**: While adding a platform, it consolidates secret management that would otherwise sprawl across multiple dashboards
-* **[Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)**: Standardizes how sensitive configuration is handled across all environments, preventing credential management from becoming a friction point that slows down development or integration testing
+* **[Less Is More](/building-philosophy#less-is-more)**: While adding a platform, it consolidates secret management that would otherwise sprawl across multiple dashboards
+* **[Short Feedback Loops](/building-philosophy#short-feedback-loops)**: Standardizes how sensitive configuration is handled across all environments, preventing credential management from becoming a friction point that slows down development or integration testing
 
 ## The "Secret Zero" Problem
 
@@ -104,7 +104,7 @@ Doppler handles source-of-truth management and local secret injection.
 
 ## Negative
 
-* **Platform Dependency**: Adds another platform to manage. [Less Is More](/projects?tab=philosophy#less-is-more)
+* **Platform Dependency**: Adds another platform to manage. [Less Is More](/building-philosophy#less-is-more)
 * **Secret Zero Persists**: Still requires `DOPPLER_TOKEN` in GitHub Secrets, so we haven't eliminated the bootstrap problem
 * **Vendor Lock-in**: Migrating away from Doppler requires rewriting secret injection across all pipelines
 * **Internet Dependency**: Local development requires network access to Doppler (though CLI supports caching)

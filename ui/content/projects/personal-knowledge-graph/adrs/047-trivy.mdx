@@ -42,7 +42,7 @@ Results are uploaded to GitHub Security tab in SARIF format for unified visibili
 
 ### Multi-Purpose Platform
 
-Trivy is not a single-purpose tool. It scans IaC, container images, filesystems, Kubernetes manifests, and more. This aligns with [Less Is More](/projects?tab=philosophy#less-is-more): one tool covers current needs (IaC) and future requirements (containers) without adding another platform later.
+Trivy is not a single-purpose tool. It scans IaC, container images, filesystems, Kubernetes manifests, and more. This aligns with [Less Is More](/building-philosophy#less-is-more): one tool covers current needs (IaC) and future requirements (containers) without adding another platform later.
 
 ### Future-Proofing
 
@@ -50,11 +50,11 @@ Containers are expected for Python ML workloads in 6-12 months. Learning Trivy o
 
 ### Goldilocks Zone
 
-Trivy is a mature CNCF project with strong adoption, excellent documentation, and active development. It sits in the sweet spot between bleeding-edge experimentation and legacy maintenance mode, reliable, well-supported, and improving ([Goldilocks Zone](/projects?tab=philosophy#the-goldilocks-zone)).
+Trivy is a mature CNCF project with strong adoption, excellent documentation, and active development. It sits in the sweet spot between bleeding-edge experimentation and legacy maintenance mode, reliable, well-supported, and improving ([Goldilocks Zone](/building-philosophy#the-goldilocks-zone)).
 
 ### LLM-Optimized
 
-Trivy has extensive documentation and is widely used across the industry. LLMs have seen Trivy configurations thousands of times, making it easier to get help, troubleshoot, and generate configurations ([LLM-Optimized](/projects?tab=philosophy#llm-optimized)).
+Trivy has extensive documentation and is widely used across the industry. LLMs have seen Trivy configurations thousands of times, making it easier to get help, troubleshoot, and generate configurations ([LLM-Optimized](/building-philosophy#llm-optimized)).
 
 ### Migration Path from tfsec
 
@@ -70,7 +70,7 @@ Trivy is open source and free. CI runs on GitHub Actions within the free tier fo
 
 * **Pros**: Fast, Terraform-specific, simple configuration. Well-documented rules for Terraform misconfigurations.
 * **Cons**: Maintainers are migrating to Trivy. Adopting tfsec now means a future migration. Does not extend to container scanning. Would require adding a second tool when containers are introduced.
-* **Decision**: Rejected. Choosing a deprecated tool violates [Build Flywheels](/projects?tab=philosophy#build-flywheels) (learning should compound, not expire).
+* **Decision**: Rejected. Choosing a deprecated tool violates [Build Flywheels](/building-philosophy#build-flywheels) (learning should compound, not expire).
 
 ### Checkov
 
@@ -81,7 +81,7 @@ Trivy is open source and free. CI runs on GitHub Actions within the free tier fo
 ### Snyk
 
 * **Pros**: Excellent UX, comprehensive coverage (code, dependencies, containers, IaC). Strong vulnerability database. Free tier available.
-* **Cons**: Requires an external platform/account. Free tier has limits (200 container scans/month). Introduces vendor lock-in compared to open-source alternatives. Violates [Less Is More](/projects?tab=philosophy#less-is-more) by adding another external dashboard.
+* **Cons**: Requires an external platform/account. Free tier has limits (200 container scans/month). Introduces vendor lock-in compared to open-source alternatives. Violates [Less Is More](/building-philosophy#less-is-more) by adding another external dashboard.
 * **Decision**: Rejected. GitHub-native tools (CodeQL, Dependabot, Trivy SARIF upload) provide sufficient coverage without platform sprawl.
 
 ### Grype (Anchore)
@@ -106,7 +106,7 @@ Trivy is open source and free. CI runs on GitHub Actions within the free tier fo
 * **GitHub-Native Integration**: Results appear in the Security tab alongside CodeQL findings. No external dashboards or logins required.
 * **New vs Existing Distinction**: SARIF upload to GitHub Code Scanning blocks a PR only for issues it introduces. Pre-existing vulnerabilities remain visible without turning the scanner into a blanket blocker.
 * **Weekly CVE Monitoring**: Scheduled scans detect newly disclosed vulnerabilities in existing configurations and dependencies, enabling proactive remediation.
-* **Compound Learning**: Time spent understanding Trivy for IaC scanning transfers directly to container scanning later ([Build Flywheels](/projects?tab=philosophy#build-flywheels)).
+* **Compound Learning**: Time spent understanding Trivy for IaC scanning transfers directly to container scanning later ([Build Flywheels](/building-philosophy#build-flywheels)).
 * **Zero Cost**: Open source, runs on GitHub Actions free tier.
 
 ## Negative

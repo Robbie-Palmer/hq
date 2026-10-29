@@ -17,7 +17,7 @@ I have previous experience with several alternatives:
 
 Other potential alternatives include **[CircleCI](https://circleci.com/)**, which is a robust option but requires setting up a separate platform and managing separate users/billing.
 
-I need a solution that minimizes administrative overhead ([Less Is More](/projects?tab=philosophy#less-is-more)) while maintaining **local reproducibility**.
+I need a solution that minimizes administrative overhead ([Less Is More](/building-philosophy#less-is-more)) while maintaining **local reproducibility**.
 
 # Decision
 
@@ -25,7 +25,7 @@ I decided to use **[GitHub Actions](https://github.com/features/actions)**.
 
 This aligns with:
 
-1. **[Less Is More](/projects?tab=philosophy#less-is-more)**: The CI is the platform. Code, issues, PRs, and builds live in a single URL namespace. No "go to the CI dashboard" step exists. The logs are right in the Pull Request
+1. **[Less Is More](/building-philosophy#less-is-more)**: The CI is the platform. Code, issues, PRs, and builds live in a single URL namespace. No "go to the CI dashboard" step exists. The logs are right in the Pull Request
 2. **Mise Integration**: Instead of relying on a complex web of third-party Actions (vendor lock-in), I use [Mise](/projects/personal-knowledge-graph/adrs/004-mise) to strictly define the toolchain. The CI workflow becomes a thin wrapper: `mise install && mise run ci`. This ensures that what runs in CI is **exactly** what runs on my laptop
 3. **Cost Efficiency**: It is completely free for public repositories
 4. **Performance via Native Caching, not Third-Party Runners**: As content has grown and a backend (plus a Neon preview-database branch and AI review) has been added, CI wall-clock time has crept up, mostly in the UI build and dependency installs. The two products advertised as the fix, **[Blacksmith](https://www.blacksmith.sh/)** (faster/cheaper runners) and **[Depot](https://depot.dev/)** (accelerated Docker builds), **don't suit this project**:

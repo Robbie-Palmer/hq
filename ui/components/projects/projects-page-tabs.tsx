@@ -1,27 +1,31 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ProjectsPageTabsProps {
   initiatives: React.ReactNode;
   projects: React.ReactNode;
-  philosophy: React.ReactNode;
 }
 
 export function ProjectsPageTabs({
   initiatives,
   projects,
-  philosophy,
 }: Readonly<ProjectsPageTabsProps>) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const requestedTab = searchParams.get("tab");
-  const currentTab =
-    requestedTab === "projects" || requestedTab === "philosophy"
-      ? requestedTab
-      : "initiatives";
+  const currentTab = requestedTab === "projects" ? requestedTab : "initiatives";
+
+  useEffect(() => {
+    if (requestedTab === "philosophy") {
+      router.replace(`/building-philosophy${window.location.hash}`);
+    }
+  }, [requestedTab, router]);
 
   const onTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -39,26 +43,30 @@ export function ProjectsPageTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="w-full justify-start h-auto p-1 bg-muted rounded-md flex-wrap sm:inline-flex sm:w-auto sm:flex-nowrap">
-        <TabsTrigger
-          value="initiatives"
-          className="flex-1 sm:flex-none sm:w-[150px]"
+      <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto">
+        <TabsList className="h-auto flex-1 justify-start rounded-md bg-muted p-1 sm:flex-none">
+          <TabsTrigger
+            value="initiatives"
+            className="flex-1 sm:w-[150px] sm:flex-none"
+          >
+            Initiatives
+          </TabsTrigger>
+          <TabsTrigger
+            value="projects"
+            className="flex-1 sm:w-[150px] sm:flex-none"
+          >
+            All Projects
+          </TabsTrigger>
+        </TabsList>
+        <Button
+          asChild
+          variant="ghost"
+          size="sm"
+          className="flex-1 text-muted-foreground sm:w-[200px] sm:flex-none"
         >
-          Initiatives
-        </TabsTrigger>
-        <TabsTrigger
-          value="projects"
-          className="flex-1 sm:flex-none sm:w-[150px]"
-        >
-          All Projects
-        </TabsTrigger>
-        <TabsTrigger
-          value="philosophy"
-          className="flex-1 sm:flex-none sm:w-[200px]"
-        >
-          Building Philosophy
-        </TabsTrigger>
-      </TabsList>
+          <Link href="/building-philosophy">Building Philosophy</Link>
+        </Button>
+      </div>
 
       <TabsContent
         value="projects"
@@ -72,13 +80,6 @@ export function ProjectsPageTabs({
         className="animate-in fade-in-50 duration-500 mt-6"
       >
         {initiatives}
-      </TabsContent>
-
-      <TabsContent
-        value="philosophy"
-        className="animate-in fade-in-50 duration-500 mt-6"
-      >
-        {philosophy}
       </TabsContent>
     </Tabs>
   );

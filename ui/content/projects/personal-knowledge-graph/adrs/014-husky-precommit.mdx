@@ -109,7 +109,7 @@ This builds directly on top of mise tasks from ADR 004, avoiding duplication. Th
 
 **Positive:**
 
-* **[Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops)**: Linters run in seconds on staged files instead of minutes on the entire codebase. Typical pre-commit time: 2-5 seconds vs 30+ seconds for full repo checks.
+* **[Short Feedback Loops](/building-philosophy#short-feedback-loops)**: Linters run in seconds on staged files instead of minutes on the entire codebase. Typical pre-commit time: 2-5 seconds vs 30+ seconds for full repo checks.
 * **Fails Before CI**: Catches formatting, syntax, and linting errors before they enter git history. CI becomes a verification layer, not the first line of defense.
 * **Single Source of Truth**: Lint tasks are defined once in `.mise.toml` and reused by both pre-commit hooks and CI. No duplication between local checks and GitHub Actions.
 * **Monorepo Awareness**: Supports workspace-specific tasks (`//ui:format`, `//infra/public-platform:format`) while maintaining repo-wide consistency for shared file types (Markdown, YAML).
