@@ -28,15 +28,36 @@ function sessionKey(playlistId: string, field: "guest-id" | "guest-name") {
   return `wedding-playlist:${playlistId}:${field}`;
 }
 
+const memorySession = new Map<string, string>();
+
+function loadSessionValue(key: string): string | null {
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (stored !== null) memorySession.set(key, stored);
+    return stored ?? memorySession.get(key) ?? null;
+  } catch {
+    return memorySession.get(key) ?? null;
+  }
+}
+
+function saveSessionValue(key: string, value: string): void {
+  memorySession.set(key, value);
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // The in-memory value keeps the guest session stable for this page load.
+  }
+}
+
 const browserGuestPlaylistSessionRepository: GuestPlaylistSessionRepository = {
   loadGuestId: (playlistId) =>
-    window.localStorage.getItem(sessionKey(playlistId, "guest-id")),
+    loadSessionValue(sessionKey(playlistId, "guest-id")),
   loadGuestName: (playlistId) =>
-    window.localStorage.getItem(sessionKey(playlistId, "guest-name")) ?? "",
+    loadSessionValue(sessionKey(playlistId, "guest-name")) ?? "",
   saveGuestId: (playlistId, guestId) =>
-    window.localStorage.setItem(sessionKey(playlistId, "guest-id"), guestId),
+    saveSessionValue(sessionKey(playlistId, "guest-id"), guestId),
   saveGuestName: (playlistId, name) =>
-    window.localStorage.setItem(sessionKey(playlistId, "guest-name"), name),
+    saveSessionValue(sessionKey(playlistId, "guest-name"), name),
 };
 
 export const browserGuestPlaylistSession = createGuestPlaylistSession(
