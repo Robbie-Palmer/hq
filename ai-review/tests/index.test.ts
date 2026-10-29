@@ -73,6 +73,102 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+function coordinatorRows(
+  query: string,
+  existingDeliveries: string[],
+): unknown[] {
+  if (query.includes("FROM _migrations")) return [...SCHEMA_MIGRATION_HISTORY];
+  if (query.includes("FROM sqlite_schema")) return [{ present: 1 }];
+  if (query.includes("PRAGMA table_info(review_runs)")) {
+    return [{ name: "completion_hash" }, { name: "finding_resolutions_json" }];
+  }
+  if (query.includes("PRAGMA table_info(review_findings)")) {
+    return [{ name: "disposition" }, { name: "disposition_reason" }];
+  }
+  if (query.includes("PRAGMA table_info(review_finding_outcomes)")) {
+    return [
+      { name: "confidence" },
+      { name: "evaluator_version" },
+      { name: "manual_override" },
+    ];
+  }
+  return query.includes("FROM webhook_deliveries") &&
+    existingDeliveries.includes(event.deliveryId)
+    ? [{ delivery_id: event.deliveryId }]
+    : [];
+}
+
+interface ModelHealthRow {
+  consecutive_failures: number;
+  total_failures: number;
+  total_successes: number;
+  cooldown_until_ms: number | null;
+}
+
+function modelHealthSqlResult(
+  query: string,
+  values: unknown[],
+  health: Map<string, ModelHealthRow>,
+  observations: Set<string>,
+): { rowsWritten: number; toArray: () => unknown[] } {
+  if (query.includes("FROM review_model_health_observations")) {
+    const key = `${values[0]}:${values[1]}:${values[2]}`;
+    return {
+      rowsWritten: 0,
+      toArray: () =>
+        observations.has(key) ? [{ observation_id: values[0] }] : [],
+    };
+  }
+  if (query.includes("FROM review_model_health WHERE provider")) {
+    const row = health.get(`${values[0]}:${values[1]}`);
+    return { rowsWritten: 0, toArray: () => (row ? [row] : []) };
+  }
+  if (
+    query.includes("INSERT INTO review_model_health") &&
+    !query.includes("review_model_health_observations")
+  ) {
+    health.set(`${values[1]}:${values[0]}`, {
+      consecutive_failures: Number(values[2]),
+      total_failures: Number(values[3]),
+      total_successes: Number(values[4]),
+      cooldown_until_ms: values[5] === null ? null : Number(values[5]),
+    });
+  }
+  if (query.includes("INSERT INTO review_model_health_observations")) {
+    observations.add(`${values[0]}:${values[2]}:${values[1]}`);
+  }
+  return { rowsWritten: 1, toArray: () => [] };
+}
+
+function finalizationRows(
+  query: string,
+  params: unknown[],
+  findings: Array<{ finding_id: string }>,
+  pendingOutcomes: Array<{
+    finding_id: string;
+    outcome_version: number;
+    payload_json: string;
+  }>,
+  removedHunkId: string,
+): unknown[] {
+  if (query.includes("FROM review_runs")) {
+    return [{ run_id: "latest-run", head_sha: event.headSha }];
+  }
+  if (query.includes("FROM review_run_hunks")) {
+    return [{ hunk_id: identifiedHunk.hunkId }];
+  }
+  if (query.includes("FROM review_findings ORDER BY")) return findings;
+  if (query.includes("FROM review_finding_hunks")) {
+    return [{
+      hunk_id:
+        params[0] === identifiedFinding.findingId
+          ? identifiedHunk.hunkId
+          : removedHunkId,
+    }];
+  }
+  return query.includes("WHERE r2_recorded = 0") ? pendingOutcomes : [];
+}
+
 function coordinatorFixture(
   existingDeliveries: string[] = [],
   envOverrides: Partial<Env> = {},
@@ -83,41 +179,7 @@ function coordinatorFixture(
       ..._params: unknown[]
     ): { rowsWritten: number; toArray: () => unknown[] } => ({
       rowsWritten: 1,
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      toArray: () => {
-        if (query.includes("FROM _migrations")) {
-          return [...SCHEMA_MIGRATION_HISTORY];
-        }
-        if (query.includes("FROM sqlite_schema")) {
-          return [{ present: 1 }];
-        }
-        if (query.includes("PRAGMA table_info(review_runs)")) {
-          return [
-            { name: "completion_hash" },
-            { name: "finding_resolutions_json" },
-          ];
-        }
-        if (query.includes("PRAGMA table_info(review_findings)")) {
-          return [
-            { name: "disposition" },
-            { name: "disposition_reason" },
-          ];
-        }
-        if (query.includes("PRAGMA table_info(review_finding_outcomes)")) {
-          return [
-            { name: "confidence" },
-            { name: "evaluator_version" },
-            { name: "manual_override" },
-          ];
-        }
-        if (
-          query.includes("FROM webhook_deliveries") &&
-          existingDeliveries.includes(event.deliveryId)
-        ) {
-          return [{ delivery_id: event.deliveryId }];
-        }
-        return [];
-      },
+      toArray: () => coordinatorRows(query, existingDeliveries),
     }),
   );
   const storage = {
@@ -474,46 +536,11 @@ describe("PullRequestCoordinator", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-08-27T00:00:00.000Z"));
     const { coordinator, sqlExec } = coordinatorFixture();
-    const health = new Map<
-      string,
-      {
-        consecutive_failures: number;
-        total_failures: number;
-        total_successes: number;
-        cooldown_until_ms: number | null;
-      }
-    >();
+    const health = new Map<string, ModelHealthRow>();
     const observations = new Set<string>();
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    sqlExec.mockImplementation((query: string, ...values: unknown[]) => {
-      if (query.includes("FROM review_model_health_observations")) {
-        const key = `${values[0]}:${values[1]}:${values[2]}`;
-        return {
-          rowsWritten: 0,
-          toArray: () =>
-            observations.has(key) ? [{ observation_id: values[0] }] : [],
-        };
-      }
-      if (query.includes("FROM review_model_health WHERE provider")) {
-        const row = health.get(`${values[0]}:${values[1]}`);
-        return { rowsWritten: 0, toArray: () => (row ? [row] : []) };
-      }
-      if (
-        query.includes("INSERT INTO review_model_health") &&
-        !query.includes("review_model_health_observations")
-      ) {
-        health.set(`${values[1]}:${values[0]}`, {
-          consecutive_failures: Number(values[2]),
-          total_failures: Number(values[3]),
-          total_successes: Number(values[4]),
-          cooldown_until_ms: values[5] === null ? null : Number(values[5]),
-        });
-      }
-      if (query.includes("INSERT INTO review_model_health_observations")) {
-        observations.add(`${values[0]}:${values[2]}:${values[1]}`);
-      }
-      return { rowsWritten: 1, toArray: () => [] };
-    });
+    sqlExec.mockImplementation((query: string, ...values: unknown[]) =>
+      modelHealthSqlResult(query, values, health, observations),
+    );
     const policy = {
       version: "consecutive-failures-v1",
       consecutiveFailureThreshold: 2,
@@ -1065,26 +1092,14 @@ describe("PullRequestCoordinator", () => {
     }));
     sqlExec.mockImplementation((query: string, ...params: unknown[]) => ({
       rowsWritten: 1,
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      toArray: () => {
-        if (query.includes("FROM review_runs")) {
-          return [{ run_id: "latest-run", head_sha: event.headSha }];
-        }
-        if (query.includes("FROM review_run_hunks")) {
-          return [{ hunk_id: identifiedHunk.hunkId }];
-        }
-        if (query.includes("FROM review_findings ORDER BY")) return findings;
-        if (query.includes("FROM review_finding_hunks")) {
-          return [{
-            hunk_id:
-              params[0] === identifiedFinding.findingId
-                ? identifiedHunk.hunkId
-                : removedHunkId,
-          }];
-        }
-        if (query.includes("WHERE r2_recorded = 0")) return pendingOutcomes;
-        return [];
-      },
+      toArray: () =>
+        finalizationRows(
+          query,
+          params,
+          findings,
+          pendingOutcomes,
+          removedHunkId,
+        ),
     }));
 
     const response = await coordinator.fetch(

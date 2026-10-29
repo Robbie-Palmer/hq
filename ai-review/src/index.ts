@@ -135,6 +135,17 @@ interface ReviewClaim {
   maxCostUsd: number;
 }
 
+interface ReviewBudgetState {
+  attempts: number;
+  previousState: { runs: number; total_usd: number };
+}
+
+interface ReviewClaimResult {
+  claimed: boolean;
+  reason?: string;
+  previousState: ReviewBudgetState["previousState"];
+}
+
 interface ReviewBaselineRequest {
   headSha: string;
 }
@@ -158,6 +169,31 @@ interface ReviewFailure {
   error: string;
   costUsd: number;
 }
+
+interface CompletedOutcomeReview extends Record<string, string | null> {
+  run_id: string;
+  head_sha: string;
+  finding_resolutions_json: string | null;
+}
+
+interface StoredOutcomeFinding extends Record<string, string | null> {
+  finding_id: string;
+  disposition: string | null;
+  disposition_reason: string | null;
+  first_seen_head_sha: string;
+  last_seen_head_sha: string;
+  first_seen_run_id: string;
+  last_seen_run_id: string;
+}
+
+interface FinalizedFindingContext {
+  completed: CompletedOutcomeReview | undefined;
+  currentHunkIds: Set<string>;
+  finalHeadWasReviewed: boolean;
+  findings: StoredOutcomeFinding[];
+}
+
+type FinalizedFindingResult = "existing" | "outcome" | "pending" | "manual";
 
 type StoredModelHealth = {
   consecutive_failures: number;
@@ -658,12 +694,19 @@ function storedFindingResolution(
   }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-function isFindingInteractionEvent(
+function isOptionalBoundedString(
   value: unknown,
-): value is FindingInteractionEvent {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const event = value as Partial<FindingInteractionEvent>;
+  maxLength: number,
+  requireNonEmpty = false,
+): boolean {
+  if (value === undefined) return true;
+  if (typeof value !== "string" || value.length > maxLength) return false;
+  return !requireNonEmpty || value.trim().length > 0;
+}
+
+function hasValidFindingInteractionIdentity(
+  event: Partial<FindingInteractionEvent>,
+): boolean {
   return (
     typeof event.deliveryId === "string" &&
     event.deliveryId.length > 0 &&
@@ -673,34 +716,54 @@ function isFindingInteractionEvent(
     typeof event.repository === "string" &&
     typeof event.pullRequestNumber === "number" &&
     Number.isSafeInteger(event.pullRequestNumber) &&
-    event.pullRequestNumber > 0 &&
-    (event.headSha === undefined ||
-      (typeof event.headSha === "string" &&
-        event.headSha.length > 0 &&
-        event.headSha.length <= 64)) &&
+    event.pullRequestNumber > 0
+  );
+}
+
+function hasValidFindingInteractionDetails(
+  event: Partial<FindingInteractionEvent>,
+): boolean {
+  return (
+    isOptionalBoundedString(event.headSha, 64, true) &&
     (event.interactionType === "reply" ||
       event.interactionType === "thread" ||
       event.interactionType === "disposition") &&
     typeof event.actor === "string" &&
     event.actor.length > 0 &&
-    (event.threadId === undefined ||
-      (typeof event.threadId === "string" && event.threadId.length <= 255)) &&
-    (event.body === undefined ||
-      (typeof event.body === "string" && event.body.length <= 4_000)) &&
-    (event.reason === undefined ||
-      (typeof event.reason === "string" &&
-        event.reason.trim().length > 0 &&
-        event.reason.length <= 1_000)) &&
+    isOptionalBoundedString(event.threadId, 255) &&
+    isOptionalBoundedString(event.body, 4_000) &&
+    isOptionalBoundedString(event.reason, 1_000, true) &&
     (event.findingId === undefined || /^f_[a-f0-9]{24}$/.test(event.findingId)) &&
     (event.rootCommentId === undefined ||
-      (Number.isSafeInteger(event.rootCommentId) && event.rootCommentId > 0)) &&
-    (event.interactionType !== "disposition" ||
-      ((event.findingId !== undefined || event.rootCommentId !== undefined) &&
-        (event.disposition === "acknowledged" ||
-          event.disposition === "confirmed-fixed" ||
-          event.disposition === "rejected"))) &&
-    (event.disposition !== "confirmed-fixed" || event.headSha !== undefined) &&
-    (event.interactionType === "disposition" || event.rootCommentId !== undefined)
+      (Number.isSafeInteger(event.rootCommentId) && event.rootCommentId > 0))
+  );
+}
+
+function hasValidFindingDisposition(
+  event: Partial<FindingInteractionEvent>,
+): boolean {
+  if (event.interactionType !== "disposition") {
+    return event.rootCommentId !== undefined;
+  }
+  const hasTarget = event.findingId !== undefined || event.rootCommentId !== undefined;
+  const hasDisposition =
+    event.disposition === "acknowledged" ||
+    event.disposition === "confirmed-fixed" ||
+    event.disposition === "rejected";
+  const hasConfirmedHead =
+    event.disposition !== "confirmed-fixed" || event.headSha !== undefined;
+  return hasTarget && hasDisposition && hasConfirmedHead;
+}
+
+function isFindingInteractionEvent(
+  value: unknown,
+): value is FindingInteractionEvent {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const event = value as Partial<FindingInteractionEvent>;
+  return (
+    hasValidFindingInteractionIdentity(event) &&
+    hasValidFindingInteractionDetails(event) &&
+    hasValidFindingDisposition(event)
   );
 }
 
@@ -1121,21 +1184,11 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     }
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-  private evaluateFinalizedFindings(options: {
-    event: PullRequestFinalizationEvent;
-    evaluatedAt: string;
-    outcomeWindowElapsed: boolean;
-    trigger: "pull-request-finalization" | "outcome-window";
-  }): { outcomes: number; pending: number; manualRequired: number } {
-    const { event } = options;
-    const evaluatorVersion = outcomeEvaluatorVersion(this.env);
+  private finalizedFindingContext(
+    event: PullRequestFinalizationEvent,
+  ): FinalizedFindingContext {
     const completed = this.ctx.storage.sql
-      .exec<{
-        run_id: string;
-        head_sha: string;
-        finding_resolutions_json: string | null;
-      }>(
+      .exec<CompletedOutcomeReview>(
         `SELECT run_id, head_sha, finding_resolutions_json FROM review_runs
          WHERE status = 'completed'
          ORDER BY completed_at DESC, run_id DESC LIMIT 1`,
@@ -1154,124 +1207,140 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     );
     const finalHeadWasReviewed = completed?.head_sha === event.headSha;
     const findings = this.ctx.storage.sql
-      .exec<{
-        finding_id: string;
-        disposition: string | null;
-        disposition_reason: string | null;
-        first_seen_head_sha: string;
-        last_seen_head_sha: string;
-        first_seen_run_id: string;
-        last_seen_run_id: string;
-      }>(
+      .exec<StoredOutcomeFinding>(
         `SELECT finding_id, disposition, disposition_reason,
                 first_seen_head_sha, last_seen_head_sha,
                 first_seen_run_id, last_seen_run_id
          FROM review_findings ORDER BY finding_id`,
       )
       .toArray();
+    return { completed, currentHunkIds, finalHeadWasReviewed, findings };
+  }
+
+  private evaluateStoredFinalizedFinding(options: {
+    finding: StoredOutcomeFinding;
+    context: FinalizedFindingContext;
+    event: PullRequestFinalizationEvent;
+    evaluatedAt: string;
+    outcomeWindowElapsed: boolean;
+    trigger: "pull-request-finalization" | "outcome-window";
+    evaluatorVersion: string;
+  }): FinalizedFindingResult {
+    const { finding, context, event } = options;
+    const latestOutcome = this.ctx.storage.sql
+      .exec<{ outcome: FindingOutcome; manual_override: number }>(
+        `SELECT outcome, manual_override FROM review_finding_outcomes
+         WHERE finding_id = ? ORDER BY outcome_version DESC LIMIT 1`,
+        finding.finding_id,
+      )
+      .toArray()[0];
+    if (latestOutcome) return "existing";
+    const findingHunkIds = this.ctx.storage.sql
+      .exec<{ hunk_id: string }>(
+        `SELECT hunk_id FROM review_finding_hunks WHERE finding_id = ?`,
+        finding.finding_id,
+      )
+      .toArray()
+      .map(({ hunk_id }) => hunk_id);
+    const affectedCodeRemains =
+      findingHunkIds.length === 0 ||
+      findingHunkIds.some((hunkId) => context.currentHunkIds.has(hunkId));
+    const interactions = summarizeFindingInteractions(
+      this.ctx.storage.sql
+        .exec<{ delivery_id: string; payload_json: string }>(
+          `SELECT delivery_id, payload_json FROM review_finding_events
+           WHERE finding_id = ? ORDER BY occurred_at, delivery_id`,
+          finding.finding_id,
+        )
+        .toArray(),
+    );
+    const laterResolution = storedFindingResolution(
+      context.finalHeadWasReviewed
+        ? context.completed?.finding_resolutions_json
+        : undefined,
+      finding.finding_id,
+    );
+    const evaluation = evaluateFinalizedFinding({
+      disposition: finding.disposition,
+      finalHeadWasReviewed: context.finalHeadWasReviewed,
+      affectedCodeRemains,
+      outcomeWindowElapsed: options.outcomeWindowElapsed,
+      interactions,
+      laterResolutionVerdict: laterResolution?.verdict,
+    });
+    const evidence = {
+      ...evaluation.evidence,
+      finalState: event.finalState,
+      finalHeadSha: event.headSha,
+      latestReviewedHeadSha: context.completed?.head_sha,
+      dispositionReason: finding.disposition_reason,
+      firstSeenHeadSha: finding.first_seen_head_sha,
+      lastSeenHeadSha: finding.last_seen_head_sha,
+      firstSeenRunId: finding.first_seen_run_id,
+      lastSeenRunId: finding.last_seen_run_id,
+      laterResolution,
+    };
+    const evaluationId = [
+      "evaluation",
+      event.deliveryId,
+      options.trigger,
+      finding.finding_id,
+    ].join(":");
+    this.ctx.storage.sql.exec(
+      `INSERT OR IGNORE INTO review_finding_evaluations
+       (evaluation_id, finding_id, trigger_type, status,
+        evaluator_version, evidence_json, evaluated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      evaluationId,
+      finding.finding_id,
+      options.trigger,
+      evaluation.status,
+      options.evaluatorVersion,
+      JSON.stringify(evidence),
+      options.evaluatedAt,
+    );
+    if (evaluation.status === "manual-adjudication-required") return "manual";
+    if (evaluation.status === "incomplete") return "pending";
+    const inserted = this.appendFindingOutcome({
+      repository: event.repository,
+      pullRequestNumber: event.pullRequestNumber,
+      findingId: finding.finding_id,
+      outcome: evaluation.outcome,
+      basis: evaluation.basis,
+      confidence: evaluation.confidence,
+      evaluatorVersion: options.evaluatorVersion,
+      sourceId: evaluationId,
+      occurredAt:
+        options.trigger === "outcome-window"
+          ? options.evaluatedAt
+          : (event.occurredAt ?? options.evaluatedAt),
+      recordedAt: options.evaluatedAt,
+      evidence,
+    });
+    return inserted ? "outcome" : "existing";
+  }
+
+  private evaluateFinalizedFindings(options: {
+    event: PullRequestFinalizationEvent;
+    evaluatedAt: string;
+    outcomeWindowElapsed: boolean;
+    trigger: "pull-request-finalization" | "outcome-window";
+  }): { outcomes: number; pending: number; manualRequired: number } {
+    const context = this.finalizedFindingContext(options.event);
+    const evaluatorVersion = outcomeEvaluatorVersion(this.env);
     let outcomes = 0;
     let pending = 0;
     let manualRequired = 0;
-    for (const finding of findings) {
-      const latestOutcome = this.ctx.storage.sql
-        .exec<{ outcome: FindingOutcome; manual_override: number }>(
-          `SELECT outcome, manual_override FROM review_finding_outcomes
-           WHERE finding_id = ? ORDER BY outcome_version DESC LIMIT 1`,
-          finding.finding_id,
-        )
-        .toArray()[0];
-      if (latestOutcome) continue;
-
-      const findingHunkIds = this.ctx.storage.sql
-        .exec<{ hunk_id: string }>(
-          `SELECT hunk_id FROM review_finding_hunks
-           WHERE finding_id = ?`,
-          finding.finding_id,
-        )
-        .toArray()
-        .map(({ hunk_id }) => hunk_id);
-      const affectedCodeRemains =
-        findingHunkIds.length === 0 ||
-        findingHunkIds.some((hunkId) => currentHunkIds.has(hunkId));
-      const interactions = summarizeFindingInteractions(
-        this.ctx.storage.sql
-          .exec<{ delivery_id: string; payload_json: string }>(
-            `SELECT delivery_id, payload_json FROM review_finding_events
-             WHERE finding_id = ? ORDER BY occurred_at, delivery_id`,
-            finding.finding_id,
-          )
-          .toArray(),
-      );
-      const laterResolution = storedFindingResolution(
-        finalHeadWasReviewed ? completed?.finding_resolutions_json : undefined,
-        finding.finding_id,
-      );
-      const evaluation = evaluateFinalizedFinding({
-        disposition: finding.disposition,
-        finalHeadWasReviewed,
-        affectedCodeRemains,
-        outcomeWindowElapsed: options.outcomeWindowElapsed,
-        interactions,
-        laterResolutionVerdict: laterResolution?.verdict,
-      });
-      const evidence = {
-        ...evaluation.evidence,
-        finalState: event.finalState,
-        finalHeadSha: event.headSha,
-        latestReviewedHeadSha: completed?.head_sha,
-        dispositionReason: finding.disposition_reason,
-        firstSeenHeadSha: finding.first_seen_head_sha,
-        lastSeenHeadSha: finding.last_seen_head_sha,
-        firstSeenRunId: finding.first_seen_run_id,
-        lastSeenRunId: finding.last_seen_run_id,
-        laterResolution,
-      };
-      const evaluationId = [
-        "evaluation",
-        event.deliveryId,
-        options.trigger,
-        finding.finding_id,
-      ].join(":");
-      this.ctx.storage.sql.exec(
-        `INSERT OR IGNORE INTO review_finding_evaluations
-         (evaluation_id, finding_id, trigger_type, status,
-          evaluator_version, evidence_json, evaluated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        evaluationId,
-        finding.finding_id,
-        options.trigger,
-        evaluation.status,
+    for (const finding of context.findings) {
+      const result = this.evaluateStoredFinalizedFinding({
+        ...options,
+        finding,
+        context,
         evaluatorVersion,
-        JSON.stringify(evidence),
-        options.evaluatedAt,
-      );
-      if (evaluation.status === "manual-adjudication-required") {
-        manualRequired += 1;
-        continue;
-      }
-      if (evaluation.status === "incomplete") {
-        pending += 1;
-        continue;
-      }
-      const inserted = this.appendFindingOutcome({
-        repository: event.repository,
-        pullRequestNumber: event.pullRequestNumber,
-        findingId: finding.finding_id,
-        outcome: evaluation.outcome,
-        basis: evaluation.basis,
-        confidence: evaluation.confidence,
-        evaluatorVersion,
-        sourceId: evaluationId,
-        occurredAt:
-          options.trigger === "outcome-window"
-            ? options.evaluatedAt
-            : (event.occurredAt ?? options.evaluatedAt),
-        recordedAt: options.evaluatedAt,
-        evidence,
       });
-      if (inserted) {
-        outcomes += 1;
-      }
+      if (result === "outcome") outcomes += 1;
+      if (result === "pending") pending += 1;
+      if (result === "manual") manualRequired += 1;
     }
     return { outcomes, pending, manualRequired };
   }
@@ -1784,6 +1853,120 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     return json({ accepted: true, ...result });
   }
 
+  private reviewBudgetState(): ReviewBudgetState {
+    const aggregate = this.ctx.storage.sql
+      .exec<{ attempts: number; runs: number; total_cost: number }>(
+        `SELECT COUNT(*) AS attempts,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS runs,
+                COALESCE(SUM(cost_usd), 0) AS total_cost
+         FROM review_runs`,
+      )
+      .toArray()[0] ?? { attempts: 0, runs: 0, total_cost: 0 };
+    return {
+      attempts: Number(aggregate.attempts),
+      previousState: {
+        runs: Number(aggregate.runs),
+        total_usd: Number(aggregate.total_cost),
+      },
+    };
+  }
+
+  private existingReviewClaim(
+    body: ReviewClaim,
+    previousState: ReviewBudgetState["previousState"],
+  ): ReviewClaimResult | undefined {
+    const existingRun = this.ctx.storage.sql
+      .exec<{ status: string }>(
+        "SELECT status FROM review_runs WHERE run_id = ?",
+        body.runId,
+      )
+      .toArray()[0];
+    if (existingRun) {
+      const claimed = existingRun.status === "running";
+      const reason = claimed
+        ? undefined
+        : existingRun.status === "completed"
+          ? "workflow instance already completed"
+          : `workflow instance is ${existingRun.status}`;
+      return { claimed, reason, previousState };
+    }
+    const active = this.ctx.storage.sql
+      .exec<{ run_id: string }>(
+        `SELECT run_id FROM review_runs
+         WHERE status IN ('running', 'terminating') LIMIT 1`,
+      )
+      .toArray()[0];
+    if (active) {
+      return {
+        claimed: false,
+        reason: "another review is already running",
+        previousState,
+      };
+    }
+    if (body.force) return undefined;
+    const completed = this.ctx.storage.sql
+      .exec<{ run_id: string }>(
+        `SELECT run_id FROM review_runs
+         WHERE diff_fingerprint = ? AND config_fingerprint = ?
+           AND status = 'completed' LIMIT 1`,
+        body.diffFingerprint,
+        body.configFingerprint,
+      )
+      .toArray()[0];
+    return completed
+      ? {
+          claimed: false,
+          reason: "this content and reviewer configuration were already reviewed",
+          previousState,
+        }
+      : undefined;
+  }
+
+  private reviewBudgetDenial(
+    body: ReviewClaim,
+    budget: ReviewBudgetState,
+  ): ReviewClaimResult | undefined {
+    if (budget.attempts >= body.maxRuns) {
+      return {
+        claimed: false,
+        reason: "per-PR review-run budget reached",
+        previousState: budget.previousState,
+      };
+    }
+    if (budget.previousState.total_usd >= body.maxCostUsd) {
+      return {
+        claimed: false,
+        reason: "per-PR cost budget reached",
+        previousState: budget.previousState,
+      };
+    }
+    return undefined;
+  }
+
+  private claimReviewTransaction(
+    body: ReviewClaim,
+    startedAt: string,
+  ): ReviewClaimResult {
+    const budget = this.reviewBudgetState();
+    const existing = this.existingReviewClaim(body, budget.previousState);
+    if (existing) return existing;
+    const denied = this.reviewBudgetDenial(body, budget);
+    if (denied) return denied;
+    this.ctx.storage.sql.exec(
+      `INSERT INTO review_runs
+       (run_id, head_sha, diff_fingerprint, config_fingerprint, status,
+        force_run, started_at)
+       VALUES (?, ?, ?, ?, 'running', ?, ?)`,
+      body.runId,
+      body.headSha,
+      body.diffFingerprint,
+      body.configFingerprint,
+      body.force ? 1 : 0,
+      startedAt,
+    );
+    return { claimed: true, previousState: budget.previousState };
+  }
+
   private async claimReview(request: Request): Promise<Response> {
     const body = await readValidatedJson(
       request,
@@ -1791,9 +1974,6 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       "Invalid review claim",
     );
     if (body instanceof Response) return body;
-    const maxRuns = body.maxRuns;
-    const maxCostUsd = body.maxCostUsd;
-
     const now = new Date();
     const nowIso = now.toISOString();
     const leaseCutoff = new Date(
@@ -1809,102 +1989,9 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       return errorResponse("Expired review Workflow is still active", 503);
     }
 
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const result = this.ctx.storage.transactionSync(() => {
-      const aggregate = this.ctx.storage.sql
-        .exec<{ attempts: number; runs: number; total_cost: number }>(
-          `SELECT COUNT(*) AS attempts,
-                  SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) AS runs,
-                  COALESCE(SUM(cost_usd), 0) AS total_cost
-           FROM review_runs`,
-        )
-        .toArray()[0] ?? { attempts: 0, runs: 0, total_cost: 0 };
-      const previousState = {
-        runs: Number(aggregate.runs),
-        total_usd: Number(aggregate.total_cost),
-      };
-      const existingRun = this.ctx.storage.sql
-        .exec<{ status: string }>(
-          "SELECT status FROM review_runs WHERE run_id = ?",
-          body.runId,
-        )
-        .toArray()[0];
-      if (existingRun) {
-        const claimed = existingRun.status === "running";
-        let reason: string | undefined;
-        if (!claimed) {
-          reason =
-            existingRun.status === "completed"
-              ? "workflow instance already completed"
-              : `workflow instance is ${existingRun.status}`;
-        }
-        return {
-          claimed,
-          reason,
-          previousState,
-        };
-      }
-      const active = this.ctx.storage.sql
-        .exec<{ run_id: string }>(
-          `SELECT run_id FROM review_runs
-           WHERE status IN ('running', 'terminating')
-           LIMIT 1`,
-        )
-        .toArray()[0];
-      if (active) {
-        return {
-          claimed: false,
-          reason: "another review is already running",
-          previousState,
-        };
-      }
-      if (!body.force) {
-        const completed = this.ctx.storage.sql
-          .exec<{ run_id: string }>(
-            `SELECT run_id FROM review_runs
-             WHERE diff_fingerprint = ? AND config_fingerprint = ?
-               AND status = 'completed'
-             LIMIT 1`,
-            body.diffFingerprint,
-            body.configFingerprint,
-          )
-          .toArray()[0];
-        if (completed) {
-          return {
-            claimed: false,
-            reason: "this content and reviewer configuration were already reviewed",
-            previousState,
-          };
-        }
-      }
-      if (Number(aggregate.attempts) >= maxRuns) {
-        return {
-          claimed: false,
-          reason: "per-PR review-run budget reached",
-          previousState,
-        };
-      }
-      if (previousState.total_usd >= maxCostUsd) {
-        return {
-          claimed: false,
-          reason: "per-PR cost budget reached",
-          previousState,
-        };
-      }
-      this.ctx.storage.sql.exec(
-        `INSERT INTO review_runs
-         (run_id, head_sha, diff_fingerprint, config_fingerprint, status,
-          force_run, started_at)
-         VALUES (?, ?, ?, ?, 'running', ?, ?)`,
-        body.runId,
-        body.headSha,
-        body.diffFingerprint,
-        body.configFingerprint,
-        body.force ? 1 : 0,
-        nowIso,
-      );
-      return { claimed: true, previousState };
-    });
+    const result = this.ctx.storage.transactionSync(() =>
+      this.claimReviewTransaction(body, nowIso),
+    );
     return json(result);
   }
 
@@ -1976,6 +2063,158 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     return json({ headSha: completed.head_sha, hunkIds, openFindings });
   }
 
+  private persistCompletedHunks(
+    body: ReviewCompletion,
+    currentHunks: ReviewHunk[],
+    reviewedHunkIds: Set<string>,
+    completedAt: string,
+  ): void {
+    for (const hunk of currentHunks) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO review_hunks
+         (hunk_id, fingerprint, file_path, first_seen_head_sha,
+          last_seen_head_sha, first_seen_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(hunk_id) DO UPDATE SET
+           last_seen_head_sha = excluded.last_seen_head_sha,
+           last_seen_at = excluded.last_seen_at`,
+        hunk.hunkId,
+        hunk.fingerprint,
+        hunk.file,
+        body.headSha,
+        body.headSha,
+        completedAt,
+        completedAt,
+      );
+      this.ctx.storage.sql.exec(
+        `INSERT INTO review_run_hunks (run_id, hunk_id, reviewed)
+         VALUES (?, ?, ?)`,
+        body.runId,
+        hunk.hunkId,
+        reviewedHunkIds.has(hunk.hunkId) ? 1 : 0,
+      );
+    }
+  }
+
+  private persistCompletedFindings(
+    body: ReviewCompletion,
+    completedAt: string,
+  ): void {
+    for (const finding of body.findings) {
+      this.ctx.storage.sql.exec(
+        `INSERT INTO review_findings
+         (finding_id, file_path, title, status, first_seen_head_sha,
+          last_seen_head_sha, first_seen_run_id, last_seen_run_id,
+          first_seen_at, last_seen_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(finding_id) DO UPDATE SET
+           file_path = excluded.file_path,
+           title = excluded.title,
+           status = excluded.status,
+           last_seen_head_sha = excluded.last_seen_head_sha,
+           last_seen_run_id = excluded.last_seen_run_id,
+           last_seen_at = excluded.last_seen_at`,
+        finding.findingId,
+        finding.file,
+        finding.title,
+        finding.status,
+        body.headSha,
+        body.headSha,
+        body.runId,
+        body.runId,
+        completedAt,
+        completedAt,
+      );
+      for (const hunkId of finding.hunkIds) {
+        this.ctx.storage.sql.exec(
+          `INSERT OR IGNORE INTO review_finding_hunks (finding_id, hunk_id)
+           VALUES (?, ?)`,
+          finding.findingId,
+          hunkId,
+        );
+      }
+    }
+  }
+
+  private persistFindingPublications(
+    body: ReviewCompletion,
+    publications: FindingPublication[],
+    completedAt: string,
+  ): void {
+    for (const publication of publications) {
+      if (publication.delivery !== "line" || publication.commentId === undefined) {
+        continue;
+      }
+      this.ctx.storage.sql.exec(
+        `INSERT INTO review_finding_comments
+         (comment_id, finding_id, head_sha, file_path, line, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(finding_id) DO UPDATE SET
+           comment_id = excluded.comment_id,
+           head_sha = excluded.head_sha,
+           file_path = excluded.file_path,
+           line = excluded.line,
+           updated_at = excluded.updated_at`,
+        publication.commentId,
+        publication.findingId,
+        body.headSha,
+        publication.path,
+        publication.line,
+        completedAt,
+        completedAt,
+      );
+    }
+  }
+
+  private completeReviewTransaction(options: {
+    body: ReviewCompletion;
+    completionHash: string;
+    completedAt: string;
+    currentHunks: ReviewHunk[];
+    reviewedHunkIds: Set<string>;
+    findingPublications: FindingPublication[];
+    findingResolutions: FindingResolution[];
+  }): "completed" | "conflict" | "duplicate" | "missing" {
+    const { body, completionHash, completedAt, findingResolutions } = options;
+    const update = this.ctx.storage.sql.exec(
+      `UPDATE review_runs
+       SET status = 'completed', completed_at = ?, cost_usd = ?,
+           comment_id = ?, findings_json = ?, finding_resolutions_json = ?,
+           completion_hash = ?, error = NULL
+       WHERE run_id = ? AND head_sha = ? AND status = 'running'`,
+      completedAt,
+      body.costUsd,
+      body.commentId ?? null,
+      JSON.stringify(body.findings),
+      JSON.stringify(findingResolutions),
+      completionHash,
+      body.runId,
+      body.headSha,
+    );
+    if (update.rowsWritten === 0) {
+      const existing = this.ctx.storage.sql
+        .exec<{ head_sha: string; status: string; completion_hash: string | null }>(
+          `SELECT head_sha, status, completion_hash FROM review_runs WHERE run_id = ?`,
+          body.runId,
+        )
+        .toArray()[0];
+      return completionReplayStatus(existing, body.headSha, completionHash);
+    }
+    this.persistCompletedHunks(
+      body,
+      options.currentHunks,
+      options.reviewedHunkIds,
+      completedAt,
+    );
+    this.persistCompletedFindings(body, completedAt);
+    this.persistFindingPublications(
+      body,
+      options.findingPublications,
+      completedAt,
+    );
+    return "completed";
+  }
+
   private async completeReview(request: Request): Promise<Response> {
     const body = await readValidatedJson(
       request,
@@ -1987,7 +2226,6 @@ export class PullRequestCoordinator extends DurableObject<Env> {
     const currentHunks = body.currentHunks ?? body.hunks;
     const completionRepository = body.repository;
     const completionPullRequestNumber = body.pullRequestNumber;
-    const completionHeadSha = body.headSha;
     const completionHunkIds = new Set(
       reviewedHunks.map(({ hunkId }) => hunkId),
     );
@@ -2046,121 +2284,17 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       }),
     );
     const completedAt = new Date().toISOString();
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const completion = this.ctx.storage.transactionSync(() => {
-      const update = this.ctx.storage.sql.exec(
-        `UPDATE review_runs
-         SET status = 'completed', completed_at = ?, cost_usd = ?,
-             comment_id = ?, findings_json = ?, finding_resolutions_json = ?,
-             completion_hash = ?, error = NULL
-         WHERE run_id = ? AND head_sha = ? AND status = 'running'`,
-        completedAt,
-        body.costUsd,
-        body.commentId ?? null,
-        JSON.stringify(body.findings),
-        JSON.stringify(findingResolutions),
+    const completion = this.ctx.storage.transactionSync(() =>
+      this.completeReviewTransaction({
+        body,
         completionHash,
-        body.runId,
-        body.headSha,
-      );
-      if (update.rowsWritten === 0) {
-        const existing = this.ctx.storage.sql
-          .exec<{ head_sha: string; status: string; completion_hash: string | null }>(
-            `SELECT head_sha, status, completion_hash
-             FROM review_runs WHERE run_id = ?`,
-            body.runId,
-          )
-          .toArray()[0];
-        return completionReplayStatus(
-          existing,
-          completionHeadSha,
-          completionHash,
-        );
-      }
-      for (const hunk of currentHunks) {
-        this.ctx.storage.sql.exec(
-          `INSERT INTO review_hunks
-           (hunk_id, fingerprint, file_path, first_seen_head_sha,
-            last_seen_head_sha, first_seen_at, last_seen_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(hunk_id) DO UPDATE SET
-             last_seen_head_sha = excluded.last_seen_head_sha,
-             last_seen_at = excluded.last_seen_at`,
-          hunk.hunkId,
-          hunk.fingerprint,
-          hunk.file,
-          body.headSha,
-          body.headSha,
-          completedAt,
-          completedAt,
-        );
-        this.ctx.storage.sql.exec(
-          `INSERT INTO review_run_hunks (run_id, hunk_id, reviewed)
-           VALUES (?, ?, ?)`,
-          body.runId,
-          hunk.hunkId,
-          completionHunkIds.has(hunk.hunkId) ? 1 : 0,
-        );
-      }
-      for (const finding of body.findings as IdentifiedMergedFinding[]) {
-        this.ctx.storage.sql.exec(
-          `INSERT INTO review_findings
-           (finding_id, file_path, title, status, first_seen_head_sha,
-            last_seen_head_sha, first_seen_run_id, last_seen_run_id,
-            first_seen_at, last_seen_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(finding_id) DO UPDATE SET
-             file_path = excluded.file_path,
-             title = excluded.title,
-             status = excluded.status,
-             last_seen_head_sha = excluded.last_seen_head_sha,
-             last_seen_run_id = excluded.last_seen_run_id,
-             last_seen_at = excluded.last_seen_at`,
-          finding.findingId,
-          finding.file,
-          finding.title,
-          finding.status,
-          body.headSha,
-          body.headSha,
-          body.runId,
-          body.runId,
-          completedAt,
-          completedAt,
-        );
-        for (const hunkId of finding.hunkIds) {
-          this.ctx.storage.sql.exec(
-            `INSERT OR IGNORE INTO review_finding_hunks (finding_id, hunk_id)
-             VALUES (?, ?)`,
-            finding.findingId,
-            hunkId,
-          );
-        }
-      }
-      for (const publication of findingPublications) {
-        if (publication.delivery !== "line" || publication.commentId === undefined) {
-          continue;
-        }
-        this.ctx.storage.sql.exec(
-          `INSERT INTO review_finding_comments
-           (comment_id, finding_id, head_sha, file_path, line, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
-           ON CONFLICT(finding_id) DO UPDATE SET
-             comment_id = excluded.comment_id,
-             head_sha = excluded.head_sha,
-             file_path = excluded.file_path,
-             line = excluded.line,
-             updated_at = excluded.updated_at`,
-          publication.commentId,
-          publication.findingId,
-          body.headSha,
-          publication.path,
-          publication.line,
-          completedAt,
-          completedAt,
-        );
-      }
-      return "completed";
-    });
+        completedAt,
+        currentHunks,
+        reviewedHunkIds: completionHunkIds,
+        findingPublications,
+        findingResolutions,
+      }),
+    );
     if (completion === "missing") {
       return errorResponse("No matching review run to complete", 409);
     }
@@ -2544,18 +2678,107 @@ function acceptedWebhookEvent(
   return undefined;
 }
 
+type AcceptedWebhookEvent =
+  | ReviewWorkflowParams
+  | FindingInteractionEvent
+  | PullRequestFinalizationEvent;
+
 function coordinatorPathForEvent(
-  event:
-    | ReviewWorkflowParams
-    | FindingInteractionEvent
-    | PullRequestFinalizationEvent,
+  event: AcceptedWebhookEvent,
 ): "/events" | "/interactions" | "/finalizations" {
   if ("interactionType" in event) return "/interactions";
   if ("finalState" in event) return "/finalizations";
   return "/events";
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function parseWebhookJson(body: string): unknown | Response {
+  try {
+    return JSON.parse(body) as unknown;
+  } catch {
+    return errorResponse("Malformed JSON payload");
+  }
+}
+
+function parseAcceptedWebhookEvent(
+  eventName: string,
+  deliveryId: string,
+  payload: unknown,
+): AcceptedWebhookEvent | Response {
+  const review = parseReviewEvent(eventName, deliveryId, payload);
+  const interaction = review.kind === "ignored"
+    ? parseFindingInteraction(eventName, deliveryId, payload)
+    : undefined;
+  const finalization =
+    review.kind === "ignored" && interaction?.kind === "ignored"
+      ? parsePullRequestFinalization(eventName, deliveryId, payload)
+      : undefined;
+  if (
+    review.kind === "invalid" ||
+    interaction?.kind === "invalid" ||
+    finalization?.kind === "invalid"
+  ) {
+    return errorResponse("Malformed webhook payload");
+  }
+  return (
+    acceptedWebhookEvent(review, interaction, finalization) ??
+    json({ ignored: true, reason: "unsupported-event" }, 202)
+  );
+}
+
+function repositoryAuthorization(
+  event: AcceptedWebhookEvent,
+  env: Env,
+): Response | undefined {
+  const allowedRepository = env.AI_REVIEW_REPOSITORY?.trim().toLowerCase();
+  return !allowedRepository ||
+    event.repository.trim().toLowerCase() !== allowedRepository
+    ? errorResponse("Repository is not allowed", 403)
+    : undefined;
+}
+
+async function authoritativeWebhookEvent(
+  event: AcceptedWebhookEvent,
+  env: Env,
+): Promise<AcceptedWebhookEvent | Response> {
+  if (!("interactionType" in event) || event.disposition !== "confirmed-fixed") {
+    return event;
+  }
+  let headSha: string | undefined;
+  try {
+    headSha = await currentPullRequestHead(env, event);
+  } catch (error) {
+    console.error("Could not load the authoritative pull request head", {
+      type: errorType(error),
+    });
+  }
+  return headSha
+    ? { ...event, headSha }
+    : errorResponse("Could not verify current pull request head", 503);
+}
+
+async function acknowledgeAcceptedDisposition(
+  event: AcceptedWebhookEvent,
+  coordinatorResponse: Response,
+  env: Env,
+): Promise<Response> {
+  if (
+    !("interactionType" in event) ||
+    event.eventName !== "pull_request_review_comment" ||
+    !event.disposition ||
+    !event.rootCommentId ||
+    !coordinatorResponse.ok
+  ) {
+    return coordinatorResponse;
+  }
+  const result = (await coordinatorResponse.clone().json().catch(() => null)) as
+    | { accepted?: unknown }
+    | null;
+  if (result?.accepted !== true) return coordinatorResponse;
+  return (await acknowledgeDispositionReply(env, event))
+    ? coordinatorResponse
+    : errorResponse("Could not acknowledge disposition reply", 503);
+}
+
 async function handleGitHubWebhook(request: Request, env: Env): Promise<Response> {
   const bodyResult = await readWebhookBody(request);
   if ("response" in bodyResult) return bodyResult.response;
@@ -2571,81 +2794,20 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
   if (!eventName || !deliveryId) {
     return errorResponse("Missing GitHub webhook headers");
   }
-
-  let payload: unknown;
-  try {
-    payload = JSON.parse(body) as unknown;
-  } catch {
-    return errorResponse("Malformed JSON payload");
-  }
-
-  const parsedReview = parseReviewEvent(eventName, deliveryId, payload);
-  const parsedInteraction =
-    parsedReview.kind === "ignored"
-      ? parseFindingInteraction(eventName, deliveryId, payload)
-      : undefined;
-  const parsedFinalization =
-    parsedReview.kind === "ignored" && parsedInteraction?.kind === "ignored"
-      ? parsePullRequestFinalization(eventName, deliveryId, payload)
-      : undefined;
-  if (
-    parsedReview.kind === "invalid" ||
-    parsedInteraction?.kind === "invalid" ||
-    parsedFinalization?.kind === "invalid"
-  ) {
-    return errorResponse("Malformed webhook payload");
-  }
-  const event = acceptedWebhookEvent(
-    parsedReview,
-    parsedInteraction,
-    parsedFinalization,
-  );
-  if (!event) return json({ ignored: true, reason: "unsupported-event" }, 202);
-
-  const allowedRepository = env.AI_REVIEW_REPOSITORY?.trim().toLowerCase();
-  if (!allowedRepository || event.repository.trim().toLowerCase() !== allowedRepository) {
-    return errorResponse("Repository is not allowed", 403);
-  }
-  let forwardedEvent = event;
-  if (
-    "interactionType" in event &&
-    event.disposition === "confirmed-fixed"
-  ) {
-    let headSha: string | undefined;
-    try {
-      headSha = await currentPullRequestHead(env, event);
-    } catch (error) {
-      console.error("Could not load the authoritative pull request head", {
-        type: errorType(error),
-      });
-    }
-    if (!headSha) {
-      return errorResponse("Could not verify current pull request head", 503);
-    }
-    forwardedEvent = { ...event, headSha };
-  }
+  const payload = parseWebhookJson(body);
+  if (payload instanceof Response) return payload;
+  const event = parseAcceptedWebhookEvent(eventName, deliveryId, payload);
+  if (event instanceof Response) return event;
+  const authorization = repositoryAuthorization(event, env);
+  if (authorization) return authorization;
+  const forwardedEvent = await authoritativeWebhookEvent(event, env);
+  if (forwardedEvent instanceof Response) return forwardedEvent;
   const coordinatorResponse = await forwardToCoordinator(
     forwardedEvent,
     env,
     coordinatorPathForEvent(forwardedEvent),
   );
-  if (
-    "interactionType" in forwardedEvent &&
-    forwardedEvent.eventName === "pull_request_review_comment" &&
-    forwardedEvent.disposition &&
-    forwardedEvent.rootCommentId &&
-    coordinatorResponse.ok
-  ) {
-    const result = (await coordinatorResponse.clone().json().catch(() => null)) as
-      | { accepted?: unknown }
-      | null;
-    if (result?.accepted === true) {
-      if (!(await acknowledgeDispositionReply(env, forwardedEvent))) {
-        return errorResponse("Could not acknowledge disposition reply", 503);
-      }
-    }
-  }
-  return coordinatorResponse;
+  return acknowledgeAcceptedDisposition(forwardedEvent, coordinatorResponse, env);
 }
 
 export default {

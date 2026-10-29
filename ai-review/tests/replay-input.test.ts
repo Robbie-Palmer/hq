@@ -229,6 +229,30 @@ describe("replay input corpus", () => {
     expect(put.mock.calls[1]?.slice(0, 2)).toEqual(put.mock.calls[3]?.slice(0, 2));
   });
 
+  it("stops YAML block redaction at the next dedented field", async () => {
+    const { env, put } = fixture();
+    const input = prepared("full");
+    input.guidelines = "token: |\n  nested-secret\npublic_note: visible";
+
+    await persistReplayInput({
+      env,
+      params,
+      instanceId: "run-yaml-boundary",
+      status: "published",
+      prepared: input,
+      timestamp: new Date("2026-08-31T12:00:00Z"),
+      ...configuration,
+    });
+
+    const snapshot = JSON.parse(String(put.mock.calls[0]?.[1])) as {
+      input: { effectiveReviewRules: string };
+      provenance: { redactions: Record<string, number> };
+    };
+    expect(snapshot.input.effectiveReviewRules).not.toContain("nested-secret");
+    expect(snapshot.input.effectiveReviewRules).toContain("public_note: visible");
+    expect(snapshot.provenance.redactions["assigned-secret"]).toBeGreaterThan(0);
+  });
+
   it("writes the production record before the snapshot and manifest commit marker", async () => {
     const put = vi
       .fn()

@@ -78,7 +78,18 @@ function yamlLine(value: string): { body: string; indent: number; prefix: string
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function redactYamlBlockBody(
+  parts: string[],
+  headerIndex: number,
+  headerIndent: number,
+): void {
+  for (let bodyIndex = headerIndex + 2; bodyIndex < parts.length; bodyIndex += 2) {
+    const blockLine = yamlLine(parts[bodyIndex] ?? "");
+    if (blockLine.body.trim().length > 0 && blockLine.indent <= headerIndent) break;
+    if (blockLine.body.trim().length > 0) parts[bodyIndex] = blockLine.prefix;
+  }
+}
+
 function redactYamlBlockAssignments(value: string, counts: Record<string, number>): string {
   const parts = value.split(/(\r\n|\n|\r)/);
   for (let index = 0; index < parts.length; index += 2) {
@@ -87,11 +98,7 @@ function redactYamlBlockAssignments(value: string, counts: Record<string, number
     const name = match?.[2] ?? match?.[3] ?? match?.[4];
     if (!match || !name || !isSecretName(name)) continue;
     parts[index] = `${line.prefix}${match[1] ?? ""}${assignedSecret(counts)}`;
-    for (let bodyIndex = index + 2; bodyIndex < parts.length; bodyIndex += 2) {
-      const blockLine = yamlLine(parts[bodyIndex] ?? "");
-      if (blockLine.body.trim().length > 0 && blockLine.indent <= line.indent) break;
-      if (blockLine.body.trim().length > 0) parts[bodyIndex] = blockLine.prefix;
-    }
+    redactYamlBlockBody(parts, index, line.indent);
   }
   return parts.join("");
 }
