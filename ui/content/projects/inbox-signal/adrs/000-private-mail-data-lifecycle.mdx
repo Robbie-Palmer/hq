@@ -1,5 +1,5 @@
 ---
-title: "ADR 000: Bound the private mail data lifecycle"
+title: "ADR 000: Retain and control the private mail archive"
 date: "2026-10-25"
 status: "Accepted"
 tech_stack: ["Doppler"]
@@ -18,7 +18,10 @@ Neon PostgreSQL, and bounded evaluation samples in a private DVC remote. Each
 store has a different deletion mechanism. Provider-side deletion also has its
 own recovery and hold behavior. Treating a mailbox delete as complete while a
 raw object, model sample, restored database branch, or derived assertion remains
-would break the project's deletion promise.
+would break an explicit archive-deletion promise. Mailbox cleanup and archive
+deletion are separate actions: removing a provider copy must not silently erase
+the durable archive, and removing the archive must account for every
+project-controlled copy.
 
 [R2 encrypts all objects at rest with provider-managed keys](https://developers.cloudflare.com/r2/reference/data-security/).
 That protects storage media but does not separate mail content from a
@@ -35,8 +38,9 @@ is absent after a delete.
 inside its configured history window. DVC keeps content-addressed objects until
 [remote garbage collection](https://dvc.org/doc/command-reference/gc) removes
 objects that are no longer referenced. Neither mechanism understands that an
-Inbox Signal record has been deleted. The application needs one inventory and
-one state transition that drives every copy.
+Inbox Signal archive record has been deleted. The application needs one
+inventory and distinct state transitions for provider cleanup and archive
+deletion.
 
 ## Decision
 
@@ -81,15 +85,16 @@ been rewrapped or deleted and the longest backup window has elapsed.
 so key deletion is not treated as proof that mail was erased. Deletion evidence
 comes from removing every ciphertext copy.
 
-### Apply explicit retention periods
+### Retain the encrypted archive until explicit deletion
 
-Retention follows the content class wherever the project stores it.
-The following periods are maxima unless an approved exception names a shorter
-or longer period.
+Retention follows the content class wherever the project stores it. Raw mail
+and ordinary attachments form the durable archive and have no automatic expiry.
+The other periods are maxima unless an approved exception names a shorter or
+longer period.
 
 | Data class                                                        | Retention rule                                                                                                          | End-of-life action                                                                                                      |
 | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Raw MIME and ordinary attachments                                 | 90 days from ingestion, or the end of an approved provider deletion window when earlier                                 | Delete the R2 object and content-bearing Neon rows                                                                      |
+| Raw MIME and ordinary attachments                                 | Indefinitely while the archive record remains active; provider cleanup does not end archive retention                   | Start the archive deletion workflow only after a separate explicit approval                                             |
 | Documents or messages explicitly selected for long-term retention | Keep while the recorded retention reason remains active; review the reason and next review date at least every 365 days | Start a 30-day recovery window when the owner removes the reason, then purge                                            |
 | Provider sync tokens and active message metadata                  | While the provider connection and source message remain active                                                          | Revoke the token on disconnect and remove message-level metadata during purge                                           |
 | Derived classifications, entities, relationships, and assertions  | While at least one live item of supporting evidence remains                                                             | Delete within 24 hours after the last supporting item is purged, unless the owner separately retains the derived record |
@@ -106,46 +111,55 @@ counts, requested and completed timestamps, provider outcome classes, and failed
 store names. It does not contain account addresses, provider IDs, message IDs,
 content hashes, sender data, subjects, filenames, or object keys.
 
-Use R2 lifecycle rules as maximum-age backstops for raw, evaluation, export,
-and temporary prefixes. Lifecycle expiry can lag by about a day, so the purge
-worker must call the direct object API for scheduled and user-directed deletion.
-Use a
+Use R2 lifecycle rules as maximum-age backstops for evaluation, export, and
+temporary prefixes. The raw archive prefix must not have an expiry rule.
+Lifecycle expiry can lag by about a day, so the purge worker must call the
+direct object API for scheduled and user-directed deletion. Use a
 [seven-day R2 bucket lock](https://developers.cloudflare.com/r2/buckets/bucket-locks/)
 on newly ingested raw and retained objects to protect against immediate
 accidental deletion. The recovery workflow must show the resulting earliest
 purge time before accepting a request that would be delayed by an active lock.
 
-Do not create an independent archive of all raw mail. The source mailbox remains
-the recovery source during initial ingestion, and the R2 lock protects the
-short-lived working copy. Long-term retained documents follow their explicit
-retention reason. Database history protects recent metadata changes but is not a
-permanent mail archive.
+R2 is the independent archive of raw mail and ordinary attachments. It allows
+future parsers to reprocess historical mail and preserves a recovery source
+after provider cleanup. The source mailbox remains authoritative for provider
+state, but deleting from it does not delete the archive. Database history
+protects recent metadata changes but is not an additional permanent mail
+archive.
 
-### Propagate deletion through one state machine
+### Separate mailbox cleanup from archive deletion
 
-Deletion has three states: `active`, `pending_deletion`, and `purged`.
+Provider state and archive state advance independently. Provider state is
+`active`, `pending_mailbox_deletion`, or `mailbox_purged`. Archive state is
+`retained`, `pending_archive_deletion`, or `archive_purged`.
 
-Moving a provider message to trash starts `pending_deletion` and records the
-provider's verified recovery deadline. The default recovery period is 30 days.
-If a provider guarantees less time, the review UI must show the shorter deadline
-before approval. During this state, the system may restore the message and its
-local records, but it may not add the item to a new evaluation sample or
-long-term retention class.
+Moving a provider message to trash starts `pending_mailbox_deletion` and records
+the provider's verified recovery deadline. The default recovery period is 30
+days. If a provider guarantees less time, the review UI must show the shorter
+deadline before approval. During this state, the system may restore the
+provider message. The encrypted archive and its evidence links remain intact.
 
-Permanent purge needs a separate approval after the recovery deadline. The
-purge worker then:
+Provider-side permanent deletion needs a separate approval after the recovery
+deadline. The worker verifies that the approval, provider version, and recovery
+deadline still match, requests permanent deletion when the provider exposes it,
+and invalidates provider action manifests. It does not delete the encrypted
+archive or derived knowledge supported by that archive.
 
-1. verifies that the approval, provider version, and recovery deadline still
-   match;
-2. requests provider-side permanent deletion when the provider exposes it;
-3. deletes raw objects, attachments, exports, and retained document copies from
+Deleting from the archive is another explicit action. It starts
+`pending_archive_deletion`, presents the project-controlled copies that will be
+removed, and provides a 30-day recovery window. After a separate final approval,
+the archive purge worker:
+
+1. verifies that both archive-deletion approvals, the archive object version,
+   and recovery deadline still match;
+2. deletes raw objects, attachments, exports, and retained document copies from
    R2;
-4. deletes content-bearing Neon rows and disconnects derived records that have
+3. deletes content-bearing Neon rows and disconnects derived records that have
    no other live evidence;
-5. removes DVC references and garbage-collects the private remote and managed
+4. removes DVC references and garbage-collects the private remote and managed
    caches;
-6. invalidates cached reads and outstanding action manifests; and
-7. writes the content-free receipt only after every project-controlled store
+5. invalidates cached reads and outstanding action manifests; and
+6. writes the content-free receipt only after every project-controlled store
    verifies absence.
 
 For R2, verification requires both a failed direct object lookup and absence
@@ -157,11 +171,11 @@ remove the content-addressed object. Git may retain the content hash in old
 pointer history, but the private object and all managed cache copies must be
 gone.
 
-The service reports a partial purge instead of claiming success when a store is
-unavailable or rejects deletion. It retries idempotently with the same operation
-ID. A provider's success response records that the provider accepted the
-operation, not that its physical media or Recoverable Items area was erased.
-For example,
+The service reports a partial archive purge instead of claiming success when a
+store is unavailable or rejects deletion. It retries idempotently with the same
+operation ID. A provider cleanup success response records that the provider
+accepted the operation, not that its physical media or Recoverable Items area
+was erased. For example,
 [Microsoft Graph's permanent-delete operation](https://learn.microsoft.com/en-us/graph/api/message-permanentdelete?view=graph-rest-1.0)
 can move a message to the mailbox's hidden purges area before Exchange removes
 it according to the mailbox retention policy. The receipt must show that
@@ -169,10 +183,10 @@ distinction.
 
 ### Limit and record exceptions
 
-Only the mailbox owner may add a long-term retention reason or a legal,
-contractual, tax, warranty, dispute, or security exception. The exception names
-the affected items or data class, reason, approver, start time, and next review
-date. It cannot be inferred from a classifier result.
+Only the mailbox owner may add a legal, contractual, tax, warranty, dispute, or
+security exception to an archive-deletion request. The exception names the
+affected items or data class, reason, approver, start time, and next review date.
+It cannot be inferred from a classifier result.
 
 An exception may postpone application deletion, but it does not widen telemetry
 or agent access. When a provider hold prevents final deletion, remove all
@@ -190,12 +204,13 @@ records, an action manifest, telemetry, and a DVC sample. The rehearsal must:
    plaintext fixture marker, and decrypt with the active key;
 2. rotate the key-encryption key, rewrap the fixture keys, and decrypt with only
    the new active version;
-3. move one fixture message to `pending_deletion`, restore it, and prove that
-   provider identity, thread membership, attachments, evidence links, and
-   action idempotency survive without duplicate effects;
-4. purge the other fixture with shortened test-only periods and verify absence
-   from R2 lookup and listing, all content-bearing Neon tables, the DVC remote,
-   managed DVC caches, exports, logs, and application reads;
+3. move one fixture message to `pending_mailbox_deletion`, permanently delete
+   its provider copy, and prove that the encrypted archive, attachments,
+   evidence links, and action idempotency survive without duplicate effects;
+4. move the other fixture to `pending_archive_deletion`, restore it, repeat the
+   request with shortened test-only periods, then verify absence from R2 lookup
+   and listing, all content-bearing Neon tables, the DVC remote, managed DVC
+   caches, exports, logs, and application reads;
 5. restore the Neon database to an isolated branch from a point before the
    fixture purge, run integrity checks, and delete the branch within 24 hours;
 6. prove that the production history, bucket-lock, lifecycle, log, and telemetry
@@ -210,11 +225,12 @@ must never restore private mailbox data into CI or a developer laptop.
 
 ## Consequences
 
-Inbox Signal has one deletion contract across the provider, R2, Neon, DVC,
-caches, exports, and derived knowledge. The 30-day reversible provider action
-and seven-day R2 lock make an accidental cleanup recoverable. Explicit purge
-verification prevents a lifecycle configuration or removed DVC pointer from
-being mistaken for deletion.
+Inbox Signal has separate, explicit contracts for provider cleanup and archive
+deletion. Cleaning up a mailbox preserves the encrypted R2 archive, while an
+archive deletion propagates across R2, Neon, DVC, caches, exports, and derived
+knowledge. The 30-day reversible actions and seven-day R2 lock make accidental
+deletion recoverable. Explicit purge verification prevents a lifecycle
+configuration or removed DVC pointer from being mistaken for deletion.
 
 Client-side encryption reduces the value of an R2-only compromise. The mail
 content service still receives a decryption key and can read authorized
@@ -222,15 +238,23 @@ objects, so its identity, logs, and capability checks remain part of the trusted
 boundary. Doppler becomes a required production dependency for key delivery and
 rotation.
 
-The 90-day raw window limits the ability to rerun future parsers over the full
-historical sample. The 180-day evaluation window makes some old experiments
-irreproducible after their private examples expire. Metrics, model artifacts,
-redacted error categories, and content-free provenance may remain, but they
-cannot reconstruct deleted examples.
+Indefinite raw retention allows future parsers to reprocess the full historical
+archive and makes the archive useful after provider cleanup. It also creates a
+second durable mailbox, increases storage cost and breach impact, and makes key
+custody a long-lived responsibility. The owner must explicitly delete the
+archive when those costs outweigh its value.
 
-Provider holds and backup windows mean physical deletion may finish after the
-project-controlled purge. The UI and receipt must say which boundary remains and
-its expected expiry. A failed or unverifiable store keeps the operation open.
+The 180-day evaluation window still makes some old experiments irreproducible
+after their private examples expire. A fresh sample can be generated from the
+retained raw archive. Metrics, model artifacts, redacted error categories, and
+content-free provenance may remain after archive deletion, but they cannot
+reconstruct deleted examples.
+
+When provider cleanup and archive deletion are both requested, provider holds
+and backup windows may leave the provider copy in place after the
+project-controlled purge. The UI and receipt must say which boundary remains
+and its expected expiry. A failed or unverifiable store keeps the operation
+open.
 
 ## Alternatives considered
 
@@ -248,12 +272,13 @@ rotation rewrite every object and would give one key direct access to every
 ciphertext. Per-object data keys contain compromise and make rotation a bounded
 rewrap operation.
 
-### Keep raw mail indefinitely for future models
+### Expire raw mail after a bounded processing window
 
-An unlimited corpus would make later extraction and evaluation easier. It would
-also create a second permanent mailbox and contradict deletion from the source
-provider. Selected records can be retained with an explicit reason; ordinary
-raw imports expire.
+A bounded window would reduce storage cost and the impact of a future
+compromise. It would also turn R2 into a processing cache, prevent later parsers
+from reprocessing the historical corpus, and remove the project's independent
+recovery source after provider cleanup. Explicit archive deletion provides the
+owner-controlled boundary instead.
 
 ### Treat a removed database row or DVC pointer as deletion
 

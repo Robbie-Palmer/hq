@@ -174,8 +174,10 @@ the provider result before marking the action complete.
 Ordinary deletion first moves mail to trash and records a recovery deadline.
 Permanent purge is a separate batch action. That separation makes aggressive
 cleanup practical without allowing one poor rule to erase years of mail in a
-single run. Retained copies in R2 have their own deletion policy so that
-"deleted from the mailbox" does not quietly mean "stored forever elsewhere."
+single run. The encrypted R2 archive is retained indefinitely by default, so
+mailbox cleanup does not erase the historical corpus. Deleting an archive item
+is a separate explicit action with its own recovery window, final approval, and
+verified purge across project-controlled stores.
 
 # Agent identity and authority
 
