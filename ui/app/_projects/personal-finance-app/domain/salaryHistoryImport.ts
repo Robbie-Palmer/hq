@@ -21,6 +21,7 @@ export const SALARY_IMPORT_FIELDS = [
   "grossPay",
   "baseSalary",
   "variablePay",
+  "pensionablePay",
   "taxablePay",
   "takeHomePay",
   "observedIncomeTax",
@@ -56,6 +57,7 @@ export const SALARY_IMPORT_FIELD_LABELS: Record<SalaryImportField, string> = {
   grossPay: "Gross pay before pension",
   baseSalary: "Base salary",
   variablePay: "Variable pay or bonus",
+  pensionablePay: "Pensionable pay",
   taxablePay: "Taxable pay",
   takeHomePay: "Take-home pay",
   observedIncomeTax: "Observed Income Tax",
@@ -130,6 +132,7 @@ const HEADER_ALIASES: Record<SalaryImportField, readonly string[]> = {
   ],
   baseSalary: ["base salary", "base pay"],
   variablePay: ["variable pay", "bonus", "commission"],
+  pensionablePay: ["pensionable pay", "scheme pensionable pay"],
   taxablePay: ["taxable pay", "taxable salary"],
   takeHomePay: ["take home pay", "take home", "net pay", "net salary"],
   observedIncomeTax: ["observed income tax", "income tax", "paye tax"],
@@ -671,6 +674,7 @@ function parseSalaryRow(
     grossPay: numberValue(cell(row, mapping, "grossPay")),
     baseSalary: numberValue(cell(row, mapping, "baseSalary")),
     variablePay: numberValue(cell(row, mapping, "variablePay")),
+    pensionablePay: numberValue(cell(row, mapping, "pensionablePay")),
     taxablePay: numberValue(cell(row, mapping, "taxablePay")),
     takeHomePay: numberValue(cell(row, mapping, "takeHomePay")),
     observedIncomeTax: numberValue(cell(row, mapping, "observedIncomeTax")),
@@ -741,7 +745,7 @@ export function parseSalaryImport(
   return { records, diagnostics };
 }
 
-export const SALARY_HISTORY_TEMPLATE_CSV = `person,employer,employment_id,currency,jurisdiction,effective_start,effective_end,pay_frequency,amount_type,work_fraction,gross_pay_before_pension,base_salary,variable_pay,taxable_pay,take_home_pay,observed_income_tax,observed_employee_national_insurance,other_deductions,other_annual_taxable_income,observed_tax_code,national_insurance_category,company_director,employee_pension_type,employee_pension_rate,employee_pension_basis,employer_pension_type,employer_pension_rate,employer_pension_basis
-Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-04-01,2022-09-30,monthly,annual salary,100%,48000,48000,0,45600,35200,8300,4300,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
-Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-10-01,2023-03-31,monthly,annual salary,100%,54000,52000,2000,51300,38900,10400,4900,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
+export const SALARY_HISTORY_TEMPLATE_CSV = `person,employer,employment_id,currency,jurisdiction,effective_start,effective_end,pay_frequency,amount_type,work_fraction,gross_pay_before_pension,base_salary,variable_pay,pensionable_pay,taxable_pay,take_home_pay,observed_income_tax,observed_employee_national_insurance,other_deductions,other_annual_taxable_income,observed_tax_code,national_insurance_category,company_director,employee_pension_type,employee_pension_rate,employee_pension_basis,employer_pension_type,employer_pension_rate,employer_pension_basis
+Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-04-01,2022-09-30,monthly,annual salary,100%,48000,48000,0,48000,45600,35200,8300,4300,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
+Alex Example,Northstar Ltd,northstar-engineer,GBP,England,2022-10-01,2023-03-31,monthly,annual salary,100%,54000,52000,2000,52000,51300,38900,10400,4900,200,0,1257L,A,no,salary sacrifice,5%,gross pay,other,4%,gross pay
 `;

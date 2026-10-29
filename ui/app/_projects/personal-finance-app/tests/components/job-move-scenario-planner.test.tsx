@@ -93,7 +93,9 @@ function trackerValue() {
         jurisdiction: "England",
         employeePensionRate: 0.05,
         employeePensionMethod: "salarySacrifice",
+        employeePensionBasis: "grossPay",
         employerPensionRate: 0.05,
+        employerPensionBasis: "grossPay",
         annualTakeHomeOverride: 55_000,
         annualSpendingOverride: 42_000,
         destinationAccountId: "current",
@@ -118,7 +120,7 @@ function trackerValue() {
         kind: "tax-derived",
         taxYear: "2026-27",
         calculationVersion: "historical-salary-v1",
-        ruleDatasetVersion: "2026.10.3",
+        ruleDatasetVersion: "2026.10.4",
       },
       timeline: [
         {

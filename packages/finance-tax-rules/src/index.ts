@@ -130,6 +130,7 @@ export { ruleDataset } from "./data";
 export * from "./householdTax";
 export * from "./historicalSalary";
 export * from "./salaryAdapter";
+export * from "./workplacePension";
 export type {
   Jurisdiction,
   PayPeriod,
@@ -149,6 +150,7 @@ export {
   payeTaxBasisSchema,
   payPeriodSchema,
   pensionContributionMethodSchema,
+  pensionPayPeriodSchema,
   pensionRuleSchema,
   rateBasisPointsSchema,
   sourceSchema,

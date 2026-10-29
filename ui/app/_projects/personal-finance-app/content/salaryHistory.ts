@@ -242,6 +242,7 @@ export const salaryHistory: SalaryHistoryRecord[] = [
     grossPay: 52_000,
     baseSalary: 48_000,
     variablePay: 4_000,
+    pensionablePay: 48_000,
     taxablePay: 49_400,
     takeHomePay: 36_600,
     otherTaxableIncome: 0,

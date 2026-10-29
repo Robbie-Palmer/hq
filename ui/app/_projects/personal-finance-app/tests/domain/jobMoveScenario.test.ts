@@ -88,7 +88,9 @@ function employedScenario(): JobMoveScenario {
     jurisdiction: "Ireland",
     employeePensionRate: 0.08,
     employeePensionMethod: "salarySacrifice",
+    employeePensionBasis: "grossPay",
     employerPensionRate: 0.1,
+    employerPensionBasis: "grossPay",
     annualTakeHomeOverride: 48_000,
     destinationAccountId: "current",
     pensionAccountId: "pension",
@@ -160,6 +162,93 @@ describe("job-move scenarios", () => {
     });
     expect(result.annualTakeHomePay).toBeGreaterThan(0);
     expect(result.annualTakeHomePay).toBeLessThan(78_000);
+  });
+
+  it("uses the same qualifying-earnings calculator for a bonus offer", () => {
+    const result = calculateJobMoveCompensation({
+      ...employedScenario(),
+      roleStartDate: "2026-10-01",
+      jurisdiction: "England",
+      baseGrossPay: 24_000,
+      variableGrossPay: 6_000,
+      employeePensionRate: 0.05,
+      employeePensionBasis: "qualifyingEarnings",
+      employerPensionRate: 0.03,
+      employerPensionBasis: "qualifyingEarnings",
+      variablePayPensionTreatment: "singlePayment",
+      annualTakeHomeOverride: undefined,
+    });
+
+    expect(result).toMatchObject({
+      annualEmployeePensionContribution: 997.45,
+      annualEmployerPensionContribution: 598.47,
+      annualProviderPensionTaxRelief: 0,
+      calculation: { kind: "tax-derived" },
+    });
+  });
+
+  it("supports explicit pension amounts and employer matching policies", () => {
+    const fixed = calculateJobMoveCompensation({
+      ...employedScenario(),
+      annualEmployeePensionOverride: 4_000,
+      annualEmployerPensionOverride: 6_000,
+    });
+    const matched = calculateJobMoveCompensation({
+      ...employedScenario(),
+      employeePensionRate: 0.05,
+      employerPensionPolicy: {
+        kind: "matching",
+        basis: "gross-pay",
+        tiers: [
+          {
+            employeeRateUpToBasisPoints: 300,
+            matchRatioBasisPoints: 10_000,
+          },
+          {
+            employeeRateUpToBasisPoints: 500,
+            matchRatioBasisPoints: 5_000,
+          },
+        ],
+        schemeMinimumRateBasisPoints: 0,
+        maximumRateBasisPoints: 350,
+      },
+    });
+
+    expect(fixed).toMatchObject({
+      annualEmployeePensionContribution: 4_000,
+      annualEmployerPensionContribution: 6_000,
+    });
+    expect(matched.annualEmployerPensionContribution).toBe(2_730);
+  });
+
+  it("keeps relief-at-source provider relief separate in a job forecast", () => {
+    const result = calculateJobMoveCompensation({
+      ...employedScenario(),
+      roleStartDate: "2026-10-01",
+      jurisdiction: "England",
+      baseGrossPay: 60_000,
+      variableGrossPay: 0,
+      employeePensionRate: 0.05,
+      employeePensionMethod: "reliefAtSource",
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+    });
+
+    expect(result).toMatchObject({
+      annualEmployeePensionContribution: 3_000,
+      annualEmployerPensionContribution: 0,
+      annualProviderPensionTaxRelief: 600,
+      calculation: { kind: "tax-derived" },
+    });
+  });
+
+  it("refuses to apply a rate when the scheme basis is unknown", () => {
+    expect(() =>
+      calculateJobMoveCompensation({
+        ...employedScenario(),
+        employeePensionBasis: undefined,
+      }),
+    ).toThrow("employee contribution rule is unknown");
   });
 
   it("compares a role with an employment gap against unchanged baseline flows", () => {
