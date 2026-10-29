@@ -101,6 +101,11 @@ description = "Validate review outcomes and produce the evidence-gated scorecard
 depends = ["install", "review-evidence:pull"]
 run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro evaluate_reviews"
 
+[tasks."evaluate:publication-pilot"]
+description = "Evaluate the preregistered repository publication pilot"
+depends = ["install"]
+run = "bash scripts/evaluate-publication-pilot.sh"
+
 [tasks.evaluate]
 description = "Produce the full cohort, producer, edit, and decision scorecard"
 depends = ["install"]
