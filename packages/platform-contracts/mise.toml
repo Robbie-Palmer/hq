@@ -1,3 +1,7 @@
+[tools]
+python = "3.12"
+uv = "0.12.22"
+
 [tasks.install]
 description = "Install platform contract dependencies"
 depends = ["//:install"]
@@ -12,6 +16,46 @@ description = "Test platform contracts"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."python:lock"]
+description = "Lock Python feature-flag conformance dependencies"
+run = "uv lock --project python"
+
+[tasks."python:sync"]
+description = "Install locked Python feature-flag conformance dependencies"
+run = "uv sync --project python --locked"
+
+[tasks."python:lint"]
+description = "Lint Python feature-flag conformance tests"
+depends = ["python:sync"]
+run = "uv run --project python --locked ruff check python"
+
+[tasks."python:typecheck"]
+description = "Typecheck Python feature-flag conformance tests"
+depends = ["python:sync"]
+run = "uv run --project python --locked mypy python/tests"
+
+[tasks."python:test"]
+description = "Run Python feature-flag conformance tests"
+depends = ["python:sync"]
+run = "uv run --project python --locked pytest"
+
+[tasks."feature-flags:worker:check"]
+description = "Prove the PostHog Node provider bundles for Cloudflare Workers"
+depends = ["install"]
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+
+bundle_dir="$(mktemp -d)"
+trap 'rm -rf "$bundle_dir"' EXIT
+pnpm exec wrangler deploy --config wrangler.feature-flags.toml --dry-run --outdir "$bundle_dir"
+rg -q "posthog-edge" "$bundle_dir"
+if rg -q "node:(async_hooks|fs|os|zlib)" "$bundle_dir"; then
+  echo "Cloudflare bundle selected the Node-only PostHog entrypoint" >&2
+  exit 1
+fi
+"""
+
 [tasks."test:coverage"]
 description = "Test platform contracts with coverage"
 depends = ["install"]
@@ -19,4 +63,4 @@ run = "pnpm test:coverage"
 
 [tasks.check]
 description = "Check platform contracts"
-depends = ["typecheck", "test"]
+depends = ["typecheck", "test", "python:lint", "python:typecheck", "python:test", "feature-flags:worker:check"]

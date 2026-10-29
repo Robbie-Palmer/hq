@@ -786,18 +786,39 @@ importers:
         specifier: ^4.2.1
         version: 4.6.7
     devDependencies:
+      '@openfeature/server-sdk':
+        specifier: 1.23.0
+        version: 1.23.0(@openfeature/core@1.12.0)
+      '@openfeature/web-sdk':
+        specifier: 1.10.0
+        version: 1.10.0(@openfeature/core@1.12.0)
+      '@posthog/openfeature-node-provider':
+        specifier: 0.1.3
+        version: 0.1.3(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))(posthog-node@5.60.1(@opentelemetry/api@1.9.1)(rxjs@7.8.2))
+      '@posthog/openfeature-web-provider':
+        specifier: 0.1.1
+        version: 0.1.1(@openfeature/core@1.12.0)(@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0))(posthog-js@1.442.1(@types/react@19.3.0)(react@19.3.0))
       '@types/node':
         specifier: ^24
         version: 24.19.1
       '@vitest/coverage-v8':
         specifier: ^5.0.0
         version: 5.0.3(vitest@5.0.3)
+      posthog-js:
+        specifier: 1.442.1
+        version: 1.442.1(@types/react@19.3.0)(react@19.3.0)
+      posthog-node:
+        specifier: 5.60.1
+        version: 5.60.1(@opentelemetry/api@1.9.1)(rxjs@7.8.2)
       typescript:
         specifier: ^5
         version: 5.9.3
       vitest:
         specifier: ^5.0.0
         version: 5.0.3(@opentelemetry/api@1.9.1)(@types/node@24.19.1)(@vitest/coverage-v8@5.0.3)(jsdom@30.1.1(@noble/hashes@2.4.0))(vite@8.3.2(@types/node@24.19.1)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
+      wrangler:
+        specifier: ^4
+        version: 4.146.0(@cloudflare/workers-types@5.20261002.1)(@types/node@24.19.1)
       yaml:
         specifier: 2.9.1
         version: 2.9.1
@@ -3537,6 +3558,20 @@ packages:
   '@octokit/types@18.0.0':
     resolution: {integrity: sha512-l6bAF43PNxkJp6g+W4PjoUSSkxHomXw2nOum5CTftJz1NlV3vu93NImgOYtLf6CbBUb5j+fiuzW0PPQ5JTSvZA==}
 
+  '@openfeature/core@1.12.0':
+    resolution: {integrity: sha512-7PCPzyd1OC19begz30+CRknFB0ChtyaZUhk7YWrk+Bov1fpVw0HYkTXtoxxsvPfDZB9P9WsT7uixN+Z8f9+bcA==}
+
+  '@openfeature/server-sdk@1.23.0':
+    resolution: {integrity: sha512-JWeLvltJIV0AFgOfbw7hK9b9Rw/5wWq+RMhCIU9sJtAqarxr8hSPglG+JAGGhYdElAz3Qwe9W3ApWyPNkQEyqg==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      '@openfeature/core': ^1.12.0
+
+  '@openfeature/web-sdk@1.10.0':
+    resolution: {integrity: sha512-qf+JmJSnaslhegNwoDDLn2Cf72P6cIobuAQPUb61MSkzJOZuVLU6f9pv/90FlLcK6UDtp6od//xZHW712rBrmg==}
+    peerDependencies:
+      '@openfeature/core': ^1.12.0
+
   '@opentelemetry/api-logs@0.220.0':
     resolution: {integrity: sha512-CmVa4ImJ+ynfrPMNaAXHET6Bhb44SwzmfyVJFq9ni2jgXJR/l7C6gfVFddNmHP+ZOkP9cf4f9DBe68qVLTHc9w==}
     engines: {node: '>=8.0.0'}
@@ -4426,14 +4461,39 @@ packages:
       react:
         optional: true
 
+  '@posthog/browser-common@0.10.2':
+    resolution: {integrity: sha512-ieHSMmY4xG+HfkMTrT9yZoG0NMBWyA4aXMFPCuOOV+xRe706+zoPuwqmNHXv7LGXfi6CvOv4qksEoPNWfP359Q==}
+
   '@posthog/browser-common@0.9.0':
     resolution: {integrity: sha512-EWoVzs1vVY7ihpn8yOjj3jyjriHUEEMVSBNL/TW3hk09fTriWRe76vJXrRg0G0yjTYxHmtlSkNn4mOV24ZEzzA==}
 
   '@posthog/core@1.55.2':
     resolution: {integrity: sha512-2mYxGbDmTLUs096VbcZqSWo0lrI48/BrX65r54NynxxFq409BOx9w73HxOAtOKZ1vblkdV6/GxQTe7KDcIQidg==}
 
+  '@posthog/core@1.61.2':
+    resolution: {integrity: sha512-l3b6Dc2NmItwmyu6ot7K2jtStQOAQjZw/PB/gpZwk2W6SBCbvPg6YJzReSBSQLuok19ridbfVNk70a5hgoGX2Q==}
+
+  '@posthog/openfeature-node-provider@0.1.3':
+    resolution: {integrity: sha512-Ma2uLJQ6rYoV8pGRoVSQxJJ9loKUHiDyJ1ediiE4W4s1PhtoSdnOIXwrRfX4I05PjTvlNiXU2z5KyXit1oVlhA==}
+    engines: {node: ^20.20.0 || >=22.22.0}
+    peerDependencies:
+      '@openfeature/core': ^1.11.0
+      '@openfeature/server-sdk': ^1.17.0
+      posthog-node: '>=5.21.2'
+
+  '@posthog/openfeature-web-provider@0.1.1':
+    resolution: {integrity: sha512-XBd4oxYB7/U8jC8cHYCTu7F2ISUu4mZM5vW6RZIqv1SCdRCXnpIblDWNUCIpMpJJ4hBxtAimllituiCqdageNA==}
+    engines: {node: ^20.20.0 || >=22.22.0}
+    peerDependencies:
+      '@openfeature/core': ^1.11.0
+      '@openfeature/web-sdk': ^1.7.0
+      posthog-js: '>=1.336.0'
+
   '@posthog/types@1.412.4':
     resolution: {integrity: sha512-Q7lV9O9TbLngjOYw1ucm3bS3tn48xb1B4ZQdDy8gv7yfKe99hCTeWYG4xZ36nJM80VxpTF9TriiJt5hngDOkBg==}
+
+  '@posthog/types@1.418.0':
+    resolution: {integrity: sha512-WqDXUWH1R8OilBp2PfDpQIRZSCs3QyOnw7H3YK7lvZLCMIsOqSZAKJrrqYWt4f7FvnVCACRuNGCC0HKh3J/HWw==}
 
   '@probe.gl/env@4.1.2':
     resolution: {integrity: sha512-KIcdjrEiEZVIGX9nh7pZSmTMIKrd+wCb09gyXqpYYI4hs9WMqrQHvKZ7KD8ASutf6kwARwgd4WNQn8aucLSz3g==}
@@ -9255,6 +9315,29 @@ packages:
       react:
         optional: true
 
+  posthog-js@1.442.1:
+    resolution: {integrity: sha512-tk75+K4Ti13cli/oMWRd69gjdU6zxD/pgGj956rX2Ke69pt6NrGuGMKhSozgQtVYUA4em6e0h8Q0ZxYhAvAvIA==}
+    peerDependencies:
+      '@types/react': '>=16.8.0'
+      react: '>=16.8.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      react:
+        optional: true
+
+  posthog-node@5.60.1:
+    resolution: {integrity: sha512-dZPYbTi9gwBf0WFkhWa0CbKg/rbwMANT7OjaoQZbz1BZO/OFbmJWRUXY1OyKi7vu6Wiq/zRPPzlKsk9krMOBkQ==}
+    engines: {node: ^20.20.0 || >=22.22.0}
+    peerDependencies:
+      '@opentelemetry/api': ^1.2.0
+      rxjs: ^7.0.0
+    peerDependenciesMeta:
+      '@opentelemetry/api':
+        optional: true
+      rxjs:
+        optional: true
+
   powershell-utils@0.1.0:
     resolution: {integrity: sha512-dM0jVuXJPsDN6DvRpea484tCUaMiXWjuCn++HGTqUWzGDjv5tZkEZldAJ/UMlqRYGFrD/etByo4/xOuC/snX2A==}
     engines: {node: '>=20'}
@@ -12723,6 +12806,16 @@ snapshots:
     dependencies:
       '@octokit/openapi-types': 29.0.1
 
+  '@openfeature/core@1.12.0': {}
+
+  '@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0)':
+    dependencies:
+      '@openfeature/core': 1.12.0
+
+  '@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0)':
+    dependencies:
+      '@openfeature/core': 1.12.0
+
   '@opentelemetry/api-logs@0.220.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -13296,6 +13389,14 @@ snapshots:
     optionalDependencies:
       react: 19.3.0
 
+  '@posthog/browser-common@0.10.2':
+    dependencies:
+      '@posthog/core': 1.61.2
+      '@posthog/types': 1.418.0
+      preact: 10.29.8
+    transitivePeerDependencies:
+      - preact-render-to-string
+
   '@posthog/browser-common@0.9.0':
     dependencies:
       '@posthog/core': 1.55.2
@@ -13305,7 +13406,25 @@ snapshots:
     dependencies:
       '@posthog/types': 1.412.4
 
+  '@posthog/core@1.61.2':
+    dependencies:
+      '@posthog/types': 1.418.0
+
+  '@posthog/openfeature-node-provider@0.1.3(@openfeature/core@1.12.0)(@openfeature/server-sdk@1.23.0(@openfeature/core@1.12.0))(posthog-node@5.60.1(@opentelemetry/api@1.9.1)(rxjs@7.8.2))':
+    dependencies:
+      '@openfeature/core': 1.12.0
+      '@openfeature/server-sdk': 1.23.0(@openfeature/core@1.12.0)
+      posthog-node: 5.60.1(@opentelemetry/api@1.9.1)(rxjs@7.8.2)
+
+  '@posthog/openfeature-web-provider@0.1.1(@openfeature/core@1.12.0)(@openfeature/web-sdk@1.10.0(@openfeature/core@1.12.0))(posthog-js@1.442.1(@types/react@19.3.0)(react@19.3.0))':
+    dependencies:
+      '@openfeature/core': 1.12.0
+      '@openfeature/web-sdk': 1.10.0(@openfeature/core@1.12.0)
+      posthog-js: 1.442.1(@types/react@19.3.0)(react@19.3.0)
+
   '@posthog/types@1.412.4': {}
+
+  '@posthog/types@1.418.0': {}
 
   '@probe.gl/env@4.1.2': {}
 
@@ -18992,6 +19111,31 @@ snapshots:
       react: 19.3.0
     transitivePeerDependencies:
       - preact-render-to-string
+
+  posthog-js@1.442.1(@types/react@19.3.0)(react@19.3.0):
+    dependencies:
+      '@posthog/browser-common': 0.10.2
+      '@posthog/core': 1.61.2
+      '@posthog/types': 1.418.0
+      core-js: 3.50.0
+      dompurify: 3.4.15
+      fflate: 0.4.9
+      preact: 10.29.8
+      query-selector-shadow-dom: 1.0.1
+      web-vitals: 6.2.1
+      web-vitals-soft-navs: web-vitals@6.2.1
+    optionalDependencies:
+      '@types/react': 19.3.0
+      react: 19.3.0
+    transitivePeerDependencies:
+      - preact-render-to-string
+
+  posthog-node@5.60.1(@opentelemetry/api@1.9.1)(rxjs@7.8.2):
+    dependencies:
+      '@posthog/core': 1.61.2
+    optionalDependencies:
+      '@opentelemetry/api': 1.9.1
+      rxjs: 7.8.2
 
   powershell-utils@0.1.0: {}
 
