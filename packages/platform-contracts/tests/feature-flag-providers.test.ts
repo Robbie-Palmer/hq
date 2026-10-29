@@ -10,6 +10,7 @@ import { PostHogWebProvider } from "@posthog/openfeature-web-provider";
 import type { PostHog as PostHogWebClient } from "posthog-js";
 import type { PostHog as PostHogNodeClient } from "posthog-node";
 import { describe, expect, it, vi } from "vitest";
+import workerFixture from "../fixtures/cloudflare-worker";
 
 type JsonObject = Record<string, string>;
 
@@ -230,6 +231,15 @@ function resolveWebFixture(
 }
 
 describe("official PostHog OpenFeature providers", () => {
+  it("keeps the Cloudflare build fixture disabled and inspectable", async () => {
+    const response = workerFixture.fetch();
+
+    await expect(response.json()).resolves.toEqual({
+      provider: "PostHogServerProvider",
+      sdk: "posthog-node",
+    });
+  });
+
   it("resolves the shared typed fixtures through the Node provider", async () => {
     const fixture = await loadFixture();
     const evaluations = new Map(
