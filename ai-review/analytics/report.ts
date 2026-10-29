@@ -316,27 +316,26 @@ function prKey(repository: string, pullRequestNumber: number): string {
   return `${repository}#${pullRequestNumber}`;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function setEarlierValue(values: Map<string, number>, key: string, value: number): void {
+  const existing = values.get(key);
+  if (existing === undefined || value < existing) values.set(key, value);
+}
+
 function latencyMetricsFor(subset: Subset): number[] {
   const firstTriggerByPullRequest = new Map<string, number>();
   for (const run of subset.runs) {
     if (!run.findingIdentityAvailable || run.triggeredAt === null) continue;
     const key = prKey(run.repository, run.pullRequestNumber);
-    const existing = firstTriggerByPullRequest.get(key);
-    if (existing === undefined || run.triggeredAt.getTime() < existing) {
-      firstTriggerByPullRequest.set(key, run.triggeredAt.getTime());
-    }
+    setEarlierValue(firstTriggerByPullRequest, key, run.triggeredAt.getTime());
   }
   const latencyByPullRequest = new Map<string, number>();
   for (const finding of subset.findings) {
     if (!finding.accepted || finding.outcomeAt === null) continue;
-    const firstTrigger = firstTriggerByPullRequest.get(prKey(finding.repository, finding.pullRequestNumber));
+    const key = prKey(finding.repository, finding.pullRequestNumber);
+    const firstTrigger = firstTriggerByPullRequest.get(key);
     if (firstTrigger === undefined) continue;
     const latency = finding.outcomeAt.getTime() - firstTrigger;
-    const existing = latencyByPullRequest.get(prKey(finding.repository, finding.pullRequestNumber));
-    if (existing === undefined || latency < existing) {
-      latencyByPullRequest.set(prKey(finding.repository, finding.pullRequestNumber), latency);
-    }
+    setEarlierValue(latencyByPullRequest, key, latency);
   }
   return [...latencyByPullRequest.values()];
 }
@@ -797,6 +796,30 @@ function markdownTable(head: string[], rows: string[][]): string {
   return lines.join("\n");
 }
 
+function sliceValueRow(value: SliceValue): string[] {
+  const metrics = value.metrics;
+  const flags = [
+    value.mixedCompatibility ? "mixed-compatibility" : null,
+    value.outcomeAttribution === "unavailable"
+      ? "outcome-attribution-unavailable"
+      : null,
+  ]
+    .filter(Boolean)
+    .join(", ") || "—";
+  return [
+    value.key,
+    String(value.sampleSizes.reviewRuns),
+    String(value.sampleSizes.pullRequests),
+    String(value.sampleSizes.publishedFindings),
+    String(value.sampleSizes.adjudicatedFindings),
+    metrics === null ? "mixed" : formatRate(metrics.acceptanceRate.value),
+    metrics === null ? "mixed" : formatRate(metrics.fixThroughRate.value),
+    metrics === null ? "mixed" : formatRate(metrics.noiseRate.value),
+    metrics === null ? "mixed" : formatRate(metrics.noResponseShare.value),
+    flags,
+  ];
+}
+
 function renderMarkdown(report: Json): string {
   const lines: string[] = [];
   lines.push(`# ${String(report.title)}`, "");
@@ -844,24 +867,7 @@ function renderMarkdown(report: Json): string {
       "",
       markdownTable(
         ["Key", "Runs", "PRs", "Published", "Adjudicated", "Acceptance", "Fix-through", "Noise", "No-response", "Flags"],
-        // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-        slice.values.map((value) => [
-          value.key,
-          String(value.sampleSizes.reviewRuns),
-          String(value.sampleSizes.pullRequests),
-          String(value.sampleSizes.publishedFindings),
-          String(value.sampleSizes.adjudicatedFindings),
-          value.metrics === null ? "mixed" : formatRate(value.metrics.acceptanceRate.value),
-          value.metrics === null ? "mixed" : formatRate(value.metrics.fixThroughRate.value),
-          value.metrics === null ? "mixed" : formatRate(value.metrics.noiseRate.value),
-          value.metrics === null ? "mixed" : formatRate(value.metrics.noResponseShare.value),
-          [
-            value.mixedCompatibility ? "mixed-compatibility" : null,
-            value.outcomeAttribution === "unavailable" ? "outcome-attribution-unavailable" : null,
-          ]
-            .filter(Boolean)
-            .join(", ") || "—",
-        ]),
+        slice.values.map(sliceValueRow),
       ),
       "",
     );
@@ -913,7 +919,89 @@ function renderMarkdown(report: Json): string {
   return lines.join("\n");
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+interface ReportArguments {
+  marts?: string;
+  output?: string;
+  format?: string;
+  slices?: string;
+  "min-sample-size"?: string;
+  "allow-mixed-compatibility"?: boolean;
+  baseline?: string;
+  title?: string;
+}
+
+interface ReportOptions {
+  martsDir: string;
+  outputDir: string;
+  format: string;
+  dimensions: string[];
+  metrics: MetricOptions;
+  allowMixed: boolean;
+  title: string;
+}
+
+function loadBaseline(file: string | undefined): ReviewEfficiencyBaseline | null {
+  if (!file) return null;
+  const parsed = JSON.parse(fs.readFileSync(file, "utf8")) as Json;
+  const result = ReviewEfficiencyBaselineSchema.safeParse(parsed);
+  if (!result.success) {
+    fail("baseline file must contain positive modelCallsPerPullRequest and uncachedInputTokensPerPullRequest values");
+  }
+  return result.data;
+}
+
+function reportOptions(values: ReportArguments): ReportOptions {
+  if (!values.marts) usageError("--marts is required");
+  if (!values.output) usageError("--output is required");
+  if (!fs.existsSync(values.marts)) {
+    fail(
+      `marts not found at ${values.marts}; build them with ` +
+        "mise run //ai-review:scorecard:build (after mise run //ai-review:scorecard:pull) or pass --marts",
+    );
+  }
+  const format = values.format ?? "both";
+  if (!["json", "markdown", "both"].includes(format)) {
+    usageError(`unsupported format: ${values.format}`);
+  }
+  const minSampleSize = Number(values["min-sample-size"]);
+  if (!Number.isInteger(minSampleSize) || minSampleSize < 1) {
+    usageError("--min-sample-size must be a positive integer");
+  }
+  const dimensions = (values.slices ?? "")
+    .split(",")
+    .map((slice) => slice.trim())
+    .filter(Boolean);
+  const unknownDimension = dimensions.find(
+    (dimension) => !(ALL_DIMENSIONS as readonly string[]).includes(dimension),
+  );
+  if (unknownDimension) usageError(`unknown slice dimension: ${unknownDimension}`);
+  return {
+    martsDir: values.marts,
+    outputDir: values.output,
+    format,
+    dimensions,
+    metrics: { minSampleSize, baseline: loadBaseline(values.baseline) },
+    allowMixed: values["allow-mixed-compatibility"] === true,
+    title: values.title ?? "AI review scorecard report",
+  };
+}
+
+function writeReport(outputDir: string, format: string, report: Json): void {
+  fs.mkdirSync(outputDir, { recursive: true });
+  if (format === "json" || format === "both") {
+    fs.writeFileSync(
+      path.join(outputDir, "scorecard-report.json"),
+      `${JSON.stringify(report, null, 2)}\n`,
+    );
+  }
+  if (format === "markdown" || format === "both") {
+    fs.writeFileSync(
+      path.join(outputDir, "scorecard-report.md"),
+      renderMarkdown(report),
+    );
+  }
+}
+
 function main(): void {
   const args = parseArgs({
     options: {
@@ -927,46 +1015,10 @@ function main(): void {
       title: { type: "string", default: "AI review scorecard report" },
     },
   });
-  const { values } = args;
-  if (!values.marts) usageError("--marts is required");
-  if (!values.output) usageError("--output is required");
-  if (!fs.existsSync(values.marts)) {
-    fail(
-      `marts not found at ${values.marts}; build them with ` +
-        "mise run //ai-review:scorecard:build (after mise run //ai-review:scorecard:pull) or pass --marts",
-    );
-  }
-  if (!["json", "markdown", "both"].includes(values.format ?? "both")) {
-    usageError(`unsupported format: ${values.format}`);
-  }
-  const minSampleSize = Number(values["min-sample-size"]);
-  if (!Number.isInteger(minSampleSize) || minSampleSize < 1) {
-    usageError("--min-sample-size must be a positive integer");
-  }
-  const dimensions = (values.slices ?? "")
-    .split(",")
-    .map((slice) => slice.trim())
-    .filter(Boolean);
-  for (const dimension of dimensions) {
-    if (!(ALL_DIMENSIONS as readonly string[]).includes(dimension)) {
-      usageError(`unknown slice dimension: ${dimension}`);
-    }
-  }
-  let baseline: ReviewEfficiencyBaseline | null = null;
-  if (values.baseline) {
-    const parsed = JSON.parse(fs.readFileSync(values.baseline, "utf8")) as Json;
-    const result = ReviewEfficiencyBaselineSchema.safeParse(parsed);
-    if (!result.success) {
-      fail("baseline file must contain positive modelCallsPerPullRequest and uncachedInputTokensPerPullRequest values");
-    }
-    baseline = result.data;
-  }
-
-  const martsDir = values.marts;
+  const options = reportOptions(args.values);
+  const { martsDir } = options;
   const manifest = readManifest(martsDir);
   const subset = loadSubset(martsDir);
-  const options: MetricOptions = { minSampleSize, baseline };
-  const allowMixed = values["allow-mixed-compatibility"] === true;
 
   const legacyRuns = subset.runs.filter((run) => !run.findingIdentityAvailable);
   const superseded = subset.findings.filter((finding) => finding.outcome === "superseded").length;
@@ -976,13 +1028,17 @@ function main(): void {
   ].sort((left, right) => left - right);
   const martsManifest = manifest.marts as Record<string, Json>;
 
-  const modelComparison = buildModelComparison(subset, options, allowMixed);
+  const modelComparison = buildModelComparison(
+    subset,
+    options.metrics,
+    options.allowMixed,
+  );
 
   const report: Json = {
     schemaVersion: 1,
     reportType: "ai-review-scorecard-report",
     reportVersion: 1,
-    title: values.title,
+    title: options.title,
     source: {
       martVersion: manifest.martVersion,
       marts: Object.fromEntries(
@@ -996,7 +1052,7 @@ function main(): void {
     compatibility: {
       key: "role + promptVersion + publicationPolicyVersion",
       uniformByDefault: true,
-      mixedCompatibilityAllowed: allowMixed,
+      mixedCompatibilityAllowed: options.allowMixed,
     },
     sampleSizes: sampleSizesFor(subset),
     censoredOutcomes: {
@@ -1007,8 +1063,13 @@ function main(): void {
         0,
       ),
     },
-    metrics: metricsFor(subset, options),
-    slices: buildSlices(subset, dimensions, options, allowMixed),
+    metrics: metricsFor(subset, options.metrics),
+    slices: buildSlices(
+      subset,
+      options.dimensions,
+      options.metrics,
+      options.allowMixed,
+    ),
     modelComparison,
     notes: [
       "Outcome-derived metrics (acceptance, fix-through, noise, no-response share, cost per accepted finding) use only findings with durable finding identities from schema-v2 records; schema-v1 runs contribute spend, token, and call metrics with published-finding counts retained.",
@@ -1019,17 +1080,8 @@ function main(): void {
     ],
   };
 
-  const outputDir = values.output;
-  fs.mkdirSync(outputDir, { recursive: true });
-  const json = `${JSON.stringify(report, null, 2)}\n`;
-  const markdown = renderMarkdown(report);
-  if (values.format === "json" || values.format === "both") {
-    fs.writeFileSync(path.join(outputDir, "scorecard-report.json"), json);
-  }
-  if (values.format === "markdown" || values.format === "both") {
-    fs.writeFileSync(path.join(outputDir, "scorecard-report.md"), markdown);
-  }
-  console.log(`Wrote scorecard report to ${outputDir}`);
+  writeReport(options.outputDir, options.format, report);
+  console.log(`Wrote scorecard report to ${options.outputDir}`);
 }
 
 try {

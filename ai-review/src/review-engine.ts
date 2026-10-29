@@ -1264,7 +1264,117 @@ async function prepareScoutRoster(
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+interface SettledScoutCall {
+  scout: Scout;
+  latencyMs: number;
+  outcome: PromiseSettledResult<ModelResult>;
+}
+
+async function runScoutBatches(
+  reviewer: Reviewer,
+  scouts: Scout[],
+  source: string,
+  options: ScoutRunOptions,
+): Promise<SettledScoutCall[]> {
+  const callOptions =
+    options.maxTokens !== undefined || options.timeoutMs !== undefined
+      ? { maxTokens: options.maxTokens, timeoutMs: options.timeoutMs }
+      : undefined;
+  const settled: SettledScoutCall[] = [];
+  for (let offset = 0; offset < scouts.length; offset += SCOUT_CONCURRENCY) {
+    const batch = scouts.slice(offset, offset + SCOUT_CONCURRENCY);
+    const started = batch.map(() => Date.now());
+    const callScout = ({ model, provider }: Scout) => {
+      const args = [model, options.systemPrompt ?? scoutSystem, source] as const;
+      if (provider === "openrouter") {
+        return callOptions
+          ? reviewer.callOpenRouterScout(...args, callOptions)
+          : reviewer.callOpenRouterScout(...args);
+      }
+      return callOptions
+        ? reviewer.callOpenCodeScout(...args, callOptions)
+        : reviewer.callOpenCodeScout(...args);
+    };
+    const outcomes = await Promise.allSettled(batch.map(callScout));
+    batch.forEach((scout, index) => {
+      const outcome = outcomes[index];
+      if (!outcome) return;
+      settled.push({
+        scout,
+        latencyMs: Date.now() - (started[index] ?? Date.now()),
+        outcome,
+      });
+    });
+  }
+  return settled;
+}
+
+interface ScoutOutcomeSummary {
+  candidates: Record<string, Finding[]>;
+  costs: Record<string, number>;
+  invalidCounts: Record<string, number>;
+  outOfScopeCounts: Record<string, number>;
+  candidateCounts: Record<string, number>;
+  failed: string[];
+  metrics: ModelMetric[];
+}
+
+function collectScoutOutcomes(
+  settled: SettledScoutCall[],
+  allowedFiles: Set<string>,
+  initialFailed: string[],
+  initialMetrics: ModelMetric[],
+): ScoutOutcomeSummary {
+  const summary: ScoutOutcomeSummary = {
+    candidates: {},
+    costs: {},
+    invalidCounts: {},
+    outOfScopeCounts: {},
+    candidateCounts: {},
+    failed: initialFailed,
+    metrics: initialMetrics,
+  };
+  for (const { scout, latencyMs, outcome } of settled) {
+    if (outcome.status === "rejected") {
+      summary.failed.push(scout.model);
+      summary.metrics.push({
+        ...scout,
+        role: "scout",
+        ok: false,
+        latencyMs,
+        costUsd: 0,
+        error: errorMessage(outcome.reason),
+      });
+      continue;
+    }
+    summary.costs[scout.model] = outcome.value.cost;
+    const metric: ModelMetric = {
+      ...scout,
+      role: "scout",
+      ok: true,
+      latencyMs,
+      costUsd: outcome.value.cost,
+      usage: outcome.value.usage,
+    };
+    summary.metrics.push(metric);
+    try {
+      const result = validateScoutPayload(outcome.value.payload, allowedFiles);
+      summary.invalidCounts[scout.model] = result.invalidCount;
+      summary.outOfScopeCounts[scout.model] = result.outOfScopeCount;
+      summary.candidateCounts[scout.model] = result.accepted.length;
+      summary.candidates[scout.model] = result.accepted;
+    } catch (error) {
+      summary.failed.push(scout.model);
+      summary.invalidCounts[scout.model] = 1;
+      summary.outOfScopeCounts[scout.model] = 0;
+      summary.candidateCounts[scout.model] = 0;
+      metric.ok = false;
+      metric.error = errorMessage(error);
+    }
+  }
+  return summary;
+}
+
 export async function runScouts(
   env: Env,
   params: ReviewWorkflowParams,
@@ -1301,49 +1411,16 @@ export async function runScouts(
     prepared.context ?? "",
     prepared.guidelines ?? "",
   );
-  const scoutCallOptions =
-    options.maxTokens !== undefined || options.timeoutMs !== undefined
-      ? { maxTokens: options.maxTokens, timeoutMs: options.timeoutMs }
-      : undefined;
-  const settled: Array<{
-    scout: Scout;
-    latencyMs: number;
-    outcome: PromiseSettledResult<ModelResult>;
-  }> = [];
-  for (let offset = 0; offset < runnableScouts.length; offset += SCOUT_CONCURRENCY) {
-    const batch = runnableScouts.slice(offset, offset + SCOUT_CONCURRENCY);
-    const started = batch.map(() => Date.now());
-    const callScout = ({ model, provider }: Scout) => {
-      const args = [model, options.systemPrompt ?? scoutSystem, source] as const;
-      if (provider === "openrouter") {
-        if (scoutCallOptions) return reviewer.callOpenRouterScout(...args, scoutCallOptions);
-        return reviewer.callOpenRouterScout(...args);
-      }
-      if (scoutCallOptions) return reviewer.callOpenCodeScout(...args, scoutCallOptions);
-      return reviewer.callOpenCodeScout(...args);
-    };
-    const outcomes = await Promise.allSettled(batch.map(callScout));
-    batch.forEach((scout, index) => {
-      const outcome = outcomes[index];
-      if (outcome) {
-        settled.push({
-          scout,
-          latencyMs: Date.now() - (started[index] ?? Date.now()),
-          outcome,
-        });
-      }
-    });
-  }
-
-  const candidates: Record<string, Finding[]> = {};
-  const costs: Record<string, number> = {};
-  const invalidCounts: Record<string, number> = {};
-  const outOfScopeCounts: Record<string, number> = {};
-  const candidateCounts: Record<string, number> = {};
-  const failed = availability.unavailable.filter(
+  const settled = await runScoutBatches(
+    reviewer,
+    runnableScouts,
+    source,
+    options,
+  );
+  const initialFailed = availability.unavailable.filter(
     (model) => !isSkipped({ model, provider: "opencode" }),
   );
-  const metrics: ModelMetric[] = [
+  const initialMetrics: ModelMetric[] = [
     ...circuitSkipped.map((decision) => ({
       model: decision.model,
       provider: decision.provider,
@@ -1368,50 +1445,12 @@ export async function runScouts(
         error: "model is unavailable in the live OpenCode catalogue",
       })),
   ];
-  const allowedFiles = new Set(prepared.paths);
-  for (const { scout, latencyMs, outcome } of settled) {
-    if (outcome.status === "rejected") {
-      failed.push(scout.model);
-      metrics.push({
-        ...scout,
-        role: "scout",
-        ok: false,
-        latencyMs,
-        costUsd: 0,
-        error: errorMessage(outcome.reason),
-      });
-      continue;
-    }
-    costs[scout.model] = outcome.value.cost;
-    metrics.push({
-      ...scout,
-      role: "scout",
-      ok: true,
-      latencyMs,
-      costUsd: outcome.value.cost,
-      usage: outcome.value.usage,
-    });
-    try {
-      const { accepted, invalidCount, outOfScopeCount } = validateScoutPayload(
-        outcome.value.payload,
-        allowedFiles,
-      );
-      invalidCounts[scout.model] = invalidCount;
-      outOfScopeCounts[scout.model] = outOfScopeCount;
-      candidateCounts[scout.model] = accepted.length;
-      candidates[scout.model] = accepted;
-    } catch (error) {
-      failed.push(scout.model);
-      invalidCounts[scout.model] = 1;
-      outOfScopeCounts[scout.model] = 0;
-      candidateCounts[scout.model] = 0;
-      const metric = metrics.at(-1);
-      if (metric) {
-        metric.ok = false;
-        metric.error = errorMessage(error);
-      }
-    }
-  }
+  const summary = collectScoutOutcomes(
+    settled,
+    new Set(prepared.paths),
+    initialFailed,
+    initialMetrics,
+  );
   if (!options.isolated) {
     await recordModelReliability(
       env,
@@ -1419,18 +1458,12 @@ export async function runScouts(
         `${params.deliveryId}:${[...providers]
           .sort((a, b) => a.localeCompare(b))
           .join(",")}`,
-      metrics,
+      summary.metrics,
     );
   }
   return {
     models,
-    candidates,
-    failed,
-    candidateCounts,
-    invalidCounts,
-    outOfScopeCounts,
-    costs,
-    metrics,
+    ...summary,
     circuitSkipped,
   };
 }
@@ -1557,106 +1590,102 @@ export function estimateMergeCostCeilingUsd(
   ) / 1_000_000;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export async function mergeFindings(
-  env: Env,
-  params: ReviewWorkflowParams,
+function replayResolutions(
   prepared: PreparedReview,
-  scouts: ScoutRun,
-  options: MergeRunOptions = {},
-): Promise<MergedRun> {
-  if (prepared.rulePreview) {
-    assertReviewRulePreviewResolved(prepared.rulePreview, prepared.paths);
-  }
-  if (Object.keys(scouts.candidates).length === 0) {
-    const findingResolutions = (prepared.replayFindings ?? []).map(
-      ({ findingId }) => ({
-        finding_id: findingId,
-        verdict: "uncertain" as const,
-        evidence: "No scout produced coverage, so controlled replay could not be evaluated.",
-      }),
-    );
-    return {
-      result: {
-        summary:
-          "All scouts failed or were unavailable, so this run has no review coverage.",
-        findings: [],
-        ...(findingResolutions.length > 0
-          ? { finding_resolutions: findingResolutions }
-          : {}),
-      },
-      cost: 0,
-    };
-  }
-  const settings = modelSettings(env, params, "not-used-for-model-calls");
-  const reviewer = new Reviewer(settings);
-  const circuitSkip = options.isolated
-    ? undefined
-    : (await plannedCircuitSkips(env, [{
-        model: settings.merger,
-        provider: "openrouter",
-      }]))[0];
-  if (circuitSkip) {
-    const findingResolutions = (prepared.replayFindings ?? []).map(
-      ({ findingId }) => ({
-        finding_id: findingId,
-        verdict: "uncertain" as const,
-        evidence: "The merger was in circuit-breaker cooldown, so controlled replay could not be evaluated.",
-      }),
-    );
-    return {
-      result: {
-        summary:
-          "The merger was in circuit-breaker cooldown, so this run has no publishable findings.",
-        findings: [],
-        ...(findingResolutions.length > 0
-          ? { finding_resolutions: findingResolutions }
-          : {}),
-      },
-      cost: 0,
-      metric: {
-        model: circuitSkip.model,
-        provider: circuitSkip.provider,
-        role: "merger",
-        ok: false,
-        skipped: true,
-        consecutiveFailures: circuitSkip.consecutiveFailures,
-        cooldownUntil: circuitSkip.cooldownUntil,
-        latencyMs: 0,
-        costUsd: 0,
-        error: "model skipped during circuit-breaker cooldown",
-      },
-    };
-  }
+  evidence: string,
+): Array<{ finding_id: string; verdict: "uncertain"; evidence: string }> {
+  return (prepared.replayFindings ?? []).map(({ findingId }) => ({
+    finding_id: findingId,
+    verdict: "uncertain",
+    evidence,
+  }));
+}
+
+function uncoveredMergedRun(prepared: PreparedReview): MergedRun {
+  const findingResolutions = replayResolutions(
+    prepared,
+    "No scout produced coverage, so controlled replay could not be evaluated.",
+  );
+  return {
+    result: {
+      summary: "All scouts failed or were unavailable, so this run has no review coverage.",
+      findings: [],
+      ...(findingResolutions.length > 0
+        ? { finding_resolutions: findingResolutions }
+        : {}),
+    },
+    cost: 0,
+  };
+}
+
+function circuitSkippedMergedRun(
+  prepared: PreparedReview,
+  circuitSkip: CircuitSkippedModel,
+): MergedRun {
+  const findingResolutions = replayResolutions(
+    prepared,
+    "The merger was in circuit-breaker cooldown, so controlled replay could not be evaluated.",
+  );
+  return {
+    result: {
+      summary:
+        "The merger was in circuit-breaker cooldown, so this run has no publishable findings.",
+      findings: [],
+      ...(findingResolutions.length > 0
+        ? { finding_resolutions: findingResolutions }
+        : {}),
+    },
+    cost: 0,
+    metric: {
+      model: circuitSkip.model,
+      provider: circuitSkip.provider,
+      role: "merger",
+      ok: false,
+      skipped: true,
+      consecutiveFailures: circuitSkip.consecutiveFailures,
+      cooldownUntil: circuitSkip.cooldownUntil,
+      latencyMs: 0,
+      costUsd: 0,
+      error: "model skipped during circuit-breaker cooldown",
+    },
+  };
+}
+
+async function executeMerger(options: {
+  env: Env;
+  params: ReviewWorkflowParams;
+  prepared: PreparedReview;
+  scouts: ScoutRun;
+  settings: Settings;
+  reviewer: Reviewer;
+  runOptions: MergeRunOptions;
+}): Promise<MergedRun> {
+  const { env, params, prepared, scouts, settings, reviewer, runOptions } = options;
   const prompt = mergerPrompt(prepared, scouts);
   const started = Date.now();
   let merged: ModelResult | undefined;
   try {
     const mergerArguments = [
       settings.merger,
-      options.systemPrompt ?? statefulMergerSystem,
+      runOptions.systemPrompt ?? statefulMergerSystem,
       prompt,
       "merged_code_review",
       statefulMergerSchema,
-      options.maxTokens ?? MERGER_MAX_TOKENS,
+      runOptions.maxTokens ?? MERGER_MAX_TOKENS,
     ] as const;
-    merged = options.timeoutMs === undefined
+    merged = runOptions.timeoutMs === undefined
       ? await reviewer.callMerger(...mergerArguments)
-      : await reviewer.callMerger(...mergerArguments, options.timeoutMs);
+      : await reviewer.callMerger(...mergerArguments, runOptions.timeoutMs);
     const contributingScoutModels = Object.entries(scouts.candidates)
       .filter(([, findings]) => findings.length > 0)
       .map(([model]) => model);
-    normalizeMergedPayload(
-      merged.payload,
-      prepared,
-      contributingScoutModels,
-    );
+    normalizeMergedPayload(merged.payload, prepared, contributingScoutModels);
   } catch (error) {
     const costUsd = merged?.cost ?? 0;
-    if (!options.isolated) {
+    if (!runOptions.isolated) {
       await recordModelReliability(
         env,
-        options.observationId ?? `${params.deliveryId}:merger`,
+        runOptions.observationId ?? `${params.deliveryId}:merger`,
         [{
           model: settings.merger,
           provider: "openrouter",
@@ -1668,9 +1697,7 @@ export async function mergeFindings(
         }],
       );
     }
-    if (costUsd > 0) {
-      throw new MergerOutputError(errorMessage(error), costUsd);
-    }
+    if (costUsd > 0) throw new MergerOutputError(errorMessage(error), costUsd);
     throw error;
   }
   const metric: ModelMetric = {
@@ -1682,18 +1709,45 @@ export async function mergeFindings(
     costUsd: merged.cost,
     usage: merged.usage,
   };
-  if (!options.isolated) {
+  if (!runOptions.isolated) {
     await recordModelReliability(
       env,
-      options.observationId ?? `${params.deliveryId}:merger`,
+      runOptions.observationId ?? `${params.deliveryId}:merger`,
       [metric],
     );
   }
-  return {
-    result: merged.payload,
-    cost: merged.cost,
-    metric,
-  };
+  return { result: merged.payload, cost: merged.cost, metric };
+}
+
+export async function mergeFindings(
+  env: Env,
+  params: ReviewWorkflowParams,
+  prepared: PreparedReview,
+  scouts: ScoutRun,
+  options: MergeRunOptions = {},
+): Promise<MergedRun> {
+  if (prepared.rulePreview) {
+    assertReviewRulePreviewResolved(prepared.rulePreview, prepared.paths);
+  }
+  if (Object.keys(scouts.candidates).length === 0) return uncoveredMergedRun(prepared);
+  const settings = modelSettings(env, params, "not-used-for-model-calls");
+  const reviewer = new Reviewer(settings);
+  const circuitSkip = options.isolated
+    ? undefined
+    : (await plannedCircuitSkips(env, [{
+        model: settings.merger,
+        provider: "openrouter",
+      }]))[0];
+  if (circuitSkip) return circuitSkippedMergedRun(prepared, circuitSkip);
+  return executeMerger({
+    env,
+    params,
+    prepared,
+    scouts,
+    settings,
+    reviewer,
+    runOptions: options,
+  });
 }
 
 export async function publishReview(
@@ -1874,8 +1928,7 @@ export async function recordReview(options: {
   await recordReviewTerminal({ ...options, status: "published" });
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-export async function recordReviewTerminal(options: {
+interface ReviewTerminalOptions {
   env: Env;
   params: ReviewWorkflowParams;
   instanceId: string;
@@ -1890,7 +1943,114 @@ export async function recordReviewTerminal(options: {
   error?: string;
   failedPhase?: string;
   incurredCostUsd?: number;
-}): Promise<void> {
+}
+
+function terminalReviewerConfiguration(env: Env) {
+  return {
+    openRouterScouts: csv(env.AI_REVIEW_MODELS, DEFAULT_OPENROUTER_SCOUTS),
+    openCodeScouts: csv(env.AI_REVIEW_OPENCODE_MODELS, []),
+    merger: env.AI_REVIEW_MERGER_MODEL?.trim() || DEFAULT_MERGER,
+    requireZeroDataRetention: ["1", "true", "yes", "on"].includes(
+      env.AI_REVIEW_ZDR?.trim().toLowerCase() ?? "",
+    ),
+  };
+}
+
+function terminalCoverage(prepared: PreparedReview | undefined) {
+  if (!prepared) return undefined;
+  return {
+    ...prepared.coverage,
+    paths: prepared.paths,
+    omitted: prepared.omitted,
+  };
+}
+
+function terminalFindings(
+  summary: string | undefined,
+  artifacts: IdentifiedReviewArtifacts | undefined,
+) {
+  if (summary === undefined && !artifacts) return undefined;
+  return {
+    summary,
+    published: artifacts?.publishedFindings ?? [],
+    hidden: artifacts?.hiddenFindings ?? [],
+  };
+}
+
+function terminalRecord(
+  options: ReviewTerminalOptions,
+  headSha: string,
+  coverageManifest: ReviewCoverageManifest | undefined,
+) {
+  const { env, params, instanceId, status, timestamp } = options;
+  const { prepared, scouts, merged, artifacts, publication } = options;
+  const summary =
+    merged && typeof merged.result.summary === "string"
+      ? merged.result.summary
+      : undefined;
+  return {
+    schemaVersion: 2,
+    recordType: "review-run-terminal",
+    status,
+    repository: params.repository,
+    pullRequestNumber: params.pullRequestNumber,
+    headSha,
+    diffFingerprint: prepared?.diffFingerprint,
+    configFingerprint: prepared?.configFingerprint,
+    promptVersion: env.AI_REVIEW_PROMPT_VERSION,
+    reviewerConfiguration: terminalReviewerConfiguration(env),
+    guardrailPolicy: guardrailPolicy(env),
+    trigger: {
+      deliveryId: params.deliveryId,
+      eventName: params.eventName,
+      action: params.action,
+      force: params.force,
+      webhookHeadSha: params.headSha,
+    },
+    pullRequest: prepared?.pullRequest,
+    change: prepared?.changeProfile,
+    coverage: terminalCoverage(prepared),
+    coverageManifest,
+    rulePreview: prepared?.rulePreview,
+    hunks: artifacts?.hunks ?? prepared?.hunks ?? [],
+    candidates: artifacts?.candidates ?? {},
+    findings: terminalFindings(summary, artifacts),
+    models: scouts
+      ? [...scouts.metrics, ...(merged?.metric ? [merged.metric] : [])]
+      : [],
+    runCostUsd: publication?.runCostUsd ?? options.incurredCostUsd ?? 0,
+    commentId: publication?.commentId,
+    findingPublications: publication?.findings ?? [],
+    terminal: {
+      reason: options.reason,
+      error: options.error,
+      failedPhase: options.failedPhase,
+    },
+    workflow: {
+      instanceId,
+      triggeredAt: timestamp.toISOString(),
+      recordedAt: new Date().toISOString(),
+    },
+  };
+}
+
+function terminalCoverageManifest(
+  prepared: PreparedReview | undefined,
+  status: ReviewRecordStatus,
+): ReviewCoverageManifest | undefined {
+  if (!prepared) return undefined;
+  return finalizeReviewCoverageManifest(
+    prepared.coverageManifest ?? selectReviewPaths([
+      ...prepared.paths,
+      ...prepared.omitted,
+    ]),
+    status,
+  );
+}
+
+export async function recordReviewTerminal(
+  options: ReviewTerminalOptions,
+): Promise<void> {
   const {
     env,
     params,
@@ -1898,10 +2058,6 @@ export async function recordReviewTerminal(options: {
     status,
     timestamp,
     prepared,
-    scouts,
-    merged,
-    artifacts,
-    publication,
   } = options;
   const headSha = prepared?.headSha ?? params.headSha ?? "unknown-head";
   const key = reviewRunTerminalKey({
@@ -1911,85 +2067,10 @@ export async function recordReviewTerminal(options: {
     instanceId,
     status,
   });
-  const summary =
-    merged && typeof merged.result.summary === "string"
-      ? merged.result.summary
-      : undefined;
-  const coverageManifest = prepared
-    ? finalizeReviewCoverageManifest(
-        prepared.coverageManifest ?? selectReviewPaths([
-          ...prepared.paths,
-          ...prepared.omitted,
-        ]),
-        status,
-      )
-    : undefined;
+  const coverageManifest = terminalCoverageManifest(prepared, status);
   await env.REVIEW_DATA.put(
     key,
-    JSON.stringify({
-      schemaVersion: 2,
-      recordType: "review-run-terminal",
-      status,
-      repository: params.repository,
-      pullRequestNumber: params.pullRequestNumber,
-      headSha,
-      diffFingerprint: prepared?.diffFingerprint,
-      configFingerprint: prepared?.configFingerprint,
-      promptVersion: env.AI_REVIEW_PROMPT_VERSION,
-      reviewerConfiguration: {
-        openRouterScouts: csv(env.AI_REVIEW_MODELS, DEFAULT_OPENROUTER_SCOUTS),
-        openCodeScouts: csv(env.AI_REVIEW_OPENCODE_MODELS, []),
-        merger: env.AI_REVIEW_MERGER_MODEL?.trim() || DEFAULT_MERGER,
-        requireZeroDataRetention: ["1", "true", "yes", "on"].includes(
-          env.AI_REVIEW_ZDR?.trim().toLowerCase() ?? "",
-        ),
-      },
-      guardrailPolicy: guardrailPolicy(env),
-      trigger: {
-        deliveryId: params.deliveryId,
-        eventName: params.eventName,
-        action: params.action,
-        force: params.force,
-        webhookHeadSha: params.headSha,
-      },
-      pullRequest: prepared?.pullRequest,
-      change: prepared?.changeProfile,
-      coverage: prepared
-        ? {
-            ...prepared.coverage,
-            paths: prepared.paths,
-            omitted: prepared.omitted,
-          }
-        : undefined,
-      coverageManifest,
-      rulePreview: prepared?.rulePreview,
-      hunks: artifacts?.hunks ?? prepared?.hunks ?? [],
-      candidates: artifacts?.candidates ?? {},
-      findings:
-        summary !== undefined || artifacts
-          ? {
-              summary,
-              published: artifacts?.publishedFindings ?? [],
-              hidden: artifacts?.hiddenFindings ?? [],
-            }
-          : undefined,
-      models: scouts
-        ? [...scouts.metrics, ...(merged?.metric ? [merged.metric] : [])]
-        : [],
-      runCostUsd: publication?.runCostUsd ?? options.incurredCostUsd ?? 0,
-      commentId: publication?.commentId,
-      findingPublications: publication?.findings ?? [],
-      terminal: {
-        reason: options.reason,
-        error: options.error,
-        failedPhase: options.failedPhase,
-      },
-      workflow: {
-        instanceId,
-        triggeredAt: timestamp.toISOString(),
-        recordedAt: new Date().toISOString(),
-      },
-    }),
+    JSON.stringify(terminalRecord(options, headSha, coverageManifest)),
     { httpMetadata: { contentType: "application/json" } },
   );
   if (prepared?.baseSha && prepared.fullDiff !== undefined) {

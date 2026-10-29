@@ -223,7 +223,77 @@ function thresholdRecommendation({
   };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+interface DecisionComparison {
+  baselineValue: number | null;
+  candidateValue: number | null;
+  absoluteChange: number | null;
+  relativeChange: number | null;
+  directionalImprovement: number | null;
+  directionalRelativeImprovement: number | null;
+  noiseIncrease: number | null;
+  coverageDrop: number | null;
+  failuresTooHigh: boolean;
+}
+
+function compareScoreSummaries(
+  baseline: ScoreSummary,
+  candidate: ScoreSummary,
+  primaryMetric: PrimaryMetric,
+  criteria: FrozenDecision["decision"],
+): DecisionComparison {
+  const baselineValue = metricValue(baseline, primaryMetric);
+  const candidateValue = metricValue(candidate, primaryMetric);
+  const absoluteChange = baselineValue === null || candidateValue === null
+    ? null
+    : candidateValue - baselineValue;
+  const relativeChange = ratioDelta(candidateValue, baselineValue);
+  const direction = METRIC_DIRECTION[primaryMetric];
+  return {
+    baselineValue,
+    candidateValue,
+    absoluteChange,
+    relativeChange,
+    directionalImprovement: absoluteChange === null ? null : absoluteChange * direction,
+    directionalRelativeImprovement: relativeChange === null ? null : relativeChange * direction,
+    noiseIncrease: candidate.noise_rate === null || baseline.noise_rate === null
+      ? null
+      : candidate.noise_rate - baseline.noise_rate,
+    coverageDrop:
+      candidate.historical_coverage_rate === null ||
+      baseline.historical_coverage_rate === null
+        ? null
+        : baseline.historical_coverage_rate - candidate.historical_coverage_rate,
+    failuresTooHigh:
+      candidate.provider_failure_rate !== null &&
+      candidate.provider_failure_rate > criteria.maximumProviderFailureRate,
+  };
+}
+
+function scoreRecommendation(
+  comparison: DecisionComparison,
+  criteria: FrozenDecision["decision"],
+  primaryMetric: PrimaryMetric,
+  insufficientReason: string | null,
+): RecommendationResult {
+  if (insufficientReason) {
+    return { recommendation: "gather-more-evidence", reasons: [insufficientReason] };
+  }
+  if (comparison.baselineValue === null || comparison.candidateValue === null) {
+    return {
+      recommendation: "gather-more-evidence",
+      reasons: [`primary metric ${primaryMetric} is unavailable`],
+    };
+  }
+  return thresholdRecommendation({
+    criteria,
+    directionalImprovement: comparison.directionalImprovement,
+    directionalRelativeImprovement: comparison.directionalRelativeImprovement,
+    noiseIncrease: comparison.noiseIncrease,
+    coverageDrop: comparison.coverageDrop,
+    failuresTooHigh: comparison.failuresTooHigh,
+  });
+}
+
 function decide(
   cohort: FrozenCohort,
   frozenDecision: FrozenDecision,
@@ -238,46 +308,25 @@ function decide(
   const criteria = frozenDecision.decision;
   const primaryMetric = criteria.primaryMetrics[0];
   if (!primaryMetric) throw new Error("decision policy requires a primary metric");
-  const direction = METRIC_DIRECTION[primaryMetric];
-  const baselineValue = metricValue(baseline, primaryMetric);
-  const candidateValue = metricValue(candidate, primaryMetric);
-  const absoluteChange = baselineValue === null || candidateValue === null ? null : candidateValue - baselineValue;
-  const relativeChange = ratioDelta(candidateValue, baselineValue);
-  const directionalImprovement = absoluteChange === null ? null : absoluteChange * direction;
-  const directionalRelativeImprovement = relativeChange === null ? null : relativeChange * direction;
+  const comparison = compareScoreSummaries(
+    baseline,
+    candidate,
+    primaryMetric,
+    criteria,
+  );
   const baselineSample = sampleSize(baseline, criteria.sampleUnit);
   const candidateSample = sampleSize(candidate, criteria.sampleUnit);
-  const noiseIncrease = candidate.noise_rate === null || baseline.noise_rate === null
-    ? null
-    : candidate.noise_rate - baseline.noise_rate;
-  const coverageDrop = candidate.historical_coverage_rate === null || baseline.historical_coverage_rate === null
-    ? null
-    : baseline.historical_coverage_rate - candidate.historical_coverage_rate;
-  const failuresTooHigh = candidate.provider_failure_rate !== null &&
-    candidate.provider_failure_rate > criteria.maximumProviderFailureRate;
   const insufficientReason = insufficientSampleReason(
     criteria.minimumSampleSize,
     baselineSample,
     candidateSample,
   );
-  let result: RecommendationResult;
-  if (insufficientReason) {
-    result = { recommendation: "gather-more-evidence", reasons: [insufficientReason] };
-  } else if (baselineValue === null || candidateValue === null) {
-    result = {
-      recommendation: "gather-more-evidence",
-      reasons: [`primary metric ${primaryMetric} is unavailable`],
-    };
-  } else {
-    result = thresholdRecommendation({
-      criteria,
-      directionalImprovement,
-      directionalRelativeImprovement,
-      noiseIncrease,
-      coverageDrop,
-      failuresTooHigh,
-    });
-  }
+  const result = scoreRecommendation(
+    comparison,
+    criteria,
+    primaryMetric,
+    insufficientReason,
+  );
   const manualAdjudications = Number(baseline.manual_adjudications_required ?? 0) +
     Number(candidate.manual_adjudications_required ?? 0);
   if (manualAdjudications > 0) {
@@ -293,15 +342,23 @@ function decide(
     recommendation: result.recommendation,
     productionConfigurationChanged: false,
     primaryMetric,
-    baseline: { id: baseline.variant_id, value: baselineValue, sampleSize: baselineSample },
-    candidate: { id: candidate.variant_id, value: candidateValue, sampleSize: candidateSample },
+    baseline: {
+      id: baseline.variant_id,
+      value: comparison.baselineValue,
+      sampleSize: baselineSample,
+    },
+    candidate: {
+      id: candidate.variant_id,
+      value: comparison.candidateValue,
+      sampleSize: candidateSample,
+    },
     comparison: {
-      absoluteChange,
-      relativeChange,
-      directionalImprovement,
-      directionalRelativeImprovement,
-      noiseRateIncrease: noiseIncrease,
-      historicalCoverageRateDrop: coverageDrop,
+      absoluteChange: comparison.absoluteChange,
+      relativeChange: comparison.relativeChange,
+      directionalImprovement: comparison.directionalImprovement,
+      directionalRelativeImprovement: comparison.directionalRelativeImprovement,
+      noiseRateIncrease: comparison.noiseIncrease,
+      historicalCoverageRateDrop: comparison.coverageDrop,
     },
     thresholds: criteria,
     reasons: result.reasons,

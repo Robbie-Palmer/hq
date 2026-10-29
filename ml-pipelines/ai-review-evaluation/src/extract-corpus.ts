@@ -83,7 +83,119 @@ function pullRequestMetadata(
   return recorded ? completePullRequestMetadata(recorded) : undefined;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+type DatasetEntry = DatasetManifest["entries"][number];
+
+interface TerminalIndex {
+  terminals: Map<string, SourceObject<ReviewTerminal>>;
+  sourceRecords: ReviewTerminal[];
+}
+
+function replaySnapshots(
+  records: SourceObject<unknown>[],
+  repository: string,
+): SourceObject<ReplayInputSnapshot>[] {
+  return records.flatMap((item) => {
+    const parsed = ReplayInputSnapshotSchema.safeParse(item.record);
+    return parsed.success && parsed.data.repository === repository
+      ? [{ ...item, record: parsed.data }]
+      : [];
+  });
+}
+
+function indexTerminals(
+  records: SourceObject<unknown>[],
+  repository: string,
+): TerminalIndex {
+  const terminals = new Map<string, SourceObject<ReviewTerminal>>();
+  const sourceRecords: ReviewTerminal[] = [];
+  for (const item of records) {
+    const parsed = ReviewTerminalSchema.safeParse(item.record);
+    if (!parsed.success) continue;
+    const record = parsed.data;
+    if (record.repository === repository) sourceRecords.push(record);
+    const key = `${record.repository}#${record.pullRequestNumber}#${record.workflow?.instanceId}`;
+    const previous = terminals.get(key);
+    if (!previous || terminalRank(record) < terminalRank(previous.record)) {
+      terminals.set(key, { ...item, record });
+    }
+  }
+  return { terminals, sourceRecords };
+}
+
+function historicalLabels(
+  terminal: ReviewTerminal,
+  snapshot: ReplayInputSnapshot,
+  outcomes: Map<string, SourceObject<FindingOutcome>>,
+): HistoricalFinding[] {
+  return (terminal.findings?.published ?? []).map((finding) => {
+    const key = `${snapshot.repository}#${snapshot.pullRequestNumber}#${finding.findingId}`;
+    const outcomeItem = outcomes.get(key);
+    return {
+      finding,
+      outcome: outcomeItem?.record ?? null,
+      outcomeSource: outcomeItem
+        ? { key: outcomeItem.key, sha256: outcomeItem.sha256 }
+        : null,
+    };
+  });
+}
+
+function datasetEntry(options: {
+  snapshotItem: SourceObject<ReplayInputSnapshot>;
+  terminalItem: SourceObject<ReviewTerminal>;
+  outcomes: Map<string, SourceObject<FindingOutcome>>;
+  sourceRoot: string;
+  outputRoot: string;
+  changeSizeBands: Parameters<typeof changeSizeBand>[1];
+}): DatasetEntry {
+  const { snapshotItem, terminalItem, outcomes, sourceRoot, outputRoot } = options;
+  const snapshot = snapshotItem.record;
+  const terminal = terminalItem.record;
+  const snapshotContent = fs.readFileSync(
+    path.join(sourceRoot, snapshotItem.key),
+    "utf8",
+  );
+  const corpusId = sha256(snapshotContent);
+  const labels = historicalLabels(terminal, snapshot, outcomes);
+  const paths = snapshot.decision?.paths ?? [];
+  const riskSignals = terminal.change?.riskSignals ?? [];
+  const repositoryAreas = [...new Set(terminal.change?.repositoryAreas ?? [])]
+    .sort((left, right) => left.localeCompare(right));
+  const changedLines =
+    (terminal.change?.additions ?? 0) + (terminal.change?.deletions ?? 0);
+  const pullRequest = pullRequestMetadata(terminal, snapshot);
+  const entryPath = `entries/${corpusId}.json`;
+  fs.writeFileSync(path.join(outputRoot, entryPath), snapshotContent);
+  return {
+    corpusId,
+    snapshotPath: entryPath,
+    repository: snapshot.repository,
+    pullRequestNumber: snapshot.pullRequestNumber,
+    capturedAt: snapshot.provenance.capturedAt,
+    changedLines,
+    pullRequest,
+    productionRunId: snapshot.productionRunId,
+    headSha: snapshot.git?.headSha,
+    promptVersion: snapshot.prompt?.version,
+    strata: {
+      risk: riskSignals.length > 0 ? "elevated" : "standard",
+      riskSignals: [...riskSignals].sort((left, right) => left.localeCompare(right)),
+      changeSize: changeSizeBand(changedLines, options.changeSizeBands),
+      languages: languagesForPaths(paths),
+      repositoryAreas,
+      taskType: pullRequest?.taskType ?? null,
+      originatingAgent: pullRequest?.originatingAgent ?? null,
+      outcomeAvailability: outcomeAvailability(labels),
+    },
+    coverage: terminal.coverage ?? snapshot.decision?.coverage ?? null,
+    historicalFindings: labels,
+    source: {
+      snapshot: { key: snapshotItem.key, sha256: snapshotItem.sha256 },
+      productionTerminal: { key: terminalItem.key, sha256: terminalItem.sha256 },
+    },
+  };
+}
+
 export function extractCorpus({
   input,
   output,
@@ -101,25 +213,13 @@ export function extractCorpus({
     const record = readJson(file);
     return sourceObject(sourceRoot, file, record);
   });
-  const snapshots = records.flatMap((item): SourceObject<ReplayInputSnapshot>[] => {
-    const parsed = ReplayInputSnapshotSchema.safeParse(item.record);
-    return parsed.success && parsed.data.repository === repository
-      ? [{ ...item, record: parsed.data }]
-      : [];
-  });
+  const snapshots = replaySnapshots(records, repository);
   if (snapshots.length === 0) throw new Error(`no replay snapshots found for ${repository}`);
 
-  const terminals = new Map<string, SourceObject<ReviewTerminal>>();
-  const terminalSourceRecords: ReviewTerminal[] = [];
-  for (const item of records) {
-    const parsed = ReviewTerminalSchema.safeParse(item.record);
-    if (!parsed.success) continue;
-    const record = parsed.data;
-    if (record.repository === repository) terminalSourceRecords.push(record);
-    const key = `${record.repository}#${record.pullRequestNumber}#${record.workflow?.instanceId}`;
-    const previous = terminals.get(key);
-    if (!previous || terminalRank(record) < terminalRank(previous.record)) terminals.set(key, { ...item, record });
-  }
+  const { terminals, sourceRecords: terminalSourceRecords } = indexTerminals(
+    records,
+    repository,
+  );
   const outcomes = latestOutcomes(records);
   const entries: DatasetManifest["entries"] = [];
   resetDirectory(outputRoot);
@@ -131,56 +231,16 @@ export function extractCorpus({
     const terminalKey = `${snapshot.repository}#${snapshot.pullRequestNumber}#${snapshot.productionRunId}`;
     const terminalItem = terminals.get(terminalKey);
     if (!terminalItem) continue;
-    const terminal = terminalItem.record;
-    const snapshotContent = fs.readFileSync(path.join(sourceRoot, snapshotItem.key), "utf8");
-    const corpusId = sha256(snapshotContent);
-    const labels = (terminal.findings?.published ?? []).map((finding) => {
-      const key = `${snapshot.repository}#${snapshot.pullRequestNumber}#${finding.findingId}`;
-      const outcomeItem = outcomes.get(key);
-      return {
-        finding,
-        outcome: outcomeItem?.record ?? null,
-        outcomeSource: outcomeItem ? { key: outcomeItem.key, sha256: outcomeItem.sha256 } : null,
-      };
-    });
-    const paths = snapshot.decision?.paths ?? [];
-    const riskSignals = terminal.change?.riskSignals ?? [];
-    const repositoryAreas = [...new Set(terminal.change?.repositoryAreas ?? [])]
-      .sort((left, right) => left.localeCompare(right));
-    const languages = languagesForPaths(paths);
-    const coverage = terminal.coverage ?? snapshot.decision?.coverage ?? null;
-    const changedLines = (terminal.change?.additions ?? 0) + (terminal.change?.deletions ?? 0);
-    const pullRequest = pullRequestMetadata(terminal, snapshot);
-    const entryPath = `entries/${corpusId}.json`;
-    fs.writeFileSync(path.join(outputRoot, entryPath), snapshotContent);
-    entries.push({
-      corpusId,
-      snapshotPath: entryPath,
-      repository: snapshot.repository,
-      pullRequestNumber: snapshot.pullRequestNumber,
-      capturedAt: snapshot.provenance.capturedAt,
-      changedLines,
-      pullRequest,
-      productionRunId: snapshot.productionRunId,
-      headSha: snapshot.git?.headSha,
-      promptVersion: snapshot.prompt?.version,
-      strata: {
-        risk: riskSignals.length > 0 ? "elevated" : "standard",
-        riskSignals: [...riskSignals].sort((left, right) => left.localeCompare(right)),
-        changeSize: changeSizeBand(changedLines, params.cohort.changeSizeBands),
-        languages,
-        repositoryAreas,
-        taskType: pullRequest?.taskType ?? null,
-        originatingAgent: pullRequest?.originatingAgent ?? null,
-        outcomeAvailability: outcomeAvailability(labels),
-      },
-      coverage,
-      historicalFindings: labels,
-      source: {
-        snapshot: { key: snapshotItem.key, sha256: snapshotItem.sha256 },
-        productionTerminal: { key: terminalItem.key, sha256: terminalItem.sha256 },
-      },
-    });
+    entries.push(
+      datasetEntry({
+        snapshotItem,
+        terminalItem,
+        outcomes,
+        sourceRoot,
+        outputRoot,
+        changeSizeBands: params.cohort.changeSizeBands,
+      }),
+    );
   }
   if (entries.length === 0) throw new Error("replay snapshots did not join to production terminal records");
   entries.sort((left, right) => left.corpusId.localeCompare(right.corpusId));
