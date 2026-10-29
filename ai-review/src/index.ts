@@ -1883,11 +1883,12 @@ export class PullRequestCoordinator extends DurableObject<Env> {
       .toArray()[0];
     if (existingRun) {
       const claimed = existingRun.status === "running";
-      const reason = claimed
-        ? undefined
-        : existingRun.status === "completed"
+      let reason: string | undefined;
+      if (!claimed) {
+        reason = existingRun.status === "completed"
           ? "workflow instance already completed"
           : `workflow instance is ${existingRun.status}`;
+      }
       return { claimed, reason, previousState };
     }
     const active = this.ctx.storage.sql
@@ -2691,11 +2692,18 @@ function coordinatorPathForEvent(
   return "/events";
 }
 
-function parseWebhookJson(body: string): unknown | Response {
+type ParsedWebhookJson =
+  | { kind: "accepted"; payload: unknown }
+  | { kind: "invalid"; response: Response };
+
+function parseWebhookJson(body: string): ParsedWebhookJson {
   try {
-    return JSON.parse(body) as unknown;
+    return { kind: "accepted", payload: JSON.parse(body) as unknown };
   } catch {
-    return errorResponse("Malformed JSON payload");
+    return {
+      kind: "invalid",
+      response: errorResponse("Malformed JSON payload"),
+    };
   }
 }
 
@@ -2794,9 +2802,13 @@ async function handleGitHubWebhook(request: Request, env: Env): Promise<Response
   if (!eventName || !deliveryId) {
     return errorResponse("Missing GitHub webhook headers");
   }
-  const payload = parseWebhookJson(body);
-  if (payload instanceof Response) return payload;
-  const event = parseAcceptedWebhookEvent(eventName, deliveryId, payload);
+  const parsedPayload = parseWebhookJson(body);
+  if (parsedPayload.kind === "invalid") return parsedPayload.response;
+  const event = parseAcceptedWebhookEvent(
+    eventName,
+    deliveryId,
+    parsedPayload.payload,
+  );
   if (event instanceof Response) return event;
   const authorization = repositoryAuthorization(event, env);
   if (authorization) return authorization;
