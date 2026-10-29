@@ -10,36 +10,32 @@ export function humanizeSlug(slug: string): string {
   return slug.replaceAll("-", " ");
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+function scaledAmount(item: RecipeIngredient, scale: number): number | undefined {
+  return item.amount == null ? undefined : item.amount * scale;
+}
+
+function unitLabel(
+  item: RecipeIngredient,
+  displayedAmount: number | undefined,
+): { label: string; noSpace: boolean } | null {
+  if (!item.unit) return null;
+  const labels = UNIT_LABELS[item.unit];
+  if (!labels) return null;
+  const label =
+    displayedAmount != null && displayedAmount !== 1
+      ? labels.plural
+      : labels.singular;
+  return label ? { label, noSpace: labels.noSpace ?? false } : null;
+}
+
 export function formatAmount(item: RecipeIngredient, scale = 1): string {
-  const parts: string[] = [];
-
-  if (item.amount != null) {
-    parts.push(formatScaled(item.amount * scale));
-  }
-
-  if (item.unit) {
-    const labels = UNIT_LABELS[item.unit];
-    if (labels) {
-      const scaledAmount =
-        item.amount != null ? item.amount * scale : undefined;
-      const displayedAmount =
-        scaledAmount != null ? Number(formatScaled(scaledAmount)) : undefined;
-      const label =
-        displayedAmount != null && displayedAmount !== 1
-          ? labels.plural
-          : labels.singular;
-      if (label) {
-        if (labels.noSpace && parts.length > 0) {
-          parts[parts.length - 1] += label;
-        } else {
-          parts.push(label);
-        }
-      }
-    }
-  }
-
-  return parts.join(" ");
+  const amount = scaledAmount(item, scale);
+  const amountText = amount == null ? "" : formatScaled(amount);
+  const displayedAmount = amountText ? Number(amountText) : undefined;
+  const unit = unitLabel(item, displayedAmount);
+  if (!unit) return amountText;
+  if (unit.noSpace && amountText) return `${amountText}${unit.label}`;
+  return [amountText, unit.label].filter(Boolean).join(" ");
 }
 
 function formatIngredientAmount(

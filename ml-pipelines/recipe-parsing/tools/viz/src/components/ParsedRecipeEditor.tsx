@@ -5,19 +5,21 @@ import { UNIT_LABELS } from "recipe-domain";
 import { formatAmount } from "../lib/format";
 import type { CanonicalizationDecision } from "../types/canonicalization";
 
+export interface CanonicalizationEditorOptions {
+  canonicalSlugs: Set<string>;
+  categories: Map<string, string>;
+  normalizationSource: ParsedRecipe | null;
+  decisions: CanonicalizationDecision[];
+  onAddCanonicalIngredient: (slug: string, category: string) => void;
+}
+
 interface ParsedRecipeEditorProps {
   identity: string;
   value: ParsedRecipe;
   diagnostics?: string[];
   onChange: (value: ParsedRecipe) => void;
   /** When set, editor is in canonicalization mode with slug-focused editing. */
-  canonicalization?: {
-    canonicalSlugs: Set<string>;
-    categories: Map<string, string>;
-    normalizationSource: ParsedRecipe | null;
-    decisions: CanonicalizationDecision[];
-    onAddCanonicalIngredient: (slug: string, category: string) => void;
-  };
+  canonicalization?: CanonicalizationEditorOptions;
 }
 
 const EMPTY_INGREDIENT: RecipeIngredient = {
@@ -52,6 +54,23 @@ function updateField<K extends keyof ParsedRecipe>(
   next: ParsedRecipe[K],
 ): ParsedRecipe {
   return { ...recipe, [key]: next };
+}
+
+export function updateIngredientAt(
+  recipe: ParsedRecipe,
+  groupIndex: number,
+  itemIndex: number,
+  ingredient: RecipeIngredient,
+): ParsedRecipe {
+  const group = recipe.ingredientGroups[groupIndex];
+  return updateField(
+    recipe,
+    "ingredientGroups",
+    updateArrayItem(recipe.ingredientGroups, groupIndex, {
+      ...group,
+      items: updateArrayItem(group.items, itemIndex, ingredient),
+    }),
+  );
 }
 
 interface IngredientGroupKeys {
@@ -186,6 +205,316 @@ function AddToOntologyForm({
   );
 }
 
+type IngredientChange = (ingredient: RecipeIngredient) => void;
+
+function IngredientDetailFields({
+  item,
+  onChange,
+}: Readonly<{ item: RecipeIngredient; onChange: IngredientChange }>) {
+  return (
+    <div className="ml-2 pl-2 border-l-2 border-gray-100 space-y-1.5 pt-1">
+      <div className="grid grid-cols-[1fr_1fr] gap-1.5">
+        <div>
+          <span className="text-xs text-gray-400">Amount</span>
+          <input
+            type="number"
+            min="0"
+            step="any"
+            value={item.amount ?? ""}
+            onChange={(event) => {
+              const amount = Number(event.target.value);
+              onChange({
+                ...item,
+                amount:
+                  event.target.value && Number.isFinite(amount)
+                    ? amount
+                    : undefined,
+              });
+            }}
+            placeholder="—"
+            className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
+          />
+        </div>
+        <div>
+          <span className="text-xs text-gray-400">Unit</span>
+          <select
+            value={item.unit ?? ""}
+            onChange={(event) =>
+              onChange({
+                ...item,
+                unit: event.target.value
+                  ? (event.target.value as Unit)
+                  : undefined,
+              })
+            }
+            className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 bg-white"
+          >
+            <option value="">—</option>
+            {Object.entries(UNIT_LABELS).map(([unit, label]) => (
+              <option key={unit} value={unit}>{label.singular}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div className="grid grid-cols-[1fr_1fr] gap-1.5">
+        <div>
+          <span className="text-xs text-gray-400">Preparation</span>
+          <input
+            type="text"
+            value={item.preparation ?? ""}
+            onChange={(event) =>
+              onChange({
+                ...item,
+                preparation: event.target.value || undefined,
+              })
+            }
+            placeholder="e.g. chopped"
+            className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
+          />
+        </div>
+        <div>
+          <span className="text-xs text-gray-400">Note</span>
+          <input
+            type="text"
+            value={item.note ?? ""}
+            onChange={(event) =>
+              onChange({ ...item, note: event.target.value || undefined })
+            }
+            placeholder="e.g. optional"
+            className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CanonicalIngredientIdentity({
+  item,
+  normSlug,
+  isInOntology,
+  category,
+  decision,
+  adding,
+  canonicalization,
+  onChange,
+  onStartAdding,
+  onStopAdding,
+}: Readonly<{
+  item: RecipeIngredient;
+  normSlug: string | null;
+  isInOntology: boolean;
+  category: string | undefined;
+  decision: CanonicalizationDecision | null;
+  adding: boolean;
+  canonicalization: CanonicalizationEditorOptions;
+  onChange: IngredientChange;
+  onStartAdding: () => void;
+  onStopAdding: () => void;
+}>) {
+  const slugChanged = normSlug != null && item.ingredient !== normSlug;
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-1">
+        <input
+          type="text"
+          list="canonical-slugs"
+          value={item.ingredient}
+          onChange={(event) => onChange({ ...item, ingredient: event.target.value })}
+          placeholder="slug"
+          className="flex-1 min-w-0 px-1.5 py-1 text-xs font-mono border border-gray-200 rounded outline-none focus:border-blue-400"
+        />
+        {item.ingredient && !isInOntology && (
+          <button
+            type="button"
+            onClick={onStartAdding}
+            className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100"
+            title="Add to canonical ontology"
+          >
+            <Plus className="h-3 w-3" />
+            Add
+          </button>
+        )}
+        {isInOntology && category && (
+          <span className="shrink-0 text-xs text-gray-400">{category}</span>
+        )}
+      </div>
+      {decision && decision.canonicalSlug !== item.ingredient && (
+        <button
+          type="button"
+          onClick={() => onChange({ ...item, ingredient: decision.canonicalSlug })}
+          className="mt-0.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {"\u2192"} {decision.canonicalSlug}
+          <span className="text-gray-400 ml-1">
+            ({decision.method}{decision.score != null ? `, ${decision.score.toFixed(2)}` : ""})
+          </span>
+        </button>
+      )}
+      {slugChanged && (
+        <div className="text-xs text-gray-400 mt-0.5">
+          was: <span className="font-mono">{normSlug}</span>
+        </div>
+      )}
+      {adding && (
+        <AddToOntologyForm
+          slug={item.ingredient}
+          onAdd={(slug, selectedCategory) => {
+            canonicalization.onAddCanonicalIngredient(slug, selectedCategory);
+            onStopAdding();
+          }}
+          onCancel={onStopAdding}
+        />
+      )}
+    </div>
+  );
+}
+
+function CanonicalIngredientRow({
+  item,
+  isExpanded,
+  adding,
+  normSlug,
+  decision,
+  canonicalization,
+  onChange,
+  onRemove,
+  onToggle,
+  onStartAdding,
+  onStopAdding,
+}: Readonly<{
+  item: RecipeIngredient;
+  isExpanded: boolean;
+  adding: boolean;
+  normSlug: string | null;
+  decision: CanonicalizationDecision | null;
+  canonicalization: CanonicalizationEditorOptions;
+  onChange: IngredientChange;
+  onRemove: () => void;
+  onToggle: () => void;
+  onStartAdding: () => void;
+  onStopAdding: () => void;
+}>) {
+  const slugChanged = normSlug != null && item.ingredient !== normSlug;
+  const isInOntology = canonicalization.canonicalSlugs.has(item.ingredient);
+  const category = canonicalization.categories.get(item.ingredient);
+  return (
+    <div className="px-2 py-1.5 space-y-1">
+      <div className="grid grid-cols-[3px_1fr_auto_auto_auto] gap-1.5 items-center">
+        <div className={`h-full rounded-full ${ontologyStatusClass(slugChanged, isInOntology, item.ingredient)}`} />
+        <CanonicalIngredientIdentity
+          item={item}
+          normSlug={normSlug}
+          isInOntology={isInOntology}
+          category={category}
+          decision={decision}
+          adding={adding}
+          canonicalization={canonicalization}
+          onChange={onChange}
+          onStartAdding={onStartAdding}
+          onStopAdding={onStopAdding}
+        />
+        <span className="w-24 text-right text-xs text-gray-500 truncate">
+          {formatAmount(item) || "—"}
+        </span>
+        <button type="button" onClick={onToggle} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600">
+          {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        </button>
+        <button type="button" onClick={onRemove} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 text-xs">
+          &times;
+        </button>
+      </div>
+      {isExpanded && <IngredientDetailFields item={item} onChange={onChange} />}
+    </div>
+  );
+}
+
+function StandardIngredientRow({
+  item,
+  onChange,
+  onRemove,
+}: Readonly<{
+  item: RecipeIngredient;
+  onChange: IngredientChange;
+  onRemove: () => void;
+}>) {
+  return (
+    <div className="px-2 py-1.5 space-y-1">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5 items-center">
+        <input type="text" value={item.ingredient} onChange={(event) => onChange({ ...item, ingredient: event.target.value })} placeholder="slug" className="w-full px-1.5 py-1 text-xs font-mono border border-gray-200 rounded outline-none focus:border-blue-400" />
+        <input
+          type="number"
+          min="0"
+          step="any"
+          value={item.amount ?? ""}
+          onChange={(event) => {
+            const amount = Number(event.target.value);
+            onChange({ ...item, amount: event.target.value && Number.isFinite(amount) ? amount : undefined });
+          }}
+          placeholder="—"
+          className="w-14 px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-center"
+        />
+        <select value={item.unit ?? ""} onChange={(event) => onChange({ ...item, unit: event.target.value ? (event.target.value as Unit) : undefined })} className="w-20 px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 bg-white">
+          <option value="">—</option>
+          {Object.entries(UNIT_LABELS).map(([unit, label]) => <option key={unit} value={unit}>{label.singular}</option>)}
+        </select>
+        <button type="button" onClick={onRemove} className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 text-xs">&times;</button>
+      </div>
+      {(item.preparation || item.note) && (
+        <div className="flex gap-1.5 pl-1">
+          <input type="text" value={item.preparation ?? ""} onChange={(event) => onChange({ ...item, preparation: event.target.value || undefined })} placeholder="preparation" className="flex-1 min-w-0 px-1.5 py-0.5 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-gray-600" />
+          <input type="text" value={item.note ?? ""} onChange={(event) => onChange({ ...item, note: event.target.value || undefined })} placeholder="note" className="flex-1 min-w-0 px-1.5 py-0.5 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-gray-600" />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function IngredientRow({
+  item,
+  isExpanded,
+  adding,
+  normSlug,
+  decision,
+  canonicalization,
+  onChange,
+  onRemove,
+  onToggle,
+  onStartAdding,
+  onStopAdding,
+}: Readonly<{
+  item: RecipeIngredient;
+  isExpanded: boolean;
+  adding: boolean;
+  normSlug: string | null;
+  decision: CanonicalizationDecision | null;
+  canonicalization?: CanonicalizationEditorOptions;
+  onChange: IngredientChange;
+  onRemove: () => void;
+  onToggle: () => void;
+  onStartAdding: () => void;
+  onStopAdding: () => void;
+}>) {
+  if (!canonicalization) {
+    return <StandardIngredientRow item={item} onChange={onChange} onRemove={onRemove} />;
+  }
+  return (
+    <CanonicalIngredientRow
+      item={item}
+      isExpanded={isExpanded}
+      adding={adding}
+      normSlug={normSlug}
+      decision={decision}
+      canonicalization={canonicalization}
+      onChange={onChange}
+      onRemove={onRemove}
+      onToggle={onToggle}
+      onStartAdding={onStartAdding}
+      onStopAdding={onStopAdding}
+    />
+  );
+}
+
 export function ParsedRecipeEditor({
   identity,
   value,
@@ -302,11 +631,7 @@ export function ParsedRecipeEditor({
     itemIndex: number,
     nextIngredient: RecipeIngredient,
   ) {
-    const group = value.ingredientGroups[groupIndex];
-    updateGroup(groupIndex, {
-      ...group,
-      items: updateArrayItem(group.items, itemIndex, nextIngredient),
-    });
+    onChange(updateIngredientAt(value, groupIndex, itemIndex, nextIngredient));
   }
 
   // Build a map from original/base slug → decision for quick lookup
@@ -499,294 +824,39 @@ export function ParsedRecipeEditor({
 
             {/* Ingredient rows */}
             <div className="divide-y divide-gray-100">
-              {/** biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited. */}
               {group.items.map((item, itemIndex) => {
                 const rowKey = groupKeys.itemKeys[itemIndex]!;
-                const isExpanded = expandedRows.has(rowKey);
-
-                // Canonicalization-specific data
-                const normSlug = canonicalization?.normalizationSource
-                  ?.ingredientGroups[groupIndex]?.items[itemIndex]?.ingredient ?? null;
-                const slugChanged = normSlug != null && item.ingredient !== normSlug;
-                const isInOntology = canonicalization?.canonicalSlugs.has(item.ingredient) ?? false;
-                const decision = decisionMap?.get(item.ingredient) ?? decisionMap?.get(normSlug ?? "") ?? null;
-                const category = canonicalization?.categories.get(item.ingredient);
-
-                if (isCanon) {
-                  // Canonicalization mode: slug-focused compact row
-                  return (
-                    <div key={rowKey} className="px-2 py-1.5 space-y-1">
-                      <div className="grid grid-cols-[3px_1fr_auto_auto_auto] gap-1.5 items-center">
-                        {/* Status indicator bar */}
-                        <div
-                          className={`h-full rounded-full ${ontologyStatusClass(slugChanged, isInOntology, item.ingredient)}`}
-                        />
-
-                        {/* Slug input with datalist + status */}
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1">
-                            <input
-                              type="text"
-                              list="canonical-slugs"
-                              value={item.ingredient}
-                              onChange={(e) =>
-                                updateIngredient(groupIndex, itemIndex, {
-                                  ...item,
-                                  ingredient: e.target.value,
-                                })
-                              }
-                              placeholder="slug"
-                              className="flex-1 min-w-0 px-1.5 py-1 text-xs font-mono border border-gray-200 rounded outline-none focus:border-blue-400"
-                            />
-                            {item.ingredient && !isInOntology && (
-                              <button
-                                type="button"
-                                onClick={() => setAddingRowKey(rowKey)}
-                                className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100"
-                                title="Add to canonical ontology"
-                              >
-                                <Plus className="h-3 w-3" />
-                                Add
-                              </button>
-                            )}
-                            {isInOntology && category && (
-                              <span className="shrink-0 text-xs text-gray-400">{category}</span>
-                            )}
-                          </div>
-                          {/* Decision hint */}
-                          {decision && decision.canonicalSlug !== item.ingredient && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                updateIngredient(groupIndex, itemIndex, {
-                                  ...item,
-                                  ingredient: decision.canonicalSlug,
-                                })
-                              }
-                              className="mt-0.5 text-xs text-blue-600 hover:text-blue-800 hover:underline"
-                            >
-                              {"\u2192"} {decision.canonicalSlug}
-                              <span className="text-gray-400 ml-1">
-                                ({decision.method}{decision.score != null ? `, ${decision.score.toFixed(2)}` : ""})
-                              </span>
-                            </button>
-                          )}
-                          {/* Normalization source hint */}
-                          {slugChanged && (
-                            <div className="text-xs text-gray-400 mt-0.5">
-                              was: <span className="font-mono">{normSlug}</span>
-                            </div>
-                          )}
-                          {/* Add to ontology inline form */}
-                          {addingRowKey === rowKey && canonicalization && (
-                            <AddToOntologyForm
-                              slug={item.ingredient}
-                              onAdd={(slug, cat) => {
-                                canonicalization.onAddCanonicalIngredient(slug, cat);
-                                setAddingRowKey(null);
-                              }}
-                              onCancel={() => setAddingRowKey(null)}
-                            />
-                          )}
-                        </div>
-
-                        {/* Amount + unit read-only summary */}
-                        <span className="w-24 text-right text-xs text-gray-500 truncate">
-                          {formatAmount(item) || "—"}
-                        </span>
-
-                        {/* Expand/collapse toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleRow(rowKey)}
-                          className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600"
-                        >
-                          {isExpanded
-                            ? <ChevronDown className="h-3.5 w-3.5" />
-                            : <ChevronRight className="h-3.5 w-3.5" />}
-                        </button>
-
-                        {/* Remove */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            removeIngredientKey(groupIndex, itemIndex);
-                            updateGroup(groupIndex, {
-                              ...group,
-                              items: group.items.filter((_, i) => i !== itemIndex),
-                            });
-                          }}
-                          className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 text-xs"
-                        >
-                          &times;
-                        </button>
-                      </div>
-
-                      {/* Expanded detail row */}
-                      {isExpanded && (
-                        <div className="ml-2 pl-2 border-l-2 border-gray-100 space-y-1.5 pt-1">
-                          <div className="grid grid-cols-[1fr_1fr] gap-1.5">
-                            <div>
-                              <span className="text-xs text-gray-400">Amount</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={item.amount ?? ""}
-                                onChange={(e) => {
-                                  const n = Number(e.target.value);
-                                  updateIngredient(groupIndex, itemIndex, {
-                                    ...item,
-                                    amount: e.target.value && Number.isFinite(n) ? n : undefined,
-                                  });
-                                }}
-                                placeholder="—"
-                                className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-xs text-gray-400">Unit</span>
-                              <select
-                                value={item.unit ?? ""}
-                                onChange={(e) =>
-                                  updateIngredient(groupIndex, itemIndex, {
-                                    ...item,
-                                    unit: e.target.value ? (e.target.value as Unit) : undefined,
-                                  })
-                                }
-                                className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 bg-white"
-                              >
-                                <option value="">—</option>
-                                {Object.entries(UNIT_LABELS).map(([unit, label]) => (
-                                  <option key={unit} value={unit}>{label.singular}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-[1fr_1fr] gap-1.5">
-                            <div>
-                              <span className="text-xs text-gray-400">Preparation</span>
-                              <input
-                                type="text"
-                                value={item.preparation ?? ""}
-                                onChange={(e) =>
-                                  updateIngredient(groupIndex, itemIndex, {
-                                    ...item,
-                                    preparation: e.target.value || undefined,
-                                  })
-                                }
-                                placeholder="e.g. chopped"
-                                className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
-                              />
-                            </div>
-                            <div>
-                              <span className="text-xs text-gray-400">Note</span>
-                              <input
-                                type="text"
-                                value={item.note ?? ""}
-                                onChange={(e) =>
-                                  updateIngredient(groupIndex, itemIndex, {
-                                    ...item,
-                                    note: e.target.value || undefined,
-                                  })
-                                }
-                                placeholder="e.g. optional"
-                                className="w-full px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400"
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                }
-
-                // Non-canonicalization mode: full editing (used if editor is reused elsewhere)
+                const normSlug =
+                  canonicalization?.normalizationSource?.ingredientGroups[
+                    groupIndex
+                  ]?.items[itemIndex]?.ingredient ?? null;
+                const decision =
+                  decisionMap?.get(item.ingredient) ??
+                  decisionMap?.get(normSlug ?? "") ??
+                  null;
                 return (
-                  <div key={rowKey} className="px-2 py-1.5 space-y-1">
-                    <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5 items-center">
-                      <input
-                        type="text"
-                        value={item.ingredient}
-                        onChange={(e) =>
-                          updateIngredient(groupIndex, itemIndex, { ...item, ingredient: e.target.value })
-                        }
-                        placeholder="slug"
-                        className="w-full px-1.5 py-1 text-xs font-mono border border-gray-200 rounded outline-none focus:border-blue-400"
-                      />
-                      <input
-                        type="number"
-                        min="0"
-                        step="any"
-                        value={item.amount ?? ""}
-                        onChange={(e) => {
-                          const n = Number(e.target.value);
-                          updateIngredient(groupIndex, itemIndex, {
-                            ...item,
-                            amount: e.target.value && Number.isFinite(n) ? n : undefined,
-                          });
-                        }}
-                        placeholder="—"
-                        className="w-14 px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-center"
-                      />
-                      <select
-                        value={item.unit ?? ""}
-                        onChange={(e) =>
-                          updateIngredient(groupIndex, itemIndex, {
-                            ...item,
-                            unit: e.target.value ? (e.target.value as Unit) : undefined,
-                          })
-                        }
-                        className="w-20 px-1.5 py-1 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 bg-white"
-                      >
-                        <option value="">—</option>
-                        {Object.entries(UNIT_LABELS).map(([unit, label]) => (
-                          <option key={unit} value={unit}>{label.singular}</option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          removeIngredientKey(groupIndex, itemIndex);
-                          updateGroup(groupIndex, {
-                            ...group,
-                            items: group.items.filter((_, i) => i !== itemIndex),
-                          });
-                        }}
-                        className="w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 text-xs"
-                      >
-                        &times;
-                      </button>
-                    </div>
-                    {(item.preparation || item.note) && (
-                      <div className="flex gap-1.5 pl-1">
-                        <input
-                          type="text"
-                          value={item.preparation ?? ""}
-                          onChange={(e) =>
-                            updateIngredient(groupIndex, itemIndex, {
-                              ...item,
-                              preparation: e.target.value || undefined,
-                            })
-                          }
-                          placeholder="preparation"
-                          className="flex-1 min-w-0 px-1.5 py-0.5 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-gray-600"
-                        />
-                        <input
-                          type="text"
-                          value={item.note ?? ""}
-                          onChange={(e) =>
-                            updateIngredient(groupIndex, itemIndex, {
-                              ...item,
-                              note: e.target.value || undefined,
-                            })
-                          }
-                          placeholder="note"
-                          className="flex-1 min-w-0 px-1.5 py-0.5 text-xs border border-gray-200 rounded outline-none focus:border-blue-400 text-gray-600"
-                        />
-                      </div>
-                    )}
-                  </div>
+                  <IngredientRow
+                    key={rowKey}
+                    item={item}
+                    isExpanded={expandedRows.has(rowKey)}
+                    adding={addingRowKey === rowKey}
+                    normSlug={normSlug}
+                    decision={decision}
+                    canonicalization={canonicalization}
+                    onChange={(next) =>
+                      updateIngredient(groupIndex, itemIndex, next)
+                    }
+                    onRemove={() => {
+                      removeIngredientKey(groupIndex, itemIndex);
+                      updateGroup(groupIndex, {
+                        ...group,
+                        items: removeArrayItem(group.items, itemIndex),
+                      });
+                    }}
+                    onToggle={() => toggleRow(rowKey)}
+                    onStartAdding={() => setAddingRowKey(rowKey)}
+                    onStopAdding={() => setAddingRowKey(null)}
+                  />
                 );
               })}
             </div>

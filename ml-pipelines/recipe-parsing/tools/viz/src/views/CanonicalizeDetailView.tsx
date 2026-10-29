@@ -19,6 +19,12 @@ import { RecipePanel } from "../components/RecipePanel";
 import { ParsedRecipeDiff } from "../components/ParsedRecipeDiff";
 import { ScoresPanel } from "../components/ScoresPanel";
 import { computeCanonicalizationDetailScores } from "../lib/detailScores";
+import { useDetailKeyboard } from "../lib/detailNavigation";
+import {
+  detailTitle,
+  findCanonicalizationDecisions,
+  findCanonicalizedPrediction,
+} from "../lib/detailData";
 
 interface CanonicalizeDetailViewProps {
   entryIndex: number;
@@ -28,7 +34,6 @@ interface CanonicalizeDetailViewProps {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function CanonicalizeDetailView({
   entryIndex,
   onBack,
@@ -56,11 +61,11 @@ export function CanonicalizeDetailView({
   const gtEntry = groundTruth?.entries[entryIndex];
   const predictionKey = gtEntry?.images.join("\0");
 
-  const predictedCanonicalized: ParsedRecipe | null =
-    predictionKey == null
-      ? null
-      : canonicalizedPredictions?.entries.find((e) => e.images.join("\0") === predictionKey)
-          ?.predicted ?? null;
+  const predictedCanonicalized = findCanonicalizedPrediction(
+    gtEntry,
+    canonicalizedPredictions,
+  );
+  const totalEntries = groundTruth?.entries.length ?? 0;
 
   const expectedNormalized = useMemo(() => {
     if (!gtEntry?.expectedNormalization) return null;
@@ -80,12 +85,8 @@ export function CanonicalizeDetailView({
 
   // Decisions for current entry
   const entryDecisions = useMemo(() => {
-    if (!canonicalizationFile || !predictionKey) return [];
-    const entry = canonicalizationFile.entries.find(
-      (e) => e.images.join("\0") === predictionKey,
-    );
-    return entry?.decisions ?? [];
-  }, [canonicalizationFile, predictionKey]);
+    return findCanonicalizationDecisions(gtEntry, canonicalizationFile);
+  }, [canonicalizationFile, gtEntry]);
 
   const handleAddCanonicalIngredient = useCallback(
     async (slug: string, category: string) => {
@@ -169,37 +170,14 @@ export function CanonicalizeDetailView({
     }
   }, [edited, entryIndex, groundTruth]);
 
-  const handleKeyDown = useCallback(
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    (e: KeyboardEvent) => {
-      const totalEntries = groundTruth?.entries.length ?? 0;
-      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
-        e.preventDefault();
-        if (dirty) void handleSave();
-        return;
-      }
-      if (
-        e.target instanceof HTMLInputElement ||
-        e.target instanceof HTMLTextAreaElement ||
-        e.target instanceof HTMLSelectElement
-      ) {
-        return;
-      }
-      if (e.key === "Escape") {
-        onBack();
-      } else if (e.key === "ArrowLeft" && entryIndex > 0) {
-        onNavigate(entryIndex - 1);
-      } else if (e.key === "ArrowRight" && entryIndex < totalEntries - 1) {
-        onNavigate(entryIndex + 1);
-      }
-    },
-    [dirty, entryIndex, groundTruth, handleSave, onBack, onNavigate],
-  );
-
-  useEffect(() => {
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [handleKeyDown]);
+  useDetailKeyboard({
+    dirty,
+    entryIndex,
+    totalEntries,
+    onBack,
+    onNavigate,
+    onSave: handleSave,
+  });
 
   if (error) {
     return (
@@ -217,7 +195,6 @@ export function CanonicalizeDetailView({
     return <div className="text-gray-400 py-12 text-center">Preparing editor...</div>;
   }
 
-  const totalEntries = groundTruth.entries.length;
   const saveButtonContent = (() => {
     if (saveStatus === "saving") return "Saving...";
     if (saveStatus === "saved") {
@@ -266,7 +243,7 @@ export function CanonicalizeDetailView({
           Back
         </button>
         <div className="flex-1">
-          <h2 className="font-semibold">{edited?.title || gtEntry.expected.title}</h2>
+          <h2 className="font-semibold">{detailTitle(edited, gtEntry.expected.title)}</h2>
           <p className="text-xs text-gray-400">
             Entry {entryIndex + 1} of {totalEntries}
           </p>
