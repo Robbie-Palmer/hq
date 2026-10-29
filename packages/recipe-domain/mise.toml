@@ -12,6 +12,11 @@ description = "Test the recipe domain package"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."test:property"]
+description = "Run bounded recipe domain property tests"
+depends = ["install"]
+run = "pnpm test:property"
+
 [tasks."test:coverage"]
 description = "Test the recipe domain package with coverage"
 depends = ["//:install"]
