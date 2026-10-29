@@ -6,6 +6,11 @@ import {
   WEIGHT_UNITS,
 } from "../../src/conversion";
 import { normalizeIngredientSlugForOutput } from "../../src/ingredient-normalization";
+import {
+  reconcileIngredientProperty,
+  type IngredientPropertyObservation,
+} from "../../src/ingredient-property";
+import { calculateRecipeNutrition } from "../../src/nutrition";
 import { RecipeContentSchema, type RecipeContent } from "../../src/recipe";
 import { SavedRecipePayloadSchema } from "../../src/serialization";
 import { propertyParameters } from "./support";
@@ -79,6 +84,74 @@ const compatibleUnitPairArbitrary = fc.oneof(
     fc.constantFrom(...WEIGHT_UNITS),
   ),
 );
+
+const NUTRITION_OBSERVATION: IngredientPropertyObservation = {
+  id: "40000000-0000-4000-8000-000000000001",
+  sourceRecordId: "property-test-protein",
+  originalRecord: { proteinPer100g: "12.5" },
+  ingredientSlug: "plain-flour",
+  preparationState: "raw",
+  value: {
+    kind: "nutrient",
+    nutrient: "protein",
+    category: "macronutrient",
+    amount: "12.5",
+    unit: "g",
+    perEdibleGrams: "100",
+    uncertainty: {
+      lowerBound: "12",
+      upperBound: "13",
+      basis: "Bounded property-test fixture",
+    },
+  },
+  confidence: 0.95,
+  source: {
+    sourceId: "property-test-source",
+    publisher: "Recipe property tests",
+    dataset: "Bounded generated cases",
+    canonicalUrl: "https://example.test/recipe-property-tests",
+    license: "CC0-1.0",
+    attribution: "Recipe property tests",
+    effectiveVersion: "2026-10",
+  },
+};
+
+const NUTRITION_SELECTION = reconcileIngredientProperty({
+  catalogVersion: "property-test-2026.10",
+  observations: [NUTRITION_OBSERVATION],
+  selectedObservationId: NUTRITION_OBSERVATION.id,
+  confidence: 0.95,
+  decision: {
+    strategy: "manual",
+    rationale: "The bounded fixture has one declared observation.",
+    consideredObservationIds: [NUTRITION_OBSERVATION.id],
+    decidedBy: "property-test",
+    decidedAt: "2026-10-29T00:00:00.000Z",
+  },
+});
+
+function nutritionFor(amount: number, servings: number) {
+  return calculateRecipeNutrition({
+    recipeVersion: `flour-${amount}`,
+    catalogVersion: NUTRITION_SELECTION.catalogVersion,
+    servings,
+    ingredientGroups: [
+      {
+        items: [
+          {
+            ingredient: "plain-flour",
+            amount,
+            unit: "g",
+            quantityBasis: "edible",
+            preparation: "raw",
+          },
+        ],
+      },
+    ],
+    selections: [NUTRITION_SELECTION],
+    decimalPlaces: 8,
+  });
+}
 
 describe("recipe domain properties", () => {
   it("round-trips valid saved recipes through JSON and schema parsing", () => {
@@ -160,6 +233,35 @@ describe("recipe domain properties", () => {
             return (
               RecipeContentSchema.safeParse(recipe).success &&
               !RecipeContentSchema.safeParse(invalidRecipe).success
+            );
+          },
+        ),
+        propertyParameters(),
+      ),
+    ).not.toThrow();
+  });
+
+  it("scales nutrition with quantity while serving changes leave totals fixed", () => {
+    expect(() =>
+      fc.assert(
+        fc.property(
+          fc.integer({ min: 1, max: 10_000 }),
+          fc.integer({ min: 1, max: 20 }),
+          fc.integer({ min: 1, max: 10 }),
+          (amount, servings, scale) => {
+            const base = nutritionFor(amount, servings);
+            const scaled = nutritionFor(amount * scale, servings);
+            const resliced = nutritionFor(amount, servings + 1);
+            const baseTotal = Number(base.totals[0]?.amount);
+            const scaledTotal = Number(scaled.totals[0]?.amount);
+            const reslicedTotal = Number(resliced.totals[0]?.amount);
+            const reslicedServing = Number(resliced.perServing[0]?.amount);
+            return (
+              scaledTotal === baseTotal * scale &&
+              reslicedTotal === baseTotal &&
+              Math.abs(
+                reslicedServing - baseTotal / (servings + 1),
+              ) <= 1e-8
             );
           },
         ),

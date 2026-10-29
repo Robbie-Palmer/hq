@@ -60,6 +60,21 @@ export const NonNegativeDecimalSchema = z
   .regex(DECIMAL_PATTERN);
 export type NonNegativeDecimal = z.infer<typeof NonNegativeDecimalSchema>;
 
+export const PropertyUncertaintySchema = z
+  .object({
+    lowerBound: NonNegativeDecimalSchema,
+    upperBound: NonNegativeDecimalSchema,
+    basis: z.string().trim().min(1).max(240),
+  })
+  .refine(
+    ({ lowerBound, upperBound }) =>
+      compareDecimals(lowerBound, upperBound) <= 0,
+    "Uncertainty lower bound cannot exceed its upper bound",
+  );
+export type PropertyUncertainty = z.infer<
+  typeof PropertyUncertaintySchema
+>;
+
 export const IngredientPropertySourceReferenceSchema = z.object({
   sourceId: z.string().trim().min(1).max(120),
   publisher: z.string().trim().min(1),
@@ -74,33 +89,76 @@ export type IngredientPropertySourceReference = z.infer<
   typeof IngredientPropertySourceReferenceSchema
 >;
 
-const DensityPropertyValueSchema = z.object({
-  kind: z.literal("density"),
-  unit: z.literal("g_per_ml"),
-  gramsPerMilliliter: PositiveDecimalSchema,
-});
+const DensityPropertyValueSchema = z
+  .object({
+    kind: z.literal("density"),
+    unit: z.literal("g_per_ml"),
+    gramsPerMilliliter: PositiveDecimalSchema,
+    uncertainty: PropertyUncertaintySchema.refine(
+      ({ lowerBound }) => compareDecimals(lowerBound, "0") > 0,
+      "Density uncertainty must remain greater than zero",
+    ).optional(),
+  })
+  .refine(
+    ({ gramsPerMilliliter, uncertainty }) =>
+      !uncertainty ||
+      (compareDecimals(uncertainty.lowerBound, gramsPerMilliliter) <= 0 &&
+        compareDecimals(gramsPerMilliliter, uncertainty.upperBound) <= 0),
+    "Density estimate must fall within its uncertainty range",
+  );
 
 /** Edible mass divided by as-purchased gross mass, expressed from 0 to 1. */
-const EdibleMassFractionPropertyValueSchema = z.object({
-  kind: z.literal("edible_mass_fraction"),
-  unit: z.literal("fraction"),
-  edibleMassFraction: PositiveDecimalSchema.refine(
-    (value) => DECIMAL_PATTERN.test(value) && compareDecimals(value, "1") <= 0,
-    "Edible mass fraction cannot exceed 1",
-  ),
-});
+const EdibleMassFractionPropertyValueSchema = z
+  .object({
+    kind: z.literal("edible_mass_fraction"),
+    unit: z.literal("fraction"),
+    edibleMassFraction: PositiveDecimalSchema.refine(
+      (value) =>
+        DECIMAL_PATTERN.test(value) && compareDecimals(value, "1") <= 0,
+      "Edible mass fraction cannot exceed 1",
+    ),
+    uncertainty: PropertyUncertaintySchema.refine(
+      ({ upperBound }) => compareDecimals(upperBound, "1") <= 0,
+      "Edible mass fraction uncertainty cannot exceed 1",
+    ).optional(),
+  })
+  .refine(
+    ({ edibleMassFraction, uncertainty }) =>
+      !uncertainty ||
+      (compareDecimals(uncertainty.lowerBound, edibleMassFraction) <= 0 &&
+        compareDecimals(edibleMassFraction, uncertainty.upperBound) <= 0),
+    "Edible mass fraction estimate must fall within its uncertainty range",
+  );
 
 export const NUTRIENT_UNITS = ["g", "mg", "ug", "kcal", "kj"] as const;
 export const NutrientUnitSchema = z.enum(NUTRIENT_UNITS);
 export type NutrientUnit = z.infer<typeof NutrientUnitSchema>;
 
-const NutrientPropertyValueSchema = z.object({
-  kind: z.literal("nutrient"),
-  nutrient: z.string().trim().min(1).max(120),
-  amount: NonNegativeDecimalSchema,
-  unit: NutrientUnitSchema,
-  perEdibleGrams: PositiveDecimalSchema,
-});
+export const NUTRIENT_CATEGORIES = [
+  "energy",
+  "macronutrient",
+  "micronutrient",
+] as const;
+export const NutrientCategorySchema = z.enum(NUTRIENT_CATEGORIES);
+export type NutrientCategory = z.infer<typeof NutrientCategorySchema>;
+
+const NutrientPropertyValueSchema = z
+  .object({
+    kind: z.literal("nutrient"),
+    nutrient: z.string().trim().min(1).max(120),
+    category: NutrientCategorySchema.optional(),
+    amount: NonNegativeDecimalSchema,
+    unit: NutrientUnitSchema,
+    perEdibleGrams: PositiveDecimalSchema,
+    uncertainty: PropertyUncertaintySchema.optional(),
+  })
+  .refine(
+    ({ amount, uncertainty }) =>
+      !uncertainty ||
+      (compareDecimals(uncertainty.lowerBound, amount) <= 0 &&
+        compareDecimals(amount, uncertainty.upperBound) <= 0),
+    "Nutrient estimate must fall within its uncertainty range",
+  );
 
 export const IngredientPropertyValueSchema = z.discriminatedUnion("kind", [
   DensityPropertyValueSchema,

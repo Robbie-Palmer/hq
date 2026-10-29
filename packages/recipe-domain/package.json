@@ -11,6 +11,7 @@
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
     "./mutation": "./src/mutation.ts",
+    "./nutrition": "./src/nutrition.ts",
     "./pantry": "./src/pantry.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
