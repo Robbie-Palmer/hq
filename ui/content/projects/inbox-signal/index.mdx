@@ -12,6 +12,7 @@ tech_stack:
   - "Neon"
   - "Cloudflare R2"
   - "DVC"
+  - "Doppler"
   - "Playwright"
   - "Better Auth"
 ideas:
@@ -114,8 +115,10 @@ Evaluation -.->|"tested improvements"| Models
 
 PostgreSQL is the live source of truth for synchronization state, provider
 identifiers, normalized metadata, policies, proposals, approvals, and action
-outcomes. R2 stores large private objects such as raw MIME and attachments. Raw
-mail needs an explicit encryption and retention policy before ingestion begins.
+outcomes. R2 stores large private objects such as raw MIME and attachments.
+[ADR 000](/projects/inbox-signal/adrs/000-private-mail-data-lifecycle) encrypts
+those objects before storage, limits every copy by data class, and blocks
+private-mail ingestion until restore and deletion rehearsals pass.
 
 DVC does not track the live mailbox or action queue. It versions a stratified
 sample selected from real usage telemetry for offline experiments. The sample
@@ -171,8 +174,10 @@ the provider result before marking the action complete.
 Ordinary deletion first moves mail to trash and records a recovery deadline.
 Permanent purge is a separate batch action. That separation makes aggressive
 cleanup practical without allowing one poor rule to erase years of mail in a
-single run. Retained copies in R2 have their own deletion policy so that
-"deleted from the mailbox" does not quietly mean "stored forever elsewhere."
+single run. The encrypted R2 archive is retained indefinitely by default, so
+mailbox cleanup does not erase the historical corpus. Deleting an archive item
+is a separate explicit action with its own recovery window, final approval, and
+verified purge across project-controlled stores.
 
 # Agent identity and authority
 
@@ -360,10 +365,7 @@ creates a second permanent copy of data I intended to delete.
 # Open decisions
 
 * Whether a managed custom-domain mailbox saves enough time to justify its fee
-* Whether raw mail is encrypted before R2 storage or processed in trusted hosted
-  services
 * Which retained document classes deserve long-term storage
-* How long trash, raw archive, telemetry, and evaluation samples should live
 * Whether paperless-ngx becomes the document store or remains a reference
 * Which Inbox Zero components are worth adapting rather than rebuilding
 
