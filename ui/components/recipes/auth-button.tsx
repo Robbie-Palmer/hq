@@ -212,40 +212,10 @@ function AuthenticatedAccountMenu({
               </p>
             </div>
           </div>
-          <div className="p-1.5">
-            <Button
-              variant="ghost"
-              className="w-full justify-start"
-              asChild
-              onClick={() => onOpenChange(false)}
-            >
-              <a href="/recipes/profile">
-                <UserRound /> Profile
-              </a>
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start"
-              asChild
-              onClick={() => onOpenChange(false)}
-            >
-              <a href="/recipes/settings">
-                <Settings /> Settings
-              </a>
-            </Button>
-            {user.role === "admin" && (
-              <Button
-                variant="ghost"
-                className="w-full justify-start"
-                asChild
-                onClick={() => onOpenChange(false)}
-              >
-                <a href="/recipes/admin/terms">
-                  <ListChecks /> Review terms
-                </a>
-              </Button>
-            )}
-          </div>
+          <AccountMenuLinks
+            isAdmin={user.role === "admin"}
+            onOpenChange={onOpenChange}
+          />
           <div className="border-t p-1.5">
             <Button
               variant="ghost"
@@ -263,6 +233,51 @@ function AuthenticatedAccountMenu({
         </PopoverPrimitive.Content>
       </PopoverPrimitive.Portal>
     </PopoverPrimitive.Root>
+  );
+}
+
+function AccountMenuLinks({
+  isAdmin,
+  onOpenChange,
+}: Readonly<{
+  isAdmin: boolean;
+  onOpenChange: (open: boolean) => void;
+}>) {
+  return (
+    <div className="p-1.5">
+      <Button
+        variant="ghost"
+        className="w-full justify-start"
+        asChild
+        onClick={() => onOpenChange(false)}
+      >
+        <a href="/recipes/profile">
+          <UserRound /> Profile
+        </a>
+      </Button>
+      <Button
+        variant="ghost"
+        className="w-full justify-start"
+        asChild
+        onClick={() => onOpenChange(false)}
+      >
+        <a href="/recipes/settings">
+          <Settings /> Settings
+        </a>
+      </Button>
+      {isAdmin && (
+        <Button
+          variant="ghost"
+          className="w-full justify-start"
+          asChild
+          onClick={() => onOpenChange(false)}
+        >
+          <a href="/recipes/admin/terms">
+            <ListChecks /> Review terms
+          </a>
+        </Button>
+      )}
+    </div>
   );
 }
 
