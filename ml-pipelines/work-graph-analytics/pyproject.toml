@@ -1,0 +1,47 @@
+[project]
+name = "work-graph-analytics"
+version = "0.1.0"
+description = "Manifest-verified dbt and DuckDB lakehouse models for Work Graph"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "dbt-duckdb>=1.9.0,<2",
+    "duckdb>=1.4.0,<2",
+]
+
+[project.scripts]
+work-graph-analytics = "work_graph_analytics.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.0,<10",
+    "pytest-cov>=7.0.0,<8",
+    "ruff>=0.14.0,<0.15",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=work_graph_analytics --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = [
+    "ANN401", # Raw JSON crosses the validation boundary as dynamic values.
+    "T201", # The fixture assertion script reports through process status.
+    "TRY003", # Dataset errors include the exact rejected field or object.
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/assert_fixture.py" = ["S101", "S608"]
+"tests/**" = ["S101"]

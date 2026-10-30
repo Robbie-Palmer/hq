@@ -1,0 +1,48 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import duckdb
+import pytest
+
+from work_graph_analytics.cli import main
+from work_graph_analytics.publication import MODEL_FILES
+
+FIXTURE = Path(__file__).parents[1] / "fixtures/raw"
+
+
+def write_models(version_root: Path) -> None:
+    for index, filename in enumerate(MODEL_FILES):
+        escaped = (version_root / filename).as_posix().replace("'", "''")
+        duckdb.sql(f"copy (select {index} as value) to '{escaped}' (format parquet)")
+
+
+def test_stage_prepare_and_publish_commands(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    staged = tmp_path / "staged"
+    output = tmp_path / "output"
+
+    assert main(["stage", str(FIXTURE), str(staged)]) == 0
+    assert '"watermark": 14' in capsys.readouterr().out
+    assert main(["prepare", str(output), "v1"]) == 0
+    assert str(output / "v1") in capsys.readouterr().out
+    write_models(output / "v1")
+    assert main(["publish", str(output), "v1", str(staged)]) == 0
+    assert str(output / "v1/manifest.json") in capsys.readouterr().out
+
+
+def test_commands_report_dataset_errors(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match="2"):
+        main(["stage", str(tmp_path / "absent"), str(tmp_path / "stage")])
+
+    staged = tmp_path / "empty-stage"
+    staged.mkdir()
+    output = tmp_path / "output"
+    output.mkdir()
+    with pytest.raises(SystemExit, match="2"):
+        main(["publish", str(output), "absent", str(staged)])
+
+    (staged / "manifests.ndjson").write_text("")
+    with pytest.raises(SystemExit, match="2"):
+        main(["publish", str(output), "absent", str(staged)])

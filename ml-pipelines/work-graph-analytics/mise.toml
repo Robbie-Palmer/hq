@@ -1,0 +1,44 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked Work Graph analytics environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Resolve and update the Work Graph analytics lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format Work Graph analytics Python code"
+depends = ["sync"]
+run = "uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint Work Graph analytics Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.test]
+description = "Test manifest validation and publication"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Test Work Graph analytics and write Cobertura coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks."dbt:parse"]
+description = "Parse the Work Graph dbt project"
+depends = ["sync"]
+run = "uv run --locked dbt parse --profiles-dir ."
+
+[tasks."fixtures:build"]
+description = "Build and test all Work Graph lakehouse models against deterministic fixtures"
+depends = ["sync"]
+run = "bash scripts/build-fixtures.sh"
+
+[tasks.check]
+description = "Run all Work Graph analytics checks"
+depends = ["lint", "test", "dbt:parse", "fixtures:build"]
