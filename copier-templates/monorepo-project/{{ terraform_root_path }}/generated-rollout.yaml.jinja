@@ -1,31 +1,31 @@
 # Managed by Copier; record evidence in the project profile, not in this file.
 schema_version: 1
 project: "{{ blueprint.project.stable_id }}"
-{% if blueprint.rollout.operational_checks %}
+{% if blueprint.rollout.operational_checks -%}
 operational_checks:
-{% for check in blueprint.rollout.operational_checks %}
+{% for check in blueprint.rollout.operational_checks -%}
   - id: "{{ check.id }}"
     command: "{{ check.command }}"
-{% endfor %}
-{% else %}
+{% endfor -%}
+{% else -%}
 operational_checks: []
-{% endif %}
-{% if blueprint.rollout.migration_checkpoints %}
+{% endif -%}
+{% if blueprint.rollout.migration_checkpoints -%}
 migration_checkpoints:
-{% for checkpoint in blueprint.rollout.migration_checkpoints %}
+{% for checkpoint in blueprint.rollout.migration_checkpoints -%}
   - id: "{{ checkpoint.id }}"
     action: "{{ checkpoint.action }}"
     verification: "{{ checkpoint.verification }}"
     status: "{{ checkpoint.status }}"
-{% if checkpoint.evidence %}
+{% if checkpoint.evidence -%}
     evidence:
-{% for item in checkpoint.evidence %}
+{% for item in checkpoint.evidence -%}
       - "{{ item }}"
-{% endfor %}
-{% else %}
+{% endfor -%}
+{% else -%}
     evidence: []
-{% endif %}
-{% endfor %}
-{% else %}
+{% endif -%}
+{% endfor -%}
+{% else -%}
 migration_checkpoints: []
-{%- endif -%}{{ "\n" -}}
+{% endif -%}
