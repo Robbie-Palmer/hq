@@ -5,6 +5,7 @@ import {
   type WorkflowStepConfig,
 } from "cloudflare:workers";
 import { NonRetryableError } from "cloudflare:workflows";
+import { eq } from "drizzle-orm";
 import {
   SpanKind,
   type TraceCarrier,
@@ -12,6 +13,8 @@ import {
   withPostHogSpan,
 } from "observability";
 import { withDb } from "recipe-db";
+import { recipeImportJob as jobs } from "recipe-db/schema";
+import type { BatchDraft } from "recipe-domain/batch-import";
 import { canonicalEquipment } from "recipe-parsing/canonical-equipment-data";
 import { canonicalIngredients } from "recipe-parsing/canonical-ingredients-data";
 import {
@@ -43,10 +46,14 @@ import {
 } from "recipe-parsing/slug-matching";
 import { writeArtifact } from "./artifacts";
 import { runLlmCall } from "./attempts";
-import { runBatchItem } from "./batch";
+import { admitBatchJob, runBatchItem } from "./batch";
 import { buildFinalDraft } from "./draft";
 import type { Env } from "./env";
-import { listSourceImageKeys, loadImageDataUrls } from "./images";
+import {
+  listSourceImageKeys,
+  loadImageDataUrls,
+  readPhotoJobSourceManifest,
+} from "./images";
 import {
   markJobFailed,
   markJobRunning,
@@ -58,6 +65,7 @@ import { type StageParams, stageParams } from "./params";
 export type IngestParams = {
   jobId: string;
   batchAttempt?: number;
+  batchPhoto?: boolean;
   traceContext?: TraceCarrier;
 };
 
@@ -73,12 +81,36 @@ function llmStepConfig(params: StageParams): WorkflowStepConfig {
   };
 }
 
+async function awaitBatchAdmission(
+  env: Env,
+  jobId: string,
+  batchAttempt: number,
+  instanceId: string,
+  step: WorkflowStep,
+): Promise<boolean> {
+  let check = 0;
+  while (true) {
+    const outcome = await step.do(`admit-${check}`, () =>
+      withDb(env, (db) =>
+        admitBatchJob(db, jobId, batchAttempt, instanceId),
+      ),
+    );
+    if (outcome === "obsolete") return false;
+    if (outcome === "admitted") return true;
+    await step.sleep(`wait-${check}`, "5 seconds");
+    check++;
+  }
+}
+
 export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> {
   override async run(
     event: WorkflowEvent<IngestParams>,
     step: WorkflowStep,
   ): Promise<void> {
-    if (event.payload.batchAttempt !== undefined) {
+    if (
+      event.payload.batchAttempt !== undefined &&
+      !event.payload.batchPhoto
+    ) {
       await runBatchItem(this.env, event.payload.jobId, event.payload.batchAttempt, event.instanceId, step);
       return;
     }
@@ -90,6 +122,9 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
     step: WorkflowStep,
   ): Promise<void> {
     const { jobId } = event.payload;
+    const batchAttempt = event.payload.batchPhoto
+      ? event.payload.batchAttempt
+      : undefined;
     const env = this.env;
     const traceStep = <T>(
       name: string,
@@ -113,20 +148,74 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
       );
 
     try {
-      const sourceKeys = await step.do("start", async () =>
+      if (
+        batchAttempt !== undefined &&
+        !(await awaitBatchAdmission(
+          env,
+          jobId,
+          batchAttempt,
+          event.instanceId,
+          step,
+        ))
+      ) {
+        return;
+      }
+
+      const source = await step.do("start", async () =>
         traceStep("start", async () => {
-          const keys = await listSourceImageKeys(env, jobId);
+          let photoManifest:
+            | Awaited<ReturnType<typeof readPhotoJobSourceManifest>>
+            | undefined;
+          let keys: string[];
+          if (batchAttempt === undefined) {
+            keys = await listSourceImageKeys(env, jobId);
+          } else {
+            const [item] = await withDb(env, (db) =>
+              db
+                .select({ sourceChecksum: jobs.sourceChecksum })
+                .from(jobs)
+                .where(eq(jobs.id, jobId)),
+            );
+            photoManifest = await readPhotoJobSourceManifest(
+              env,
+              jobId,
+              item?.sourceChecksum ?? null,
+            );
+            keys = photoManifest.images.map((image) => image.r2Key);
+          }
           if (keys.length === 0) {
             throw new NonRetryableError(
               `No source images found for job ${jobId}`,
             );
           }
-          await withDb(env, (db) =>
-            markJobRunning(db, jobId, event.instanceId),
-          );
-          return keys;
+          await withDb(env, async (db) => {
+            await markJobRunning(
+              db,
+              jobId,
+              event.instanceId,
+              batchAttempt,
+            );
+            if (photoManifest) {
+              await writeArtifact({
+                env,
+                db,
+                jobId,
+                stage: "extract",
+                kind: "photo-group-source-manifest",
+                filename: "source-manifest.json",
+                payload: photoManifest,
+                preview: {
+                  manifestVersion: photoManifest.manifestVersion,
+                  manifestChecksum: photoManifest.manifestChecksum,
+                  groupChecksum: photoManifest.groupChecksum,
+                },
+              });
+            }
+          });
+          return { sourceKeys: keys, photoManifest };
         }),
       );
+      const { sourceKeys, photoManifest } = source;
 
       const extractParams = stageParams(env, "extract");
       const extraction = await step.do(
@@ -134,7 +223,18 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
         llmStepConfig(extractParams),
         async (): Promise<ExtractionRecipe> =>
           traceStep("extract", async () => {
-            const imageDataUrls = await loadImageDataUrls(env, sourceKeys);
+            const imageDataUrls = await loadImageDataUrls(
+              env,
+              sourceKeys,
+              photoManifest
+                ? new Map(
+                    photoManifest.images.map((image) => [
+                      image.r2Key,
+                      image.checksum,
+                    ]),
+                  )
+                : undefined,
+            );
             return runLlmCall({
               env,
               jobId,
@@ -169,6 +269,7 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
               jobId,
               "normalize",
               "Tidying the recipe into a draft",
+              batchAttempt,
             );
           });
         }),
@@ -264,6 +365,7 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
               jobId,
               "canonicalize",
               "Matching ingredients to the pantry",
+              batchAttempt,
             );
           });
         }),
@@ -424,7 +526,13 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
               },
               model: canonicalizeParams.model,
             });
-            await updateJobStage(db, jobId, "finalize", "Preparing your draft");
+            await updateJobStage(
+              db,
+              jobId,
+              "finalize",
+              "Preparing your draft",
+              batchAttempt,
+            );
           });
         }),
       );
@@ -448,7 +556,25 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
               payload: draft,
               preview: draft,
             });
-            await markJobSucceeded(db, jobId);
+            const batchDraft: BatchDraft | undefined =
+              batchAttempt === undefined
+                ? undefined
+                : {
+                    title: draft.recipe.title,
+                    description: draft.recipe.description,
+                    cuisine: draft.recipe.cuisine.join(", "),
+                    servings: draft.recipe.servings,
+                    prepTime: draft.recipe.prepTime,
+                    cookTime: draft.recipe.cookTime,
+                    source: draft.cooklang.body,
+                  };
+            await markJobSucceeded(
+              db,
+              jobId,
+              batchDraft && batchAttempt !== undefined
+                ? { batchAttempt, draft: batchDraft }
+                : undefined,
+            );
           });
         }),
       );
@@ -465,7 +591,13 @@ export class RecipeIngestWorkflow extends WorkflowEntrypoint<Env, IngestParams> 
       await step.do("mark-failed", async () =>
         traceStep("mark-failed", async () => {
           await withDb(env, (db) =>
-            markJobFailed(db, jobId, errorType, errorMessage),
+            markJobFailed(
+              db,
+              jobId,
+              errorType,
+              errorMessage,
+              batchAttempt,
+            ),
           );
         }),
       );

@@ -20,15 +20,10 @@ import { sha256Hex } from "ts-base/crypto";
 import { observeRecipeTerms } from "./authored-terms";
 import { type ArchiveEntry, expandCooklangArchive } from "./collection-archive";
 import { validateRecipeUrl } from "./recipe-url-import";
+import { BatchImportError } from "./batch-import-error";
+import { readPhotoBatchProjection } from "./photo-batches";
 
-export class BatchImportError extends Error {
-  constructor(
-    message: string,
-    readonly status: 400 | 404 | 409 | 429 | 503,
-  ) {
-    super(message);
-  }
-}
+export { BatchImportError } from "./batch-import-error";
 
 export function preflightSources(sources: BatchSource[]) {
   const seen = new Set<string>();
@@ -232,11 +227,22 @@ export async function readBatch(db: Db, userId: string, batchId: string) {
     .from(batches)
     .where(and(eq(batches.id, batchId), eq(batches.userId, userId)));
   if (!batch) throw new BatchImportError("Batch not found", 404);
-  const items = await db
+  const photo =
+    batch.kind === "photo"
+      ? await readPhotoBatchProjection(db, batchId)
+      : undefined;
+  const allItems = await db
     .select()
     .from(jobs)
     .where(eq(jobs.batchId, batch.id))
     .orderBy(jobs.position);
+  const itemById = new Map(allItems.map((item) => [item.id, item]));
+  const items = photo
+    ? photo.jobIds.flatMap((jobId) => {
+        const item = itemById.get(jobId);
+        return item ? [item] : [];
+      })
+    : allItems;
   const provenance = await db.select().from(archiveEntries).innerJoin(jobs, eq(jobs.id, archiveEntries.jobId)).where(eq(jobs.batchId, batchId));
   const provenanceByJob = new Map(provenance.map(value => [value.recipe_import_archive_entry.jobId, value.recipe_import_archive_entry]));
   const draftByJob = await readBatchDrafts(
@@ -246,6 +252,7 @@ export async function readBatch(db: Db, userId: string, batchId: string) {
   return {
     ...batch,
     items: items.map((item) => ({ ...item, ...draftByJob.get(item.id), archive: provenanceByJob.get(item.id) })),
+    ...(photo ?? {}),
     ...batchProgress(items),
     ...(!batch.startedAt ? { status: "preparing" } : {}),
     ...(batch.undoStartedAt ? { status: batch.undoCompletedAt ? "undone" : "undoing" } : {}),
@@ -328,7 +335,11 @@ export async function startBatch(
     try {
       await workflow.create({
         id,
-        params: { jobId: item.id, batchAttempt: item.executionAttempt },
+        params: {
+          jobId: item.id,
+          batchAttempt: item.executionAttempt,
+          ...(item.sourceType === "photo" ? { batchPhoto: true } : {}),
+        },
       });
     } catch (error) {
       try {

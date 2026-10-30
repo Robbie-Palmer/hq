@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import { BatchImportCapture } from "@/components/recipes/batch-import-capture";
 import { BatchImportUndo } from "@/components/recipes/batch-import-undo";
 import { BatchItemEditor } from "@/components/recipes/batch-item-editor";
+import { PhotoBatchGrouping } from "@/components/recipes/photo-batch-grouping";
 import { RecipeAuthRequired } from "@/components/recipes/recipe-auth-required";
 import { Button } from "@/components/ui/button";
 import { useRecipeImportBatch } from "@/hooks/use-recipe-import-batch";
@@ -179,6 +180,10 @@ export function BatchRecipeImport() {
       {batch && (
         <>
           <BatchProgress batch={batch} />
+          {batch.kind === "photo" &&
+            (!batch.photoManifest || batch.counts.failed > 0) && (
+              <PhotoBatchGrouping batch={batch} onConfirmed={resume} />
+            )}
           {batch.items.some((value) => value.archive) && (
             <BatchImportUndo key={batch.id} batch={batch} busy={busy} />
           )}

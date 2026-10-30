@@ -1593,6 +1593,7 @@ export const recipeImportArchiveEntry = pgTable("recipe_import_archive_entry", {
 export const recipeImportBatch = pgTable("recipe_import_batch", {
   id: uuid().primaryKey().defaultRandom(),
   userId: text().notNull().references(() => user.id, { onDelete: "cascade" }),
+  kind: text().notNull().default("structured"),
   idempotencyKey: uuid().notNull(),
   fingerprint: text().notNull(),
   duplicatePolicy: text().notNull().default("skip"),
@@ -1602,6 +1603,61 @@ export const recipeImportBatch = pgTable("recipe_import_batch", {
   visibility: visibilityEnum().notNull().default("private"),
   createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
 }, table => [uniqueIndex("recipe_import_batch_owner_key_unique").on(table.userId, table.idempotencyKey)]);
+
+export const recipeImportPhotoImage = pgTable(
+  "recipe_import_photo_image",
+  {
+    id: uuid().primaryKey(),
+    batchId: uuid()
+      .notNull()
+      .references(() => recipeImportBatch.id, { onDelete: "cascade" }),
+    position: integer().notNull(),
+    filename: text().notNull(),
+    contentType: text().notNull(),
+    byteSize: integer().notNull(),
+    r2Key: text().notNull(),
+    checksum: text().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("recipe_import_photo_image_batch_position_unique").on(
+      table.batchId,
+      table.position,
+    ),
+    uniqueIndex("recipe_import_photo_image_batch_id_unique").on(
+      table.batchId,
+      table.id,
+    ),
+    check("recipe_import_photo_image_position_nonnegative", sql`${table.position} >= 0`),
+    check("recipe_import_photo_image_byte_size_positive", sql`${table.byteSize} > 0`),
+  ],
+);
+
+export const recipeImportPhotoManifest = pgTable(
+  "recipe_import_photo_manifest",
+  {
+    id: uuid().primaryKey(),
+    batchId: uuid()
+      .notNull()
+      .references(() => recipeImportBatch.id, { onDelete: "cascade" }),
+    version: integer().notNull(),
+    idempotencyKey: uuid().notNull(),
+    requestFingerprint: text().notNull(),
+    checksum: text().notNull(),
+    confirmedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("recipe_import_photo_manifest_batch_version_unique").on(
+      table.batchId,
+      table.version,
+    ),
+    uniqueIndex("recipe_import_photo_manifest_batch_key_unique").on(
+      table.batchId,
+      table.idempotencyKey,
+    ),
+    check("recipe_import_photo_manifest_version_positive", sql`${table.version} > 0`),
+  ],
+);
 
 export const recipeImportJob = pgTable(
   "recipe_import_job",
@@ -1622,6 +1678,8 @@ export const recipeImportJob = pgTable(
     sourceType: text().notNull().default("photo"),
     sourceLabel: text(),
     sourceChecksum: text(),
+    photoGroupChecksum: text(),
+    photoManifestVersion: integer(),
     reviewState: text().notNull().default("waiting"),
     draftVersion: integer().notNull().default(1),
     executionAttempt: integer().notNull().default(1),
@@ -1648,6 +1706,57 @@ export const recipeImportJob = pgTable(
       table.userId,
       table.createdAt,
     ),
+  ],
+);
+
+export const recipeImportPhotoGroup = pgTable(
+  "recipe_import_photo_group",
+  {
+    id: uuid().primaryKey(),
+    manifestId: uuid()
+      .notNull()
+      .references(() => recipeImportPhotoManifest.id, { onDelete: "cascade" }),
+    jobId: uuid()
+      .notNull()
+      .references(() => recipeImportJob.id, { onDelete: "restrict" }),
+    position: integer().notNull(),
+    title: text(),
+    checksum: text().notNull(),
+  },
+  (table) => [
+    uniqueIndex("recipe_import_photo_group_manifest_position_unique").on(
+      table.manifestId,
+      table.position,
+    ),
+    uniqueIndex("recipe_import_photo_group_manifest_job_unique").on(
+      table.manifestId,
+      table.jobId,
+    ),
+    check("recipe_import_photo_group_position_nonnegative", sql`${table.position} >= 0`),
+  ],
+);
+
+export const recipeImportPhotoGroupImage = pgTable(
+  "recipe_import_photo_group_image",
+  {
+    manifestId: uuid()
+      .notNull()
+      .references(() => recipeImportPhotoManifest.id, { onDelete: "cascade" }),
+    groupId: uuid()
+      .notNull()
+      .references(() => recipeImportPhotoGroup.id, { onDelete: "cascade" }),
+    imageId: uuid()
+      .notNull()
+      .references(() => recipeImportPhotoImage.id, { onDelete: "restrict" }),
+    position: integer().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.manifestId, table.imageId] }),
+    uniqueIndex("recipe_import_photo_group_image_position_unique").on(
+      table.groupId,
+      table.position,
+    ),
+    check("recipe_import_photo_group_image_position_nonnegative", sql`${table.position} >= 0`),
   ],
 );
 

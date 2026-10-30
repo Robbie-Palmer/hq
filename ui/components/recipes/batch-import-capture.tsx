@@ -6,13 +6,21 @@ import {
   type BatchSource,
   CreateBatchSchema,
 } from "recipe-domain/batch-import";
+import {
+  RECIPE_IMPORT_IMAGE_MIME_TYPES,
+  RECIPE_IMPORT_MAX_IMAGE_BYTES,
+  RECIPE_IMPORT_MAX_TOTAL_BYTES,
+} from "recipe-domain/import-storage";
+import { RECIPE_PHOTO_BATCH_MAX_IMAGES } from "recipe-domain/photo-batch";
 import type { RecipeVisibility } from "recipe-domain/visibility";
 import type { z } from "zod";
+import { PhotoBatchGrouping } from "@/components/recipes/photo-batch-grouping";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/http";
 import {
   batchErrorMessage,
+  createPhotoImportBatch,
   type ImportBatch,
   recipeImportBatchesPath,
 } from "@/lib/api/recipe-import-batches";
@@ -54,9 +62,12 @@ export function BatchImportCapture({
     "skip",
   );
   const [prepared, setPrepared] = useState<ImportBatch | null>(null);
+  const [photoFiles, setPhotoFiles] = useState<File[]>([]);
+  const [photoBatch, setPhotoBatch] = useState<ImportBatch | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const submission = useRef<{ key: string; input: string } | null>(null);
+  const photoSubmission = useRef<{ key: string; input: string } | null>(null);
   const checks = prepared?.items.map((item, position) => ({
     position,
     label: item.sourceLabel,
@@ -101,6 +112,63 @@ export function BatchImportCapture({
     try {
       if (start && prepared) await onStart(prepared.id);
       else await createPreparation();
+    } catch (cause) {
+      setError(batchErrorMessage(cause));
+    } finally {
+      setBusy(false);
+    }
+  }
+  function choosePhotos(files: File[]) {
+    setError(null);
+    setPhotoBatch(null);
+    setPhotoFiles([]);
+    if (files.length > RECIPE_PHOTO_BATCH_MAX_IMAGES) {
+      setError(`Choose at most ${RECIPE_PHOTO_BATCH_MAX_IMAGES} photos.`);
+      return;
+    }
+    const accepted = new Set<string>(RECIPE_IMPORT_IMAGE_MIME_TYPES);
+    const invalid = files.find((file) => !accepted.has(file.type));
+    if (invalid) {
+      setError(`${invalid.name} must be a JPEG, PNG, or WebP image.`);
+      return;
+    }
+    const oversized = files.find(
+      (file) => file.size > RECIPE_IMPORT_MAX_IMAGE_BYTES,
+    );
+    if (oversized) {
+      setError(`${oversized.name} exceeds 10 MB.`);
+      return;
+    }
+    const total = files.reduce((sum, file) => sum + file.size, 0);
+    if (total > RECIPE_IMPORT_MAX_TOTAL_BYTES) {
+      setError("Photo batches must total 30 MB or less.");
+      return;
+    }
+    setPhotoFiles(files);
+  }
+  async function uploadPhotos() {
+    setBusy(true);
+    setError(null);
+    try {
+      const input = JSON.stringify([
+        photoFiles.map((file) => [
+          file.name,
+          file.size,
+          file.type,
+          file.lastModified,
+        ]),
+        visibility,
+        duplicatePolicy,
+      ]);
+      if (photoSubmission.current?.input !== input)
+        photoSubmission.current = { key: crypto.randomUUID(), input };
+      const batch = await createPhotoImportBatch({
+        idempotencyKey: photoSubmission.current.key,
+        visibility,
+        duplicatePolicy,
+        images: photoFiles,
+      });
+      setPhotoBatch(batch);
     } catch (cause) {
       setError(batchErrorMessage(cause));
     } finally {
@@ -217,6 +285,54 @@ export function BatchImportCapture({
               Start batch
             </Button>
           </div>
+        )}
+      </details>
+      <details
+        open={!hasBatch && photoFiles.length > 0}
+        className="my-4 rounded-lg border border-[var(--line)] p-4"
+      >
+        <summary className="cursor-pointer">New photo batch</summary>
+        <p className="my-2 text-sm text-[var(--ink-3)]">
+          Upload up to {RECIPE_PHOTO_BATCH_MAX_IMAGES} pages, then group and
+          order one to six pages for each recipe before extraction starts.
+        </p>
+        <label htmlFor="batch-recipe-photos" className="my-3 grid gap-2">
+          Recipe page photos
+          <Input
+            id="batch-recipe-photos"
+            type="file"
+            multiple
+            accept={RECIPE_IMPORT_IMAGE_MIME_TYPES.join(",")}
+            disabled={busy}
+            onChange={(event) => {
+              choosePhotos(Array.from(event.target.files ?? []));
+              event.target.value = "";
+            }}
+          />
+        </label>
+        {photoFiles.length > 0 && !photoBatch && (
+          <>
+            <ul className="my-3 text-sm" aria-label="Photo batch pages">
+              {photoFiles.map((file, index) => (
+                <li key={`${file.name}-${file.lastModified}-${index}`}>
+                  {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
+                </li>
+              ))}
+            </ul>
+            <Button disabled={busy} onClick={() => void uploadPhotos()}>
+              Upload pages
+            </Button>
+          </>
+        )}
+        {photoBatch && (
+          <PhotoBatchGrouping
+            batch={photoBatch}
+            onConfirmed={async (batchId) => {
+              setPhotoBatch(null);
+              setPhotoFiles([]);
+              await onStart(batchId);
+            }}
+          />
         )}
       </details>
     </section>

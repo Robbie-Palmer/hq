@@ -4,6 +4,7 @@ import { strToU8, zipSync } from "fflate";
 import { createDb, schema } from "recipe-db";
 import { insertGeneratedDraft, readBatchDrafts } from "recipe-db/batch-drafts";
 import { artifactKey, sourceImageKey } from "recipe-domain/import-storage";
+import { photoJobSourceManifestKey } from "recipe-domain/photo-batch";
 import { emptyPantryFreshness } from "recipe-domain/pantry";
 import {
   afterAll,
@@ -285,8 +286,8 @@ beforeAll(async () => {
     )
     order by group_key, ingredient_slug
   `;
-  expect(migrationCount?.count).toBe(32);
-  expect(tableCount?.count).toBe(63);
+  expect(migrationCount?.count).toBe(33);
+  expect(tableCount?.count).toBe(67);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
     {
@@ -2780,12 +2781,38 @@ describe("recipe API PostgreSQL integration", () => {
 
 describe("durable recipe batches", () => {
   function batchServices() {
-    const objects = new Map<string, string>();
-    const put = vi.fn(async (key: string, value: string) => { objects.set(key, value); });
+    const objects = new Map<string, Blob | string>();
+    const put = vi.fn(async (key: string, value: Blob | string) => {
+      objects.set(key, value);
+    });
+    const artifactGet = vi.fn(async (key: string) => {
+      const value = objects.get(key);
+      if (value === undefined) return null;
+      const blob = value instanceof Blob ? value : new Blob([value], { type: "application/json" });
+      return {
+        body: blob.stream(),
+        text: () => blob.text(),
+        arrayBuffer: () => blob.arrayBuffer(),
+        httpMetadata: { contentType: blob.type },
+      };
+    });
+    const remove = vi.fn(async (key: string) => {
+      objects.delete(key);
+    });
     const create = vi.fn().mockResolvedValue({});
     const status = vi.fn().mockResolvedValue({ status: "queued" });
     const get = vi.fn().mockResolvedValue({ status });
-    return { objects, create, get, status, env: { ...baseEnv, ARTIFACTS: { put } as unknown as R2Bucket, RECIPE_INGEST_WORKFLOW: { create, get } as unknown as Workflow } };
+    return {
+      objects,
+      create,
+      get,
+      status,
+      env: {
+        ...baseEnv,
+        ARTIFACTS: { put, get: artifactGet, delete: remove } as unknown as R2Bucket,
+        RECIPE_INGEST_WORKFLOW: { create, get } as unknown as Workflow,
+      },
+    };
   }
   const draft = { title: "Batch salt", description: "A test recipe", source: "Mix the @salt{1%tsp} into the dish.", cuisine: "", servings: 2 };
   function sources() {
@@ -2807,6 +2834,250 @@ describe("durable recipe batches", () => {
     expect(response.status).toBe(200);
     return (await response.json() as { recipeId: string }).recipeId;
   }
+  function photoForm(
+    idempotencyKey: string,
+    names = ["soup-1.png", "soup-2.png", "bread-1.png", "bread-2.png"],
+  ) {
+    const form = new FormData();
+    form.set("idempotencyKey", idempotencyKey);
+    form.set("visibility", "private");
+    form.set("duplicatePolicy", "skip");
+    for (const [index, name] of names.entries()) {
+      form.append(
+        "images",
+        new File(
+          [
+            new Uint8Array([
+              0x89,
+              0x50,
+              0x4e,
+              0x47,
+              0x0d,
+              0x0a,
+              0x1a,
+              0x0a,
+              index,
+            ]),
+          ],
+          name,
+          { type: "image/png" },
+        ),
+      );
+    }
+    return form;
+  }
+  function uploadPhotoBatch(
+    cook: TestUser,
+    service: ReturnType<typeof batchServices>,
+    key: string,
+  ) {
+    return app.request(
+      "/recipe-import-batches/photos",
+      {
+        method: "POST",
+        headers: { cookie: cook.cookie, origin: authOrigin },
+        body: photoForm(key),
+      },
+      service.env,
+    );
+  }
+
+  it("installs manifest membership and ordering constraints", async () => {
+    const constraints = await client<{ conname: string }[]>`
+      select conname
+      from pg_constraint
+      where conname in (
+        'recipe_import_photo_group_image_manifest_id_image_id_pk',
+        'recipe_import_photo_group_image_position_nonnegative',
+        'recipe_import_photo_manifest_version_positive'
+      )
+      order by conname
+    `;
+    expect(constraints.map((row) => row.conname)).toEqual([
+      "recipe_import_photo_group_image_manifest_id_image_id_pk",
+      "recipe_import_photo_group_image_position_nonnegative",
+      "recipe_import_photo_manifest_version_positive",
+    ]);
+  });
+
+  it("versions photo manifests, fences concurrent confirmation, and reuses successful groups", async () => {
+    const cook = await createUser("Photo Batch Cook", "photo-batch@example.test");
+    const stranger = await createUser("Other Cook", "other-photo@example.test");
+    const service = batchServices();
+    const uploadKey = crypto.randomUUID();
+    const response = await uploadPhotoBatch(cook, service, uploadKey);
+    expect(response.status).toBe(201);
+    const uploaded = (await response.json()) as {
+      id: string;
+      kind: string;
+      items: unknown[];
+      photoImages: Array<{ id: string }>;
+      photoManifest: null;
+    };
+    expect(uploaded).toMatchObject({ kind: "photo", items: [], photoManifest: null });
+    expect(uploaded.photoImages).toHaveLength(4);
+    expect(service.objects.size).toBe(4);
+    const replayUpload = await uploadPhotoBatch(cook, service, uploadKey);
+    expect((await replayUpload.json() as { id: string }).id).toBe(uploaded.id);
+    expect(service.objects.size).toBe(4);
+
+    const [first, second, third, fourth] = uploaded.photoImages.map((image) => image.id);
+    if (!first || !second || !third || !fourth)
+      throw new Error("Missing uploaded photo fixture");
+    const manifestKey = crypto.randomUUID();
+    const manifestBody = {
+      idempotencyKey: manifestKey,
+      expectedVersion: 0,
+      groups: [
+        { title: "Soup", imageIds: [first, second] },
+        { title: "Bread", imageIds: [third, fourth] },
+      ],
+    };
+    const manifestPath = `/recipe-import-batches/${uploaded.id}/photo-manifests`;
+    const confirmations = await Promise.all([
+      authenticatedRequest(cook, manifestPath, { method: "POST", body: manifestBody, env: service.env }),
+      authenticatedRequest(cook, manifestPath, { method: "POST", body: manifestBody, env: service.env }),
+    ]);
+    expect(confirmations.map((value) => value.status)).toEqual([201, 201]);
+    const firstConfirmation = confirmations.at(0);
+    if (!firstConfirmation) throw new Error("Missing confirmation response");
+    const confirmed = (await firstConfirmation.json()) as {
+      items: Array<{ id: string; status: string }>;
+      photoManifest: { version: number; groups: Array<{ jobId: string }> };
+    };
+    expect(confirmed.photoManifest.version).toBe(1);
+    expect(confirmed.items).toHaveLength(2);
+    expect(await db.select().from(schema.recipeImportPhotoManifest)).toHaveLength(1);
+    expect(await db.select().from(schema.recipeImportPhotoGroupImage)).toHaveLength(4);
+    expect(service.objects.size).toBe(6);
+    for (const item of confirmed.items) {
+      expect(service.objects.has(photoJobSourceManifestKey(item.id))).toBe(true);
+    }
+
+    const photoResponse = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${uploaded.id}/photos/${first}`,
+      { env: service.env },
+    );
+    expect(photoResponse.status).toBe(200);
+    expect(photoResponse.headers.get("content-type")).toBe("image/png");
+    expect(
+      (
+        await authenticatedRequest(
+          stranger,
+          `/recipe-import-batches/${uploaded.id}/photos/${first}`,
+          { env: service.env },
+        )
+      ).status,
+    ).toBe(404);
+
+    const successfulJob = confirmed.items.at(0)?.id;
+    const failedJob = confirmed.items.at(1)?.id;
+    if (!successfulJob || !failedJob)
+      throw new Error("Missing confirmed photo jobs");
+    await db
+      .update(schema.recipeImportJob)
+      .set({ status: "succeeded", reviewState: "ready" })
+      .where(eq(schema.recipeImportJob.id, successfulJob));
+    await db
+      .update(schema.recipeImportJob)
+      .set({ status: "failed", reviewState: "needs_attention" })
+      .where(eq(schema.recipeImportJob.id, failedJob));
+
+    const changedSuccess = await authenticatedRequest(cook, manifestPath, {
+      method: "POST",
+      env: service.env,
+      body: {
+        idempotencyKey: crypto.randomUUID(),
+        expectedVersion: 1,
+        groups: [
+          { imageIds: [first] },
+          { imageIds: [second] },
+          { imageIds: [third, fourth] },
+        ],
+      },
+    });
+    expect(changedSuccess.status).toBe(409);
+
+    const regroup = {
+      expectedVersion: 1,
+      groups: [
+        { title: "Soup", imageIds: [first, second] },
+        { title: "Bread page one", imageIds: [third] },
+        { title: "Bread page two", imageIds: [fourth] },
+      ],
+    };
+    const concurrent = await Promise.all([
+      authenticatedRequest(cook, manifestPath, {
+        method: "POST",
+        env: service.env,
+        body: { ...regroup, idempotencyKey: crypto.randomUUID() },
+      }),
+      authenticatedRequest(cook, manifestPath, {
+        method: "POST",
+        env: service.env,
+        body: { ...regroup, idempotencyKey: crypto.randomUUID() },
+      }),
+    ]);
+    expect(concurrent.map((value) => value.status).sort()).toEqual([201, 409]);
+    const currentResponse = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${uploaded.id}`,
+      { env: service.env },
+    );
+    const current = (await currentResponse.json()) as {
+      items: Array<{ id: string; status: string }>;
+      photoManifest: { version: number; groups: Array<{ jobId: string }> };
+    };
+    expect(current.photoManifest.version).toBe(2);
+    expect(current.items).toHaveLength(3);
+    expect(current.items.at(0)?.id).toBe(successfulJob);
+    const [retired] = await db
+      .select()
+      .from(schema.recipeImportJob)
+      .where(eq(schema.recipeImportJob.id, failedJob));
+    expect(retired?.reviewState).toBe("skipped");
+
+    service.create.mockClear();
+    const started = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${uploaded.id}/execution`,
+      { method: "PUT", env: service.env, body: { state: "started" } },
+    );
+    expect(started.status).toBe(200);
+    expect(service.create).toHaveBeenCalledTimes(2);
+    expect(service.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: expect.stringContaining(successfulJob) }),
+    );
+    expect(service.create).toHaveBeenCalledWith(
+      expect.objectContaining({ params: expect.objectContaining({ batchPhoto: true }) }),
+    );
+
+    const retryJob = current.items.at(1)?.id;
+    const siblingJob = current.items.at(2)?.id;
+    if (!retryJob || !siblingJob)
+      throw new Error("Missing regrouped photo jobs");
+    await db
+      .update(schema.recipeImportJob)
+      .set({ status: "failed", reviewState: "needs_attention", errorType: "IngestError" })
+      .where(eq(schema.recipeImportJob.id, retryJob));
+    await db
+      .update(schema.recipeImportJob)
+      .set({ status: "succeeded", reviewState: "ready" })
+      .where(eq(schema.recipeImportJob.id, siblingJob));
+    service.create.mockClear();
+    const retry = await authenticatedRequest(
+      cook,
+      `/recipe-import-batches/${uploaded.id}/items/${retryJob}/attempts`,
+      { method: "POST", env: service.env },
+    );
+    expect(retry.status).toBe(201);
+    expect(service.create).toHaveBeenCalledOnce();
+    expect(service.create).toHaveBeenCalledWith({
+      id: `${retryJob}-2`,
+      params: { jobId: retryJob, batchAttempt: 2, batchPhoto: true },
+    });
+  });
   it("reviews collection entries, skips duplicates across imports, and retains provenance after undo", async () => {
     const cook = await createUser("Collection Cook", "collection@example.test");
     const stranger = await createUser("Stranger", "stranger@example.test");

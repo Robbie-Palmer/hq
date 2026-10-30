@@ -225,6 +225,13 @@
       "when": 1792955048094,
       "tag": "0031_add_ingredient_property_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793349339028,
+      "tag": "0032_add_recipe_photo_grouping_manifests",
+      "breakpoints": true
     }
   ]
 }
