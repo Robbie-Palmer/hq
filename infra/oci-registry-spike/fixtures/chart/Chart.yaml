@@ -1,0 +1,7 @@
+apiVersion: v2
+name: oci-registry-spike
+description: Bounded Helm OCI interoperability fixture
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+

@@ -1,0 +1,2 @@
+This bounded image fixture is safe to publish to a disposable local registry.
+

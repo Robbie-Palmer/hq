@@ -1,0 +1,7 @@
+**
+!config/
+!config/*.json
+!config/*.yml
+!.state/
+!.state/auth/
+!.state/auth/htpasswd

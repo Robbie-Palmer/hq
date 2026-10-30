@@ -1,0 +1,280 @@
+{
+  "schemaVersion": 1,
+  "ticket": "pep-oci-registry-implementation-spike",
+  "observedAt": "2026-10-30T23:54:03Z",
+  "environment": {
+    "objectStorage": "LocalStack 4.8.1 S3 API",
+    "hostArchitecture": "linux/amd64",
+    "containerClients": {
+      "available": [
+        "docker"
+      ],
+      "unavailable": [
+        "podman",
+        "nerdctl",
+        "ctr",
+        "skopeo"
+      ]
+    },
+    "modelArtifactBytes": 16777216,
+    "conformanceCommit": "97274622c11112caa21efb8c52acca3c6b8fa7f1",
+    "generatedEvidence": ".artifacts/run"
+  },
+  "requirements": [
+    {
+      "id": "authentication",
+      "description": "Reject missing and invalid credentials and accept valid credentials"
+    },
+    {
+      "id": "distribution-conformance",
+      "description": "Pass the enabled OCI Distribution conformance profile"
+    },
+    {
+      "id": "oras-export",
+      "description": "Push, pull, and export a generic ORAS artifact"
+    },
+    {
+      "id": "docker-client",
+      "description": "Push and pull a container with Docker"
+    },
+    {
+      "id": "multi-architecture",
+      "description": "Push and inspect an amd64 and arm64 image index"
+    },
+    {
+      "id": "helm",
+      "description": "Push and pull a Helm chart"
+    },
+    {
+      "id": "kitops-model",
+      "description": "Pack, push, unpack, and hash a bounded KitOps model"
+    },
+    {
+      "id": "signing-referrers",
+      "description": "Sign and verify with Cosign and discover with ORAS"
+    },
+    {
+      "id": "native-referrers-api",
+      "description": "Serve the OCI 1.1 referrers endpoint natively"
+    },
+    {
+      "id": "conditional-writes",
+      "description": "Honor an S3 If-None-Match write precondition"
+    },
+    {
+      "id": "concurrent-writes",
+      "description": "Resolve concurrent tag updates to one complete manifest"
+    },
+    {
+      "id": "garbage-collection",
+      "description": "Remove an unreferenced unique blob"
+    },
+    {
+      "id": "scrub-recovery",
+      "description": "Traverse integrity, detect injected loss, and recover exact content"
+    },
+    {
+      "id": "metrics",
+      "description": "Expose Prometheus metrics"
+    },
+    {
+      "id": "upgrade",
+      "description": "Read previous-version data after an in-place current-version upgrade"
+    }
+  ],
+  "implementations": [
+    {
+      "id": "zot",
+      "version": "2.1.22",
+      "image": "ghcr.io/project-zot/zot@sha256:96cda11459ce6f8c60da3b03f03e9f67fd11b3ae2d82c4c04c92b3c608996080",
+      "previousImage": "ghcr.io/project-zot/zot@sha256:6b69512c00dceaad05b1144e6079aac6aa7309d7fd200f9947ecb1de09cf48c8",
+      "sourcePatches": [],
+      "measurements": {
+        "imageBytes": 321789951,
+        "matrixPass": 15,
+        "matrixFail": 0,
+        "conformance": {
+          "tests": 854,
+          "failures": 0,
+          "skipped": 4,
+          "disabled": 2
+        }
+      },
+      "results": [
+        {
+          "requirement": "authentication",
+          "status": "pass"
+        },
+        {
+          "requirement": "distribution-conformance",
+          "status": "pass",
+          "evidence": ".artifacts/run/conformance/zot/junit.xml"
+        },
+        {
+          "requirement": "oras-export",
+          "status": "pass"
+        },
+        {
+          "requirement": "docker-client",
+          "status": "pass"
+        },
+        {
+          "requirement": "multi-architecture",
+          "status": "pass"
+        },
+        {
+          "requirement": "helm",
+          "status": "pass"
+        },
+        {
+          "requirement": "kitops-model",
+          "status": "pass"
+        },
+        {
+          "requirement": "signing-referrers",
+          "status": "pass"
+        },
+        {
+          "requirement": "native-referrers-api",
+          "status": "pass"
+        },
+        {
+          "requirement": "conditional-writes",
+          "status": "pass"
+        },
+        {
+          "requirement": "concurrent-writes",
+          "status": "pass"
+        },
+        {
+          "requirement": "garbage-collection",
+          "status": "pass",
+          "note": "Aggressive GC ran only in the dedicated case"
+        },
+        {
+          "requirement": "scrub-recovery",
+          "status": "pass",
+          "note": "Native scrub plus injected-loss recovery"
+        },
+        {
+          "requirement": "metrics",
+          "status": "pass"
+        },
+        {
+          "requirement": "upgrade",
+          "status": "pass"
+        }
+      ]
+    },
+    {
+      "id": "distribution",
+      "version": "3.1.2",
+      "image": "docker.io/library/registry@sha256:d4032d4cc323c1731c707931ecada07a53076eac38e3b61ae57533f170f2c6c3",
+      "previousImage": "docker.io/library/registry@sha256:325b4b29b041e82803abeb703e201655e4e23ab83264ec1a7c9ddb0a5b14a6e0",
+      "sourcePatches": [],
+      "measurements": {
+        "imageBytes": 86640312,
+        "matrixPass": 13,
+        "matrixFail": 2,
+        "conformance": {
+          "tests": 852,
+          "failures": 91,
+          "skipped": 16,
+          "disabled": 2
+        }
+      },
+      "results": [
+        {
+          "requirement": "authentication",
+          "status": "pass"
+        },
+        {
+          "requirement": "distribution-conformance",
+          "status": "fail",
+          "evidence": ".artifacts/run/conformance/distribution/junit.xml",
+          "note": "Referrers, SHA-512, subject, and non-distributable-layer groups fail"
+        },
+        {
+          "requirement": "oras-export",
+          "status": "pass"
+        },
+        {
+          "requirement": "docker-client",
+          "status": "pass"
+        },
+        {
+          "requirement": "multi-architecture",
+          "status": "pass"
+        },
+        {
+          "requirement": "helm",
+          "status": "pass"
+        },
+        {
+          "requirement": "kitops-model",
+          "status": "pass"
+        },
+        {
+          "requirement": "signing-referrers",
+          "status": "pass",
+          "note": "Cosign and ORAS use fallback tags"
+        },
+        {
+          "requirement": "native-referrers-api",
+          "status": "fail",
+          "note": "Endpoint returns 404 with a non-OCI response"
+        },
+        {
+          "requirement": "conditional-writes",
+          "status": "pass"
+        },
+        {
+          "requirement": "concurrent-writes",
+          "status": "pass"
+        },
+        {
+          "requirement": "garbage-collection",
+          "status": "pass",
+          "note": "Registry stopped for offline GC"
+        },
+        {
+          "requirement": "scrub-recovery",
+          "status": "partial",
+          "note": "Dry-run GC traverses content, but no checksum scrub exists; injected-loss recovery passes"
+        },
+        {
+          "requirement": "metrics",
+          "status": "pass"
+        },
+        {
+          "requirement": "upgrade",
+          "status": "pass"
+        }
+      ]
+    }
+  ],
+  "cost": {
+    "currency": "USD",
+    "r2StandardAsOf": "2026-10-30",
+    "storagePerGbMonth": 0.015,
+    "classAPerMillion": 4.5,
+    "classBPerMillion": 0.36,
+    "egressPerGb": 0,
+    "note": "Compute and operation counts require a live deployment canary"
+  },
+  "liveR2": {
+    "status": "not_run",
+    "reason": "No disposable owner-authorized R2 bucket or scoped credentials were required for the local comparison",
+    "releaseGate": true
+  },
+  "recommendation": {
+    "decision": "reuse",
+    "implementation": "zot",
+    "customGateway": false,
+    "conditions": [
+      "Run the matrix against a disposable live-R2 bucket",
+      "Measure request counts and registry CPU and RAM",
+      "Use a conservative garbage-collection retention policy"
+    ]
+  }
+}

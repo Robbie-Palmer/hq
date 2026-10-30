@@ -1,0 +1,11 @@
+manifestVersion: 1.0.0
+package:
+  name: bounded-model
+  version: 0.1.0
+  description: Deterministic 16 MiB model fixture for OCI registry interoperability
+model:
+  name: bounded-model
+  path: model.bin
+  framework: test-fixture
+  license: Apache-2.0
+

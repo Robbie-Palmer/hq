@@ -1,0 +1,55 @@
+{
+  "distSpecVersion": "1.1.1",
+  "storage": {
+    "rootDirectory": "/var/lib/zot",
+    "dedupe": false,
+    "gc": false,
+    "storageDriver": {
+      "name": "s3",
+      "region": "us-east-1",
+      "regionendpoint": "http://localstack:4566",
+      "forcepathstyle": true,
+      "bucket": "zot-registry",
+      "rootdirectory": "/registry",
+      "secure": false,
+      "v4auth": true
+    }
+  },
+  "http": {
+    "address": "0.0.0.0",
+    "port": "5000",
+    "auth": {
+      "htpasswd": {
+        "path": "/run/secrets/registry-htpasswd"
+      }
+    },
+    "accessControl": {
+      "metrics": {
+        "anonymousPolicy": [
+          "read"
+        ]
+      },
+      "repositories": {
+        "**": {
+          "defaultPolicy": [
+            "read",
+            "create",
+            "update",
+            "delete"
+          ]
+        }
+      }
+    }
+  },
+  "log": {
+    "level": "info"
+  },
+  "extensions": {
+    "metrics": {
+      "enable": true,
+      "prometheus": {
+        "path": "/metrics"
+      }
+    }
+  }
+}
