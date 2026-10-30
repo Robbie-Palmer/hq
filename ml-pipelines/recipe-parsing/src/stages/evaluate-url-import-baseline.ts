@@ -61,10 +61,6 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     corpusRoot,
     cacheFile,
     dependencyEntries: [
-      path.join(corpusRoot, "manifests/train.json"),
-      path.join(corpusRoot, "manifests/development.json"),
-      path.join(corpusRoot, "snapshots/train"),
-      path.join(corpusRoot, "snapshots/development"),
       configFile,
       path.join(PROJECT_ROOT, "src/url-import-baseline"),
       path.join(PROJECT_ROOT, "src/url-import-corpus/corpus.ts"),
@@ -72,6 +68,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
       fileURLToPath(import.meta.url),
       path.join(REPOSITORY_ROOT, "packages/recipe-parsing/src"),
       path.join(REPOSITORY_ROOT, "packages/recipe-domain/src"),
+      path.join(REPOSITORY_ROOT, "packages/ts-base/src"),
       path.join(REPOSITORY_ROOT, "pnpm-lock.yaml"),
     ],
   });

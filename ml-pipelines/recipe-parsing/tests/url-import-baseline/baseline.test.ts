@@ -205,23 +205,77 @@ describe("URL-import baseline reproducibility and cache", () => {
     const dependency = path.join(directory, "dependency.txt");
     const cacheFile = path.join(directory, "cache.json");
     fs.writeFileSync(dependency, "v1");
-    const parser = vi.fn(parseSchemaOrgRecipeHtml);
     const options = {
       root: directory,
       corpusRoot: CORPUS_ROOT,
       dependencyEntries: [dependency],
       cacheFile,
+    };
+
+    const first = await evaluateBaselineWithCache(options);
+    const cached = structuredClone(first);
+    cached.report.summary.usableImports = 999;
+    fs.writeFileSync(cacheFile, JSON.stringify(cached));
+    expect(
+      (await evaluateBaselineWithCache(options)).report.summary.usableImports,
+    ).toBe(999);
+
+    fs.writeFileSync(dependency, "v2");
+    expect(
+      (await evaluateBaselineWithCache(options)).report.summary.usableImports,
+    ).toBe(4);
+  });
+
+  it("hashes evaluated corpus inputs but excludes the regression partition", async () => {
+    const directory = temporaryDirectory();
+    const corpusRoot = path.join(directory, "corpus");
+    const cacheFile = path.join(directory, "cache.json");
+    fs.cpSync(CORPUS_ROOT, corpusRoot, { recursive: true });
+    const options = {
+      root: directory,
+      corpusRoot,
+      dependencyEntries: [],
+      cacheFile,
+    };
+
+    const first = await evaluateBaselineWithCache(options);
+    const cached = structuredClone(first);
+    cached.report.summary.usableImports = 999;
+    fs.writeFileSync(cacheFile, JSON.stringify(cached));
+    fs.appendFileSync(
+      path.join(corpusRoot, "snapshots/regression/item-list-steps.html"),
+      " ",
+    );
+    expect(
+      (await evaluateBaselineWithCache(options)).report.summary.usableImports,
+    ).toBe(999);
+
+    fs.appendFileSync(
+      path.join(corpusRoot, "snapshots/development/malformed-jsonld.html"),
+      " ",
+    );
+    await expect(evaluateBaselineWithCache(options)).rejects.toThrow(
+      "changed since review",
+    );
+  });
+
+  it("bypasses cache reads and writes for custom parsers", async () => {
+    const directory = temporaryDirectory();
+    const cacheFile = path.join(directory, "cache.json");
+    const parser = vi.fn(parseSchemaOrgRecipeHtml);
+    const options = {
+      root: directory,
+      corpusRoot: CORPUS_ROOT,
+      dependencyEntries: [],
+      cacheFile,
       parser,
     };
 
     await evaluateBaselineWithCache(options);
-    expect(parser).toHaveBeenCalledTimes(5);
     await evaluateBaselineWithCache(options);
-    expect(parser).toHaveBeenCalledTimes(5);
 
-    fs.writeFileSync(dependency, "v2");
-    await evaluateBaselineWithCache(options);
     expect(parser).toHaveBeenCalledTimes(10);
+    expect(fs.existsSync(cacheFile)).toBe(false);
   });
 
   it("blocks fetch while evaluating from saved snapshots", async () => {

@@ -43,6 +43,7 @@ stages:
       - src/url-import-corpus/schema.ts
       - ../../packages/recipe-parsing/src
       - ../../packages/recipe-domain/src
+      - ../../packages/ts-base/src
       - ../../pnpm-lock.yaml
     metrics:
       - outputs/url-import-deterministic-baseline.json

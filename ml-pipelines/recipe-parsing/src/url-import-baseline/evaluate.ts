@@ -377,12 +377,22 @@ export async function evaluateBaselineWithCache(options: {
   cacheFile: string;
   parser?: typeof parseSchemaOrgRecipeHtml;
 }): Promise<CachedEvaluation> {
-  const cacheKey = computeCacheKey(options.root, options.dependencyEntries);
-  const cached = readEvaluationCache(options.cacheFile, cacheKey);
-  if (cached) return cached;
+  const corpusEntries = EVALUATED_PARTITIONS.flatMap((partition) => [
+    path.join(options.corpusRoot, `manifests/${partition}.json`),
+    path.join(options.corpusRoot, `snapshots/${partition}`),
+  ]);
+  const cacheKey = computeCacheKey(options.root, [
+    ...corpusEntries,
+    ...options.dependencyEntries,
+  ]);
+  const cacheEnabled = options.parser === undefined;
+  if (cacheEnabled) {
+    const cached = readEvaluationCache(options.cacheFile, cacheKey);
+    if (cached) return cached;
+  }
   const evaluated = await withNetworkDisabled(() =>
     evaluateBaseline(options.corpusRoot, cacheKey, options.parser),
   );
-  writeJson(options.cacheFile, evaluated);
+  if (cacheEnabled) writeJson(options.cacheFile, evaluated);
   return evaluated;
 }
