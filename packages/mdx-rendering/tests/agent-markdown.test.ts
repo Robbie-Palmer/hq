@@ -91,7 +91,7 @@ describe("mdxToAgentMarkdown", () => {
 
 describe("createAgentMarkdownPages", () => {
   const pages = createAgentMarkdownPages({
-    siteUrl: "https://example.com/",
+    siteUrl: "https://example.com////",
     markdownIndexPath: "/agents.txt",
   });
 

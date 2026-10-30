@@ -167,11 +167,17 @@ export interface AgentMarkdownPageHelpers {
   renderPage: (meta: PageMetadata, body: string) => string;
 }
 
+function removeTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
 export function createAgentMarkdownPages({
   siteUrl,
   markdownIndexPath = "/llms.txt",
 }: AgentMarkdownSiteOptions): AgentMarkdownPageHelpers {
-  const baseUrl = siteUrl.replace(/\/+$/, "");
+  const baseUrl = removeTrailingSlashes(siteUrl);
 
   function renderPageHeader(meta: PageMetadata): string {
     const lines = [`# ${meta.title}`, ""];

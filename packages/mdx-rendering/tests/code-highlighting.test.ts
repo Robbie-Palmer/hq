@@ -36,11 +36,12 @@ describe("markdownCodeHighlighting", () => {
   it("keeps malformed Cooklang source intact", async () => {
     const highlighter = await highlighterPromise;
     const source = "Stir @broken{2%cup and ?unknown, then add @salt{1%tsp}.";
-    const html = highlighter?.codeToHtml(source, {
+    const tokens = highlighter?.codeToTokensBase(source, {
       lang: "cooklang",
       theme: "github-dark",
     });
-    expect(html?.replace(/<[^>]+>/g, "")).toBe(source);
-    expect(html).toContain("salt");
+    expect(tokens?.flatMap((line) => line.map((token) => token.content)).join(""))
+      .toBe(source);
+    expect(tokens?.flat().some((token) => token.content === "salt")).toBe(true);
   });
 });
