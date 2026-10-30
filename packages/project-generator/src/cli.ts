@@ -44,6 +44,7 @@ import {
 import {
   conformCloudflareAccountTokenAuthority,
   createCloudflareAccountToken,
+  handoffCloudflareAccountTokenAuthority,
 } from "./cloudflare-account-token.js";
 
 const DEFAULT_REGISTRY =
@@ -383,6 +384,8 @@ async function runSecretBootstrapApplyCommand(
     persist: (state) => writeBootstrapState(prepared.statePath, state),
     extensions: {
       "cloudflare-account-token": createCloudflareAccountToken,
+      "cloudflare-account-token-authority":
+        handoffCloudflareAccountTokenAuthority,
     },
   });
 }

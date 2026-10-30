@@ -56,7 +56,12 @@ load_config_entries() {
         )
         or (
           $source == "cloudflare-token-bootstrap/ops_provisioner"
-          and .key == "DOPPLER_BOOTSTRAP_TOKEN"
+          and (
+            .key == "DOPPLER_BOOTSTRAP_TOKEN"
+            or .key == "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_PLAN"
+            or .key == "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_DRIFT"
+            or .key == "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_APPLY"
+          )
         )
       ))
     | map({

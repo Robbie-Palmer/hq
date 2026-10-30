@@ -73,9 +73,19 @@ const sourceSchema = z.union([
   z
     .object({
       mode: z.literal("extension"),
+      extension: z.literal("cloudflare-account-token-authority"),
+      checkpoint: slugSchema,
+      value_env: environmentNameSchema,
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("extension"),
       extension: slugSchema.refine(
-        (value) => value !== "cloudflare-account-token",
-        "cloudflare-account-token requires its token policy fields",
+        (value) =>
+          value !== "cloudflare-account-token" &&
+          value !== "cloudflare-account-token-authority",
+        "built-in Cloudflare extensions require their credential fields",
       ),
       checkpoint: slugSchema.optional(),
     })
@@ -99,15 +109,36 @@ const consumerSchema = z.discriminatedUnion("kind", [
     .strict(),
 ]);
 
+const dopplerConfigCredentialSchema = z
+  .object({
+    name: configNameSchema,
+    token_env: environmentNameSchema,
+  })
+  .strict();
+
+const dopplerIdentitySchema = z.union([
+  z
+    .object({
+      project: slugSchema,
+      configs: z.array(dopplerConfigCredentialSchema).min(1),
+    })
+    .strict(),
+  z
+    .object({
+      token_env: environmentNameSchema,
+      project: slugSchema,
+      configs: z.tuple([configNameSchema]),
+    })
+    .strict()
+    .transform(({ token_env, project, configs }) => ({
+      project,
+      configs: [{ name: configs[0], token_env }],
+    })),
+]);
+
 const identitiesSchema = z
   .object({
-    doppler: z
-      .object({
-        token_env: environmentNameSchema,
-        project: slugSchema,
-        configs: z.array(configNameSchema).min(1),
-      })
-      .strict(),
+    doppler: dopplerIdentitySchema,
     github: z
       .object({
         token_env: environmentNameSchema,
@@ -192,7 +223,9 @@ function validateSecretScopes(
   context: z.RefinementCtx,
 ): void {
   const checkpoints = new Set(plan.checkpoints.map(({ id }) => id));
-  const configs = new Set(plan.identities.doppler.configs);
+  const configs = new Set(
+    plan.identities.doppler.configs.map(({ name }) => name),
+  );
   const githubEnvironments = new Set(plan.identities.github.environments);
   const cloudflareWorkers = new Set(plan.identities.cloudflare?.workers ?? []);
   for (const [index, secret] of plan.secrets.entries()) {
@@ -241,6 +274,26 @@ function validateCloudflareTokenSource(
   context: z.RefinementCtx,
 ): void {
   if (
+    secret.creation.mode === "extension" &&
+    secret.creation.extension === "cloudflare-account-token-authority"
+  ) {
+    if (!plan.identities.cloudflare_token_provisioner) {
+      context.addIssue({
+        code: "custom",
+        path: ["secrets", index, "creation"],
+        message: "requires a Cloudflare token-provisioner identity",
+      });
+    }
+    if (!secret.sensitive) {
+      context.addIssue({
+        code: "custom",
+        path: ["secrets", index, "sensitive"],
+        message: "must be true for a Cloudflare token authority",
+      });
+    }
+    return;
+  }
+  if (
     secret.creation.mode !== "extension" ||
     secret.creation.extension !== "cloudflare-account-token" ||
     !("permission_groups" in secret.creation)
@@ -285,7 +338,16 @@ export const secretBootstrapPlanSchema = z
   })
   .strict()
   .superRefine((plan, context) => {
-    addDuplicateIssues(plan.identities.doppler.configs, "Doppler configs", context);
+    addDuplicateIssues(
+      plan.identities.doppler.configs.map(({ name }) => name),
+      "Doppler configs",
+      context,
+    );
+    addDuplicateIssues(
+      plan.identities.doppler.configs.map(({ token_env }) => token_env),
+      "Doppler config credential environment variables",
+      context,
+    );
     addDuplicateIssues(
       plan.identities.github.environments,
       "GitHub environments",
@@ -634,7 +696,15 @@ async function writeDopplerSecret(
   environment: Readonly<Record<string, string | undefined>>,
 ): Promise<void> {
   const identity = plan.identities.doppler;
-  const token = requiredEnvironmentValue(environment, identity.token_env);
+  const config = identity.configs.find(
+    ({ name }) => name === secret.system_of_record.config,
+  );
+  if (!config) {
+    throw new Error(
+      `Doppler config '${secret.system_of_record.config}' has no declared credential`,
+    );
+  }
+  const token = requiredEnvironmentValue(environment, config.token_env);
   await runCommand({
     command: "doppler",
     args: [
