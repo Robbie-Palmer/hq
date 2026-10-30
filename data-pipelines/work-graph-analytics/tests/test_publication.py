@@ -7,7 +7,12 @@ import duckdb
 import pytest
 
 from work_graph_analytics.manifest import DatasetError
-from work_graph_analytics.publication import MODEL_FILES, ensure_new_version, publish_manifest
+from work_graph_analytics.publication import (
+    MODEL_FILES,
+    PublicationScopeSnapshot,
+    ensure_new_version,
+    publish_manifest,
+)
 
 
 def write_models(version_root: Path) -> None:
@@ -24,12 +29,19 @@ def test_publishes_complete_immutable_version_manifest(tmp_path: Path) -> None:
         "version-1",
         source_manifest_keys=["work-state/v1/manifests/1-9.json"],
         source_watermark=9,
+        scope_snapshot=PublicationScopeSnapshot(
+            manifest_key="work-state/v1/manifests/1-9.json",
+            object_key="work-state/v1/scopes/9.json",
+            captured_at="2026-10-01T03:05:00.000Z",
+            event_watermark=9,
+        ),
     )
     manifest = json.loads(path.read_text())
 
     assert manifest["complete"] is True
     assert manifest["modelVersion"] == "version-1"
     assert manifest["source"]["throughSequence"] == 9
+    assert manifest["source"]["scopeSnapshot"]["objectKey"] == ("work-state/v1/scopes/9.json")
     assert [model["key"] for model in manifest["models"]] == [
         f"version-1/{filename}" for filename in MODEL_FILES
     ]

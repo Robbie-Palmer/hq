@@ -8,7 +8,13 @@ from typing import Literal
 import duckdb
 from pydantic import Field
 
-from work_graph_analytics.manifest import Checksum, DatasetError, NonEmptyString, StrictModel
+from work_graph_analytics.manifest import (
+    Checksum,
+    DatasetError,
+    NonEmptyString,
+    StrictModel,
+    Timestamp,
+)
 
 MODEL_FILES = (
     "fct_events.parquet",
@@ -26,21 +32,27 @@ VERSION_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{0,127}$")
 class PublishedModel(StrictModel):
     key: NonEmptyString
     rows: int = Field(ge=0)
-    size: int = Field(serialization_alias="bytes", ge=0)
-    checksum: Checksum = Field(serialization_alias="checksumSha256")
+    size: int = Field(alias="bytes", ge=0)
+    checksum: Checksum = Field(alias="checksumSha256")
+
+
+class PublicationScopeSnapshot(StrictModel):
+    manifest_key: NonEmptyString = Field(alias="manifestKey")
+    object_key: NonEmptyString = Field(alias="objectKey")
+    captured_at: Timestamp = Field(alias="capturedAt")
+    event_watermark: int = Field(alias="eventWatermark", ge=1)
 
 
 class PublicationSource(StrictModel):
-    manifest_keys: list[NonEmptyString] = Field(serialization_alias="manifestKeys", min_length=1)
-    through_sequence: int = Field(serialization_alias="throughSequence", ge=1)
+    manifest_keys: list[NonEmptyString] = Field(alias="manifestKeys", min_length=1)
+    through_sequence: int = Field(alias="throughSequence", ge=1)
+    scope_snapshot: PublicationScopeSnapshot | None = Field(default=None, alias="scopeSnapshot")
 
 
 class PublicationManifest(StrictModel):
     complete: Literal[True] = True
-    manifest_schema_version: Literal[1] = Field(
-        default=1, serialization_alias="manifestSchemaVersion"
-    )
-    model_version: NonEmptyString = Field(serialization_alias="modelVersion")
+    manifest_schema_version: Literal[1] = Field(default=1, alias="manifestSchemaVersion")
+    model_version: NonEmptyString = Field(alias="modelVersion")
     source: PublicationSource
     models: list[PublishedModel] = Field(min_length=1)
 
@@ -61,6 +73,7 @@ def publish_manifest(
     *,
     source_manifest_keys: list[str],
     source_watermark: int,
+    scope_snapshot: PublicationScopeSnapshot | None = None,
 ) -> Path:
     version_root = output_root / version
     if not version_root.is_dir():
@@ -89,6 +102,7 @@ def publish_manifest(
         source=PublicationSource(
             manifest_keys=source_manifest_keys,
             through_sequence=source_watermark,
+            scope_snapshot=scope_snapshot,
         ),
         models=models,
     )
