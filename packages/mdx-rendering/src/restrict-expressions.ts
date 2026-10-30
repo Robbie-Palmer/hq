@@ -169,15 +169,7 @@ function assertStaticExpressions(node: MdxNode): void {
   }
 }
 
-/**
- * Reject executable MDX expressions before the compiler creates a function.
- *
- * Static literal attributes remain useful for component props such as Mermaid
- * source, inline style objects, and numeric dimensions. Identifiers, property
- * access, calls, interpolation, functions, and spreads are all rejected.
- * Active HTML elements, event handlers, HTML injection, and executable URL
- * schemes are rejected as well.
- */
+// Static literals are safe; executable or active content fails closed.
 export function remarkRestrictMdxExpressions() {
   return (tree: Root) => {
     assertStaticExpressions(tree as MdxNode);

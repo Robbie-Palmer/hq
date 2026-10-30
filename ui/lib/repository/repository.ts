@@ -1,13 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { isValid, parse } from "date-fns";
+import { parseFrontmatter } from "mdx-rendering";
 import { parsePlatformManifestSource } from "platform-contracts/platform-manifest";
 import readingTime from "reading-time";
 import { parse as parseYaml } from "yaml";
 import { legacyADRAliases } from "../../content/adr-aliases";
 import { experiences as definedExperiences } from "../../content/experience";
 import { technologies as definedTechnologies } from "../../content/technologies";
-import { parseFrontmatter } from "../content/frontmatter";
 import {
   type ADR,
   type ADRRef,
