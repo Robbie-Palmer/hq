@@ -22,6 +22,18 @@ components:
   - id: "planning-case-domain"
     name: "Planning case domain"
     kind: "typescript-package"
+  - id: "personal-finance-api"
+    name: "Personal Finance API"
+    kind: "worker"
+    template_ownership: "structure-only"
+  - id: "personal-finance-contracts"
+    name: "Personal Finance contracts"
+    kind: "typescript-package"
+    template_ownership: "structure-only"
+  - id: "personal-finance-data"
+    name: "Personal Finance data boundary"
+    kind: "typescript-package"
+    template_ownership: "structure-only"
   - id: "personal-finance"
     name: "Personal Finance infrastructure"
     kind: "terraform-root"
@@ -82,3 +94,28 @@ nix:
 opentelemetry:
   enabled: true
   runtime: "typescript-worker"
+
+rollout:
+  operational_checks:
+    - id: "copier-profile-conformance"
+      command: "mise //packages/project-generator:check"
+    - id: "compiled-provider-boundary"
+      command: "mise //infra/project-modules:check"
+    - id: "browser-export-recovery"
+      command: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts app/_projects/personal-finance-app/tests/api/assettracker.test.ts"
+  migration_checkpoints:
+    - id: "export-browser-state-before-import"
+      action: "Export and validate the current browser household backup before importing any data into the relational store."
+      verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+      status: "pending"
+      evidence: []
+    - id: "preserve-browser-recovery-during-dual-read"
+      action: "Keep assettracker:data:v1 readable and keep legacy raw and version-zero backup recovery while browser and server reads overlap."
+      verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/api/assettracker.test.ts app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+      status: "pending"
+      evidence: []
+    - id: "prove-relational-restore-before-cutover"
+      action: "Complete a relational restore drill and retain the browser export until server reads and rollback have both been verified."
+      verification: "mise //infra/personal-finance:test"
+      status: "pending"
+      evidence: []

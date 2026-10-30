@@ -70,6 +70,39 @@ const recordedFulfillmentCheckpointSchema = z
     }
   });
 
+const recordedOperationalCheckSchema = z
+  .object({
+    id: z.string().min(1),
+    command: z.string().min(1),
+  })
+  .strict();
+
+const recordedMigrationCheckpointSchema = z
+  .object({
+    id: z.string().min(1),
+    action: z.string().min(1),
+    verification: z.string().min(1),
+    status: z.enum(["pending", "verified"]),
+    evidence: z.array(z.string().min(1)),
+  })
+  .strict()
+  .superRefine((checkpoint, context) => {
+    if (checkpoint.status === "verified" && checkpoint.evidence.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "must contain at least one item when a checkpoint is verified",
+      });
+    }
+  });
+
+const recordedRolloutSchema = z
+  .object({
+    operational_checks: z.array(recordedOperationalCheckSchema),
+    migration_checkpoints: z.array(recordedMigrationCheckpointSchema),
+  })
+  .strict();
+
 const recordedBlueprintSchema = z.discriminatedUnion("schema_version", [
   z.looseObject({
     ...recordedBlueprintFields,
@@ -80,6 +113,7 @@ const recordedBlueprintSchema = z.discriminatedUnion("schema_version", [
     ...recordedBlueprintFields,
     schema_version: z.literal(2),
     fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
+    rollout: recordedRolloutSchema.optional(),
   }),
 ]);
 
@@ -126,6 +160,8 @@ export interface ReconciliationAction {
     | "default_change"
     | "local_override"
     | "fulfillment_checkpoint"
+    | "operational_check"
+    | "migration_checkpoint"
     | "template_update"
     | "repository_edit";
   readonly summary: string;
@@ -492,11 +528,31 @@ function appendPendingFulfillmentActions(
   }
 }
 
+function appendRolloutActions(
+  rollout: ResolvedProjectBlueprint["rollout"],
+  actions: ReconciliationAction[],
+): void {
+  for (const check of rollout.operational_checks) {
+    actions.push({
+      kind: "operational_check",
+      summary: `Run '${check.command}' for rollout check '${check.id}'.`,
+    });
+  }
+  for (const checkpoint of rollout.migration_checkpoints) {
+    if (checkpoint.status !== "pending") continue;
+    actions.push({
+      kind: "migration_checkpoint",
+      summary: `${checkpoint.action} Verify with '${checkpoint.verification}'.`,
+    });
+  }
+}
+
 function buildActions(input: {
   readonly policies: readonly PolicyChange[];
   readonly defaults: readonly DefaultSelectionChange[];
   readonly overrides: readonly LocalOverrideReview[];
   readonly checkpoints: readonly ResolvedFulfillmentCheckpoint[];
+  readonly rollout: ResolvedProjectBlueprint["rollout"];
   readonly recordedTemplateRevision: string;
   readonly targetTemplateRevision: string;
   readonly changedPaths: readonly string[];
@@ -521,6 +577,7 @@ function buildActions(input: {
     });
   }
   appendPendingFulfillmentActions(input.checkpoints, manualDecisions);
+  appendRolloutActions(input.rollout, manualDecisions);
   if (input.recordedTemplateRevision !== input.targetTemplateRevision) {
     migrations.push({
       kind: "template_update",
@@ -679,6 +736,7 @@ export async function planProjectReconciliation(
     defaults,
     overrides,
     checkpoints: input.blueprint.fulfillment_checkpoints,
+    rollout: input.blueprint.rollout,
     recordedTemplateRevision: recorded.commit,
     targetTemplateRevision: input.template.revision,
     changedPaths,

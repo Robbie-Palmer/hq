@@ -20,7 +20,7 @@ const profileUrl = new URL(
   "../../../ui/content/projects/personal-finance-app/project-profile.yaml",
   import.meta.url,
 );
-const effectiveAt = "2026-10-25T00:00:00Z";
+const effectiveAt = "2026-10-30T00:00:00Z";
 
 async function productionBlueprint() {
   const [profileSource, layout, platform, nix, opentelemetry] =
@@ -81,6 +81,21 @@ describe("Personal Finance production profile", () => {
         path: "infra/personal-finance",
       },
       {
+        id: "personal-finance-api",
+        kind: "worker",
+        path: "workers/personal-finance-api",
+      },
+      {
+        id: "personal-finance-contracts",
+        kind: "typescript-package",
+        path: "packages/personal-finance-contracts",
+      },
+      {
+        id: "personal-finance-data",
+        kind: "typescript-package",
+        path: "packages/personal-finance-data",
+      },
+      {
         id: "planning-case-domain",
         kind: "typescript-package",
         path: "packages/planning-case-domain",
@@ -102,8 +117,16 @@ describe("Personal Finance production profile", () => {
       },
     });
     expect(
-      first.blueprint.components.some(({ kind }) => kind === "worker"),
-    ).toBe(false);
+      first.blueprint.components
+        .filter(({ template_ownership }) =>
+          template_ownership === "structure-only",
+        )
+        .map(({ id, kind }) => ({ id, kind })),
+    ).toEqual([
+      { id: "personal-finance-api", kind: "worker" },
+      { id: "personal-finance-contracts", kind: "typescript-package" },
+      { id: "personal-finance-data", kind: "typescript-package" },
+    ]);
     expect(
       first.blueprint.selections
         .filter(({ layer }) =>
@@ -129,6 +152,37 @@ describe("Personal Finance production profile", () => {
         "storage.object-store",
       ]),
     );
+    expect(first.blueprint.rollout).toEqual({
+      operational_checks: [
+        {
+          id: "browser-export-recovery",
+          command:
+            "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts app/_projects/personal-finance-app/tests/api/assettracker.test.ts",
+        },
+        {
+          id: "compiled-provider-boundary",
+          command: "mise //infra/project-modules:check",
+        },
+        {
+          id: "copier-profile-conformance",
+          command: "mise //packages/project-generator:check",
+        },
+      ],
+      migration_checkpoints: [
+        expect.objectContaining({
+          id: "export-browser-state-before-import",
+          status: "pending",
+        }),
+        expect.objectContaining({
+          id: "preserve-browser-recovery-during-dual-read",
+          status: "pending",
+        }),
+        expect.objectContaining({
+          id: "prove-relational-restore-before-cutover",
+          status: "pending",
+        }),
+      ],
+    });
   });
 
   it("pins the production template and inherits local task applicability", async () => {
@@ -155,9 +209,12 @@ describe("Personal Finance production profile", () => {
       "packages/finance-housing-indices",
       "packages/finance-inflation-indices",
       "packages/finance-tax-rules",
+      "packages/personal-finance-contracts",
+      "packages/personal-finance-data",
       "packages/planning-case-domain",
       "ui/app/_projects/personal-finance-app",
       "ui/content/projects/personal-finance-app",
+      "workers/personal-finance-api",
     ]);
     expect(
       blueprint.components.flatMap(({ id, tasks }) =>

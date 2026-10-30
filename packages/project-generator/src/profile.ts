@@ -93,12 +93,64 @@ const taskExceptionSchema = z
   })
   .strict();
 
+const templateOwnershipSchema = z.literal("structure-only");
+
+const miseCommandSchema = z
+  .string()
+  .regex(/^mise \/\//, "must invoke a repository task through mise");
+
+const operationalCheckSchema = z
+  .object({
+    id: slugSchema,
+    command: miseCommandSchema,
+  })
+  .strict();
+
+const migrationCheckpointSchema = z
+  .object({
+    id: slugSchema,
+    action: z.string().min(1),
+    verification: miseCommandSchema,
+    status: z.enum(["pending", "verified"]).default("pending"),
+    evidence: z.array(z.string().min(1)).default([]),
+  })
+  .strict()
+  .superRefine((checkpoint, context) => {
+    if (checkpoint.status === "verified" && checkpoint.evidence.length === 0) {
+      context.addIssue({
+        code: "custom",
+        path: ["evidence"],
+        message: "must contain at least one item when a checkpoint is verified",
+      });
+    }
+  });
+
+const rolloutSchema = z
+  .object({
+    operational_checks: z.array(operationalCheckSchema).default([]),
+    migration_checkpoints: z.array(migrationCheckpointSchema).default([]),
+  })
+  .strict()
+  .superRefine((rollout, context) => {
+    addDuplicateIssues(
+      rollout.operational_checks.map(({ id }) => id),
+      "operational check ids",
+      context,
+    );
+    addDuplicateIssues(
+      rollout.migration_checkpoints.map(({ id }) => id),
+      "migration checkpoint ids",
+      context,
+    );
+  });
+
 const componentSchema = z
   .object({
     id: slugSchema,
     kind: componentKindSchema,
     name: z.string().min(1),
     mount_path: webMountPathSchema.optional(),
+    template_ownership: templateOwnershipSchema.optional(),
     task_exceptions: z.array(taskExceptionSchema).default([]),
   })
   .strict()
@@ -267,6 +319,10 @@ const projectProfileFieldsSchema = z
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
     checkpoint_fulfillment: z.array(checkpointFulfillmentSchema).default([]),
+    rollout: rolloutSchema.default({
+      operational_checks: [],
+      migration_checkpoints: [],
+    }),
     reconciliation: reconciliationPolicySchema.default({ mode: "tracking" }),
     nix: nixProfileSchema,
     opentelemetry: otelProfileSchema,
@@ -409,6 +465,7 @@ export interface ResolvedProjectBlueprint {
     readonly kind: string;
     readonly path: string;
     readonly mount_path?: string;
+    readonly template_ownership?: "structure-only";
     readonly tasks: readonly {
       readonly name: string;
       readonly disposition:
@@ -438,6 +495,19 @@ export interface ResolvedProjectBlueprint {
   readonly nix: Record<string, unknown>;
   readonly opentelemetry: Record<string, unknown>;
   readonly fulfillment_checkpoints: readonly ResolvedFulfillmentCheckpoint[];
+  readonly rollout: {
+    readonly operational_checks: readonly {
+      readonly id: string;
+      readonly command: string;
+    }[];
+    readonly migration_checkpoints: readonly {
+      readonly id: string;
+      readonly action: string;
+      readonly verification: string;
+      readonly status: "pending" | "verified";
+      readonly evidence: readonly string[];
+    }[];
+  };
 }
 
 function addDuplicateIssues(values: readonly string[], label: string, context: z.RefinementCtx): void {
@@ -551,6 +621,9 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       ...(component.mount_path === undefined
         ? {}
         : { mount_path: component.mount_path }),
+      ...(component.template_ownership === undefined
+        ? {}
+        : { template_ownership: component.template_ownership }),
       tasks: requiredTasks
         .toSorted(compareStrings)
         .map((name) =>
@@ -1006,6 +1079,16 @@ export function resolveProjectProfile(
       failure_mode: contracts.opentelemetry.processing.failure_mode,
     } : { enabled: false },
     fulfillment_checkpoints: checkpoints,
+    rollout: {
+      operational_checks: [...profile.rollout.operational_checks]
+        .toSorted((left, right) => compareStrings(left.id, right.id)),
+      migration_checkpoints: profile.rollout.migration_checkpoints
+        .map((checkpoint) => ({
+          ...checkpoint,
+          evidence: [...checkpoint.evidence].toSorted(compareStrings),
+        }))
+        .toSorted((left, right) => compareStrings(left.id, right.id)),
+    },
   };
 }
 

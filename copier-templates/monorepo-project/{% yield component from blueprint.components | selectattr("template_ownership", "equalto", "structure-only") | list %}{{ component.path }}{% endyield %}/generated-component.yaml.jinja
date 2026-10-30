@@ -1,0 +1,35 @@
+# Managed by Copier; product logic and secret values do not belong in this file.
+schema_version: 1
+component:
+  id: "{{ component.id }}"
+  stable_id: "{{ component.stable_id }}"
+  name: "{{ component.name }}"
+  kind: "{{ component.kind }}"
+  path: "{{ component.path }}"
+  project: "{{ blueprint.project.stable_id }}"
+ownership:
+  template_files:
+    - "generated-component.yaml"
+    - "mise.toml"
+  product_logic: "project"
+  secrets: "external"
+rollout:
+{% if blueprint.rollout.operational_checks %}
+  operational_checks:
+{% for check in blueprint.rollout.operational_checks %}
+    - id: "{{ check.id }}"
+      command: "{{ check.command }}"
+{% endfor %}
+{% else %}
+  operational_checks: []
+{% endif %}
+{% if blueprint.rollout.migration_checkpoints %}
+  migration_checkpoints:
+{% for checkpoint in blueprint.rollout.migration_checkpoints %}
+    - id: "{{ checkpoint.id }}"
+      status: "{{ checkpoint.status }}"
+      verification: "{{ checkpoint.verification }}"
+{% endfor %}
+{% else %}
+  migration_checkpoints: []
+{% endif %}
