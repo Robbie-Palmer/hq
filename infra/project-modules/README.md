@@ -113,6 +113,37 @@ The module output `selected_capabilities` uses the same slot names as the
 resolved profile. `resource_ownership` returns provider IDs grouped under the
 profile project ID; it never returns secret values.
 
+## Profile validation migration
+
+The v1 module now checks the profile through output preconditions. These checks
+stop `terraform plan` with the same messages as the former
+`terraform_data.profile_guard`, but they do not add a managed resource to
+state.
+
+An existing aggregate module call needs no address changes. Its next plan
+forgets the old `terraform_data.profile_guard` without destroying it. Apply that
+reviewed plan to remove the local-only address. All provider resource addresses
+stay unchanged. A fully disabled module then has no addresses in
+`terraform state list`.
+
+If a root removed its aggregate module call before applying this migration, add
+a root-level removal record for the old address:
+
+```hcl
+removed {
+  from = module.project.terraform_data.profile_guard
+
+  lifecycle {
+    destroy = false
+  }
+}
+```
+
+Replace `module.project` with the former module call address. Review a plan that
+contains only the forget action, then apply it. Keep the state and repeat the
+plan after an interrupted apply. Do not use `terraform state rm` for this
+migration.
+
 ## Environments, data, and credentials
 
 Use distinct module instances and remote workspaces for projects with separate
