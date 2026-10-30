@@ -28,6 +28,18 @@ jobs:
       - name: Check AI reviewer evaluation pipeline
         run: mise run //ml-pipelines/ai-review-evaluation:check
 
+  financial-document-idp-evaluation-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check financial-document IDP evaluation pipeline
+        run: mise run //ml-pipelines/financial-document-idp-evaluation:check
+
   wsi-analysis-check:
     runs-on: ubuntu-latest
     defaults:

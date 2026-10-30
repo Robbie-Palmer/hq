@@ -1,6 +1,7 @@
 import { finiteNumber } from "ts-base/numbers";
 import { isRecord } from "ts-base/records";
 import { primitiveString } from "ts-base/strings";
+import { reviewPathIsExcluded } from "./coverage-manifest";
 
 type JsonObject = Record<string, unknown>;
 type Severity = "critical" | "high" | "medium" | "low";
@@ -61,84 +62,6 @@ export interface PullRequestReviewContext {
 }
 
 export const MARKER = "<!-- ai-code-review -->";
-const IGNORED_FILENAMES = new Set([
-  ".terraform.lock.hcl",
-  ".ds_store",
-  "bun.lock",
-  "bun.lockb",
-  "cargo.lock",
-  "composer.lock",
-  "gemfile.lock",
-  "go.sum",
-  "gradle.lockfile",
-  "mix.lock",
-  "npm-shrinkwrap.json",
-  "package-lock.json",
-  "package.resolved",
-  "packages.lock.json",
-  "pipfile.lock",
-  "pnpm-lock.yaml",
-  "poetry.lock",
-  "pubspec.lock",
-  "uv.lock",
-  "yarn.lock",
-  "thumbs.db",
-]);
-
-const IGNORED_EXTENSIONS = [
-  ".7z", ".a", ".arrow", ".avi", ".avif", ".bin", ".bmp", ".bz2", ".class", ".ckpt",
-  ".db", ".dll", ".dmg", ".doc", ".docx", ".dylib", ".eot", ".exe", ".feather",
-  ".cer", ".crt", ".flac", ".gif", ".gz", ".h5", ".heic", ".ico", ".jar", ".jpeg",
-  ".jpg", ".key", ".lib", ".lock", ".lockb", ".m4a", ".map", ".mkv", ".mov", ".mp3",
-  ".mp4", ".npy", ".npz", ".o", ".obj",
-  ".onnx", ".otf", ".parquet", ".pdf", ".pickle", ".pkl", ".png", ".ppt", ".pptx",
-  ".p12", ".pfx", ".pem", ".psd", ".pt", ".pth", ".pyc", ".rar", ".safetensors",
-  ".snap", ".so", ".sqlite", ".sqlite3", ".svg", ".tar", ".tfstate", ".tif", ".tiff",
-  ".ttf", ".wasm", ".wav", ".webm",
-  ".webp", ".woff", ".woff2", ".xls", ".xlsx", ".xz", ".zip", ".zst",
-];
-
-const IGNORED_DIRECTORIES = new Set([
-  ".cache",
-  ".mypy_cache",
-  ".next",
-  ".pytest_cache",
-  ".ruff_cache",
-  ".terraform",
-  ".turbo",
-  ".venv",
-  "__generated__",
-  "build",
-  "coverage",
-  "dist",
-  "node_modules",
-  "out",
-  "target",
-  "venv",
-  "vendor",
-]);
-
-// Vendored style packages are imported upstream files; the repo must not
-// hand-tweak them, so they stay out of review scope. Styles authored here
-// (for example .vale/styles/Unslop) remain reviewable like any other source.
-const IGNORED_VENDOR_PATHS = [
-  ".vale/styles/proselint/",
-  ".vale/styles/write-good/",
-];
-
-// CI checks these machine-generated artifacts against their authored schemas
-// and route definitions. Review the inputs rather than regenerated output.
-const IGNORED_GENERATED_PATHS = [
-  "packages/work-graph-db/drizzle/meta/",
-  "workers/recipe-api/drizzle/meta/",
-  "packages/work-graph-cli/src/generated/",
-];
-
-const IGNORED_GENERATED_FILES = new Set([
-  "workers/recipe-api/openapi.json",
-  "workers/work-graph-api/openapi.json",
-]);
-
 const SCOUT_FINDINGS_LIMIT = 25;
 const MERGED_FINDINGS_LIMIT = 100;
 
@@ -222,22 +145,7 @@ export function workflowStatusForCoverage(
 }
 
 export function ignored(path: string): boolean {
-  const normalized = path.replaceAll("\\", "/").toLowerCase();
-  const parts = normalized.split("/").filter(Boolean);
-  const basename = parts.at(-1) ?? normalized;
-  return (
-    IGNORED_VENDOR_PATHS.some((prefix) => normalized.startsWith(prefix)) ||
-    IGNORED_GENERATED_PATHS.some((prefix) => normalized.startsWith(prefix)) ||
-    IGNORED_GENERATED_FILES.has(normalized) ||
-    IGNORED_FILENAMES.has(basename) ||
-    IGNORED_EXTENSIONS.some((extension) => basename.endsWith(extension)) ||
-    parts.slice(0, -1).some((directory) => IGNORED_DIRECTORIES.has(directory)) ||
-    basename.includes(".generated.") ||
-    basename === ".env" ||
-    basename.startsWith(".env.") ||
-    basename.endsWith(".min.css") ||
-    basename.endsWith(".min.js")
-  );
+  return reviewPathIsExcluded(path);
 }
 
 export function markdownText(value: unknown, limit = 2_000): string {
