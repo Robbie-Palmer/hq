@@ -298,9 +298,9 @@ stages:
       size: 1535
     - path: src/financial_document_idp
       hash: md5
-      md5: d876d20f9e2b246e56a3443ca3125675.dir
-      size: 135191
-      nfiles: 10
+      md5: 5a7f96290afc64dcf80d076280e57de7.dir
+      size: 50499
+      nfiles: 5
     - path: uv.lock
       hash: md5
       md5: c20b76008a0cf8d845cc24a3de1c9a43
