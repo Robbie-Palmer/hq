@@ -10,6 +10,8 @@ from typing import Any
 
 import duckdb
 
+from work_graph_analytics.reporting import operational_report
+
 
 def _json_value(value: Any) -> Any:
     if isinstance(value, (date, datetime, time)):
@@ -84,6 +86,35 @@ def main() -> None:
         2,
         1,
     )
+    report = operational_report(
+        str(first),
+        start="2026-10-01T01:00:00Z",
+        end="2026-10-01T03:00:00Z",
+    )
+    report_metrics = {
+        (row.project_id, row.cause): (
+            row.episodes,
+            row.recurring_work_items,
+            row.wait_milliseconds,
+            row.open_at_end,
+            row.intervention_requests,
+            row.resolutions,
+            row.stale_takeovers,
+            row.failed_handoff_proxies,
+        )
+        for row in report.metrics
+    }
+    assert report_metrics[("project-new", "attention:access")] == metric(
+        first, "project-new", "attention:access"
+    )
+    assert report_metrics[("project", "attention:review")] == metric(
+        first, "project", "attention:review"
+    )
+    assert report_metrics[("project", "stale_lease")] == metric(first, "project", "stale_lease")
+    assert report.provenance.model_version == "fixture-v1"
+    assert report.provenance.source_coverage.through_sequence == 14
+    assert report.provenance.scope_snapshot.object_keys == ["work-state/v1/scopes/14.json"]
+    assert report.provenance.freshness.latest_event_at == "2026-10-01T03:00:00.000Z"
     manifests = json.loads((first / "manifest.json").read_text())
     assert manifests["complete"] is True
     assert manifests["source"]["throughSequence"] == 14
