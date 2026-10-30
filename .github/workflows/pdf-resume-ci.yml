@@ -1,0 +1,30 @@
+name: PDF resume CI
+
+on:
+  pull_request:
+    paths:
+      - "scripts/pdf-resume/**"
+      - "ui/content/experience.ts"
+      - "ui/content/projects/*/index.mdx"
+      - "ui/lib/config/site-config.ts"
+      - "ui/public/robbie-palmer-resume.pdf"
+      - "ui/public/robbie-palmer-resume.provenance.json"
+      - ".github/workflows/pdf-resume-ci.yml"
+      - ".mise.toml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-mise
+
+      - run: mise //:resume:check

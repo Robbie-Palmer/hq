@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "generator": "scripts/pdf-resume",
+  "sourceDigest": "738b19b36598193614a58c3ff2094b99572fb6a42fe9cf384c755d8126989c99",
+  "sources": [
+    {
+      "path": "ui/content/experience.ts",
+      "sha256": "3445cdd8ad44bd013219ebddb218da13f37346ddf883b1ca09a11ebc83e37b6b"
+    },
+    {
+      "path": "ui/content/projects/agent-coordinator/index.mdx",
+      "sha256": "d8ae79b7bdd2e39fbcf59ed6af31c6a715f46ea9d09603b93431cea92a723edf"
+    },
+    {
+      "path": "ui/content/projects/agent-first-writing/index.mdx",
+      "sha256": "c7cd065ec9093ba30e1b18959d857193103d71d41ece297b0408f2659bb000d7"
+    },
+    {
+      "path": "ui/content/projects/agent-friendly-remote-development/index.mdx",
+      "sha256": "a49eaacdac91e1965781ac6d1b24de2a2e27f6dac9b3f40b025c4a819b87c089"
+    },
+    {
+      "path": "ui/content/projects/agentic-code-review/index.mdx",
+      "sha256": "c04dd86f5003407214be7afba6470fcfbd2ee214c3511918eb8f638f4f8bb4cc"
+    },
+    {
+      "path": "ui/content/projects/ai-assisted-macrodissection/index.mdx",
+      "sha256": "a8c4d5cfd8f870a866e97d3e94c6e246eaff97c89c8fa6e5c8383ef48926b018"
+    },
+    {
+      "path": "ui/content/projects/automated-macrodissection/index.mdx",
+      "sha256": "1b54049731683db5c546289c92616c6fed09a4bbff7146aae1aa66d2dc48a000"
+    },
+    {
+      "path": "ui/content/projects/autonomic-satellite-swarm/index.mdx",
+      "sha256": "d5bc3c95121ee964eb5a9fca72272da068d4ed4402a9f13cba719ff3ac0e04fc"
+    },
+    {
+      "path": "ui/content/projects/bioinformatics-platform/index.mdx",
+      "sha256": "0df8badbef7804883d9107a59eac5a1e0ab6a3c66ed93fdd971dcc415906b793"
+    },
+    {
+      "path": "ui/content/projects/chatbot/index.mdx",
+      "sha256": "954f89a3299dc5d82151ef92dbdf10b988ed5c7acdf3d43dfce30b76b8a1b00c"
+    },
+    {
+      "path": "ui/content/projects/commercial-knowledge-graph/index.mdx",
+      "sha256": "78f63c8da8dce34facdb3ab1e1451b1607baf171cde1ce3aca01a278f4a5b83c"
+    },
+    {
+      "path": "ui/content/projects/confluent-python-udfs/index.mdx",
+      "sha256": "1b05c8d92fa2e56e0a9606e5dbd0d54d063d106fa6ae325e469f3d4a6679fbee"
+    },
+    {
+      "path": "ui/content/projects/customer-health-forecasting/index.mdx",
+      "sha256": "9e2efd7bd2394e0e82ae409d74cbc75af4f13fbece92abee16fe6b21d7fb7d1b"
+    },
+    {
+      "path": "ui/content/projects/genomic-prediction/index.mdx",
+      "sha256": "3c3ed4f462a6310d388e82e0344693c5946fa14f00ee51421f919c53ca5625fd"
+    },
+    {
+      "path": "ui/content/projects/homelab/index.mdx",
+      "sha256": "06d5827d255510e1cd81903365fc34bbcad80128a28b5556bab7b99489421e92"
+    },
+    {
+      "path": "ui/content/projects/inbox-signal/index.mdx",
+      "sha256": "c85c76f6675c525ad4b8d99b3fab12c4c22e3c9a67ca7f757ed9819513bcd1c4"
+    },
+    {
+      "path": "ui/content/projects/intelligent-document-processing/index.mdx",
+      "sha256": "854d1e9da6cc094bcfea7cbfc15f8c3977437330cf00093e25595b58258f0fdb"
+    },
+    {
+      "path": "ui/content/projects/mobile-asset-identification/index.mdx",
+      "sha256": "574bac6815b5c577269294b1bd80bb06bf9b1ac933eeb2d58971f86d5c0d947b"
+    },
+    {
+      "path": "ui/content/projects/multi-modal-product-search/index.mdx",
+      "sha256": "e65209a51477466c5721039afee1a5478fd7b9d01c345c765be2d83352c5d961"
+    },
+    {
+      "path": "ui/content/projects/open-collective-development/index.mdx",
+      "sha256": "aa7b18ca71e4929db971fe4e2d6068b88160423336022c91b25a83a458779872"
+    },
+    {
+      "path": "ui/content/projects/pathology-viewer/index.mdx",
+      "sha256": "4d1f2219d542885cc77ca1435bb1c5efb37b5d71bbc40486e8e399f858f8bcbd"
+    },
+    {
+      "path": "ui/content/projects/personal-digital-infrastructure/index.mdx",
+      "sha256": "c4e5be0feefce02ed2fad4a68458f005354caba38907deed89e3685ac30fa191"
+    },
+    {
+      "path": "ui/content/projects/personal-engineering-platform/index.mdx",
+      "sha256": "479215b56b81d3582c1566900bfb468f13830522215fd8248884f127ccc4ebcd"
+    },
+    {
+      "path": "ui/content/projects/personal-finance-app/index.mdx",
+      "sha256": "5b998957f13f8c793d6fc92c0365dbf4a53ee083567942dc2b7534e457baa4b0"
+    },
+    {
+      "path": "ui/content/projects/personal-knowledge-graph/index.mdx",
+      "sha256": "9da6d3951b41069d01ca86df01d155e97aa0f504b876c4f9bae01ecf4b54753d"
+    },
+    {
+      "path": "ui/content/projects/pii-detection/index.mdx",
+      "sha256": "b284c2552b69eb27e1ca2d214306713c08eb1402ffcdc77252872167a8e2492b"
+    },
+    {
+      "path": "ui/content/projects/real-time-multi-camera-video-analytics/index.mdx",
+      "sha256": "2bcfdb8e359c2dbd3c7bdbf528a9777d72c9ed2a88c770c17114522fb3a087f0"
+    },
+    {
+      "path": "ui/content/projects/recipe-site/index.mdx",
+      "sha256": "6aee92ba9db079bccf0604d472eecfef12121cc0d0d927b2a5def6536c179303"
+    },
+    {
+      "path": "ui/content/projects/wedding-planner/index.mdx",
+      "sha256": "b6dfb2e135788bdf97e9e7065e022f08f28eec186b0308064efb04c00ad0c9cc"
+    },
+    {
+      "path": "ui/content/projects/work-graph/index.mdx",
+      "sha256": "c938dde4d2ce01926f38527b1dd27c0350f1b56bc1f8b7b20055607731daf54f"
+    },
+    {
+      "path": "ui/lib/config/site-config.ts",
+      "sha256": "6ae634c0b700cf3b846805b274d79c3b3d4e508b3e19d6fda327a6031953ecf5"
+    }
+  ],
+  "selectedProjects": [
+    "work-graph",
+    "personal-finance-app",
+    "recipe-site",
+    "autonomic-satellite-swarm",
+    "agentic-code-review"
+  ],
+  "pdf": {
+    "path": "ui/public/robbie-palmer-resume.pdf",
+    "sha256": "e3e01e8183d6040c204bd7c7fd6674cb8fdd3f97b89ff6406a71deb4baf4109f",
+    "pages": 2,
+    "links": [
+      "https://bestomer.com/",
+      "https://confluent.io/",
+      "https://github.com/Robbie-Palmer",
+      "https://github.com/Robbie-Palmer/hq",
+      "https://github.com/Robbie-Palmer/hq/tree/main/ai-review",
+      "https://github.com/Robbie-Palmer/hq/tree/main/cpp/autonomic-satellite-swarm",
+      "https://robbiepalmer.me",
+      "https://robbiepalmer.me/projects/agentic-code-review",
+      "https://robbiepalmer.me/projects/autonomic-satellite-swarm",
+      "https://robbiepalmer.me/projects/personal-finance-app",
+      "https://robbiepalmer.me/projects/recipe-site",
+      "https://robbiepalmer.me/projects/work-graph",
+      "https://sonraianalytics.com/",
+      "https://terminal-industries.com/",
+      "https://www.infosys.com/",
+      "https://www.linkedin.com/in/robertjohnpalmer/",
+      "https://www.microsoft.com/",
+      "https://www.philips.co.uk/healthcare/specialty/health-informatics",
+      "https://www.ulster.ac.uk/"
+    ]
+  }
+}
