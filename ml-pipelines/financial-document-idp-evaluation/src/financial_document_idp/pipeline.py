@@ -53,11 +53,18 @@ PROMPT_INJECTION_SIGNALS = (
     "tool call",
     "exfiltrate",
 )
+PDF_MIME_TYPE = "application/pdf"
+HTML_MIME_TYPE = "text/html"
+PGM_MIME_TYPE = "image/x-portable-graymap"
 MIME_EXTENSIONS = {
-    "application/pdf": ".pdf",
-    "text/html": ".html",
-    "image/x-portable-graymap": ".pgm",
+    PDF_MIME_TYPE: ".pdf",
+    HTML_MIME_TYPE: ".html",
+    PGM_MIME_TYPE: ".pgm",
 }
+CORPUS_PATH = Path("data/corpus")
+CORPUS_MANIFEST_PATH = CORPUS_PATH / "manifest.json"
+NORMALIZED_PREDICTIONS_PATH = Path("outputs/normalized/predictions.jsonl")
+FAILURES_FILENAME = "failures.json"
 
 
 def _reset_directory(path: Path, root: Path) -> None:
@@ -116,11 +123,11 @@ def _pgm_fixture(content: str) -> bytes:
 
 
 def _encode_fixture(mime_type: str, content: str) -> bytes:
-    if mime_type == "application/pdf":
+    if mime_type == PDF_MIME_TYPE:
         return _pdf_fixture(content)
-    if mime_type == "text/html":
+    if mime_type == HTML_MIME_TYPE:
         return _html_fixture(content)
-    if mime_type == "image/x-portable-graymap":
+    if mime_type == PGM_MIME_TYPE:
         return _pgm_fixture(content)
     raise ValueError(f"unsupported fixture MIME type: {mime_type}")
 
@@ -129,7 +136,7 @@ def build_corpus(root: Path | None = None) -> None:
     root = root or project_root()
     params = load_params(root)
     spec = load_model(resolve_under(root, str(params["corpusSpec"])), CorpusSpec)
-    corpus_dir = root / "data/corpus"
+    corpus_dir = root / CORPUS_PATH
     _reset_directory(corpus_dir, root)
     documents_dir = corpus_dir / "documents"
     truth_dir = corpus_dir / "ground-truth"
@@ -173,7 +180,7 @@ def build_corpus(root: Path | None = None) -> None:
         privacy_policy="synthetic_or_strongly_redacted_only",
         documents=entries,
     )
-    write_json(corpus_dir / "manifest.json", manifest)
+    write_json(root / CORPUS_MANIFEST_PATH, manifest)
 
 
 class _FixtureHtmlParser(HTMLParser):
@@ -207,15 +214,15 @@ def _decode_marker(content: bytes, prefix: bytes) -> str:
 
 
 def _render_document(mime_type: str, content: bytes) -> str:
-    if mime_type == "application/pdf":
+    if mime_type == PDF_MIME_TYPE:
         if not content.startswith(b"%PDF-1.4") or not content.rstrip().endswith(b"%%EOF"):
             raise ValueError("invalid PDF signature or trailer")
         return _decode_marker(content, b"%")
-    if mime_type == "image/x-portable-graymap":
+    if mime_type == PGM_MIME_TYPE:
         if not content.startswith(b"P2\n"):
             raise ValueError("invalid PGM signature")
         return _decode_marker(content, b"#")
-    if mime_type == "text/html":
+    if mime_type == HTML_MIME_TYPE:
         decoded = content.decode()
         folded = decoded.casefold()
         if "<script" in folded or "javascript:" in folded:
@@ -231,8 +238,8 @@ def _render_document(mime_type: str, content: bytes) -> str:
 def safety_and_render(root: Path | None = None) -> None:
     root = root or project_root()
     params = load_params(root)
-    corpus_dir = root / "data/corpus"
-    manifest = load_model(corpus_dir / "manifest.json", CorpusManifest)
+    corpus_dir = root / CORPUS_PATH
+    manifest = load_model(root / CORPUS_MANIFEST_PATH, CorpusManifest)
     output_dir = root / "outputs/rendered"
     _reset_directory(output_dir, root)
     allowed = set(params["fileSafety"]["allowedMimeTypes"])
@@ -264,12 +271,12 @@ def safety_and_render(root: Path | None = None) -> None:
                 )
             )
             format_counts[entry.strata.document_format] += 1
-        except (OSError, UnicodeError, ValueError) as error:
+        except (OSError, ValueError) as error:
             failures.append(
                 {"document_id": entry.document_id, "code": "unsafe_file", "detail": str(error)}
             )
     write_jsonl(output_dir / "documents.jsonl", rendered)
-    write_json(output_dir / "failures.json", failures)
+    write_json(output_dir / FAILURES_FILENAME, failures)
     write_json(
         output_dir / "safety-report.json",
         {
@@ -452,7 +459,7 @@ def extract(root: Path | None = None) -> None:
             )
         )
     write_jsonl(output_dir / "predictions.jsonl", predictions)
-    write_json(output_dir / "failures.json", failures)
+    write_json(output_dir / FAILURES_FILENAME, failures)
     write_json(
         output_dir / "run.json",
         {
@@ -462,7 +469,7 @@ def extract(root: Path | None = None) -> None:
             "params_sha256": sha256_file(root / "params.yaml"),
             "prompt_sha256": prompt_sha256,
             "model_manifest_sha256": sha256_file(model_manifest_path),
-            "corpus_manifest_sha256": sha256_file(root / "data/corpus/manifest.json"),
+            "corpus_manifest_sha256": sha256_file(root / CORPUS_MANIFEST_PATH),
             "documents": len(predictions),
             "failures": len(failures),
         },
@@ -510,7 +517,7 @@ def normalize(root: Path | None = None) -> None:
                 }
             )
     write_jsonl(output_dir / "predictions.jsonl", normalized)
-    write_json(output_dir / "failures.json", failures)
+    write_json(output_dir / FAILURES_FILENAME, failures)
 
 
 def _flatten_fields(value: Any, prefix: str = "") -> dict[str, Any]:
@@ -566,78 +573,106 @@ def _reconciles(extraction: CanonicalExtraction) -> bool:
     return bool(checks) and all(checks)
 
 
+def _matching_errors(
+    entry: CorpusManifestEntry,
+    prediction: PredictionRecord,
+    *,
+    field_correct: int,
+    field_total: int,
+    false_positive: int,
+    false_negative: int,
+) -> list[str]:
+    if entry.expected_abstention:
+        actual_reason = prediction.abstention.reason if prediction.abstention else None
+        return (
+            []
+            if actual_reason == entry.expected_abstention_reason
+            else ["expected abstention reason did not match"]
+        )
+    if prediction.abstention:
+        return [f"unexpected abstention: {prediction.abstention.reason}"]
+    errors: list[str] = []
+    if field_correct != field_total:
+        errors.append("one or more canonical fields did not match")
+    if false_positive or false_negative:
+        errors.append("one or more transaction rows did not match")
+    return errors
+
+
+def _match_record(
+    entry: CorpusManifestEntry,
+    expected: CanonicalExtraction,
+    prediction: PredictionRecord,
+) -> MatchRecord:
+    extraction = prediction.extraction
+    expected_fields = _flatten_fields(expected.model_dump(mode="json"))
+    actual_fields = _flatten_fields(extraction.model_dump(mode="json")) if extraction else {}
+    field_correct = sum(
+        actual_fields.get(field) == value for field, value in expected_fields.items()
+    )
+    field_total = len(expected_fields)
+    expected_rows = _transaction_counter(expected)
+    actual_rows = _transaction_counter(extraction) if extraction else Counter()
+    true_positive = sum((expected_rows & actual_rows).values())
+    false_positive = sum((actual_rows - expected_rows).values())
+    false_negative = sum((expected_rows - actual_rows).values())
+    errors = _matching_errors(
+        entry,
+        prediction,
+        field_correct=field_correct,
+        field_total=field_total,
+        false_positive=false_positive,
+        false_negative=false_negative,
+    )
+    if entry.expected_abstention:
+        field_correct = field_total = 0
+        true_positive = false_positive = false_negative = 0
+    actual_reason = prediction.abstention.reason if prediction.abstention else None
+    adversarial_defended = (
+        actual_reason == "prompt_injection"
+        if "prompt-injection" in entry.adversarial_tags
+        else None
+    )
+    return MatchRecord(
+        document_id=entry.document_id,
+        provider=prediction.provider,
+        expected_abstention=entry.expected_abstention,
+        expected_abstention_reason=entry.expected_abstention_reason,
+        actual_abstention_reason=actual_reason,
+        field_correct=field_correct,
+        field_total=field_total,
+        row_true_positive=true_positive,
+        row_false_positive=false_positive,
+        row_false_negative=false_negative,
+        reconciled=_reconciles(extraction) if extraction else None,
+        adversarial_defended=adversarial_defended,
+        errors=errors,
+    )
+
+
 def match(root: Path | None = None) -> None:
     root = root or project_root()
-    corpus_dir = root / "data/corpus"
-    manifest = load_model(corpus_dir / "manifest.json", CorpusManifest)
+    corpus_dir = root / CORPUS_PATH
+    manifest = load_model(root / CORPUS_MANIFEST_PATH, CorpusManifest)
     predictions = {
         item.document_id: item
         for item in (
             PredictionRecord.model_validate(value)
-            for value in read_jsonl(root / "outputs/normalized/predictions.jsonl")
+            for value in read_jsonl(root / NORMALIZED_PREDICTIONS_PATH)
         )
     }
     output_dir = root / "outputs/matching"
     _reset_directory(output_dir, root)
-    records: list[MatchRecord] = []
-    for entry in manifest.documents:
-        expected = _normalize_extraction(
-            load_model(resolve_under(corpus_dir, entry.ground_truth_path), CanonicalExtraction)
+    records = [
+        _match_record(
+            entry,
+            _normalize_extraction(
+                load_model(resolve_under(corpus_dir, entry.ground_truth_path), CanonicalExtraction)
+            ),
+            predictions[entry.document_id],
         )
-        prediction = predictions[entry.document_id]
-        expected_fields = _flatten_fields(expected.model_dump(mode="json"))
-        actual_fields = (
-            _flatten_fields(prediction.extraction.model_dump(mode="json"))
-            if prediction.extraction
-            else {}
-        )
-        field_correct = sum(
-            actual_fields.get(field) == value for field, value in expected_fields.items()
-        )
-        expected_rows = _transaction_counter(expected)
-        actual_rows = (
-            _transaction_counter(prediction.extraction) if prediction.extraction else Counter()
-        )
-        true_positive = sum((expected_rows & actual_rows).values())
-        false_positive = sum((actual_rows - expected_rows).values())
-        false_negative = sum((expected_rows - actual_rows).values())
-        actual_reason = prediction.abstention.reason if prediction.abstention else None
-        errors: list[str] = []
-        if entry.expected_abstention:
-            if actual_reason != entry.expected_abstention_reason:
-                errors.append("expected abstention reason did not match")
-            field_correct = 0
-            expected_fields = {}
-            true_positive = false_positive = false_negative = 0
-        elif prediction.abstention:
-            errors.append(f"unexpected abstention: {prediction.abstention.reason}")
-        else:
-            if field_correct != len(expected_fields):
-                errors.append("one or more canonical fields did not match")
-            if false_positive or false_negative:
-                errors.append("one or more transaction rows did not match")
-        adversarial_defended = (
-            actual_reason == "prompt_injection"
-            if "prompt-injection" in entry.adversarial_tags
-            else None
-        )
-        records.append(
-            MatchRecord(
-                document_id=entry.document_id,
-                provider=prediction.provider,
-                expected_abstention=entry.expected_abstention,
-                expected_abstention_reason=entry.expected_abstention_reason,
-                actual_abstention_reason=actual_reason,
-                field_correct=field_correct,
-                field_total=len(expected_fields),
-                row_true_positive=true_positive,
-                row_false_positive=false_positive,
-                row_false_negative=false_negative,
-                reconciled=(_reconciles(prediction.extraction) if prediction.extraction else None),
-                adversarial_defended=adversarial_defended,
-                errors=errors,
-            )
-        )
+        for entry in manifest.documents
+    ]
     write_jsonl(output_dir / "records.jsonl", records)
     write_json(
         output_dir / "errors.json",
@@ -702,7 +737,7 @@ def _metric_summary(
 def evaluate(root: Path | None = None) -> None:
     root = root or project_root()
     params = load_params(root)
-    manifest = load_model(root / "data/corpus/manifest.json", CorpusManifest)
+    manifest = load_model(root / CORPUS_MANIFEST_PATH, CorpusManifest)
     records = [
         MatchRecord.model_validate(value)
         for value in read_jsonl(root / "outputs/matching/records.jsonl")
@@ -711,7 +746,7 @@ def evaluate(root: Path | None = None) -> None:
         item.document_id: item
         for item in (
             PredictionRecord.model_validate(value)
-            for value in read_jsonl(root / "outputs/normalized/predictions.jsonl")
+            for value in read_jsonl(root / NORMALIZED_PREDICTIONS_PATH)
         )
     }
     entries = {entry.document_id: entry for entry in manifest.documents}
@@ -784,11 +819,11 @@ def evaluate(root: Path | None = None) -> None:
 
 def error_analysis(root: Path | None = None) -> None:
     root = root or project_root()
-    manifest = load_model(root / "data/corpus/manifest.json", CorpusManifest)
+    manifest = load_model(root / CORPUS_MANIFEST_PATH, CorpusManifest)
     matching_errors = read_json(root / "outputs/matching/errors.json")
     stage_failures: dict[str, Any] = {}
     for stage in ("rendered", "extraction", "normalized"):
-        stage_failures[stage] = read_json(root / f"outputs/{stage}/failures.json")
+        stage_failures[stage] = read_json(root / "outputs" / stage / FAILURES_FILENAME)
     decision = read_json(root / "outputs/evaluation/release-decision.json")
     output_dir = root / "outputs/error-analysis"
     _reset_directory(output_dir, root)
@@ -820,7 +855,7 @@ def error_analysis(root: Path | None = None) -> None:
         "params_sha256": sha256_file(root / "params.yaml"),
         "prompt_sha256": sha256_file(root / "prompts/extraction-v1.txt"),
         "model_manifest_sha256": sha256_file(root / "models.json"),
-        "corpus_manifest_sha256": sha256_file(root / "data/corpus/manifest.json"),
+        "corpus_manifest_sha256": sha256_file(root / CORPUS_MANIFEST_PATH),
         "artifacts": [
             {
                 "path": path.relative_to(root).as_posix(),
@@ -861,17 +896,15 @@ def write_schemas(*, check: bool, root: Path | None = None) -> None:
 
 def verify(root: Path | None = None) -> None:
     root = root or project_root()
-    manifest = load_model(root / "data/corpus/manifest.json", CorpusManifest)
+    manifest = load_model(root / CORPUS_MANIFEST_PATH, CorpusManifest)
     if any(
         not entry.synthetic and entry.redaction_status != "strongly_redacted"
         for entry in manifest.documents
     ):
         raise ValueError("corpus contains an unredacted non-synthetic document")
     for entry in manifest.documents:
-        load_model(
-            resolve_under(root / "data/corpus", entry.ground_truth_path), CanonicalExtraction
-        )
-    for value in read_jsonl(root / "outputs/normalized/predictions.jsonl"):
+        load_model(resolve_under(root / CORPUS_PATH, entry.ground_truth_path), CanonicalExtraction)
+    for value in read_jsonl(root / NORMALIZED_PREDICTIONS_PATH):
         PredictionRecord.model_validate(value)
     decision = read_json(root / "outputs/evaluation/release-decision.json")
     if decision["decision"] != "pass" or decision["failed_gates"]:

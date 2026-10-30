@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -29,9 +28,9 @@ def evaluation_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def reproduced_root(evaluation_root: Path) -> Iterator[Path]:
+def reproduced_root(evaluation_root: Path) -> Path:
     run_pipeline(evaluation_root)
-    yield evaluation_root
+    return evaluation_root
 
 
 def run_pipeline(root: Path) -> None:
