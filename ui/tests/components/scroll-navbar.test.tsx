@@ -19,13 +19,13 @@ vi.mock("@/hooks/use-navbar-visibility", () => ({
 }));
 
 describe("ScrollNavbar", () => {
-  it("uses the shorter experience label below the 375px breakpoint", () => {
+  it("uses the shorter experience label below the 420px breakpoint", () => {
     render(<ScrollNavbar />);
 
-    expect(screen.getByText("Exp")).toHaveClass("min-[375px]:hidden");
+    expect(screen.getByText("Exp")).toHaveClass("min-[420px]:hidden");
     expect(screen.getByText("Experience")).toHaveClass(
       "hidden",
-      "min-[375px]:inline",
+      "min-[420px]:inline",
     );
   });
 });
