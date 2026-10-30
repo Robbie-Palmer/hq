@@ -3,56 +3,159 @@ title: "Agent Coordinator pitch"
 description: "Turn subsidized reasoning capacity into continuous progress on critical work"
 ---
 
-# Ship the security fix, not another notification
+# Keep valuable agent work moving
 
-Agent Coordinator turns a severe dependency alert into a verified production
+Agent Coordinator puts available reasoning capacity onto the most valuable
+automatable software-development work and carries it through a verified
 outcome.
 
 <PitchNotes>
-  GitHub and Renovate are good at detection and deterministic update proposals. The gap begins when the proposal
-  needs application changes, CI repair, a merge decision, rollout supervision, or production QA.
+  Paid plans provide a changing pool of reasoning capacity. Tasks become ready, limits reset, and agents finish work
+  at different times. The coordinator decides what can use that capacity now and remains responsible for the result.
 
   \[Sources]
 
   * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
-  * [First product outcome](/projects/agent-coordinator?tab=overview#first-product-outcome)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## Renovate proposes. An agent owns the outcome.
+## The scarce resource is human judgment
 
-<PitchColumns>
-  <PitchColumn>
-    ### Renovate
+The first pilot launched general Work Graph tickets. It found plenty of work,
+but much of it involved exploratory architecture, UX, or prose that still
+needed a person to judge the result.
 
-    Finds updates and creates deterministic dependency changes.
-  </PitchColumn>
-
-  <PitchColumn>
-    ### Agent Coordinator
-
-    Understands the alert, repairs the application, merges, deploys, and validates.
-  </PitchColumn>
-</PitchColumns>
-
-<p className="pitch-slide__statement">The useful unit is a resolved production risk. An open pull request is intermediate.</p>
+<p className="pitch-slide__statement">Cheap agent output becomes expensive when it only fills a human review queue.</p>
 
 <PitchNotes>
-  Renovate remains valuable. The coordinator consumes its proposals rather than replacing its version discovery and
-  update logic. It acts when the deterministic change is insufficient or still needs delivery judgment.
+  The project should prefer work that agents can finish and evaluate. It should route genuine product, design,
+  architecture and editorial decisions to people instead of manufacturing drafts because capacity is idle.
 
   \[Sources]
 
-  * [First product outcome](/projects/agent-coordinator?tab=overview#first-product-outcome)
+  * [Why the direction changed](/projects/agent-coordinator?tab=overview#why-the-direction-changed)
   * [Non-goals](/projects/agent-coordinator?tab=overview#non-goals)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## One severe alert starts a complete delivery loop
+## Coordinate the work agents can finish
+
+<Mermaid
+  chart={`flowchart LR
+Signal[Signal or ready work] --> Select[Select a verifiable outcome]
+Select --> Execute[Launch and direct agents]
+Execute --> Verify[Checks, delivery and QA]
+Verify -->|proved| Done[Record the outcome]
+Verify -->|recoverable| Execute
+Verify -->|needs judgment| Attention[Ask for precise human input]
+`}
+/>
+
+<p className="pitch-slide__statement">Selection, continuity, recovery, and evidence are one coordination problem.</p>
+
+<PitchNotes>
+  A task may begin from the Work Graph or an external event. The coordinator admits it, assigns capacity, keeps work
+  moving across sessions, and decides whether the evidence proves the intended result.
+
+  \[Sources]
+
+  * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
+  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Keep planning, coordination, and execution separate
+
+<PitchColumns>
+  <PitchColumn>
+    ### Work Graph
+
+    Desired outcomes, priority, dependencies, leases, and durable evidence.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Agent Coordinator
+
+    Admission policy, capacity allocation, continuity, authority, and outcome evaluation.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Agent runtime
+
+    Providers, sessions, threads, worktrees, limits, and interruption recovery.
+  </PitchColumn>
+</PitchColumns>
+
+<p className="pitch-slide__statement">The plan stays durable while execution machinery and model capacity change.</p>
+
+<PitchNotes>
+  Provider names and subscription limits should not leak into the durable work model. The coordinator interprets the
+  plan and current capacity, while the runtime handles agent execution.
+
+  \[Sources]
+
+  * [System boundary](/projects/agent-coordinator?tab=overview#system-boundary)
+  * [Controller and worker roles](/projects/agent-coordinator?tab=overview#controller-and-worker-roles)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Use the capacity already available
+
+* Match task requirements to capable agents and models
+* Notice newly available work and safe parallelism
+* Track subscription limits and reset times
+* Resume useful work after limits, restarts, and interruptions
+* Avoid launching work whose result still needs open-ended human review
+
+<p className="pitch-slide__statement">Measure completed outcomes, not active threads or consumed tokens.</p>
+
+<PitchNotes>
+  The long-term goal is continuous allocation across automatable SDLC work. Capacity is useful only when it shortens
+  the route to a result the system can verify.
+
+  \[Sources]
+
+  * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
+  * [Later expansion](/projects/agent-coordinator?tab=overview#later-expansion)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## T3 Code replaces custom execution machinery
+
+T3 Code already supplies signed webhook automations, controller and worker
+threads, managed worktrees, provider sessions, pull-request watches, usage-limit
+recovery, and continuation after restarts.
+
+<p className="pitch-slide__statement">Build coordination policy and outcome loops instead of maintaining a second agent runtime.</p>
+
+<PitchNotes>
+  The current Work Graph poller, launcher and provider-session package remain useful during migration. Limit changes
+  to maintenance for existing users. Remove them after the T3 path replaces their live uses, then rely on Git history
+  instead of maintaining two permanent fallbacks.
+
+  \[Sources]
+
+  * [Why the direction changed](/projects/agent-coordinator?tab=overview#why-the-direction-changed)
+  * [What remains to build](/projects/agent-coordinator?tab=overview#what-remains-to-build)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Start with severe vulnerability remediation
+
+GitHub provides the security signal. Renovate provides deterministic update
+proposals. Agent Coordinator owns the judgment and delivery work that remains.
 
 <Mermaid
   chart={`flowchart LR
@@ -65,148 +168,58 @@ Validate -->|failure| Fix
 `}
 />
 
-<p className="pitch-slide__statement">The agent stays responsible until the deployed system proves the change worked.</p>
+<p className="pitch-slide__statement">Security remediation is the first product vertical. The project covers the wider automatable SDLC.</p>
 
 <PitchNotes>
-  A failed rollout is part of the same incident. The worker repairs or reverts it instead of leaving a merged pull
-  request as a false success.
+  Vulnerability remediation has a clear trigger and an observable production result. It exercises the complete
+  coordination loop without depending on a person to assess every intermediate artifact.
 
   \[Sources]
 
-  * [First release](/projects/agent-coordinator?tab=overview#first-release)
-  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## T3 Code provides the replacement control plane
-
-* Signed webhook automations and replay protection
-* Persistent controller threads
-* Top-level thread launch with managed worktrees
-* Provider sessions and subscription authentication
-* Usage-limit monitoring, snooze-until-reset, and automatic continuation
-* Recovery of interrupted threads after server or machine restarts
-* Pull-request watches that wake agents for checks and reviews
-
-<p className="pitch-slide__statement">Build the security policy and outcome loop on T3 while the current launcher keeps existing work moving.</p>
-
-<PitchNotes>
-  The current Work Graph poller, launcher and provider-session package remain useful during the transition. Limit
-  changes to maintenance for their existing users. Remove them only after the T3 path has replaced their live uses;
-  do not keep both orchestration paths as permanent fallbacks.
-
-  \[Sources]
-
-  * [Why the direction changed](/projects/agent-coordinator?tab=overview#why-the-direction-changed)
-  * [System boundary](/projects/agent-coordinator?tab=overview#system-boundary)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## A controller thread directs the work
-
-The controller admits the alert, finds related work, and launches one worker
-that owns the incident.
-
-Later GitHub events return to the controller, which routes them to the same
-worker or starts a focused recovery thread.
-
-<p className="pitch-slide__statement">Thread orchestration supplies continuity without one enormous agent session.</p>
-
-<PitchNotes>
-  The controller remains small and serial. Workers get isolated worktrees and can fan out research, review or recovery
-  when parallel work helps.
-
-  \[Sources]
-
-  * [Controller and worker roles](/projects/agent-coordinator?tab=overview#controller-and-worker-roles)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## The vulnerability workflow starts from events
-
-Webhook events start the work. The controller writes incident transitions,
-thread ownership, pull requests, commits, deployments, and validation evidence.
-
-<p className="pitch-slide__statement">Neon receives event-driven state changes instead of constant queries for ready work.</p>
-
-<PitchNotes>
-  A low-frequency reconciliation can repair missed evidence. The existing launcher may continue polling general Work
-  Graph work during the transition, but the new vulnerability workflow does not depend on that polling loop or on
-  Work Graph forwarding the webhook.
-
-  \[Sources]
-
-  * [System boundary](/projects/agent-coordinator?tab=overview#system-boundary)
-  * [What remains to build](/projects/agent-coordinator?tab=overview#what-remains-to-build)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## Trust the agent to merge and operate
-
-The initial repositories have no external users. The worker may merge after
-required checks, follow the established deployment path, inspect production,
-and repair or revert a failed rollout.
-
-It asks for help when it lacks authority or cannot establish a safe result.
-
-<p className="pitch-slide__statement">Use machine-enforced limits without turning every routine decision into an approval.</p>
-
-<PitchNotes>
-  The worker cannot weaken branch protection, disable checks or dismiss the alert instead of fixing it. Those controls
-  preserve honest evidence while leaving the agent enough authority to create real value.
-
-  \[Sources]
-
-  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## Begin with one hard, measurable outcome
-
-For each admitted alert, the system must either ship and validate a fix or
-explain the exact obstacle that prevents one.
-
-<p className="pitch-slide__statement">A production result exposes weak orchestration faster than a queue of generated PRs.</p>
-
-<PitchNotes>
-  Severe vulnerability resolution exercises event admission, repository reasoning, code changes, review, merge,
-  deployment, QA, recovery and durable evidence in one bounded workflow.
-
-  \[Sources]
-
-  * [First release](/projects/agent-coordinator?tab=overview#first-release)
+  * [First product outcome](/projects/agent-coordinator?tab=overview#first-product-outcome)
   * [PDR 000](/projects/agent-coordinator/pdrs/000-severe-vulnerability-resolution)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## Start narrow, then coordinate the automatable SDLC
+## Give the agent enough authority to finish
 
-When GitHub finds a serious dependency vulnerability, an agent should carry it
-through the last mile and leave behind a healthy deployment and an auditable
-record.
+The worker may repair or replace a Renovate pull request, merge after required
+checks, follow the established deployment path, validate production, and repair
+or revert a failed rollout.
 
-Once that loop works, apply the same coordination to delivery failures,
-production regressions, codebase analytics and bounded refactoring, and other
-work with objective completion checks.
+It asks for help when authority is missing or the safe result remains ambiguous.
+
+<p className="pitch-slide__statement">A pull request is intermediate. The product is a verified outcome.</p>
+
+<PitchNotes>
+  Branch protection and deterministic checks remain in force. The agent cannot dismiss the alert, weaken those
+  controls, or claim success because a change merged without proving what reached production.
+
+  \[Sources]
+
+  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
+  * [First release](/projects/agent-coordinator?tab=overview#first-release)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Prove one vertical, then expand across the SDLC
+
+After vulnerability remediation, apply the same coordination to failing
+delivery workflows, production regressions, dependency migrations, stale
+high-value pull requests, and codebase analysis followed by bounded refactoring.
+
+<p className="pitch-slide__statement">Expand when the next task class has an objective completion test.</p>
 
 [Read the full project account](/projects/agent-coordinator?tab=overview)
 
 <PitchNotes>
-  The project still aims to put available reasoning capacity onto critical work across the software-development
-  lifecycle. Vulnerability remediation is the first vertical because the outcome can be checked without creating a
-  new queue of work for a person to review.
+  The durable goal is to turn available agent capacity into continuous progress on critical work. Each new vertical
+  should prove that agents can complete and evaluate the outcome without transferring the real work into a human
+  review queue.
 
   \[Sources]
 
