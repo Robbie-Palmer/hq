@@ -54,6 +54,10 @@ import {
   sourceImageKey,
 } from "recipe-domain/import-storage";
 import {
+  ConfirmPhotoBatchManifestSchema,
+  RECIPE_PHOTO_BATCH_MAX_IMAGES,
+} from "recipe-domain/photo-batch";
+import {
   MAX_PANTRY_FRESHNESS_ESTIMATE_DAYS,
   MAX_PANTRY_ITEMS,
   MAX_PANTRY_MUTATION_CHANGES,
@@ -84,6 +88,7 @@ import { parseRecipeFile } from "recipe-parsing/recipe-file";
 import { parseSchemaOrgRecipeHtml } from "recipe-parsing/schema-org";
 import { EquipmentCategorySchema } from "recipe-parsing/schemas/canonical-equipment";
 import { z } from "zod";
+import { sha256Hex } from "ts-base/crypto";
 import { recipeAgentConfiguration } from "./agent-auth";
 import { recipeImportQuotaReason } from "./agent-recipe-imports";
 import {
@@ -113,6 +118,11 @@ import {
   recordCookingSession,
 } from "./cooking-sessions";
 import { hasPostgresErrorCode } from "./db/errors";
+import {
+  confirmPhotoManifest,
+  createPhotoBatch,
+  readPhotoImage,
+} from "./photo-batches";
 import {
   decodeFeedCursor,
   type FeedCursor,
@@ -253,7 +263,21 @@ type SpanAttributes = Record<string, boolean | number | string>;
 extendZodWithOpenApi(z);
 
 const app = new OpenAPIHono<AppEnv>();
-app.use("/recipe-import-batches", bodyLimit({ maxSize: 8_000_000, onError: c => c.json({ error: "Batch request exceeds 8 MB" }, 413) }));
+app.use(
+  "/recipe-import-batches/photos",
+  bodyLimit({
+    maxSize: 32_000_000,
+    onError: (c) =>
+      c.json({ error: "Photo batch request exceeds 32 MB" }, 413),
+  }),
+);
+app.use(
+  "/recipe-import-batches",
+  bodyLimit({
+    maxSize: 8_000_000,
+    onError: (c) => c.json({ error: "Batch request exceeds 8 MB" }, 413),
+  }),
+);
 
 const previewSignInBodySchema = z.object({
   scenario: z.string().trim().min(1).max(100),
@@ -1254,10 +1278,19 @@ export const routeMetadata = {
     description: recipeImportProgressDescription,
   },
   "POST /recipe-import-batches": { requestBodySchema: CreateBatchSchema, successStatuses: [201], additionalErrorStatuses: [413] },
+  "POST /recipe-import-batches/photos": {
+    successStatuses: [201],
+    additionalErrorStatuses: [413, 415],
+  },
   "GET /recipe-import-batches/:batchId/undo": {},
   "PUT /recipe-import-batches/:batchId/undo": { requestBodySchema: z.object({ state: z.literal("started") }), successStatuses: [202] },
   "GET /recipe-import-batches": {},
   "GET /recipe-import-batches/:batchId": {},
+  "GET /recipe-import-batches/:batchId/photos/:imageId": {},
+  "POST /recipe-import-batches/:batchId/photo-manifests": {
+    requestBodySchema: ConfirmPhotoBatchManifestSchema,
+    successStatuses: [201],
+  },
   "GET /recipe-import-batches/:batchId/progress": {
     headersSchema: progressEventIdHeaderSchema,
     successResponseSchema: progressEventStreamSchema,
@@ -1310,6 +1343,7 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "notificationId",
   "changeSetId",
   "batchId",
+  "imageId",
 ]);
 
 const notificationActionKeySchema = z.enum([
@@ -7111,6 +7145,7 @@ function progressResponse<State>(
 async function parseImportImages(
   c: Context<AppEnv>,
   form: FormData,
+  maxImages = RECIPE_IMPORT_MAX_IMAGES,
 ): Promise<
   | { success: true; images: { file: File; extension: string }[] }
   | { success: false; response: Response }
@@ -7124,11 +7159,11 @@ async function parseImportImages(
       response: c.json({ error: "At least one image is required" }, 400),
     };
   }
-  if (entries.length > RECIPE_IMPORT_MAX_IMAGES) {
+  if (entries.length > maxImages) {
     return {
       success: false,
       response: c.json(
-        { error: `At most ${RECIPE_IMPORT_MAX_IMAGES} images are allowed` },
+        { error: `At most ${maxImages} images are allowed` },
         400,
       ),
     };
@@ -7378,8 +7413,106 @@ registerRoute("post", "/recipe-import-batches", batchHandler(async (c, { db, ses
   c.header("Location", `/api/recipe-import-batches/${batch.id}`);
   return c.json(await readBatch(db, session.user.id, batch.id), 201);
 }));
+registerRoute(
+  "post",
+  "/recipe-import-batches/photos",
+  batchHandler(async (c, { db, session }) => {
+    const artifacts = c.env.ARTIFACTS;
+    if (!artifacts)
+      throw new BatchImportError("Photo batch import is not configured", 503);
+    const form = await c.req.formData().catch(() => undefined);
+    if (!form)
+      return c.json(
+        { error: "Request body must be multipart/form-data" },
+        415,
+      );
+    const metadata = z
+      .object({
+        idempotencyKey: z.uuid(),
+        visibility: RecipeVisibilitySchema.default("private"),
+        duplicatePolicy: z.enum(["skip", "allow"]).default("skip"),
+      })
+      .safeParse({
+        idempotencyKey: form.get("idempotencyKey"),
+        visibility: form.get("visibility") ?? undefined,
+        duplicatePolicy: form.get("duplicatePolicy") ?? undefined,
+      });
+    if (!metadata.success)
+      return c.json(
+        {
+          error: "Photo batch fields are invalid",
+          details: metadata.error.issues,
+        },
+        400,
+      );
+    const parsed = await parseImportImages(
+      c,
+      form,
+      RECIPE_PHOTO_BATCH_MAX_IMAGES,
+    );
+    if (!parsed.success) return parsed.response;
+    const prepared = await Promise.all(
+      parsed.images.map(async (image) => ({
+        ...image,
+        checksum: await sha256Hex(
+          new Uint8Array(await image.file.arrayBuffer()),
+        ),
+      })),
+    );
+    const batch = await createPhotoBatch(db, artifacts, session.user.id, {
+      ...metadata.data,
+      images: prepared,
+    });
+    c.header("Location", `/api/recipe-import-batches/${batch.id}`);
+    return c.json(await readBatch(db, session.user.id, batch.id), 201);
+  }),
+);
 registerRoute("get", "/recipe-import-batches", batchHandler(async (c, { db, session }) => c.json({ batches: await listBatches(db, session.user.id) }), false));
 registerRoute("get", "/recipe-import-batches/:batchId", batchHandler(async (c, { db, session }) => c.json(await readBatch(db, session.user.id, batchParam(c, "batchId"))), false));
+registerRoute(
+  "get",
+  "/recipe-import-batches/:batchId/photos/:imageId",
+  batchHandler(async (c, { db, session }) => {
+    if (!c.env.ARTIFACTS)
+      throw new BatchImportError("Photo batch import is not configured", 503);
+    const imageId = z.uuid().safeParse(c.req.param("imageId"));
+    if (!imageId.success) throw new BatchImportError("Photo not found", 404);
+    const { image, object } = await readPhotoImage(
+      db,
+      c.env.ARTIFACTS,
+      session.user.id,
+      batchParam(c, "batchId"),
+      imageId.data,
+    );
+    return new Response(object.body, {
+      headers: {
+        "Content-Type": image.contentType,
+        "Cache-Control": "private, max-age=31536000, immutable",
+      },
+    });
+  }, false),
+);
+registerRoute(
+  "post",
+  "/recipe-import-batches/:batchId/photo-manifests",
+  batchHandler(async (c, { db, session }) => {
+    if (!c.env.ARTIFACTS)
+      throw new BatchImportError("Photo batch import is not configured", 503);
+    const body = await parseJsonBody(c, ConfirmPhotoBatchManifestSchema);
+    if (!body.success) return body.response;
+    await confirmPhotoManifest(
+      db,
+      c.env.ARTIFACTS,
+      session.user.id,
+      batchParam(c, "batchId"),
+      body.data,
+    );
+    return c.json(
+      await readBatch(db, session.user.id, batchParam(c, "batchId")),
+      201,
+    );
+  }),
+);
 registerRoute("get", "/recipe-import-batches/:batchId/progress", batchHandler(async (c, { db, session }) => {
   const batchId = batchParam(c, "batchId");
   const initial = await readRecipeBatchProgress(db, session.user.id, batchId);

@@ -5,8 +5,8 @@ import {
   PlanningChecklistStatusChangeInputSchema,
   setPlanningChecklistItemStatus,
 } from "planning-case-domain";
+import { normalizeSlug } from "ts-base/strings";
 import { z } from "zod";
-import { normalizeSlug } from "@/lib/generic/slugs";
 import {
   type Account,
   AccountAccessPolicySchema,

@@ -33,7 +33,7 @@ credentials:
       - mise //:project:secret-bootstrap:conformance
     rotation_order: 10
     recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
-    bootstrap_plan_status: planned
+    bootstrap_plan_status: committed
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/token-provisioner.yaml
 
   - id: cloudflare-worker-secret-handoff

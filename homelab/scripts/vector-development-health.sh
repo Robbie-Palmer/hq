@@ -25,9 +25,11 @@ systemctl is-active --quiet display-manager.service
 systemctl is-active --quiet NetworkManager.service
 systemctl is-active --quiet tailscaled.service
 systemctl is-active --quiet k3s.service
+systemctl is-active --quiet apparmor.service
 systemctl is-active --quiet vector-development-power-profile.service
 systemctl is-active --quiet vector-development-quiet-profile.service
 systemctl is-active --quiet vector-development-thermal-monitor.service
+grep -Fx 't3-code-agent-browser (unconfined)' /sys/kernel/security/apparmor/profiles >/dev/null
 test "$(powerprofilesctl get)" = power-saver
 test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = silent
 test "$(cat /sys/devices/platform/msi-ec/shift_mode)" = eco
@@ -73,7 +75,22 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
   test -n "${pod}"
   k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- nvidia-smi -L \
     | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
+  k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- \
+    cat /proc/self/attr/current \
+    | grep -Fx 't3-code-agent-browser (unconfined)' >/dev/null
+  k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- sh -ec '
+    browser_data=$(mktemp -d /tmp/chromium-health.XXXXXX)
+    trap '\''rm -rf -- "$browser_data"'\'' EXIT
+    timeout 30s chromium \
+      --headless \
+      --disable-dev-shm-usage \
+      --disable-gpu \
+      --no-first-run \
+      --user-data-dir="$browser_data" \
+      --dump-dom about:blank \
+      | grep -F "<html"
+  ' >/dev/null
   curl --fail --silent --show-error http://127.0.0.1:30773/ >/dev/null
 fi
-echo "desktop, encrypted remote boot, NVIDIA, Tailscale, and the independent K3s server are healthy"
+echo "desktop, encrypted remote boot, sandboxed browser, NVIDIA, Tailscale, and the independent K3s server are healthy"
 REMOTE

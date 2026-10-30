@@ -1,4 +1,4 @@
-# Recipe Parsing
+# Recipe parsing
 
 ML pipeline for parsing recipe images.
 
@@ -9,8 +9,8 @@ See the [ml-pipelines README](../README.md) for DVC setup and credentials.
 Recipe images are tracked by DVC in `data/recipe-images/`. After setting up credentials:
 
 ```bash
-mise x -- dvc pull    # download data
-mise x -- dvc push    # upload after adding new images
+mise //ml-pipelines/recipe-parsing:pull
+mise //ml-pipelines/recipe-parsing:push
 ```
 
 The parsing algorithm itself (prompts, OpenRouter calls, Cooklang handling,
@@ -19,7 +19,58 @@ in the shared [`recipe-parsing` package](../../packages/recipe-parsing/), which
 the production ingestion backend also consumes. This pipeline owns dataset
 management, stage orchestration, and evaluation.
 
-## Pipeline Stages
+## Synthetic URL-import corpus
+
+`data/url-import-corpus/synthetic/v1/` contains only project-authored synthetic
+HTML fixtures and reviewed ground truth. It is deterministic regression data,
+and it does not qualify as a real-world holdout or support claims about
+generalization to live recipe sites. The catalog, manifests, validation report,
+and replay report all encode that limitation.
+
+Every fixture is licensed with this repository under AGPL-3.0-only. Each
+manifest records a reserved `.invalid` source URL, fixed retrieval metadata,
+storage and evaluation rights, SHA-256 content hashes, expected parser fields,
+and review status. No task fetches a live recipe page.
+
+The synthetic corpus has train, development, and regression manifests. The
+regression partition contains targeted known failures, including the focaccia
+case. It is explicit, non-gating evaluation data until those failures are
+fixed. It is not sealed or untouched. Source groups and markup pattern families
+cannot cross partitions.
+
+Validate the complete synthetic corpus and replay the currently passing train
+and development fixtures:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:validate
+mise //ml-pipelines/recipe-parsing:url-import:replay
+```
+
+The matching DVC stages are `validate_url_import_corpus` and
+`replay_url_import_corpus`. Validation checks all three synthetic partitions.
+The gating replay stage lists only the currently passing train and development
+partitions as dependencies. Reproduce both local stages and update `dvc.lock`
+with:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:repro
+```
+
+Replay only the known-failure regression partition while debugging with the
+following task. It exits nonzero while a fixture differs from ground truth and
+still writes its diagnostic report.
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:replay-regression
+```
+
+A future real-world evaluation corpus must use a separate path and schema. It
+should freeze permitted HTML bytes before parser inspection, split by publisher
+or source group, record rights and retrieval evidence, and stay outside routine
+development replay. The recipe-dataset project can supply source candidates,
+but its structured recipe records are not substitutes for immutable page HTML.
+
+## Pipeline stages
 
 ### 1. Parse
 
@@ -60,7 +111,7 @@ The parse stage now runs as a staged ingestion flow:
 `predictions.json` remains a downstream-compatible derived view, not the
 canonical intermediate artifact.
 
-### 2. Evaluate Extraction
+### 2. Evaluate extraction
 
 `evaluate_extraction` compares raw parser output against `expectedExtraction` ground
 truth annotations. This measures how well the parser reads recipe images before
@@ -71,7 +122,7 @@ Outputs:
 - `outputs/extraction-metrics.json`: aggregate extraction quality metrics
 - `outputs/extraction-per-image-scores.json`: per-entry extraction scores
 
-### 3. Dataset Stats
+### 3. Dataset stats
 
 `dataset_stats` summarizes the prepared dataset for reporting through DVC
 metrics and plots.
@@ -112,7 +163,7 @@ Outputs:
 - `outputs/per-image-scores.json`: per-entry end-to-end scores
 - `outputs/per-entry-score-plot.json`: flat plot data for DVC score charts
 
-## Running the Pipeline
+## Running the pipeline
 
 Prefer DVC orchestration over manually chaining every script.
 

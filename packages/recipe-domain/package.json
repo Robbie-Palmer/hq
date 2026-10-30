@@ -13,6 +13,7 @@
     "./mutation": "./src/mutation.ts",
     "./nutrition": "./src/nutrition.ts",
     "./pantry": "./src/pantry.ts",
+    "./photo-batch": "./src/photo-batch.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
     "./shopping-list": "./src/shopping-list.ts",

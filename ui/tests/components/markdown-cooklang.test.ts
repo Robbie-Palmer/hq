@@ -1,7 +1,7 @@
+import { markdownCodeHighlighting } from "mdx-rendering";
 import { evaluate } from "next-mdx-remote-client/rsc";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { markdownCodeHighlighting } from "@/lib/markdown/code-highlighting";
 
 async function renderCooklang(source: string) {
   const { content, error } = await evaluate({

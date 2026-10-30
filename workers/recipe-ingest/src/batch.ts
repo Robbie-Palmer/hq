@@ -1,5 +1,5 @@
 import type { WorkflowStep } from "cloudflare:workers";
-import { and, count, eq, type SQL } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { type Db, withDb } from "recipe-db";
 import { insertGeneratedDraft } from "recipe-db/batch-drafts";
 import { recipeImportJob as jobs, user } from "recipe-db/schema";
@@ -15,11 +15,17 @@ import { sha256Hex } from "ts-base/crypto";
 import { writeArtifact } from "./artifacts";
 import type { Env } from "./env";
 
-async function admitJob(
+export async function admitBatchJob(
   db: Db,
-  condition: SQL | undefined,
+  jobId: string,
+  attempt: number,
   instanceId: string,
 ) {
+  const condition = and(
+    eq(jobs.id, jobId),
+    eq(jobs.executionAttempt, attempt),
+    eq(jobs.reviewState, "waiting"),
+  );
   return db.transaction(async (tx) => {
     const [item] = await tx.select().from(jobs).where(condition);
     if (!item) return "obsolete";
@@ -66,7 +72,9 @@ export async function runBatchItem(
     let check = 0;
     while (!admitted) {
       const outcome = await step.do(`admit-${check}`, () =>
-        withDb(env, (db) => admitJob(db, current(), instanceId)),
+        withDb(env, (db) =>
+          admitBatchJob(db, jobId, attempt, instanceId),
+        ),
       );
       if (outcome === "obsolete") return;
       admitted = outcome === "admitted";

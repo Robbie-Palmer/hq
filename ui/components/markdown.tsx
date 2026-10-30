@@ -1,3 +1,7 @@
+import {
+  markdownCodeHighlighting,
+  remarkRestrictMdxExpressions,
+} from "mdx-rendering";
 import Link from "next/link";
 import {
   type MDXComponents,
@@ -11,8 +15,6 @@ import {
   getImageSrcSet,
   getImageUrl,
 } from "@/lib/integrations/cloudflare-images";
-import { markdownCodeHighlighting } from "@/lib/markdown/code-highlighting";
-import { remarkRestrictMdxExpressions } from "@/lib/markdown/restrict-expressions";
 
 type MDXOptions = NonNullable<NonNullable<MDXRemoteOptions>["mdxOptions"]>;
 

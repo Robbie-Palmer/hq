@@ -307,6 +307,16 @@ in
   };
 
   security = {
+    apparmor = {
+      enable = true;
+      policies."t3-code-agent-browser".profile = ''
+        abi <abi/4.0>,
+
+        profile t3-code-agent-browser flags=(unconfined) {
+          userns,
+        }
+      '';
+    };
     rtkit.enable = true;
     sudo.wheelNeedsPassword = true;
   };

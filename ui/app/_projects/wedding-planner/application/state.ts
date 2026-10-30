@@ -1,3 +1,4 @@
+import { parseMoneyToMinorUnits } from "ts-base/money";
 import {
   accommodationState,
   weddingReadinessPreferencesSchema,
@@ -8,7 +9,6 @@ import {
   stayRequirementsSchema,
 } from "wedding-planner-domain/accommodation";
 import { z } from "zod";
-import { parseMoneyToMinorUnits } from "@/lib/generic/money";
 import { editorStateToPlan } from "./editor-projection";
 import { type AccommodationSetup, weddingAccommodationSetup } from "./setup";
 import { tablePlanSchema, validateTableLinks } from "./table-state";
