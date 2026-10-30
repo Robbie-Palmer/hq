@@ -5,6 +5,7 @@
   "description": "Versioned source contracts for the personal engineering platform",
   "type": "module",
   "exports": {
+    "./deployment-maturity": "./src/deployment-maturity.ts",
     "./feature-flags": "./src/feature-flags.ts",
     "./nix-flake": "./src/nix-flake.ts",
     "./opentelemetry": "./src/opentelemetry.ts",
@@ -12,6 +13,8 @@
     "./repository-layout": "./src/repository-layout.ts"
   },
   "scripts": {
+    "docs:check": "tsx scripts/generate-deployment-maturity-docs.ts --check",
+    "docs:generate": "tsx scripts/generate-deployment-maturity-docs.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
