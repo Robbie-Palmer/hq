@@ -268,6 +268,13 @@ def test_rejects_row_count_mismatch_after_valid_manifest_update(tmp_path: Path) 
         operational_report(str(version), start=PERIOD_START, end=PERIOD_END)
 
 
+def test_rejects_corrupt_additional_manifest_listed_model(tmp_path: Path) -> None:
+    version = published_version(tmp_path)
+    (version / "mart_interventions.parquet").write_bytes(b"corrupt")
+    with pytest.raises(DatasetError, match="manifest verification"):
+        operational_report(str(version), start=PERIOD_START, end=PERIOD_END)
+
+
 class FakeResult:
     def __init__(self, row: tuple[object, ...] | None = None) -> None:
         self.row = row

@@ -220,13 +220,11 @@ def _model_paths(
     paths: dict[str, tuple[str | Path, PublishedModel]] = {}
     if isinstance(version_root, str):
         parent = version_root.rsplit("/", 1)[0]
-        for filename in REQUIRED_REPORT_MODELS:
-            descriptor = descriptors[filename]
+        for filename, descriptor in descriptors.items():
             paths[filename] = (f"{parent}/{descriptor.key}", descriptor)
     else:
         parent = version_root.parent.resolve()
-        for filename in REQUIRED_REPORT_MODELS:
-            descriptor = descriptors[filename]
+        for filename, descriptor in descriptors.items():
             path = (parent / descriptor.key).resolve()
             if not path.is_relative_to(parent) or path.parent != version_root:
                 raise DatasetError("manifest-listed model escapes its version directory")
