@@ -1,0 +1,298 @@
+{
+  "$defs": {
+    "Account": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "account_type": {
+          "enum": [
+            "checking",
+            "savings",
+            "credit_card",
+            "payroll"
+          ],
+          "title": "Account Type",
+          "type": "string"
+        },
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "display_name": {
+          "maxLength": 120,
+          "minLength": 1,
+          "title": "Display Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "account_id",
+        "account_type",
+        "display_name",
+        "currency"
+      ],
+      "title": "Account",
+      "type": "object"
+    },
+    "Balance": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "balance_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Balance Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "opening",
+            "closing",
+            "available",
+            "net_pay"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "period_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Period Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "balance_id",
+        "account_id",
+        "period_id",
+        "kind",
+        "amount"
+      ],
+      "title": "Balance",
+      "type": "object"
+    },
+    "DocumentFamily": {
+      "enum": [
+        "bank_statement",
+        "credit_card_statement",
+        "payslip"
+      ],
+      "title": "DocumentFamily",
+      "type": "string"
+    },
+    "DocumentFormat": {
+      "enum": [
+        "pdf_text",
+        "html",
+        "pgm_scan"
+      ],
+      "title": "DocumentFormat",
+      "type": "string"
+    },
+    "DocumentMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "issued_date": {
+          "format": "date",
+          "title": "Issued Date",
+          "type": "string"
+        },
+        "language": {
+          "pattern": "^[a-z]{2}$",
+          "title": "Language",
+          "type": "string"
+        },
+        "page_count": {
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Page Count",
+          "type": "integer"
+        },
+        "source_format": {
+          "$ref": "#/$defs/DocumentFormat"
+        }
+      },
+      "required": [
+        "issued_date",
+        "page_count",
+        "language",
+        "source_format"
+      ],
+      "title": "DocumentMetadata",
+      "type": "object"
+    },
+    "Money": {
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "minor_units": {
+          "title": "Minor Units",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "minor_units",
+        "currency"
+      ],
+      "title": "Money",
+      "type": "object"
+    },
+    "Period": {
+      "additionalProperties": false,
+      "properties": {
+        "end_date": {
+          "format": "date",
+          "title": "End Date",
+          "type": "string"
+        },
+        "period_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Period Id",
+          "type": "string"
+        },
+        "start_date": {
+          "format": "date",
+          "title": "Start Date",
+          "type": "string"
+        }
+      },
+      "required": [
+        "period_id",
+        "start_date",
+        "end_date"
+      ],
+      "title": "Period",
+      "type": "object"
+    },
+    "Transaction": {
+      "additionalProperties": false,
+      "properties": {
+        "account_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Account Id",
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/$defs/Money"
+        },
+        "description": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Description",
+          "type": "string"
+        },
+        "period_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Period Id",
+          "type": "string"
+        },
+        "posted_date": {
+          "format": "date",
+          "title": "Posted Date",
+          "type": "string"
+        },
+        "transaction_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "title": "Transaction Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transaction_id",
+        "account_id",
+        "period_id",
+        "posted_date",
+        "description",
+        "amount"
+      ],
+      "title": "Transaction",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "accounts": {
+      "items": {
+        "$ref": "#/$defs/Account"
+      },
+      "minItems": 1,
+      "title": "Accounts",
+      "type": "array"
+    },
+    "balances": {
+      "items": {
+        "$ref": "#/$defs/Balance"
+      },
+      "minItems": 1,
+      "title": "Balances",
+      "type": "array"
+    },
+    "currencies": {
+      "items": {
+        "pattern": "^[A-Z]{3}$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Currencies",
+      "type": "array"
+    },
+    "document_id": {
+      "pattern": "^[a-z0-9][a-z0-9._-]*$",
+      "title": "Document Id",
+      "type": "string"
+    },
+    "family": {
+      "$ref": "#/$defs/DocumentFamily"
+    },
+    "metadata": {
+      "$ref": "#/$defs/DocumentMetadata"
+    },
+    "periods": {
+      "items": {
+        "$ref": "#/$defs/Period"
+      },
+      "minItems": 1,
+      "title": "Periods",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "transactions": {
+      "items": {
+        "$ref": "#/$defs/Transaction"
+      },
+      "title": "Transactions",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "document_id",
+    "family",
+    "metadata",
+    "accounts",
+    "periods",
+    "balances",
+    "transactions",
+    "currencies"
+  ],
+  "title": "CanonicalExtraction",
+  "type": "object"
+}

@@ -31,6 +31,14 @@ them through the owning mise task and pass the name as its first argument, for e
 `mise //workers/recipe-api:db:generate -- add_recipe_notes`. The task rejects omitted, random, and
 vague names. Do not invoke `drizzle-kit generate` directly.
 
+## Python Conventions
+
+Do not add module-level docstrings. Do not use `argparse` for Python CLIs; use Google Fire for
+command dispatch and Pydantic models for validating command inputs.
+
+Do not create generic `io.py` modules. Keep I/O helpers in a domain-specific module. If helpers are
+genuinely reusable across domains, move them into an established shared package.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.
