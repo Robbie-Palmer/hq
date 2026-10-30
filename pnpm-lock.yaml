@@ -1628,6 +1628,9 @@ importers:
       '@hono/zod-openapi':
         specifier: 1.6.3
         version: 1.6.3(hono@4.13.10)(zod@4.6.7)
+      '@modelcontextprotocol/sdk':
+        specifier: 1.32.1
+        version: 1.32.1(supports-color@10.2.2)(zod@4.6.7)
       hono:
         specifier: ^4.7.11
         version: 4.13.10
