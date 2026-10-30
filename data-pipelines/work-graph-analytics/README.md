@@ -18,11 +18,20 @@ The pipeline has three explicit gates:
    containing the source watermark, input manifest keys, output row counts, and
    output checksums. A version directory cannot be reused.
 
+The report reader verifies that manifest and the listed Parquet checksums before
+querying the canonical facts with DuckDB. It accepts a local version directory
+or an `r2://` version path, a half-open reporting period, and optional project
+and initiative filters. Reports include source, scope-snapshot, and freshness
+provenance along with the documented inference limits.
+
 Run the complete local gate through mise:
 
 ```bash
 mise //data-pipelines/work-graph-analytics:check
 ```
+
+Operators should use the mise report task. The full local-cache and R2 procedure
+is in [the analytics report runbook](../../docs/runbooks/work-graph-analytics-reports.md).
 
 The fixture build covers reordered-by-occurrence late events, waits that cross
 reporting boundaries, lease renewal, stale and still-open leases, work-note
