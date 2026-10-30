@@ -1,7 +1,6 @@
 # mdx-rendering
 
 Shared Markdown and MDX transforms used by the site and other workspace consumers.
-The package contains no React or Next.js composition.
 
 The root export provides:
 

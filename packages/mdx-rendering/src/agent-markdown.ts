@@ -4,10 +4,6 @@ import remarkGfm from "remark-gfm";
 import remarkMdx from "remark-mdx";
 
 export interface MdxToMarkdownOptions {
-  /**
-   * Resolves image `src` values to absolute URLs. Return null to drop the
-   * image when it cannot be published.
-   */
   resolveImageUrl?: (src: string) => string | null;
 }
 
@@ -134,7 +130,6 @@ function replaceMdxNodes(
   return result;
 }
 
-/** Converts MDX source without frontmatter to plain Markdown. */
 export function mdxToAgentMarkdown(
   mdxContent: string,
   options: MdxToMarkdownOptions = {},
@@ -148,10 +143,8 @@ export function mdxToAgentMarkdown(
 
 export interface PageMetadata {
   title: string;
-  /** Path of the HTML page, for example `/projects` or `/` for home. */
   htmlPath: string;
   description?: string;
-  /** Extra `Key: value` facts rendered under the title. */
   facts?: [string, string][];
 }
 
