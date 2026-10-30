@@ -1,0 +1,8 @@
+work_graph_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('WORK_GRAPH_ANALYTICS_DB', 'target/work-graph.duckdb') }}"
+      schema: analytics
+      threads: 1

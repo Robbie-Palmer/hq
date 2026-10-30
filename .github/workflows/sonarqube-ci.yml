@@ -153,6 +153,7 @@ jobs:
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
             ml-pipelines/wsi-analysis/coverage.xml
+            data-pipelines/work-graph-analytics/coverage.xml
             workers/finance-tax-monitor/coverage/lcov.info
             workers/recipe-api/coverage/lcov.info
             workers/recipe-api/coverage-integration/lcov.info

@@ -1,0 +1,130 @@
+version: 2
+
+models:
+  - name: stg_manifests
+    description: Complete, checksum-verified raw manifests selected for this model version.
+    columns:
+      - name: manifest_key
+        data_tests: [not_null, unique]
+      - name: manifest_schema_version
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+                quote: false
+      - name: through_sequence
+        data_tests: [not_null, unique]
+    data_tests:
+      - event_count_matches_staging
+      - scope_count_matches_staging
+
+  - name: stg_events
+    description: Privacy-safe raw events with typed allowlisted fields.
+    columns:
+      - name: sequence
+        data_tests: [not_null, unique]
+      - name: schema_version
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [1]
+                quote: false
+      - name: manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+
+  - name: stg_scopes
+    description: Every versioned current-assignment scope snapshot.
+    columns:
+      - name: manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+
+  - name: fct_events
+    description: Immutable event facts, ordered by source sequence.
+    columns:
+      - name: sequence
+        data_tests: [not_null, unique]
+      - name: work_item_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_tickets')
+                field: work_item_id
+    data_tests:
+      - row_count_matches:
+          arguments:
+            other_model: ref('stg_events')
+
+  - name: fct_scopes
+    description: Latest complete scope assignment per ticket, including source provenance.
+    columns:
+      - name: work_item_id
+        data_tests: [not_null, unique]
+      - name: manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+
+  - name: fct_tickets
+    description: Compacted privacy-safe analytical state for each ticket identity.
+    columns:
+      - name: work_item_id
+        data_tests: [not_null, unique]
+      - name: scope_manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+      - name: source_manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+
+  - name: fct_wait_episodes
+    description: Full attention and stale-lease wait intervals, before report-period clipping.
+    columns:
+      - name: wait_episode_id
+        data_tests: [not_null, unique]
+      - name: work_item_id
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fct_tickets')
+                field: work_item_id
+      - name: source_manifest_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_manifests')
+                field: manifest_key
+
+  - name: mart_operational_metrics
+    description: Period-clipped parity mart for recurring waits, interventions, stale leases, and handoffs.
+    columns:
+      - name: cause
+        data_tests: [not_null]
+      - name: source_watermark
+        data_tests: [not_null]
+
+  - name: mart_interventions
+    description: Intervention request and resolution measures by current scope and cause.
+
+  - name: mart_stale_leases
+    description: Stale-lease waits and takeover measures by current scope.
+
+  - name: mart_handoffs
+    description: Missing-note handoff proxies by current scope.
