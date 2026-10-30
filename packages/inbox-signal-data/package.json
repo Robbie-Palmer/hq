@@ -10,7 +10,7 @@
     "./schema": "./src/schema.ts"
   },
   "scripts": {
-    "db:check": "bash scripts/check-migrations.sh",
+    "db:check": "check-drizzle-migrations",
     "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
     "db:migrate": "drizzle-kit migrate",
     "test": "vitest run",
@@ -19,13 +19,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "drizzle-orm": "^0.45.0"
+    "drizzle-orm": "^0.45.0",
+    "object-storage": "workspace:*"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.0",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "drizzle-kit": "^0.31.0",
+    "drizzle-tooling": "workspace:*",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
   }

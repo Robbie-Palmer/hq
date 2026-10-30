@@ -89,7 +89,7 @@ describe("encrypted object layout", () => {
     ]);
   });
 
-  it("validates the versioned AES-GCM envelope", () => {
+  it("combines the shared envelope with Inbox Signal identity", () => {
     expect(() => validateEnvelopeMetadata(metadata())).not.toThrow();
     expect(() =>
       validateEnvelopeMetadata({
@@ -98,50 +98,14 @@ describe("encrypted object layout", () => {
       }),
     ).toThrow("accountId must be an opaque UUID");
     expect(() =>
-      validateEnvelopeMetadata({
-        ...metadata(),
-        nonceBase64: "too-short",
-      }),
-    ).toThrow("96-bit AES-GCM nonce");
-    expect(() =>
-      validateEnvelopeMetadata({
-        ...metadata(),
-        ciphertextAlgorithm: "AES-128-GCM",
-      }),
-    ).toThrow("ciphertextAlgorithm must be AES-256-GCM");
-  });
-
-  it("rejects malformed envelope identity fields", () => {
-    expect(() => validateEnvelopeMetadata(null)).toThrow(
-      "envelope metadata must be an object",
-    );
-    expect(() =>
       validateEnvelopeMetadata({ ...metadata(), objectId: {} }),
     ).toThrow("objectId must be an opaque UUID");
     expect(() =>
       validateEnvelopeMetadata({ ...metadata(), objectVersion: "3" }),
     ).toThrow("objectVersion must be a positive integer");
     expect(() =>
-      validateEnvelopeMetadata({ ...metadata(), envelopeVersion: "1" }),
-    ).toThrow("envelopeVersion must be a positive integer");
-    expect(() =>
       validateEnvelopeMetadata({ ...metadata(), contentClass: "plaintext" }),
     ).toThrow("contentClass is not supported");
-  });
-
-  it("rejects unsupported or incomplete encryption metadata", () => {
-    expect(() =>
-      validateEnvelopeMetadata({
-        ...metadata(),
-        keyWrapAlgorithm: "RSA-OAEP",
-      }),
-    ).toThrow("keyWrapAlgorithm must be AES-256-KW");
-    expect(() =>
-      validateEnvelopeMetadata({ ...metadata(), keyVersion: " " }),
-    ).toThrow("keyVersion must not be blank");
-    expect(() =>
-      validateEnvelopeMetadata({ ...metadata(), wrappedDataKeyBase64: "%" }),
-    ).toThrow("wrappedDataKeyBase64 must contain valid base64");
   });
 });
 
@@ -153,31 +117,18 @@ describe("encrypted object purge verification", () => {
     contentClass: "raw_mime",
   });
 
-  it("verifies both direct lookup and prefix listing after deletion", async () => {
+  it("scopes shared deletion verification to the Inbox Signal root", async () => {
     const bucket: EncryptedObjectBucket = {
       delete: vi.fn().mockResolvedValue(undefined),
       get: vi.fn().mockResolvedValue(null),
       list: vi.fn().mockResolvedValue({ objects: [], truncated: false }),
     };
 
-    await expect(purgeAndVerifyEncryptedObject(bucket, key)).resolves.toBeUndefined();
-    expect(bucket.delete).toHaveBeenCalledWith(key);
-    expect(bucket.get).toHaveBeenCalledWith(key);
-    expect(bucket.list).toHaveBeenCalledWith({ prefix: key });
-  });
-
-  it("fails closed when either deletion check still finds the object", async () => {
-    const bucket: EncryptedObjectBucket = {
-      delete: vi.fn().mockResolvedValue(undefined),
-      get: vi.fn().mockResolvedValue(null),
-      list: vi.fn().mockResolvedValue({
-        objects: [{ key }],
-        truncated: false,
-      }),
-    };
-
-    await expect(purgeAndVerifyEncryptedObject(bucket, key)).rejects.toThrow(
-      "purge could not be verified",
-    );
+    await expect(
+      purgeAndVerifyEncryptedObject(bucket, key),
+    ).resolves.toBeUndefined();
+    await expect(
+      purgeAndVerifyEncryptedObject(bucket, "another-project/object.enc"),
+    ).rejects.toThrow("outside the allowed prefix");
   });
 });

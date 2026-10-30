@@ -1,3 +1,18 @@
+import {
+  currentEnvelopeVersion,
+  purgeAndVerifyObject,
+  validateEncryptedEnvelopeMetadata,
+  type EncryptedEnvelopeMetadata as SharedEncryptedEnvelopeMetadata,
+  type ObjectBucket,
+  type ObjectLifecycleRule,
+} from "object-storage";
+
+export {
+  ciphertextAlgorithm,
+  currentEnvelopeVersion,
+  keyWrapAlgorithm,
+} from "object-storage";
+
 export const encryptedContentClasses = [
   "raw_mime",
   "attachment",
@@ -9,15 +24,9 @@ export const encryptedContentClasses = [
 
 export type EncryptedContentClass = (typeof encryptedContentClasses)[number];
 
-export const ciphertextAlgorithm = "AES-256-GCM" as const;
-export const keyWrapAlgorithm = "AES-256-KW" as const;
-export const currentEnvelopeVersion = 1 as const;
-
 const objectRoot = "inbox-signal/v1";
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const noncePattern = /^[A-Za-z0-9+/]{16}$/;
-const base64Pattern = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 export type EncryptedObjectIdentity = {
   accountId: string;
@@ -26,19 +35,11 @@ export type EncryptedObjectIdentity = {
   contentClass: EncryptedContentClass;
 };
 
-export type EncryptedEnvelopeMetadata = EncryptedObjectIdentity & {
-  envelopeVersion: number;
-  ciphertextAlgorithm: typeof ciphertextAlgorithm;
-  keyWrapAlgorithm: typeof keyWrapAlgorithm;
-  keyVersion: string;
-  nonceBase64: string;
-  wrappedDataKeyBase64: string;
-};
+export type EncryptedEnvelopeMetadata = EncryptedObjectIdentity &
+  SharedEncryptedEnvelopeMetadata;
 
-export type LifecycleRule = {
-  prefix: string;
-  expirationDays: number;
-};
+export type LifecycleRule = ObjectLifecycleRule;
+export type EncryptedObjectBucket = ObjectBucket;
 
 export const lifecycleRules = [
   {
@@ -54,19 +55,6 @@ export const lifecycleRules = [
     expirationDays: 1,
   },
 ] as const satisfies readonly LifecycleRule[];
-
-export interface EncryptedObjectBucket {
-  delete(key: string): Promise<void>;
-  get(key: string): Promise<object | null>;
-  list(options: {
-    prefix: string;
-    cursor?: string;
-  }): Promise<{
-    objects: readonly { key: string }[];
-    truncated: boolean;
-    cursor?: string;
-  }>;
-}
 
 function assertUuid(name: string, value: string): void {
   if (!uuidPattern.test(value)) {
@@ -142,10 +130,9 @@ export function expiresAt(
 export function validateEnvelopeMetadata(
   value: unknown,
 ): asserts value is EncryptedEnvelopeMetadata {
-  if (typeof value !== "object" || value === null) {
-    throw new Error("envelope metadata must be an object");
-  }
-  const metadata = value as Record<string, unknown>;
+  validateEncryptedEnvelopeMetadata(value);
+  const metadata = value as SharedEncryptedEnvelopeMetadata &
+    Record<string, unknown>;
   if (typeof metadata.accountId !== "string") {
     throw new TypeError("accountId must be an opaque UUID");
   }
@@ -155,76 +142,17 @@ export function validateEnvelopeMetadata(
   if (typeof metadata.objectVersion !== "number") {
     throw new TypeError("objectVersion must be a positive integer");
   }
-  if (typeof metadata.envelopeVersion !== "number") {
-    throw new TypeError("envelopeVersion must be a positive integer");
-  }
   assertUuid("accountId", metadata.accountId);
   assertUuid("objectId", metadata.objectId);
   assertPositiveInteger("objectVersion", metadata.objectVersion);
-  assertPositiveInteger("envelopeVersion", metadata.envelopeVersion);
   if (!isContentClass(metadata.contentClass)) {
     throw new Error("contentClass is not supported");
   }
-  if (metadata.ciphertextAlgorithm !== ciphertextAlgorithm) {
-    throw new Error(`ciphertextAlgorithm must be ${ciphertextAlgorithm}`);
-  }
-  if (metadata.keyWrapAlgorithm !== keyWrapAlgorithm) {
-    throw new Error(`keyWrapAlgorithm must be ${keyWrapAlgorithm}`);
-  }
-  if (
-    typeof metadata.keyVersion !== "string" ||
-    metadata.keyVersion.trim() === ""
-  ) {
-    throw new Error("keyVersion must not be blank");
-  }
-  if (
-    typeof metadata.nonceBase64 !== "string" ||
-    !noncePattern.test(metadata.nonceBase64)
-  ) {
-    throw new Error("nonceBase64 must encode a 96-bit AES-GCM nonce");
-  }
-  if (
-    typeof metadata.wrappedDataKeyBase64 !== "string" ||
-    metadata.wrappedDataKeyBase64.length === 0 ||
-    !base64Pattern.test(metadata.wrappedDataKeyBase64)
-  ) {
-    throw new Error("wrappedDataKeyBase64 must contain valid base64");
-  }
-}
-
-async function listedObjectExists(
-  bucket: EncryptedObjectBucket,
-  key: string,
-): Promise<boolean> {
-  let cursor: string | undefined;
-  do {
-    const page = await bucket.list({
-      prefix: key,
-      ...(cursor === undefined ? {} : { cursor }),
-    });
-    if (page.objects.some((object) => object.key === key)) return true;
-    if (!page.truncated) return false;
-    if (!page.cursor) {
-      throw new Error("Truncated object listing did not provide a cursor");
-    }
-    cursor = page.cursor;
-  } while (cursor);
-  return false;
 }
 
 export async function purgeAndVerifyEncryptedObject(
   bucket: EncryptedObjectBucket,
   key: string,
 ): Promise<void> {
-  if (!key.startsWith(`${objectRoot}/`)) {
-    throw new Error("Refusing to purge an object outside the Inbox Signal root");
-  }
-  await bucket.delete(key);
-  const [directObject, listed] = await Promise.all([
-    bucket.get(key),
-    listedObjectExists(bucket, key),
-  ]);
-  if (directObject !== null || listed) {
-    throw new Error(`Encrypted object purge could not be verified for ${key}`);
-  }
+  await purgeAndVerifyObject(bucket, key, `${objectRoot}/`);
 }
