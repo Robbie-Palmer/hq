@@ -64,6 +64,14 @@ version-matched Chromium build into the persistent cache when
 `mise run //ui:test:e2e:install` runs. System Chromium remains available to
 Puppeteer and Lighthouse through `PUPPETEER_EXECUTABLE_PATH`.
 
+The Vector host loads the `t3-code-agent-browser` AppArmor profile and applies
+it only to the trusted T3 container. The profile grants unprivileged user
+namespace creation so Chromium can keep its process sandbox enabled. The
+container still runs as UID 2000, drops every capability, uses runtime-default
+seccomp, and has a read-only root filesystem. The Vector health check launches
+headless Chromium without `--no-sandbox` to catch policy regressions during a
+rollout.
+
 The image also includes the pinned Docker CLI, Buildx, and Compose plugins.
 The remote operator workspace connects them to its own rootless Docker daemon
 through TCP on the pod's loopback interface. Docker data has a 10 GiB

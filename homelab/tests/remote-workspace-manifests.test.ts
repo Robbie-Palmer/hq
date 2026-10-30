@@ -1458,6 +1458,18 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   ) as Record<string, unknown> | undefined;
   assert.ok(t3Container);
   assert.ok(dockerContainer);
+  assert.deepEqual(valueAt(t3Container, ["securityContext", "appArmorProfile"]), {
+    localhostProfile: "t3-code-agent-browser",
+    type: "Localhost",
+  });
+  const initContainers = valueAt(podSpec, ["initContainers"]);
+  assert.ok(Array.isArray(initContainers));
+  for (const container of [...initContainers, dockerContainer]) {
+    const securityContext = container.securityContext as
+      | Record<string, unknown>
+      | undefined;
+    assert.equal(securityContext?.appArmorProfile, undefined);
+  }
   assert.equal(valueAt(t3Container, ["resources", "limits", "cpu"]), "20");
   assert.equal(valueAt(t3Container, ["resources", "limits", "memory"]), "40Gi");
   assert.equal(
@@ -2504,17 +2516,30 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(!dopplerInstaller.includes("token_file"));
 });
 
-test("the Vector health check validates K3s' configured NVIDIA runtime", () => {
+test("the Vector health check validates the NVIDIA runtime and browser sandbox", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
   const healthCheck = readFileSync(
     new URL("../scripts/vector-development-health.sh", import.meta.url),
     "utf8",
   );
 
+  assert.match(hostConfig, /profile t3-code-agent-browser flags=\(unconfined\)/);
+  assert.match(hostConfig, /\n\s+userns,\n/);
   assert.match(
     healthCheck,
     /containerd_config=\/var\/lib\/rancher\/k3s\/agent\/etc\/containerd\/config\.toml/,
   );
   assert.match(healthCheck, /test -x "\$\{nvidia_runtime\}"/);
+  assert.match(
+    healthCheck,
+    /grep -Fx 't3-code-agent-browser \(unconfined\)'/,
+  );
+  assert.match(healthCheck, /timeout 30s chromium/);
+  assert.match(healthCheck, /--dump-dom about:blank/);
+  assert.doesNotMatch(healthCheck, /--no-sandbox/);
   assert.doesNotMatch(
     healthCheck,
     /command -v nvidia-container-runtime/,
