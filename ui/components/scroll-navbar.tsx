@@ -29,7 +29,10 @@ export function ScrollNavbar() {
   const { hasActions } = useNavbarActions();
 
   return (
-    <header className={headerVariants({ visible: isVisible })}>
+    <header
+      className={headerVariants({ visible: isVisible })}
+      data-site-chrome="header"
+    >
       <nav className="container mx-auto px-4 py-4 max-w-7xl flex items-center justify-between gap-2">
         <div className="flex items-center gap-4">
           <div id="navbar-actions" className="lg:hidden flex items-center" />

@@ -49,6 +49,11 @@ description = "Render Mermaid diagrams in light and dark themes with Playwright"
 depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
 run = "pnpm test:e2e:mermaid"
 
+[tasks."test:e2e:resume"]
+description = "Verify the browser-rendered résumé and its print-to-PDF output"
+depends = ["//ui:build", "//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
+run = "pnpm exec playwright test --config playwright.resume.config.ts"
+
 [tasks."test:e2e:install"]
 description = "Install Chromium for Playwright tests"
 depends = ["//ui:install"]

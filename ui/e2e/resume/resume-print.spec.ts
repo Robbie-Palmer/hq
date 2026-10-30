@@ -1,0 +1,75 @@
+import { expect, test } from "@playwright/test";
+
+test("renders a two-page A4 résumé with live links", async ({
+  page,
+}, testInfo) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(String(error)));
+
+  await page.goto("/resume");
+  await expect(
+    page.getByRole("heading", { name: "Robbie Palmer", level: 1 }),
+  ).toBeVisible();
+  await expect(page.getByTestId("resume-sheet")).toHaveCount(2);
+  await expect(
+    page.getByRole("button", { name: "Print / save PDF" }),
+  ).toBeVisible();
+
+  const text = await page.getByLabel("Robbie Palmer résumé").innerText();
+  expect(text.length).toBeGreaterThan(4_000);
+  expect(text).toContain("Terminal Industries");
+  expect(text).toContain("Microsoft");
+
+  const links = await page
+    .getByLabel("Robbie Palmer résumé")
+    .locator("a")
+    .evaluateAll((anchors) =>
+      anchors.map((anchor) => (anchor as HTMLAnchorElement).href),
+    );
+  expect(new Set(links).size).toBeGreaterThan(15);
+  expect(links).toContain("https://robbiepalmer.me/");
+  expect(links.every((link) => URL.canParse(link))).toBe(true);
+
+  await page.screenshot({
+    path: testInfo.outputPath("resume-screen.png"),
+    fullPage: true,
+  });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByTestId("resume-sheet").first()).toBeVisible();
+  const mobileOverflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(mobileOverflow).toBe(0);
+  await page.screenshot({
+    path: testInfo.outputPath("resume-mobile.png"),
+    fullPage: true,
+  });
+
+  await page.emulateMedia({ media: "print" });
+  const overflow = await page
+    .getByTestId("resume-sheet")
+    .evaluateAll((sheets) =>
+      sheets.map((sheet) => ({
+        horizontal: sheet.scrollWidth - sheet.clientWidth,
+        vertical: sheet.scrollHeight - sheet.clientHeight,
+      })),
+    );
+  expect(overflow).toEqual([
+    { horizontal: 0, vertical: 0 },
+    { horizontal: 0, vertical: 0 },
+  ]);
+
+  const pdf = await page.pdf({
+    format: "A4",
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+  const pdfSource = Buffer.from(pdf).toString("latin1");
+  const pageCount = pdfSource.match(/\/Type\s*\/Page\b/g)?.length ?? 0;
+  expect(pageCount).toBe(2);
+  expect(pdf.byteLength).toBeGreaterThan(20_000);
+  expect(pageErrors).toEqual([]);
+});
