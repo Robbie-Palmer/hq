@@ -33,19 +33,19 @@ description = "Show recipe-parsing metrics, or diff them against a revision"
 run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh metrics"
 
 [tasks."url-import:validate"]
-description = "Validate URL-import corpus schemas, manifests, rights, hashes, and partitions"
+description = "Validate synthetic URL-import schemas, manifests, rights, hashes, and partitions"
 depends = ["//:install"]
 run = "pnpm exec tsx src/stages/validate-url-import-corpus.ts"
 
 [tasks."url-import:replay"]
-description = "Replay train and development URL-import fixtures without touching holdout"
+description = "Replay passing synthetic URL-import train and development fixtures"
 depends = ["//:install"]
 run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts"
 
-[tasks."url-import:replay-holdout"]
-description = "Run the sealed URL-import holdout for a recorded final evaluation"
+[tasks."url-import:replay-regression"]
+description = "Replay only the project-authored synthetic regression fixtures"
 depends = ["//:install"]
-run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts --partition holdout --purpose final-evaluation --output outputs/url-import-corpus-holdout.json"
+run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts --partition regression --output outputs/url-import-synthetic-regression.json"
 
 [tasks."url-import:repro"]
 description = "Reproduce the local URL-import validation and replay DVC stages"

@@ -10,7 +10,10 @@ const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const CORPUS_ROOT = path.join(PROJECT_ROOT, "data/url-import-corpus/v1");
+const CORPUS_ROOT = path.join(
+  PROJECT_ROOT,
+  "data/url-import-corpus/synthetic/v1",
+);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -52,8 +55,15 @@ describe("URL-import corpus stages", () => {
 
     expect(JSON.parse(fs.readFileSync(output, "utf8"))).toMatchObject({
       corpusVersion: "1.0.0",
+      corpusKind: "project-authored-synthetic",
       fixtureCount: 7,
-      holdout: { routineReplayAllowed: false, sealed: true },
+      evaluationScope: {
+        intendedUse: "deterministic-regression",
+        realWorldHoldout: false,
+        supportsRealWorldGeneralizationClaims: false,
+        knownFailurePartition: "regression",
+        knownFailuresGateRoutineReplay: false,
+      },
     });
   });
 
@@ -69,13 +79,13 @@ describe("URL-import corpus stages", () => {
       output,
       "--partition",
       "development",
-      "--purpose",
-      "development",
     ]);
 
     expect(JSON.parse(fs.readFileSync(output, "utf8"))).toMatchObject({
+      corpusKind: "project-authored-synthetic",
+      evaluationScope: "deterministic-regression",
+      includesKnownFailures: false,
       partitions: ["development"],
-      purpose: "development",
       summary: { failed: 0, fixtures: 3, passed: 3 },
     });
     await expect(

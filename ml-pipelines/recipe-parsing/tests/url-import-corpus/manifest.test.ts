@@ -13,7 +13,10 @@ const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const CORPUS_ROOT = path.join(PROJECT_ROOT, "data/url-import-corpus/v1");
+const CORPUS_ROOT = path.join(
+  PROJECT_ROOT,
+  "data/url-import-corpus/synthetic/v1",
+);
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
@@ -37,8 +40,9 @@ describe("URL-import corpus manifest", () => {
     expect(validateCorpus(CORPUS_ROOT)).toEqual({
       schemaVersion: 1,
       corpusVersion: "1.0.0",
+      corpusKind: "project-authored-synthetic",
       fixtureCount: 7,
-      partitions: { train: 2, development: 3, holdout: 2 },
+      partitions: { train: 2, development: 3, regression: 2 },
       coverage: [
         "conflicting-markup",
         "focaccia-known-failure",
@@ -50,7 +54,13 @@ describe("URL-import corpus manifest", () => {
         "unusual-ingredient-layout",
         "unusual-step-layout",
       ],
-      holdout: { sealed: true, routineReplayAllowed: false },
+      evaluationScope: {
+        intendedUse: "deterministic-regression",
+        realWorldHoldout: false,
+        supportsRealWorldGeneralizationClaims: false,
+        knownFailurePartition: "regression",
+        knownFailuresGateRoutineReplay: false,
+      },
     });
   });
 
@@ -83,15 +93,12 @@ describe("URL-import corpus manifest", () => {
     );
   });
 
-  it("rejects unreviewed rights or an unsealed holdout", () => {
-    const holdout = loadPartitionManifest(CORPUS_ROOT, "holdout");
-    expect(() =>
-      PartitionManifestSchema.parse({ ...holdout, sealed: false }),
-    ).toThrow("only the holdout partition may be sealed");
+  it("rejects unreviewed rights", () => {
+    const regression = loadPartitionManifest(CORPUS_ROOT, "regression");
     expect(() =>
       PartitionManifestSchema.parse({
-        ...holdout,
-        fixtures: holdout.fixtures.map((fixture, index) =>
+        ...regression,
+        fixtures: regression.fixtures.map((fixture, index) =>
           index === 0
             ? {
                 ...fixture,

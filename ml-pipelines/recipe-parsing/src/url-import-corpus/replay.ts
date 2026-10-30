@@ -6,16 +6,16 @@ import {
   loadPartitionManifest,
   sha256,
 } from "./corpus.js";
-import type {
-  CorpusFixture,
-  CorpusPartition,
-  ExpectedRecipe,
-  ReplayPurpose,
+import {
+  SYNTHETIC_CORPUS_KIND,
+  SYNTHETIC_EVALUATION_SCOPE,
+  type CorpusFixture,
+  type CorpusPartition,
+  type ExpectedRecipe,
 } from "./schema.js";
 
 export type ReplayOptions = {
   partitions?: CorpusPartition[];
-  purpose?: ReplayPurpose;
 };
 
 export type ReplayRecord = {
@@ -31,7 +31,9 @@ export type ReplayRecord = {
 export type ReplayReport = {
   schemaVersion: 1;
   recordType: "recipe-url-import-replay";
-  purpose: ReplayPurpose;
+  corpusKind: typeof SYNTHETIC_CORPUS_KIND;
+  evaluationScope: typeof SYNTHETIC_EVALUATION_SCOPE;
+  includesKnownFailures: boolean;
   partitions: CorpusPartition[];
   summary: {
     fixtures: number;
@@ -45,14 +47,6 @@ export function replayPartitions(options: ReplayOptions): CorpusPartition[] {
   const partitions = options.partitions ?? ["train", "development"];
   const unique = [...new Set(partitions)];
   if (unique.length === 0) throw new Error("Select at least one partition");
-  if (
-    unique.includes("holdout") &&
-    options.purpose !== "final-evaluation"
-  ) {
-    throw new Error(
-      "Holdout replay requires purpose final-evaluation; routine replay leaves it untouched",
-    );
-  }
   return unique;
 }
 
@@ -116,7 +110,9 @@ export async function replayCorpus(
   return {
     schemaVersion: 1,
     recordType: "recipe-url-import-replay",
-    purpose: options.purpose ?? "development",
+    corpusKind: SYNTHETIC_CORPUS_KIND,
+    evaluationScope: SYNTHETIC_EVALUATION_SCOPE,
+    includesKnownFailures: partitions.includes("regression"),
     partitions,
     summary: {
       fixtures: records.length,

@@ -7,13 +7,15 @@ import {
   type CorpusPartition,
   type CoverageTag,
   PartitionManifestSchema,
+  SYNTHETIC_CORPUS_KIND,
+  SYNTHETIC_EVALUATION_SCOPE,
   type PartitionManifest,
 } from "./schema.js";
 
 export const PARTITION_MANIFESTS: Record<CorpusPartition, string> = {
   train: "manifests/train.json",
   development: "manifests/development.json",
-  holdout: "manifests/holdout.json",
+  regression: "manifests/regression.json",
 };
 
 export function sha256(value: string | NodeJS.ArrayBufferView): string {
@@ -118,10 +120,17 @@ export function assertNoPartitionLeakage(
 export type CorpusValidationSummary = {
   schemaVersion: 1;
   corpusVersion: string;
+  corpusKind: typeof SYNTHETIC_CORPUS_KIND;
   fixtureCount: number;
   partitions: Record<CorpusPartition, number>;
   coverage: string[];
-  holdout: { sealed: true; routineReplayAllowed: false };
+  evaluationScope: {
+    intendedUse: typeof SYNTHETIC_EVALUATION_SCOPE;
+    realWorldHoldout: false;
+    supportsRealWorldGeneralizationClaims: false;
+    knownFailurePartition: "regression";
+    knownFailuresGateRoutineReplay: false;
+  };
 };
 
 function validateCatalogManifest(
@@ -146,9 +155,6 @@ function validateCatalogManifest(
   }
   if (catalogEntry.fixtureCount !== manifest.fixtures.length) {
     throw new Error(`${manifest.partition} fixture count does not match catalog`);
-  }
-  if (catalogEntry.sealed !== manifest.sealed) {
-    throw new Error(`${manifest.partition} seal does not match catalog`);
   }
 }
 
@@ -199,15 +205,15 @@ function validateCoverage(
   return coverage;
 }
 
-function validateFocacciaHoldout(fixtures: CorpusFixture[]): void {
+function validateFocacciaRegression(fixtures: CorpusFixture[]): void {
   const focaccia = fixtures.filter((fixture) =>
     fixture.coverage.includes("focaccia-known-failure"),
   );
   if (
     focaccia.length !== 1 ||
-    !focaccia[0]?.artifact.path.startsWith("snapshots/holdout/")
+    !focaccia[0]?.artifact.path.startsWith("snapshots/regression/")
   ) {
-    throw new Error("The focaccia regression must appear once in holdout");
+    throw new Error("The focaccia case must appear once in synthetic regression");
   }
 }
 
@@ -232,11 +238,11 @@ export function validateCorpus(corpusRoot: string): CorpusValidationSummary {
 
   validateSnapshotInventory(corpusRoot, fixtures);
   const coverage = validateCoverage(fixtures, catalog.requiredCoverage);
-  validateFocacciaHoldout(fixtures);
+  validateFocacciaRegression(fixtures);
   const partitionCounts: Record<CorpusPartition, number> = {
     train: 0,
     development: 0,
-    holdout: 0,
+    regression: 0,
   };
   for (const manifest of manifests) {
     partitionCounts[manifest.partition] = manifest.fixtures.length;
@@ -245,17 +251,24 @@ export function validateCorpus(corpusRoot: string): CorpusValidationSummary {
   return {
     schemaVersion: 1,
     corpusVersion: catalog.corpusVersion,
+    corpusKind: SYNTHETIC_CORPUS_KIND,
     fixtureCount: fixtures.length,
     partitions: partitionCounts,
     coverage,
-    holdout: { sealed: true, routineReplayAllowed: false },
+    evaluationScope: {
+      intendedUse: SYNTHETIC_EVALUATION_SCOPE,
+      realWorldHoldout: false,
+      supportsRealWorldGeneralizationClaims: false,
+      knownFailurePartition: "regression",
+      knownFailuresGateRoutineReplay: false,
+    },
   };
 }
 
 const CorpusPartitionSchemaOptions: CorpusPartition[] = [
   "train",
   "development",
-  "holdout",
+  "regression",
 ];
 
 export function writeJson(file: string, value: unknown): void {

@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "recordType": "recipe-url-import-partition",
   "corpusVersion": "1.0.0",
+  "fixtureOrigin": "project-authored-synthetic",
   "partition": "development",
-  "sealed": false,
   "fixtures": [
     {
       "id": "incomplete-defaults",

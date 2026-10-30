@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "recordType": "recipe-url-import-partition",
   "corpusVersion": "1.0.0",
+  "fixtureOrigin": "project-authored-synthetic",
   "partition": "train",
-  "sealed": false,
   "fixtures": [
     {
       "id": "direct-jsonld",

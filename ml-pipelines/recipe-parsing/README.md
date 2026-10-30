@@ -19,22 +19,27 @@ in the shared [`recipe-parsing` package](../../packages/recipe-parsing/), which
 the production ingestion backend also consumes. This pipeline owns dataset
 management, stage orchestration, and evaluation.
 
-## URL-import corpus
+## Synthetic URL-import corpus
 
-`data/url-import-corpus/v1/` contains fixed HTML snapshots and reviewed ground
-truth for URL imports. Every snapshot is synthetic and licensed with this
-repository under AGPL-3.0-only. Each fixture manifest records a reserved
-`.invalid` source URL, fixed retrieval metadata, storage and evaluation rights,
-SHA-256 content hashes, expected parser fields, and review status. No task
-fetches a live recipe page.
+`data/url-import-corpus/synthetic/v1/` contains only project-authored synthetic
+HTML fixtures and reviewed ground truth. It is deterministic regression data,
+and it does not qualify as a real-world holdout or support claims about
+generalization to live recipe sites. The catalog, manifests, validation report,
+and replay report all encode that limitation.
 
-The corpus has train, development, and holdout manifests. Source groups and
-markup pattern families cannot cross partitions. Routine replay reads only the
-train and development manifests. The holdout manifest is sealed and requires
-an explicit `final-evaluation` purpose, so parser development and CI do not run
-it by accident.
+Every fixture is licensed with this repository under AGPL-3.0-only. Each
+manifest records a reserved `.invalid` source URL, fixed retrieval metadata,
+storage and evaluation rights, SHA-256 content hashes, expected parser fields,
+and review status. No task fetches a live recipe page.
 
-Validate the complete corpus and replay the development inputs:
+The synthetic corpus has train, development, and regression manifests. The
+regression partition contains targeted known failures, including the focaccia
+case. It is explicit, non-gating evaluation data until those failures are
+fixed. It is not sealed or untouched. Source groups and markup pattern families
+cannot cross partitions.
+
+Validate the complete synthetic corpus and replay the currently passing train
+and development fixtures:
 
 ```bash
 mise //ml-pipelines/recipe-parsing:url-import:validate
@@ -42,21 +47,28 @@ mise //ml-pipelines/recipe-parsing:url-import:replay
 ```
 
 The matching DVC stages are `validate_url_import_corpus` and
-`replay_url_import_corpus`. The replay stage lists only train and development
-paths as dependencies. Reproduce both local stages and update `dvc.lock` with:
+`replay_url_import_corpus`. Validation checks all three synthetic partitions.
+The gating replay stage lists only the currently passing train and development
+partitions as dependencies. Reproduce both local stages and update `dvc.lock`
+with:
 
 ```bash
 mise //ml-pipelines/recipe-parsing:url-import:repro
 ```
 
-Run the holdout only after freezing a parser candidate and recording that final
-evaluation:
+Replay only the known-failure regression partition while debugging with the
+following task. It exits nonzero while a fixture differs from ground truth and
+still writes its diagnostic report.
 
 ```bash
-mise //ml-pipelines/recipe-parsing:url-import:replay-holdout
+mise //ml-pipelines/recipe-parsing:url-import:replay-regression
 ```
 
-The holdout command is intentionally outside routine DVC reproduction.
+A future real-world evaluation corpus must use a separate path and schema. It
+should freeze permitted HTML bytes before parser inspection, split by publisher
+or source group, record rights and retrieval evidence, and stay outside routine
+development replay. The recipe-dataset project can supply source candidates,
+but its structured recipe records are not substitutes for immutable page HTML.
 
 ## Pipeline stages
 

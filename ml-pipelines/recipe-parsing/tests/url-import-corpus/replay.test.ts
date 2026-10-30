@@ -12,15 +12,23 @@ const PROJECT_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../..",
 );
-const CORPUS_ROOT = path.join(PROJECT_ROOT, "data/url-import-corpus/v1");
+const CORPUS_ROOT = path.join(
+  PROJECT_ROOT,
+  "data/url-import-corpus/synthetic/v1",
+);
 
 describe("URL-import corpus replay", () => {
-  it("replays train and development snapshots without live HTTP", async () => {
+  it("replays the passing synthetic snapshots without live HTTP", async () => {
     const first = await replayCorpus(CORPUS_ROOT);
     const second = await replayCorpus(CORPUS_ROOT);
 
     expect(second).toEqual(first);
-    expect(first.partitions).toEqual(["train", "development"]);
+    expect(first).toMatchObject({
+      corpusKind: "project-authored-synthetic",
+      evaluationScope: "deterministic-regression",
+      includesKnownFailures: false,
+      partitions: ["train", "development"],
+    });
     expect(first.records.map(({ fixtureId }) => fixtureId)).toEqual([
       "direct-jsonld",
       "graph-sections",
@@ -34,6 +42,20 @@ describe("URL-import corpus replay", () => {
         new URL(sourceUrl).hostname.endsWith(".fixtures.invalid"),
       ),
     ).toBe(true);
+  });
+
+  it("records unresolved synthetic known failures without calling them a holdout", async () => {
+    const report = await replayCorpus(CORPUS_ROOT, {
+      partitions: ["regression"],
+    });
+
+    expect(report).toMatchObject({
+      corpusKind: "project-authored-synthetic",
+      evaluationScope: "deterministic-regression",
+      includesKnownFailures: true,
+      partitions: ["regression"],
+      summary: { failed: 2, fixtures: 2, passed: 0 },
+    });
   });
 
   it("parses fixtures concurrently while preserving manifest order", async () => {

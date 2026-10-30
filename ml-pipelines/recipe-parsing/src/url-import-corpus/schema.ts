@@ -3,15 +3,12 @@ import { z } from "zod";
 export const CorpusPartitionSchema = z.enum([
   "train",
   "development",
-  "holdout",
+  "regression",
 ]);
 export type CorpusPartition = z.infer<typeof CorpusPartitionSchema>;
 
-export const ReplayPurposeSchema = z.enum([
-  "development",
-  "final-evaluation",
-]);
-export type ReplayPurpose = z.infer<typeof ReplayPurposeSchema>;
+export const SYNTHETIC_CORPUS_KIND = "project-authored-synthetic" as const;
+export const SYNTHETIC_EVALUATION_SCOPE = "deterministic-regression" as const;
 
 export const COVERAGE_TAGS = [
   "json-ld",
@@ -123,20 +120,11 @@ export const PartitionManifestSchema = z
     schemaVersion: z.literal(1),
     recordType: z.literal("recipe-url-import-partition"),
     corpusVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+    fixtureOrigin: z.literal(SYNTHETIC_CORPUS_KIND),
     partition: CorpusPartitionSchema,
-    sealed: z.boolean(),
     fixtures: z.array(CorpusFixtureSchema).min(1),
   })
-  .strict()
-  .superRefine((manifest, context) => {
-    if (manifest.sealed !== (manifest.partition === "holdout")) {
-      context.addIssue({
-        code: "custom",
-        path: ["sealed"],
-        message: "only the holdout partition may be sealed",
-      });
-    }
-  });
+  .strict();
 
 export type PartitionManifest = z.infer<typeof PartitionManifestSchema>;
 
@@ -146,7 +134,6 @@ const CatalogPartitionSchema = z
     manifest: PathSchema,
     sha256: Sha256Schema,
     fixtureCount: z.number().int().positive(),
-    sealed: z.boolean(),
   })
   .strict();
 
@@ -155,15 +142,18 @@ export const CorpusCatalogSchema = z
     schemaVersion: z.literal(1),
     recordType: z.literal("recipe-url-import-corpus"),
     corpusVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
+    corpusKind: z.literal(SYNTHETIC_CORPUS_KIND),
     createdAt: z.iso.datetime(),
     description: z.string().min(1),
     license: z.literal("AGPL-3.0-only"),
     requiredCoverage: z.array(CoverageTagSchema).min(1),
-    holdoutPolicy: z
+    evaluationScope: z
       .object({
-        routineReplayAllowed: z.literal(false),
-        requiredPurpose: z.literal("final-evaluation"),
-        developmentInputsMayReferenceHoldout: z.literal(false),
+        intendedUse: z.literal(SYNTHETIC_EVALUATION_SCOPE),
+        realWorldHoldout: z.literal(false),
+        supportsRealWorldGeneralizationClaims: z.literal(false),
+        knownFailurePartition: z.literal("regression"),
+        knownFailuresGateRoutineReplay: z.literal(false),
       })
       .strict(),
     partitions: z.array(CatalogPartitionSchema).length(3),

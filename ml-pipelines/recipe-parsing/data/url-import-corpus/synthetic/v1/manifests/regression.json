@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "recordType": "recipe-url-import-partition",
   "corpusVersion": "1.0.0",
-  "partition": "holdout",
-  "sealed": true,
+  "fixtureOrigin": "project-authored-synthetic",
+  "partition": "regression",
   "fixtures": [
     {
       "id": "focaccia-conflicting-graph",
@@ -35,7 +35,7 @@
         "notes": "Written from the failure description only. It contains no copied page, recipe text, or media."
       },
       "artifact": {
-        "path": "snapshots/holdout/focaccia-conflicting-graph.html",
+        "path": "snapshots/regression/focaccia-conflicting-graph.html",
         "bytes": 1539,
         "sha256": "sha256:e7557de3fce4a18eeaf216c7514a9140f217249482acd8045a42c85abbd0548d"
       },
@@ -85,7 +85,7 @@
         "notes": "Written for this corpus. It contains no copied publisher text or media."
       },
       "artifact": {
-        "path": "snapshots/holdout/item-list-steps.html",
+        "path": "snapshots/regression/item-list-steps.html",
         "bytes": 977,
         "sha256": "sha256:f8e9fcb5666c75c9f24b64815aa03528941ef2664293ba227740cf2d8cc3c02a"
       },
