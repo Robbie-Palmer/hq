@@ -198,6 +198,31 @@ describe("Work Graph analytics export", () => {
     expect(store.writes).toEqual([]);
   });
 
+  it("maps legacy lease-fenced notes without a kind to work notes", async () => {
+    const store = new FakeStore();
+
+    await expect(
+      exportAnalyticsBatch(
+        new FakeSource([
+          event(1, "note.created", {
+            noteId: "private-note-id",
+            leaseId: "lease",
+            content: "private note contents",
+          }),
+        ]),
+        store,
+        10,
+      ),
+    ).resolves.toMatchObject({ status: "exported", throughSequence: 1 });
+
+    const exportedEvents = objectBody(store, "/events/");
+    expect(exportedEvents).toContain(
+      '"data":{"kind":"work","leaseId":"lease"}',
+    );
+    expect(exportedEvents).not.toContain("private-note-id");
+    expect(exportedEvents).not.toContain("private note contents");
+  });
+
   it("resumes after an interrupted object upload without replacing immutable objects", async () => {
     const source = new FakeSource([event(1, "work_item.created")]);
     const store = new FakeStore();
