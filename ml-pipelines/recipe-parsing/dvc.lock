@@ -582,16 +582,16 @@ stages:
       nfiles: 2
     - path: src/stages/replay-url-import-corpus.ts
       hash: md5
-      md5: 6dec6a5f899a0e97442a3f6ee89a9ad0
-      size: 1235
+      md5: bfe906fa3b71691d3ec0726432d0009b
+      size: 1558
     - path: src/url-import-corpus/corpus.ts
       hash: md5
-      md5: 53ac5a4f2ff768cd9a6c7e76f6be14ea
-      size: 8487
+      md5: 56d0e32a3c5f9c5ac18011fa4d7fc366
+      size: 8529
     - path: src/url-import-corpus/replay.ts
       hash: md5
-      md5: 23ea6e8171a0de264b7c2d6f41247a01
-      size: 3183
+      md5: 4781e9d1ca94412a48b1462c97228075
+      size: 3550
     - path: src/url-import-corpus/schema.ts
       hash: md5
       md5: c17bdd8c5de87bc84d3fb2adcb671163
@@ -611,12 +611,12 @@ stages:
       nfiles: 11
     - path: src/stages/validate-url-import-corpus.ts
       hash: md5
-      md5: e8e2ce5c6991038a27b6a29e710358d2
-      size: 515
+      md5: e437639e7a2bca26e90d7e67d67a7491
+      size: 775
     - path: src/url-import-corpus/corpus.ts
       hash: md5
-      md5: 53ac5a4f2ff768cd9a6c7e76f6be14ea
-      size: 8487
+      md5: 56d0e32a3c5f9c5ac18011fa4d7fc366
+      size: 8529
     - path: src/url-import-corpus/schema.ts
       hash: md5
       md5: c17bdd8c5de87bc84d3fb2adcb671163

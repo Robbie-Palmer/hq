@@ -62,7 +62,9 @@ function passed(
 ): boolean {
   if (fixture.expected.status === "no-recipe") return actual === null;
   const withoutUndefined = actual
-    ? (JSON.parse(JSON.stringify(actual)) as ExpectedRecipe)
+    ? (Object.fromEntries(
+        Object.entries(actual).filter(([, value]) => value !== undefined),
+      ) as ExpectedRecipe)
     : null;
   return isDeepStrictEqual(withoutUndefined, fixture.expected.recipe);
 }
@@ -73,7 +75,12 @@ export async function replayCorpus(
   parser: typeof parseSchemaOrgRecipeHtml = parseSchemaOrgRecipeHtml,
 ): Promise<ReplayReport> {
   const partitions = replayPartitions(options);
-  const records: ReplayRecord[] = [];
+  const inputs: Array<{
+    fixture: CorpusFixture;
+    html: string;
+    inputSha256: string;
+    partition: CorpusPartition;
+  }> = [];
 
   for (const partition of partitions) {
     const manifest = loadPartitionManifest(corpusRoot, partition);
@@ -86,8 +93,14 @@ export async function replayCorpus(
       if (inputSha256 !== fixture.artifact.sha256) {
         throw new Error(`${fixture.id} changed since the manifest was reviewed`);
       }
+      inputs.push({ fixture, html, inputSha256, partition });
+    }
+  }
+
+  const records = await Promise.all(
+    inputs.map(async ({ fixture, html, inputSha256, partition }) => {
       const actual = await parser(html, fixture.retrieval.sourceUrl);
-      records.push({
+      return {
         fixtureId: fixture.id,
         partition,
         inputSha256,
@@ -95,9 +108,9 @@ export async function replayCorpus(
         expectedStatus: fixture.expected.status,
         actual,
         passed: passed(fixture, actual),
-      });
-    }
-  }
+      } satisfies ReplayRecord;
+    }),
+  );
 
   const passCount = records.filter((record) => record.passed).length;
   return {

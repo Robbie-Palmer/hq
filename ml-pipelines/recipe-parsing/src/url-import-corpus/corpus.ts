@@ -82,7 +82,7 @@ function duplicateValues(
   return [...partitionsByValue]
     .filter(([, partitions]) => partitions.size > 1)
     .map(([value]) => value)
-    .sort();
+    .sort((left, right) => left.localeCompare(right));
 }
 
 function requireUnique(values: string[], label: string): void {
