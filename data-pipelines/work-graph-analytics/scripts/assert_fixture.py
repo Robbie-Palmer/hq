@@ -10,6 +10,11 @@ from typing import Any
 
 import duckdb
 
+from work_graph_analytics.reporting import operational_report
+
+ACCESS_CAUSE = "attention:access"
+REVIEW_CAUSE = "attention:review"
+
 
 def _json_value(value: Any) -> Any:
     if isinstance(value, (date, datetime, time)):
@@ -54,7 +59,7 @@ def metric(version: Path, project: str, cause: str) -> tuple[int, ...]:
 def main() -> None:
     first = Path(sys.argv[1])
     second = Path(sys.argv[2])
-    assert metric(first, "project-new", "attention:access") == (
+    assert metric(first, "project-new", ACCESS_CAUSE) == (
         2,
         1,
         5_400_000,
@@ -64,7 +69,7 @@ def main() -> None:
         0,
         0,
     )
-    assert metric(first, "project", "attention:review") == (
+    assert metric(first, "project", REVIEW_CAUSE) == (
         1,
         0,
         1_800_000,
@@ -84,6 +89,33 @@ def main() -> None:
         2,
         1,
     )
+    report = operational_report(
+        str(first),
+        start="2026-10-01T01:00:00Z",
+        end="2026-10-01T03:00:00Z",
+    )
+    report_metrics = {
+        (row.project_id, row.cause): (
+            row.episodes,
+            row.recurring_work_items,
+            row.wait_milliseconds,
+            row.open_at_end,
+            row.intervention_requests,
+            row.resolutions,
+            row.stale_takeovers,
+            row.failed_handoff_proxies,
+        )
+        for row in report.metrics
+    }
+    assert report_metrics[("project-new", ACCESS_CAUSE)] == metric(
+        first, "project-new", ACCESS_CAUSE
+    )
+    assert report_metrics[("project", REVIEW_CAUSE)] == metric(first, "project", REVIEW_CAUSE)
+    assert report_metrics[("project", "stale_lease")] == metric(first, "project", "stale_lease")
+    assert report.provenance.model_version == "fixture-v1"
+    assert report.provenance.source_coverage.through_sequence == 14
+    assert report.provenance.scope_snapshot.object_keys == ["work-state/v1/scopes/14.json"]
+    assert report.provenance.freshness.latest_event_at == "2026-10-01T03:00:00.000Z"
     manifests = json.loads((first / "manifest.json").read_text())
     assert manifests["complete"] is True
     assert manifests["source"]["throughSequence"] == 14

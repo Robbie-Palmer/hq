@@ -40,6 +40,11 @@ description = "Build and test all Work Graph lakehouse models against determinis
 depends = ["sync"]
 run = "bash scripts/build-fixtures.sh"
 
+[tasks.report]
+description = "Run a manifest-verified Work Graph report from a private cache or R2"
+depends = ["sync"]
+run = "uv run --locked work-graph-analytics report"
+
 [tasks.check]
 description = "Run all Work Graph analytics checks"
 depends = ["lint", "test", "dbt:parse", "fixtures:build"]

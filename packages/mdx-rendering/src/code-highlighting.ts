@@ -1,10 +1,19 @@
+import {
+  COOKLANG_HIGHLIGHT_PATTERNS,
+  type CooklangTokenKind,
+} from "recipe-domain/cooklang-highlighting";
 import rehypePrettyCode, { type Options } from "rehype-pretty-code";
 import { createHighlighter, type LanguageRegistration } from "shiki";
 
-const punctuation = { name: "punctuation.definition.cooklang" };
-const quantity = { name: "constant.numeric.quantity.cooklang" };
-const timer = { name: "keyword.control.timer.cooklang" };
-const unit = { name: "support.type.unit.cooklang" };
+const tokenScopes = {
+  ingredient: "string.quoted.other.ingredient.cooklang",
+  cookware: "entity.name.type.cookware.cooklang",
+  timer: "keyword.control.timer.cooklang",
+  quantity: "constant.numeric.quantity.cooklang",
+  unit: "support.type.unit.cooklang",
+  punctuation: "punctuation.definition.cooklang",
+  instruction: "source.cooklang",
+} satisfies Record<CooklangTokenKind, string>;
 
 const cooklangLanguage: LanguageRegistration = {
   name: "cooklang",
@@ -12,90 +21,16 @@ const cooklangLanguage: LanguageRegistration = {
   scopeName: "source.cooklang",
   aliases: ["cook"],
   repository: {},
-  patterns: [
-    {
-      name: "meta.ingredient.cooklang",
-      match: String.raw`(@)([^@#~{}\n]+?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
-      captures: {
-        1: punctuation,
-        2: { name: "string.quoted.other.ingredient.cooklang" },
-        3: punctuation,
-        4: quantity,
-        5: punctuation,
-        6: unit,
-        7: punctuation,
-      },
-    },
-    {
-      name: "meta.ingredient.cooklang",
-      match: String.raw`(@)([^@#~{}\n]+?)(\{)([^{}\n]+)(\})`,
-      captures: {
-        1: punctuation,
-        2: { name: "string.quoted.other.ingredient.cooklang" },
-        3: punctuation,
-        4: quantity,
-        5: punctuation,
-      },
-    },
-    {
-      name: "meta.ingredient.cooklang",
-      match: String.raw`(@)([^@#~{}\n]+?)(\{\})`,
-      captures: {
-        1: punctuation,
-        2: { name: "string.quoted.other.ingredient.cooklang" },
-        3: punctuation,
-      },
-    },
-    {
-      name: "meta.ingredient.cooklang",
-      match: String.raw`(@)([\p{L}\p{N}_'-]+)`,
-      captures: {
-        1: punctuation,
-        2: { name: "string.quoted.other.ingredient.cooklang" },
-      },
-    },
-    {
-      name: "meta.cookware.cooklang",
-      match: String.raw`(#)([^@#~{}\n]+?)(\{\})`,
-      captures: {
-        1: punctuation,
-        2: { name: "entity.name.type.cookware.cooklang" },
-        3: punctuation,
-      },
-    },
-    {
-      name: "meta.cookware.cooklang",
-      match: String.raw`(#)([\p{L}\p{N}_'-]+)`,
-      captures: {
-        1: punctuation,
-        2: { name: "entity.name.type.cookware.cooklang" },
-      },
-    },
-    {
-      name: "meta.timer.cooklang",
-      match: String.raw`(~)([^@#~{}\n]*?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
-      captures: {
-        1: timer,
-        2: timer,
-        3: punctuation,
-        4: quantity,
-        5: punctuation,
-        6: unit,
-        7: punctuation,
-      },
-    },
-    {
-      name: "meta.timer.cooklang",
-      match: String.raw`(~)([^@#~{}\n]*?)(\{)([^{}\n]+)(\})`,
-      captures: {
-        1: timer,
-        2: timer,
-        3: punctuation,
-        4: quantity,
-        5: punctuation,
-      },
-    },
-  ],
+  patterns: COOKLANG_HIGHLIGHT_PATTERNS.map((pattern) => ({
+    name: `meta.${pattern.name}.cooklang`,
+    match: pattern.source,
+    captures: Object.fromEntries(
+      Object.entries(pattern.captures).map(([index, token]) => [
+        index,
+        { name: tokenScopes[token] },
+      ]),
+    ),
+  })),
 };
 
 const getMarkdownHighlighter: NonNullable<Options["getHighlighter"]> = (
