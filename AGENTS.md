@@ -55,6 +55,14 @@ When asked to take or update Work Graph tickets, read
 CLI can infer lease fencing fields for ticket commands, so do not carry lease UUIDs through the
 conversation unless a recovery or audit needs them.
 
+## Agent Coordinator delivery pilot
+
+Agents handling admitted dependency vulnerabilities for the `Robbie-Palmer/hq`
+personal-site pilot must follow
+[`docs/runbooks/agent-coordinator-hq-delivery.md`](docs/runbooks/agent-coordinator-hq-delivery.md).
+That contract defines the checks, merge policy, production proof, rollback path,
+and attention boundary. A merged pull request is not completion evidence.
+
 ## Protected Preview QA
 
 PR previews remain behind Cloudflare Access. The remote operator runtime receives the preview-only

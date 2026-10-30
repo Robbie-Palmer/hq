@@ -1,0 +1,67 @@
+name: UI production rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      failed_revision:
+        description: Full revision currently failing in production
+        required: true
+        type: string
+      target_revision:
+        description: Full revision of the verified production target
+        required: true
+        type: string
+      incident:
+        description: Work Graph ticket or pull request URL
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-site-ui
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: production-site-ui
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Install dependencies
+        run: mise run //ui:install
+
+      - name: Roll back verified production deployment
+        id: rollback
+        run: mise run //ui:rollback:production
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          FAILED_REVISION: ${{ inputs.failed_revision }}
+          TARGET_REVISION: ${{ inputs.target_revision }}
+
+      - name: Smoke-test rolled-back production
+        id: smoke
+        run: mise run //ui:smoke:production
+
+      - name: Record rollback result
+        if: ${{ always() }}
+        env:
+          ROLLBACK_OUTCOME: ${{ steps.rollback.outcome }}
+          SMOKE_OUTCOME: ${{ steps.smoke.outcome }}
+        run: |
+          {
+            echo "## UI production rollback"
+            echo
+            echo "Rollback step: $ROLLBACK_OUTCOME"
+            echo "Production smoke: $SMOKE_OUTCOME"
+            echo "Incident reference is stored with the workflow dispatch inputs."
+          } >> "$GITHUB_STEP_SUMMARY"

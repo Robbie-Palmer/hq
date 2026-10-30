@@ -33,6 +33,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: production-site-ui
     env:
@@ -91,3 +92,7 @@ jobs:
           echo "url=$URL" >> "$GITHUB_OUTPUT"
         env:
           DEPLOY_BRANCH: ${{ github.head_ref || github.ref_name }}
+          DEPLOY_REVISION: ${{ github.sha }}
+
+      - name: Smoke-test production site
+        run: mise run //ui:smoke:production
