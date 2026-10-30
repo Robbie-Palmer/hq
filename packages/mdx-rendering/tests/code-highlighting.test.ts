@@ -1,6 +1,8 @@
+import type { BundledLanguage } from "shiki";
 import { afterAll, describe, expect, it } from "vitest";
 import { markdownCodeHighlighting } from "../src/index";
 
+const cooklang = "cooklang" as BundledLanguage;
 const [, options] = markdownCodeHighlighting;
 const highlighterPromise = options.getHighlighter?.({
   langs: [],
@@ -22,7 +24,7 @@ describe("markdownCodeHighlighting", () => {
     const html = highlighter?.codeToHtml(
       "Mix @bread flour{500%g} in #mixing bowl{} and wait ~rest{10%minutes}.",
       {
-        lang: "cooklang",
+        lang: cooklang,
         themes: { dark: "github-dark", light: "github-light" },
       },
     );
@@ -37,7 +39,7 @@ describe("markdownCodeHighlighting", () => {
     const highlighter = await highlighterPromise;
     const source = "Stir @broken{2%cup and ?unknown, then add @salt{1%tsp}.";
     const tokens = highlighter?.codeToTokensBase(source, {
-      lang: "cooklang",
+      lang: cooklang,
       theme: "github-dark",
     });
     expect(tokens?.flatMap((line) => line.map((token) => token.content)).join(""))
