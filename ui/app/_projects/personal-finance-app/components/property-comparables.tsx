@@ -253,10 +253,66 @@ function UnsupportedComparableEvidence({
   );
 }
 
+type ReadyComparableView = Extract<PropertyComparableView, { status: "ready" }>;
+
+function ComparableSaleEvidence({
+  sale,
+}: Readonly<{ sale: ReadyComparableView["sales"][number] }>) {
+  return (
+    <td className="px-3 py-3 text-xs text-muted-foreground">
+      <span className="font-medium text-foreground">Completed sale</span>
+      <span className="block">
+        Official completed-sale record · {sale.housingValue.source.name}
+      </span>
+      <span className="block">Retrieved {sale.housingValue.source.date}</span>
+      {sale.housingValue.dataStatus === "revised" && (
+        <Badge variant="outline" className="mt-1">
+          Revised
+        </Badge>
+      )}
+      <details className="mt-1">
+        <summary className="cursor-pointer font-medium text-foreground">
+          Why this number is shown
+        </summary>
+        <p className="mt-1">{sale.housingValue.explanation}</p>
+      </details>
+    </td>
+  );
+}
+
+function ComparableSaleRow({
+  sale,
+}: Readonly<{ sale: ReadyComparableView["sales"][number] }>) {
+  return (
+    <tr className="border-t">
+      <td className="whitespace-nowrap px-3 py-3 font-medium">
+        {formatAccountCurrency(sale.price, "GBP")}
+      </td>
+      <td className="whitespace-nowrap px-3 py-3">
+        {formatDate(sale.completionDate)}
+      </td>
+      <td className="px-3 py-3">
+        <span>{propertyTypeLabels[sale.propertyType]}</span>
+        <span className="block text-xs text-muted-foreground">
+          {tenureLabels[sale.tenure]} ·{" "}
+          {sale.newBuild ? "New build" : "Established"}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <span>{sale.location.postcode}</span>
+        <span className="block text-xs text-muted-foreground">
+          {sale.location.townCity} · full postcode
+        </span>
+      </td>
+      <ComparableSaleEvidence sale={sale} />
+    </tr>
+  );
+}
+
 function ComparableSalesTable({
   view,
 }: Readonly<{
-  view: Extract<PropertyComparableView, { status: "ready" }>;
+  view: ReadyComparableView;
 }>) {
   return (
     <div className="mt-4 overflow-x-auto rounded-md border">
@@ -275,50 +331,7 @@ function ComparableSalesTable({
         </thead>
         <tbody>
           {view.sales.map((sale) => (
-            <tr className="border-t" key={sale.transactionId}>
-              <td className="whitespace-nowrap px-3 py-3 font-medium">
-                {formatAccountCurrency(sale.price, "GBP")}
-              </td>
-              <td className="whitespace-nowrap px-3 py-3">
-                {formatDate(sale.completionDate)}
-              </td>
-              <td className="px-3 py-3">
-                <span>{propertyTypeLabels[sale.propertyType]}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {tenureLabels[sale.tenure]} ·{" "}
-                  {sale.newBuild ? "New build" : "Established"}
-                </span>
-              </td>
-              <td className="px-3 py-3">
-                <span>{sale.location.postcode}</span>
-                <span className="block text-xs text-muted-foreground">
-                  {sale.location.townCity} · full postcode
-                </span>
-              </td>
-              <td className="px-3 py-3 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">
-                  Completed sale
-                </span>
-                <span className="block">
-                  Official completed-sale record ·{" "}
-                  {sale.housingValue.source.name}
-                </span>
-                <span className="block">
-                  Retrieved {sale.housingValue.source.date}
-                </span>
-                {sale.housingValue.dataStatus === "revised" && (
-                  <Badge variant="outline" className="mt-1">
-                    Revised
-                  </Badge>
-                )}
-                <details className="mt-1">
-                  <summary className="cursor-pointer font-medium text-foreground">
-                    Why this number is shown
-                  </summary>
-                  <p className="mt-1">{sale.housingValue.explanation}</p>
-                </details>
-              </td>
-            </tr>
+            <ComparableSaleRow key={sale.transactionId} sale={sale} />
           ))}
         </tbody>
       </table>
