@@ -546,3 +546,83 @@ stages:
       hash: md5
       md5: 361025a4639e5d5da539a8636d387c89
       size: 13517
+  replay_url_import_corpus:
+    cmd: pnpm exec tsx src/stages/replay-url-import-corpus.ts
+    deps:
+    - path: ../../packages/recipe-parsing/package.json
+      hash: md5
+      md5: 519beedbefe2d1d1f88a4b7ee97aeed0
+      size: 808
+    - path: ../../packages/recipe-parsing/src
+      hash: md5
+      md5: d4d302c026f188e300a98edaa08b9884.dir
+      size: 155679
+      nfiles: 28
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 9791070fc46f46bfbd785ebc85f72a0b
+      size: 738742
+    - path: data/url-import-corpus/v1/manifests/development.json
+      hash: md5
+      md5: 0fe3bba185e207525ff14f323f435ad3
+      size: 5095
+    - path: data/url-import-corpus/v1/manifests/train.json
+      hash: md5
+      md5: c239666450a3349f664e231c5976b3af
+      size: 3905
+    - path: data/url-import-corpus/v1/snapshots/development
+      hash: md5
+      md5: 6e85d3aa3431052a8e3e8a2e24af4acc.dir
+      size: 2230
+      nfiles: 3
+    - path: data/url-import-corpus/v1/snapshots/train
+      hash: md5
+      md5: d256463250dc7d67e5bc96dc2e27efb1.dir
+      size: 2697
+      nfiles: 2
+    - path: src/stages/replay-url-import-corpus.ts
+      hash: md5
+      md5: 6dec6a5f899a0e97442a3f6ee89a9ad0
+      size: 1235
+    - path: src/url-import-corpus/corpus.ts
+      hash: md5
+      md5: 53ac5a4f2ff768cd9a6c7e76f6be14ea
+      size: 8487
+    - path: src/url-import-corpus/replay.ts
+      hash: md5
+      md5: 23ea6e8171a0de264b7c2d6f41247a01
+      size: 3183
+    - path: src/url-import-corpus/schema.ts
+      hash: md5
+      md5: c17bdd8c5de87bc84d3fb2adcb671163
+      size: 5473
+    outs:
+    - path: outputs/url-import-corpus-replay.json
+      hash: md5
+      md5: f8a77c3020914a27a853d72849c06ad6
+      size: 3337
+  validate_url_import_corpus:
+    cmd: pnpm exec tsx src/stages/validate-url-import-corpus.ts
+    deps:
+    - path: data/url-import-corpus/v1
+      hash: md5
+      md5: 891c220f0ec60a6c778e87d4ef68e6c0.dir
+      size: 22002
+      nfiles: 11
+    - path: src/stages/validate-url-import-corpus.ts
+      hash: md5
+      md5: e8e2ce5c6991038a27b6a29e710358d2
+      size: 515
+    - path: src/url-import-corpus/corpus.ts
+      hash: md5
+      md5: 53ac5a4f2ff768cd9a6c7e76f6be14ea
+      size: 8487
+    - path: src/url-import-corpus/schema.ts
+      hash: md5
+      md5: c17bdd8c5de87bc84d3fb2adcb671163
+      size: 5473
+    outs:
+    - path: outputs/url-import-corpus-validation.json
+      hash: md5
+      md5: 9bdd228bab7847b1aeb074a46420cd33
+      size: 469

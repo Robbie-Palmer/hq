@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "recordType": "recipe-url-import-partition",
+  "corpusVersion": "1.0.0",
+  "partition": "development",
+  "sealed": false,
+  "fixtures": [
+    {
+      "id": "incomplete-defaults",
+      "sourceGroup": "synthetic-minimal-publisher",
+      "publisherProfile": "Minimal JSON-LD publisher missing optional presentation metadata",
+      "patternFamily": "incomplete-defaulted-fields",
+      "coverage": ["json-ld", "incomplete-markup"],
+      "retrieval": {
+        "sourceUrl": "https://minimal-recipes.fixtures.invalid/lemon-rice",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/development/incomplete-defaults.html",
+        "bytes": 516,
+        "sha256": "sha256:be8f72d4ad37b7c87f30d3dd2bcf209b16f31560a93f0d336bf6643d08efb551"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Lemon Rice",
+          "description": "Recipe for Lemon Rice, imported from the web.",
+          "cuisine": "",
+          "servings": 1,
+          "source": "@rice{200%g}\n@lemon{1}\n\nCook the rice.\n\nFold through the lemon juice."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    },
+    {
+      "id": "conflicting-recipes",
+      "sourceGroup": "synthetic-card-publisher",
+      "publisherProfile": "Publisher profile with stale summary JSON-LD before the complete recipe",
+      "patternFamily": "multiple-conflicting-recipes",
+      "coverage": ["json-ld", "conflicting-markup", "known-failure"],
+      "retrieval": {
+        "sourceUrl": "https://card-recipes.fixtures.invalid/roasted-tomato-soup",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/development/conflicting-recipes.html",
+        "bytes": 1386,
+        "sha256": "sha256:31a3480a92c467934ec934700ce7da2f3336867294893ca73528c4c762229e8a"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Roasted Tomato Soup",
+          "description": "The complete synthetic recipe.",
+          "cuisine": "British",
+          "servings": 4,
+          "prepTime": 10,
+          "cookTime": 35,
+          "source": "@tomatoes{800%g}\n@onion{1}\n@vegetable stock{500%ml}\n\nRoast the tomatoes and onion.\n\nBlend with the stock."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    },
+    {
+      "id": "malformed-jsonld",
+      "sourceGroup": "synthetic-broken-publisher",
+      "publisherProfile": "Publisher profile with truncated Recipe JSON-LD",
+      "patternFamily": "truncated-json-document",
+      "coverage": ["json-ld", "malformed-json-ld", "known-failure"],
+      "retrieval": {
+        "sourceUrl": "https://broken-recipes.fixtures.invalid/truncated-card",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/development/malformed-jsonld.html",
+        "bytes": 328,
+        "sha256": "sha256:b5881328810a3b6561f8b4e068f110c6265421480200970b8511cf6b0bfe42db"
+      },
+      "expected": {
+        "status": "no-recipe",
+        "reason": "malformed-json-ld"
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    }
+  ]
+}

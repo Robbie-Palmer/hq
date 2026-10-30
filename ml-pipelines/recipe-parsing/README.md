@@ -1,4 +1,4 @@
-# Recipe Parsing
+# Recipe parsing
 
 ML pipeline for parsing recipe images.
 
@@ -9,8 +9,8 @@ See the [ml-pipelines README](../README.md) for DVC setup and credentials.
 Recipe images are tracked by DVC in `data/recipe-images/`. After setting up credentials:
 
 ```bash
-mise x -- dvc pull    # download data
-mise x -- dvc push    # upload after adding new images
+mise //ml-pipelines/recipe-parsing:pull
+mise //ml-pipelines/recipe-parsing:push
 ```
 
 The parsing algorithm itself (prompts, OpenRouter calls, Cooklang handling,
@@ -19,7 +19,46 @@ in the shared [`recipe-parsing` package](../../packages/recipe-parsing/), which
 the production ingestion backend also consumes. This pipeline owns dataset
 management, stage orchestration, and evaluation.
 
-## Pipeline Stages
+## URL-import corpus
+
+`data/url-import-corpus/v1/` contains fixed HTML snapshots and reviewed ground
+truth for URL imports. Every snapshot is synthetic and licensed with this
+repository under AGPL-3.0-only. Each fixture manifest records a reserved
+`.invalid` source URL, fixed retrieval metadata, storage and evaluation rights,
+SHA-256 content hashes, expected parser fields, and review status. No task
+fetches a live recipe page.
+
+The corpus has train, development, and holdout manifests. Source groups and
+markup pattern families cannot cross partitions. Routine replay reads only the
+train and development manifests. The holdout manifest is sealed and requires
+an explicit `final-evaluation` purpose, so parser development and CI do not run
+it by accident.
+
+Validate the complete corpus and replay the development inputs:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:validate
+mise //ml-pipelines/recipe-parsing:url-import:replay
+```
+
+The matching DVC stages are `validate_url_import_corpus` and
+`replay_url_import_corpus`. The replay stage lists only train and development
+paths as dependencies. Reproduce both local stages and update `dvc.lock` with:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:repro
+```
+
+Run the holdout only after freezing a parser candidate and recording that final
+evaluation:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:replay-holdout
+```
+
+The holdout command is intentionally outside routine DVC reproduction.
+
+## Pipeline stages
 
 ### 1. Parse
 
@@ -60,7 +99,7 @@ The parse stage now runs as a staged ingestion flow:
 `predictions.json` remains a downstream-compatible derived view, not the
 canonical intermediate artifact.
 
-### 2. Evaluate Extraction
+### 2. Evaluate extraction
 
 `evaluate_extraction` compares raw parser output against `expectedExtraction` ground
 truth annotations. This measures how well the parser reads recipe images before
@@ -71,7 +110,7 @@ Outputs:
 - `outputs/extraction-metrics.json`: aggregate extraction quality metrics
 - `outputs/extraction-per-image-scores.json`: per-entry extraction scores
 
-### 3. Dataset Stats
+### 3. Dataset stats
 
 `dataset_stats` summarizes the prepared dataset for reporting through DVC
 metrics and plots.
@@ -112,7 +151,7 @@ Outputs:
 - `outputs/per-image-scores.json`: per-entry end-to-end scores
 - `outputs/per-entry-score-plot.json`: flat plot data for DVC score charts
 
-## Running the Pipeline
+## Running the pipeline
 
 Prefer DVC orchestration over manually chaining every script.
 
