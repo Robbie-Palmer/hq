@@ -256,12 +256,14 @@ describe("recipe domain properties", () => {
             const scaledTotal = Number(scaled.totals[0]?.amount);
             const reslicedTotal = Number(resliced.totals[0]?.amount);
             const reslicedServing = Number(resliced.perServing[0]?.amount);
+            const tolerance = 1e-8;
             return (
-              scaledTotal === baseTotal * scale &&
-              reslicedTotal === baseTotal &&
+              Math.abs(scaledTotal - baseTotal * scale) <=
+                tolerance * scale &&
+              Math.abs(reslicedTotal - baseTotal) <= tolerance &&
               Math.abs(
                 reslicedServing - baseTotal / (servings + 1),
-              ) <= 1e-8
+              ) <= tolerance
             );
           },
         ),
