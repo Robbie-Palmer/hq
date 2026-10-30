@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as RechartsPrimitive from "recharts";
 
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 // Context for chart configuration
 const ChartContext = React.createContext<{

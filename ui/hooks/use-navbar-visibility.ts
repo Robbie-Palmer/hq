@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMediaQuery } from "react-responsive";
-import { BREAKPOINTS } from "@/lib/generic/breakpoints";
+import { BREAKPOINTS } from "@/lib/config/breakpoints";
 
 export function useNavbarVisibility() {
   const [isVisible, setIsVisible] = useState(true);

@@ -1,13 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { normalizeSlug } from "ts-base/strings";
 import { useCooklangRecipe } from "@/hooks/use-cooklang-recipe";
 import type { ScaledRecipeParts } from "@/lib/domain/recipe/cooklangTransform";
 import type {
   IngredientGroupView,
   RecipeDetailView,
 } from "@/lib/domain/recipe/recipeViews";
-import { normalizeSlug } from "@/lib/generic/slugs";
 
 export interface UseScaledRecipeState {
   view: RecipeDetailView;

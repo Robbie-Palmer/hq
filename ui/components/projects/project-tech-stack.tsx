@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface TechStackItem {
   name: string;

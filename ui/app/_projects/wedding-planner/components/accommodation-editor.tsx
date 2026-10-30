@@ -16,6 +16,7 @@ import {
   Waypoints,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { formatMinorCurrency } from "ts-base/money";
 import { weddingRolesLabel } from "wedding-planner-domain";
 import {
   browserPlannerApplication,
@@ -69,8 +70,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatMinorCurrency } from "@/lib/generic/money";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { AccommodationInventoryEditor } from "./accommodation-inventory-editor";
 import { DataControls } from "./data-controls";
 import {

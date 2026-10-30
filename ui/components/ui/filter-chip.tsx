@@ -4,7 +4,7 @@ import type { VariantProps } from "class-variance-authority";
 import { Minus, X } from "lucide-react";
 import type * as React from "react";
 import { Badge, type badgeVariants } from "@/components/ui/badge";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface FilterChipProps
   extends Omit<React.ComponentProps<"span">, "onClick">,

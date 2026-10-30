@@ -2,7 +2,7 @@ import { ArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { posthogApplication } from "@/content/posthog";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import styles from "./posthog.module.css";
 
 export function CultureSection() {

@@ -2,7 +2,7 @@ import { Wrench } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { EquipmentMatch } from "@/lib/domain/equipment-readiness";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 export function EquipmentWarning({
   match,

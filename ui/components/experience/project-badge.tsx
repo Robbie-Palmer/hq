@@ -4,7 +4,7 @@ import Link from "next/link";
 import posthog from "posthog-js";
 import { Badge } from "@/components/ui/badge";
 import type { ProjectListItemView } from "@/lib/domain/project/projectViews";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface ProjectBadgeProps {
   project: ProjectListItemView;

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { ADR } from "@/lib/api/projects";
 import { formatADRSlugIndex, normalizeADRTitle } from "@/lib/domain/adr/adr";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface ADRPaginationProps {
   projectSlug: string;

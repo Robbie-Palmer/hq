@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 export function RecipeAvatar({
   name,

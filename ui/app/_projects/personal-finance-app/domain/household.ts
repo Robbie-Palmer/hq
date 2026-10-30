@@ -1,5 +1,5 @@
+import { normalizeSlug } from "ts-base/strings";
 import { z } from "zod";
-import { normalizeSlug } from "@/lib/generic/slugs";
 import type { AssetTrackerData } from "./assetTrackerData";
 import { capitalFlowKind } from "./capitalFlow";
 import type { ForecastAssumptionSet } from "./forecastAssumption";

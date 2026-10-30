@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { AccountPanel } from "./account-panel";
 import { AgentsPanel } from "./agents-panel";
 import { DietPanel } from "./diet-panel";

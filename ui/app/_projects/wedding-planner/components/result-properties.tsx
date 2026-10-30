@@ -1,3 +1,4 @@
+import { formatMinorCurrency } from "ts-base/money";
 import type { AccommodationSetup } from "@/app/_projects/wedding-planner/application/setup";
 import type {
   Allocation,
@@ -13,7 +14,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatMinorCurrency } from "@/lib/generic/money";
 
 function propertyDescription(
   property: Property,

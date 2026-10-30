@@ -12,7 +12,7 @@ import {
   usePrevNextButtons,
 } from "@/components/ui/carousel";
 import { defaultCarouselConfig } from "@/lib/config/carousel-config";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 export type ContentCarouselProps<T> = {
   items: T[];

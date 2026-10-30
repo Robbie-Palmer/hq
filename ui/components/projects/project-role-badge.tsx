@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import type { RoleListItemView } from "@/lib/domain/role/roleViews";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface ProjectRoleBadgeProps {
   role: RoleListItemView;

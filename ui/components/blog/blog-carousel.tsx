@@ -2,6 +2,7 @@
 
 import type { EmblaOptionsType } from "embla-carousel";
 import Link from "next/link";
+import { formatDate } from "ts-base/dates";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -13,7 +14,6 @@ import {
 import { ContentCarousel } from "@/components/ui/content-carousel";
 import type { BlogPost } from "@/lib/api/blog";
 import { defaultCarouselConfig } from "@/lib/config/carousel-config";
-import { formatDate } from "@/lib/generic/date";
 import { getImageUrl } from "@/lib/integrations/cloudflare-images";
 
 type BlogCarouselProps = {

@@ -24,9 +24,9 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, apiRequest } from "@/lib/api/http";
 import { authClient } from "@/lib/auth-client";
-import { cn } from "@/lib/generic/styles";
 import { isPreviewDeployment } from "@/lib/preview-environment";
 import { clearPrivateRecipeQueries } from "@/lib/query/recipe-query-client";
+import { cn } from "@/lib/styles";
 
 type PreviewScenario = {
   id: string;

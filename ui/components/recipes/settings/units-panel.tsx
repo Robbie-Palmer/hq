@@ -13,7 +13,7 @@ import {
   type UnitPreference,
   type UnitTier,
 } from "@/lib/domain/recipe/unit";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { PanelHead } from "./panel-head";
 
 const PRESETS: {

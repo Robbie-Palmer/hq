@@ -8,8 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import type { DietMatch } from "@/lib/domain/diet";
 import type { KitchenRecipeMatch } from "@/lib/domain/recipe/kitchen";
 import { recipePageHref } from "@/lib/domain/recipe/recipeDraft";
-import { cn } from "@/lib/generic/styles";
 import { getImageUrl } from "@/lib/integrations/cloudflare-images";
+import { cn } from "@/lib/styles";
 
 export function formatRecipeTime(
   minutes: number | null | undefined,

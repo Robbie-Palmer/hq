@@ -1,7 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import type { ADR } from "@/lib/api/projects";
 import { ADR_STATUS_CONFIG } from "@/lib/domain/adr/adr";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface ADRBadgeProps {
   status: ADR["status"];

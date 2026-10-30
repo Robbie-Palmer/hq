@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import type { CookingOutcome } from "recipe-domain/cook-log";
+import { normalizeSlug } from "ts-base/strings";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import { CookingOutcomeDialog } from "@/components/recipes/cooking-outcome-dialog";
 import { Button } from "@/components/ui/button";
@@ -39,7 +40,6 @@ import {
 import type { InstructionDisplayToken } from "@/lib/domain/recipe/instructionTokens";
 import type { IngredientGroupView } from "@/lib/domain/recipe/recipeViews";
 import type { MeasurementPreference } from "@/lib/domain/recipe/unit";
-import { normalizeSlug } from "@/lib/generic/slugs";
 
 /** An instruction token enriched with the id of its global timer (timer tokens only). */
 export type CookToken = InstructionDisplayToken & { timerId?: string };

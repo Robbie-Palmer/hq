@@ -7,7 +7,7 @@ import { useCallback, useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 interface DateRangePreset {
   label: string;

@@ -23,7 +23,7 @@ import type {
 } from "@/components/command-palette-types";
 import { Button } from "@/components/ui/button";
 import { useIsMac } from "@/hooks/use-is-mac";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 const CommandPaletteDialog = lazy(() =>
   import("./command-palette").then((module) => ({

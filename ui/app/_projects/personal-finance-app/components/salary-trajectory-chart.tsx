@@ -10,7 +10,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import {
   ChartPeakReferenceLine,
   highestFiniteValue,

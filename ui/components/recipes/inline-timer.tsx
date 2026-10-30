@@ -13,7 +13,7 @@ import {
   resumeTimer,
   startTimer,
 } from "@/lib/cooking/timerStore";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 type InlineTimerState = CookingTimerState | "idle";
 

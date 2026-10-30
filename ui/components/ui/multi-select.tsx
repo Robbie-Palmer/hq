@@ -11,7 +11,7 @@ import {
   filterStateAriaLabel,
   nextFilterState,
 } from "@/hooks/use-filter-params";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 export interface MultiSelectOption {
   value: string;

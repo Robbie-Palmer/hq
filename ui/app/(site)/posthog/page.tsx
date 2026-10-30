@@ -21,7 +21,7 @@ import {
   type PostHogApplicationLink,
   posthogApplication,
 } from "@/content/posthog";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { AgentPlatformSection } from "./agent-platform-section";
 import { CultureSection } from "./culture-section";
 import { PostHogFooterActions } from "./footer-actions";

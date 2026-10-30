@@ -3,13 +3,13 @@
 import type { EmblaOptionsType } from "embla-carousel";
 import Link from "next/link";
 import { useMemo } from "react";
+import { formatDate } from "ts-base/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ContentCarousel } from "@/components/ui/content-carousel";
 import type { ProjectADR } from "@/lib/api/projects";
 import { TechIcon } from "@/lib/api/tech-icons";
 import { defaultCarouselConfig } from "@/lib/config/carousel-config";
-import { formatDate } from "@/lib/generic/date";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { ADRBadge } from "./adr-badge";
 import { getADRCarouselTechIcons } from "./adr-carousel-tech-icons";
 

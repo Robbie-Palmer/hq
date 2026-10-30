@@ -2,7 +2,7 @@
 
 import { useNavbarVisibility } from "@/hooks/use-navbar-visibility";
 import type { TechnologyBadgeView } from "@/lib/domain/technology/technologyViews";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { TechNavContent } from "./tech-nav-content";
 
 interface TechStickySidebarProps {

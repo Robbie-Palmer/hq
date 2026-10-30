@@ -1,10 +1,10 @@
+import { formatMinorCurrency } from "ts-base/money";
 import type { AccommodationSetup } from "@/app/_projects/wedding-planner/application/setup";
 import type {
   Allocation,
   PartyName,
 } from "@/app/_projects/wedding-planner/application/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatMinorCurrency } from "@/lib/generic/money";
 import { propertyName } from "./room-data";
 
 function GuestPayments({

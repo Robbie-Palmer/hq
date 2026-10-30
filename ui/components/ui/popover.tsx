@@ -3,7 +3,7 @@
 import * as PopoverPrimitive from "@radix-ui/react-popover";
 import type * as React from "react";
 
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 function Popover({
   ...props

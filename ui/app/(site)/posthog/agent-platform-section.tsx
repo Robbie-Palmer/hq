@@ -2,7 +2,7 @@ import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { posthogApplication } from "@/content/posthog";
 import { TechIcon } from "@/lib/api/tech-icons";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import styles from "./posthog.module.css";
 
 export function AgentPlatformSection() {

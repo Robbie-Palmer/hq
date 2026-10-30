@@ -14,7 +14,7 @@ import type {
   DietPresetOption,
   DietProfile,
 } from "@/lib/api/diet";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 import { PanelHead } from "./panel-head";
 
 const INGREDIENT_RESULT_LIMIT = 8;

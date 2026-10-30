@@ -2,7 +2,7 @@
 
 import * as SliderPrimitive from "@radix-ui/react-slider";
 import type * as React from "react";
-import { cn } from "@/lib/generic/styles";
+import { cn } from "@/lib/styles";
 
 type SliderProps = React.ComponentProps<typeof SliderPrimitive.Root> &
   Readonly<{
