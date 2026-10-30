@@ -1,0 +1,112 @@
+stages:
+  build_corpus:
+    cmd: uv run --locked financial-document-idp build-corpus
+    deps:
+      - fixtures/corpus-spec.json
+      - pyproject.toml
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+      - uv.lock
+    params:
+      - corpusSpec
+      - schemaVersion
+    outs:
+      - data/corpus
+
+  file_safety_and_rendering:
+    cmd: uv run --locked financial-document-idp safety-render
+    deps:
+      - data/corpus
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+    params:
+      - fileSafety
+    outs:
+      - outputs/rendered/documents.jsonl
+      - outputs/rendered/failures.json
+      - outputs/rendered/safety-report.json
+
+  extract:
+    cmd: uv run --locked financial-document-idp extract
+    deps:
+      - models.json
+      - outputs/rendered/documents.jsonl
+      - prompts/extraction-v1.txt
+      - pyproject.toml
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+      - uv.lock
+    params:
+      - extraction
+      - modelManifest
+      - pipelineVersion
+      - prompt
+    outs:
+      - outputs/extraction/predictions.jsonl
+      - outputs/extraction/failures.json
+      - outputs/extraction/run.json
+
+  normalize:
+    cmd: uv run --locked financial-document-idp normalize
+    deps:
+      - outputs/extraction/predictions.jsonl
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+    outs:
+      - outputs/normalized/predictions.jsonl
+      - outputs/normalized/failures.json
+
+  match:
+    cmd: uv run --locked financial-document-idp match
+    deps:
+      - data/corpus
+      - outputs/normalized/predictions.jsonl
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+    outs:
+      - outputs/matching/records.jsonl
+      - outputs/matching/errors.json
+
+  evaluate:
+    cmd: uv run --locked financial-document-idp evaluate
+    deps:
+      - data/corpus/manifest.json
+      - models.json
+      - outputs/matching/records.jsonl
+      - outputs/normalized/predictions.jsonl
+      - src/financial_document_idp/io.py
+      - src/financial_document_idp/pipeline.py
+      - src/financial_document_idp/schemas.py
+    params:
+      - pipelineVersion
+      - releaseGates
+    outs:
+      - outputs/evaluation/release-decision.json
+      - outputs/evaluation/release-decision.md
+    metrics:
+      - outputs/evaluation/metrics.json
+
+  error_analysis:
+    cmd: uv run --locked financial-document-idp error-analysis
+    deps:
+      - data/corpus/manifest.json
+      - models.json
+      - outputs/evaluation/metrics.json
+      - outputs/evaluation/release-decision.json
+      - outputs/extraction/failures.json
+      - outputs/matching/errors.json
+      - outputs/normalized/failures.json
+      - outputs/rendered/failures.json
+      - prompts/extraction-v1.txt
+      - pyproject.toml
+      - src/financial_document_idp
+      - uv.lock
+    outs:
+      - outputs/error-analysis/errors.json
+      - outputs/error-analysis/provenance.json
+      - outputs/error-analysis/summary.md

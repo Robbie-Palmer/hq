@@ -1,0 +1,27 @@
+{
+  "pipelineVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "corpusSpec": "fixtures/corpus-spec.json",
+  "prompt": "prompts/extraction-v1.txt",
+  "modelManifest": "models.json",
+  "fileSafety": {
+    "maxBytes": 131072,
+    "allowedMimeTypes": ["application/pdf", "text/html", "image/x-portable-graymap"]
+  },
+  "extraction": {
+    "confidenceThreshold": 0.8,
+    "baseLatencyMs": 20,
+    "latencyMsPer100Bytes": 2,
+    "costMicrousdPer1000Characters": 40
+  },
+  "releaseGates": {
+    "minimumFieldAccuracy": 0.98,
+    "minimumRowPrecision": 0.98,
+    "minimumRowRecall": 0.98,
+    "minimumBalanceReconciliationRate": 1.0,
+    "minimumExpectedAbstentionRecall": 1.0,
+    "minimumAdversarialDefenseRate": 1.0,
+    "maximumCostUsdPerDocument": 0.0001,
+    "maximumP95LatencyMs": 40
+  }
+}

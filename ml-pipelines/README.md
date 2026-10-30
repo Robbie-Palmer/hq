@@ -8,6 +8,8 @@ Current projects:
 
 - `ai-review-evaluation`: versioned Pull Request replay corpora, controlled
   reviewer experiments, and DuckDB decision scorecards.
+- `financial-document-idp-evaluation`: synthetic financial-document extraction,
+  normalization, reconciliation, abstention, and release-gate evaluation.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text
