@@ -56,6 +56,7 @@ SELECT
   coalesce(try_cast(json_extract_string(json, '$.runCostUsd') AS DOUBLE), 0) AS run_cost_usd,
   coalesce(json_extract(json, '$.change.riskSignals'), '[]'::JSON) AS risk_signals,
   coalesce(json_extract(json, '$.change.repositoryAreas'), '[]'::JSON) AS repository_areas,
+  json_extract(json, '$.coverageManifest') AS coverage_manifest,
   CASE WHEN schema_version = 2
        THEN json_extract(json, '$.findings.published')
        ELSE json_extract(json, '$.findings.findings') END AS published_findings,
@@ -100,6 +101,98 @@ FROM (
   FROM review_run_candidates
 )
 WHERE terminal_rank = 1;
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE error('Review coverage manifests have an unknown schema or invalid path collection') END
+FROM review_runs
+WHERE coverage_manifest IS NOT NULL AND (
+  try_cast(json_extract_string(coverage_manifest, '$.schemaVersion') AS BIGINT) IS DISTINCT FROM 1
+  OR json_extract_string(coverage_manifest, '$.selectorVersion') IS NULL
+  OR json_type(coverage_manifest, '$.paths') IS DISTINCT FROM 'ARRAY'
+);
+
+CREATE TABLE review_path_fact AS
+SELECT
+  r.run_id,
+  r.repository,
+  r.pull_request_number,
+  r.head_sha,
+  r.status AS run_status,
+  cast(json_extract_string(r.coverage_manifest, '$.schemaVersion') AS BIGINT) AS manifest_schema_version,
+  json_extract_string(r.coverage_manifest, '$.selectorVersion') AS selector_version,
+  json_extract_string(p.value, '$.path') AS path,
+  json_extract_string(p.value, '$.decision') AS decision,
+  json_extract_string(p.value, '$.reasonCode') AS reason_code
+FROM review_runs r, LATERAL json_each(json_extract(r.coverage_manifest, '$.paths')) p
+WHERE r.coverage_manifest IS NOT NULL;
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE error('Review coverage paths have missing or invalid decisions') END
+FROM review_path_fact
+WHERE path IS NULL OR path = '' OR decision IS NULL OR reason_code IS NULL
+   OR decision NOT IN ('selected', 'excluded', 'completed', 'failed', 'waived')
+   OR reason_code NOT IN (
+     'default-included',
+     'forced-inclusion',
+     'configured-filename-exclusion',
+     'configured-extension-exclusion',
+     'configured-directory-exclusion',
+     'configured-vendor-exclusion',
+     'configured-generated-exclusion',
+     'review-completed',
+     'review-run-failed',
+     'review-failed-diff-unavailable',
+     'review-waived-no-semantic-change',
+     'review-waived-prior-coverage',
+     'review-waived-policy-denied',
+     'review-waived-no-model-review'
+   )
+   OR NOT (
+     (decision = 'selected' AND reason_code IN ('default-included', 'forced-inclusion'))
+     OR (decision = 'excluded' AND reason_code IN (
+       'configured-filename-exclusion',
+       'configured-extension-exclusion',
+       'configured-directory-exclusion',
+       'configured-vendor-exclusion',
+       'configured-generated-exclusion'
+     ))
+     OR (decision = 'completed' AND reason_code = 'review-completed')
+     OR (decision = 'failed' AND reason_code IN ('review-run-failed', 'review-failed-diff-unavailable'))
+     OR (decision = 'waived' AND reason_code IN (
+       'review-waived-no-semantic-change',
+       'review-waived-prior-coverage',
+       'review-waived-policy-denied',
+       'review-waived-no-model-review'
+     ))
+   );
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE error('Review coverage manifests contain duplicate paths') END
+FROM (
+  SELECT run_id, path FROM review_path_fact GROUP BY run_id, path HAVING count(*) > 1
+);
+
+SELECT CASE WHEN count(*) = 0 THEN 1 ELSE error('Review coverage manifests do not account for every changed path') END
+FROM review_runs r LEFT JOIN (
+  SELECT run_id,
+    count(*) AS manifest_path_count,
+    count(*) FILTER (WHERE decision = 'selected') AS selected_path_count,
+    count(*) FILTER (WHERE decision = 'excluded') AS excluded_path_count,
+    count(*) FILTER (WHERE decision = 'completed') AS completed_path_count,
+    count(*) FILTER (WHERE decision = 'failed') AS failed_path_count,
+    count(*) FILTER (WHERE decision = 'waived') AS waived_path_count
+  FROM review_path_fact GROUP BY run_id
+) p USING (run_id)
+WHERE r.coverage_manifest IS NOT NULL AND (
+  coalesce(p.manifest_path_count, 0) IS DISTINCT FROM r.changed_files
+  OR try_cast(json_extract_string(r.coverage_manifest, '$.summary.selected') AS BIGINT)
+     IS DISTINCT FROM coalesce(p.selected_path_count, 0)
+  OR try_cast(json_extract_string(r.coverage_manifest, '$.summary.excluded') AS BIGINT)
+     IS DISTINCT FROM coalesce(p.excluded_path_count, 0)
+  OR try_cast(json_extract_string(r.coverage_manifest, '$.summary.completed') AS BIGINT)
+     IS DISTINCT FROM coalesce(p.completed_path_count, 0)
+  OR try_cast(json_extract_string(r.coverage_manifest, '$.summary.failed') AS BIGINT)
+     IS DISTINCT FROM coalesce(p.failed_path_count, 0)
+  OR try_cast(json_extract_string(r.coverage_manifest, '$.summary.waived') AS BIGINT)
+     IS DISTINCT FROM coalesce(p.waived_path_count, 0)
+);
 
 CREATE TABLE finding_history AS
 SELECT
@@ -194,8 +287,17 @@ WITH finding_counts AS (
     count(*) FILTER (WHERE rejected) AS rejected_count,
     count(*) FILTER (WHERE no_response) AS no_response_count
   FROM finding_latest GROUP BY run_id
+), path_counts AS (
+  SELECT run_id,
+    count(*) AS manifest_path_count,
+    count(*) FILTER (WHERE decision = 'selected') AS selected_path_count,
+    count(*) FILTER (WHERE decision = 'excluded') AS excluded_path_count,
+    count(*) FILTER (WHERE decision = 'completed') AS completed_path_count,
+    count(*) FILTER (WHERE decision = 'failed') AS failed_path_count,
+    count(*) FILTER (WHERE decision = 'waived') AS waived_path_count
+  FROM review_path_fact GROUP BY run_id
 )
-SELECT r.* EXCLUDE (published_findings, models),
+SELECT r.* EXCLUDE (published_findings, models, coverage_manifest),
   r.additions + r.deletions AS change_size,
   CASE WHEN r.additions + r.deletions IS NULL THEN NULL
        WHEN r.additions + r.deletions < 50 THEN 'small'
@@ -219,8 +321,19 @@ SELECT r.* EXCLUDE (published_findings, models),
   CASE WHEN NOT r.finding_identity_available OR coalesce(f.published_count, 0) = 0 THEN NULL
        ELSE coalesce(f.rejected_count, 0)::DOUBLE / f.published_count END AS noise_rate,
   CASE WHEN NOT r.finding_identity_available OR coalesce(f.published_count, 0) = 0 THEN NULL
-       ELSE coalesce(f.no_response_count, 0)::DOUBLE / f.published_count END AS no_response_rate
-FROM review_runs r LEFT JOIN finding_counts f USING (run_id);
+       ELSE coalesce(f.no_response_count, 0)::DOUBLE / f.published_count END AS no_response_rate,
+  r.coverage_manifest IS NOT NULL AS path_manifest_available,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.manifest_path_count, 0) END AS manifest_path_count,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.selected_path_count, 0) END AS selected_path_count,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.excluded_path_count, 0) END AS excluded_path_count,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.completed_path_count, 0) END AS completed_path_count,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.failed_path_count, 0) END AS failed_path_count,
+  CASE WHEN r.coverage_manifest IS NOT NULL THEN coalesce(p.waived_path_count, 0) END AS waived_path_count,
+  CASE WHEN r.coverage_manifest IS NULL OR r.changed_files = 0 THEN NULL
+       ELSE coalesce(p.manifest_path_count, 0)::DOUBLE / r.changed_files END AS path_accounting_rate
+FROM review_runs r
+LEFT JOIN finding_counts f USING (run_id)
+LEFT JOIN path_counts p USING (run_id);
 
 CREATE TABLE model_run_fact AS
 WITH model_rows AS (
@@ -263,6 +376,16 @@ SELECT repository, pull_request_number,
   sum(no_response_finding_count) AS no_response_finding_count,
   sum(reviewed_hunks) FILTER (WHERE finding_identity_available) AS reviewed_hunks,
   sum(total_hunks) FILTER (WHERE finding_identity_available) AS total_hunks,
+  sum(manifest_path_count) FILTER (WHERE path_manifest_available) AS manifest_path_count,
+  sum(selected_path_count) FILTER (WHERE path_manifest_available) AS selected_path_count,
+  sum(excluded_path_count) FILTER (WHERE path_manifest_available) AS excluded_path_count,
+  sum(completed_path_count) FILTER (WHERE path_manifest_available) AS completed_path_count,
+  sum(failed_path_count) FILTER (WHERE path_manifest_available) AS failed_path_count,
+  sum(waived_path_count) FILTER (WHERE path_manifest_available) AS waived_path_count,
+  CASE WHEN sum(changed_files) FILTER (WHERE path_manifest_available) IS NULL
+        OR sum(changed_files) FILTER (WHERE path_manifest_available) = 0 THEN NULL
+       ELSE sum(manifest_path_count) FILTER (WHERE path_manifest_available)::DOUBLE
+            / sum(changed_files) FILTER (WHERE path_manifest_available) END AS path_accounting_rate,
   CASE WHEN sum(total_hunks) FILTER (WHERE finding_identity_available) IS NULL
         OR sum(total_hunks) FILTER (WHERE finding_identity_available) = 0 THEN NULL
        ELSE sum(reviewed_hunks) FILTER (WHERE finding_identity_available)::DOUBLE
