@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { parse } from "yaml";
 import { describe, expect, it } from "vitest";
 import { parseTemplateRegistry } from "../src/contracts.js";
 import {
@@ -21,6 +22,7 @@ const profileUrl = new URL(
   import.meta.url,
 );
 const effectiveAt = "2026-10-30T00:00:00Z";
+const repositoryRoot = new URL("../../../", import.meta.url);
 
 async function productionBlueprint() {
   const [profileSource, layout, platform, nix, opentelemetry] =
@@ -128,6 +130,9 @@ describe("Personal Finance production profile", () => {
       { id: "personal-finance-data", kind: "typescript-package" },
     ]);
     expect(
+      first.blueprint.components.find(({ id }) => id === "personal-finance"),
+    ).toMatchObject({ template_ownership: "project" });
+    expect(
       first.blueprint.selections
         .filter(({ layer }) =>
           [
@@ -202,7 +207,7 @@ describe("Personal Finance production profile", () => {
     expect(template).toMatchObject({
       id: "monorepo-project",
       source: "https://github.com/Robbie-Palmer/hq.git",
-      revision: "6d9f9044e7d74e50270f61eccc19001b54cd317a",
+      revision: "6fdbc10f6700a9a42c2288e4e301a7fd86ed3367",
     });
     expect(plan.owned_paths).toEqual([
       "infra/personal-finance",
@@ -234,5 +239,90 @@ describe("Personal Finance production profile", () => {
         .find(({ id }) => id === "web")
         ?.tasks.every(({ disposition }) => disposition === "delegated"),
     ).toBe(true);
+  });
+
+  it("renders parseable structure-only backend boundaries", async () => {
+    const componentPaths = [
+      "workers/personal-finance-api/generated-component.yaml",
+      "packages/personal-finance-contracts/generated-component.yaml",
+      "packages/personal-finance-data/generated-component.yaml",
+    ];
+    const [rolloutSource, ...componentSources] = await Promise.all([
+      readFile(
+        new URL("infra/personal-finance/generated-rollout.yaml", repositoryRoot),
+        "utf8",
+      ),
+      ...componentPaths.map((componentPath) =>
+        readFile(new URL(componentPath, repositoryRoot), "utf8"),
+      ),
+    ]);
+
+    expect(componentSources.map((source) => parse(source))).toMatchObject([
+      {
+        component: {
+          id: "personal-finance-api",
+          kind: "worker",
+          path: "workers/personal-finance-api",
+        },
+        ownership: {
+          template_files: ["generated-component.yaml", "mise.toml"],
+          product_logic: "project",
+          secrets: "external",
+        },
+      },
+      {
+        component: {
+          id: "personal-finance-contracts",
+          kind: "typescript-package",
+          path: "packages/personal-finance-contracts",
+        },
+        ownership: {
+          template_files: ["generated-component.yaml", "mise.toml"],
+          product_logic: "project",
+          secrets: "external",
+        },
+      },
+      {
+        component: {
+          id: "personal-finance-data",
+          kind: "typescript-package",
+          path: "packages/personal-finance-data",
+        },
+        ownership: {
+          template_files: ["generated-component.yaml", "mise.toml"],
+          product_logic: "project",
+          secrets: "external",
+        },
+      },
+    ]);
+    expect(parse(rolloutSource)).toMatchObject({
+      project: "project:personal-finance-app",
+      operational_checks: [
+        { id: "browser-export-recovery" },
+        { id: "compiled-provider-boundary" },
+        { id: "copier-profile-conformance" },
+      ],
+      migration_checkpoints: [
+        { id: "export-browser-state-before-import", status: "pending" },
+        {
+          id: "preserve-browser-recovery-during-dual-read",
+          status: "pending",
+        },
+        { id: "prove-relational-restore-before-cutover", status: "pending" },
+      ],
+    });
+    for (const source of [rolloutSource, ...componentSources]) {
+      expect(source.endsWith("\n")).toBe(true);
+      expect(source.endsWith("\n\n")).toBe(false);
+    }
+    await expect(
+      readFile(
+        new URL("infra/personal-finance/generated-project.tf", repositoryRoot),
+        "utf8",
+      ),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect(rolloutSource).not.toMatch(
+      /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
+    );
   });
 });

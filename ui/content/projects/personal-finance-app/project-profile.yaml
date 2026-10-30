@@ -37,6 +37,7 @@ components:
   - id: "personal-finance"
     name: "Personal Finance infrastructure"
     kind: "terraform-root"
+    template_ownership: "project"
 
 layers:
   - layer: "governance"

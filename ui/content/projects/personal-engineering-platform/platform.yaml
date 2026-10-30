@@ -53,17 +53,20 @@ catalog:
         - "personal-engineering-platform:003-terraform"
         - "personal-engineering-platform:009-infrastructure-operations"
         - "personal-engineering-platform:040-executable-project-profile"
-    - id: "system:personal-finance-app/application"
-      kind: "system"
-      name: "Personal Finance App"
-      project: "project:personal-finance-app"
+    - id: system:personal-finance-app/application
+      kind: system
+      name: Personal Finance App
+      project: project:personal-finance-app
       source_paths:
-        - "infra/personal-finance"
-        - "packages/finance-housing-indices"
-        - "packages/finance-inflation-indices"
-        - "packages/finance-tax-rules"
-        - "packages/planning-case-domain"
-        - "ui/app/_projects/personal-finance-app"
+        - infra/personal-finance
+        - packages/finance-housing-indices
+        - packages/finance-inflation-indices
+        - packages/finance-tax-rules
+        - packages/personal-finance-contracts
+        - packages/personal-finance-data
+        - packages/planning-case-domain
+        - ui/app/_projects/personal-finance-app
+        - workers/personal-finance-api
     - id: "component:personal-finance-app/finance-housing-indices"
       kind: "component"
       name: "Finance housing indices"
@@ -486,6 +489,33 @@ catalog:
       relations:
         - type: part_of
           target: system:wedding-planner/application
+    - id: component:personal-finance-app/personal-finance-api
+      kind: component
+      name: Personal Finance API
+      project: project:personal-finance-app
+      source_paths:
+        - workers/personal-finance-api
+      relations:
+        - type: part_of
+          target: system:personal-finance-app/application
+    - id: component:personal-finance-app/personal-finance-contracts
+      kind: component
+      name: Personal Finance contracts
+      project: project:personal-finance-app
+      source_paths:
+        - packages/personal-finance-contracts
+      relations:
+        - type: part_of
+          target: system:personal-finance-app/application
+    - id: component:personal-finance-app/personal-finance-data
+      kind: component
+      name: Personal Finance data boundary
+      project: project:personal-finance-app
+      source_paths:
+        - packages/personal-finance-data
+      relations:
+        - type: part_of
+          target: system:personal-finance-app/application
 layers:
   - slug: "base"
     title: "Base"
