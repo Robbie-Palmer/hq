@@ -66,6 +66,20 @@ describe("SpellcheckEditor", () => {
     expect(textFor("timer")).toBe("~rest");
     expect(textFor("quantity")).toBe("50010");
     expect(textFor("instruction")).toBe("Mix  in  and wait .");
+    const quantity = container.querySelector(
+      '[data-cooklang-token="quantity"]',
+    );
+    expect(quantity).toHaveClass(
+      "font-semibold",
+      "text-[var(--cooklang-value)]",
+    );
+    expect(quantity?.className).not.toContain("bg-");
+    expect(
+      container.querySelector('[data-cooklang-token="punctuation"]'),
+    ).toHaveClass("text-[var(--cooklang-structure)]");
+    expect(
+      container.querySelector('[data-cooklang-token="timer"]'),
+    ).not.toHaveClass("underline");
     expect(
       screen.getAllByRole("textbox", { name: "Recipe text" }),
     ).toHaveLength(1);
