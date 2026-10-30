@@ -212,7 +212,9 @@ export async function listTermReviewQueue(
         normalizedText: first.normalizedText,
         locale: first.locale,
         registryVersion,
-        rawTexts: Array.from(new Set(group.map(({ rawText }) => rawText))).sort(),
+        rawTexts: Array.from(
+          new Set(group.map(({ rawText }) => rawText)),
+        ).sort((left, right) => left.localeCompare(right)),
         submissionCount: group.reduce(
           (total, { frequency }) => total + frequency,
           0,
@@ -416,16 +418,18 @@ async function applySnapshot(
   snapshot: ResolutionSnapshot,
   registryVersion: number,
 ) {
-  for (const term of snapshot.terms) {
-    await tx
-      .update(schema.authoredTerm)
-      .set({
-        resolutionStatus: term.resolutionStatus,
-        canonicalSlug: term.canonicalSlug,
-        updatedAt: new Date(),
-      })
-      .where(eq(schema.authoredTerm.id, term.id));
-  }
+  await Promise.all(
+    snapshot.terms.map((term) =>
+      tx
+        .update(schema.authoredTerm)
+        .set({
+          resolutionStatus: term.resolutionStatus,
+          canonicalSlug: term.canonicalSlug,
+          updatedAt: new Date(),
+        })
+        .where(eq(schema.authoredTerm.id, term.id)),
+    ),
+  );
   if (snapshot.registryEntry) {
     await tx
       .insert(schema.termRegistryEntry)
@@ -544,11 +548,9 @@ function forwardPlan(
   const targetSlug = "targetSlug" in command ? command.targetSlug : null;
   const canonicalName =
     "canonicalName" in command ? command.canonicalName : null;
-  const resolutionStatus: AuthoredTermResolutionStatus = targetSlug
-    ? "resolved"
-    : command.action === "defer"
-      ? "deferred"
-      : "rejected";
+  let resolutionStatus: AuthoredTermResolutionStatus = "rejected";
+  if (targetSlug) resolutionStatus = "resolved";
+  else if (command.action === "defer") resolutionStatus = "deferred";
   return {
     desiredState: {
       terms: beforeState.terms.map(({ id }) => ({
@@ -710,9 +712,8 @@ async function createDecision(
 
 async function executeReprojection(db: Db, decisionId: string) {
   return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`select pg_advisory_xact_lock(hashtext(${`term-reprojection:${decisionId}`}))`,
-    );
+    const lockKey = `term-reprojection:${decisionId}`;
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${lockKey}))`);
     const [decision] = await tx
       .select()
       .from(schema.termResolutionDecision)
