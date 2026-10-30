@@ -4,6 +4,7 @@
  * rendered down to plain strings.
  */
 
+import { normalizeSlug } from "ts-base/strings";
 import {
   formatIngredientName,
   getDisplayedScaledAmount,
@@ -19,7 +20,6 @@ import {
   normalizeUnitToken,
   UNIT_LABELS,
 } from "@/lib/domain/recipe/unit";
-import { normalizeSlug } from "@/lib/generic/slugs";
 
 export type IngredientAnnotation = Pick<
   RecipeIngredientView,

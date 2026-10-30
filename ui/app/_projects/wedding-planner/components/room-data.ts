@@ -1,13 +1,10 @@
+import { formatMinorCurrency, parseMoneyToMinorUnits } from "ts-base/money";
 import { propertyStayPrice } from "wedding-planner-domain/accommodation";
 import {
   type AccommodationSetup,
   weddingAccommodationSetup,
 } from "@/app/_projects/wedding-planner/application/setup";
 import type { BookingParty } from "@/app/_projects/wedding-planner/application/values";
-import {
-  formatMinorCurrency,
-  parseMoneyToMinorUnits,
-} from "@/lib/generic/money";
 
 export function propertyName(
   id: string,

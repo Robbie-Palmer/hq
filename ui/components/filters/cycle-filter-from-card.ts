@@ -10,18 +10,15 @@ interface CycleFromCardArgs {
   filterParams: UseFilterParamsReturn;
   paramName: string;
   value: string;
-  /** Human-readable label used in the toast (defaults to the raw value). */
+  /** Human-readable label used in the toast. Defaults to the raw value. */
   label?: string;
-  /** Current page path, for analytics. */
+  /** Current page path for analytics. */
   page: string;
 }
 
 /**
- * Advances a filter value off → include → exclude → off from a card badge.
- *
- * Because excluding a value hides the very card that was clicked, the exclude
- * step also raises an "Undo" toast so the action stays reversible in one tap
- * without hunting for the value in the filter bar.
+ * Advances a filter value through off, include, exclude, and back to off from
+ * a card badge.
  */
 export function cycleFilterFromCard({
   filterParams,
@@ -43,10 +40,9 @@ export function cycleFilterFromCard({
   filterParams.setState(paramName, value, next);
 
   if (next === "exclude") {
-    // A stable id keeps one toast per value (the same value can appear on many
-    // cards), so a re-exclude replaces rather than stacks. The Undo restores
-    // the prior state, but only if the value is still excluded — the user may
-    // have already changed it via another surface while the toast was up.
+    // A stable id keeps one toast per value. The Undo restores the prior state
+    // only while the value is still excluded because another control may have
+    // changed it while the toast was visible.
     toast(`Excluded ${label ?? value}`, {
       id: `filter-exclude:${paramName}:${value}`,
       description: "Hidden from results.",

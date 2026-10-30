@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   recipeSaveReturnPath,
   safeRecipeReturnPath,
-} from "@/lib/generic/safe-return-path";
+} from "@/lib/domain/recipe/returnPath";
 
 const ORIGIN = "https://recipes.example.test";
 

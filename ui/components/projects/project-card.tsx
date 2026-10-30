@@ -4,6 +4,7 @@ import { ExternalLink, FileText, Github, Globe, Tag } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { useMemo } from "react";
+import { prioritiseSelected } from "ts-base/collections";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/card";
 import type { Project } from "@/lib/api/projects";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
-import { prioritiseSelected } from "@/lib/generic/array";
 import { ProjectRoleBadge } from "./project-role-badge";
 import { ProjectStatusBadge } from "./project-status-badge";
 
