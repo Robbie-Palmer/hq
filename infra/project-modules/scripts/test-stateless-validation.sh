@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-export CLOUDFLARE_API_TOKEN="test-only-placeholder"
-export DOPPLER_TOKEN="test-only-placeholder"
-export NEON_API_KEY="test-only-placeholder"
-export POSTHOG_API_KEY="test-only-placeholder"
-export TFE_TOKEN="test-only-placeholder"
+provider_placeholder="test-only-placeholder"
+export CLOUDFLARE_API_TOKEN="$provider_placeholder"
+export DOPPLER_TOKEN="$provider_placeholder"
+export NEON_API_KEY="$provider_placeholder"
+export POSTHOG_API_KEY="$provider_placeholder"
+export TFE_TOKEN="$provider_placeholder"
 
 test_root="$(mktemp -d "${TMPDIR:-/tmp}/project-module-stateless-validation.XXXXXX")"
 trap 'rm -rf "$test_root"' EXIT
