@@ -1,12 +1,13 @@
+{% set rollout = blueprint.rollout | default({"operational_checks": [], "migration_checkpoints": []}, true) -%}
 # Managed by Copier; record evidence in the project profile, not in this file.
 schema_version: 1
 project: "{{ blueprint.project.stable_id }}"
-{% if blueprint.rollout.operational_checks %}operational_checks:
-{% for check in blueprint.rollout.operational_checks %}  - id: "{{ check.id }}"
+{% if rollout.operational_checks %}operational_checks:
+{% for check in rollout.operational_checks %}  - id: "{{ check.id }}"
     command: "{{ check.command }}"
 {% endfor %}{% else %}operational_checks: []
-{% endif %}{% if blueprint.rollout.migration_checkpoints %}migration_checkpoints:
-{% for checkpoint in blueprint.rollout.migration_checkpoints %}  - id: "{{ checkpoint.id }}"
+{% endif %}{% if rollout.migration_checkpoints %}migration_checkpoints:
+{% for checkpoint in rollout.migration_checkpoints %}  - id: "{{ checkpoint.id }}"
     action: "{{ checkpoint.action }}"
     verification: "{{ checkpoint.verification }}"
     status: "{{ checkpoint.status }}"

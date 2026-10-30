@@ -93,7 +93,7 @@ const taskExceptionSchema = z
   })
   .strict();
 
-const templateOwnershipSchema = z.literal("structure-only");
+const templateOwnershipSchema = z.enum(["structure-only", "project"]);
 
 const miseCommandSchema = z
   .string()
@@ -465,7 +465,7 @@ export interface ResolvedProjectBlueprint {
     readonly kind: string;
     readonly path: string;
     readonly mount_path?: string;
-    readonly template_ownership?: "structure-only";
+    readonly template_ownership?: "structure-only" | "project";
     readonly tasks: readonly {
       readonly name: string;
       readonly disposition:
