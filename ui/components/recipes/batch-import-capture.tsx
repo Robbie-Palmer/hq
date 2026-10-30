@@ -8,6 +8,7 @@ import {
 } from "recipe-domain/batch-import";
 import type { RecipeVisibility } from "recipe-domain/visibility";
 import type { z } from "zod";
+import { PhotoBatchCapture } from "@/components/recipes/photo-batch-capture";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { apiRequest } from "@/lib/api/http";
@@ -38,6 +39,45 @@ function mixedSources(urls: string, files: CaptureSource[]): CaptureSource[] {
       .map((url) => ({ type: "url" as const, url })),
     ...files,
   ];
+}
+
+function CaptureError({ error }: Readonly<{ error: string | null }>) {
+  return error ? (
+    <p role="alert" className="my-3 text-destructive">
+      {error}
+    </p>
+  ) : null;
+}
+
+type PreparationCheck = {
+  error: string | undefined;
+  label: string;
+  position: number;
+};
+
+function PreparationChecks({
+  busy,
+  checks,
+  onStart,
+}: Readonly<{
+  busy: boolean;
+  checks: PreparationCheck[] | undefined;
+  onStart: () => void;
+}>) {
+  return checks ? (
+    <div className="my-3">
+      <ul>
+        {checks.map((check) => (
+          <li key={check.position} className="text-sm">
+            {check.label}: {check.error ?? "Ready to import"}
+          </li>
+        ))}
+      </ul>
+      <Button disabled={busy} onClick={onStart}>
+        Start batch
+      </Button>
+    </div>
+  ) : null;
 }
 
 export function BatchImportCapture({
@@ -109,11 +149,7 @@ export function BatchImportCapture({
   }
   return (
     <section>
-      {error && (
-        <p role="alert" className="my-3 text-destructive">
-          {error}
-        </p>
-      )}
+      <CaptureError error={error} />
       <details
         open={!hasBatch}
         className="my-4 rounded-lg border border-[var(--line)] p-4"
@@ -204,21 +240,18 @@ export function BatchImportCapture({
         <Button disabled={busy} onClick={() => void prepare(false)}>
           Check sources
         </Button>
-        {checks && (
-          <div className="my-3">
-            <ul>
-              {checks.map((check) => (
-                <li key={check.position} className="text-sm">
-                  {check.label}: {check.error ?? "Ready to import"}
-                </li>
-              ))}
-            </ul>
-            <Button disabled={busy} onClick={() => void prepare(true)}>
-              Start batch
-            </Button>
-          </div>
-        )}
+        <PreparationChecks
+          busy={busy}
+          checks={checks}
+          onStart={() => void prepare(true)}
+        />
       </details>
+      <PhotoBatchCapture
+        duplicatePolicy={duplicatePolicy}
+        hasBatch={hasBatch}
+        onStart={onStart}
+        visibility={visibility}
+      />
     </section>
   );
 }
