@@ -397,10 +397,10 @@ const TOKEN_CLASSES = {
   instruction: "text-[var(--ink)]",
   ingredient: "text-[var(--terracotta-deep)]",
   cookware: "text-[var(--berry)]",
-  timer: "text-[var(--cooklang-structure)]",
-  quantity: "font-semibold text-[var(--cooklang-value)]",
-  unit: "text-[var(--cooklang-structure)]",
-  punctuation: "text-[var(--cooklang-structure)]",
+  timer: "text-[var(--terracotta)]",
+  quantity: "font-semibold text-[var(--berry)]",
+  unit: "text-[var(--terracotta)]",
+  punctuation: "text-[var(--terracotta)]",
 } satisfies Record<CooklangTokenKind, string>;
 
 function HighlightSegment({

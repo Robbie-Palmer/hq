@@ -69,14 +69,11 @@ describe("SpellcheckEditor", () => {
     const quantity = container.querySelector(
       '[data-cooklang-token="quantity"]',
     );
-    expect(quantity).toHaveClass(
-      "font-semibold",
-      "text-[var(--cooklang-value)]",
-    );
+    expect(quantity).toHaveClass("font-semibold", "text-[var(--berry)]");
     expect(quantity?.className).not.toContain("bg-");
     expect(
       container.querySelector('[data-cooklang-token="punctuation"]'),
-    ).toHaveClass("text-[var(--cooklang-structure)]");
+    ).toHaveClass("text-[var(--terracotta)]");
     expect(
       container.querySelector('[data-cooklang-token="timer"]'),
     ).not.toHaveClass("underline");
