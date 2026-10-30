@@ -63,6 +63,26 @@ describe("URL-import corpus manifest", () => {
     expect(() => validateCorpus(corpus)).toThrow("byte count does not match");
   });
 
+  it("binds each catalog checksum to the manifest that validation loads", () => {
+    const corpus = copiedCorpus();
+    const catalogFile = path.join(corpus, "catalog.json");
+    const catalog = JSON.parse(fs.readFileSync(catalogFile, "utf8")) as {
+      partitions: Array<{ manifest: string; name: string }>;
+    };
+    const train = catalog.partitions.find(({ name }) => name === "train");
+    if (!train) throw new Error("train catalog entry missing");
+    train.manifest = "manifests/train-copy.json";
+    fs.copyFileSync(
+      path.join(corpus, "manifests/train.json"),
+      path.join(corpus, train.manifest),
+    );
+    fs.writeFileSync(catalogFile, `${JSON.stringify(catalog, null, 2)}\n`);
+
+    expect(() => validateCorpus(corpus)).toThrow(
+      "train catalog manifest path is unexpected",
+    );
+  });
+
   it("rejects unreviewed rights or an unsealed holdout", () => {
     const holdout = loadPartitionManifest(CORPUS_ROOT, "holdout");
     expect(() =>

@@ -3,6 +3,7 @@ stages:
     cmd: pnpm exec tsx src/stages/validate-url-import-corpus.ts
     deps:
       - data/url-import-corpus/v1
+      - src/stages/cli-arguments.ts
       - src/stages/validate-url-import-corpus.ts
       - src/url-import-corpus/corpus.ts
       - src/url-import-corpus/schema.ts
@@ -16,6 +17,7 @@ stages:
       - data/url-import-corpus/v1/manifests/development.json
       - data/url-import-corpus/v1/snapshots/train
       - data/url-import-corpus/v1/snapshots/development
+      - src/stages/cli-arguments.ts
       - src/stages/replay-url-import-corpus.ts
       - src/url-import-corpus/corpus.ts
       - src/url-import-corpus/replay.ts

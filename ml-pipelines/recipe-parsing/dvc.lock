@@ -580,14 +580,18 @@ stages:
       md5: d256463250dc7d67e5bc96dc2e27efb1.dir
       size: 2697
       nfiles: 2
+    - path: src/stages/cli-arguments.ts
+      hash: md5
+      md5: 1b7855521b953163b7e71b700c4cc9e9
+      size: 498
     - path: src/stages/replay-url-import-corpus.ts
       hash: md5
-      md5: bfe906fa3b71691d3ec0726432d0009b
-      size: 1558
+      md5: b7914fb6210ec16341493bdd264f4497
+      size: 1366
     - path: src/url-import-corpus/corpus.ts
       hash: md5
-      md5: 56d0e32a3c5f9c5ac18011fa4d7fc366
-      size: 8529
+      md5: b7891408fbeea31d81cc4f4f3bfd1752
+      size: 8860
     - path: src/url-import-corpus/replay.ts
       hash: md5
       md5: 4781e9d1ca94412a48b1462c97228075
@@ -609,14 +613,18 @@ stages:
       md5: 891c220f0ec60a6c778e87d4ef68e6c0.dir
       size: 22002
       nfiles: 11
+    - path: src/stages/cli-arguments.ts
+      hash: md5
+      md5: 1b7855521b953163b7e71b700c4cc9e9
+      size: 498
     - path: src/stages/validate-url-import-corpus.ts
       hash: md5
-      md5: e437639e7a2bca26e90d7e67d67a7491
-      size: 775
+      md5: bb3f4b3a501fa468d6e6e7e6495aa661
+      size: 662
     - path: src/url-import-corpus/corpus.ts
       hash: md5
-      md5: 56d0e32a3c5f9c5ac18011fa4d7fc366
-      size: 8529
+      md5: b7891408fbeea31d81cc4f4f3bfd1752
+      size: 8860
     - path: src/url-import-corpus/schema.ts
       hash: md5
       md5: c17bdd8c5de87bc84d3fb2adcb671163

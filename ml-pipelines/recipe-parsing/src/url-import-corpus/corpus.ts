@@ -69,12 +69,14 @@ function listSnapshotPaths(root: string): string[] {
 }
 
 function duplicateValues(
-  fixtures: CorpusFixture[],
+  partitionedFixtures: Array<{
+    fixture: CorpusFixture;
+    partition: CorpusPartition;
+  }>,
   field: "sourceGroup" | "patternFamily",
 ): string[] {
   const partitionsByValue = new Map<string, Set<CorpusPartition>>();
-  for (const fixture of fixtures) {
-    const partition = fixture.artifact.path.split("/")[1] as CorpusPartition;
+  for (const { fixture, partition } of partitionedFixtures) {
     const partitions = partitionsByValue.get(fixture[field]) ?? new Set();
     partitions.add(partition);
     partitionsByValue.set(fixture[field], partitions);
@@ -94,14 +96,17 @@ function requireUnique(values: string[], label: string): void {
 export function assertNoPartitionLeakage(
   manifests: PartitionManifest[],
 ): void {
-  const fixtures = manifests.flatMap(({ fixtures }) => fixtures);
+  const partitionedFixtures = manifests.flatMap(({ fixtures, partition }) =>
+    fixtures.map((fixture) => ({ fixture, partition })),
+  );
+  const fixtures = partitionedFixtures.map(({ fixture }) => fixture);
   requireUnique(fixtures.map(({ id }) => id), "Fixture ID");
   requireUnique(fixtures.map(({ artifact }) => artifact.path), "Artifact path");
   requireUnique(fixtures.map(({ artifact }) => artifact.sha256), "Artifact hash");
   requireUnique(fixtures.map(({ retrieval }) => retrieval.sourceUrl), "Source URL");
 
   for (const field of ["sourceGroup", "patternFamily"] as const) {
-    const duplicates = duplicateValues(fixtures, field);
+    const duplicates = duplicateValues(partitionedFixtures, field);
     if (duplicates.length > 0) {
       throw new Error(
         `${field} crosses partitions: ${duplicates.join(", ")}`,
@@ -131,6 +136,9 @@ function validateCatalogManifest(
     ({ name }) => name === manifest.partition,
   );
   if (!catalogEntry) throw new Error(`Catalog omits ${manifest.partition}`);
+  if (catalogEntry.manifest !== PARTITION_MANIFESTS[manifest.partition]) {
+    throw new Error(`${manifest.partition} catalog manifest path is unexpected`);
+  }
   const manifestFile = withinRoot(corpusRoot, catalogEntry.manifest);
   const manifestBytes = fs.readFileSync(manifestFile);
   if (sha256(manifestBytes) !== catalogEntry.sha256) {

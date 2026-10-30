@@ -37,6 +37,14 @@ describe("URL-import corpus partition isolation", () => {
     expect(() =>
       assertNoPartitionLeakage([train, development, holdout]),
     ).toThrow("sourceGroup crosses partitions");
+
+    developmentFixture.artifact.path = developmentFixture.artifact.path.replace(
+      "snapshots/development/",
+      "snapshots/train/",
+    );
+    expect(() =>
+      assertNoPartitionLeakage([train, development, holdout]),
+    ).toThrow("sourceGroup crosses partitions");
   });
 
   it("requires an explicit final-evaluation purpose for holdout", () => {

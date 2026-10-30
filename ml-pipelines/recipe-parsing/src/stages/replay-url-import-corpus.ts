@@ -6,21 +6,7 @@ import {
   CorpusPartitionSchema,
   ReplayPurposeSchema,
 } from "../url-import-corpus/schema.js";
-
-function valuesAfter(argv: string[], flag: string): string[] {
-  const values: string[] = [];
-  for (let index = 0; index < argv.length; index++) {
-    const value = argv[index + 1];
-    if (argv[index] === flag && value) {
-      values.push(value);
-    }
-  }
-  return values;
-}
-
-function valueAfter(argv: string[], flag: string): string | undefined {
-  return valuesAfter(argv, flag)[0];
-}
+import { valueAfter, valuesAfter } from "./cli-arguments.js";
 
 export async function main(argv: string[] = process.argv): Promise<void> {
   const corpusRoot = path.resolve(
@@ -42,6 +28,11 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     ...(purpose ? { purpose } : {}),
   });
   writeJson(output, report);
+  if (report.summary.failed > 0) {
+    throw new Error(
+      `URL-import replay failed: ${report.summary.failed} fixture(s)`,
+    );
+  }
 }
 
 const invokedFile = process.argv[1];
