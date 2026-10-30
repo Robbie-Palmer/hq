@@ -46,6 +46,22 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
       >/dev/null 2>&1
     rm -rf -- "${github_probe_dir}"
     trap - EXIT
+    deployment_probe_response=$(mktemp)
+    trap "rm -f -- \"${deployment_probe_response}\"" EXIT
+    if printf "{}" \
+      | gh api --include --method POST \
+        repos/Robbie-Palmer/hq/deployments --input - \
+        >"${deployment_probe_response}" 2>/dev/null; then
+      echo "The GitHub Deployments permission probe unexpectedly succeeded" >&2
+      exit 1
+    fi
+    if ! awk '\''toupper($1) ~ /^HTTP\// && $2 == "422" { found = 1 } END { exit !found }'\'' \
+      "${deployment_probe_response}"; then
+      echo "The Vector GitHub token lacks Deployments read/write permission" >&2
+      exit 1
+    fi
+    rm -f -- "${deployment_probe_response}"
+    trap - EXIT
     case "$(command -v doppler)" in
       /opt/vector/bin/doppler|/data/home/.local/share/mise/shims/doppler) ;;
       *) exit 1 ;;
@@ -87,4 +103,4 @@ kubectl --context "${context}" --namespace t3-code exec "${pod}" \
     trap - EXIT
   '
 
-echo "Vector T3 GitHub, Work Graph, and development-only Doppler access are healthy"
+echo "Vector T3 GitHub Deployments, Work Graph, and development-only Doppler access are healthy"
