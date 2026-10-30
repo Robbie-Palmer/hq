@@ -72,12 +72,21 @@ describe("URL-import corpus partition isolation", () => {
   it("keeps unresolved synthetic regressions outside gating DVC replay", () => {
     const dvc = parse(
       fs.readFileSync(path.join(PROJECT_ROOT, "dvc.yaml"), "utf8"),
-    ) as { stages: { replay_url_import_corpus: { cmd: string; deps: string[] } } };
+    ) as {
+      stages: {
+        evaluate_url_import_baseline: { cmd: string; deps: string[] };
+        replay_url_import_corpus: { cmd: string; deps: string[] };
+      };
+    };
     const replayStage = dvc.stages.replay_url_import_corpus;
+    const baselineStage = dvc.stages.evaluate_url_import_baseline;
 
     expect(replayStage.cmd).not.toContain("final-evaluation");
     expect(replayStage.deps.some((dependency) => dependency.includes("regression"))).toBe(
       false,
     );
+    expect(
+      baselineStage.deps.some((dependency) => dependency.includes("regression")),
+    ).toBe(false);
   });
 });

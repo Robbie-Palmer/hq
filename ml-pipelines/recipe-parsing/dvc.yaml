@@ -28,6 +28,27 @@ stages:
     metrics:
       - outputs/url-import-synthetic-corpus-replay.json
 
+  evaluate_url_import_baseline:
+    cmd: pnpm exec tsx src/stages/evaluate-url-import-baseline.ts
+    deps:
+      - config/url-import-deterministic-baseline.json
+      - data/url-import-corpus/synthetic/v1/manifests/train.json
+      - data/url-import-corpus/synthetic/v1/manifests/development.json
+      - data/url-import-corpus/synthetic/v1/snapshots/train
+      - data/url-import-corpus/synthetic/v1/snapshots/development
+      - src/stages/cli-arguments.ts
+      - src/stages/evaluate-url-import-baseline.ts
+      - src/url-import-baseline
+      - src/url-import-corpus/corpus.ts
+      - src/url-import-corpus/schema.ts
+      - ../../packages/recipe-parsing/src
+      - ../../packages/recipe-domain/src
+      - ../../pnpm-lock.yaml
+    metrics:
+      - outputs/url-import-deterministic-baseline.json
+      - outputs/url-import-deterministic-failures.json
+      - outputs/url-import-regression-gate.json
+
   prepare:
     cmd: pnpm exec tsx src/stages/prepare.ts
     deps:

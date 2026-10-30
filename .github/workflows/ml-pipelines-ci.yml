@@ -115,6 +115,10 @@ jobs:
         if: matrix.pipeline == 'recipe-parsing'
         run: mise :test
 
+      - name: Gate deterministic URL-import baseline
+        if: matrix.pipeline == 'recipe-parsing'
+        run: mise run //ml-pipelines/recipe-parsing:url-import:baseline
+
       - name: Check recipe dataset pipeline
         if: matrix.pipeline == 'recipe-dataset'
         run: mise run //ml-pipelines/recipe-dataset:check
