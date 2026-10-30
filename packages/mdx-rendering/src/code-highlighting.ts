@@ -1,9 +1,9 @@
-import rehypePrettyCode, { type Options } from "rehype-pretty-code";
-import { createHighlighter, type LanguageRegistration } from "shiki";
 import {
   COOKLANG_HIGHLIGHT_PATTERNS,
   type CooklangTokenKind,
-} from "@/lib/domain/recipe/cooklangHighlighting";
+} from "recipe-domain/cooklang-highlighting";
+import rehypePrettyCode, { type Options } from "rehype-pretty-code";
+import { createHighlighter, type LanguageRegistration } from "shiki";
 
 const tokenScopes = {
   ingredient: "string.quoted.other.ingredient.cooklang",

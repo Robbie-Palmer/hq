@@ -2,6 +2,11 @@
 
 import { Check, RefreshCw, SpellCheck, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CooklangToken,
+  type CooklangTokenKind,
+  tokenizeCooklang,
+} from "recipe-domain/cooklang-highlighting";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -10,11 +15,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useTypoDictionary } from "@/hooks/use-typo-dictionary";
-import {
-  type CooklangToken,
-  type CooklangTokenKind,
-  tokenizeCooklang,
-} from "@/lib/domain/recipe/cooklangHighlighting";
 import {
   applyCorrection,
   findMisspellings,

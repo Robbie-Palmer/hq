@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CooklangTokenKind,
   tokenizeCooklang,
-} from "@/lib/domain/recipe/cooklangHighlighting";
+} from "../src/cooklang-highlighting";
 
 function textByKind(source: string, kind: CooklangTokenKind) {
   return tokenizeCooklang(source)
