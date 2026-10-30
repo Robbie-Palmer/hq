@@ -5,6 +5,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronDown,
   FlaskConical,
+  ListChecks,
   LoaderCircle,
   LogIn,
   LogOut,
@@ -232,6 +233,18 @@ function AuthenticatedAccountMenu({
                 <Settings /> Settings
               </a>
             </Button>
+            {user.role === "admin" && (
+              <Button
+                variant="ghost"
+                className="w-full justify-start"
+                asChild
+                onClick={() => onOpenChange(false)}
+              >
+                <a href="/recipes/admin/terms">
+                  <ListChecks /> Review terms
+                </a>
+              </Button>
+            )}
           </div>
           <div className="border-t p-1.5">
             <Button

@@ -38,7 +38,10 @@ import {
   schema,
   withDb,
 } from "recipe-db";
-import { normalizeAuthoredTerm } from "recipe-domain/authored-term";
+import {
+  normalizeAuthoredTerm,
+  TermResolutionCommandSchema,
+} from "recipe-domain/authored-term";
 import { AutosaveBatchDraftSchema, CreateBatchSchema } from "recipe-domain/batch-import";
 import {
   COOKING_AUDIENCES,
@@ -137,6 +140,7 @@ import {
   authorizeHouseholdMembershipManagement,
   authorizeOwnerOnly,
   authorizeRecipeRead,
+  authorizeTermReview,
   forbidden,
   hasSessionSignal,
   loadBetterAuthSession,
@@ -183,6 +187,14 @@ import {
 } from "./realtime-room";
 import { readableRecipeFilter } from "./recipe-access";
 import { fetchRecipePage, RecipeUrlImportError } from "./recipe-url-import";
+import {
+  listTermResolutionAudit,
+  listTermReviewQueue,
+  resolveAuthoredTerm,
+  runTermReprojection,
+  TermResolutionConflictError,
+  TermResolutionNotFoundError,
+} from "./term-resolution";
 import {
   parseLastEventId,
   progressStreamResponse,
@@ -325,6 +337,18 @@ const pantryFreshnessSchema = z
   })
   .strict();
 const authoredTermInputSchema = z.string().trim().min(1).max(200);
+const termResolutionBodySchema = z
+  .object({
+    target: z
+      .object({
+        kind: z.enum(["ingredient", "equipment"]),
+        normalizedText: authoredTermInputSchema,
+        locale: z.string().trim().min(1).max(35),
+      })
+      .strict(),
+    command: TermResolutionCommandSchema,
+  })
+  .strict();
 const equipmentTermInputSchema = z.string().trim().min(1).max(100);
 const pantryIngredientSlugSchema = authoredTermInputSchema;
 const authoredTermCandidateSchema = z
@@ -1125,6 +1149,16 @@ export const routeMetadata = {
   "GET /api/profile/bootstrap": {},
   "PUT /api/profile/recipe-box": { requestBodySchema: recipeBoxBodySchema },
   "GET /api/profile/cooking-insights": {},
+  "GET /api/admin/term-resolutions/queue": {},
+  "GET /api/admin/term-resolutions/audit": {
+    querySchema: z.object({
+      limit: z.string().regex(/^\d+$/).max(3).optional(),
+    }),
+  },
+  "POST /api/admin/term-resolutions": {
+    requestBodySchema: termResolutionBodySchema,
+  },
+  "POST /api/admin/term-resolutions/:decisionId/reproject": {},
   "GET /api/profile/agent-mutations": {},
   "GET /api/profile/agent-mutations/:changeSetId/undo-preview": {},
   "POST /api/profile/agent-mutations/:changeSetId/undo": {
@@ -1342,6 +1376,7 @@ const UUID_PATH_PARAMETER_NAMES = new Set([
   "memberId",
   "notificationId",
   "changeSetId",
+  "decisionId",
   "batchId",
   "imageId",
 ]);
@@ -1423,6 +1458,9 @@ function securityFor(path: string): NonNullable<RouteConfig["security"]> {
   }
   if (path.startsWith("/api/auth/preview/")) {
     return [{ cloudflareAccess: [] }];
+  }
+  if (path.startsWith("/api/admin/")) {
+    return [{ adminSession: [] }];
   }
   return [{ sessionCookie: [] }];
 }
@@ -1543,6 +1581,14 @@ app.openAPIRegistry.registerComponent("securitySchemes", "sessionCookie", {
   in: "cookie",
   name: "better-auth.session_token",
   description: "Better Auth session cookie",
+});
+
+app.openAPIRegistry.registerComponent("securitySchemes", "adminSession", {
+  type: "apiKey",
+  in: "cookie",
+  name: "better-auth.session_token",
+  description:
+    "Better Auth session cookie for a user whose application role is admin",
 });
 
 app.openAPIRegistry.registerComponent("securitySchemes", "cloudflareAccess", {
@@ -4084,6 +4130,118 @@ app.on(["POST", "GET"], "/api/auth/*", async (c) => {
     await closeDbClient(client);
   }
 });
+
+function requireTermReviewerResponse(
+  c: Context<AppEnv>,
+  session: AuthenticatedSession,
+): Response | undefined {
+  const decision = authorizeTermReview(session.user);
+  return decision.allowed ? undefined : authorizationResponse(c, decision);
+}
+
+function termResolutionErrorResponse(
+  c: Context<AppEnv>,
+  error: unknown,
+): Response | undefined {
+  if (error instanceof TermResolutionConflictError) {
+    return c.json({ error: error.message }, 409);
+  }
+  if (error instanceof TermResolutionNotFoundError) {
+    return c.json({ error: error.message }, 404);
+  }
+  return undefined;
+}
+
+registerRoute("get", "/api/admin/term-resolutions/queue", (c) =>
+  withRecipeSession(
+    c,
+    "query",
+    "GET /api/admin/term-resolutions/queue failed",
+    async ({ db, session }) => {
+      const forbiddenResponse = requireTermReviewerResponse(c, session);
+      if (forbiddenResponse) return forbiddenResponse;
+      return c.json({ items: await listTermReviewQueue(db) });
+    },
+  ),
+);
+
+registerRoute("get", "/api/admin/term-resolutions/audit", (c) =>
+  withRecipeSession(
+    c,
+    "query",
+    "GET /api/admin/term-resolutions/audit failed",
+    async ({ db, session }) => {
+      const forbiddenResponse = requireTermReviewerResponse(c, session);
+      if (forbiddenResponse) return forbiddenResponse;
+      const limit = Number(c.req.query("limit") ?? "100");
+      return c.json({ items: await listTermResolutionAudit(db, limit) });
+    },
+  ),
+);
+
+registerRoute("post", "/api/admin/term-resolutions", async (c) => {
+  const csrfFailure = validateCsrf(c);
+  if (csrfFailure) return csrfFailure;
+  const body = await parseJsonBody(c, termResolutionBodySchema);
+  if (!body.success) return body.response;
+
+  return withRecipeSession(
+    c,
+    "mutation",
+    "POST /api/admin/term-resolutions failed",
+    async ({ db, session }) => {
+      const forbiddenResponse = requireTermReviewerResponse(c, session);
+      if (forbiddenResponse) return forbiddenResponse;
+      try {
+        return c.json(
+          await resolveAuthoredTerm(
+            db,
+            session.user.id,
+            body.data.target,
+            body.data.command,
+          ),
+        );
+      } catch (error) {
+        const response = termResolutionErrorResponse(c, error);
+        if (response) return response;
+        throw error;
+      }
+    },
+    { onError: (error) => termResolutionErrorResponse(c, error) },
+  );
+});
+
+registerRoute(
+  "post",
+  "/api/admin/term-resolutions/:decisionId/reproject",
+  async (c) => {
+    const csrfFailure = validateCsrf(c);
+    if (csrfFailure) return csrfFailure;
+    const decisionIdResult = z.uuid().safeParse(c.req.param("decisionId"));
+    if (!decisionIdResult.success) {
+      return c.json({ error: "Invalid decision ID" }, 400);
+    }
+    const decisionId = decisionIdResult.data;
+
+    return withRecipeSession(
+      c,
+      "mutation",
+      "POST /api/admin/term-resolutions/:decisionId/reproject failed",
+      async ({ db, session }) => {
+        const forbiddenResponse = requireTermReviewerResponse(c, session);
+        if (forbiddenResponse) return forbiddenResponse;
+        try {
+          return c.json({ reprojection: await runTermReprojection(db, decisionId) });
+        } catch (error) {
+          const response = termResolutionErrorResponse(c, error);
+          if (response) return response;
+          throw error;
+        }
+      },
+      { onError: (error) => termResolutionErrorResponse(c, error) },
+    );
+  },
+);
 
 registerRoute("get", "/api/profile/diet", async (c) => {
   return withRecipeSession(

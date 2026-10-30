@@ -87,6 +87,10 @@ function createNextConfig(phase: string): NextConfig {
                 destination: "http://localhost:8787/api/auth/:path*",
               },
               {
+                source: "/api/admin/:path*",
+                destination: "http://localhost:8787/api/admin/:path*",
+              },
+              {
                 source: "/api/profile/diet",
                 destination: "http://localhost:8787/api/profile/diet",
               },

@@ -1027,58 +1027,65 @@ const dbMock = vi.hoisted(() => {
     return undefined;
   }
 
+  function insertAuthoredTermRow(params: unknown[]): QueryRows {
+    const jsonValue = <T>(value: unknown): T =>
+      (typeof value === "string" ? JSON.parse(value) : value) as T;
+    const row: AuthoredTermRow = {
+      id: crypto.randomUUID(),
+      userId: (params[0] as string | null) ?? null,
+      organizationId: (params[1] as string | null) ?? null,
+      kind: params[2] as AuthoredTermRow["kind"],
+      rawText: params[3] as string,
+      normalizedText: params[4] as string,
+      locale: params[5] as string,
+      sourceContext: jsonValue(params[6]),
+      provenance: jsonValue(params[7]),
+      candidateMatches: jsonValue(params[8]),
+      canonicalSlug: (params[10] as string | null) ?? null,
+      frequency: 1,
+      createdAt: date,
+      lastSeenAt: params[11] as Date,
+      updatedAt: params[12] as Date,
+    };
+    const existing = state.authoredTerms.find(
+      (candidate) =>
+        candidate.userId === row.userId &&
+        candidate.organizationId === row.organizationId &&
+        candidate.kind === row.kind &&
+        candidate.normalizedText === row.normalizedText,
+    );
+    if (existing) return [];
+    state.authoredTerms.push(row);
+    return [[row.id]];
+  }
+
+  function updateAuthoredTermRow(params: unknown[]): QueryRows {
+    const normalizedText = params.at(-1) as string;
+    const kind = params.at(-2) as AuthoredTermRow["kind"];
+    const ownerId = params.at(-3) as string;
+    const row = state.authoredTerms.find(
+      (candidate) =>
+        (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
+        candidate.kind === kind &&
+        candidate.normalizedText === normalizedText,
+    );
+    if (row) {
+      row.rawText = params[0] as string;
+      row.frequency += 1;
+    }
+    return row ? [[row.id]] : [];
+  }
+
   function authoredTermRows(
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
-    const jsonValue = <T>(value: unknown): T =>
-      (typeof value === "string" ? JSON.parse(value) : value) as T;
-
+    if (query.startsWith('insert into "authored_term_observation"')) return [];
     if (query.startsWith('insert into "authored_term"')) {
-      const row: AuthoredTermRow = {
-        id: crypto.randomUUID(),
-        userId: (params[0] as string | null) ?? null,
-        organizationId: (params[1] as string | null) ?? null,
-        kind: params[2] as AuthoredTermRow["kind"],
-        rawText: params[3] as string,
-        normalizedText: params[4] as string,
-        locale: params[5] as string,
-        sourceContext: jsonValue(params[6]),
-        provenance: jsonValue(params[7]),
-        candidateMatches: jsonValue(params[8]),
-        canonicalSlug: (params[10] as string | null) ?? null,
-        frequency: 1,
-        createdAt: date,
-        lastSeenAt: params[11] as Date,
-        updatedAt: params[12] as Date,
-      };
-      const existing = state.authoredTerms.find(
-        (candidate) =>
-          candidate.userId === row.userId &&
-          candidate.organizationId === row.organizationId &&
-          candidate.kind === row.kind &&
-          candidate.normalizedText === row.normalizedText,
-      );
-      if (existing) return [];
-      state.authoredTerms.push(row);
-      return [[row.id]];
+      return insertAuthoredTermRow(params);
     }
-
     if (query.startsWith('update "authored_term"')) {
-      const normalizedText = params.at(-1) as string;
-      const kind = params.at(-2) as AuthoredTermRow["kind"];
-      const ownerId = params.at(-3) as string;
-      const row = state.authoredTerms.find(
-        (candidate) =>
-          (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
-          candidate.kind === kind &&
-          candidate.normalizedText === normalizedText,
-      );
-      if (row) {
-        row.rawText = params[0] as string;
-        row.frequency += 1;
-      }
-      return [];
+      return updateAuthoredTermRow(params);
     }
 
     if (query.includes('from "authored_term"')) {

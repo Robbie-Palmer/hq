@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { Db } from "recipe-db";
 import * as schema from "recipe-db/schema";
 import {
+  authoredTermObservationKey,
   type AuthoredTermCandidate,
   type AuthoredTermKind,
   type AuthoredTermProvenance,
@@ -98,6 +99,34 @@ function canonicalSlugForObservation(
   return slug && observation.canonicalSlugs?.has(slug) ? slug : null;
 }
 
+async function reviewedResolution(
+  db: TermDb,
+  input: { kind: AuthoredTermKind; normalizedText: string; locale: string },
+) {
+  const [entry] = await db
+    .select({
+      canonicalSlug: schema.termRegistryEntry.canonicalSlug,
+      registryVersion: schema.termRegistryEntry.registryVersion,
+    })
+    .from(schema.termRegistryEntry)
+    .where(
+      and(
+        eq(schema.termRegistryEntry.kind, input.kind),
+        eq(schema.termRegistryEntry.normalizedText, input.normalizedText),
+        eq(schema.termRegistryEntry.locale, input.locale),
+      ),
+    )
+    .limit(1);
+  if (!entry) return undefined;
+  const [revision] = await db
+    .select({ decisionId: schema.termRegistryRevision.decisionId })
+    .from(schema.termRegistryRevision)
+    .where(eq(schema.termRegistryRevision.version, entry.registryVersion))
+    .limit(1);
+  if (!revision) throw new Error("Reviewed term registry revision is missing");
+  return { ...entry, decisionId: revision.decisionId };
+}
+
 export async function observeAuthoredTerm(
   db: TermDb,
   owner: AuthoredTermOwner,
@@ -107,7 +136,13 @@ export async function observeAuthoredTerm(
   const locale = observation.locale?.trim() || "und";
   const normalizedText = normalizeAuthoredTerm(rawText, locale);
   if (!normalizedText) throw new Error("Authored term cannot be empty");
-  const canonicalSlug = canonicalSlugForObservation(observation);
+  const reviewed = await reviewedResolution(db, {
+    kind: observation.kind,
+    normalizedText,
+    locale,
+  });
+  const canonicalSlug =
+    reviewed?.canonicalSlug ?? canonicalSlugForObservation(observation);
   const now = new Date();
   const values = {
     ...ownerValues(owner),
@@ -129,8 +164,10 @@ export async function observeAuthoredTerm(
     .onConflictDoNothing()
     .returning({ id: schema.authoredTerm.id });
 
+  let termId = inserted[0]?.id;
+
   if (inserted.length === 0) {
-    await db
+    const [updated] = await db
       .update(schema.authoredTerm)
       .set({
         rawText,
@@ -150,7 +187,67 @@ export async function observeAuthoredTerm(
           eq(schema.authoredTerm.kind, observation.kind),
           eq(schema.authoredTerm.normalizedText, normalizedText),
         ),
-      );
+      )
+      .returning({ id: schema.authoredTerm.id });
+    termId = updated?.id;
+  }
+
+  if (!termId) throw new Error("Authored term upsert failed");
+
+  const observationKey = authoredTermObservationKey({
+    locale,
+    sourceContext: observation.sourceContext,
+    provenance: observation.provenance,
+  });
+  await db
+    .insert(schema.authoredTermObservation)
+    .values({
+      termId,
+      observationKey,
+      rawText,
+      locale,
+      sourceContext: observation.sourceContext,
+      provenance: observation.provenance,
+      candidateMatches: observation.candidateMatches ?? [],
+      lastSeenAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [
+        schema.authoredTermObservation.termId,
+        schema.authoredTermObservation.observationKey,
+      ],
+      set: {
+        rawText,
+        candidateMatches: observation.candidateMatches ?? [],
+        submissionCount: sql`${schema.authoredTermObservation.submissionCount} + 1`,
+        lastSeenAt: now,
+      },
+    });
+
+  if (reviewed) {
+    await db
+      .insert(schema.authoredTermProjection)
+      .values({
+        termId,
+        decisionId: reviewed.decisionId,
+        sourceKey: observationKey,
+        sourceContext: observation.sourceContext,
+        canonicalSlug: reviewed.canonicalSlug,
+        registryVersion: reviewed.registryVersion,
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.authoredTermProjection.termId,
+          schema.authoredTermProjection.sourceKey,
+        ],
+        set: {
+          decisionId: reviewed.decisionId,
+          sourceContext: observation.sourceContext,
+          canonicalSlug: reviewed.canonicalSlug,
+          registryVersion: reviewed.registryVersion,
+          projectedAt: now,
+        },
+      });
   }
 
   return {

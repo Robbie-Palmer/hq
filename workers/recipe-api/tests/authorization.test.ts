@@ -6,6 +6,7 @@ import {
   authorizeHouseholdMembershipManagement,
   authorizeOwnerOnly,
   authorizeRecipeRead,
+  authorizeTermReview,
   forbidden,
   loadBetterAuthSession,
   requireAuthorization,
@@ -112,6 +113,22 @@ describe("authorization policies", () => {
       status: 403,
       error: "Authorization required",
     });
+  });
+
+  it("keeps cross-tenant term review admin-only", () => {
+    expect(authorizeTermReview(undefined)).toEqual({
+      allowed: false,
+      status: 401,
+      error: "Authentication required",
+    });
+    expect(authorizeTermReview(ownerSession.user)).toEqual({
+      allowed: false,
+      status: 403,
+      error: "Authorization required",
+    });
+    expect(
+      authorizeTermReview({ ...ownerSession.user, role: "admin" }),
+    ).toEqual({ allowed: true });
   });
 });
 

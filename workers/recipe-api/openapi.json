@@ -17,6 +17,10 @@
   ],
   "tags": [
     {
+      "name": "admin",
+      "description": "admin operations"
+    },
+    {
       "name": "agent-auth",
       "description": "Delegated agent discovery, registration, approval, and capability execution."
     },
@@ -68,6 +72,12 @@
         "in": "cookie",
         "name": "better-auth.session_token",
         "description": "Better Auth session cookie"
+      },
+      "adminSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "better-auth.session_token",
+        "description": "Better Auth session cookie for a user whose application role is admin"
       },
       "cloudflareAccess": {
         "type": "http",
@@ -817,6 +827,963 @@
           },
           "503": {
             "description": "Agent Auth configuration unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/term-resolutions": {
+      "post": {
+        "operationId": "postApiAdminTermResolutions",
+        "summary": "POST /api/admin/term-resolutions",
+        "description": "Recipe API operation for POST /api/admin/term-resolutions.",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "ingredient",
+                          "equipment"
+                        ]
+                      },
+                      "normalizedText": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      "locale": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 35
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "normalizedText",
+                      "locale"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "command": {
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "alias"
+                            ]
+                          },
+                          "targetSlug": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action",
+                          "targetSlug"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "new_canonical"
+                            ]
+                          },
+                          "targetSlug": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "canonicalName": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action",
+                          "targetSlug",
+                          "canonicalName"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "merge"
+                            ]
+                          },
+                          "targetSlug": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action",
+                          "targetSlug"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "defer"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "reject"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action"
+                        ],
+                        "additionalProperties": false
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "idempotencyKey": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          },
+                          "rationale": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 2000
+                          },
+                          "evidence": {
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 1000
+                            },
+                            "maxItems": 20,
+                            "default": []
+                          },
+                          "expectedRegistryVersion": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 9007199254740991,
+                            "format": "int64"
+                          },
+                          "localeReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "collisionReview": {
+                            "type": "boolean",
+                            "default": false
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "reversal"
+                            ]
+                          },
+                          "reversesDecisionId": {
+                            "type": "string",
+                            "maxLength": 36,
+                            "format": "uuid"
+                          }
+                        },
+                        "required": [
+                          "idempotencyKey",
+                          "rationale",
+                          "action",
+                          "reversesDecisionId"
+                        ],
+                        "additionalProperties": false
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "target",
+                  "command"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/term-resolutions/{decisionId}/reproject": {
+      "post": {
+        "operationId": "postApiAdminTermResolutionsDecisionIdReproject",
+        "summary": "POST /api/admin/term-resolutions/:decisionId/reproject",
+        "description": "Recipe API operation for POST /api/admin/term-resolutions/:decisionId/reproject.",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "decisionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/term-resolutions/audit": {
+      "get": {
+        "operationId": "getApiAdminTermResolutionsAudit",
+        "summary": "GET /api/admin/term-resolutions/audit",
+        "description": "Recipe API operation for GET /api/admin/term-resolutions/audit.",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 3,
+              "pattern": "^\\d+$"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/term-resolutions/queue": {
+      "get": {
+        "operationId": "getApiAdminTermResolutionsQueue",
+        "summary": "GET /api/admin/term-resolutions/queue",
+        "description": "Recipe API operation for GET /api/admin/term-resolutions/queue.",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "adminSession": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
             "content": {
               "application/json": {
                 "schema": {
