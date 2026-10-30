@@ -125,6 +125,29 @@ function BatchProgress({ batch }: Readonly<{ batch: ImportBatch }>) {
   );
 }
 
+function PhotoBatchRegrouping({
+  batch,
+  resume,
+}: Readonly<{
+  batch: ImportBatch;
+  resume: (batchId: string) => Promise<void>;
+}>) {
+  if (
+    batch.kind !== "photo" ||
+    (batch.photoManifest && batch.counts.failed === 0)
+  )
+    return null;
+  return <PhotoBatchGrouping batch={batch} onConfirmed={resume} />;
+}
+
+function WorkspaceError({ error }: Readonly<{ error: string | null }>) {
+  return error ? (
+    <p role="alert" className="my-3 text-destructive">
+      {error}
+    </p>
+  ) : null;
+}
+
 export function BatchRecipeImport() {
   const { data: session, isPending } = authClient.useSession();
   const workspace = useRecipeImportBatch(session?.user.id);
@@ -152,11 +175,7 @@ export function BatchRecipeImport() {
   return (
     <main className="container mx-auto max-w-[1600px] px-4 py-6">
       <h1 className="rt-display text-4xl">Import recipes</h1>
-      {workspace.error && (
-        <p role="alert" className="my-3 text-destructive">
-          {workspace.error}
-        </p>
-      )}
+      <WorkspaceError error={workspace.error} />
       <BatchImportCapture hasBatch={Boolean(batch)} onStart={resume} />
       {batches.length > 0 && (
         <details className="my-4">
@@ -180,10 +199,7 @@ export function BatchRecipeImport() {
       {batch && (
         <>
           <BatchProgress batch={batch} />
-          {batch.kind === "photo" &&
-            (!batch.photoManifest || batch.counts.failed > 0) && (
-              <PhotoBatchGrouping batch={batch} onConfirmed={resume} />
-            )}
+          <PhotoBatchRegrouping batch={batch} resume={resume} />
           {batch.items.some((value) => value.archive) && (
             <BatchImportUndo key={batch.id} batch={batch} busy={busy} />
           )}
