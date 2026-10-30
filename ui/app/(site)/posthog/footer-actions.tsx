@@ -3,7 +3,7 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { FileText, Monitor, Smartphone, X } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 type PreviewMode = "desktop" | "mobile";
 

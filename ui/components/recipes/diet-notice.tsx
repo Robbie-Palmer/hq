@@ -2,7 +2,7 @@
 
 import { Leaf, TriangleAlert } from "lucide-react";
 import type { DietMatch } from "@/lib/domain/diet";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 function summariseDietLabels(labels: string[]): string {
   if (labels.length === 0) return "your saved exclusions";

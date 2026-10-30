@@ -3,7 +3,7 @@ import {
   INITIATIVE_STATUS_CONFIG,
   type InitiativeStatus,
 } from "@/lib/domain/initiative/initiative";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface InitiativeStatusBadgeProps {
   status: InitiativeStatus;

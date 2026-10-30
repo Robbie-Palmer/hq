@@ -25,7 +25,7 @@ import {
   type FilterState,
   filterStateAriaLabel,
 } from "@/hooks/use-filter-params";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface ActiveFilter {
   paramName: string;

@@ -4,7 +4,7 @@ import { motion } from "motion/react";
 import { type CSSProperties, useEffect, useState } from "react";
 import { useMediaQuery } from "react-responsive";
 
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface LightRaysProps extends React.HTMLAttributes<HTMLDivElement> {
   ref?: React.Ref<HTMLDivElement>;

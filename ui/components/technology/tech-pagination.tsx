@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import type { TechnologyBadgeView } from "@/lib/domain/technology/technologyViews";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface TechPaginationProps {
   prevTech?: TechnologyBadgeView;

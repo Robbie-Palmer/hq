@@ -27,7 +27,7 @@ import type {
 import { useIsMac } from "@/hooks/use-is-mac";
 import { TechIcon } from "@/lib/api/tech-icons";
 import { siteConfig } from "@/lib/config/site-config";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface NavigationItem {
   label: string;

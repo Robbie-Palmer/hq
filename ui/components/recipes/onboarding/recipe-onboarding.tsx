@@ -21,7 +21,7 @@ import type {
   DietProfile,
 } from "@/lib/api/diet";
 import type { RecipeCardView } from "@/lib/api/recipes";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 const STEPS = ["sign up", "your diet", "fill your box", "ready"];
 

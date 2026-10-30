@@ -17,7 +17,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useRef } from "react";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 import { useAssetTracker } from "./asset-tracker-provider";
 import {
   AssetTrackerLoadingState,

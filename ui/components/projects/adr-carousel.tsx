@@ -9,7 +9,7 @@ import { ContentCarousel } from "@/components/ui/content-carousel";
 import type { ProjectADR } from "@/lib/api/projects";
 import { TechIcon } from "@/lib/api/tech-icons";
 import { defaultCarouselConfig } from "@/lib/config/carousel-config";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 import { ADRBadge } from "./adr-badge";
 import { getADRCarouselTechIcons } from "./adr-carousel-tech-icons";
 

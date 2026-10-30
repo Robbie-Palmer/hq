@@ -39,7 +39,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 const LONG_PRESS_MS = 450;
 

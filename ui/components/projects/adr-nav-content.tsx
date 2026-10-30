@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useDebouncedSearchTracking } from "@/hooks/use-debounced-search-tracking";
 import type { ProjectWithADRs } from "@/lib/api/projects";
 import { formatADRSlugIndex, normalizeADRTitle } from "@/lib/domain/adr/adr";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 import { ADRBadge } from "./adr-badge";
 
 interface ADRNavContentProps {

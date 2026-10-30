@@ -70,7 +70,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 import { AccommodationInventoryEditor } from "./accommodation-inventory-editor";
 import { DataControls } from "./data-controls";
 import {

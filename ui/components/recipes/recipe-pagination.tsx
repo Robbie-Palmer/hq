@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowRight } from "lucide-react";
 import { RecipePageLink } from "@/components/recipes/recipe-page-link";
 import type { RecipeCardView } from "@/lib/api/recipes";
 import { recipePageHref } from "@/lib/domain/recipe/recipeDraft";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface RecipePaginationProps {
   prevRecipe?: RecipeCardView;

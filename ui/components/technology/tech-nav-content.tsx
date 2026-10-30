@@ -12,7 +12,7 @@ import { Separator } from "@/components/ui/separator";
 import { useDebouncedSearchTracking } from "@/hooks/use-debounced-search-tracking";
 import { getTechIconUrl } from "@/lib/api/tech-icons";
 import type { TechnologyBadgeView } from "@/lib/domain/technology/technologyViews";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface TechNavContentProps {
   technologies: TechnologyBadgeView[];

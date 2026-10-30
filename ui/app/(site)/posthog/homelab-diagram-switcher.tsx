@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 import { Mermaid } from "@/components/mermaid";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 import styles from "./posthog.module.css";
 
 interface Diagram {

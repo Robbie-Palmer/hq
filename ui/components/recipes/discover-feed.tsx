@@ -19,11 +19,11 @@ import type {
 } from "@/lib/api/discover-feed";
 import { authClient } from "@/lib/auth-client";
 import { savedRecipeCard } from "@/lib/domain/recipe/recipeDraft";
+import { cn } from "@/lib/generic/styles";
 import {
   followingDiscoverFeedQuery,
   publicDiscoverFeedQuery,
 } from "@/lib/query/discover-queries";
-import { cn } from "@/lib/styles";
 
 function authorInitials(name: string) {
   return name

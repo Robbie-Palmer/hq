@@ -1,5 +1,5 @@
 import { Check, LoaderCircle, TriangleAlert } from "lucide-react";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 export type SaveStatusState = "idle" | "saving" | "saved" | "error";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 interface OrbitingCirclesProps {
   className?: string;

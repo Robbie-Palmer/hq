@@ -15,7 +15,7 @@ import {
   findMisspellings,
   type Misspelling,
 } from "@/lib/domain/recipe/spellcheck";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 // Typography/layout classes shared by the editable textarea and the highlight
 // backdrop drawn over it. They must match exactly so highlighted ranges line up

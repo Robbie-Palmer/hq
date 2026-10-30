@@ -10,7 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { startCustomTimer } from "@/lib/cooking/timerStore";
-import { cn } from "@/lib/styles";
+import { cn } from "@/lib/generic/styles";
 
 const QUICK_MINUTES = [1, 3, 5, 10, 15] as const;
 
