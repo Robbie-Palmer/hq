@@ -7,9 +7,11 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+ATTENTION_REQUESTED_EVENT = "attention.requested"
+NOTE_CREATED_EVENT = "note.created"
 EVENT_TYPES = frozenset(
     {
-        "attention.requested",
+        ATTENTION_REQUESTED_EVENT,
         "attention.resolved",
         "dependency.added",
         "dependency.removed",
@@ -25,7 +27,7 @@ EVENT_TYPES = frozenset(
         "lease.claimed",
         "lease.ended",
         "lease.renewed",
-        "note.created",
+        NOTE_CREATED_EVENT,
         "work_item.created",
         "work_item.decomposed",
         "work_item.expedited",
@@ -188,35 +190,55 @@ def _verified_bytes(root: Path, descriptor: Descriptor) -> bytes:
     return body
 
 
+def _attention_request_fields(data: dict[str, Any], label: str) -> set[str]:
+    _string(data.get("attentionRequestId"), f"{label}.attentionRequestId")
+    if data.get("kind") not in ATTENTION_KINDS or not isinstance(data.get("blocking"), bool):
+        raise DatasetError(f"{label} has an invalid attention request")
+    return {"attentionRequestId", "kind", "blocking"}
+
+
+def _lease_fields(data: dict[str, Any], label: str) -> set[str]:
+    _string(data.get("leaseId"), f"{label}.leaseId")
+    _timestamp(data.get("expiresAt"), f"{label}.expiresAt")
+    return {"leaseId", "expiresAt"}
+
+
+def _ended_lease_fields(data: dict[str, Any], label: str) -> set[str]:
+    _string(data.get("leaseId"), f"{label}.leaseId")
+    if data.get("outcome") not in LEASE_OUTCOMES:
+        raise DatasetError(f"{label}.outcome is invalid")
+    return {"leaseId", "outcome"}
+
+
+def _note_fields(data: dict[str, Any], label: str) -> set[str]:
+    lease_id = data.get("leaseId")
+    if lease_id is not None and (not isinstance(lease_id, str) or not lease_id):
+        raise DatasetError(f"{label}.leaseId is invalid")
+    if data.get("kind") not in {"work", "post_release"}:
+        raise DatasetError(f"{label}.kind is invalid")
+    return {"leaseId", "kind"}
+
+
+def _event_fields(event_type: str, data: dict[str, Any], label: str) -> set[str]:
+    match event_type:
+        case "attention.requested":
+            return _attention_request_fields(data, label)
+        case "attention.resolved":
+            _string(data.get("attentionRequestId"), f"{label}.attentionRequestId")
+            return {"attentionRequestId"}
+        case "lease.claimed" | "lease.renewed":
+            return _lease_fields(data, label)
+        case "lease.ended":
+            return _ended_lease_fields(data, label)
+        case "note.created":
+            return _note_fields(data, label)
+        case _:
+            return set()
+
+
 def _event_data(event_type: str, value: Any, label: str) -> dict[str, Any]:
     data = _object(value, label)
-    expected: set[str]
-    if event_type == "attention.requested":
-        expected = {"attentionRequestId", "kind", "blocking"}
-        _string(data.get("attentionRequestId"), f"{label}.attentionRequestId")
-        if data.get("kind") not in ATTENTION_KINDS or not isinstance(data.get("blocking"), bool):
-            raise DatasetError(f"{label} has an invalid attention request")
-    elif event_type == "attention.resolved":
-        expected = {"attentionRequestId"}
-        _string(data.get("attentionRequestId"), f"{label}.attentionRequestId")
-    elif event_type in {"lease.claimed", "lease.renewed"}:
-        expected = {"leaseId", "expiresAt"}
-        _string(data.get("leaseId"), f"{label}.leaseId")
-        _timestamp(data.get("expiresAt"), f"{label}.expiresAt")
-    elif event_type == "lease.ended":
-        expected = {"leaseId", "outcome"}
-        _string(data.get("leaseId"), f"{label}.leaseId")
-        if data.get("outcome") not in LEASE_OUTCOMES:
-            raise DatasetError(f"{label}.outcome is invalid")
-    elif event_type == "note.created":
-        expected = {"leaseId", "kind"}
-        lease_id = data.get("leaseId")
-        if lease_id is not None and (not isinstance(lease_id, str) or not lease_id):
-            raise DatasetError(f"{label}.leaseId is invalid")
-        if data.get("kind") not in {"work", "post_release"}:
-            raise DatasetError(f"{label}.kind is invalid")
-    else:
-        expected = set()
+    expected = _event_fields(event_type, data, label)
     _exact_keys(data, expected, label)
     return data
 
@@ -252,12 +274,14 @@ def _events(root: Path, manifest: Manifest) -> list[dict[str, Any]]:
                 "work_item_id": work_item_id,
                 "occurred_at": occurred_at,
                 "attention_request_id": data.get("attentionRequestId"),
-                "attention_kind": data.get("kind") if event_type == "attention.requested" else None,
+                "attention_kind": data.get("kind")
+                if event_type == ATTENTION_REQUESTED_EVENT
+                else None,
                 "blocking": data.get("blocking"),
                 "lease_id": data.get("leaseId"),
                 "lease_expires_at": data.get("expiresAt"),
                 "lease_outcome": data.get("outcome"),
-                "note_kind": data.get("kind") if event_type == "note.created" else None,
+                "note_kind": data.get("kind") if event_type == NOTE_CREATED_EVENT else None,
                 "manifest_key": manifest.key,
                 "source_upper_watermark": manifest.source_upper_watermark,
             }
