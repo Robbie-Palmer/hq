@@ -26,9 +26,9 @@ type MdxJsxNode = {
 
 function attributeExpression(value: string): string {
   const expression = value.trim();
-  const templateLiteral = expression.match(/^`([\s\S]*)`$/);
+  const templateLiteral = /^`([\s\S]*)`$/.exec(expression);
   if (templateLiteral?.[1] !== undefined) return templateLiteral[1];
-  const stringLiteral = expression.match(/^(["'])([\s\S]*)\1$/);
+  const stringLiteral = /^(["'])([\s\S]*)\1$/.exec(expression);
   return stringLiteral?.[2] ?? expression;
 }
 
@@ -169,7 +169,7 @@ export interface AgentMarkdownPageHelpers {
 
 function removeTrailingSlashes(value: string): string {
   let end = value.length;
-  while (end > 0 && value.charCodeAt(end - 1) === 47) end -= 1;
+  while (end > 0 && value.codePointAt(end - 1) === 47) end -= 1;
   return value.slice(0, end);
 }
 
