@@ -1,0 +1,5 @@
+{"data":{"attentionRequestId":"request-a2"},"occurredAt":"2026-10-01T02:30:00.000Z","schemaVersion":1,"sequence":10,"type":"attention.resolved","workItemId":"ticket-a"}
+{"data":{"attentionRequestId":"request-e1","blocking":true,"kind":"review"},"occurredAt":"2026-10-01T00:30:00.000Z","schemaVersion":1,"sequence":11,"type":"attention.requested","workItemId":"ticket-e"}
+{"data":{"attentionRequestId":"request-e1"},"occurredAt":"2026-10-01T01:30:00.000Z","schemaVersion":1,"sequence":12,"type":"attention.resolved","workItemId":"ticket-e"}
+{"data":{"expiresAt":"2026-10-01T01:00:00.000Z","leaseId":"lease-d"},"occurredAt":"2026-10-01T00:00:00.000Z","schemaVersion":1,"sequence":13,"type":"lease.claimed","workItemId":"ticket-d"}
+{"data":{},"occurredAt":"2026-10-01T03:00:00.000Z","schemaVersion":1,"sequence":14,"type":"work_item.created","workItemId":"ticket-e"}
