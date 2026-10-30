@@ -20,6 +20,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 const chartConfig = {
   estimate: {
@@ -31,12 +32,6 @@ const chartConfig = {
     color: "hsl(150, 55%, 42%)",
   },
 } satisfies ChartConfig;
-
-const valuationLabels = {
-  "purchase-price": "Purchase price",
-  "formal-valuation": "Formal valuation",
-  "manual-valuation": "Manual valuation",
-} as const;
 
 type ChartPoint = {
   date: string;
@@ -87,6 +82,18 @@ export function PropertyValueHistory({
     (estimate) => estimate.kind === "index-estimate",
   );
   const latestEstimate = availableEstimates.at(-1);
+  const latestHousingValue =
+    latestEstimate == null
+      ? undefined
+      : history.housingValues.find(
+          ({ id }) => id === `index-estimate:${latestEstimate.date}`,
+        );
+  const recordedHousingValues = history.housingValues.filter(
+    ({ kind }) =>
+      kind === "recorded-purchase" ||
+      kind === "recorded-valuation" ||
+      kind === "manual-override",
+  );
   const unavailablePeriods = history.estimates.filter(
     (estimate) => estimate.kind === "index-unavailable",
   );
@@ -104,16 +111,11 @@ export function PropertyValueHistory({
         Purchase prices and valuations stay recorded separately from the index
         estimate.
       </p>
-      {latestEstimate && (
-        <p className="mt-3 text-sm">
-          <span className="text-muted-foreground">Latest index estimate</span>{" "}
-          <span className="font-semibold">
-            {formatAccountCurrency(latestEstimate.value, "GBP")}
-          </span>{" "}
-          <span className="text-xs text-muted-foreground">
-            at {latestEstimate.date}
-          </span>
-        </p>
+      {latestHousingValue && (
+        <div className="mt-3">
+          <p className="mb-2 text-xs font-medium">Latest index estimate</p>
+          <HousingValueDisclosure value={latestHousingValue} compact />
+        </div>
       )}
 
       <ChartContainer
@@ -190,24 +192,14 @@ export function PropertyValueHistory({
         </table>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <div className="mt-3 grid gap-3">
         <div>
           <p className="text-xs font-medium">Recorded valuations</p>
-          <ul className="mt-1 space-y-1 text-xs">
-            {history.recordedValuations.map((valuation) => (
-              <li
-                key={valuation.id}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="text-muted-foreground">
-                  {valuationLabels[valuation.kind]} · {valuation.date}
-                </span>
-                <span className="font-mono">
-                  {formatAccountCurrency(valuation.value, valuation.currency)}
-                </span>
-              </li>
+          <div className="mt-2 grid gap-2">
+            {recordedHousingValues.map((value) => (
+              <HousingValueDisclosure key={value.id} value={value} compact />
             ))}
-          </ul>
+          </div>
         </div>
         <div>
           <p className="text-xs font-medium">Selected index series</p>
@@ -218,6 +210,11 @@ export function PropertyValueHistory({
             {history.calculation.dataset.provider} · release{" "}
             {history.calculation.dataset.releasePeriod} · dataset{" "}
             {history.calculation.dataset.versionId}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Published {history.calculation.dataset.publishedAt} · retrieved{" "}
+            {history.calculation.dataset.retrievedAt.slice(0, 10)} · geography{" "}
+            {history.calculation.series.geographyName}
           </p>
         </div>
       </div>

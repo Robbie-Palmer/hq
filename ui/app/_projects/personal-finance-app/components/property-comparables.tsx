@@ -7,6 +7,7 @@ import type {
 } from "@/app/_projects/personal-finance-app/domain";
 import { formatAccountCurrency } from "@/app/_projects/personal-finance-app/lib";
 import { Badge } from "@/components/ui/badge";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 const propertyTypeLabels = {
   all: "All property types",
@@ -106,6 +107,7 @@ function ComparableEvidence({
         >
           {view.evidence.provider} {view.evidence.dataset}
         </a>
+        {" · "}published {formatDate(view.evidence.publishedAt)}
         {" · "}retrieved {formatDate(view.evidence.retrievedAt)}
         {" · "}dataset {view.evidence.versionId}
       </p>
@@ -143,13 +145,8 @@ function MarketTrendStatistics({
   trend,
 }: Readonly<{ trend: ReadyMarketTrend }>) {
   return (
-    <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-      <div>
-        <p className="text-xs text-muted-foreground">Average price</p>
-        <p className="font-medium">
-          {formatAccountCurrency(trend.averagePrice, "GBP")}
-        </p>
-      </div>
+    <div className="mt-3 grid gap-3 text-sm">
+      <HousingValueDisclosure value={trend.housingValue} compact />
       {trend.annualChangePercent != null && (
         <div>
           <p className="text-xs text-muted-foreground">Annual change</p>
@@ -159,7 +156,7 @@ function MarketTrendStatistics({
         </div>
       )}
       {trend.reportedSalesVolume != null && (
-        <div className="col-span-2">
+        <div>
           <p className="text-xs text-muted-foreground">Reported sales</p>
           <p className="font-medium">
             {trend.reportedSalesVolume.count.toLocaleString("en-GB")} in{" "}
@@ -232,20 +229,27 @@ function UnsupportedComparableEvidence({
 }: Readonly<{
   view: Extract<PropertyComparableView, { status: "unsupported-region" }>;
 }>) {
+  const geography =
+    view.nation === "northern-ireland" ? "Northern Ireland" : "Scotland";
   return (
-    <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
-      Comparable-sale source{" "}
-      <a
-        className="underline underline-offset-2"
-        href={view.evidence.pageUrl}
-        rel="noreferrer"
-        target="_blank"
-      >
-        {view.evidence.provider} {view.evidence.dataset}
-      </a>
-      {" · "}England and Wales coverage · retrieved{" "}
-      {formatDate(view.evidence.retrievedAt)}
-    </p>
+    <div className="mt-3 space-y-1 border-t pt-3 text-xs text-muted-foreground">
+      <p>Geography {geography} · nation · unsupported by this source</p>
+      <p>
+        Source kind Official completed-sale record ·{" "}
+        <a
+          className="underline underline-offset-2"
+          href={view.evidence.pageUrl}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {view.evidence.provider} {view.evidence.dataset}
+        </a>
+      </p>
+      <p>
+        England and Wales coverage · retrieved{" "}
+        {formatDate(view.evidence.retrievedAt)}
+      </p>
+    </div>
   );
 }
 
@@ -257,7 +261,7 @@ function ComparableSalesTable({
   return (
     <div className="mt-4 overflow-x-auto rounded-md border">
       <table
-        className="w-full min-w-[640px] text-sm"
+        className="w-full min-w-[760px] text-sm"
         aria-label="Recent completed-sale comparables"
       >
         <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
@@ -266,6 +270,7 @@ function ComparableSalesTable({
             <th className="px-3 py-2 font-medium">Completed</th>
             <th className="px-3 py-2 font-medium">Property</th>
             <th className="px-3 py-2 font-medium">Location</th>
+            <th className="px-3 py-2 font-medium">Evidence</th>
           </tr>
         </thead>
         <tbody>
@@ -289,6 +294,29 @@ function ComparableSalesTable({
                 <span className="block text-xs text-muted-foreground">
                   {sale.location.townCity} · full postcode
                 </span>
+              </td>
+              <td className="px-3 py-3 text-xs text-muted-foreground">
+                <span className="font-medium text-foreground">
+                  Completed sale
+                </span>
+                <span className="block">
+                  Official completed-sale record ·{" "}
+                  {sale.housingValue.source.name}
+                </span>
+                <span className="block">
+                  Retrieved {sale.housingValue.source.date}
+                </span>
+                {sale.housingValue.dataStatus === "revised" && (
+                  <Badge variant="outline" className="mt-1">
+                    Revised
+                  </Badge>
+                )}
+                <details className="mt-1">
+                  <summary className="cursor-pointer font-medium text-foreground">
+                    Why this number is shown
+                  </summary>
+                  <p className="mt-1">{sale.housingValue.explanation}</p>
+                </details>
               </td>
             </tr>
           ))}

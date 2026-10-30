@@ -20,6 +20,7 @@ export const HousePriceIndexObservationSchema = z.object({
   salesVolume: z.number().int().nonnegative().optional(),
   index: z.number().positive(),
   provisional: z.boolean(),
+  revisionStatus: z.literal("revised").optional(),
 });
 export type HousePriceIndexObservation = z.infer<
   typeof HousePriceIndexObservationSchema

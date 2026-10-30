@@ -4,3 +4,4 @@ export * from "./marketTrend";
 export * from "./propertyHistory";
 export * from "./pricePaidSchema";
 export * from "./schema";
+export * from "./valueConfidence";

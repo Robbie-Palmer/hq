@@ -29,6 +29,26 @@ estimate on the same date as a surveyor valuation does not replace the recorded
 valuation. A later feature can choose which one to display without losing the
 underlying fact.
 
+## Value provenance and confidence
+
+`HousingValueSchema` is the display contract for a housing amount. Every value
+records its as-of date, evidence kind and name, publication or retrieval date,
+and geography. Recorded purchases, professional valuations, index estimates,
+regional statistics, completed sales, asking prices, manual overrides, and
+future scenarios remain separate kinds. The schema rejects a kind paired with
+the wrong source, such as an asking price labelled as a completed-sale record.
+
+Index estimates require an indicative range and a written rule. The current
+property history uses a configured percentage around the point estimate. The
+range describes model uncertainty and is not a statistical guarantee. The
+display contract also records provisional or revised observations, configured
+fallbacks, and a deterministic freshness policy. `isHousingValueStale`
+compares the value's as-of date with the policy's assessment date.
+
+Unsupported regions use an explicit availability state.
+`UnsupportedHousingRegionSchema` records the geography, attempted source,
+retrieval date, and coverage explanation.
+
 The current source registry points at HM Land Registry's versioned July 2026
 full CSV and its GOV.UK data page. Update both URLs and the publication metadata
 together for each import. Keep upstream CSV files in object storage. Git

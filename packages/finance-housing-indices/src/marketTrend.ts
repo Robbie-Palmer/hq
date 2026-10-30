@@ -1,11 +1,15 @@
 import { z } from "zod";
-import { HousePriceIndexSeriesCandidateSchema } from "./propertyHistory";
+import {
+  type HousePriceIndexSeriesCandidate,
+  HousePriceIndexSeriesCandidateSchema,
+} from "./propertyHistory";
 import {
   type HousePriceIndexObservation,
   type HousePriceIndexRelease,
   HousePriceIndexReleaseSchema,
   type HousePropertyType,
 } from "./schema";
+import { type HousingValue, HousingValueSchema } from "./valueConfidence";
 
 export const HousePriceMarketTrendQuerySchema = z.object({
   nation: z.literal("northern-ireland"),
@@ -29,6 +33,7 @@ export type HousePriceMarketTrend = {
   index: number;
   annualChangePercent?: number;
   provisional: boolean;
+  housingValue: HousingValue;
   reportedSalesVolume?: {
     count: number;
     period: string;
@@ -56,6 +61,15 @@ function previousYear(period: string): string {
   return `${Number(period.slice(0, 4)) - 1}${period.slice(4)}`;
 }
 
+function periodEndDate(period: string): string {
+  const [year, month] = period.split("-").map(Number);
+  const day = new Date(Date.UTC(year ?? 0, month ?? 0, 0))
+    .getUTCDate()
+    .toString()
+    .padStart(2, "0");
+  return `${period}-${day}`;
+}
+
 function latestQuarter(
   release: HousePriceIndexRelease,
   geographyCode: string,
@@ -67,6 +81,108 @@ function latestQuarter(
         observation.geographyCode === geographyCode &&
         observation.propertyType === propertyType &&
         observation.averagePrice != null &&
+        isQuarterEnd(observation.period),
+    )
+    .toSorted((left, right) => right.period.localeCompare(left.period))[0];
+}
+
+function isFallbackSeries(
+  position: number,
+  candidate: HousePriceIndexSeriesCandidate,
+): boolean {
+  return (
+    position > 0 ||
+    candidate.geographyMatch !== "exact" ||
+    candidate.propertyTypeMatch !== "exact"
+  );
+}
+
+function observationStatus(
+  observation: HousePriceIndexObservation,
+): "final" | "provisional" | "revised" {
+  if (observation.provisional) return "provisional";
+  return observation.revisionStatus === "revised" ? "revised" : "final";
+}
+
+function revisionNote(status: "final" | "provisional" | "revised"):
+  | string
+  | undefined {
+  if (status === "provisional") {
+    return "The latest Northern Ireland HPI figure is provisional and may be revised.";
+  }
+  if (status === "revised") {
+    return "The official source revised this observation after its first publication.";
+  }
+  return undefined;
+}
+
+function marketTrendHousingValue(
+  release: HousePriceIndexRelease,
+  candidate: HousePriceIndexSeriesCandidate,
+  latest: HousePriceIndexObservation & { averagePrice: number },
+  fallback: boolean,
+): HousingValue {
+  const dataStatus = observationStatus(latest);
+  const note = revisionNote(dataStatus);
+  const precision =
+    candidate.geographyMatch === "national"
+      ? "nation"
+      : candidate.geographyMatch === "broader"
+        ? "region"
+        : "local-authority";
+  return HousingValueSchema.parse({
+    id: `regional-index-statistic:${latest.geographyCode}:${latest.propertyType}:${latest.period}`,
+    kind: "regional-index-statistic",
+    amount: latest.averagePrice,
+    currency: "GBP",
+    asOf: periodEndDate(latest.period),
+    source: {
+      kind: "official-index",
+      name: "Land & Property Services / NISRA Northern Ireland House Price Index",
+      date: release.source.publishedAt,
+      dateKind: "published",
+      geography: {
+        name: latest.geographyName,
+        code: latest.geographyCode,
+        precision,
+      },
+    },
+    dataStatus,
+    ...(note == null ? {} : { revisionNote: note }),
+    uncertainty: {
+      kind: "point",
+      explanation:
+        "This is an official average for an area and property type, not an estimate for an individual home.",
+    },
+    ...(fallback
+      ? {
+          fallback: {
+            used: true,
+            explanation:
+              "The requested series was unavailable, so the configured broader series was used.",
+          },
+        }
+      : {}),
+    explanation:
+      "This area statistic describes the market. It does not identify individual properties or replace comparable sales.",
+    freshness: {
+      assessedAt: release.source.retrievedAt.slice(0, 10),
+      staleAfterDays: 180,
+    },
+  });
+}
+
+function reportedSalesVolume(
+  release: HousePriceIndexRelease,
+  latest: HousePriceIndexObservation,
+): HousePriceIndexObservation | undefined {
+  return release.observations
+    .filter(
+      (observation) =>
+        observation.geographyCode === latest.geographyCode &&
+        observation.propertyType === "all" &&
+        observation.period <= latest.period &&
+        observation.salesVolume != null &&
         isQuarterEnd(observation.period),
     )
     .toSorted((left, right) => right.period.localeCompare(left.period))[0];
@@ -93,16 +209,14 @@ export function findNorthernIrelandMarketTrend(
         observation.propertyType === latest.propertyType &&
         observation.period === previousYear(latest.period),
     );
-    const reportedVolume = release.observations
-      .filter(
-        (observation) =>
-          observation.geographyCode === latest.geographyCode &&
-          observation.propertyType === "all" &&
-          observation.period <= latest.period &&
-          observation.salesVolume != null &&
-          isQuarterEnd(observation.period),
-      )
-      .toSorted((left, right) => right.period.localeCompare(left.period))[0];
+    const reportedVolume = reportedSalesVolume(release, latest);
+    const fallback = isFallbackSeries(position, candidate);
+    const housingValue = marketTrendHousingValue(
+      release,
+      candidate,
+      { ...latest, averagePrice: latest.averagePrice },
+      fallback,
+    );
 
     return {
       nation: query.nation,
@@ -112,10 +226,7 @@ export function findNorthernIrelandMarketTrend(
       geographyMatch: candidate.geographyMatch,
       propertyType: latest.propertyType,
       propertyTypeMatch: candidate.propertyTypeMatch,
-      fallback:
-        position > 0 ||
-        candidate.geographyMatch !== "exact" ||
-        candidate.propertyTypeMatch !== "exact",
+      fallback,
       period: latest.period,
       averagePrice: latest.averagePrice,
       index: latest.index,
@@ -126,6 +237,7 @@ export function findNorthernIrelandMarketTrend(
               (latest.index / yearEarlier.index - 1) * 100,
           }),
       provisional: latest.provisional,
+      housingValue,
       ...(reportedVolume?.salesVolume == null
         ? {}
         : {

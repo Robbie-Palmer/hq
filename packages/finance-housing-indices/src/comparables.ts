@@ -10,6 +10,7 @@ import {
   PricePaidTenureSchema,
   type PricePaidTransaction,
 } from "./pricePaidSchema";
+import { type HousingValue, HousingValueSchema } from "./valueConfidence";
 
 export const UkNationSchema = z.enum([
   "england",
@@ -67,6 +68,7 @@ export type ComparableSale = Pick<
     county?: string;
     precision: "full-postcode";
   };
+  housingValue: HousingValue;
 };
 
 export type ComparableSalesEvidence = {
@@ -74,6 +76,7 @@ export type ComparableSalesEvidence = {
   provider: "HM Land Registry";
   dataset: "Price Paid Data";
   pageUrl: string;
+  publishedAt: string;
   retrievedAt: string;
   observedThrough: string;
   latestCompleteMonth: string;
@@ -125,6 +128,7 @@ function evidenceFor(release: PricePaidRelease): ComparableSalesEvidence {
     provider: release.source.provider,
     dataset: release.source.dataset,
     pageUrl: release.source.pageUrl,
+    publishedAt: release.source.publishedAt,
     retrievedAt: release.source.retrievedAt,
     observedThrough: release.source.observedThrough,
     latestCompleteMonth: release.source.latestCompleteMonth,
@@ -163,12 +167,51 @@ function matchesNewBuild(
   return true;
 }
 
-function comparableSale(transaction: PricePaidTransaction): ComparableSale {
+function comparableSale(
+  transaction: PricePaidTransaction,
+  release: PricePaidRelease,
+): ComparableSale {
   if (transaction.postcode == null) {
     throw new Error(
       `Matched Price Paid Data transaction ${transaction.transactionId} has no postcode`,
     );
   }
+  const housingValue = HousingValueSchema.parse({
+    id: `completed-sale:${transaction.transactionId}`,
+    kind: "completed-sale",
+    amount: transaction.price,
+    currency: "GBP",
+    asOf: transaction.completionDate,
+    source: {
+      kind: "official-completed-sale",
+      name: `${release.source.provider} ${release.source.dataset}`,
+      date: release.source.retrievedAt.slice(0, 10),
+      dateKind: "retrieved",
+      geography: {
+        name: `${transaction.postcode}, ${transaction.townCity}`,
+        code: transaction.postcode,
+        precision: "full-postcode",
+      },
+    },
+    dataStatus: transaction.recordStatus === "changed" ? "revised" : "final",
+    ...(transaction.recordStatus === "changed"
+      ? {
+          revisionNote:
+            "HM Land Registry marked this completed-sale record as changed.",
+        }
+      : {}),
+    uncertainty: {
+      kind: "point",
+      explanation:
+        "This is the registered consideration for one completed transaction, not a valuation of another property.",
+    },
+    explanation:
+      "A completed sale is transaction evidence. It does not state the current value of the subject property.",
+    freshness: {
+      assessedAt: release.source.retrievedAt.slice(0, 10),
+      staleAfterDays: 730,
+    },
+  });
   return {
     transactionId: transaction.transactionId,
     price: transaction.price,
@@ -185,6 +228,7 @@ function comparableSale(transaction: PricePaidTransaction): ComparableSale {
       ...(transaction.county == null ? {} : { county: transaction.county }),
       precision: "full-postcode",
     },
+    housingValue,
   };
 }
 
@@ -225,7 +269,7 @@ export function findComparableSales(
       ),
     )
     .slice(0, query.maxResults)
-    .map(comparableSale);
+    .map((transaction) => comparableSale(transaction, release));
   if (sales.length === 0) {
     return {
       status: "empty",

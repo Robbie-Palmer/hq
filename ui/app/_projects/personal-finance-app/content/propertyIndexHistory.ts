@@ -66,7 +66,25 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
           value: 285_000,
           currency: "GBP",
           kind: "purchase-price",
-          sourceLabel: "Recorded purchase price",
+          source: {
+            kind: "transaction-record",
+            name: "Conveyancing completion statement",
+            date: "2023-03-01",
+            dateKind: "recorded",
+            geography: {
+              name: "Belfast home",
+              precision: "exact-property",
+            },
+          },
+          dataStatus: "final",
+          uncertainty: {
+            kind: "point",
+            explanation:
+              "This is the completed purchase consideration recorded for the property.",
+          },
+          explanation:
+            "A recorded purchase price is a completed transaction, not a current valuation.",
+          freshness: { assessedAt: "2026-10-30", staleAfterDays: 365 },
         },
         {
           id: "home-formal-valuation-2024-12",
@@ -74,7 +92,25 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
           value: 298_000,
           currency: "GBP",
           kind: "formal-valuation",
-          sourceLabel: "Mortgage valuation",
+          source: {
+            kind: "professional-valuation",
+            name: "Mortgage valuation",
+            date: "2024-12-01",
+            dateKind: "recorded",
+            geography: {
+              name: "Belfast home",
+              precision: "exact-property",
+            },
+          },
+          dataStatus: "final",
+          uncertainty: {
+            kind: "point",
+            explanation:
+              "This is the surveyor's recorded point valuation for its stated date and purpose.",
+          },
+          explanation:
+            "A formal valuation is evidence for its valuation date. It is not carried forward as today's value.",
+          freshness: { assessedAt: "2026-10-30", staleAfterDays: 365 },
         },
       ],
       anchorValuationId: "home-purchase-2023-03",
@@ -108,6 +144,13 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
           propertyTypeMatch: "all",
         },
       ],
+      confidencePolicy: {
+        assessedAt: "2026-10-30",
+        staleAfterDays: 180,
+        rangePercent: 0.075,
+        rangeRule:
+          "Indicative range is plus or minus 7.5% of the index-derived point estimate. It describes model uncertainty, not a statistical guarantee.",
+      },
     },
   },
 ];
