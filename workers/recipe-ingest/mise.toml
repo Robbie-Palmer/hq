@@ -12,6 +12,15 @@ description = "Run recipe ingest tests"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."test:integration"]
+description = "Measure recipe database paths against disposable PostgreSQL"
+depends = ["install", "//workers/recipe-api:install"]
+run = """
+cd ../recipe-api
+INTEGRATION_VITEST_CONFIG=../recipe-ingest/vitest.integration.config.ts \
+  bash scripts/test-integration.sh
+"""
+
 [tasks."test:coverage"]
 description = "Run recipe ingest tests with LCOV coverage"
 depends = ["//:install"]

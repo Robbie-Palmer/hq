@@ -724,6 +724,61 @@
         "required": [
           "unreadCount"
         ]
+      },
+      "RecipeProgressEvent": {
+        "type": "object",
+        "properties": {
+          "protocolVersion": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "terminal": {
+            "type": "boolean"
+          },
+          "replay": {
+            "type": "object",
+            "properties": {
+              "window": {
+                "type": "string",
+                "enum": [
+                  "current-state"
+                ]
+              },
+              "requestedEventId": {
+                "type": "string",
+                "nullable": true,
+                "maxLength": 67,
+                "pattern": "^v1:[a-f0-9]{64}$"
+              },
+              "matched": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "window",
+              "requestedEventId",
+              "matched"
+            ],
+            "additionalProperties": false
+          },
+          "state": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {
+              "nullable": true
+            }
+          }
+        },
+        "required": [
+          "protocolVersion",
+          "terminal",
+          "replay",
+          "state"
+        ],
+        "additionalProperties": false,
+        "description": "JSON data envelope carried by each SSE progress or terminal event. Heartbeats are SSE comments without data."
       }
     },
     "parameters": {}
@@ -10436,6 +10491,167 @@
         }
       }
     },
+    "/api/recipe-import-batches/{batchId}/progress": {
+      "get": {
+        "operationId": "getRecipeImportBatchesBatchIdProgress",
+        "summary": "GET /recipe-import-batches/:batchId/progress",
+        "description": "Authenticated owners receive the current persisted batch and item snapshot first, followed by changed snapshots in observation order. Event IDs are opaque, non-sortable, v1-prefixed SHA-256 hashes of the durable projection. Delivery is at least once, so a reconnect may repeat an ID. The replay window contains the current snapshot only; missed intermediate transitions collapse into that state. An SSE comment heartbeat is sent after 15 seconds without a changed snapshot. The stream stays open through processing and review, then sends a terminal event after every item is accepted or skipped, or after undo completes. Clients must stop reconnecting after terminal. Disconnecting stops only this subscriber and never cancels batch work. GET /recipe-import-batches/{batchId} remains the source of truth and keeps terminal results queryable.",
+        "tags": [
+          "recipe-import-batches"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "batchId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 67,
+              "pattern": "^v1:[a-f0-9]{64}$",
+              "description": "ID from the last received progress or terminal event. The server always replays the current persisted snapshot and reports whether its ID matched."
+            },
+            "required": false,
+            "description": "ID from the last received progress or terminal event. The server always replays the current persisted snapshot and reports whether its ID matched.",
+            "name": "last-event-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeProgressEvent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/recipe-import-batches/{batchId}/undo": {
       "get": {
         "operationId": "getRecipeImportBatchesBatchIdUndo",
@@ -11077,6 +11293,167 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Error (400)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Error (401)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Error (403)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Error (404)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Error (409)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Error (410)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Error (415)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Error (422)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Error (500)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Error (502)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Error (503)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/recipe-imports/{jobId}/progress": {
+      "get": {
+        "operationId": "getRecipeImportsJobIdProgress",
+        "summary": "GET /recipe-imports/:jobId/progress",
+        "description": "Authenticated owners receive the current persisted import snapshot first, followed by changed snapshots in observation order. Event IDs are opaque, non-sortable, v1-prefixed SHA-256 hashes of the durable projection. Delivery is at least once, so a reconnect may repeat an ID. The replay window contains the current snapshot only; missed intermediate transitions collapse into that state. An SSE comment heartbeat is sent after 15 seconds without a changed snapshot. A terminal event is sent for succeeded or failed jobs, then the stream closes. Clients must stop reconnecting after terminal. Disconnecting stops only this subscriber and never cancels ingestion. GET /recipe-imports/{jobId} remains the source of truth and keeps terminal results queryable.",
+        "tags": [
+          "recipe-imports"
+        ],
+        "security": [
+          {
+            "sessionCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": true,
+            "name": "jobId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 67,
+              "pattern": "^v1:[a-f0-9]{64}$",
+              "description": "ID from the last received progress or terminal event. The server always replays the current persisted snapshot and reports whether its ID matched."
+            },
+            "required": false,
+            "description": "ID from the last received progress or terminal event. The server always replays the current persisted snapshot and reports whether its ID matched.",
+            "name": "last-event-id",
+            "in": "header"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeProgressEvent"
                 }
               }
             }
