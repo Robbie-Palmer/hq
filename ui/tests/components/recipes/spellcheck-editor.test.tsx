@@ -81,6 +81,7 @@ describe("SpellcheckEditor", () => {
       "[data-cooklang-highlight-backdrop]",
     );
     expect(backdrop).toHaveTextContent("Add @salt{1%tsp} to #pan{}.");
+    expect(backdrop).toHaveAttribute("aria-hidden", "true");
     expect(
       backdrop?.querySelectorAll("[data-cooklang-token]"),
     ).not.toHaveLength(0);

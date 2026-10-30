@@ -9,6 +9,7 @@ export type CooklangTokenKind =
 
 interface CooklangHighlightPattern {
   readonly name: "ingredient" | "cookware" | "timer";
+  readonly prefix: "@" | "#" | "~";
   readonly source: string;
   readonly captures: Readonly<Record<number, CooklangTokenKind>>;
 }
@@ -22,6 +23,7 @@ const punctuation = "punctuation" satisfies CooklangTokenKind;
 
 const ingredientWithQuantityAndUnit = {
   name: "ingredient",
+  prefix: "@",
   source: String.raw`(@)([^@#~{}\n]+?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
   captures: {
     1: punctuation,
@@ -36,6 +38,7 @@ const ingredientWithQuantityAndUnit = {
 
 const ingredientWithQuantity = {
   name: "ingredient",
+  prefix: "@",
   source: String.raw`(@)([^@#~{}\n]+?)(\{)([^{}\n]+)(\})`,
   captures: {
     1: punctuation,
@@ -48,30 +51,35 @@ const ingredientWithQuantity = {
 
 const bracedIngredient = {
   name: "ingredient",
+  prefix: "@",
   source: String.raw`(@)([^@#~{}\n]+?)(\{\})`,
   captures: { 1: punctuation, 2: ingredient, 3: punctuation },
 } as const satisfies CooklangHighlightPattern;
 
 const shortIngredient = {
   name: "ingredient",
+  prefix: "@",
   source: String.raw`(@)([\p{L}\p{N}_'-]+)`,
   captures: { 1: punctuation, 2: ingredient },
 } as const satisfies CooklangHighlightPattern;
 
 const bracedCookware = {
   name: "cookware",
+  prefix: "#",
   source: String.raw`(#)([^@#~{}\n]+?)(\{\})`,
   captures: { 1: punctuation, 2: cookware, 3: punctuation },
 } as const satisfies CooklangHighlightPattern;
 
 const shortCookware = {
   name: "cookware",
+  prefix: "#",
   source: String.raw`(#)([\p{L}\p{N}_'-]+)`,
   captures: { 1: punctuation, 2: cookware },
 } as const satisfies CooklangHighlightPattern;
 
 const timerWithQuantityAndUnit = {
   name: "timer",
+  prefix: "~",
   source: String.raw`(~)([^@#~{}\n]*?)(\{)([^%{}\n]+)(%)([^{}\n]+)(\})`,
   captures: {
     1: timer,
@@ -86,6 +94,7 @@ const timerWithQuantityAndUnit = {
 
 const timerWithQuantity = {
   name: "timer",
+  prefix: "~",
   source: String.raw`(~)([^@#~{}\n]*?)(\{)([^{}\n]+)(\})`,
   captures: {
     1: timer,
@@ -118,6 +127,9 @@ const compiledHighlightPatterns = COOKLANG_HIGHLIGHT_PATTERNS.map(
     ...pattern,
     expression: new RegExp(pattern.source, "uy"),
   }),
+);
+const cooklangTokenPrefixes: ReadonlySet<string> = new Set(
+  COOKLANG_HIGHLIGHT_PATTERNS.map((pattern) => pattern.prefix),
 );
 
 function pushToken(
@@ -158,6 +170,12 @@ export function tokenizeCooklang(source: string): CooklangToken[] {
   let cursor = 0;
 
   while (cursor < source.length) {
+    const character = source[cursor];
+    if (!character || !cooklangTokenPrefixes.has(character)) {
+      cursor += 1;
+      continue;
+    }
+
     let matched = false;
     for (const pattern of compiledHighlightPatterns) {
       pattern.expression.lastIndex = cursor;
