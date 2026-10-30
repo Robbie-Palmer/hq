@@ -1,12 +1,21 @@
 "use client";
 
-import { ExternalLink, Github, Linkedin, Printer } from "lucide-react";
+import { ExternalLink, Printer } from "lucide-react";
 import Link from "next/link";
+import { siGithub } from "simple-icons";
 import { Button } from "@/components/ui/button";
 import type { Experience } from "@/lib/api/experience";
 import { formatExperienceDateRange } from "@/lib/api/experience";
 import styles from "./resume.module.css";
 import type { ResumeData, ResumeProject } from "./resume-data";
+
+function BrandIcon({ path }: Readonly<{ path: string }>) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24">
+      <path d={path} fill="currentColor" />
+    </svg>
+  );
+}
 
 function ExperienceEntry({
   experience,
@@ -110,10 +119,10 @@ function ResumeHeader({ data }: Readonly<{ data: ResumeData }>) {
           {data.person.website.replace("https://", "")}
         </a>
         <a href={data.person.github}>
-          <Github aria-hidden="true" /> GitHub
+          <BrandIcon path={siGithub.path} /> GitHub
         </a>
         <a href={data.person.linkedin}>
-          <Linkedin aria-hidden="true" /> LinkedIn
+          <ExternalLink aria-hidden="true" /> LinkedIn
         </a>
       </nav>
     </header>
