@@ -81,7 +81,7 @@ function llmStepConfig(params: StageParams): WorkflowStepConfig {
   };
 }
 
-async function awaitBatchAdmission(
+export async function awaitBatchAdmission(
   env: Env,
   jobId: string,
   batchAttempt: number,
