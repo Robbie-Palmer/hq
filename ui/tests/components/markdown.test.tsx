@@ -1,7 +1,7 @@
+import { remarkRestrictMdxExpressions } from "mdx-rendering";
 import { type EvaluateOptions, evaluate } from "next-mdx-remote-client/rsc";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { remarkRestrictMdxExpressions } from "@/lib/markdown/restrict-expressions";
 
 const secureOptions: EvaluateOptions = {
   disableExports: true,

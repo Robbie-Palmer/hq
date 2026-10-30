@@ -174,9 +174,9 @@ function assertStaticExpressions(node: MdxNode): void {
  *
  * Static literal attributes remain useful for component props such as Mermaid
  * source, inline style objects, and numeric dimensions. Identifiers, property
- * access, calls, interpolation, functions, and spreads are all rejected.
- * Active HTML elements, event handlers, HTML injection, and executable URL
- * schemes are rejected as well.
+ * access, calls, interpolation, functions, and spreads are rejected. Active
+ * HTML elements, event handlers, HTML injection, and executable URL schemes
+ * are rejected as well.
  */
 export function remarkRestrictMdxExpressions() {
   return (tree: Root) => {
