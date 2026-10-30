@@ -8,12 +8,14 @@ provider_origins:
 
 identities:
   doppler:
-    token_env: DOPPLER_BOOTSTRAP_TOKEN
     project: cloudflare-access
     configs:
-      - ops_plan
-      - ops_drift
-      - ops_apply
+      - name: ops_plan
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_PLAN
+      - name: ops_drift
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_DRIFT
+      - name: ops_apply
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_APPLY
   github:
     token_env: GH_BOOTSTRAP_TOKEN
     repository: Robbie-Palmer/hq

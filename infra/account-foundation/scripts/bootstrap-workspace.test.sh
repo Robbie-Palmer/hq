@@ -184,6 +184,18 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "fixture-project-bootstrap-token",
     "computedVisibility": "masked"
   },
+  "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_PLAN": {
+    "computed": "fixture-cloudflare-access-plan-writer",
+    "computedVisibility": "masked"
+  },
+  "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_DRIFT": {
+    "computed": "fixture-cloudflare-access-drift-writer",
+    "computedVisibility": "masked"
+  },
+  "DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_APPLY": {
+    "computed": "fixture-cloudflare-access-apply-writer",
+    "computedVisibility": "masked"
+  },
   "GH_BOOTSTRAP_TOKEN": {
     "computed": "fixture-github-bootstrap-token",
     "computedVisibility": "masked"
@@ -259,6 +271,14 @@ SYNC_TEST_DIRECTORY="$work_dir" \
 grep -Fxq -- \
   "secret set DOPPLER_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
   "$work_dir/github-calls"
+for writer_name in \
+  DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_PLAN \
+  DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_DRIFT \
+  DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_APPLY; do
+  grep -Fxq -- \
+    "secret set $writer_name production-cloudflare-token-bootstrap" \
+    "$work_dir/github-calls"
+done
 grep -Fxq -- \
   "secret set GH_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
   "$work_dir/github-calls"
