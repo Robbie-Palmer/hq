@@ -535,6 +535,9 @@ layers:
   - slug: "observability"
     title: "Observability"
     description: "Defaults for application telemetry and node monitoring."
+  - slug: "feature-flags"
+    title: "Feature flags"
+    description: "Portable evaluation contracts and managed rollout control."
   - slug: "database"
     title: "Database"
     description: "Conditional defaults for transactional and analytical data."
@@ -1041,6 +1044,17 @@ slots:
     title: "Node monitoring"
     description: "Host and node health metrics for operated machines."
     rationale: "Netdata, Prometheus, and hosted agents address node monitoring."
+  - slug: "feature-flags.evaluation-api"
+    title: "Feature flag evaluation API"
+    description: "The application contract used to evaluate typed feature flags."
+    rationale: "A standard API keeps application decisions separate from provider
+      configuration and analytics."
+  - slug: "feature-flags.control-plane"
+    title: "Feature flag control plane"
+    description: "The service that owns flag definitions, targeting, rollouts, and
+      experiments."
+    rationale: "Flag services differ in evaluation modes, experimentation, runtime
+      support, and operating cost."
   - slug: "database.relational-engine"
     title: "Relational database engine"
     description: "Transactional relational storage when a project needs it."
@@ -1793,6 +1807,21 @@ policies:
     mode: "preferred"
     effective_from: "2026-09-12T00:00:00Z"
     decision: "personal-engineering-platform:004-observability"
+  - id: "feature-flags-evaluation-api-2026-10-29"
+    layer: "feature-flags"
+    slot: "feature-flags.evaluation-api"
+    mode: "required"
+    effective_from: "2026-10-29T00:00:00Z"
+    decision: "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+  - id: "feature-flags-control-plane-2026-10-29"
+    layer: "feature-flags"
+    slot: "feature-flags.control-plane"
+    mode: "required"
+    effective_from: "2026-10-29T00:00:00Z"
+    decision: "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+    prerequisites:
+      - slot: "feature-flags.evaluation-api"
+        technology: "openfeature"
   - id: "database-relational-engine-2026-09-12"
     layer: "database"
     slot: "database.relational-engine"
@@ -2676,6 +2705,40 @@ selections:
     decision: "personal-engineering-platform:004-observability"
     origin_projects: [ "homelab" ]
     evidence_adrs: [ "homelab:006-netdata" ]
+  - id: "feature-flags-evaluation-api-openfeature-2026-10-29"
+    slot: "feature-flags.evaluation-api"
+    technology: "OpenFeature"
+    status: "Accepted"
+    effective_from: "2026-10-29T00:00:00Z"
+    decision: "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+    origin_projects: [ "personal-engineering-platform" ]
+    evidence_adrs:
+      - "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+    operational_checks:
+      - name: "Feature flag contract conformance"
+        kind: "mise-task"
+        reference: "//:feature-flag-contract:check"
+  - id: "feature-flags-control-plane-posthog-2026-10-29"
+    slot: "feature-flags.control-plane"
+    technology: "PostHog"
+    status: "Accepted"
+    effective_from: "2026-10-29T00:00:00Z"
+    decision: "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+    origin_projects: [ "personal-engineering-platform" ]
+    evidence_adrs:
+      - "personal-engineering-platform:044-openfeature-posthog-feature-flags"
+    configuration_requirements:
+      - name: "POSTHOG_PROJECT_TOKEN"
+        owner: "secrets.runtime-store"
+        sensitive: false
+    state_requirements:
+      - name: "Typed flag keys, code-owned safe defaults, and criticality"
+        owner: "adopting-project"
+        lifecycle: "durable"
+    operational_checks:
+      - name: "Exposure and experiment event conformance"
+        kind: "mise-task"
+        reference: "//packages/platform-contracts:check"
   - id: "database-relational-engine-postgresql-2026-09-12"
     slot: "database.relational-engine"
     technology: "PostgreSQL"

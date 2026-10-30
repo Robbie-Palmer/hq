@@ -33,6 +33,15 @@ infrastructure, and deployment changes escalate deterministically to full
 coverage. The rolling comment always labels coverage as full, incremental, or
 skipped.
 
+Each terminal record with prepared changed-file input also carries a schema-v1
+path coverage manifest. The provider-independent selector accounts for each
+changed path with one of five decisions: selected, excluded, completed, failed,
+or waived. Fixed reason codes distinguish configured exclusions, unavailable
+diffs, non-semantic edits, prior coverage, policy waivers, run failures, and
+completed review. Markdown, MDX, and test files are included by default. The
+scorecard publishes the same entries in `review_path_fact` and adds decision
+counts plus a path-accounting rate to its run and pull-request marts.
+
 An exact `/ai-review` or `/ai-review full` issue comment from an owner, member,
 or collaborator forces a full review of the current head, including on a draft.
 If that same head is subsequently merged, its latest successful full review is

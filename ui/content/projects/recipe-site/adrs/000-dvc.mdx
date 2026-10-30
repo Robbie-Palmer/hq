@@ -29,7 +29,7 @@ This is the "GitOps for ML" problem.
 
 The two problems are related: both require linking versioned artifacts (data, model weights, pipeline
 outputs) to specific git commits. A tool that solves one without the other forces a second tool into
-the stack, violating [Less Is More](/projects?tab=philosophy#less-is-more).
+the stack, violating [Less Is More](/building-philosophy#less-is-more).
 
 Additional requirements:
 
@@ -105,7 +105,7 @@ The workflow this enables:
 * **Pros**: Each tool does what it is best at: DVC handles pipeline caching, dataset versioning, and
   git integration; W\&B provides the rich experiment dashboard UI.
 * **Cons**: Two platforms, two integrations, two sets of API tokens, two places to look for results.
-  Violates [Less Is More](/projects?tab=philosophy#less-is-more). DVC's native `dvc metrics diff` and
+  Violates [Less Is More](/building-philosophy#less-is-more). DVC's native `dvc metrics diff` and
   `dvc plots diff` in CI are sufficient for the current evaluation complexity. A rich interactive
   dashboard is not yet needed.
 * **Decision**: Rejected at this stage. DVC alone is sufficient. If the evaluation suite grows to
@@ -234,7 +234,7 @@ The workflow this enables:
   capabilities, including GTO-based promotion tracking in git. Combined with DVC's artifact tracking
   and stage lineage, this provides strong reproducibility and auditability for model evolution without
   introducing another mandatory platform.
-* **Coding-agent friendly**: The CLI-first interface is well-suited to the [LLM-Optimised](/projects?tab=philosophy#llm-optimised)
+* **Coding-agent friendly**: The CLI-first interface is well-suited to the [LLM-Optimised](/building-philosophy#llm-optimised)
   development approach. Coding agents can run experiments, compare results, and author PRs entirely
   through shell commands without needing to interact with a GUI or browser-based platform.
 * **Offline-capable**: Experiments can be run and compared locally without a network connection or

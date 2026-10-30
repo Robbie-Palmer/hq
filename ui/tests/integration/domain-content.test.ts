@@ -36,7 +36,7 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.adrs.size).toBeGreaterThan(0);
     expect(repo.roles.size).toBeGreaterThan(0);
     expect(repo.technologies.size).toBeGreaterThan(0);
-    expect(repo.ideas.size).toBe(41);
+    expect(repo.ideas.size).toBe(43);
     expect(repo.referentialIntegrityErrors).toEqual([]);
   });
 
@@ -83,6 +83,12 @@ describe("Domain Content Validation (Integration)", () => {
   it("should connect technologies to the ideas they build on or expose", () => {
     expect(repo.graph.edges.technologyIdeas.get("kafka")).toEqual(
       new Set(["commit-log", "stream-table-duality", "write-ahead-log"]),
+    );
+    expect(repo.graph.edges.technologyIdeas.get("strykerjs")).toEqual(
+      new Set(["mutation-testing"]),
+    );
+    expect(repo.graph.edges.technologyIdeas.get("fast-check")).toEqual(
+      new Set(["property-based-testing"]),
     );
     expect(repo.graph.reverse.ideaTechnologies.get("commit-log")).toEqual(
       new Set(["kafka"]),

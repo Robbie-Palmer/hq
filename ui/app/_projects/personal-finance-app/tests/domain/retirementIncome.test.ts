@@ -8,13 +8,13 @@ import {
 
 const lineage = {
   calculationVersion: "1",
-  ruleDatasetVersion: "2026.10.3",
+  ruleDatasetVersion: "2026.10.4",
   ruleId: "uk-income-tax-2026-27",
 };
 
 const propertyTaxLineage = {
   calculationVersion: "1",
-  ruleDatasetVersion: "2026.10.3",
+  ruleDatasetVersion: "2026.10.4",
   ruleId: "uk-property-income-tax-scenario",
 };
 

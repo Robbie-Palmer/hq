@@ -8,7 +8,8 @@ special=$(mktemp -d)
 duplicate=$(mktemp -d)
 concurrent=$(mktemp -d)
 invalid_outcome=$(mktemp -d)
-trap 'rm -rf "$output" "$second" "$bad" "$special" "$duplicate" "$concurrent" "$invalid_outcome"' EXIT
+invalid_manifest=$(mktemp -d)
+trap 'rm -rf "$output" "$second" "$bad" "$special" "$duplicate" "$concurrent" "$invalid_outcome" "$invalid_manifest"' EXIT
 
 "$here/build-scorecard.sh" "$here/fixtures" "$output"
 "$here/build-scorecard.sh" "$here/fixtures" "$second"
@@ -16,12 +17,24 @@ trap 'rm -rf "$output" "$second" "$bad" "$special" "$duplicate" "$concurrent" "$
 
 [[ -L "$output/v1" ]]
 
-for file in finding_latest.parquet review_run_fact.parquet model_run_fact.parquet pull_request_fact.parquet scorecard-manifest.json; do
+for file in finding_latest.parquet review_path_fact.parquet review_run_fact.parquet model_run_fact.parquet pull_request_fact.parquet scorecard-manifest.json; do
   cmp "$output/v1/$file" "$second/v1/$file"
 done
 
 duckdb -csv -noheader <<SQL | diff -u - <(printf '0.5,0.3333333333333333,0.3333333333333333,0.3,0.75\n')
 SELECT acceptance_rate, fix_through_rate, noise_rate, cost_per_accepted_finding, coverage_rate
+FROM read_parquet('$output/v1/review_run_fact.parquet') WHERE run_id = 'run-1';
+SQL
+
+duckdb -csv -noheader <<SQL | diff -u - <(printf 'api/auth.ts,completed,review-completed\napi/route.ts,waived,review-waived-prior-coverage\n')
+SELECT path, decision, reason_code
+FROM read_parquet('$output/v1/review_path_fact.parquet')
+WHERE run_id = 'run-1' ORDER BY path;
+SQL
+
+duckdb -csv -noheader <<SQL | diff -u - <(printf '2,0,1,0,1,1.0\n')
+SELECT manifest_path_count, selected_path_count, completed_path_count,
+       failed_path_count, waived_path_count, path_accounting_rate
 FROM read_parquet('$output/v1/review_run_fact.parquet') WHERE run_id = 'run-1';
 SQL
 
@@ -135,5 +148,29 @@ for invalid in null unknown basis-mismatch; do
     exit 1
   fi
 done
+
+mkdir -p "$invalid_manifest/reason" "$invalid_manifest/count"
+jq '.coverageManifest.paths[0].reasonCode = "default-included"' \
+  "$here/fixtures/v2/acme/widgets/pr-7/head-1/run-1/published.json" \
+  > "$invalid_manifest/reason/published.json"
+jq '.change.changedFiles = 3' \
+  "$here/fixtures/v2/acme/widgets/pr-7/head-1/run-1/published.json" \
+  > "$invalid_manifest/count/published.json"
+if manifest_error=$("$here/build-scorecard.sh" "$invalid_manifest/reason" "$invalid_manifest/reason-output" 2>&1); then
+  echo "invalid manifest reason was not rejected" >&2
+  exit 1
+fi
+if [[ "$manifest_error" != *"missing or invalid decisions"* ]]; then
+  echo "invalid manifest reason failed for the wrong reason: $manifest_error" >&2
+  exit 1
+fi
+if manifest_error=$("$here/build-scorecard.sh" "$invalid_manifest/count" "$invalid_manifest/count-output" 2>&1); then
+  echo "incomplete manifest was not rejected" >&2
+  exit 1
+fi
+if [[ "$manifest_error" != *"do not account for every changed path"* ]]; then
+  echo "incomplete manifest failed for the wrong reason: $manifest_error" >&2
+  exit 1
+fi
 
 echo "Scorecard fixture tests passed"

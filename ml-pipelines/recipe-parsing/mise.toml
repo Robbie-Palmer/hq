@@ -2,6 +2,11 @@
 description = "Run tests for recipe-parsing"
 run = "pnpm test"
 
+[tasks.check]
+description = "Typecheck and test the recipe-parsing pipeline"
+depends = ["//:install"]
+run = "pnpm typecheck && pnpm test"
+
 [tasks."test:coverage"]
 description = "Run recipe-parsing pipeline tests with LCOV coverage"
 depends = ["//:install"]
@@ -26,3 +31,23 @@ run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh repro"
 [tasks.metrics]
 description = "Show recipe-parsing metrics, or diff them against a revision"
 run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh metrics"
+
+[tasks."url-import:validate"]
+description = "Validate synthetic URL-import schemas, manifests, rights, hashes, and partitions"
+depends = ["//:install"]
+run = "pnpm exec tsx src/stages/validate-url-import-corpus.ts"
+
+[tasks."url-import:replay"]
+description = "Replay passing synthetic URL-import train and development fixtures"
+depends = ["//:install"]
+run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts"
+
+[tasks."url-import:replay-regression"]
+description = "Replay only the project-authored synthetic regression fixtures"
+depends = ["//:install"]
+run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts --partition regression --output outputs/url-import-synthetic-regression.json"
+
+[tasks."url-import:repro"]
+description = "Reproduce the local URL-import validation and replay DVC stages"
+depends = ["//:install"]
+run = "bash scripts/repro-url-import.sh"

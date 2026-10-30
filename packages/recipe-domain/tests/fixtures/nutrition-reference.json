@@ -1,0 +1,204 @@
+{
+  "id": "oats-and-milk-hand-calculation-v1",
+  "description": "An arithmetic reference case evaluated independently from the production calculator.",
+  "catalogVersion": "reference-2026.10",
+  "recipeVersion": "oats-and-milk-v1",
+  "servings": 2,
+  "declaredTolerance": "0.000001",
+  "source": {
+    "sourceId": "nutrition-reference-fixture",
+    "publisher": "Recipe domain test authors",
+    "dataset": "Hand-calculated nutrition reference cases",
+    "canonicalUrl": "https://example.test/recipe-domain/nutrition-reference",
+    "license": "CC0-1.0",
+    "attribution": "Recipe domain test authors",
+    "effectiveVersion": "2026-10"
+  },
+  "ingredientGroups": [
+    {
+      "name": "Porridge",
+      "items": [
+        {
+          "ingredient": "rolled-oats",
+          "amount": 80,
+          "unit": "g",
+          "quantityBasis": "edible",
+          "preparation": "raw"
+        },
+        {
+          "ingredient": "whole-milk",
+          "amount": 250,
+          "unit": "ml",
+          "quantityBasis": "edible"
+        }
+      ]
+    }
+  ],
+  "properties": [
+    {
+      "id": "30000000-0000-4000-8000-000000000001",
+      "ingredientSlug": "rolled-oats",
+      "preparationState": "raw",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "energy",
+        "category": "energy",
+        "amount": "379",
+        "unit": "kcal",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "375",
+          "upperBound": "383",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000002",
+      "ingredientSlug": "rolled-oats",
+      "preparationState": "raw",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "protein",
+        "category": "macronutrient",
+        "amount": "13.15",
+        "unit": "g",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "12.9",
+          "upperBound": "13.4",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000003",
+      "ingredientSlug": "rolled-oats",
+      "preparationState": "raw",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "iron",
+        "category": "micronutrient",
+        "amount": "4.25",
+        "unit": "mg",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "4",
+          "upperBound": "4.5",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000004",
+      "ingredientSlug": "whole-milk",
+      "preparationState": "unspecified",
+      "value": {
+        "kind": "density",
+        "unit": "g_per_ml",
+        "gramsPerMilliliter": "1.03",
+        "uncertainty": {
+          "lowerBound": "1.025",
+          "upperBound": "1.035",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000005",
+      "ingredientSlug": "whole-milk",
+      "preparationState": "unspecified",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "energy",
+        "category": "energy",
+        "amount": "61",
+        "unit": "kcal",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "60",
+          "upperBound": "62",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000006",
+      "ingredientSlug": "whole-milk",
+      "preparationState": "unspecified",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "protein",
+        "category": "macronutrient",
+        "amount": "3.15",
+        "unit": "g",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "3.05",
+          "upperBound": "3.25",
+          "basis": "Reference-case interval"
+        }
+      }
+    },
+    {
+      "id": "30000000-0000-4000-8000-000000000007",
+      "ingredientSlug": "whole-milk",
+      "preparationState": "unspecified",
+      "value": {
+        "kind": "nutrient",
+        "nutrient": "iron",
+        "category": "micronutrient",
+        "amount": "0.03",
+        "unit": "mg",
+        "perEdibleGrams": "100",
+        "uncertainty": {
+          "lowerBound": "0.02",
+          "upperBound": "0.04",
+          "basis": "Reference-case interval"
+        }
+      }
+    }
+  ],
+  "expected": {
+    "totals": {
+      "energy": {
+        "amount": "460.275",
+        "unit": "kcal",
+        "lowerBound": "453.75",
+        "upperBound": "466.825"
+      },
+      "protein": {
+        "amount": "18.63125",
+        "unit": "g",
+        "lowerBound": "18.135625",
+        "upperBound": "19.129375"
+      },
+      "iron": {
+        "amount": "3.47725",
+        "unit": "mg",
+        "lowerBound": "3.25125",
+        "upperBound": "3.7035"
+      }
+    },
+    "perServing": {
+      "energy": {
+        "amount": "230.1375",
+        "unit": "kcal",
+        "lowerBound": "226.875",
+        "upperBound": "233.4125"
+      },
+      "protein": {
+        "amount": "9.315625",
+        "unit": "g",
+        "lowerBound": "9.0678125",
+        "upperBound": "9.5646875"
+      },
+      "iron": {
+        "amount": "1.738625",
+        "unit": "mg",
+        "lowerBound": "1.625625",
+        "upperBound": "1.85175"
+      }
+    }
+  }
+}

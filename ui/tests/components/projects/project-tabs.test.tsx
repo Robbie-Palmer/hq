@@ -92,20 +92,16 @@ describe("ProjectTabs", () => {
     expect(screen.getByText(visible)).toBeVisible();
   });
 
-  it("uses the canonical projects URL when selecting the philosophy tab", async () => {
-    const user = userEvent.setup();
+  it("links the Projects philosophy entry to its dedicated page", () => {
     render(
       <ProjectsPageTabs
         initiatives={<div>Initiatives content</div>}
         projects={<div>Projects content</div>}
-        philosophy={<div>Philosophy content</div>}
       />,
     );
 
-    await user.click(screen.getByRole("tab", { name: "Building Philosophy" }));
-
-    expect(replaceMock).toHaveBeenCalledWith("/projects?tab=philosophy", {
-      scroll: false,
-    });
+    expect(
+      screen.getByRole("link", { name: "Read Building Philosophy" }),
+    ).toHaveAttribute("href", "/building-philosophy");
   });
 });

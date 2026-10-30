@@ -1,0 +1,103 @@
+schema_version: 1
+project_id: cloudflare-access
+
+provider_origins:
+  doppler: https://api.doppler.com
+  github: https://api.github.com
+  cloudflare: https://api.cloudflare.com
+
+identities:
+  doppler:
+    project: cloudflare-access
+    configs:
+      - name: ops_plan
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_PLAN
+      - name: ops_drift
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_DRIFT
+      - name: ops_apply
+        token_env: DOPPLER_BOOTSTRAP_TOKEN_CLOUDFLARE_ACCESS_OPS_APPLY
+  github:
+    token_env: GH_BOOTSTRAP_TOKEN
+    repository: Robbie-Palmer/hq
+    environments:
+      - production-cloudflare-access-plan
+      - production-cloudflare-access-drift
+      - production-cloudflare-access
+  cloudflare_token_provisioner:
+    token_env: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    account_id_env: CLOUDFLARE_ACCOUNT_ID
+
+checkpoints: []
+
+secrets:
+  - id: cloudflare-access-plan-token
+    name: CLOUDFLARE_API_TOKEN
+    sensitive: true
+    system_of_record:
+      kind: doppler
+      config: ops_plan
+      name: CLOUDFLARE_API_TOKEN
+    consumers:
+      - kind: github-environment
+        environment: production-cloudflare-access-plan
+        name: CLOUDFLARE_API_TOKEN
+    rotation_owner: infra/cloudflare-access
+    creation:
+      mode: extension
+      extension: cloudflare-account-token
+      token_name: hq-cloudflare-access-plan
+      permission_groups:
+        - id: 7ea222f6d5064cfa89ea366d7c1fee89
+          name: "Access: Apps and Policies Read"
+        - id: 26bc23f853634eb4bff59983b9064fde
+          name: "Access: Organizations, Identity Providers, and Groups Read"
+        - id: 91f7ce32fa614d73b7e1fc8f0e78582b
+          name: "Access: Service Tokens Read"
+
+  - id: cloudflare-access-drift-token
+    name: CLOUDFLARE_API_TOKEN
+    sensitive: true
+    system_of_record:
+      kind: doppler
+      config: ops_drift
+      name: CLOUDFLARE_API_TOKEN
+    consumers:
+      - kind: github-environment
+        environment: production-cloudflare-access-drift
+        name: CLOUDFLARE_API_TOKEN
+    rotation_owner: infra/cloudflare-access
+    creation:
+      mode: extension
+      extension: cloudflare-account-token
+      token_name: hq-cloudflare-access-drift
+      permission_groups:
+        - id: 7ea222f6d5064cfa89ea366d7c1fee89
+          name: "Access: Apps and Policies Read"
+        - id: 26bc23f853634eb4bff59983b9064fde
+          name: "Access: Organizations, Identity Providers, and Groups Read"
+        - id: 91f7ce32fa614d73b7e1fc8f0e78582b
+          name: "Access: Service Tokens Read"
+
+  - id: cloudflare-access-apply-token
+    name: CLOUDFLARE_API_TOKEN
+    sensitive: true
+    system_of_record:
+      kind: doppler
+      config: ops_apply
+      name: CLOUDFLARE_API_TOKEN
+    consumers:
+      - kind: github-environment
+        environment: production-cloudflare-access
+        name: CLOUDFLARE_API_TOKEN
+    rotation_owner: infra/cloudflare-access
+    creation:
+      mode: extension
+      extension: cloudflare-account-token
+      token_name: hq-cloudflare-access-apply
+      permission_groups:
+        - id: 1e13c5124ca64b72b1969a67e8829049
+          name: "Access: Apps and Policies Write"
+        - id: bfe0d8686a584fa680f4c53b5eb0de6d
+          name: "Access: Organizations, Identity Providers, and Groups Write"
+        - id: a1c0fec57cf94af79479a6d827fa518c
+          name: "Access: Service Tokens Write"

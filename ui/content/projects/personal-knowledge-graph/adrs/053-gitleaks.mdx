@@ -80,20 +80,20 @@ tab as Trivy, zizmor, and Scorecard.
 
 **Late majority.** Gitleaks has been the default open-source secret scanner
 for years, with a stable CLI, huge deployment base, deep LLM corpus
-([LLM-Optimized](/projects?tab=philosophy#llm-optimized)). No Goldilocks
+([LLM-Optimized](/building-philosophy#llm-optimized)). No Goldilocks
 trade-off to accept this time.
 
 # Relation To Building Philosophy
 
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). The
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). The
   loop cannot get shorter: the finding lands before the commit exists.
-* [Less Is More](/projects?tab=philosophy#less-is-more). One binary serving
+* [Less Is More](/building-philosophy#less-is-more). One binary serving
   both the hook and CI; findings in the existing Security tab; no platform, no
   account.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Agents commit
+* [LLM-Optimized](/building-philosophy#llm-optimized). Agents commit
   autonomously in this repo; a deterministic pre-commit gate on secrets is the
   control that scales with that, rather than hoping each agent notices.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   Historical findings surface for triage instead of failing unrelated PRs.
   Pressure lands on rotating the credential, not on silencing the scanner.
 

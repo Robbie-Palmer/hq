@@ -1,27 +1,66 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface ProjectsPageTabsProps {
   initiatives: React.ReactNode;
   projects: React.ReactNode;
-  philosophy: React.ReactNode;
+}
+
+function ProjectsNavigation() {
+  return (
+    <div className="grid w-full gap-2 sm:flex sm:w-auto sm:items-center">
+      <TabsList className="h-auto w-full justify-start rounded-md bg-muted p-1 sm:w-auto">
+        <TabsTrigger
+          value="initiatives"
+          className="flex-1 sm:w-[150px] sm:flex-none"
+        >
+          Initiatives
+        </TabsTrigger>
+        <TabsTrigger
+          value="projects"
+          className="flex-1 sm:w-[150px] sm:flex-none"
+        >
+          All Projects
+        </TabsTrigger>
+      </TabsList>
+      <Button
+        asChild
+        variant="outline"
+        className="group w-full justify-between sm:w-[220px]"
+      >
+        <Link href="/building-philosophy">
+          Read Building Philosophy
+          <ArrowRight
+            aria-hidden="true"
+            className="transition-transform group-hover:translate-x-0.5"
+          />
+        </Link>
+      </Button>
+    </div>
+  );
 }
 
 export function ProjectsPageTabs({
   initiatives,
   projects,
-  philosophy,
 }: Readonly<ProjectsPageTabsProps>) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   const requestedTab = searchParams.get("tab");
-  const currentTab =
-    requestedTab === "projects" || requestedTab === "philosophy"
-      ? requestedTab
-      : "initiatives";
+  const currentTab = requestedTab === "projects" ? requestedTab : "initiatives";
+
+  useEffect(() => {
+    if (requestedTab === "philosophy") {
+      router.replace(`/building-philosophy${window.location.hash}`);
+    }
+  }, [requestedTab, router]);
 
   const onTabChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -39,26 +78,7 @@ export function ProjectsPageTabs({
 
   return (
     <Tabs value={currentTab} onValueChange={onTabChange} className="w-full">
-      <TabsList className="w-full justify-start h-auto p-1 bg-muted rounded-md flex-wrap sm:inline-flex sm:w-auto sm:flex-nowrap">
-        <TabsTrigger
-          value="initiatives"
-          className="flex-1 sm:flex-none sm:w-[150px]"
-        >
-          Initiatives
-        </TabsTrigger>
-        <TabsTrigger
-          value="projects"
-          className="flex-1 sm:flex-none sm:w-[150px]"
-        >
-          All Projects
-        </TabsTrigger>
-        <TabsTrigger
-          value="philosophy"
-          className="flex-1 sm:flex-none sm:w-[200px]"
-        >
-          Building Philosophy
-        </TabsTrigger>
-      </TabsList>
+      <ProjectsNavigation />
 
       <TabsContent
         value="projects"
@@ -72,13 +92,6 @@ export function ProjectsPageTabs({
         className="animate-in fade-in-50 duration-500 mt-6"
       >
         {initiatives}
-      </TabsContent>
-
-      <TabsContent
-        value="philosophy"
-        className="animate-in fade-in-50 duration-500 mt-6"
-      >
-        {philosophy}
       </TabsContent>
     </Tabs>
   );

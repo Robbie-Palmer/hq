@@ -211,6 +211,29 @@ const timestampField = (event: StoredEvent, field: string): string => {
   return value;
 };
 
+const sanitizeNoteData = (event: StoredEvent): Record<string, unknown> => {
+  const leaseId = event.data.leaseId;
+  const storedKind = event.data.kind;
+  // Early work-note events predate the kind marker but are lease-fenced.
+  const kind =
+    storedKind === undefined &&
+    typeof leaseId === "string" &&
+    leaseId.length > 0
+      ? "work"
+      : storedKind;
+  if (
+    (kind !== "work" && kind !== "post_release") ||
+    (leaseId !== null && typeof leaseId !== "string") ||
+    (kind === "work" && (typeof leaseId !== "string" || leaseId.length === 0))
+  ) {
+    throw new AnalyticsExportError(
+      "event_schema_invalid",
+      `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
+    );
+  }
+  return { leaseId, kind };
+};
+
 const sanitizeEventData = (
   event: StoredEvent & { readonly type: WorkGraphEventType },
 ): Record<string, unknown> => {
@@ -249,21 +272,8 @@ const sanitizeEventData = (
       }
       return { leaseId: stringField(event, "leaseId"), outcome };
     }
-    case "note.created": {
-      const kind = stringField(event, "kind");
-      const leaseId = event.data.leaseId;
-      if (
-        (kind !== "work" && kind !== "post_release") ||
-        (leaseId !== null && typeof leaseId !== "string") ||
-        (kind === "work" && (typeof leaseId !== "string" || leaseId.length === 0))
-      ) {
-        throw new AnalyticsExportError(
-          "event_schema_invalid",
-          `Unknown schema for Work Graph event '${event.type}' at sequence ${event.sequence}.`,
-        );
-      }
-      return { leaseId, kind };
-    }
+    case "note.created":
+      return sanitizeNoteData(event);
     default:
       return {};
   }

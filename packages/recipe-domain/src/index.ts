@@ -7,6 +7,7 @@ export * from "./ingredient-property";
 export * from "./ingredient-merge";
 export * from "./ingredient-normalization";
 export * from "./mutation";
+export * from "./nutrition";
 export * from "./pantry";
 export * from "./pluralization";
 export * from "./recipe";

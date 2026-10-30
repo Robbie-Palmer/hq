@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./coverage-manifest": "./src/coverage-manifest.ts",
     "./pull-request-metadata": "./src/pull-request-metadata.ts",
     "./finding-outcomes": "./src/finding-outcomes.ts",
     "./guardrails": "./src/guardrails.ts",

@@ -73,34 +73,34 @@ Weighted by the same test as [ADR 047](/projects/personal-knowledge-graph/adrs/0
 and [ADR 048](/projects/personal-knowledge-graph/adrs/048-zizmor): deterministic, free,
 no new platform, mise-manageable.
 
-| Tool                                  | Role                  | Pros                                                                                                                                 | Cons                                                                                                     | Verdict                                                          |
-| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| **TFLint** *(accepted)*               | Terraform linter      | De-facto standard linter; bundled ruleset needs no network; mise/CI/pre-commit friendly; provider rulesets available if ever needed. | Cloudflare/Neon have no provider-specific ruleset, so coverage is language-level only.                   | **Accepted.**                                                    |
-| **checkov / tfsec**                   | IaC security scanners | Broad policy libraries.                                                                                                              | Security-shaped: overlaps Trivy's config scan, not the hygiene gap. tfsec is folded into Trivy upstream. | Rejected: duplicates ADR 047.                                    |
-| **OPA / conftest**                    | Policy engine         | Arbitrary custom policies over plans.                                                                                                | A policy *language* to author and maintain, not a curated ruleset; heavier than the gap warrants.        | Rejected: [Less Is More](/projects?tab=philosophy#less-is-more). |
-| **HCP Terraform policies (Sentinel)** | Managed policy        | Runs where the plan runs.                                                                                                            | Paid tier; platform lock-in for a linting concern.                                                       | Rejected: free tooling covers the gap.                           |
-| **Status quo** (`validate` + Trivy)   | n/a                   | No new tool.                                                                                                                         | Leaves the deterministic-hygiene quadrant empty.                                                         | Rejected: closing that gap is the point.                         |
+| Tool                                  | Role                  | Pros                                                                                                                                 | Cons                                                                                                     | Verdict                                                      |
+| ------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| **TFLint** *(accepted)*               | Terraform linter      | De-facto standard linter; bundled ruleset needs no network; mise/CI/pre-commit friendly; provider rulesets available if ever needed. | Cloudflare/Neon have no provider-specific ruleset, so coverage is language-level only.                   | **Accepted.**                                                |
+| **checkov / tfsec**                   | IaC security scanners | Broad policy libraries.                                                                                                              | Security-shaped: overlaps Trivy's config scan, not the hygiene gap. tfsec is folded into Trivy upstream. | Rejected: duplicates ADR 047.                                |
+| **OPA / conftest**                    | Policy engine         | Arbitrary custom policies over plans.                                                                                                | A policy *language* to author and maintain, not a curated ruleset; heavier than the gap warrants.        | Rejected: [Less Is More](/building-philosophy#less-is-more). |
+| **HCP Terraform policies (Sentinel)** | Managed policy        | Runs where the plan runs.                                                                                                            | Paid tier; platform lock-in for a linting concern.                                                       | Rejected: free tooling covers the gap.                       |
+| **Status quo** (`validate` + Trivy)   | n/a                   | No new tool.                                                                                                                         | Leaves the deterministic-hygiene quadrant empty.                                                         | Rejected: closing that gap is the point.                     |
 
 # Where It Sits On The Adoption Curve
 
 **Late majority.** TFLint has been the default Terraform linter for most of a
 decade, with a stable CLI and a deep documentation/LLM corpus, squarely in the
 maturity band the philosophy favours for infrastructure tooling
-([LLM-Optimized](/projects?tab=philosophy#llm-optimized)), and a counterweight
+([LLM-Optimized](/building-philosophy#llm-optimized)), and a counterweight
 to the early-majority picks (zizmor) elsewhere in the stack.
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). One binary, one config
+* [Less Is More](/building-philosophy#less-is-more). One binary, one config
   file per root, one CI job; no platform, no account, no dashboard.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops).
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops).
   Findings surface at commit time via lint-staged, and the CI job is the fastest
   check on an infra PR because it skips Terraform init entirely.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Agents author most
+* [LLM-Optimized](/building-philosophy#llm-optimized). Agents author most
   Terraform changes here; a deterministic lint floor means the same hygiene
   regression fails the same way every time, rather than depending on which AI
   reviewer notices.
-* [Build Flywheels](/projects?tab=philosophy#build-flywheels). The same config
+* [Build Flywheels](/building-philosophy#build-flywheels). The same config
   shape drops into any future Terraform root in the monorepo.
 
 # Gaps & Risks

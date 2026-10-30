@@ -5,6 +5,7 @@ import { getAllInitiatives } from "@/lib/api/initiatives";
 import { getAllProductDecisions } from "@/lib/api/product-decisions";
 import { getAllProjects } from "@/lib/api/projects";
 import { siteConfig } from "@/lib/config/site-config";
+import { buildingPhilosophyPage } from "@/lib/content/building-philosophy";
 import { getAllTechnologySlugs, loadDomainRepository } from "@/lib/domain";
 import { productDecisionPath } from "@/lib/domain/product-decision";
 
@@ -102,6 +103,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
     {
       url: `${siteConfig.url}/projects`,
+      lastModified: latestProjectDate.toISOString(),
+      priority: 0.7,
+    },
+    {
+      url: `${siteConfig.url}${buildingPhilosophyPage.path}`,
       lastModified: latestProjectDate.toISOString(),
       priority: 0.7,
     },

@@ -4,6 +4,7 @@ import {
   SavedRecipePayloadSchema,
 } from "recipe-domain/serialization";
 import type { RecipeVisibility } from "recipe-domain/visibility";
+import { normalizeSlug } from "ts-base/strings";
 import { buildRecipeContentFromParsed } from "@/lib/domain/recipe/cooklangTransform";
 import { resolveDisplayedIngredientSlug } from "@/lib/domain/recipe/ingredientIdentity";
 import {
@@ -14,7 +15,6 @@ import type {
   RecipeCardView,
   RecipeDetailView,
 } from "@/lib/domain/recipe/recipeViews";
-import { normalizeSlug } from "@/lib/generic/slugs";
 
 export type RecipeDraftMetadata = {
   title: string;

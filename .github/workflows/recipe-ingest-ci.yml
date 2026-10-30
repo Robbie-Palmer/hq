@@ -9,6 +9,7 @@ on:
       - "packages/recipe-domain/**"
       - "patches/**"
       - ".github/workflows/recipe-ingest-ci.yml"
+      - "workers/recipe-api/scripts/test-integration.sh"
       # Mirrored in tests/config-parity.test.ts, so drift in any copy of the
       # shared model/bucket/Hyperdrive settings fails this workflow.
       - "workers/recipe-api/wrangler.toml"
@@ -51,6 +52,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Test database round trips
+        run: mise run //workers/recipe-ingest:test:integration
 
       - name: Validate Worker bundle
         run: pnpm exec wrangler deploy --dry-run --outdir /tmp/recipe-ingest-bundle

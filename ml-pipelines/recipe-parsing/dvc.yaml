@@ -1,4 +1,33 @@
 stages:
+  validate_url_import_corpus:
+    cmd: pnpm exec tsx src/stages/validate-url-import-corpus.ts
+    deps:
+      - data/url-import-corpus/synthetic/v1
+      - src/stages/cli-arguments.ts
+      - src/stages/validate-url-import-corpus.ts
+      - src/url-import-corpus/corpus.ts
+      - src/url-import-corpus/schema.ts
+    metrics:
+      - outputs/url-import-synthetic-corpus-validation.json
+
+  replay_url_import_corpus:
+    cmd: pnpm exec tsx src/stages/replay-url-import-corpus.ts
+    deps:
+      - data/url-import-corpus/synthetic/v1/manifests/train.json
+      - data/url-import-corpus/synthetic/v1/manifests/development.json
+      - data/url-import-corpus/synthetic/v1/snapshots/train
+      - data/url-import-corpus/synthetic/v1/snapshots/development
+      - src/stages/cli-arguments.ts
+      - src/stages/replay-url-import-corpus.ts
+      - src/url-import-corpus/corpus.ts
+      - src/url-import-corpus/replay.ts
+      - src/url-import-corpus/schema.ts
+      - ../../packages/recipe-parsing/src
+      - ../../packages/recipe-parsing/package.json
+      - ../../pnpm-lock.yaml
+    metrics:
+      - outputs/url-import-synthetic-corpus-replay.json
+
   prepare:
     cmd: pnpm exec tsx src/stages/prepare.ts
     deps:

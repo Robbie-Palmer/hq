@@ -87,42 +87,42 @@ fast linter with a broad security scanner rather than pick one.
 Weighted toward the same test as [ADR 047](/projects/personal-knowledge-graph/adrs/047-trivy):
 does it surface in GitHub with no separate platform, and is it deterministic?
 
-| Tool                                       | Role           | Pros                                                                                                   | Cons                                                                             | Verdict                                                                                         |
-| ------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| **zizmor** *(accepted)*                    | GHA SAST       | Broadest workflow security coverage; SARIF → Security tab; mise/pre-commit/CI; active (Trail of Bits). | Newer (2024), so a thinner LLM corpus; noisier than poutine.                     | **Accepted** as the security scanner.                                                           |
-| **actionlint** *(accepted)*                | GHA linter     | Largest rule set for correctness; shellcheck integration; near-zero runtime.                           | Not security-focused.                                                            | **Accepted** as the deterministic linter (was only in CodeRabbit).                              |
-| **poutine** (BoostSecurity)                | GHA/CI SAST    | Conservative, low-noise, supply-chain focused.                                                         | Narrower than zizmor; overlaps it.                                               | Rejected: zizmor's breadth fits better as the single scanner.                                   |
-| **octoscan** (Synacktiv)                   | GHA SAST       | Strong expression-injection detection.                                                                 | Narrower scope; less momentum than zizmor.                                       | Rejected: subset of zizmor's coverage.                                                          |
-| **StepSecurity Harden-Runner**             | Runtime egress | Network egress control + auto-pinning.                                                                 | A platform/runtime agent, not static analysis.                                   | Rejected: reintroduces platform sprawl ([Less Is More](/projects?tab=philosophy#less-is-more)). |
-| **CodeQL Actions analysis**                | GHA SAST       | Already run for source SAST.                                                                           | Workflow coverage is shallow vs a dedicated tool; not its strength.              | Rejected for this gap; stays the source-code SAST owner.                                        |
-| **Status quo** (SonarQube/CodeRabbit only) | n/a            | No new check.                                                                                          | Leaves the deterministic-GHA quadrant empty; actionlint stays non-deterministic. | Rejected: closing that gap is the point.                                                        |
+| Tool                                       | Role           | Pros                                                                                                   | Cons                                                                             | Verdict                                                                                     |
+| ------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **zizmor** *(accepted)*                    | GHA SAST       | Broadest workflow security coverage; SARIF → Security tab; mise/pre-commit/CI; active (Trail of Bits). | Newer (2024), so a thinner LLM corpus; noisier than poutine.                     | **Accepted** as the security scanner.                                                       |
+| **actionlint** *(accepted)*                | GHA linter     | Largest rule set for correctness; shellcheck integration; near-zero runtime.                           | Not security-focused.                                                            | **Accepted** as the deterministic linter (was only in CodeRabbit).                          |
+| **poutine** (BoostSecurity)                | GHA/CI SAST    | Conservative, low-noise, supply-chain focused.                                                         | Narrower than zizmor; overlaps it.                                               | Rejected: zizmor's breadth fits better as the single scanner.                               |
+| **octoscan** (Synacktiv)                   | GHA SAST       | Strong expression-injection detection.                                                                 | Narrower scope; less momentum than zizmor.                                       | Rejected: subset of zizmor's coverage.                                                      |
+| **StepSecurity Harden-Runner**             | Runtime egress | Network egress control + auto-pinning.                                                                 | A platform/runtime agent, not static analysis.                                   | Rejected: reintroduces platform sprawl ([Less Is More](/building-philosophy#less-is-more)). |
+| **CodeQL Actions analysis**                | GHA SAST       | Already run for source SAST.                                                                           | Workflow coverage is shallow vs a dedicated tool; not its strength.              | Rejected for this gap; stays the source-code SAST owner.                                    |
+| **Status quo** (SonarQube/CodeRabbit only) | n/a            | No new check.                                                                                          | Leaves the deterministic-GHA quadrant empty; actionlint stays non-deterministic. | Rejected: closing that gap is the point.                                                    |
 
 # Where It Sits On The Adoption Curve
 
 actionlint is **late majority**, a long-standing default in serious Actions
 setups, with the maturity (stable CLI, deep docs, large corpus) the philosophy
-values ([LLM-Optimized](/projects?tab=philosophy#llm-optimized)). zizmor is
+values ([LLM-Optimized](/building-philosophy#llm-optimized)). zizmor is
 **early majority**, first released in 2024, rising fast, now the de-facto
 open-source workflow auditor, which puts it in the
-[Goldilocks zone](/projects?tab=philosophy#the-goldilocks-zone) we target: past
+[Goldilocks zone](/building-philosophy#the-goldilocks-zone) we target: past
 the bleeding edge, before ubiquity. The trade-off is a smaller training corpus
 than a decade-old tool, accepted because the security gap is concrete.
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). Both delivered as a PR
+* [Less Is More](/building-philosophy#less-is-more). Both delivered as a PR
   check and a Security-tab entry, not a new console; both managed in mise, so the
   residual cost is one lint step and one scheduled scan.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). When agents author
+* [LLM-Optimized](/building-philosophy#llm-optimized). When agents author
   most workflow YAML, the constraint is trustworthy verification. A deterministic
   floor means the same workflow regression fails the same check every time,
   unlike the CodeRabbit-only actionlint it replaces.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops).
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops).
   actionlint fails fast on the PR; zizmor annotates the Security tab. Both run
   locally via `mise run //:lint:actions` / `//:security:actions` before pushing.
-* [Build Flywheels](/projects?tab=philosophy#build-flywheels). Workflow-security
+* [Build Flywheels](/building-philosophy#build-flywheels). Workflow-security
   rules learned once carry to every future workflow in the monorepo.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   zizmor gates only new alerts rather than the whole backlog, so the pressure is
   to fix a regression rather than to switch the check off.
 

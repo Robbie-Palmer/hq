@@ -161,6 +161,8 @@ describe("Cloudflare token migration manifest", () => {
     const manifest = await loadCloudflareTokenMigrationManifest(repositoryRoot);
     const credential = manifest.credentials[0];
     credential.bootstrap_plan_status = "committed";
+    credential.bootstrap_plan_path =
+      "infra/account-foundation/cloudflare-token-plans/missing.yaml";
 
     expect(
       await validateCloudflareTokenMigrationRepositoryReferences(manifest, repositoryRoot),

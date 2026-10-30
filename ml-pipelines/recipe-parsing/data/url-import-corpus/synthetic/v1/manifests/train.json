@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "recordType": "recipe-url-import-partition",
+  "corpusVersion": "1.0.0",
+  "fixtureOrigin": "project-authored-synthetic",
+  "partition": "train",
+  "fixtures": [
+    {
+      "id": "direct-jsonld",
+      "sourceGroup": "synthetic-static-recipe",
+      "publisherProfile": "Static publisher with one direct Recipe JSON-LD object",
+      "patternFamily": "direct-recipe-object",
+      "coverage": ["json-ld"],
+      "retrieval": {
+        "sourceUrl": "https://static-recipes.fixtures.invalid/weeknight-spaghetti",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/train/direct-jsonld.html",
+        "bytes": 964,
+        "sha256": "sha256:e9af7ee728e96ee0ad8516969ab8f01fcab4ae2fca0a19b81e7836f6f5feb684"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Weeknight Spaghetti",
+          "description": "A small synthetic pasta recipe.",
+          "cuisine": "Italian",
+          "servings": 2,
+          "prepTime": 5,
+          "cookTime": 15,
+          "source": "@spaghetti{250%g}\n@olive oil{2%tbsp}\n@garlic{1%clove}\n\nBoil the spaghetti.\n\nWarm the oil with the garlic, then toss with the spaghetti."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    },
+    {
+      "id": "graph-sections",
+      "sourceGroup": "synthetic-graph-publisher",
+      "publisherProfile": "Publisher profile with Recipe inside @graph and nested HowToSection steps",
+      "patternFamily": "graph-with-sectioned-steps",
+      "coverage": [
+        "json-ld",
+        "json-ld-graph",
+        "unusual-ingredient-layout",
+        "unusual-step-layout"
+      ],
+      "retrieval": {
+        "sourceUrl": "https://graph-recipes.fixtures.invalid/seeded-flatbread",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/train/graph-sections.html",
+        "bytes": 1733,
+        "sha256": "sha256:91756bd5c1c75f85de779dd11d9436a08a57f3a2525dd61bc78971e8c9d5dbec"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Seeded Flatbread",
+          "description": "A synthetic flatbread with nested step sections.",
+          "cuisine": "Middle Eastern",
+          "servings": 6,
+          "prepTime": 20,
+          "cookTime": 12,
+          "source": "@strong flour{1 1/2%us_cup}\n@2-3 tbsp olive oil, divided{}\n@mixed seeds{1%tsp}\n\nMix the flour with half of the oil.\n\nRest the dough for ten minutes.\n\nTop with the seeds and remaining oil.\n\nBake until browned."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    }
+  ]
+}

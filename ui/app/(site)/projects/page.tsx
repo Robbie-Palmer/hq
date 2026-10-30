@@ -2,13 +2,12 @@ import { Rss } from "lucide-react";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { InitiativeList } from "@/components/initiatives/initiative-list";
-import { Markdown } from "@/components/markdown";
 import { ProjectList } from "@/components/projects/project-list";
 import { ProjectTabsSkeleton } from "@/components/projects/project-tabs-skeleton";
 import { ProjectsPageTabs } from "@/components/projects/projects-page-tabs";
 import { Button } from "@/components/ui/button";
 import { getAllInitiatives } from "@/lib/api/initiatives";
-import { getAllProjects, getBuildingPhilosophy } from "@/lib/api/projects";
+import { getAllProjects } from "@/lib/api/projects";
 
 export const metadata: Metadata = {
   title: "Projects",
@@ -19,7 +18,6 @@ export const metadata: Metadata = {
 export default function ProjectsPage() {
   const projects = getAllProjects();
   const initiatives = getAllInitiatives();
-  const philosophyContent = getBuildingPhilosophy();
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
@@ -48,7 +46,6 @@ export default function ProjectsPage() {
         <ProjectsPageTabs
           initiatives={<InitiativeList initiatives={initiatives} />}
           projects={<ProjectList projects={projects} />}
-          philosophy={<Markdown source={philosophyContent} />}
         />
       </Suspense>
     </div>

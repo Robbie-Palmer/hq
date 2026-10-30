@@ -1,3 +1,4 @@
+import { formatCurrencyAmount } from "ts-base/money";
 import type {
   AssetType,
   LiquidityTier,
@@ -7,7 +8,6 @@ import {
   type Currency,
   DEFAULT_BASE_CURRENCY,
 } from "@/app/_projects/personal-finance-app/domain/currency";
-import { formatCurrencyAmount } from "@/lib/generic/money";
 
 export const ASSET_TYPE_LABELS: Record<AssetType, string> = {
   cash: "Cash",

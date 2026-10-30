@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       initContainers:
         - name: prepare-data-directories
-          image: ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-19
+          image: ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20
           command:
             - /bin/sh
             - -eu
@@ -87,7 +87,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: t3-code
-          image: ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-19
+          image: ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20
           imagePullPolicy: IfNotPresent
           env:
             - name: HOME

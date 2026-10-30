@@ -11,7 +11,9 @@
     "./ingredient-normalization": "./src/ingredient-normalization.ts",
     "./import-storage": "./src/import-storage.ts",
     "./mutation": "./src/mutation.ts",
+    "./nutrition": "./src/nutrition.ts",
     "./pantry": "./src/pantry.ts",
+    "./photo-batch": "./src/photo-batch.ts",
     "./recipe": "./src/recipe.ts",
     "./serialization": "./src/serialization.ts",
     "./shopping-list": "./src/shopping-list.ts",
@@ -21,11 +23,13 @@
     "./pluralization": "./src/pluralization.ts",
     "./conversion": "./src/conversion.ts",
     "./cook-log": "./src/cook-log.ts",
-    "./batch-import": "./src/batch-import.ts"
+    "./batch-import": "./src/batch-import.ts",
+    "./cooklang-highlighting": "./src/cooklang-highlighting.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:property": "vitest run tests/property",
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
@@ -37,6 +41,7 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^5.0.0",
     "@types/pluralize": "^0.0.33",
+    "fast-check": "^4.10.2",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
   }

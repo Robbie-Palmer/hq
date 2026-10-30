@@ -162,7 +162,7 @@ gate.
 deep LLM corpus, `oasdiff` is stable, and OpenAPI itself is a decade-old
 standard. The newer piece is the **Zod-to-OpenAPI bridge**
 (`@hono/zod-openapi`), which sits in the
-[Goldilocks zone](/projects?tab=philosophy#the-goldilocks-zone), young enough
+[Goldilocks zone](/building-philosophy#the-goldilocks-zone), young enough
 that its corpus is thinner, accepted because the alternatives either rot (a
 hand-maintained spec) or drift (annotation-based `hono-openapi`). The OWASP
 ruleset is actively maintained and version-pinned so a rule addition can't
@@ -170,18 +170,18 @@ silently redden an unrelated PR.
 
 # Relation To Building Philosophy
 
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). A PR
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). A PR
   that adds a verb-in-path route or an unbounded array hears about it on that
   PR, not from a client that breaks after launch.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Agents write most new
+* [LLM-Optimized](/building-philosophy#llm-optimized). Agents write most new
   routes; a deterministic contract gate is exactly the guardrail that keeps
   agentic velocity from becoming agentic drift, and the generated `openapi.json`
   is machine-readable context an agent can read before adding the next endpoint,
   the same instinct as the site's agent-friendly Markdown twins.
-* [Less Is More](/projects?tab=philosophy#less-is-more). One generated artifact,
+* [Less Is More](/building-philosophy#less-is-more). One generated artifact,
   three pinned rulesets, one CI job, and it *removes* surface by forcing the
   duplicate import shapes and mismatched methods to converge.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   Legitimate action endpoints are allowlisted openly rather than suppressed with
   inline ignores; the gate covers only rule classes greened in the adopting
   change.

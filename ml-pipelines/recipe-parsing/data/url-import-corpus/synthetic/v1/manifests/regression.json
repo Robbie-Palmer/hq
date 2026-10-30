@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "recordType": "recipe-url-import-partition",
+  "corpusVersion": "1.0.0",
+  "fixtureOrigin": "project-authored-synthetic",
+  "partition": "regression",
+  "fixtures": [
+    {
+      "id": "focaccia-conflicting-graph",
+      "sourceGroup": "synthetic-focaccia-regression",
+      "publisherProfile": "Synthetic regression for the focaccia import failure recorded in Shortcut SC-400",
+      "patternFamily": "linked-conflicting-graph-recipes",
+      "coverage": [
+        "json-ld",
+        "json-ld-graph",
+        "conflicting-markup",
+        "known-failure",
+        "focaccia-known-failure"
+      ],
+      "originReference": "Shortcut SC-400 records the failure class. The snapshot and recipe text are synthetic.",
+      "retrieval": {
+        "sourceUrl": "https://focaccia-regression.fixtures.invalid/rosemary-focaccia",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written from the failure description only. It contains no copied page, recipe text, or media."
+      },
+      "artifact": {
+        "path": "snapshots/regression/focaccia-conflicting-graph.html",
+        "bytes": 1539,
+        "sha256": "sha256:e7557de3fce4a18eeaf216c7514a9140f217249482acd8045a42c85abbd0548d"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Rosemary Focaccia",
+          "description": "A synthetic regression case for conflicting recipe nodes.",
+          "cuisine": "Italian",
+          "servings": 8,
+          "prepTime": 25,
+          "cookTime": 30,
+          "source": "@strong flour{500%g}\n@dried yeast{7%g}\n@water{350%ml}\n@olive oil{3%tbsp}\n@rosemary{2%sprig}\n\nMix the flour, yeast, and water.\n\nProof the dough until doubled.\n\nDimple with oil and rosemary, then bake."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    },
+    {
+      "id": "item-list-steps",
+      "sourceGroup": "synthetic-list-publisher",
+      "publisherProfile": "Publisher profile with ItemList-wrapped steps and prepared ingredient phrases",
+      "patternFamily": "item-list-instructions",
+      "coverage": [
+        "json-ld",
+        "unusual-ingredient-layout",
+        "unusual-step-layout"
+      ],
+      "retrieval": {
+        "sourceUrl": "https://list-recipes.fixtures.invalid/layered-fruit-bowl",
+        "retrievedAt": "2026-10-30T00:00:00.000Z",
+        "method": "project-authored-synthetic",
+        "contentType": "text/html; charset=utf-8",
+        "httpStatus": null
+      },
+      "rights": {
+        "basis": "project-authored-synthetic",
+        "license": "AGPL-3.0-only",
+        "storageAllowed": true,
+        "evaluationAllowed": true,
+        "redistributionAllowed": true,
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "notes": "Written for this corpus. It contains no copied publisher text or media."
+      },
+      "artifact": {
+        "path": "snapshots/regression/item-list-steps.html",
+        "bytes": 977,
+        "sha256": "sha256:f8e9fcb5666c75c9f24b64815aa03528941ef2664293ba227740cf2d8cc3c02a"
+      },
+      "expected": {
+        "status": "success",
+        "recipe": {
+          "title": "Layered Fruit Bowl",
+          "description": "A synthetic recipe with an ItemList instruction wrapper.",
+          "cuisine": "",
+          "servings": 2,
+          "source": "@apple, thinly sliced{1}\n@berries{1/2%cup}\n@yoghurt{2%tbsp}\n\nLayer the apple and berries.\n\nSpoon the yoghurt on top."
+        }
+      },
+      "review": {
+        "status": "approved",
+        "reviewedAt": "2026-10-30T00:00:00.000Z",
+        "reviewer": "corpus-curator",
+        "method": "manual-synthetic-source-review"
+      }
+    }
+  ]
+}

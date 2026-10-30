@@ -1,0 +1,28 @@
+name: "work_graph_analytics"
+version: "1.0.0"
+config-version: 2
+
+profile: "work_graph_analytics"
+
+model-paths: ["models"]
+test-paths: ["tests-dbt"]
+macro-paths: ["macros"]
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  raw_staging_root: "target/staged"
+  output_root: "target/published"
+  model_version: "development"
+  period_start: "1970-01-01T00:00:00Z"
+  period_end: "9999-12-31T00:00:00Z"
+
+models:
+  work_graph_analytics:
+    staging:
+      +materialized: view
+    facts:
+      +materialized: external
+      +format: parquet
+    marts:
+      +materialized: external
+      +format: parquet

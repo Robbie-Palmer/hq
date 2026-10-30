@@ -39,7 +39,7 @@ I want a solution that prioritizes:
 
 I decided to use **[Fuse.js](https://www.fusejs.io/)** for client-side fuzzy search.
 
-This aligns with [Less Is More](/projects?tab=philosophy#less-is-more) and [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Fuse.js is self-hosted (no external services), has extensive LLM training data, and works seamlessly with static site generation.
+This aligns with [Less Is More](/building-philosophy#less-is-more) and [LLM-Optimized](/building-philosophy#llm-optimized). Fuse.js is self-hosted (no external services), has extensive LLM training data, and works seamlessly with static site generation.
 
 The implementation searches across weighted fields:
 
@@ -54,7 +54,7 @@ Configuration uses `threshold: 0.1` for predictable substring matching and `igno
 ### Pros
 
 * **Zero Infrastructure**: No servers, APIs, or external services to maintain. Search runs entirely client-side, eliminating hosting costs ($30-100+/month for Meilisearch/Algolia) and operational complexity.
-* **Platform Independence**: Aligns with [Less Is More](/projects?tab=philosophy#less-is-more). No external dependencies on Algolia, Pinecone, Elasticsearch clusters, or vector databases. Everything runs in the browser.
+* **Platform Independence**: Aligns with [Less Is More](/building-philosophy#less-is-more). No external dependencies on Algolia, Pinecone, Elasticsearch clusters, or vector databases. Everything runs in the browser.
 * **Fuzzy Search**: Typo tolerance means "machne leraning" finds "machine learning". Better UX than exact-match search, especially on mobile keyboards.
 * **LLM-Native**: Fuse.js has the highest download count (4.9M/week) among client-side search libraries, meaning extensive LLM training data. AI agents can easily generate and modify Fuse.js code.
 * **Simple API**: Minimal configuration. Instantiate Fuse with data and keys, call `.search()`. No index building, no embedding pipelines, no complex configuration files.

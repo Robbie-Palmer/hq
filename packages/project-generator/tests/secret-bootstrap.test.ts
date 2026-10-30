@@ -27,9 +27,13 @@ function plan(overrides: Record<string, unknown> = {}): SecretBootstrapPlan {
     },
     identities: {
       doppler: {
-        token_env: "DOPPLER_BOOTSTRAP_TOKEN",
         project: "sample-service",
-        configs: ["prd"],
+        configs: [
+          {
+            name: "prd",
+            token_env: "DOPPLER_BOOTSTRAP_TOKEN_PRD",
+          },
+        ],
       },
       github: {
         token_env: "GH_BOOTSTRAP_TOKEN",
@@ -85,7 +89,7 @@ function plan(overrides: Record<string, unknown> = {}): SecretBootstrapPlan {
 
 function environment() {
   return {
-    DOPPLER_BOOTSTRAP_TOKEN: "doppler-credential",
+    DOPPLER_BOOTSTRAP_TOKEN_PRD: "doppler-credential",
     GH_BOOTSTRAP_TOKEN: "github-credential",
     CLOUDFLARE_BOOTSTRAP_TOKEN: "cloudflare-credential",
     CLOUDFLARE_ACCOUNT_ID: "account-id",
@@ -121,6 +125,74 @@ describe("secret bootstrap contract", () => {
       },
     ]);
     expect(JSON.stringify(result)).not.toContain("secret-value");
+  });
+
+  it("accepts Doppler config slugs with underscores", () => {
+    const base = plan();
+    const parsed = plan({
+      identities: {
+        ...base.identities,
+        doppler: {
+          project: base.identities.doppler.project,
+          configs: [
+            {
+              name: "ops_plan",
+              token_env: "DOPPLER_BOOTSTRAP_TOKEN_OPS_PLAN",
+            },
+          ],
+        },
+      },
+      secrets: [
+        {
+          ...base.secrets[0],
+          system_of_record: {
+            ...base.secrets[0]?.system_of_record,
+            config: "ops_plan",
+          },
+        },
+      ],
+    });
+
+    expect(parsed.identities.doppler.configs).toEqual([
+      {
+        name: "ops_plan",
+        token_env: "DOPPLER_BOOTSTRAP_TOKEN_OPS_PLAN",
+      },
+    ]);
+    expect(parsed.secrets[0]?.system_of_record.config).toBe("ops_plan");
+  });
+
+  it("normalizes the legacy single-config Doppler identity", () => {
+    const base = plan();
+    const parsed = plan({
+      identities: {
+        ...base.identities,
+        doppler: {
+          token_env: "DOPPLER_BOOTSTRAP_TOKEN",
+          project: "sample-service",
+          configs: ["prd"],
+        },
+      },
+    });
+
+    expect(parsed.identities.doppler.configs).toEqual([
+      {
+        name: "prd",
+        token_env: "DOPPLER_BOOTSTRAP_TOKEN",
+      },
+    ]);
+    expect(() =>
+      plan({
+        identities: {
+          ...base.identities,
+          doppler: {
+            token_env: "DOPPLER_BOOTSTRAP_TOKEN",
+            project: "sample-service",
+            configs: ["prd", "stg"],
+          },
+        },
+      }),
+    ).toThrow();
   });
 
   it.each([
@@ -190,12 +262,41 @@ describe("secret bootstrap contract", () => {
         identities: {
           ...plan().identities,
           doppler: {
-            ...plan().identities.doppler,
-            configs: ["prd", "prd"],
+            project: plan().identities.doppler.project,
+            configs: [
+              {
+                name: "prd",
+                token_env: "DOPPLER_BOOTSTRAP_TOKEN_PRD",
+              },
+              {
+                name: "prd",
+                token_env: "DOPPLER_BOOTSTRAP_TOKEN_OTHER",
+              },
+            ],
           },
         },
       }),
     ).toThrow(/duplicate Doppler configs/);
+    expect(() =>
+      plan({
+        identities: {
+          ...plan().identities,
+          doppler: {
+            project: plan().identities.doppler.project,
+            configs: [
+              {
+                name: "prd",
+                token_env: "DOPPLER_BOOTSTRAP_TOKEN_SHARED",
+              },
+              {
+                name: "stg",
+                token_env: "DOPPLER_BOOTSTRAP_TOKEN_SHARED",
+              },
+            ],
+          },
+        },
+      }),
+    ).toThrow(/duplicate Doppler config credential environment variables/);
     expect(() =>
       plan({ checkpoints: [plan().checkpoints[0], plan().checkpoints[0]] }),
     ).toThrow(/duplicate checkpoint ids/);

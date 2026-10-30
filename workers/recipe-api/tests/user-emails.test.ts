@@ -1,7 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "recipe-db";
 import {
   syncCanonicalUserEmail,
+  syncLinkedAccountEmails,
   verifiedEmailsFromLinkedAccount,
 } from "../src/user-emails";
 
@@ -36,6 +37,23 @@ function canonicalEmailDb(registeredUserId?: string) {
     values,
   };
 }
+
+function linkedEmailDb() {
+  const onConflictDoUpdate = vi.fn().mockResolvedValue(undefined);
+  const values = vi.fn(() => ({ onConflictDoUpdate }));
+  const insert = vi.fn(() => ({ values }));
+  return {
+    db: { insert } as unknown as Db,
+    insert,
+    onConflictDoUpdate,
+    values,
+  };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+});
 
 describe("canonical user email", () => {
   it("upserts the canonical address before clearing the old primary", async () => {
@@ -77,6 +95,71 @@ describe("canonical user email", () => {
 });
 
 describe("linked account emails", () => {
+  it("bulk upserts unique verified aliases", async () => {
+    const fake = linkedEmailDb();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json([
+          { email: "First@Example.test", verified: true },
+          { email: "first@example.test", verified: true },
+          { email: "second@example.test", verified: true },
+        ]),
+      ),
+    );
+
+    await syncLinkedAccountEmails(fake.db, {
+      providerId: "github",
+      userId: "user-1",
+      accessToken: "token",
+    });
+
+    expect(fake.values).toHaveBeenCalledWith([
+      {
+        email: "first@example.test",
+        userId: "user-1",
+        verified: true,
+        isPrimary: false,
+      },
+      {
+        email: "second@example.test",
+        userId: "user-1",
+        verified: true,
+        isPrimary: false,
+      },
+    ]);
+    expect(fake.onConflictDoUpdate).toHaveBeenCalledOnce();
+  });
+
+  it("does not query the database when the provider has no verified aliases", async () => {
+    const fake = linkedEmailDb();
+
+    await syncLinkedAccountEmails(fake.db, {
+      providerId: "unsupported",
+      userId: "user-1",
+    });
+
+    expect(fake.insert).not.toHaveBeenCalled();
+  });
+
+  it("keeps database failures from breaking sign-in", async () => {
+    const fake = linkedEmailDb();
+    fake.onConflictDoUpdate.mockRejectedValue(new Error("database unavailable"));
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(
+      syncLinkedAccountEmails(fake.db, {
+        providerId: "google",
+        userId: "user-1",
+        idToken: googleIdToken({
+          email: "alias@example.test",
+          email_verified: true,
+        }),
+      }),
+    ).resolves.toBeUndefined();
+    expect(consoleError).toHaveBeenCalledOnce();
+  });
+
   it("reads a verified email from a Google ID token", async () => {
     const emails = await verifiedEmailsFromLinkedAccount({
       providerId: "google",

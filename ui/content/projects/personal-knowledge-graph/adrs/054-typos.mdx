@@ -58,35 +58,35 @@ why 6 of the 29 were real.
 
 # Alternatives Considered
 
-| Tool                               | Role                               | Pros                                                                                                                               | Cons                                                                                                                              | Verdict                                                                                  |
-| ---------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| **typos** *(accepted)*             | Known-misspelling checker          | Low false-positive rate by design; single fast binary; understands CamelCase/snake\_case; TOML config; `--write-changes` fix mode. | Won't catch a novel misspelling absent from its corpus.                                                                           | **Accepted.**                                                                            |
-| **cspell**                         | Dictionary spell-checker           | Higher recall; huge dictionary ecosystem.                                                                                          | Inverted noise profile: every identifier and name needs allowlisting; word-list maintenance becomes a chore that erodes the gate. | Rejected: precision over recall here.                                                    |
-| **codespell**                      | Known-misspelling checker (Python) | Same philosophy as typos.                                                                                                          | Python toolchain in a Node monorepo; smaller corpus; slower.                                                                      | Rejected: typos dominates it.                                                            |
-| **Vale**                           | Prose *style* linter               | Enforces style guides, not just spelling.                                                                                          | A style-rule programme is a much bigger commitment than the gap (spelling) warrants.                                              | Rejected: [Less Is More](/projects?tab=philosophy#less-is-more); could complement later. |
-| **AI reviewers only** (status quo) | Non-deterministic                  | Already running.                                                                                                                   | Six-year-old typos in published posts show the miss rate; never audits the backlog.                                               | Rejected.                                                                                |
+| Tool                               | Role                               | Pros                                                                                                                               | Cons                                                                                                                              | Verdict                                                                              |
+| ---------------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| **typos** *(accepted)*             | Known-misspelling checker          | Low false-positive rate by design; single fast binary; understands CamelCase/snake\_case; TOML config; `--write-changes` fix mode. | Won't catch a novel misspelling absent from its corpus.                                                                           | **Accepted.**                                                                        |
+| **cspell**                         | Dictionary spell-checker           | Higher recall; huge dictionary ecosystem.                                                                                          | Inverted noise profile: every identifier and name needs allowlisting; word-list maintenance becomes a chore that erodes the gate. | Rejected: precision over recall here.                                                |
+| **codespell**                      | Known-misspelling checker (Python) | Same philosophy as typos.                                                                                                          | Python toolchain in a Node monorepo; smaller corpus; slower.                                                                      | Rejected: typos dominates it.                                                        |
+| **Vale**                           | Prose *style* linter               | Enforces style guides, not just spelling.                                                                                          | A style-rule programme is a much bigger commitment than the gap (spelling) warrants.                                              | Rejected: [Less Is More](/building-philosophy#less-is-more); could complement later. |
+| **AI reviewers only** (status quo) | Non-deterministic                  | Already running.                                                                                                                   | Six-year-old typos in published posts show the miss rate; never audits the backlog.                                               | Rejected.                                                                            |
 
 # Where It Sits On The Adoption Curve
 
 **Early-to-late majority.** typos has become the default spell-check gate in
 large Rust/Python/JS open-source projects and pre-commit setups; stable CLI,
 maintained corpus. Comfortably in the
-[Goldilocks zone](/projects?tab=philosophy#the-goldilocks-zone), with
+[Goldilocks zone](/building-philosophy#the-goldilocks-zone), with
 codespell as the decade-old fallback if it ever stalls.
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). One binary, one small
+* [Less Is More](/building-philosophy#less-is-more). One binary, one small
   TOML file, one step in an existing workflow, no service, no dictionary
   sprawl.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). A typo
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). A typo
   in a new blog post fails the PR that introduces it, instead of shipping to
   the public site until a reader notices.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Agents generate most
+* [LLM-Optimized](/building-philosophy#llm-optimized). Agents generate most
   content drafts; a deterministic spelling floor means the same slip fails the
   same way every time. The committed config also teaches agents which
   "misspellings" here are intentional.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   Every allowlist entry is a reviewed line in `_typos.toml` with a stated
   reason, not a silent suppression.
 

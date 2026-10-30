@@ -125,6 +125,9 @@ spec:
               memory: 40Gi
               nvidia.com/gpu: "1"
           securityContext:
+            appArmorProfile:
+              type: Localhost
+              localhostProfile: t3-code-agent-browser
             allowPrivilegeEscalation: false
             capabilities:
               drop:

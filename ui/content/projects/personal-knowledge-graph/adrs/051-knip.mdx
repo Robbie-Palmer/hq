@@ -84,21 +84,21 @@ where an AI reviewer might or might not notice one in a diff's blast radius.
 Knip has displaced ts-prune/depcheck as the community default for this job and
 is stable and well-documented, but young enough that its LLM corpus is thinner
 than decade-old linters, the usual
-[Goldilocks-zone](/projects?tab=philosophy#the-goldilocks-zone) trade, accepted
+[Goldilocks-zone](/building-philosophy#the-goldilocks-zone) trade, accepted
 because the alternatives are unmaintained rather than merely older.
 
 # Relation To Building Philosophy
 
-* [Less Is More](/projects?tab=philosophy#less-is-more). Knip's whole job is
+* [Less Is More](/building-philosophy#less-is-more). Knip's whole job is
   making the codebase smaller; the tool itself is one devDependency, one JSON
   config, one CI job.
-* [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops). A PR
+* [Short Feedback Loops](/building-philosophy#short-feedback-loops). A PR
   that orphans a file or leaves a dependency behind hears about it on that PR,
   not during some future spring-clean.
-* [LLM-Optimized](/projects?tab=philosophy#llm-optimized). Less dead code means
+* [LLM-Optimized](/building-philosophy#llm-optimized). Less dead code means
   less irrelevant context for agents to read, imitate, and preserve; the
   config file doubles as documentation of the repo's non-obvious entry points.
-* [Respect Goodhart's Law](/projects?tab=philosophy#respect-goodharts-and-conways-laws).
+* [Respect Goodhart's Law](/building-philosophy#respect-goodharts-and-conways-laws).
   The gate covers only issue classes with a green baseline; the exports
   backlog records staged work. It must not become a number gamed with ignores.
 

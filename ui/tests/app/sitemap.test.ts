@@ -21,6 +21,12 @@ describe("sitemap", () => {
     );
   });
 
+  it("includes the building philosophy", () => {
+    expect(sitemap().map((entry) => entry.url)).toContain(
+      "https://robbiepalmer.me/building-philosophy",
+    );
+  });
+
   it("includes the ideas index and every idea detail page", () => {
     const ideaUrls = sitemap()
       .map((entry) => entry.url)
@@ -62,7 +68,13 @@ describe("sitemap", () => {
     );
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/data-provenance");
     expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/digital-twins");
-    expect(ideaUrls).toHaveLength(42);
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/mutation-testing",
+    );
+    expect(ideaUrls).toContain(
+      "https://robbiepalmer.me/ideas/property-based-testing",
+    );
+    expect(ideaUrls).toHaveLength(44);
   });
 
   it("excludes legacy ADR aliases", () => {

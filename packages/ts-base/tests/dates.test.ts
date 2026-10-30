@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareUtcInstants,
   ENGLISH_MONTH_ABBREVIATIONS,
+  formatDate,
   isoDatePart,
   isUtcInstant,
   previousUtcInstant,
@@ -30,6 +31,13 @@ describe("isoDatePart", () => {
   it("returns the UTC date and rejects invalid timestamps", () => {
     expect(isoDatePart("2026-04-06T23:30:00-02:00")).toBe("2026-04-07");
     expect(() => isoDatePart("not-a-date")).toThrow(TypeError);
+  });
+});
+
+describe("formatDate", () => {
+  it("preserves calendar dates across local timezones", () => {
+    expect(formatDate("2020-07-25")).toBe("July 25, 2020");
+    expect(formatDate("2024-02-29")).toBe("February 29, 2024");
   });
 });
 

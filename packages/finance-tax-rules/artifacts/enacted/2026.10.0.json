@@ -26,7 +26,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -113,7 +112,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -200,7 +198,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -297,7 +294,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2023-24"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -384,7 +380,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2023-24"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -471,7 +466,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2023-24"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -568,7 +562,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2024-25"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -655,7 +648,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2024-25"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -742,7 +734,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2024-25"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -844,7 +835,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2025-26"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -931,7 +921,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2025-26"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -1018,7 +1007,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2025-26"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -1120,7 +1108,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2026-27"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -1207,7 +1194,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2026-27"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -1294,7 +1280,6 @@
           "hmrc-income-tax-current-and-past",
           "hmrc-employer-2026-27"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Checked against both HMRC's summary table and its year-specific employer guidance.",
         "sources": [
@@ -1395,7 +1380,6 @@
         "sourceIds": [
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1456,7 +1440,6 @@
         "sourceIds": [
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1517,7 +1500,6 @@
         "sourceIds": [
           "hmrc-employer-2022-23"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1578,7 +1560,6 @@
         "sourceIds": [
           "hmrc-employer-2023-24"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1639,7 +1620,6 @@
         "sourceIds": [
           "hmrc-employer-2023-24"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1700,7 +1680,6 @@
         "sourceIds": [
           "hmrc-employer-2024-25"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1761,7 +1740,6 @@
         "sourceIds": [
           "hmrc-employer-2025-26"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1822,7 +1800,6 @@
         "sourceIds": [
           "hmrc-employer-2026-27"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Transcribed from the employee Class 1 table for category A; director calculations are excluded.",
         "sources": [
@@ -1886,7 +1863,6 @@
           "hmrc-pension-net-pay",
           "hmrc-salary-sacrifice"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
         "sources": [
@@ -2028,7 +2004,6 @@
           "hmrc-pension-net-pay",
           "hmrc-salary-sacrifice"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
         "sources": [
@@ -2170,7 +2145,6 @@
           "hmrc-pension-net-pay",
           "hmrc-salary-sacrifice"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
         "sources": [
@@ -2312,7 +2286,6 @@
           "hmrc-pension-net-pay",
           "hmrc-salary-sacrifice"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
         "sources": [
@@ -2454,7 +2427,6 @@
           "hmrc-pension-net-pay",
           "hmrc-salary-sacrifice"
         ],
-        "reviewedBy": "codex:finance-tax-historical-rule-data",
         "reviewedAt": "2026-10-01",
         "reviewNotes": "Allowance values and the payroll effects of each contribution method were reviewed separately.",
         "sources": [

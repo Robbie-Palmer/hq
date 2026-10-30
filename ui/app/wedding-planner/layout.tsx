@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import "@/components/wedding-planner/style.css";
+import "@/app/_projects/wedding-planner/components/style.css";
 
 export const metadata: Metadata = {
   title: "Wedding planner",

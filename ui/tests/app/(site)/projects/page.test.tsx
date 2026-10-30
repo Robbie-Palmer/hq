@@ -30,33 +30,25 @@ vi.mock("@/lib/api/initiatives", () => ({
 
 vi.mock("@/lib/api/projects", () => ({
   getAllProjects: () => [],
-  getBuildingPhilosophy: () => "## Building Philosophy",
 }));
 
 vi.mock("@/components/projects/projects-page-tabs", () => ({
   ProjectsPageTabs: ({
     initiatives,
     projects,
-    philosophy,
   }: {
     initiatives: React.ReactNode;
     projects: React.ReactNode;
-    philosophy: React.ReactNode;
   }) => (
     <div>
       {initiatives}
       {projects}
-      {philosophy}
     </div>
   ),
 }));
 
 vi.mock("@/components/projects/project-list", () => ({
   ProjectList: () => <div>Complete project list</div>,
-}));
-
-vi.mock("@/components/markdown", () => ({
-  Markdown: ({ source }: { source: string }) => <div>{source}</div>,
 }));
 
 describe("projects page", () => {

@@ -9,7 +9,7 @@ tech_stack: ["Terraform Cloud"]
 
 I need a reliable place to store Terraform state files (`.tfstate`).
 
-Remote state storage is a necessity. To achieve [Short Feedback Loops](/projects?tab=philosophy#short-feedback-loops), infrastructure changes must happen via CI/CD pipelines. This requires a shared, accessible state backend that the runner can verify and update.
+Remote state storage is a necessity. To achieve [Short Feedback Loops](/building-philosophy#short-feedback-loops), infrastructure changes must happen via CI/CD pipelines. This requires a shared, accessible state backend that the runner can verify and update.
 
 The traditional enterprise solution for specific state storage is an object store (like AWS S3) plus a locking mechanism (like DynamoDB). Historically, this required managing two separate pieces of infrastructure.
 
@@ -21,7 +21,7 @@ However, even with native locking, "self-hosting" state in S3/R2 requires:
 2. Managing authentication credentials (access keys) for the CI runner.
 3. Configuring the backend in code.
 
-This adds meta-infrastructure that needs to be maintained just to maintain the actual infrastructure, [Less Is More](/projects?tab=philosophy#less-is-more).
+This adds meta-infrastructure that needs to be maintained just to maintain the actual infrastructure, [Less Is More](/building-philosophy#less-is-more).
 
 # Decision
 

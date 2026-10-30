@@ -39,6 +39,7 @@ describe("agent markdown generation", () => {
       "index.md",
       "experience.md",
       "projects.md",
+      "building-philosophy.md",
       "ideas.md",
       "product-decisions.md",
       "blog.md",
@@ -119,7 +120,9 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("knowledge-graphs.html");
     expect(htmlPages).toContain("data-provenance.html");
     expect(htmlPages).toContain("digital-twins.html");
-    expect(htmlPages).toHaveLength(41);
+    expect(htmlPages).toContain("mutation-testing.html");
+    expect(htmlPages).toContain("property-based-testing.html");
+    expect(htmlPages).toHaveLength(43);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);
@@ -161,10 +164,37 @@ describe("agent markdown generation", () => {
     expect(wal).not.toContain("Kafka's core abstraction");
   });
 
-  it("includes the building philosophy in projects.md", () => {
+  it("publishes the building philosophy at its own Markdown URL", () => {
     const projects = read("projects.md");
-    expect(projects).toContain("# Building Philosophy");
-    expect(projects).toContain("## Short Feedback Loops");
+    const philosophy = read("building-philosophy.md");
+
+    expect(projects).toContain(
+      "https://robbiepalmer.me/building-philosophy.md",
+    );
+    expect(philosophy).toContain("# Building Philosophy");
+    expect(philosophy).toContain("## Short Feedback Loops");
+    expect(read("llms.txt")).toContain(
+      "https://robbiepalmer.me/building-philosophy.md",
+    );
+  });
+
+  it("renders the building philosophy and metadata in its initial HTML", () => {
+    const html = read("building-philosophy.html");
+
+    expect(html).toContain("Short Feedback Loops");
+    expect(html).toContain("Ship first.");
+    expect(html).toContain(
+      "<title>Building Philosophy | Robbie Palmer</title>",
+    );
+    expect(html).toContain(
+      '<meta name="description" content="Engineering principles that guide architectural decisions and technology choices"',
+    );
+    expect(html).toContain(
+      '<link rel="canonical" href="https://robbiepalmer.me/building-philosophy"',
+    );
+    expect(html).toContain(
+      '<link rel="alternate" type="text/markdown" href="https://robbiepalmer.me/building-philosophy.md"',
+    );
   });
 
   it("includes the research paper in the satellite swarm project twin", () => {
@@ -381,6 +411,7 @@ describe("agent markdown generation", () => {
     expect(routes.include).toContain("/llms-full.txt");
     expect(routes.include).toContain("/sitemap.xml");
     expect(routes.include).toContain("/satellite-swarm");
+    expect(routes.include).toContain("/building-philosophy");
     expect(routes.include).toContain("/projects/*");
     expect(routes.include).toContain("/initiatives/*");
     expect(routes.include).toContain("/ideas/*");
@@ -430,6 +461,9 @@ describe("agent markdown generation", () => {
     );
     expect(headers).toContain(
       'Link: <https://robbiepalmer.me/satellite-swarm.md>; rel="alternate"; type="text/markdown"',
+    );
+    expect(headers).toContain(
+      'Link: <https://robbiepalmer.me/building-philosophy.md>; rel="alternate"; type="text/markdown"',
     );
     const ruleCount = (headers.match(/^ {2}Link:/gm) ?? []).length;
     expect(ruleCount).toBeLessThanOrEqual(100);
