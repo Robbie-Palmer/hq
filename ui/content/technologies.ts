@@ -110,6 +110,14 @@ export const technologies: TechnologyContent[] = [
     type: "library",
   },
   {
+    name: "fast-check",
+    added: "2026-10-29",
+    description: "Property-based testing for JavaScript and TypeScript",
+    website: "https://fast-check.dev/",
+    type: "library",
+    ideas: ["property-based-testing"],
+  },
+  {
     name: "StrykerJS",
     added: "2026-10-29",
     description: "Mutation testing for JavaScript and TypeScript test suites",
