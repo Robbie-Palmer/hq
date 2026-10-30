@@ -92,6 +92,11 @@ import {
   venueRooms,
 } from "./room-data";
 import { TableEditor } from "./table-editor";
+import {
+  WorkflowEmptyState,
+  WorkflowErrorState,
+  WorkflowLoadingState,
+} from "./workflow-patterns";
 
 const initialFilter = "all";
 
@@ -149,7 +154,7 @@ const plannerSections = [
   { id: "music", label: "Music", icon: Music2 },
 ] as const;
 
-type EditorView = (typeof plannerSections)[number]["id"];
+export type EditorView = (typeof plannerSections)[number]["id"] | "exports";
 
 function InventoryView({
   view,
@@ -346,7 +351,7 @@ function ReadinessView({
   view: EditorView;
   state: WeddingPlanDraft | null;
   onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
-  onView: (view: EditorView) => void;
+  onView: (view: EditorView, targetId?: string) => void;
   onGuest: (guestId: string) => void;
 }>) {
   if (view !== "readiness" || !state) return null;
@@ -356,7 +361,7 @@ function ReadinessView({
       onUpdate={onUpdate}
       onNavigate={(destination, targetId) => {
         if (targetId && destination === "guests") onGuest(targetId);
-        onView(destination);
+        onView(destination, targetId);
       }}
     />
   );
@@ -365,12 +370,21 @@ function ReadinessView({
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
+  routeView,
+  selectedGuestId,
+  onNavigate,
+  onGuestChange,
 }: Readonly<{
   application?: PlannerApplication;
+  routeView?: EditorView;
+  selectedGuestId?: string | null;
+  onNavigate?: (view: EditorView, targetId?: string) => void;
+  onGuestChange?: (guestId: string | null) => void;
 }>) {
   const [state, setState] = useState<WeddingPlanDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<EditorView>("bed_groups");
+  const [internalView, setInternalView] = useState<EditorView>("bed_groups");
+  const view = routeView ?? internalView;
   const [bedSearch, setBedSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
   const [sharingLevel, setSharingLevel] = useState<SharingLevel>("room");
@@ -394,8 +408,25 @@ export function AccommodationEditor({
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
   const solverVersion = useRef(0);
+  const autoRoomCalculationStarted = useRef(false);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTimer = useRef<number | null>(null);
+
+  function setView(nextView: EditorView, targetId?: string) {
+    if (routeView) onNavigate?.(nextView, targetId);
+    else setInternalView(nextView);
+  }
+
+  function selectGuest(guestId: string | null) {
+    setSelectedId(guestId);
+    onGuestChange?.(guestId);
+  }
+
+  useEffect(() => {
+    if (selectedGuestId === undefined) return;
+    setSelectedId(selectedGuestId ?? state?.guests[0]?.id ?? null);
+  }, [selectedGuestId, state]);
+
   useEffect(() => {
     loadEditorPlan(
       application,
@@ -501,12 +532,16 @@ export function AccommodationEditor({
 
   async function calculate() {
     if (!state) return;
+    if (routeView && view !== "result") {
+      setView("result");
+      return;
+    }
     const version = editVersion.current;
     const calculationVersion = solverVersion.current;
     cancelPendingSave();
     setBusy(true);
     setError("");
-    setView("result");
+    if (!routeView) setView("result");
     try {
       await saveBeforeCalculation(state, version);
       const result = await application.calculateRooms(state);
@@ -527,6 +562,23 @@ export function AccommodationEditor({
       setBusy(false);
     }
   }
+
+  // A room-plan URL must work after a refresh, when no prior component owns
+  // the calculated projection.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: calculate is intentionally triggered once per route mount.
+  useEffect(() => {
+    if (
+      routeView !== "result" ||
+      view !== "result" ||
+      !state ||
+      allocation ||
+      busy ||
+      autoRoomCalculationStarted.current
+    )
+      return;
+    autoRoomCalculationStarted.current = true;
+    void calculate();
+  }, [view, state, allocation, busy]);
 
   async function importPlan(file: File) {
     const imported = decodeWeddingPlanDraft(await file.text());
@@ -744,61 +796,67 @@ export function AccommodationEditor({
   );
 
   return (
-    <div className="editor-app">
-      <header className="editor-header">
-        <div className="editor-brand">
-          <span className="brand-mark">
-            <Heart size={18} fill="currentColor" />
+    <div className={routeView ? "wedding-route" : "editor-app"}>
+      {!routeView && (
+        <header className="editor-header">
+          <div className="editor-brand">
+            <span className="brand-mark">
+              <Heart size={18} fill="currentColor" />
+            </span>
+            <span>
+              Wedding planner <small>Rooms, tables &amp; music</small>
+            </span>
+          </div>
+          <span className="save-status">
+            <Check size={15} /> {saveStatus}
           </span>
-          <span>
-            Wedding planner <small>Rooms, tables &amp; music</small>
-          </span>
-        </div>
-        <span className="save-status">
-          <Check size={15} /> {saveStatus}
-        </span>
-      </header>
-      <div className="editor-shell">
-        <aside className="editor-sidebar">
-          <PlannerNavigation
-            view={view}
-            onViewChange={setView}
-            pendingPairCount={pendingInvitationPairs.length}
-            guestCount={guests.length}
-          />
-          {state && (
-            <DataControls hasData onImport={importPlan} onExport={exportPlan} />
-          )}
-        </aside>
-        <main className="editor-main">
+        </header>
+      )}
+      <div className={routeView ? undefined : "editor-shell"}>
+        {!routeView && (
+          <aside className="editor-sidebar">
+            <PlannerNavigation
+              view={view}
+              onViewChange={setView}
+              pendingPairCount={pendingInvitationPairs.length}
+              guestCount={guests.length}
+            />
+            {state && (
+              <DataControls
+                hasData
+                onImport={importPlan}
+                onExport={exportPlan}
+              />
+            )}
+          </aside>
+        )}
+        <main id="wedding-planner-content" className="editor-main">
+          {loading && <WorkflowLoadingState />}
           {!loading && !state && (
-            <Card className="editor-start-card">
-              <CardHeader>
-                <CardTitle>No plan loaded</CardTitle>
-                <CardDescription>Plans stay in this browser.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="mb-4" onClick={loadSamplePlan}>
-                  Use sample plan
-                </Button>
-                <DataControls
-                  hasData={false}
-                  onImport={importPlan}
-                  onExport={exportPlan}
-                />
-              </CardContent>
-            </Card>
+            <WorkflowEmptyState
+              className="editor-start-card"
+              title="No plan loaded"
+              description="Plans stay in this browser. Start with fictional data or import a JSON backup."
+              action={
+                <>
+                  <Button className="mb-4" onClick={loadSamplePlan}>
+                    Use sample plan
+                  </Button>
+                  <DataControls
+                    hasData={false}
+                    onImport={importPlan}
+                    onExport={exportPlan}
+                  />
+                </>
+              }
+            />
           )}
           {state?.sample_plan === true && (
             <output className="editor-hint mb-5 block">
               Sample plan · 26 fictional guests
             </output>
           )}
-          {error && (
-            <div role="alert" className="editor-error">
-              {error}
-            </div>
-          )}
+          {error && <WorkflowErrorState message={error} />}
           {view === "tables" && state && (
             <TableEditor
               state={state}
@@ -814,7 +872,7 @@ export function AccommodationEditor({
             state={state}
             onUpdate={update}
             onView={setView}
-            onGuest={setSelectedId}
+            onGuest={selectGuest}
           />
           <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
@@ -935,7 +993,7 @@ export function AccommodationEditor({
                               selectedUnpaired?.id === guest.id && "selected",
                             )}
                             onClick={() => {
-                              setSelectedId(guest.id);
+                              selectGuest(guest.id);
                               setPartnerSearch("");
                             }}
                           >
@@ -1121,7 +1179,7 @@ export function AccommodationEditor({
                         type="button"
                         key={guest.id}
                         className={`guest-row ${selectedId === guest.id ? "selected" : ""}`}
-                        onClick={() => setSelectedId(guest.id)}
+                        onClick={() => selectGuest(guest.id)}
                       >
                         <span className="guest-avatar">
                           {guest.name.charAt(0)}
@@ -1570,9 +1628,7 @@ export function AccommodationEditor({
                           type="button"
                           key={group.id}
                           className={`sharing-focus-row ${group.id === focusGroup?.id ? "selected" : ""}`}
-                          onClick={() =>
-                            setSelectedId(group.guestIds[0] ?? null)
-                          }
+                          onClick={() => selectGuest(group.guestIds[0] ?? null)}
                         >
                           <span className="guest-avatar">
                             {group.name.charAt(0)}
@@ -1988,7 +2044,7 @@ export function AccommodationEditor({
                       className="linen-map-button"
                       variant="outline"
                       onClick={() => {
-                        setSelectedId(
+                        selectGuest(
                           weddingAccommodationSetup.reservation?.guestIds(
                             state,
                           )[0] ?? null,

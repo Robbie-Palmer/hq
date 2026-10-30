@@ -27,7 +27,13 @@ The music planner groups songs by moments such as arrivals, dinner, first dance 
 
 | Route or capability                                         | Decision | MVP treatment                                                                                                     |
 | ----------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `/wedding-planner`                                          | Keep     | One private entry point for guest, accommodation, seating, readiness and music workflows.                         |
+| `/wedding-planner`                                          | Keep     | Redirects to the private readiness overview.                                                                      |
+| `/wedding-planner/readiness`                                | Keep     | Readiness overview with links to the workflow that resolves each issue.                                           |
+| `/wedding-planner/guests`                                   | Keep     | Guest directory with the selected guest represented in the URL.                                                   |
+| `/wedding-planner/accommodation/*`                          | Keep     | Stable steps for beds, sharing, inventory, room costs and the calculated room plan.                               |
+| `/wedding-planner/seating`                                  | Keep     | Seating inputs, calculation, manual adjustments and handoff exports.                                              |
+| `/wedding-planner/music`                                    | Keep     | Private moderation and DJ brief workflow.                                                                         |
+| `/wedding-planner/exports`                                  | Keep     | JSON backup and import workflow for private planning data.                                                        |
 | Guest directory, attendance, couples and wedding roles      | Keep     | One guest record feeds accommodation and seating.                                                                 |
 | Accommodation preferences, inventory and room allocation    | Keep     | Includes prices, payer choices, amounts paid, guest contributions, cancellations and refunds for accommodation.   |
 | Seating calculation, saved plans and room layout            | Keep     | Supports manual locks and venue layout changes.                                                                   |
