@@ -3,13 +3,15 @@ title: "Agent Coordinator pitch"
 description: "Turn subsidized reasoning capacity into continuous progress on critical work"
 ---
 
-# Put every spare reasoning token on the critical path
+# Keep valuable agent work moving
 
-Agent Coordinator turns subsidized model capacity into useful parallel work.
+Agent Coordinator puts available reasoning capacity onto the most valuable
+automatable software-development work and carries it through a verified
+outcome.
 
 <PitchNotes>
-  The aim is bigger than assigning tasks. Paid plans provide a shifting pool of reasoning capacity. The coordinator
-  should keep that capacity aimed at the most valuable work that can begin now.
+  Paid plans provide a changing pool of reasoning capacity. Tasks become ready, limits reset, and agents finish work
+  at different times. The coordinator decides what can use that capacity now and remains responsible for the result.
 
   \[Sources]
 
@@ -19,188 +21,208 @@ Agent Coordinator turns subsidized model capacity into useful parallel work.
 
 ***
 
-## Reasoning capacity is perishable
+## The scarce resource is human judgment
 
-Subscription allowances reset. Rate limits recover. Agents become available.
+The first pilot launched general Work Graph tickets. It found plenty of work,
+but much of it involved exploratory architecture, UX, or prose that still
+needed a person to judge the result.
 
-Meanwhile, ready work waits because nobody notices that a critical path has opened.
-
-<p className="pitch-slide__statement">Unused capacity and delayed work are the same missed opportunity.</p>
+<p className="pitch-slide__statement">Cheap agent output becomes expensive when it only fills a human review queue.</p>
 
 <PitchNotes>
-  The opportunity comes from treating model subscriptions as a changing pool of prepaid capacity. A task can become
-  ready while the person or agent best suited to it is working elsewhere. The coordinator closes that gap.
+  The project should prefer work that agents can finish and evaluate. It should route genuine product, design,
+  architecture and editorial decisions to people instead of manufacturing drafts because capacity is idle.
 
   \[Sources]
 
-  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
-  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
+  * [Why the direction changed](/projects/agent-coordinator?tab=overview#why-the-direction-changed)
+  * [Non-goals](/projects/agent-coordinator?tab=overview#non-goals)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## When a blocker clears, useful work should fan out
+## Coordinate the work agents can finish
 
 <Mermaid
-  chart={`flowchart TB
-Open[Critical-path blocker clears] --> Research[Research]
-Open --> Build[Build]
-Open --> Validate[Validate]
-Research --> Next[The next constraint moves]
-Build --> Next
-Validate --> Next
+  chart={`flowchart LR
+Signal[Signal or ready work] --> Select[Select a verifiable outcome]
+Select --> Execute[Launch and direct agents]
+Execute --> Verify[Checks, delivery and QA]
+Verify -->|proved| Done[Record the outcome]
+Verify -->|recoverable| Execute
+Verify -->|needs judgment| Attention[Ask for precise human input]
 `}
 />
 
-<p className="pitch-slide__statement">Parallelism matters when every branch shortens the route to the outcome.</p>
+<p className="pitch-slide__statement">Selection, continuity, recovery, and evidence are one coordination problem.</p>
 
 <PitchNotes>
-  The goal is not maximum activity. It is maximum useful concurrency. Work should fan out only when the branches are
-  genuinely ready and each one advances the current critical path.
+  A task may begin from the Work Graph or an external event. The coordinator admits it, assigns capacity, keeps work
+  moving across sessions, and decides whether the evidence proves the intended result.
 
   \[Sources]
 
   * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
-  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
+  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## Planning decides what matters. Coordination spends the capacity.
+## Keep planning, coordination, and execution separate
 
 <PitchColumns>
   <PitchColumn>
     ### Work Graph
 
-    Priority, dependencies, readiness and the critical path.
+    Desired outcomes, priority, dependencies, leases, and durable evidence.
   </PitchColumn>
 
   <PitchColumn>
     ### Agent Coordinator
 
-    Actor, model tier, reasoning level and available plan allowance.
+    Admission policy, capacity allocation, continuity, authority, and outcome evaluation.
+  </PitchColumn>
+
+  <PitchColumn>
+    ### Agent runtime
+
+    Providers, sessions, threads, worktrees, limits, and interruption recovery.
   </PitchColumn>
 </PitchColumns>
 
-<p className="pitch-slide__statement">The plan stays durable. Allocation adapts whenever work or capacity changes.</p>
+<p className="pitch-slide__statement">The plan stays durable while execution machinery and model capacity change.</p>
 
 <PitchNotes>
-  The Work Graph answers what should happen next. Agent Coordinator decides how to spend the capacity available now.
-  Separating them keeps provider plans and model names out of the durable project plan.
+  Provider names and subscription limits should not leak into the durable work model. The coordinator interprets the
+  plan and current capacity, while the runtime handles agent execution.
 
   \[Sources]
 
-  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
-  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
+  * [System boundary](/projects/agent-coordinator?tab=overview#system-boundary)
+  * [Controller and worker roles](/projects/agent-coordinator?tab=overview#controller-and-worker-roles)
     \[/Sources]
 </PitchNotes>
 
 ***
 
-## Match the task to the right depth of thought
+## Use the capacity already available
 
-* Reserve frontier models and high reasoning for ambiguous, consequential work.
-* Send bounded implementation to capable mid-tier models.
-* Pack routine work into fast, cheap or already-subscribed capacity.
-* Route around exhausted plans before buying overflow.
+* Match task requirements to capable agents and models
+* Notice newly available work and safe parallelism
+* Track subscription limits and reset times
+* Resume useful work after limits, restarts, and interruptions
+* Avoid launching work whose result still needs open-ended human review
 
-<p className="pitch-slide__statement">Use the least expensive route likely to finish the task well.</p>
-
-<PitchNotes>
-  The coordinator should consider the task, not a permanent model ranking. Required capability, expected reasoning
-  depth, recent outcomes, current availability and remaining plan limits all affect the assignment.
-
-  \[Sources]
-
-  * [Why Agent Coordinator is separate](/projects/agent-coordinator?tab=overview#why-this-is-separate)
-  * [Actor model](/projects/agent-coordinator?tab=overview#actors)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## Start personal. Scale to teams. Open to contributors.
-
-1. **Personal:** keep one person's agents productive across several subscriptions.
-2. **Team:** share capacity under explicit budgets, access rules and concurrency limits.
-3. **Contributor:** match public work to people using their own agents and plans.
-
-<p className="pitch-slide__statement">Each stage adds capacity without giving away control of the plan.</p>
+<p className="pitch-slide__statement">Measure completed outcomes, not active threads or consumed tokens.</p>
 
 <PitchNotes>
-  Personal use proves the allocation loop with the smallest trust boundary. Team mode adds shared policy. Contributor
-  mode lets outside participants bring their own subsidized capacity without handing credentials to the project.
-
-  \[Sources]
-
-  * [Personal mode](/projects/agent-coordinator?tab=overview#personal-mode)
-  * [Contributor mode](/projects/agent-coordinator?tab=overview#contributor-mode)
-  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## The first release is a recommendation engine
-
-It watches ready work, available agents and remaining plan capacity.
-
-When the critical path changes, it proposes the next assignment and explains why.
-
-<p className="pitch-slide__statement">A person approves the match. Automatic routing comes after the recommendations prove useful.</p>
-
-<PitchNotes>
-  The first release should recommend an actor, model tier and reasoning level before any lease is claimed. It should
-  also preserve enough context to resume when a plan limit interrupts a session. It should not route work unattended.
-
-  \[Sources]
-
-  * [First useful release](/projects/agent-coordinator?tab=overview#first-useful-release)
-  * [Agent Coordinator architecture](/projects/agent-coordinator?tab=overview#architecture)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## Win by moving valuable work sooner
-
-* Critical-path work spends less time waiting.
-* Ready branches start in parallel when suitable capacity exists.
-* Less paid-for model capacity expires unused.
-* Fewer assignments stall, exceed limits or need reassignment.
-
-<p className="pitch-slide__statement">The measure is faster progress on outcomes.</p>
-
-<PitchNotes>
-  These measures protect the product from optimizing utilization for its own sake. Cheap activity on low-value work is
-  a failure if the critical path remains idle.
-
-  \[Sources]
-
-  * [Agent Coordinator success criteria](/projects/agent-coordinator?tab=overview#success)
-  * [Agent Coordinator non-goals](/projects/agent-coordinator?tab=overview#non-goals)
-    \[/Sources]
-</PitchNotes>
-
-***
-
-## Keep the critical path supplied with reasoning
-
-As work opens, allocate the best available combination of agent, model, reasoning depth and plan capacity.
-
-Then do it again when the plan changes.
-
-[Read the full project account](/projects/agent-coordinator?tab=overview)
-
-<PitchNotes>
-  The long-term vision is continuous allocation. The coordinator notices newly ready work, exploits safe parallelism
-  and reallocates as plan limits, model availability and project priorities change.
+  The long-term goal is continuous allocation across automatable SDLC work. Capacity is useful only when it shortens
+  the route to a result the system can verify.
 
   \[Sources]
 
   * [Agent Coordinator vision](/projects/agent-coordinator?tab=overview#vision)
-  * [Agent Coordinator responsibilities](/projects/agent-coordinator?tab=overview#responsibilities)
+  * [Later expansion](/projects/agent-coordinator?tab=overview#later-expansion)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## T3 Code replaces custom execution machinery
+
+T3 Code already supplies signed webhook automations, controller and worker
+threads, managed worktrees, provider sessions, pull-request watches, usage-limit
+recovery, and continuation after restarts.
+
+<p className="pitch-slide__statement">Build coordination policy and outcome loops instead of maintaining a second agent runtime.</p>
+
+<PitchNotes>
+  The current Work Graph poller, launcher and provider-session package remain useful during migration. Limit changes
+  to maintenance for existing users. Remove them after the T3 path replaces their live uses, then rely on Git history
+  instead of maintaining two permanent fallbacks.
+
+  \[Sources]
+
+  * [Why the direction changed](/projects/agent-coordinator?tab=overview#why-the-direction-changed)
+  * [What remains to build](/projects/agent-coordinator?tab=overview#what-remains-to-build)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Start with severe vulnerability remediation
+
+GitHub provides the security signal. Renovate provides deterministic update
+proposals. Agent Coordinator owns the judgment and delivery work that remains.
+
+<Mermaid
+  chart={`flowchart LR
+Alert[Severe alert] --> Inspect[Inspect alert and Renovate PRs]
+Inspect --> Fix[Repair or create the fix]
+Fix --> Merge[Pass checks and merge]
+Merge --> Deploy[Deploy]
+Deploy --> Validate[Validate production]
+Validate -->|failure| Fix
+`}
+/>
+
+<p className="pitch-slide__statement">Security remediation is the first product vertical. The project covers the wider automatable SDLC.</p>
+
+<PitchNotes>
+  Vulnerability remediation has a clear trigger and an observable production result. It exercises the complete
+  coordination loop without depending on a person to assess every intermediate artifact.
+
+  \[Sources]
+
+  * [First product outcome](/projects/agent-coordinator?tab=overview#first-product-outcome)
+  * [PDR 000](/projects/agent-coordinator/pdrs/000-severe-vulnerability-resolution)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Give the agent enough authority to finish
+
+The worker may repair or replace a Renovate pull request, merge after required
+checks, follow the established deployment path, validate production, and repair
+or revert a failed rollout.
+
+It asks for help when authority is missing or the safe result remains ambiguous.
+
+<p className="pitch-slide__statement">A pull request is intermediate. The product is a verified outcome.</p>
+
+<PitchNotes>
+  Branch protection and deterministic checks remain in force. The agent cannot dismiss the alert, weaken those
+  controls, or claim success because a change merged without proving what reached production.
+
+  \[Sources]
+
+  * [Authority model](/projects/agent-coordinator?tab=overview#authority-model)
+  * [First release](/projects/agent-coordinator?tab=overview#first-release)
+    \[/Sources]
+</PitchNotes>
+
+***
+
+## Prove one vertical, then expand across the SDLC
+
+After vulnerability remediation, apply the same coordination to failing
+delivery workflows, production regressions, dependency migrations, stale
+high-value pull requests, and codebase analysis followed by bounded refactoring.
+
+<p className="pitch-slide__statement">Expand when the next task class has an objective completion test.</p>
+
+[Read the full project account](/projects/agent-coordinator?tab=overview)
+
+<PitchNotes>
+  The durable goal is to turn available agent capacity into continuous progress on critical work. Each new vertical
+  should prove that agents can complete and evaluate the outcome without transferring the real work into a human
+  review queue.
+
+  \[Sources]
+
+  * [Later expansion](/projects/agent-coordinator?tab=overview#later-expansion)
     \[/Sources]
 </PitchNotes>
