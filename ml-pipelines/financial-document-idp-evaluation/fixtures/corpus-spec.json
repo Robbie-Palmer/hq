@@ -6,7 +6,6 @@
     {
       "document_id": "bank-en-native",
       "family": "bank_statement",
-      "filename": "bank-en-native.pdf",
       "mime_type": "application/pdf",
       "source_rights": "Project-authored synthetic fixture released for repository testing",
       "consent_or_generation_method": "Deterministically generated from invented names and amounts",
@@ -38,7 +37,6 @@
     {
       "document_id": "card-en-html",
       "family": "credit_card_statement",
-      "filename": "card-en-html.html",
       "mime_type": "text/html",
       "source_rights": "Project-authored synthetic fixture released for repository testing",
       "consent_or_generation_method": "Deterministically generated from invented names and amounts",
@@ -70,7 +68,6 @@
     {
       "document_id": "payslip-en-scan",
       "family": "payslip",
-      "filename": "payslip-en-scan.pgm",
       "mime_type": "image/x-portable-graymap",
       "source_rights": "Project-authored synthetic fixture released for repository testing",
       "consent_or_generation_method": "Deterministically generated from invented names and amounts",
@@ -100,7 +97,6 @@
     {
       "document_id": "bank-fr-native",
       "family": "bank_statement",
-      "filename": "bank-fr-native.pdf",
       "mime_type": "application/pdf",
       "source_rights": "Project-authored synthetic fixture released for repository testing",
       "consent_or_generation_method": "Deterministically generated from invented names and amounts",
@@ -132,7 +128,6 @@
     {
       "document_id": "bank-adversarial",
       "family": "bank_statement",
-      "filename": "bank-adversarial.pdf",
       "mime_type": "application/pdf",
       "source_rights": "Project-authored synthetic fixture released for repository security testing",
       "consent_or_generation_method": "Deterministically generated adversarial text with no personal data",
@@ -161,7 +156,6 @@
     {
       "document_id": "bank-low-confidence",
       "family": "bank_statement",
-      "filename": "bank-low-confidence.pgm",
       "mime_type": "image/x-portable-graymap",
       "source_rights": "Project-authored synthetic fixture released for repository security testing",
       "consent_or_generation_method": "Deterministically generated incomplete scan with no personal data",

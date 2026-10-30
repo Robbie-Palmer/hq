@@ -179,7 +179,6 @@ class CorpusManifest(StrictModel):
 class CorpusSpecDocument(StrictModel):
     document_id: SafeIdentifier
     family: DocumentFamily
-    filename: str = Field(pattern=r"^[a-z0-9._-]+$")
     mime_type: Literal["application/pdf", "text/html", "image/x-portable-graymap"]
     source_rights: str
     consent_or_generation_method: str

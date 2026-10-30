@@ -12,6 +12,7 @@ from financial_document_idp.io import (
     load_model,
     read_json,
     read_jsonl,
+    resolve_under,
     sha256_file,
     write_jsonl,
 )
@@ -92,7 +93,11 @@ def test_reproduction_is_byte_deterministic(reproduced_root: Path) -> None:
 
 def test_safety_stage_rejects_checksum_changes(evaluation_root: Path) -> None:
     build_corpus(evaluation_root)
-    document = evaluation_root / "data/corpus/documents/bank-en-native.pdf"
+    manifest = load_model(evaluation_root / "data/corpus/manifest.json", CorpusManifest)
+    bank_entry = next(
+        entry for entry in manifest.documents if entry.document_id == "bank-en-native"
+    )
+    document = resolve_under(evaluation_root / "data/corpus", bank_entry.relative_path)
     document.write_bytes(document.read_bytes() + b"tampered")
 
     safety_and_render(evaluation_root)
@@ -134,7 +139,11 @@ def test_contracts_reject_broken_references_and_abstention_state(reproduced_root
     with pytest.raises(ValidationError, match="expected_abstention"):
         CorpusManifestEntry.model_validate(manifest_value)
 
-    truth_value = read_json(root / "data/corpus/ground-truth/bank-en-native.json")
+    manifest = load_model(root / "data/corpus/manifest.json", CorpusManifest)
+    bank_entry = next(
+        entry for entry in manifest.documents if entry.document_id == "bank-en-native"
+    )
+    truth_value = read_json(resolve_under(root / "data/corpus", bank_entry.ground_truth_path))
     truth_value["balances"][0]["account_id"] = "unknown-account"
     with pytest.raises(ValidationError, match="unknown account"):
         CanonicalExtraction.model_validate(truth_value)
@@ -223,3 +232,13 @@ def test_corpus_spec_is_plain_json_for_dvc_parameter_reproducibility(
     raw = (evaluation_root / "params.yaml").read_text(encoding="utf-8")
     assert json.loads(raw)["pipelineVersion"] == "1.0.0"
     assert "!!python" not in raw
+
+
+def test_artifact_paths_cannot_escape_their_declared_root(tmp_path: Path) -> None:
+    root = tmp_path / "artifacts"
+    root.mkdir()
+    assert resolve_under(root, "nested/result.json") == root / "nested/result.json"
+    with pytest.raises(ValueError, match="escapes"):
+        resolve_under(root, "../outside.json")
+    with pytest.raises(ValueError, match="must be relative"):
+        resolve_under(root, tmp_path / "outside.json")

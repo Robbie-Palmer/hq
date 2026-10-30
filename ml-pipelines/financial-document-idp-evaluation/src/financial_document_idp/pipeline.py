@@ -21,6 +21,7 @@ from .io import (
     project_root,
     read_json,
     read_jsonl,
+    resolve_under,
     sha256_bytes,
     sha256_file,
     write_json,
@@ -127,7 +128,7 @@ def _encode_fixture(mime_type: str, content: str) -> bytes:
 def build_corpus(root: Path | None = None) -> None:
     root = root or project_root()
     params = load_params(root)
-    spec = load_model(root / str(params["corpusSpec"]), CorpusSpec)
+    spec = load_model(resolve_under(root, str(params["corpusSpec"])), CorpusSpec)
     corpus_dir = root / "data/corpus"
     _reset_directory(corpus_dir, root)
     documents_dir = corpus_dir / "documents"
@@ -135,17 +136,22 @@ def build_corpus(root: Path | None = None) -> None:
     documents_dir.mkdir()
     truth_dir.mkdir()
     entries: list[CorpusManifestEntry] = []
-    for document in sorted(spec.documents, key=lambda item: item.document_id):
+    for artifact_number, document in enumerate(
+        sorted(spec.documents, key=lambda item: item.document_id), start=1
+    ):
         content = _encode_fixture(document.mime_type, document.content)
-        document_path = documents_dir / document.filename
+        artifact_stem = f"{artifact_number:04d}"
+        artifact_filename = artifact_stem + MIME_EXTENSIONS[document.mime_type]
+        document_path = documents_dir / artifact_filename
         document_path.write_bytes(content)
-        truth_path = truth_dir / f"{document.document_id}.json"
+        truth_filename = f"{artifact_stem}.json"
+        truth_path = truth_dir / truth_filename
         write_json(truth_path, document.ground_truth)
         entries.append(
             CorpusManifestEntry(
                 document_id=document.document_id,
                 family=document.family,
-                relative_path=f"documents/{document.filename}",
+                relative_path=f"documents/{artifact_filename}",
                 mime_type=document.mime_type,
                 sha256=sha256_bytes(content),
                 byte_size=len(content),
@@ -154,7 +160,7 @@ def build_corpus(root: Path | None = None) -> None:
                 redaction_status=document.redaction_status,
                 synthetic=document.synthetic,
                 strata=document.strata,
-                ground_truth_path=f"ground-truth/{document.document_id}.json",
+                ground_truth_path=f"ground-truth/{truth_filename}",
                 expected_abstention=document.expected_abstention,
                 expected_abstention_reason=document.expected_abstention_reason,
                 adversarial_tags=document.adversarial_tags,
@@ -235,7 +241,7 @@ def safety_and_render(root: Path | None = None) -> None:
     failures: list[dict[str, str]] = []
     format_counts: Counter[str] = Counter()
     for entry in manifest.documents:
-        path = corpus_dir / entry.relative_path
+        path = resolve_under(corpus_dir, entry.relative_path)
         try:
             content = path.read_bytes()
             if entry.mime_type not in allowed:
@@ -388,8 +394,9 @@ def _operational_metrics(text: str, params: dict[str, Any]) -> tuple[int, int]:
 def extract(root: Path | None = None) -> None:
     root = root or project_root()
     params = load_params(root)
-    model_manifest = read_json(root / str(params["modelManifest"]))
-    prompt_path = root / str(params["prompt"])
+    model_manifest_path = resolve_under(root, str(params["modelManifest"]))
+    model_manifest = read_json(model_manifest_path)
+    prompt_path = resolve_under(root, str(params["prompt"]))
     prompt_sha256 = sha256_file(prompt_path)
     rendered = [
         RenderedDocument.model_validate(item)
@@ -454,7 +461,7 @@ def extract(root: Path | None = None) -> None:
             "code_revision": code_revision(root),
             "params_sha256": sha256_file(root / "params.yaml"),
             "prompt_sha256": prompt_sha256,
-            "model_manifest_sha256": sha256_file(root / str(params["modelManifest"])),
+            "model_manifest_sha256": sha256_file(model_manifest_path),
             "corpus_manifest_sha256": sha256_file(root / "data/corpus/manifest.json"),
             "documents": len(predictions),
             "failures": len(failures),
@@ -575,7 +582,7 @@ def match(root: Path | None = None) -> None:
     records: list[MatchRecord] = []
     for entry in manifest.documents:
         expected = _normalize_extraction(
-            load_model(corpus_dir / entry.ground_truth_path, CanonicalExtraction)
+            load_model(resolve_under(corpus_dir, entry.ground_truth_path), CanonicalExtraction)
         )
         prediction = predictions[entry.document_id]
         expected_fields = _flatten_fields(expected.model_dump(mode="json"))
@@ -861,7 +868,9 @@ def verify(root: Path | None = None) -> None:
     ):
         raise ValueError("corpus contains an unredacted non-synthetic document")
     for entry in manifest.documents:
-        load_model(root / "data/corpus" / entry.ground_truth_path, CanonicalExtraction)
+        load_model(
+            resolve_under(root / "data/corpus", entry.ground_truth_path), CanonicalExtraction
+        )
     for value in read_jsonl(root / "outputs/normalized/predictions.jsonl"):
         PredictionRecord.model_validate(value)
     decision = read_json(root / "outputs/evaluation/release-decision.json")
@@ -869,7 +878,7 @@ def verify(root: Path | None = None) -> None:
         raise ValueError("candidate does not pass the release gates")
     provenance = read_json(root / "outputs/error-analysis/provenance.json")
     for artifact in provenance["artifacts"]:
-        if sha256_file(root / artifact["path"]) != artifact["sha256"]:
+        if sha256_file(resolve_under(root, artifact["path"])) != artifact["sha256"]:
             raise ValueError(f"artifact hash mismatch: {artifact['path']}")
     write_schemas(check=True, root=root)
     print(f"verified {len(manifest.documents)} synthetic or redacted documents")

@@ -5,24 +5,24 @@ stages:
     deps:
     - path: fixtures/corpus-spec.json
       hash: md5
-      md5: 9c2e3204004598f10b198bf552b83028
-      size: 16166
+      md5: e096089178632c214a8535852964ae86
+      size: 15919
     - path: pyproject.toml
       hash: md5
       md5: b204530f40183f6d4c58745a182619fe
       size: 1535
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     - path: uv.lock
       hash: md5
       md5: c20b76008a0cf8d845cc24a3de1c9a43
@@ -34,29 +34,29 @@ stages:
     outs:
     - path: data/corpus
       hash: md5
-      md5: 8c2a461e3bb4863730338c933b49ad2f.dir
-      size: 22341
+      md5: 526bcca458083116e38d22d900d8bb49.dir
+      size: 22209
       nfiles: 13
   file_safety_and_rendering:
     cmd: uv run --locked financial-document-idp safety-render
     deps:
     - path: data/corpus
       hash: md5
-      md5: 8c2a461e3bb4863730338c933b49ad2f.dir
-      size: 22341
+      md5: 526bcca458083116e38d22d900d8bb49.dir
+      size: 22209
       nfiles: 13
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     params:
       params.yaml:
         fileSafety:
@@ -99,16 +99,16 @@ stages:
       size: 1535
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     - path: uv.lock
       hash: md5
       md5: c20b76008a0cf8d845cc24a3de1c9a43
@@ -134,7 +134,7 @@ stages:
       size: 6552
     - path: outputs/extraction/run.json
       hash: md5
-      md5: 133dc56734fec8cdb63db6504d48f67b
+      md5: 732c088ca6e1d653d0cf02dc88564404
       size: 599
   normalize:
     cmd: uv run --locked financial-document-idp normalize
@@ -145,16 +145,16 @@ stages:
       size: 6552
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     outs:
     - path: outputs/normalized/failures.json
       hash: md5
@@ -169,8 +169,8 @@ stages:
     deps:
     - path: data/corpus
       hash: md5
-      md5: 8c2a461e3bb4863730338c933b49ad2f.dir
-      size: 22341
+      md5: 526bcca458083116e38d22d900d8bb49.dir
+      size: 22209
       nfiles: 13
     - path: outputs/normalized/predictions.jsonl
       hash: md5
@@ -178,16 +178,16 @@ stages:
       size: 6552
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     outs:
     - path: outputs/matching/errors.json
       hash: md5
@@ -202,8 +202,8 @@ stages:
     deps:
     - path: data/corpus/manifest.json
       hash: md5
-      md5: 31b8236f73a8a9940fba3f0e44296510
-      size: 5476
+      md5: de94d52665cfffb69389a1774ee0084a
+      size: 5344
     - path: models.json
       hash: md5
       md5: ea0a55db91e4b5ac3c9a6f0ddef2016a
@@ -218,16 +218,16 @@ stages:
       size: 6552
     - path: src/financial_document_idp/io.py
       hash: md5
-      md5: d96cfbcc522e2c3b02599b51ebe041ef
-      size: 2750
+      md5: 3c07b4f9e55d9ab26f43729df3d41279
+      size: 3258
     - path: src/financial_document_idp/pipeline.py
       hash: md5
-      md5: 2b791617e0851c84e9f141c4c77b11fa
-      size: 35888
+      md5: b30e72720695d7e23c0f0d20af32de6f
+      size: 36259
     - path: src/financial_document_idp/schemas.py
       hash: md5
-      md5: d56b7a90ddc200dea9d026ce3c685062
-      size: 9447
+      md5: 1837748c3189cb506974b208a3385e1a
+      size: 9394
     params:
       params.yaml:
         pipelineVersion: 1.0.0
@@ -258,8 +258,8 @@ stages:
     deps:
     - path: data/corpus/manifest.json
       hash: md5
-      md5: 31b8236f73a8a9940fba3f0e44296510
-      size: 5476
+      md5: de94d52665cfffb69389a1774ee0084a
+      size: 5344
     - path: models.json
       hash: md5
       md5: ea0a55db91e4b5ac3c9a6f0ddef2016a
@@ -298,8 +298,8 @@ stages:
       size: 1535
     - path: src/financial_document_idp
       hash: md5
-      md5: efc6c6165b76a698fcd3a8d824b5558d.dir
-      size: 133325
+      md5: d876d20f9e2b246e56a3443ca3125675.dir
+      size: 135191
       nfiles: 10
     - path: uv.lock
       hash: md5
@@ -312,7 +312,7 @@ stages:
       size: 516
     - path: outputs/error-analysis/provenance.json
       hash: md5
-      md5: a6bf93d0449eac28170a8ba74721bf24
+      md5: 6facc7e2242770e5575e39e5d596ea99
       size: 2463
     - path: outputs/error-analysis/summary.md
       hash: md5

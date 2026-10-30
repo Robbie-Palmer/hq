@@ -69,6 +69,20 @@ def sha256_tree(paths: Iterable[Path], *, root: Path) -> str:
     return digest.hexdigest()
 
 
+def resolve_under(root: Path, relative: str | Path) -> Path:
+    """Resolve an artifact path and reject escapes from its declared root."""
+    root = root.resolve()
+    relative = Path(relative)
+    if relative.is_absolute():
+        raise ValueError("artifact path must be relative")
+    candidate = (root / relative).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError as error:
+        raise ValueError("artifact path escapes its declared root") from error
+    return candidate
+
+
 def project_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
