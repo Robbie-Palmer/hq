@@ -133,6 +133,8 @@ spec:
               drop:
                 - ALL
             readOnlyRootFilesystem: true
+            seccompProfile:
+              type: Unconfined
           volumeMounts:
             - name: vector-doppler-wrapper
               mountPath: /opt/vector/bin
