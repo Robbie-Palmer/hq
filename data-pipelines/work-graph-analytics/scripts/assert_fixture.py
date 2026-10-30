@@ -12,6 +12,9 @@ import duckdb
 
 from work_graph_analytics.reporting import operational_report
 
+ACCESS_CAUSE = "attention:access"
+REVIEW_CAUSE = "attention:review"
+
 
 def _json_value(value: Any) -> Any:
     if isinstance(value, (date, datetime, time)):
@@ -56,7 +59,7 @@ def metric(version: Path, project: str, cause: str) -> tuple[int, ...]:
 def main() -> None:
     first = Path(sys.argv[1])
     second = Path(sys.argv[2])
-    assert metric(first, "project-new", "attention:access") == (
+    assert metric(first, "project-new", ACCESS_CAUSE) == (
         2,
         1,
         5_400_000,
@@ -66,7 +69,7 @@ def main() -> None:
         0,
         0,
     )
-    assert metric(first, "project", "attention:review") == (
+    assert metric(first, "project", REVIEW_CAUSE) == (
         1,
         0,
         1_800_000,
@@ -104,12 +107,10 @@ def main() -> None:
         )
         for row in report.metrics
     }
-    assert report_metrics[("project-new", "attention:access")] == metric(
-        first, "project-new", "attention:access"
+    assert report_metrics[("project-new", ACCESS_CAUSE)] == metric(
+        first, "project-new", ACCESS_CAUSE
     )
-    assert report_metrics[("project", "attention:review")] == metric(
-        first, "project", "attention:review"
-    )
+    assert report_metrics[("project", REVIEW_CAUSE)] == metric(first, "project", REVIEW_CAUSE)
     assert report_metrics[("project", "stale_lease")] == metric(first, "project", "stale_lease")
     assert report.provenance.model_version == "fixture-v1"
     assert report.provenance.source_coverage.through_sequence == 14

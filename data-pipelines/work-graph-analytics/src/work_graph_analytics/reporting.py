@@ -17,9 +17,11 @@ from work_graph_analytics.publication import (
     PublishedModel,
 )
 
+EVENTS_MODEL = "fct_events.parquet"
+SCOPES_MODEL = "fct_scopes.parquet"
 REQUIRED_REPORT_MODELS = (
-    "fct_events.parquet",
-    "fct_scopes.parquet",
+    EVENTS_MODEL,
+    SCOPES_MODEL,
     "fct_tickets.parquet",
     "fct_wait_episodes.parquet",
 )
@@ -319,8 +321,8 @@ def _metrics(
             start,
             end,
             str(paths["fct_wait_episodes.parquet"][0]),
-            str(paths["fct_events.parquet"][0]),
-            str(paths["fct_scopes.parquet"][0]),
+            str(paths[EVENTS_MODEL][0]),
+            str(paths[SCOPES_MODEL][0]),
             project_id,
             project_id,
             initiative_id,
@@ -369,13 +371,13 @@ def operational_report(
         _verify_models(connection, paths)
         scope_snapshot = _scope_snapshot(
             connection,
-            paths["fct_scopes.parquet"][0],
+            paths[SCOPES_MODEL][0],
             manifest.source.scope_snapshot,
             manifest.source.through_sequence,
         )
         latest_event = connection.execute(
             "select max(occurred_at) from read_parquet(?)",
-            [str(paths["fct_events.parquet"][0])],
+            [str(paths[EVENTS_MODEL][0])],
         ).fetchone()
         if latest_event is None or latest_event[0] is None:
             raise DatasetError("event facts do not contain freshness metadata")
