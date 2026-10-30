@@ -7,6 +7,7 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 const slugSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/);
+const configNameSchema = z.string().regex(/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/);
 const environmentNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 const secretNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/);
 const originSchema = z.url().refine((value) => {
@@ -104,7 +105,7 @@ const identitiesSchema = z
       .object({
         token_env: environmentNameSchema,
         project: slugSchema,
-        configs: z.array(slugSchema).min(1),
+        configs: z.array(configNameSchema).min(1),
       })
       .strict(),
     github: z
@@ -140,7 +141,7 @@ const bootstrapSecretSchema = z
     system_of_record: z
       .object({
         kind: z.literal("doppler"),
-        config: slugSchema,
+        config: configNameSchema,
         name: secretNameSchema,
       })
       .strict(),
