@@ -1,0 +1,87 @@
+{
+  "schemaVersion": 1,
+  "policyId": "agent-coordinator:severe-vulnerability-controller",
+  "revision": 1,
+  "repositories": [
+    {
+      "repository": "Robbie-Palmer/hq",
+      "authorityProfile": {
+        "profileId": "authority:personal-project-unattended",
+        "allowedActions": [
+          "modify-repository",
+          "push-branch",
+          "open-or-replace-pull-request",
+          "respond-to-review",
+          "merge-after-required-checks",
+          "invoke-established-deployment",
+          "validate-production",
+          "repair-or-revert-own-change"
+        ],
+        "deniedActions": [
+          "weaken-branch-protection",
+          "weaken-required-checks",
+          "dismiss-dependabot-alert",
+          "use-unestablished-deployment-path",
+          "claim-success-before-production-validation"
+        ]
+      }
+    }
+  ],
+  "admittedActions": [
+    "auto_reopened",
+    "created",
+    "reintroduced",
+    "reopened"
+  ],
+  "admittedSeverities": ["high", "critical"],
+  "concurrency": {
+    "maximumActiveIncidents": 1
+  },
+  "webhookTask": {
+    "bindToControllerThread": true,
+    "holdWhileOffline": true,
+    "schedule": {
+      "type": "webhook",
+      "signature": {
+        "header": "x-hub-signature-256",
+        "encoding": "hex",
+        "prefix": "sha256="
+      },
+      "maxDeliveryAgeMinutes": 15,
+      "dedupe": {
+        "replayKey": "{{headers.x-github-delivery}}"
+      },
+      "filters": [
+        {
+          "path": "headers.x-github-event",
+          "op": "equals",
+          "value": "dependabot_alert"
+        },
+        {
+          "path": "body.repository.full_name",
+          "op": "in",
+          "value": ["Robbie-Palmer/hq"]
+        },
+        {
+          "path": "body.action",
+          "op": "in",
+          "value": [
+            "auto_reopened",
+            "created",
+            "reintroduced",
+            "reopened"
+          ]
+        },
+        {
+          "path": "body.alert.security_advisory.severity",
+          "op": "in",
+          "value": ["high", "critical"]
+        },
+        {
+          "path": "body.alert.number",
+          "op": "exists"
+        }
+      ]
+    }
+  }
+}

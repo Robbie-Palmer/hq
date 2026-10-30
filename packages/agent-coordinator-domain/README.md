@@ -49,6 +49,15 @@ the policy and accepted head commit. A Work Graph error throws
 `UnattendedMergeBlockedError`, so callers cannot treat a thread-only decision as
 merge authority.
 
+## Vulnerability admission
+
+`VulnerabilityControllerPolicySchema` validates the Vector controller's
+checked-in webhook and authority policy. `decideVulnerabilityAdmission`
+accepts only a narrow routing record plus a fresh Dependabot alert fetched from
+GitHub. It derives authority from the repository policy and refuses mismatched,
+closed, non-severe, or over-capacity work. Webhook signature, replay, age, and
+request filtering stay in T3 Code.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a

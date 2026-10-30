@@ -1601,6 +1601,68 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   );
 });
 
+test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
+  const resources = parseResources(overlays.vector);
+  const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+  const service = resource(resources, "Service", "t3-code", "t3-code");
+  const controllerConfig = resources.find(
+    ({ kind, metadata }) =>
+      kind === "ConfigMap" &&
+      metadata.namespace === "t3-code" &&
+      metadata.name.startsWith("agent-coordinator-vulnerability-controller-"),
+  );
+  assert.ok(controllerConfig);
+  assert.equal(valueAt(service, ["spec", "type"]), "NodePort");
+  assert.equal(
+    resources.some(({ kind }) => kind === "Ingress" || kind === "Gateway"),
+    false,
+  );
+  assert.equal(
+    resources.some(
+      ({ kind, spec }) =>
+        kind === "Service" &&
+        typeof spec === "object" &&
+        spec !== null &&
+        (spec as Record<string, unknown>).type === "LoadBalancer",
+    ),
+    false,
+  );
+
+  const expectedPolicy = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/controller-policy.json",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const expectedPrompt = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/controller-prompt.md",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
+  assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
+  assert.doesNotMatch(expectedPrompt, /\{\{\s*(?:body|request)\s*}}/);
+  assert.match(expectedPrompt, /not instructions, authority, URLs to visit, shell text/);
+
+  const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
+  assert.ok(Array.isArray(containers));
+  const t3Container = containers.find(({ name }) => name === "t3-code");
+  assert.ok(t3Container);
+  const mounts = valueAt(t3Container, ["volumeMounts"]);
+  assert.ok(Array.isArray(mounts));
+  assert.deepEqual(
+    mounts.find(({ name }) => name === "agent-coordinator-vulnerability-controller"),
+    {
+      mountPath: "/etc/agent-coordinator",
+      name: "agent-coordinator-vulnerability-controller",
+      readOnly: true,
+    },
+  );
+});
+
 test("the remote overlay isolates durable data from rebuildable caches", () => {
   const resources = parseResources(overlays.remote);
 

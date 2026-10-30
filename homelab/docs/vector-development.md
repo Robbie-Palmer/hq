@@ -158,6 +158,30 @@ Brave runs directly on the host. GNOME applications send print jobs to the
 `canon-mg3100` queue served by CUPS on
 `raspberrypi.tailaa0e46.ts.net`.
 
+## Severe vulnerability controller
+
+The Vector overlay mounts the versioned controller policy and prompt at
+`/etc/agent-coordinator`. T3 Code remains a private NodePort reached through the
+tailnet. Do not add a public Kubernetes Ingress, Gateway, LoadBalancer, or a
+second Cloudflare Tunnel. T3 Connect supplies the public webhook URL and holds
+requests while Vector is offline.
+
+Create one persistent controller thread in the `hq` project and bind one
+enabled webhook task to it. Copy the task schedule from
+`controller-policy.json`. Configure the GitHub webhook with JSON content and
+the same secret as the task's HMAC-SHA256 signature. Subscribe only to
+`dependabot_alert`. The task must retain its repository, action, severity, and
+alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
+limit.
+
+Run the admission test before enabling unattended incident work. Send a signed
+candidate with a unique delivery ID, then repeat that request with the same ID.
+Also send an invalid signature, an out-of-policy repository, and a relay-held
+request older than 15 minutes. Inspect T3 Code's delivery records and the bound
+thread. The candidate must reach the controller once. The other requests must
+not start a controller turn or worker thread. Keep the task disabled if any
+case fails.
+
 Deploy later host changes from another tailnet member:
 
 ```bash

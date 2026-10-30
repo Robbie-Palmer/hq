@@ -12,6 +12,10 @@ resources:
   - work-graph-secret.yaml
   - persistent-volume.yaml
 configMapGenerator:
+  - name: agent-coordinator-vulnerability-controller
+    files:
+      - controller-policy.json=agent-coordinator/controller-policy.json
+      - controller-prompt.md=agent-coordinator/controller-prompt.md
   - name: vector-doppler-wrapper
     files:
       - doppler=doppler-wrapper.sh
