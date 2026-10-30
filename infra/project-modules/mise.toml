@@ -4,6 +4,7 @@ run = [
   "terraform -chdir=v1 fmt -recursive .",
   "terraform -chdir=examples/minimal-bootstrap fmt -recursive .",
   "terraform -chdir=tests/provider-isolation fmt .",
+  "terraform -chdir=tests/stateless-validation fmt -recursive .",
 ]
 
 [tasks."format:check"]
@@ -12,6 +13,7 @@ run = [
   "terraform -chdir=v1 fmt -check -recursive .",
   "terraform -chdir=examples/minimal-bootstrap fmt -check -recursive .",
   "terraform -chdir=tests/provider-isolation fmt -check .",
+  "terraform -chdir=tests/stateless-validation fmt -check -recursive .",
 ]
 
 [tasks.validate]

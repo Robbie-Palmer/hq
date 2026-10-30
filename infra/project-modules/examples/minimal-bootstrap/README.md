@@ -136,9 +136,11 @@ mise //infra/account-foundation:plan
 
 Reject either cleanup plan if it updates, replaces, or deletes an address that
 does not contain `platform-bootstrap-canary` or the application root's
-`module.cloudflare` or `module.neon` prefix. The last account-foundation plan
-must report no changes. HCP can delete the workspace only after the application
-state contains no provider resources.
+`module.cloudflare` or `module.neon` prefix. The application plan may also
+forget the legacy `module.preview.terraform_data.profile_guard` address without
+destroying it. The cleanup apply fails if any managed address remains. The last
+account-foundation plan must report no changes. HCP can delete the workspace
+only after the application state contains no provider resources.
 
 If an apply stops, keep the state and generate a new plan. Do not finish the
 cleanup in provider consoles. If HCP state is unavailable, restore its latest
