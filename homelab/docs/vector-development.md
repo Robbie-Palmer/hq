@@ -120,9 +120,9 @@ Account foundation owns the existing `homelab/prd_vector_development` delivery
 config, but generated service-token values remain outside Terraform state. The
 guarded installer creates and rotates the four service tokens through the
 authenticated controller. Separately create a fine-grained GitHub token limited
-to `Robbie-Palmer/hq`, with repository contents, pull requests, workflows, and
-the read permissions needed for checks. Do not paste it into chat or a shell
-argument.
+to `Robbie-Palmer/hq`, with repository contents, pull requests, workflows,
+Deployments read/write, and the read permissions needed for checks. Do not
+paste it into chat or a shell argument.
 
 Wait until the Vector server has no active T3 work, then run the guarded
 interactive installer from the controller:

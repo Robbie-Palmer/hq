@@ -2608,6 +2608,16 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     healthCheck,
     /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
   );
+  assert.match(
+    healthCheck,
+    /gh api --include --method POST[\s\\]+repos\/Robbie-Palmer\/hq\/deployments --input -/,
+  );
+  assert.ok(healthCheck.includes('$2 == "422"'));
+  assert.ok(
+    healthCheck.includes(
+      "The Vector GitHub token lacks Deployments read/write permission",
+    ),
+  );
   assert.ok(!healthCheck.includes('.permissions.push'));
   assert.ok(
     healthCheck.includes(
