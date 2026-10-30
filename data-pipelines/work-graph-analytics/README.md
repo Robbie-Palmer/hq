@@ -21,7 +21,7 @@ The pipeline has three explicit gates:
 Run the complete local gate through mise:
 
 ```bash
-mise //ml-pipelines/work-graph-analytics:check
+mise //data-pipelines/work-graph-analytics:check
 ```
 
 The fixture build covers reordered-by-occurrence late events, waits that cross

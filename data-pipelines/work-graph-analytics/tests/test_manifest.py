@@ -34,8 +34,8 @@ def test_stages_complete_manifest_chain_deterministically(tmp_path: Path) -> Non
     second = tmp_path / "second"
     expected = {"manifests": 2, "events": 14, "scopes": 10, "watermark": 14}
 
-    assert stage_dataset(FIXTURE, first) == expected
-    assert stage_dataset(FIXTURE, second) == expected
+    assert stage_dataset(FIXTURE, first).model_dump() == expected
+    assert stage_dataset(FIXTURE, second).model_dump() == expected
     assert sorted(path.name for path in first.iterdir()) == [
         "events.ndjson",
         "manifests.ndjson",
@@ -63,7 +63,7 @@ def test_rejects_private_or_unknown_event_fields(tmp_path: Path) -> None:
     rows[0] = json.dumps(event, sort_keys=True, separators=(",", ":"))
     rewrite_descriptor(root, "1-9.json", "eventObject", ("\n".join(rows) + "\n").encode())
 
-    with pytest.raises(DatasetError, match="unknown or missing fields"):
+    with pytest.raises(DatasetError, match="violates its schema"):
         stage_dataset(root, tmp_path / "staged")
 
 
@@ -95,7 +95,7 @@ def test_rejects_unreadable_manifest_json(tmp_path: Path) -> None:
     root = copied_fixture(tmp_path)
     (root / "work-state/v1/manifests/1-9.json").write_text("not-json")
 
-    with pytest.raises(DatasetError, match="cannot read manifest"):
+    with pytest.raises(DatasetError, match="violates its schema"):
         stage_dataset(root, tmp_path / "staged")
 
 
@@ -103,7 +103,7 @@ def test_rejects_invalid_event_ndjson(tmp_path: Path) -> None:
     root = copied_fixture(tmp_path)
     rewrite_descriptor(root, "1-9.json", "eventObject", b"not-json\n")
 
-    with pytest.raises(DatasetError, match="invalid NDJSON"):
+    with pytest.raises(DatasetError, match="violates its schema"):
         stage_dataset(root, tmp_path / "staged")
 
 

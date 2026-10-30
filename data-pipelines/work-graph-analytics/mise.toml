@@ -1,5 +1,6 @@
 [tools]
 python = "3.12"
+uv = "0.12.22"
 
 [tasks.sync]
 description = "Install the locked Work Graph analytics environment"

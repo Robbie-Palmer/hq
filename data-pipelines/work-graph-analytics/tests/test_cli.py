@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import duckdb
@@ -24,7 +25,7 @@ def test_stage_prepare_and_publish_commands(
     output = tmp_path / "output"
 
     assert main(["stage", str(FIXTURE), str(staged)]) == 0
-    assert '"watermark": 14' in capsys.readouterr().out
+    assert json.loads(capsys.readouterr().out)["watermark"] == 14
     assert main(["prepare", str(output), "v1"]) == 0
     assert str(output / "v1") in capsys.readouterr().out
     write_models(output / "v1")
@@ -33,16 +34,13 @@ def test_stage_prepare_and_publish_commands(
 
 
 def test_commands_report_dataset_errors(tmp_path: Path) -> None:
-    with pytest.raises(SystemExit, match="2"):
-        main(["stage", str(tmp_path / "absent"), str(tmp_path / "stage")])
+    assert main(["stage", str(tmp_path / "absent"), str(tmp_path / "stage")]) == 2
 
     staged = tmp_path / "empty-stage"
     staged.mkdir()
     output = tmp_path / "output"
     output.mkdir()
-    with pytest.raises(SystemExit, match="2"):
-        main(["publish", str(output), "absent", str(staged)])
+    assert main(["publish", str(output), "absent", str(staged)]) == 2
 
     (staged / "manifests.ndjson").write_text("")
-    with pytest.raises(SystemExit, match="2"):
-        main(["publish", str(output), "absent", str(staged)])
+    assert main(["publish", str(output), "absent", str(staged)]) == 2
