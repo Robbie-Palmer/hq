@@ -19,9 +19,9 @@ export type ObjectLifecycleRule = {
   expirationDays: number;
 };
 
-export interface ObjectBucket {
+export interface ObjectBucket<StoredObject = object> {
   delete(key: string): Promise<void>;
-  get(key: string): Promise<unknown | null>;
+  get(key: string): Promise<StoredObject | null>;
   list(options: {
     prefix: string;
     cursor?: string;
