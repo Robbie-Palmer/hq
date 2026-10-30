@@ -5,6 +5,10 @@ import { estimateTextWidth } from "./layout";
 const FONT_REGULAR_OBJECT = 3;
 const FONT_BOLD_OBJECT = 4;
 const INFO_OBJECT = 5;
+const BACKSLASH = String.fromCharCode(92);
+const ESCAPED_BACKSLASH = String.raw`\\`;
+const ESCAPED_OPEN_PARENTHESIS = String.raw`\(`;
+const ESCAPED_CLOSE_PARENTHESIS = String.raw`\)`;
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
@@ -12,9 +16,9 @@ function sha256(value: string | Uint8Array): string {
 
 function pdfString(value: string): string {
   return value
-    .replaceAll("\\", "\\\\")
-    .replaceAll("(", "\\(")
-    .replaceAll(")", "\\)")
+    .replaceAll(BACKSLASH, ESCAPED_BACKSLASH)
+    .replaceAll("(", ESCAPED_OPEN_PARENTHESIS)
+    .replaceAll(")", ESCAPED_CLOSE_PARENTHESIS)
     .replaceAll("\r", " ")
     .replaceAll("\n", " ");
 }
@@ -92,8 +96,11 @@ export function createPdf(layout: ResumeLayout, sourceDigest: string): Buffer {
       .map((item) => annotation(item, layout.pageHeight))
       .filter((value): value is string => Boolean(value))
       .map(addObject);
-    const annotations = annotationObjects.length
-      ? ` /Annots [${annotationObjects.map((id) => `${id} 0 R`).join(" ")}]`
+    const annotationReferences = annotationObjects
+      .map((id) => `${id} 0 R`)
+      .join(" ");
+    const annotations = annotationReferences
+      ? ` /Annots [${annotationReferences}]`
       : "";
     pageObjects.push(
       addObject(
@@ -102,8 +109,9 @@ export function createPdf(layout: ResumeLayout, sourceDigest: string): Buffer {
     );
   }
   objects[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+  const pageReferences = pageObjects.map((id) => `${id} 0 R`).join(" ");
   objects[1] =
-    `<< /Type /Pages /Kids [${pageObjects.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageObjects.length} >>`;
+    `<< /Type /Pages /Kids [${pageReferences}] /Count ${pageObjects.length} >>`;
 
   const header = "%PDF-1.7\n%\0\xE2\xE3\xCF\xD3\n";
   let body = header;
@@ -136,9 +144,9 @@ export function extractPdfLinks(pdf: Uint8Array): string[] {
   return [...source.matchAll(/\/URI \(([^)]*(?:\\\)[^)]*)*)\)/g)].map(
     (match) =>
       (match[1] ?? "")
-        .replaceAll("\\)", ")")
-        .replaceAll("\\(", "(")
-        .replaceAll("\\\\", "\\"),
+        .replaceAll(ESCAPED_CLOSE_PARENTHESIS, ")")
+        .replaceAll(ESCAPED_OPEN_PARENTHESIS, "(")
+        .replaceAll(ESCAPED_BACKSLASH, BACKSLASH),
   );
 }
 

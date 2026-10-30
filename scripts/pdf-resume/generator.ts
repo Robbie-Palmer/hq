@@ -37,7 +37,9 @@ export async function generateResume(
       path: relativeOutputPath,
       sha256: sha256(pdf),
       pages: layout.pageCount,
-      links: [...new Set(extractPdfLinks(pdf))].sort(),
+      links: [...new Set(extractPdfLinks(pdf))].sort((left, right) =>
+        left.localeCompare(right),
+      ),
     },
   };
   await mkdir(path.dirname(outputPath), { recursive: true });

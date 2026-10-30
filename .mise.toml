@@ -235,7 +235,7 @@ run = "pnpm exec tsc --project scripts/pdf-resume/tsconfig.json"
 [tasks."resume:test:coverage"]
 description = "Test PDF resume generation with coverage"
 depends = ["//:install"]
-run = "pnpm --filter ui exec vitest run --root .. scripts/pdf-resume/pdf-resume.test.ts --coverage --coverage.include=scripts/pdf-resume/{generator,layout,pdf,source,verify}.ts --coverage.thresholds.lines=80"
+run = "pnpm --filter ui exec vitest run --root .. scripts/pdf-resume/pdf-resume.test.ts --coverage --coverage.include=scripts/pdf-resume/{generator,layout,pdf,source,verify}.ts --coverage.reporter=text --coverage.reporter=lcovonly --coverage.reportsDirectory=scripts/pdf-resume/coverage --coverage.thresholds.lines=80"
 
 [tasks."resume:verify"]
 description = "Verify the committed PDF resume text, links, layout, and provenance"
@@ -623,6 +623,7 @@ description = "Generate all coverage reports imported by SonarQube Cloud"
 depends = [
     "//ai-review:test:coverage",
     "//cpp/autonomic-satellite-swarm:coverage",
+    "//:resume:test:coverage",
     "//ui:test:coverage",
     "//packages/agent-auth:test:coverage",
     "//packages/agent-auth-mcp:test:coverage",

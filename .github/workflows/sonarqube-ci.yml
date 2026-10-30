@@ -125,6 +125,7 @@ jobs:
           path: |
             ai-review/coverage/lcov.info
             cpp/autonomic-satellite-swarm/coverage/sonarqube.xml
+            scripts/pdf-resume/coverage/lcov.info
             ui/coverage/lcov.info
             packages/agent-auth/coverage/lcov.info
             packages/agent-auth-mcp/coverage/lcov.info

@@ -79,7 +79,9 @@ export async function verifyResume(
     assert(links.includes(expectedLink), `PDF has no hyperlink for ${expectedLink}`);
   }
   assert(
-    JSON.stringify([...new Set(links)].sort()) ===
+    JSON.stringify(
+      [...new Set(links)].sort((left, right) => left.localeCompare(right)),
+    ) ===
       JSON.stringify(provenance.pdf.links),
     "Provenance hyperlink inventory is stale",
   );

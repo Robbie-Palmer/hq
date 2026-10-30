@@ -34,6 +34,11 @@ interface ProjectFrontmatter {
   demo_url?: unknown;
 }
 
+interface LoadedProjectSource {
+  project: ResumeProject;
+  file: ResumeSourceFile;
+}
+
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -103,30 +108,22 @@ function selectSkills(experiences: ResumeExperience[]): string[] {
     .map(([name]) => name);
 }
 
-async function loadProjectSources(
+async function loadProjectSource(
   repositoryRoot: string,
-): Promise<{ projects: ResumeProject[]; files: ResumeSourceFile[] }> {
-  const absoluteDirectory = path.join(repositoryRoot, PROJECT_DIRECTORY);
-  const entries = await readdir(absoluteDirectory, { withFileTypes: true });
-  const projectDirectories = entries
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
-    .sort();
-  const projects: ResumeProject[] = [];
-  const files: ResumeSourceFile[] = [];
-
-  for (const slug of projectDirectories) {
-    const sourcePath = `${PROJECT_DIRECTORY}/${slug}/index.mdx`;
-    let source: string;
-    try {
-      source = await readFile(path.join(repositoryRoot, sourcePath), "utf8");
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
-    }
-    files.push({ path: sourcePath, sha256: sha256(source) });
-    const frontmatter = parseFrontmatter(source, sourcePath);
-    projects.push({
+  slug: string,
+): Promise<LoadedProjectSource | undefined> {
+  const sourcePath = `${PROJECT_DIRECTORY}/${slug}/index.mdx`;
+  let source: string;
+  try {
+    source = await readFile(path.join(repositoryRoot, sourcePath), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  const frontmatter = parseFrontmatter(source, sourcePath);
+  return {
+    file: { path: sourcePath, sha256: sha256(source) },
+    project: {
       slug,
       title: requireString(frontmatter.title, "title", sourcePath),
       description: requireString(
@@ -143,9 +140,29 @@ async function loadProjectSources(
       demoUrl: optionalString(frontmatter.demo_url),
       canonicalUrl: `${siteConfig.url}/projects/${slug}`,
       sourcePath,
-    });
-  }
-  return { projects, files };
+    },
+  };
+}
+
+async function loadProjectSources(
+  repositoryRoot: string,
+): Promise<{ projects: ResumeProject[]; files: ResumeSourceFile[] }> {
+  const absoluteDirectory = path.join(repositoryRoot, PROJECT_DIRECTORY);
+  const entries = await readdir(absoluteDirectory, { withFileTypes: true });
+  const projectDirectories = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((left, right) => left.localeCompare(right));
+  const loadedProjects = (
+    await Promise.all(
+      projectDirectories.map((slug) => loadProjectSource(repositoryRoot, slug)),
+    )
+  ).filter((entry): entry is LoadedProjectSource => entry !== undefined);
+
+  return {
+    projects: loadedProjects.map(({ project }) => project),
+    files: loadedProjects.map(({ file }) => file),
+  };
 }
 
 export async function loadResumeSource(
