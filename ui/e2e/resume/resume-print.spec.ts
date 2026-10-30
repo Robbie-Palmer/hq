@@ -37,12 +37,22 @@ test("renders a two-page A4 résumé with live links", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByTestId("resume-sheet").first()).toBeVisible();
-  const mobileOverflow = await page.evaluate(
-    () =>
+  const { mobileOverflow, overflowElements } = await page.evaluate(() => ({
+    mobileOverflow: Math.max(
+      0,
       document.documentElement.scrollWidth -
-      document.documentElement.clientWidth,
-  );
-  expect(mobileOverflow).toBe(0);
+        document.documentElement.clientWidth,
+    ),
+    overflowElements: [...document.querySelectorAll("body *")]
+      .map((element) => ({
+        element: element.tagName.toLowerCase(),
+        className:
+          element instanceof HTMLElement ? String(element.className) : "",
+        right: Math.round(element.getBoundingClientRect().right),
+      }))
+      .filter(({ right }) => right > document.documentElement.clientWidth),
+  }));
+  expect(mobileOverflow, JSON.stringify(overflowElements, null, 2)).toBe(0);
   await page.screenshot({
     path: testInfo.outputPath("resume-mobile.png"),
     fullPage: true,

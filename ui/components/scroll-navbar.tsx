@@ -64,8 +64,8 @@ export function ScrollNavbar() {
                 </>
               ) : (
                 <>
-                  <span className="min-[375px]:hidden">Exp</span>
-                  <span className="hidden min-[375px]:inline">Experience</span>
+                  <span className="min-[420px]:hidden">Exp</span>
+                  <span className="hidden min-[420px]:inline">Experience</span>
                 </>
               )}
             </Link>
