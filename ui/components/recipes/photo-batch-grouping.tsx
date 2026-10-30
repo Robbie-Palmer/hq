@@ -105,7 +105,7 @@ function PageGroupSelect({
 }>) {
   return (
     <label className="mt-2 block text-sm">
-      Recipe group
+      <span className="block">Recipe group</span>
       <select
         aria-label={`Recipe group for ${image.filename}`}
         value={groupIndex}

@@ -252,7 +252,7 @@ export async function readBatch(db: Db, userId: string, batchId: string) {
   return {
     ...batch,
     items: items.map((item) => ({ ...item, ...draftByJob.get(item.id), archive: provenanceByJob.get(item.id) })),
-    ...(photo ?? {}),
+    ...photo,
     ...batchProgress(items),
     ...(!batch.startedAt ? { status: "preparing" } : {}),
     ...(batch.undoStartedAt ? { status: batch.undoCompletedAt ? "undone" : "undoing" } : {}),

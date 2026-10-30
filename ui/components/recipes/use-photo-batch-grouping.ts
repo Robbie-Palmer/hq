@@ -14,6 +14,19 @@ export type EditablePhotoGroup = {
   locked: boolean;
 };
 
+function moveImageToGroup(
+  group: EditablePhotoGroup,
+  index: number,
+  sourceIndex: number,
+  targetIndex: number,
+  imageId: string,
+): string[] {
+  if (index === sourceIndex)
+    return group.imageIds.filter((id) => id !== imageId);
+  if (index === targetIndex) return [...group.imageIds, imageId];
+  return [...group.imageIds];
+}
+
 function initialGroups(batch: ImportBatch): EditablePhotoGroup[] {
   if (batch.photoManifest) {
     const itemById = new Map(batch.items.map((item) => [item.id, item]));
@@ -134,12 +147,13 @@ export function usePhotoBatchGrouping(
       groups
         .map((group, index) => ({
           ...group,
-          imageIds:
-            index === sourceGroupIndex
-              ? group.imageIds.filter((id) => id !== imageId)
-              : index === targetGroupIndex
-                ? [...group.imageIds, imageId]
-                : [...group.imageIds],
+          imageIds: moveImageToGroup(
+            group,
+            index,
+            sourceGroupIndex,
+            targetGroupIndex,
+            imageId,
+          ),
         }))
         .filter((group) => group.locked || group.imageIds.length > 0),
     );

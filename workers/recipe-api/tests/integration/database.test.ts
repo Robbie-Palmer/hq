@@ -2804,6 +2804,8 @@ describe("durable recipe batches", () => {
     const get = vi.fn().mockResolvedValue({ status });
     return {
       objects,
+      put,
+      remove,
       create,
       get,
       status,
@@ -2898,6 +2900,32 @@ describe("durable recipe batches", () => {
       "recipe_import_photo_group_image_position_nonnegative",
       "recipe_import_photo_manifest_version_positive",
     ]);
+  });
+
+  it("cleans successful parallel uploads when one photo upload fails", async () => {
+    const cook = await createUser(
+      "Photo Upload Failure Cook",
+      "photo-upload-failure@example.test",
+    );
+    const service = batchServices();
+    service.put.mockRejectedValueOnce(new Error("R2 upload failed"));
+
+    const response = await uploadPhotoBatch(
+      cook,
+      service,
+      crypto.randomUUID(),
+    );
+
+    expect(response.status).toBe(502);
+    expect(service.put).toHaveBeenCalledTimes(4);
+    expect(service.remove).toHaveBeenCalledTimes(3);
+    expect(service.objects.size).toBe(0);
+    expect(
+      await db
+        .select()
+        .from(schema.recipeImportBatch)
+        .where(eq(schema.recipeImportBatch.userId, cook.id)),
+    ).toHaveLength(0);
   });
 
   it("versions photo manifests, fences concurrent confirmation, and reuses successful groups", async () => {

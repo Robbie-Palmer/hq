@@ -109,12 +109,16 @@ export async function createPhotoBatch(
         })
         .returning();
       if (!batch) throw new Error("Photo batch insert returned no row");
-      for (const image of prepared) {
-        await artifacts.put(image.r2Key, image.file, {
-          httpMetadata: { contentType: image.file.type },
-        });
-        uploadedKeys.push(image.r2Key);
-      }
+      const uploads = await Promise.allSettled(
+        prepared.map(async (image) => {
+          await artifacts.put(image.r2Key, image.file, {
+            httpMetadata: { contentType: image.file.type },
+          });
+          uploadedKeys.push(image.r2Key);
+        }),
+      );
+      const failedUpload = uploads.find((upload) => upload.status === "rejected");
+      if (failedUpload?.status === "rejected") throw failedUpload.reason;
       await tx.insert(images).values(
         prepared.map((image) => ({
           id: image.id,
