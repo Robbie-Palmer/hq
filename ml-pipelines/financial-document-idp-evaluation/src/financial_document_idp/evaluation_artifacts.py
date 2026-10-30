@@ -1,5 +1,3 @@
-"""Deterministic artifact I/O and content hashing."""
-
 from __future__ import annotations
 
 import hashlib

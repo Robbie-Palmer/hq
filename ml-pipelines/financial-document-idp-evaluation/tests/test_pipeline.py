@@ -7,8 +7,8 @@ import pytest
 from conftest import run_pipeline
 from pydantic import ValidationError
 
-from financial_document_idp.cli import build_parser
-from financial_document_idp.io import (
+from financial_document_idp import cli
+from financial_document_idp.evaluation_artifacts import (
     load_model,
     read_json,
     read_jsonl,
@@ -207,12 +207,21 @@ def test_schema_drift_check_fails_closed(evaluation_root: Path) -> None:
         write_schemas(check=True, root=evaluation_root)
 
 
-def test_cli_requires_a_known_subcommand() -> None:
-    parser = build_parser()
-    assert parser.parse_args(["verify"]).command == "verify"
-    assert parser.parse_args(["schemas", "--check"]).check is True
-    with pytest.raises(SystemExit):
-        parser.parse_args(["unknown"])
+def test_cli_dispatches_commands_and_validates_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[str, bool | None]] = []
+    monkeypatch.setattr(cli, "verify", lambda: calls.append(("verify", None)))
+    monkeypatch.setattr(
+        cli,
+        "write_schemas",
+        lambda *, check: calls.append(("schemas", check)),
+    )
+
+    assert cli.main(["verify"]) == 0
+    assert cli.main(["schemas", "--check"]) == 0
+    assert calls == [("verify", None), ("schemas", True)]
+
+    with pytest.raises(ValidationError):
+        cli.SchemaOptions.model_validate({"check": "yes"})
 
 
 def test_committed_match_records_have_no_errors(reproduced_root: Path) -> None:

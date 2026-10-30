@@ -1,5 +1,3 @@
-"""Deterministic stages for the financial-document evaluation DAG."""
-
 from __future__ import annotations
 
 import base64
@@ -12,7 +10,7 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, cast, override
 
-from .io import (
+from .evaluation_artifacts import (
     canonical_bytes,
     code_revision,
     load_model,

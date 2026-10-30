@@ -5,6 +5,7 @@ description = "Deterministic financial-document extraction evaluation pipeline"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+    "fire>=0.7.1,<0.8",
     "pydantic>=2.12.5,<3",
 ]
 

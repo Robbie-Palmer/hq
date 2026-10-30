@@ -1,5 +1,3 @@
-"""Strict data contracts shared by every evaluation stage."""
-
 from __future__ import annotations
 
 from datetime import date

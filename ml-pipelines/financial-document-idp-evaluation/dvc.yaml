@@ -4,7 +4,7 @@ stages:
     deps:
       - fixtures/corpus-spec.json
       - pyproject.toml
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
       - uv.lock
@@ -18,7 +18,7 @@ stages:
     cmd: uv run --locked financial-document-idp safety-render
     deps:
       - data/corpus
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
     params:
@@ -35,7 +35,7 @@ stages:
       - outputs/rendered/documents.jsonl
       - prompts/extraction-v1.txt
       - pyproject.toml
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
       - uv.lock
@@ -53,7 +53,7 @@ stages:
     cmd: uv run --locked financial-document-idp normalize
     deps:
       - outputs/extraction/predictions.jsonl
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
     outs:
@@ -65,7 +65,7 @@ stages:
     deps:
       - data/corpus
       - outputs/normalized/predictions.jsonl
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
     outs:
@@ -79,7 +79,7 @@ stages:
       - models.json
       - outputs/matching/records.jsonl
       - outputs/normalized/predictions.jsonl
-      - src/financial_document_idp/io.py
+      - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
     params:

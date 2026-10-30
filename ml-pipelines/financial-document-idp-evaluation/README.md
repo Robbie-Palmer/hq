@@ -2,9 +2,9 @@
 
 This DVC project measures financial-document extraction before a parser can be
 considered for production. The committed corpus specification contains invented
-names, accounts, dates, and amounts. The pipeline generates its PDF, HTML, and
-PGM files from that specification, so no private finance document belongs in
-this repository or its DVC cache.
+names, accounts, dates, and amounts. The pipeline generates its PDFs, HTML
+files, and grayscale images from that specification, so no private finance
+document belongs in this repository or its DVC cache.
 
 The first contract covers bank statements, credit-card statements, and
 payslips. The canonical schema records document metadata, accounts, periods,
@@ -14,26 +14,15 @@ running Python.
 
 ## Pipeline
 
-The DVC graph has seven stages:
+`dvc.yaml` is the source of truth for the stage names and dependencies. Inspect
+the graph with:
 
-1. `build_corpus` generates the six synthetic documents, ground truth, and a
-   manifest with rights, generation method, redaction state, checksums, and
-   evaluation strata.
-2. `file_safety_and_rendering` enforces MIME, extension, size, checksum, and
-   active-content rules before producing normalized text.
-3. `extract` runs the pinned deterministic fixture parser and records its model,
-   prompt, confidence, latency, cost, abstentions, and failures.
-4. `normalize` fixes ordering, whitespace, and currency casing without changing
-   financial values.
-5. `match` compares canonical fields and transaction rows, then checks opening
-   balance plus transactions against closing balance.
-6. `evaluate` writes overall and stratified metrics plus the release decision.
-7. `error_analysis` separates expected abstentions from errors and writes a
-   content-hash manifest for every preceding artifact.
+```bash
+mise run //ml-pipelines/financial-document-idp-evaluation:dvc -- dag
+```
 
-The fixture PDF and PGM renderers read a base64 payload stored in file comments.
-They exist to test the evaluation contract and stage boundaries without an OCR
-runtime. They are not production document parsers.
+The generated fixtures test the evaluation contract and stage boundaries
+without an OCR runtime. They are not production document parsers.
 
 ## Reproduce it
 
