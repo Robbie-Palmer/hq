@@ -28,7 +28,8 @@ def pretty_bytes(value: Any) -> bytes:
 
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(pretty_bytes(value))
+    with path.open("wb") as output:
+        output.write(pretty_bytes(value))
 
 
 def read_json(path: Path) -> Any:

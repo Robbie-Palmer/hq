@@ -14,6 +14,7 @@ from financial_document_idp.io import (
     read_jsonl,
     resolve_under,
     sha256_file,
+    write_json,
     write_jsonl,
 )
 from financial_document_idp.pipeline import (
@@ -242,3 +243,13 @@ def test_artifact_paths_cannot_escape_their_declared_root(tmp_path: Path) -> Non
         resolve_under(root, "../outside.json")
     with pytest.raises(ValueError, match="must be relative"):
         resolve_under(root, tmp_path / "outside.json")
+
+
+def test_json_content_cannot_control_the_output_path(tmp_path: Path) -> None:
+    target = tmp_path / "artifacts/result.json"
+    value = {"filename": "../../outside.json"}
+
+    write_json(target, value)
+
+    assert read_json(target) == value
+    assert not (tmp_path / "outside.json").exists()
