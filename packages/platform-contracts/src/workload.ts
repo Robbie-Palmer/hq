@@ -797,8 +797,11 @@ function assertCompatible(
     ({ mode }) => mode === "required",
   );
   if (failures.length > 0) {
+    const details = failures
+      .map(({ targetId, message }) => `${targetId}: ${message}`)
+      .join("; ");
     throw new Error(
-      `Unsupported workload deployment: ${failures.map(({ targetId, message }) => `${targetId}: ${message}`).join("; ")}`,
+      `Unsupported workload deployment: ${details}`,
     );
   }
 }
@@ -862,7 +865,9 @@ function invariantSnapshot(
       runtime_family: definition.workload.runtime_family,
       ports: definition.workload.ports,
       health: definition.workload.health,
-      dependencies: Object.keys(definition.workload.dependencies).toSorted(),
+      dependencies: Object.keys(definition.workload.dependencies).toSorted(
+        (left, right) => left.localeCompare(right),
+      ),
     },
     release: definition.release,
     observability: {
