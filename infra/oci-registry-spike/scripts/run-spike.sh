@@ -74,7 +74,8 @@ run_case() {
 }
 
 endpoint_for() {
-  if [[ "$1" == "zot" ]]; then
+  local implementation="$1"
+  if [[ "$implementation" == "zot" ]]; then
     printf 'localhost:%s' "${ZOT_PORT:-5101}"
   else
     printf 'localhost:%s' "${DISTRIBUTION_PORT:-5102}"
@@ -82,12 +83,14 @@ endpoint_for() {
 }
 
 registry_url_for() {
+  local implementation="$1"
   # Compose binds these disposable registries to loopback, and this suite intentionally tests with TLS disabled.
-  printf 'http://%s' "$(endpoint_for "$1")" # NOSONAR
+  printf 'http://%s' "$(endpoint_for "$implementation")" # NOSONAR
 }
 
 bucket_for() {
-  if [[ "$1" == "zot" ]]; then
+  local implementation="$1"
+  if [[ "$implementation" == "zot" ]]; then
     printf 'zot-registry'
   else
     printf 'distribution-registry'
@@ -95,7 +98,8 @@ bucket_for() {
 }
 
 service_for() {
-  printf '%s' "$1"
+  local implementation="$1"
+  printf '%s' "$implementation"
 }
 
 oras_args() {
