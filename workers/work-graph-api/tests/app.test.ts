@@ -247,9 +247,13 @@ const buildRepository = (): WorkGraphApiRepository => ({
   claimWorkItem: vi.fn(async () => lease()),
   renewLease: vi.fn(async () => lease()),
   terminateClaimedWorkItem: vi.fn(async (input) => ({
-    ...lease(input.workItemId),
-    endedAt: expiresAt,
-    outcome: input.outcome,
+    lease: {
+      ...lease(input.workItemId),
+      endedAt: expiresAt,
+      outcome: input.outcome,
+    },
+    unblockedWorkItemIds:
+      input.outcome === "released" ? ["next-ticket"] : [],
   })),
   decomposeClaimedWorkItem: vi.fn(async (input: DecomposeClaimedWorkItemInput) => ({
     children: input.children
@@ -2077,6 +2081,7 @@ describe("Given a worker managing a lease", () => {
     });
     expect(await responseJson(releaseResponse)).toEqual(
       expect.objectContaining({
+        unblockedWorkItemIds: ["next-ticket"],
         workItem: expect.objectContaining({
           lifecycle: "released",
           stage: "released",

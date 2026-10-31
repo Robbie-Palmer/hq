@@ -2287,6 +2287,31 @@
           "lease"
         ]
       },
+      "ReleaseResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/LeaseWithWorkItem"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "unblockedWorkItemIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "maxItems": 10000,
+                "description": "Open work items whose derived stage changed from blocked to ready because of this release."
+              }
+            },
+            "required": [
+              "unblockedWorkItemIds"
+            ]
+          }
+        ]
+      },
       "WorkItemDecomposition": {
         "type": "object",
         "properties": {
@@ -10298,7 +10323,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/LeaseWithWorkItem"
+                  "$ref": "#/components/schemas/ReleaseResponse"
                 }
               }
             }

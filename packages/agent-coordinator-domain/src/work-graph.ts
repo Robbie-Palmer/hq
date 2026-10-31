@@ -394,6 +394,7 @@ const ReleaseResponseSchema = z
   .object({
     lease: WorkGraphLeaseSchema,
     workItem: WorkGraphWorkItemSchema,
+    unblockedWorkItemIds: z.array(IdentifierSchema),
   })
   .strict();
 
@@ -752,7 +753,11 @@ export class WorkGraphCoordinator {
   async release(
     handleInput: LeaseHandle,
     evidence: { mergeEvidence: string; deploymentEvidence: string },
-  ): Promise<{ lease: WorkGraphLease; workItem: WorkGraphWorkItem }> {
+  ): Promise<{
+    lease: WorkGraphLease;
+    workItem: WorkGraphWorkItem;
+    unblockedWorkItemIds: string[];
+  }> {
     const handle = this.#activeHandle(handleInput);
     const parsedEvidence = z
       .object({
