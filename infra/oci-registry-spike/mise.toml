@@ -1,0 +1,58 @@
+[tasks.install]
+description = "Install checksum-verified OCI spike client tools"
+run = "bash scripts/tools.sh"
+
+[tasks.setup]
+description = "Start the disposable S3-compatible backend and both registries"
+depends = ["install"]
+run = "bash scripts/setup.sh"
+
+[tasks.teardown]
+description = "Remove the disposable OCI registry stack and runtime credentials"
+run = "bash scripts/teardown.sh"
+
+[tasks.clean]
+description = "Remove the disposable stack and all generated evidence"
+run = "bash scripts/clean.sh"
+
+[tasks.format]
+description = "Format repository-owned spike files"
+run = "bash scripts/format.sh"
+
+[tasks."format:check"]
+description = "Check repository-owned spike file formatting"
+run = "bash scripts/static-check.sh format"
+
+[tasks.lint]
+description = "Validate shell, JSON, YAML, Compose, and registry configuration"
+run = "bash scripts/static-check.sh lint"
+
+[tasks."typecheck-or-compile"]
+description = "Build the pinned OCI Distribution conformance runner"
+run = "bash scripts/build-conformance.sh"
+
+[tasks.test]
+description = "Run static contract tests for the OCI registry spike"
+run = "bash scripts/static-check.sh test"
+
+[tasks.build]
+description = "Pull every pinned container image used by the spike"
+run = "bash scripts/pull-images.sh"
+
+[tasks.check]
+description = "Run all non-destructive OCI registry spike checks"
+depends = ["format:check", "lint", "typecheck-or-compile", "test"]
+
+[tasks.spike]
+description = "Run the bounded zot and CNCF Distribution comparison from a clean stack"
+depends = ["install", "typecheck-or-compile"]
+run = "bash scripts/run-spike.sh"
+
+[tasks."scorecard:check"]
+description = "Validate the committed machine-readable scorecard"
+run = "bash scripts/check-scorecard.sh evidence/scorecard.json"
+
+[tasks."live-r2:preflight"]
+description = "Validate inputs for the explicitly separate, unrun live R2 check"
+depends = ["install"]
+run = "bash scripts/live-r2-check.sh"
