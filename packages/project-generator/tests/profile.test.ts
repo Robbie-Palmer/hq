@@ -266,14 +266,21 @@ describe("project profile contracts", () => {
       "../../../ui/content/projects/personal-engineering-platform/",
       import.meta.url,
     );
-    const [layout, platform, nix, opentelemetry, agenticCodeReview] = await Promise.all([
+    const [layout, platform, nix, opentelemetry, deploymentMaturity, agenticCodeReview] = await Promise.all([
       readFile(new URL("repository-layout.yaml", contentRoot), "utf8"),
       readFile(new URL("platform.yaml", contentRoot), "utf8"),
       readFile(new URL("nix-flake-contract.yaml", contentRoot), "utf8"),
       readFile(new URL("opentelemetry-contract.yaml", contentRoot), "utf8"),
+      readFile(new URL("deployment-maturity.yaml", contentRoot), "utf8"),
       readFile(new URL("../agentic-code-review/project-profile.yaml", contentRoot), "utf8"),
     ]);
-    const currentContracts = parseProjectProfileContracts({ layout, platform, nix, opentelemetry });
+    const currentContracts = parseProjectProfileContracts({
+      layout,
+      platform,
+      nix,
+      opentelemetry,
+      deploymentMaturity,
+    });
     expect(currentContracts.layout.schema_version).toBe(1);
 
     const blueprint = resolveProjectProfile(
@@ -309,7 +316,7 @@ describe("project profile contracts", () => {
   });
 
   it.each([
-    [{ schema_version: 2 }, /schema_version/],
+    [{ schema_version: 3 }, /schema_version/],
     [{ capabilities: { container: { base: "alpine" } } }, /not supported by project profile schema version 1/],
     [{ project: { id: "bad", name: "Bad", kind: "data-pipeline" } }, /compatible primary component/],
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],

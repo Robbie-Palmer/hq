@@ -115,6 +115,14 @@ const recordedBlueprintSchema = z.discriminatedUnion("schema_version", [
     fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
     rollout: recordedRolloutSchema.optional(),
   }),
+  z.looseObject({
+    ...recordedBlueprintFields,
+    schema_version: z.literal(3),
+    profile_schema_version: z.literal(2),
+    workloads: z.array(z.unknown()).min(1),
+    fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
+    rollout: recordedRolloutSchema,
+  }),
 ]);
 
 const receiptSchema = z.looseObject({

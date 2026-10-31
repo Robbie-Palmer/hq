@@ -17,12 +17,12 @@ depends = ["install"]
 run = "pnpm test"
 
 [tasks."docs:generate"]
-description = "Generate deployment maturity contract documentation"
+description = "Generate platform contract documentation"
 depends = ["install"]
 run = "pnpm docs:generate"
 
 [tasks."docs:check"]
-description = "Check generated deployment maturity contract documentation"
+description = "Check generated platform contract documentation"
 depends = ["install"]
 run = "pnpm docs:check"
 
