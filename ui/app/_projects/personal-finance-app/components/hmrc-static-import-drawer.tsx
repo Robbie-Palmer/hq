@@ -71,16 +71,18 @@ function formatMoney(value: number | undefined): string {
       }).format(value);
 }
 
+function reconciliationStatusText(
+  status: ReturnType<typeof reconcileHmrcDraftRow>["status"],
+): string {
+  if (status === "new") return "New HMRC observation";
+  if (status === "unchanged") return "Already accepted";
+  return "Revised HMRC value; acceptance will link a correction";
+}
+
 function reconciliationText(
   status: ReturnType<typeof reconcileHmrcDraftRow>,
 ): string {
-  const parts = [
-    status.status === "new"
-      ? "New HMRC observation"
-      : status.status === "unchanged"
-        ? "Already accepted"
-        : "Revised HMRC value; acceptance will link a correction",
-  ];
+  const parts = [reconciliationStatusText(status.status)];
   if (status.comparedWith.length > 0) {
     parts.push(`Compared with ${status.comparedWith.join(", ")}`);
     if (status.taxablePay === "differs" || status.incomeTax === "differs") {
@@ -180,6 +182,8 @@ function useHmrcStaticImport() {
 
 type ImportState = ReturnType<typeof useHmrcStaticImport>;
 type DraftRow = ImportState["review"]["rows"][number];
+type ImportStateProps = Readonly<{ state: ImportState }>;
+type ReviewRowProps = Readonly<{ row: DraftRow; state: ImportState }>;
 
 function LocalFileNotice() {
   return (
@@ -194,7 +198,7 @@ function LocalFileNotice() {
   );
 }
 
-function PersonSelect({ state }: { state: ImportState }) {
+function PersonSelect({ state }: ImportStateProps) {
   return (
     <label htmlFor="hmrc-import-person" className="space-y-1.5 text-sm">
       <span className="font-medium">Household person</span>
@@ -217,7 +221,7 @@ function PersonSelect({ state }: { state: ImportState }) {
   );
 }
 
-function TaxYearSelect({ state }: { state: ImportState }) {
+function TaxYearSelect({ state }: ImportStateProps) {
   return (
     <label htmlFor="hmrc-import-tax-year" className="space-y-1.5 text-sm">
       <span className="font-medium">Tax year</span>
@@ -244,12 +248,15 @@ function ImportFileField({
   file,
   kind,
   onChange,
-}: {
+}: Readonly<{
   file: HmrcImportFile | undefined;
   kind: HmrcImportFileKind;
   onChange: ImportState["chooseFile"];
-}) {
+}>) {
   const income = kind === "income";
+  const missingFileHint = `Optional if you only have ${income ? "tax" : "income"} data.`;
+  const fileHint =
+    file == null ? missingFileHint : `Reviewing ${file.fileName}`;
   return (
     <label htmlFor={`hmrc-${kind}-file`} className="space-y-1.5 text-sm">
       <span className="font-medium">
@@ -261,16 +268,12 @@ function ImportFileField({
         accept=".json,application/json"
         onChange={(event) => void onChange(event, kind)}
       />
-      <span className="block text-xs text-muted-foreground">
-        {file == null
-          ? `Optional if you only have ${income ? "tax" : "income"} data.`
-          : `Reviewing ${file.fileName}`}
-      </span>
+      <span className="block text-xs text-muted-foreground">{fileHint}</span>
     </label>
   );
 }
 
-function ImportConfiguration({ state }: { state: ImportState }) {
+function ImportConfiguration({ state }: ImportStateProps) {
   return (
     <>
       <div className="grid gap-4 sm:grid-cols-2">
@@ -293,7 +296,7 @@ function ImportConfiguration({ state }: { state: ImportState }) {
   );
 }
 
-function ImportDiagnostics({ state }: { state: ImportState }) {
+function ImportDiagnostics({ state }: ImportStateProps) {
   if (state.review.diagnostics.length === 0) return null;
   return (
     <section aria-live="polite" className="space-y-2">
@@ -309,7 +312,7 @@ function ImportDiagnostics({ state }: { state: ImportState }) {
   );
 }
 
-function ReviewRow({ row, state }: { row: DraftRow; state: ImportState }) {
+function ReviewRow({ row, state }: ReviewRowProps) {
   const reconciliation = reconcileHmrcDraftRow(
     row,
     state.hmrcEmploymentObservations,
@@ -348,7 +351,7 @@ function ReviewRow({ row, state }: { row: DraftRow; state: ImportState }) {
   );
 }
 
-function ReviewTable({ state }: { state: ImportState }) {
+function ReviewTable({ state }: ImportStateProps) {
   return (
     <div className="overflow-x-auto rounded-md border">
       <table className="w-full min-w-[52rem] text-sm">
@@ -371,7 +374,7 @@ function ReviewTable({ state }: { state: ImportState }) {
   );
 }
 
-function ImportReview({ state }: { state: ImportState }) {
+function ImportReview({ state }: ImportStateProps) {
   if (state.review.rows.length === 0) return null;
   return (
     <section className="space-y-3">
@@ -391,7 +394,7 @@ function ImportReview({ state }: { state: ImportState }) {
   );
 }
 
-function AbsentHmrcFields({ visible }: { visible: boolean }) {
+function AbsentHmrcFields({ visible }: Readonly<{ visible: boolean }>) {
   if (!visible) return null;
   return (
     <section className="rounded-md border p-3">
@@ -409,7 +412,7 @@ function AbsentHmrcFields({ visible }: { visible: boolean }) {
   );
 }
 
-function EmptyImportMessage({ state }: { state: ImportState }) {
+function EmptyImportMessage({ state }: ImportStateProps) {
   const visible =
     (state.income != null || state.tax != null) &&
     state.review.diagnostics.length === 0 &&
@@ -422,7 +425,7 @@ function EmptyImportMessage({ state }: { state: ImportState }) {
   );
 }
 
-function ImportContent({ state }: { state: ImportState }) {
+function ImportContent({ state }: ImportStateProps) {
   return (
     <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
       <LocalFileNotice />
@@ -436,7 +439,7 @@ function ImportContent({ state }: { state: ImportState }) {
   );
 }
 
-function ImportFooter({ state }: { state: ImportState }) {
+function ImportFooter({ state }: ImportStateProps) {
   const disabled =
     state.submitting ||
     state.review.rows.length === 0 ||

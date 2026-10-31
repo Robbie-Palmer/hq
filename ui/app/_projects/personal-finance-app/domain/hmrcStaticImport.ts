@@ -50,13 +50,13 @@ const TaxEmploymentSchema = z.object({
 
 const IndividualIncomeResponseSchema = z.object({
   employments: z.array(IncomeEmploymentSchema),
-  pensionsAnnuitiesAndOtherStateBenefits: z.object({}).passthrough(),
+  pensionsAnnuitiesAndOtherStateBenefits: z.looseObject({}),
 });
 
 const IndividualTaxResponseSchema = z.object({
   employments: z.array(TaxEmploymentSchema),
-  pensionsAnnuitiesAndOtherStateBenefits: z.object({}).passthrough(),
-  refunds: z.object({}).passthrough(),
+  pensionsAnnuitiesAndOtherStateBenefits: z.looseObject({}),
+  refunds: z.looseObject({}),
 });
 
 const HmrcImportSourceMetadataSchema = z.object({
@@ -241,6 +241,11 @@ function expectedMetadata(kind: HmrcImportFileKind) {
     : { api: HMRC_INDIVIDUAL_TAX_API, version: HMRC_INDIVIDUAL_TAX_VERSION };
 }
 
+function describeMetadata(value: unknown): string {
+  if (typeof value === "string") return value;
+  return JSON.stringify(value) ?? "unknown value";
+}
+
 function parseEnvelopeMetadata(
   kind: HmrcImportFileKind,
   envelope: ResponseEnvelope,
@@ -248,12 +253,12 @@ function parseEnvelopeMetadata(
   const expected = expectedMetadata(kind);
   if (envelope.api != null && envelope.api !== expected.api) {
     throw new AssetTrackerDataError(
-      `This file declares ${String(envelope.api)}, not ${expected.api}`,
+      `This file declares ${describeMetadata(envelope.api)}, not ${expected.api}`,
     );
   }
   if (envelope.version != null && envelope.version !== expected.version) {
     throw new AssetTrackerDataError(
-      `Unsupported ${expected.api} version ${String(envelope.version)}; choose version ${expected.version}`,
+      `Unsupported ${expected.api} version ${describeMetadata(envelope.version)}; choose version ${expected.version}`,
     );
   }
   if (envelope.taxYear == null) return undefined;
@@ -453,20 +458,9 @@ function seriesKey(record: {
   return `${record.memberId}\0${record.taxYear}\0${record.payeReference}`;
 }
 
-export function currentHmrcEmploymentObservations(
-  records: readonly HmrcEmploymentObservation[],
-): HmrcEmploymentObservation[] {
-  const corrected = new Set(
-    records.flatMap((record) =>
-      record.correctsId == null ? [] : [record.correctsId],
-    ),
-  );
-  return records.filter((record) => !corrected.has(record.id));
-}
-
-export function currentHmrcEmploymentLabels(
-  records: readonly HmrcEmploymentLabel[],
-): HmrcEmploymentLabel[] {
+function currentHmrcRecords<T extends { id: string; correctsId?: string }>(
+  records: readonly T[],
+): T[] {
   const corrected = new Set(
     records.flatMap((record) =>
       record.correctsId == null ? [] : [record.correctsId],
@@ -523,7 +517,7 @@ function acceptObservationRows(
 ): HmrcEmploymentObservation[] {
   const next = [...observations];
   const currentBySeries = new Map(
-    currentHmrcEmploymentObservations(observations).map((record) => [
+    currentHmrcRecords(observations).map((record) => [
       seriesKey(record),
       record,
     ]),
@@ -554,10 +548,7 @@ function acceptLabelRows(
 ): HmrcEmploymentLabel[] {
   const next = [...labels];
   const currentBySeries = new Map(
-    currentHmrcEmploymentLabels(labels).map((label) => [
-      seriesKey(label),
-      label,
-    ]),
+    currentHmrcRecords(labels).map((label) => [seriesKey(label), label]),
   );
   for (const row of rows) {
     const label = labelValues[row.payeReference]?.trim();
@@ -649,12 +640,23 @@ function comparisonStatus(
   return candidates.includes(value) ? "agrees" : "differs";
 }
 
+function reconciliationStatus(
+  prior: HmrcEmploymentObservation | undefined,
+  merged: Pick<
+    HmrcEmploymentObservation,
+    "observedTaxablePay" | "observedIncomeTax"
+  >,
+): HmrcReconciliation["status"] {
+  if (prior == null) return "new";
+  return sameObservedValues(prior, merged) ? "unchanged" : "revised";
+}
+
 export function reconcileHmrcDraftRow(
   row: HmrcImportDraftRow,
   observations: readonly HmrcEmploymentObservation[],
   salaryHistory: readonly SalaryHistoryRecord[],
 ): HmrcReconciliation {
-  const prior = currentHmrcEmploymentObservations(observations).find(
+  const prior = currentHmrcRecords(observations).find(
     (record) => seriesKey(record) === seriesKey(row),
   );
   const localFacts = salaryHistory.filter(
@@ -668,12 +670,7 @@ export function reconcileHmrcDraftRow(
     observedIncomeTax: row.observedIncomeTax ?? prior?.observedIncomeTax,
   };
   return {
-    status:
-      prior == null
-        ? "new"
-        : sameObservedValues(prior, merged)
-          ? "unchanged"
-          : "revised",
+    status: reconciliationStatus(prior, merged),
     taxablePay: comparisonStatus(
       merged.observedTaxablePay,
       localFacts.flatMap((record) =>
