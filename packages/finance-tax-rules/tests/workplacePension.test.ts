@@ -56,6 +56,10 @@ describe("workplace pension contributions", () => {
       employeeGrossContributionPence: 300_000,
       employeeCashDeductionPence: 0,
       salarySacrificePence: 300_000,
+      salarySacrificeByPeriodPence: Array.from(
+        { length: 12 },
+        () => 25_000,
+      ),
       employerContributionPence: 180_000,
       providerTaxReliefPence: 0,
     });
@@ -76,6 +80,60 @@ describe("workplace pension contributions", () => {
       employeeGrossContributionPence: 200_000,
       bases: { pensionablePayPence: 4_000_000 },
     });
+  });
+
+  it("keeps pensionable-pay salary sacrifice within each gross-pay period", () => {
+    expect(
+      calculateWorkplacePension({
+        ...baseRequest,
+        annualGrossPayPence: 1_200_000,
+        annualQualifyingEarningsPayPence: 1_200_000,
+        qualifyingEarningsVariablePaymentsPence: [600_000],
+        annualPensionablePayPence: 1_200_000,
+        employee: {
+          ...baseRequest.employee,
+          basis: "pensionable-pay",
+          rateBasisPoints: 10_000,
+        },
+        employer: { kind: "none" },
+      }),
+    ).toMatchObject({
+      available: true,
+      salarySacrificePence: 1_200_000,
+      salarySacrificeByPeriodPence: [
+        650_000,
+        ...Array.from({ length: 11 }, () => 50_000),
+      ],
+    });
+  });
+
+  it("keeps impossible annual salary sacrifice unavailable", () => {
+    expect(
+      calculateWorkplacePension({
+        ...baseRequest,
+        annualGrossPayPence: 1_200_000,
+        employee: {
+          kind: "explicit-amount",
+          taxTreatment: "salary-sacrifice",
+          grossAmountPence: 1_200_001,
+        },
+        employer: { kind: "none" },
+      }),
+    ).toMatchObject({
+      available: false,
+      reasons: [{ code: "salary-sacrifice-exceeds-gross-pay" }],
+    });
+  });
+
+  it("rejects variable qualifying earnings above annual gross pay", () => {
+    expect(() =>
+      calculateWorkplacePension({
+        ...baseRequest,
+        annualGrossPayPence: 1_200_000,
+        annualQualifyingEarningsPayPence: 2_000_000,
+        qualifyingEarningsVariablePaymentsPence: [2_000_000],
+      }),
+    ).toThrow("Variable qualifying earnings cannot exceed annual gross pay");
   });
 
   it("applies exact monthly lower and upper qualifying-earnings boundaries", () => {
@@ -144,6 +202,10 @@ describe("workplace pension contributions", () => {
     expect(result).toMatchObject({
       available: true,
       employeeGrossContributionPence: 1_994_900,
+      employeeGrossContributionByPeriodPence: [
+        366_900,
+        ...Array.from({ length: 11 }, () => 148_000),
+      ],
     });
   });
 
