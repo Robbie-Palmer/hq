@@ -20,7 +20,7 @@
     "port": "5000",
     "auth": {
       "htpasswd": {
-        "path": "/run/secrets/registry-htpasswd"
+        "path": "/etc/zot/registry-htpasswd"
       }
     },
     "accessControl": {

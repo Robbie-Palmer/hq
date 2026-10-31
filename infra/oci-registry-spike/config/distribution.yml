@@ -32,5 +32,5 @@ http:
 auth:
   htpasswd:
     realm: oci-registry-spike
-    path: /run/secrets/registry-htpasswd
+    path: /etc/distribution/registry-htpasswd
 

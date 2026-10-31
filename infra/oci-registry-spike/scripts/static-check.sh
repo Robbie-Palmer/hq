@@ -38,6 +38,13 @@ case "$mode" in
         exit 1
       }
     done
+    sensitive_dockerfiles=(distribution.Dockerfile zot-gc.Dockerfile zot.Dockerfile)
+    for dockerfile in "${sensitive_dockerfiles[@]}"; do
+      [[ "$(grep -Ec '^COPY --chown=0:65532 --chmod=0440 (config/|\.state/auth/htpasswd)' "$dockerfile")" == "2" ]] || {
+        echo "$dockerfile must make its config and htpasswd root-owned and group-read-only" >&2
+        exit 1
+      }
+    done
     if grep -Eqi '(password|secret)[[:space:]]*=[[:space:]]*[^$<{[:space:]]+' versions.env; then
       echo "versions.env must not contain credentials" >&2
       exit 1
