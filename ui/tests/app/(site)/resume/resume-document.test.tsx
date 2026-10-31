@@ -6,27 +6,28 @@ import { ResumeDocument } from "@/app/(site)/resume/resume-document";
 
 vi.mock("@/app/(site)/resume/resume.module.css", () => ({
   default: {
-    compactExperienceList: "compactExperienceList",
+    backLink: "backLink",
     contactLinks: "contactLinks",
+    contentGrid: "contentGrid",
     description: "description",
     document: "document",
+    earlierExperienceList: "earlierExperienceList",
+    evidenceColumn: "evidenceColumn",
     entryHeading: "entryHeading",
     experienceEntry: "experienceEntry",
     experienceList: "experienceList",
-    eyebrow: "eyebrow",
     headline: "headline",
-    pageBody: "pageBody",
     pageFooter: "pageFooter",
-    profileBand: "profileBand",
+    printActions: "printActions",
+    profileSummary: "profileSummary",
     projectEntry: "projectEntry",
     projectHeading: "projectHeading",
     projectList: "projectList",
     resumeHeader: "resumeHeader",
-    secondPageGrid: "secondPageGrid",
     sectionTitle: "sectionTitle",
     sheet: "sheet",
     shell: "shell",
-    skillList: "skillList",
+    skills: "skills",
     technologyLine: "technologyLine",
     toolbar: "toolbar",
   },
@@ -79,13 +80,14 @@ const data: ResumeData = {
 };
 
 describe("ResumeDocument", () => {
-  it("renders two printable sheets from supplied canonical data", () => {
+  it("renders one printable sheet with projects and earlier experience", () => {
     render(<ResumeDocument data={data} />);
 
-    expect(screen.getAllByTestId("resume-sheet")).toHaveLength(2);
+    expect(screen.getAllByTestId("resume-sheet")).toHaveLength(1);
     expect(
       screen.getByRole("heading", { name: "Example Person", level: 1 }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Earlier Company")).toBeInTheDocument();
     expect(screen.getByText("Example Project")).toHaveAttribute(
       "href",
       "/projects/example-project",
@@ -93,6 +95,9 @@ describe("ResumeDocument", () => {
     expect(
       screen.getByLabelText("Example Project source code"),
     ).toHaveAttribute("href", "https://github.com/example/project");
+    expect(
+      screen.getByRole("link", { name: "Back to experience" }),
+    ).toHaveAttribute("href", "/experience");
   });
 
   it("opens the native print dialog", async () => {

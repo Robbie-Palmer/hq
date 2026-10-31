@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("renders a two-page A4 résumé with live links", async ({
+test("renders a one-page A4 résumé with projects and live links", async ({
   page,
 }, testInfo) => {
   const pageErrors: string[] = [];
@@ -10,15 +10,19 @@ test("renders a two-page A4 résumé with live links", async ({
   await expect(
     page.getByRole("heading", { name: "Robbie Palmer", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByTestId("resume-sheet")).toHaveCount(2);
+  await expect(page.getByTestId("resume-sheet")).toHaveCount(1);
   await expect(
     page.getByRole("button", { name: "Print / save PDF" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Back to experience" }),
+  ).toHaveAttribute("href", "/experience");
 
   const text = await page.getByLabel("Robbie Palmer résumé").innerText();
-  expect(text.length).toBeGreaterThan(4_000);
+  expect(text.length).toBeGreaterThan(3_000);
   expect(text).toContain("Terminal Industries");
   expect(text).toContain("Microsoft");
+  expect(text).toContain("SELECTED PROJECTS");
 
   const links = await page
     .getByLabel("Robbie Palmer résumé")
@@ -67,10 +71,7 @@ test("renders a two-page A4 résumé with live links", async ({
         vertical: sheet.scrollHeight - sheet.clientHeight,
       })),
     );
-  expect(overflow).toEqual([
-    { horizontal: 0, vertical: 0 },
-    { horizontal: 0, vertical: 0 },
-  ]);
+  expect(overflow).toEqual([{ horizontal: 0, vertical: 0 }]);
 
   const pdf = await page.pdf({
     format: "A4",
@@ -79,7 +80,7 @@ test("renders a two-page A4 résumé with live links", async ({
   });
   const pdfSource = Buffer.from(pdf).toString("latin1");
   const pageCount = pdfSource.match(/\/Type\s*\/Page\b/g)?.length ?? 0;
-  expect(pageCount).toBe(2);
+  expect(pageCount).toBe(1);
   expect(pdf.byteLength).toBeGreaterThan(20_000);
   expect(pageErrors).toEqual([]);
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { ExternalLink, Printer } from "lucide-react";
+import { ArrowLeft, ExternalLink, Printer } from "lucide-react";
 import Link from "next/link";
 import { siGithub } from "simple-icons";
 import { Button } from "@/components/ui/button";
@@ -17,11 +17,19 @@ function BrandIcon({ path }: Readonly<{ path: string }>) {
   );
 }
 
+function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
+  return <h2 className={styles.sectionTitle}>{children}</h2>;
+}
+
 function ExperienceEntry({
   experience,
-  compact = false,
-}: Readonly<{ experience: Experience; compact?: boolean }>) {
-  const responsibilityLimit = 3;
+  responsibilityLimit,
+  showTechnology,
+}: Readonly<{
+  experience: Experience;
+  responsibilityLimit: number;
+  showTechnology: boolean;
+}>) {
   return (
     <article className={styles.experienceEntry}>
       <div className={styles.entryHeading}>
@@ -43,12 +51,35 @@ function ExperienceEntry({
             <li key={responsibility}>{responsibility}</li>
           ))}
       </ul>
-      {!compact && (
+      {showTechnology && (
         <p className={styles.technologyLine}>
-          {experience.technologies.slice(0, 9).join(" · ")}
+          {experience.technologies.slice(0, 7).join(" · ")}
         </p>
       )}
     </article>
+  );
+}
+
+function EarlierExperience({
+  experiences,
+}: Readonly<{ experiences: Experience[] }>) {
+  return (
+    <div className={styles.earlierExperienceList}>
+      {experiences.map((experience) => (
+        <article key={`${experience.company}-${experience.startDate}`}>
+          <h3>{experience.title}</h3>
+          <div>
+            <a href={experience.companyUrl}>{experience.company}</a>
+            <span>
+              {formatExperienceDateRange(
+                experience.startDate,
+                experience.endDate,
+              )}
+            </span>
+          </div>
+        </article>
+      ))}
+    </div>
   );
 }
 
@@ -68,40 +99,26 @@ function ProjectEntry({ project }: Readonly<{ project: ResumeProject }>) {
       </div>
       <p>{project.description}</p>
       <p className={styles.technologyLine}>
-        {project.technologies.join(" · ")}
+        {project.technologies.slice(0, 4).join(" · ")}
       </p>
     </article>
-  );
-}
-
-function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
-  return (
-    <h2 className={styles.sectionTitle}>
-      <span>{children}</span>
-    </h2>
-  );
-}
-
-function PageFooter({ page }: Readonly<{ page: number }>) {
-  return (
-    <footer className={styles.pageFooter}>
-      <span>robbiepalmer.me/resume</span>
-      <span>Page {page} of 2</span>
-    </footer>
   );
 }
 
 function ResumeToolbar() {
   return (
     <aside className={styles.toolbar} aria-label="Résumé actions">
-      <div>
-        <p>Browser-native PDF</p>
+      <Link href="/experience" className={styles.backLink}>
+        <ArrowLeft aria-hidden="true" />
+        Back to experience
+      </Link>
+      <div className={styles.printActions}>
         <span>Choose “Save as PDF” in the print dialog.</span>
+        <Button type="button" onClick={() => window.print()}>
+          <Printer aria-hidden="true" />
+          Print / save PDF
+        </Button>
       </div>
-      <Button type="button" onClick={() => window.print()}>
-        <Printer aria-hidden="true" />
-        Print / save PDF
-      </Button>
     </aside>
   );
 }
@@ -110,7 +127,6 @@ function ResumeHeader({ data }: Readonly<{ data: ResumeData }>) {
   return (
     <header className={styles.resumeHeader}>
       <div>
-        <p className={styles.eyebrow}>Résumé</p>
         <h1>{data.person.name}</h1>
         <p className={styles.headline}>{data.headline}</p>
       </div>
@@ -129,70 +145,46 @@ function ResumeHeader({ data }: Readonly<{ data: ResumeData }>) {
   );
 }
 
-function ResumeFirstPage({ data }: Readonly<{ data: ResumeData }>) {
+function ResumePage({ data }: Readonly<{ data: ResumeData }>) {
+  const recentExperiences = data.experiences.slice(0, 4);
   return (
     <section className={styles.sheet} data-testid="resume-sheet">
       <ResumeHeader data={data} />
-      <div className={styles.profileBand}>
+      <div className={styles.profileSummary}>
         <p>{data.summary}</p>
-        <div>
-          <span>Core stack</span>
-          <p>{data.skills.slice(0, 8).join(" · ")}</p>
-        </div>
+        <p className={styles.skills}>
+          <strong>Core:</strong> {data.skills.slice(0, 10).join(" · ")}
+        </p>
       </div>
-
-      <div className={styles.pageBody}>
-        <SectionTitle>Recent experience</SectionTitle>
-        <div className={styles.experienceList}>
-          {data.experiences.slice(0, 4).map((experience) => (
-            <ExperienceEntry
-              key={`${experience.company}-${experience.startDate}`}
-              experience={experience}
-            />
-          ))}
-        </div>
-      </div>
-      <PageFooter page={1} />
-    </section>
-  );
-}
-
-function ResumeSecondPage({ data }: Readonly<{ data: ResumeData }>) {
-  return (
-    <section className={styles.sheet} data-testid="resume-sheet">
-      <header className={styles.continuationHeader}>
-        <span>{data.person.name}</span>
-        <span>{data.headline}</span>
-      </header>
-      <div className={styles.secondPageGrid}>
+      <div className={styles.contentGrid}>
         <div>
-          <SectionTitle>Earlier experience</SectionTitle>
-          <div className={styles.compactExperienceList}>
-            {data.experiences.slice(4).map((experience) => (
+          <SectionTitle>Experience</SectionTitle>
+          <div className={styles.experienceList}>
+            {recentExperiences.map((experience, index) => (
               <ExperienceEntry
-                compact
                 key={`${experience.company}-${experience.startDate}`}
                 experience={experience}
+                responsibilityLimit={index === 0 ? 3 : 2}
+                showTechnology={index < 2}
               />
             ))}
           </div>
         </div>
-        <div>
+        <aside className={styles.evidenceColumn}>
           <SectionTitle>Selected projects</SectionTitle>
           <div className={styles.projectList}>
             {data.projects.map((project) => (
               <ProjectEntry key={project.slug} project={project} />
             ))}
           </div>
-          <SectionTitle>Technical strengths</SectionTitle>
-          <ul className={styles.skillList} aria-label="Technical strengths">
-            {data.skills.map((skill) => (
-              <li key={skill}>{skill}</li>
-            ))}
-          </ul>
-        </div>
+          <SectionTitle>Earlier experience</SectionTitle>
+          <EarlierExperience experiences={data.experiences.slice(4)} />
+        </aside>
       </div>
-      <PageFooter page={2} />
+      <footer className={styles.pageFooter}>
+        <span>robbiepalmer.me/resume</span>
+        <span>Experience & selected projects</span>
+      </footer>
     </section>
   );
 }
@@ -206,8 +198,7 @@ export function ResumeDocument({ data }: Readonly<{ data: ResumeData }>) {
         aria-label={`${data.person.name} résumé`}
         data-resume-document
       >
-        <ResumeFirstPage data={data} />
-        <ResumeSecondPage data={data} />
+        <ResumePage data={data} />
       </article>
     </div>
   );
