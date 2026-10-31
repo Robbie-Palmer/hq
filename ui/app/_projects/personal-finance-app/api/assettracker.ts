@@ -1,5 +1,6 @@
 import { promiseFromSync } from "ts-base/promises";
 import {
+  type AcceptHmrcImportInput,
   type AddCashFlowDecisionInput,
   type AddCommitmentInput,
   type AddDecisionInterpretationInput,
@@ -12,6 +13,7 @@ import {
   type AssetTrackerBackup,
   type AssetTrackerData,
   AssetTrackerDataSchema,
+  applyAcceptHmrcImport,
   applyAddCashFlowDecision,
   applyAddCommitment,
   applyAddDecisionInterpretation,
@@ -146,6 +148,7 @@ export interface AssetTrackerApi {
   importSalaryHistory(
     input: ImportSalaryHistoryInput,
   ): Promise<AssetTrackerData>;
+  acceptHmrcImport(input: AcceptHmrcImportInput): Promise<AssetTrackerData>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<AssetTrackerData>;
   deleteSalaryRecord(input: DeleteSalaryRecordInput): Promise<AssetTrackerData>;
   saveTaxSetup(input: SaveTaxSetupInput): Promise<AssetTrackerData>;
@@ -447,6 +450,23 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
         return write({
           ...data,
           salaryHistory: applyImportSalaryHistory(data.salaryHistory, input),
+        });
+      });
+    },
+    acceptHmrcImport(input) {
+      return promiseFromSync(() => {
+        const data = current();
+        const accepted = applyAcceptHmrcImport(
+          data.hmrcEmploymentObservations ?? [],
+          data.hmrcEmploymentLabels ?? [],
+          input,
+          () => globalThis.crypto.randomUUID(),
+          new Date().toISOString(),
+        );
+        return write({
+          ...data,
+          hmrcEmploymentObservations: accepted.observations,
+          hmrcEmploymentLabels: accepted.labels,
         });
       });
     },

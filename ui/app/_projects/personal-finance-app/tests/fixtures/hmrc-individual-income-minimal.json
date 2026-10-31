@@ -1,0 +1,9 @@
+{
+  "pensionsAnnuitiesAndOtherStateBenefits": {},
+  "employments": [
+    {
+      "employerPayeReference": "321/XY987",
+      "payFromEmployment": 1200.25
+    }
+  ]
+}
