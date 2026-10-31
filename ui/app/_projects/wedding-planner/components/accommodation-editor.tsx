@@ -367,6 +367,147 @@ function ReadinessView({
   );
 }
 
+function EditorPlanStatus({
+  error,
+  loading,
+  onExport,
+  onImport,
+  onLoadSample,
+  state,
+}: Readonly<{
+  error: string;
+  loading: boolean;
+  onExport(): void;
+  onImport(file: File): Promise<void>;
+  onLoadSample(): Promise<void>;
+  state: WeddingPlanDraft | null;
+}>) {
+  if (loading) return <WorkflowLoadingState />;
+  if (!state)
+    return (
+      <>
+        {error && <WorkflowErrorState message={error} />}
+        <WorkflowEmptyState
+          className="editor-start-card"
+          title="No plan loaded"
+          description="Plans stay in this browser. Start with fictional data or import a JSON backup."
+          action={
+            <>
+              <Button className="mb-4" onClick={onLoadSample}>
+                Use sample plan
+              </Button>
+              <DataControls
+                hasData={false}
+                onImport={onImport}
+                onExport={onExport}
+              />
+            </>
+          }
+        />
+      </>
+    );
+  return (
+    <>
+      {state.sample_plan && (
+        <output className="editor-hint mb-5 block">
+          Sample plan · 26 fictional guests
+        </output>
+      )}
+      {error && <WorkflowErrorState message={error} />}
+    </>
+  );
+}
+
+function BedGroupsSummary({
+  ownBedCount,
+  pendingPairCount,
+  sharedBedCount,
+  unpairedCount,
+  onOpenSharing,
+}: Readonly<{
+  ownBedCount: number;
+  pendingPairCount: number;
+  sharedBedCount: number;
+  unpairedCount: number;
+  onOpenSharing(): void;
+}>) {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <h2>Who shares a bed?</h2>
+        </div>
+        <Button onClick={onOpenSharing}>
+          Sharing map <ArrowRight size={16} />
+        </Button>
+      </div>
+      <div className="progress-strip bed-progress-strip">
+        <span>
+          <strong>{sharedBedCount}</strong> shared beds
+        </span>
+        <span>
+          <strong>{unpairedCount}</strong> currently unpaired
+        </span>
+        <span>
+          <strong>{pendingPairCount}</strong> suggestions to review
+        </span>
+        <span>
+          <strong>{ownBedCount}</strong> own beds
+        </span>
+      </div>
+    </>
+  );
+}
+
+interface LegacyPlannerViewsProps {
+  allocation: TableAllocation | null;
+  busy: boolean;
+  onCalculate(): Promise<void>;
+  onGuest(guestId: string): void;
+  onLayoutUpdate(change: (draft: WeddingPlanDraft) => void): void;
+  onUpdate(change: (draft: WeddingPlanDraft) => void): void;
+  onView(view: EditorView, targetId?: string): void;
+  state: WeddingPlanDraft | null;
+  view: EditorView;
+}
+
+function LegacyPlannerViews(props: Readonly<LegacyPlannerViewsProps>) {
+  return (
+    <>
+      {props.view === "tables" && props.state && (
+        <TableEditor
+          state={props.state}
+          allocation={props.allocation}
+          onLayoutUpdate={props.onLayoutUpdate}
+          busy={props.busy}
+          onUpdate={props.onUpdate}
+          onCalculate={props.onCalculate}
+        />
+      )}
+      <ReadinessView
+        view={props.view}
+        state={props.state}
+        onUpdate={props.onUpdate}
+        onView={props.onView}
+        onGuest={props.onGuest}
+      />
+      <PlaylistView
+        view={props.view}
+        state={props.state}
+        onUpdate={props.onUpdate}
+      />
+    </>
+  );
+}
+
+interface AccommodationEditorProps {
+  application?: PlannerApplication;
+  onGuestChange?(guestId: string | null): void;
+  onNavigate?(view: EditorView, targetId?: string): void;
+  routeView?: EditorView;
+  selectedGuestId?: string | null;
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
@@ -374,13 +515,7 @@ export function AccommodationEditor({
   selectedGuestId,
   onNavigate,
   onGuestChange,
-}: Readonly<{
-  application?: PlannerApplication;
-  routeView?: EditorView;
-  selectedGuestId?: string | null;
-  onNavigate?: (view: EditorView, targetId?: string) => void;
-  onGuestChange?: (guestId: string | null) => void;
-}>) {
+}: Readonly<AccommodationEditorProps>) {
   const [state, setState] = useState<WeddingPlanDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [internalView, setInternalView] = useState<EditorView>("bed_groups");
@@ -831,89 +966,42 @@ export function AccommodationEditor({
           </aside>
         )}
         <main id="wedding-planner-content" className="editor-main">
-          {loading && <WorkflowLoadingState />}
-          {!loading && !state && (
-            <WorkflowEmptyState
-              className="editor-start-card"
-              title="No plan loaded"
-              description="Plans stay in this browser. Start with fictional data or import a JSON backup."
-              action={
-                <>
-                  <Button className="mb-4" onClick={loadSamplePlan}>
-                    Use sample plan
-                  </Button>
-                  <DataControls
-                    hasData={false}
-                    onImport={importPlan}
-                    onExport={exportPlan}
-                  />
-                </>
-              }
-            />
-          )}
-          {state?.sample_plan === true && (
-            <output className="editor-hint mb-5 block">
-              Sample plan · 26 fictional guests
-            </output>
-          )}
-          {error && <WorkflowErrorState message={error} />}
-          {view === "tables" && state && (
-            <TableEditor
-              state={state}
-              allocation={tableAllocation}
-              onLayoutUpdate={(change) => update(change, true)}
-              busy={tableBusy}
-              onUpdate={update}
-              onCalculate={calculateTablePlan}
-            />
-          )}
-          <ReadinessView
-            view={view}
+          <EditorPlanStatus
+            error={error}
+            loading={loading}
+            onExport={exportPlan}
+            onImport={importPlan}
+            onLoadSample={loadSamplePlan}
             state={state}
+          />
+          <LegacyPlannerViews
+            allocation={tableAllocation}
+            busy={tableBusy}
+            onCalculate={calculateTablePlan}
+            onGuest={selectGuest}
+            onLayoutUpdate={(change) => update(change, true)}
             onUpdate={update}
             onView={setView}
-            onGuest={selectGuest}
+            state={state}
+            view={view}
           />
-          <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
             <>
-              <div className="page-heading">
-                <div>
-                  <h2>Who shares a bed?</h2>
-                </div>
-                <Button onClick={() => setView("sharing")}>
-                  Sharing map <ArrowRight size={16} />
-                </Button>
-              </div>
-              <div className="progress-strip bed-progress-strip">
-                <span>
-                  <strong>
-                    {
-                      bedGroups.filter((group) => group.guestIds.length === 2)
-                        .length
-                    }
-                  </strong>{" "}
-                  shared beds
-                </span>
-                <span>
-                  <strong>{unpairedGuests.length}</strong> currently unpaired
-                </span>
-                <span>
-                  <strong>{pendingInvitationPairs.length}</strong> suggestions
-                  to review
-                </span>
-                <span>
-                  <strong>
-                    {
-                      guests.filter(
-                        (guest) =>
-                          guest.requires_own_bed && guest.overnight !== "no",
-                      ).length
-                    }
-                  </strong>{" "}
-                  own beds
-                </span>
-              </div>
+              <BedGroupsSummary
+                ownBedCount={
+                  guests.filter(
+                    (guest) =>
+                      guest.requires_own_bed && guest.overnight !== "no",
+                  ).length
+                }
+                pendingPairCount={pendingInvitationPairs.length}
+                sharedBedCount={
+                  bedGroups.filter((group) => group.guestIds.length === 2)
+                    .length
+                }
+                unpairedCount={unpairedGuests.length}
+                onOpenSharing={() => setView("sharing")}
+              />
               {pendingInvitationPairs.length > 0 && (
                 <Card className="bed-review-card">
                   <CardHeader>

@@ -74,6 +74,37 @@ function RouteMain({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+function ExportContentsTable({ state }: Readonly<{ state: WeddingPlanDraft }>) {
+  return (
+    <WorkflowDataTable caption="Data included in the current backup">
+      <thead>
+        <tr>
+          <th scope="col">Workflow</th>
+          <th scope="col">Current data</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">Guests</th>
+          <td>{state.guests.length} records</td>
+        </tr>
+        <tr>
+          <th scope="row">Accommodation</th>
+          <td>{state.inventory?.properties.length ?? 0} properties</td>
+        </tr>
+        <tr>
+          <th scope="row">Seating</th>
+          <td>{state.table_plan ? "Configured" : "Not configured"}</td>
+        </tr>
+        <tr>
+          <th scope="row">Music</th>
+          <td>{state.playlist ? "Included" : "Not started"}</td>
+        </tr>
+      </tbody>
+    </WorkflowDataTable>
+  );
+}
+
 export function ReadinessWorkflow() {
   const plan = useWeddingPlan();
   const router = useRouter();
@@ -198,36 +229,7 @@ export function ExportsWorkflow() {
                 onExport={plan.exportPlan}
               />
             </WorkflowFormSection>
-            <WorkflowDataTable caption="Data included in the current backup">
-              <thead>
-                <tr>
-                  <th scope="col">Workflow</th>
-                  <th scope="col">Current data</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row">Guests</th>
-                  <td>{plan.state.guests.length} records</td>
-                </tr>
-                <tr>
-                  <th scope="row">Accommodation</th>
-                  <td>
-                    {plan.state.inventory?.properties.length ?? 0} properties
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row">Seating</th>
-                  <td>
-                    {plan.state.table_plan ? "Configured" : "Not configured"}
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row">Music</th>
-                  <td>{plan.state.playlist ? "Included" : "Not started"}</td>
-                </tr>
-              </tbody>
-            </WorkflowDataTable>
+            <ExportContentsTable state={plan.state} />
             <p className="editor-hint mt-5">
               Venue, caterer, floor-plan, and DJ files stay with the seating and
               music workflows that produce them.{" "}
