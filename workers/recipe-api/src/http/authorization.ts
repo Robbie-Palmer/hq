@@ -187,3 +187,10 @@ export function authorizeHouseholdMembershipManagement(
   if (!user) return unauthenticated();
   return household.ownerId === user.id ? allow() : forbidden();
 }
+
+export function authorizeTermReview(
+  user: AuthenticatedUser | null | undefined,
+): AuthorizationDecision {
+  if (!user) return unauthenticated();
+  return user.role === "admin" ? allow() : forbidden();
+}
