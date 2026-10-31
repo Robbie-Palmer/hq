@@ -63,6 +63,30 @@ and deployment operations. Provider credentials and provider-side rules remain
 separate enforcement layers, so a Cedar permit alone never guarantees that an
 operation can run.
 
+## Vulnerability evaluation
+
+`createVulnerabilityEvaluationRecord` reduces an incident's typed ledger events
+and private execution telemetry into one evaluation record. The record includes
+the proposal choice, launch suppression, checks, review, merge, deployment,
+validation, alert closure, recovery, attention outcomes, terminal result,
+elapsed time, model request counts, and metered cost. Its terminal results keep
+`no-safe-fix`, `execution-failure`, and `missing-authority` separate.
+
+The evaluator reads private telemetry but does not copy prompts, credentials,
+quota observations, account or route identifiers, free text, or unrelated
+source content into the record. Its strict schema also rejects extra fields.
+Event and incident identities deduplicate retries, and conflicting uses of one
+identity fail instead of changing the totals.
+
+`aggregateVulnerabilityEvaluationRecords` reports unnecessary launches, failed
+rollouts, successful recoveries, human interventions, elapsed time, model use,
+and cost across incidents. `reviewVulnerabilityPolicyRevisions` compares the
+first-release policy with each later revision. It recommends holding expansion
+when the evidence is missing, a rollout remains unrecovered, a duplicate worker
+was launched, execution failed, authority was absent, or the remediation rate
+fell. Otherwise it returns the concrete safety evidence behind an expansion
+recommendation.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a

@@ -22,6 +22,7 @@
     "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
     "./vulnerability": "./src/vulnerability.ts",
+    "./vulnerability-evaluation": "./src/vulnerability-evaluation.ts",
     "./vulnerability-incident": "./src/vulnerability-incident.ts",
     "./vulnerability-controller": "./src/vulnerability-controller.ts",
     "./work-graph": "./src/work-graph.ts"
