@@ -95,7 +95,7 @@ function reconciliationText(
   return parts.join(". ");
 }
 
-export function HmrcStaticImportDrawer() {
+function useHmrcStaticImport() {
   const {
     acceptHmrcImport,
     hmrcEmploymentObservations,
@@ -152,8 +152,315 @@ export function HmrcStaticImportDrawer() {
     }
   }
 
+  function setLabel(payeReference: string, label: string) {
+    setLabels((current) => ({ ...current, [payeReference]: label }));
+  }
+
+  return {
+    error,
+    handleSubmit,
+    hmrcEmploymentObservations,
+    household,
+    income,
+    labels,
+    memberId,
+    open,
+    review,
+    salaryHistory,
+    setLabel,
+    setMemberId,
+    setOpen,
+    setTaxYear,
+    submitting,
+    tax,
+    taxYear,
+    chooseFile,
+  };
+}
+
+type ImportState = ReturnType<typeof useHmrcStaticImport>;
+type DraftRow = ImportState["review"]["rows"][number];
+
+function LocalFileNotice() {
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+      <p className="font-medium">Local files only</p>
+      <p className="mt-1 text-muted-foreground">
+        This importer does not contact HMRC, use credentials, or store a UTR.
+        Choose one or both response files. A saved envelope may declare its tax
+        year, API, and version; plain response bodies use the selections below.
+      </p>
+    </div>
+  );
+}
+
+function PersonSelect({ state }: { state: ImportState }) {
+  return (
+    <label htmlFor="hmrc-import-person" className="space-y-1.5 text-sm">
+      <span className="font-medium">Household person</span>
+      <select
+        id="hmrc-import-person"
+        value={state.memberId}
+        onChange={(event) => state.setMemberId(event.target.value)}
+        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 shadow-xs outline-none focus-visible:ring-[3px]"
+      >
+        {state.household.members.map((member) => (
+          <option key={member.id} value={member.id}>
+            {member.displayName}
+          </option>
+        ))}
+      </select>
+      <span className="block text-xs text-muted-foreground">
+        HMRC response bodies do not identify the person.
+      </span>
+    </label>
+  );
+}
+
+function TaxYearSelect({ state }: { state: ImportState }) {
+  return (
+    <label htmlFor="hmrc-import-tax-year" className="space-y-1.5 text-sm">
+      <span className="font-medium">Tax year</span>
+      <select
+        id="hmrc-import-tax-year"
+        value={state.taxYear}
+        onChange={(event) => state.setTaxYear(event.target.value)}
+        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 shadow-xs outline-none focus-visible:ring-[3px]"
+      >
+        {taxYearOptions().map((option) => (
+          <option key={option} value={option}>
+            {option}
+          </option>
+        ))}
+      </select>
+      <span className="block text-xs text-muted-foreground">
+        Plain response bodies do not include the requested tax year.
+      </span>
+    </label>
+  );
+}
+
+function ImportFileField({
+  file,
+  kind,
+  onChange,
+}: {
+  file: HmrcImportFile | undefined;
+  kind: HmrcImportFileKind;
+  onChange: ImportState["chooseFile"];
+}) {
+  const income = kind === "income";
+  return (
+    <label htmlFor={`hmrc-${kind}-file`} className="space-y-1.5 text-sm">
+      <span className="font-medium">
+        Individual {income ? "Income 1.2" : "Tax 1.1"} JSON
+      </span>
+      <Input
+        id={`hmrc-${kind}-file`}
+        type="file"
+        accept=".json,application/json"
+        onChange={(event) => void onChange(event, kind)}
+      />
+      <span className="block text-xs text-muted-foreground">
+        {file == null
+          ? `Optional if you only have ${income ? "tax" : "income"} data.`
+          : `Reviewing ${file.fileName}`}
+      </span>
+    </label>
+  );
+}
+
+function ImportConfiguration({ state }: { state: ImportState }) {
+  return (
+    <>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <PersonSelect state={state} />
+        <TaxYearSelect state={state} />
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <ImportFileField
+          file={state.income}
+          kind="income"
+          onChange={state.chooseFile}
+        />
+        <ImportFileField
+          file={state.tax}
+          kind="tax"
+          onChange={state.chooseFile}
+        />
+      </div>
+    </>
+  );
+}
+
+function ImportDiagnostics({ state }: { state: ImportState }) {
+  if (state.review.diagnostics.length === 0) return null;
+  return (
+    <section aria-live="polite" className="space-y-2">
+      <h3 className="font-semibold">Import diagnostics</h3>
+      <ul className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+        {state.review.diagnostics.map((diagnostic) => (
+          <li key={`${diagnostic.file}-${diagnostic.message}`}>
+            {diagnostic.message}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function ReviewRow({ row, state }: { row: DraftRow; state: ImportState }) {
+  const reconciliation = reconcileHmrcDraftRow(
+    row,
+    state.hmrcEmploymentObservations,
+    state.salaryHistory,
+  );
+  return (
+    <tr className="border-t align-top">
+      <td className="px-3 py-3 font-mono text-xs">{row.payeReference}</td>
+      <td className="px-3 py-3 tabular-nums">
+        {formatMoney(row.observedTaxablePay)}
+      </td>
+      <td className="px-3 py-3 tabular-nums">
+        {formatMoney(row.observedIncomeTax)}
+      </td>
+      <td className="px-3 py-3">
+        <label className="sr-only" htmlFor={`hmrc-label-${row.payeReference}`}>
+          Employer label for {row.payeReference}
+        </label>
+        <Input
+          id={`hmrc-label-${row.payeReference}`}
+          value={state.labels[row.payeReference] ?? ""}
+          onChange={(event) =>
+            state.setLabel(row.payeReference, event.target.value)
+          }
+          placeholder="Optional employer label"
+          maxLength={120}
+        />
+        <span className="mt-1 block text-xs text-muted-foreground">
+          Saved as a separate manual fact.
+        </span>
+      </td>
+      <td className="max-w-72 px-3 py-3 text-xs text-muted-foreground">
+        {reconciliationText(reconciliation)}
+      </td>
+    </tr>
+  );
+}
+
+function ReviewTable({ state }: { state: ImportState }) {
+  return (
+    <div className="overflow-x-auto rounded-md border">
+      <table className="w-full min-w-[52rem] text-sm">
+        <thead className="bg-muted/50 text-left">
+          <tr>
+            {REVIEW_COLUMNS.map((column) => (
+              <th key={column} className="px-3 py-2">
+                {column}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {state.review.rows.map((row) => (
+            <ReviewRow key={row.payeReference} row={row} state={state} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ImportReview({ state }: { state: ImportState }) {
+  if (state.review.rows.length === 0) return null;
+  return (
+    <section className="space-y-3">
+      <div>
+        <h3 className="font-semibold">
+          Review {state.review.rows.length} employment observation
+          {state.review.rows.length === 1 ? "" : "s"}
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          Rows join only on tax year and PAYE reference. payFromEmployment is
+          recorded as observed taxable pay. It is not gross-before-pension
+          salary.
+        </p>
+      </div>
+      <ReviewTable state={state} />
+    </section>
+  );
+}
+
+function AbsentHmrcFields({ visible }: { visible: boolean }) {
+  if (!visible) return null;
+  return (
+    <section className="rounded-md border p-3">
+      <h3 className="text-sm font-semibold">Not present in these APIs</h3>
+      <p className="mt-1 text-xs text-muted-foreground">
+        The review leaves these unknown. Add any known values through their
+        normal manual or document import, not as HMRC-derived facts.
+      </p>
+      <ul className="mt-2 grid list-disc gap-x-6 gap-y-1 pl-5 text-xs text-muted-foreground sm:grid-cols-2">
+        {ABSENT_HMRC_FIELDS.map((field) => (
+          <li key={field}>{field}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function EmptyImportMessage({ state }: { state: ImportState }) {
+  const visible =
+    (state.income != null || state.tax != null) &&
+    state.review.diagnostics.length === 0 &&
+    state.review.rows.length === 0;
+  if (!visible) return null;
+  return (
+    <p className="rounded-md border p-3 text-sm text-muted-foreground">
+      These responses contain no employment income or tax rows to accept.
+    </p>
+  );
+}
+
+function ImportContent({ state }: { state: ImportState }) {
+  return (
+    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
+      <LocalFileNotice />
+      <ImportConfiguration state={state} />
+      <ImportDiagnostics state={state} />
+      <EmptyImportMessage state={state} />
+      <ImportReview state={state} />
+      <AbsentHmrcFields visible={state.review.rows.length > 0} />
+      {state.error && <p className="text-sm text-destructive">{state.error}</p>}
+    </div>
+  );
+}
+
+function ImportFooter({ state }: { state: ImportState }) {
+  const disabled =
+    state.submitting ||
+    state.review.rows.length === 0 ||
+    state.review.diagnostics.length > 0;
+  return (
+    <div className="flex shrink-0 flex-wrap gap-2 border-t p-4">
+      <Button type="submit" disabled={disabled}>
+        Accept {state.review.rows.length || "reviewed"} observation
+        {state.review.rows.length === 1 ? "" : "s"}
+      </Button>
+      <DrawerClose asChild>
+        <Button type="button" variant="outline">
+          Cancel
+        </Button>
+      </DrawerClose>
+    </div>
+  );
+}
+
+export function HmrcStaticImportDrawer() {
+  const state = useHmrcStaticImport();
+
+  return (
+    <Drawer open={state.open} onOpenChange={state.setOpen}>
       <DrawerTrigger asChild>
         <Button variant="outline">
           <FileJsonIcon />
@@ -171,236 +478,11 @@ export function HmrcStaticImportDrawer() {
         </DrawerHeader>
         <form
           aria-label="Import saved HMRC responses"
-          onSubmit={handleSubmit}
+          onSubmit={state.handleSubmit}
           className="mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col overflow-hidden"
         >
-          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-            <div className="rounded-md border bg-muted/30 p-3 text-sm">
-              <p className="font-medium">Local files only</p>
-              <p className="mt-1 text-muted-foreground">
-                This importer does not contact HMRC, use credentials, or store a
-                UTR. Choose one or both response files. A saved envelope may
-                declare its tax year, API, and version; plain response bodies
-                use the selections below.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label
-                htmlFor="hmrc-import-person"
-                className="space-y-1.5 text-sm"
-              >
-                <span className="font-medium">Household person</span>
-                <select
-                  id="hmrc-import-person"
-                  value={memberId}
-                  onChange={(event) => setMemberId(event.target.value)}
-                  className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 shadow-xs outline-none focus-visible:ring-[3px]"
-                >
-                  {household.members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.displayName}
-                    </option>
-                  ))}
-                </select>
-                <span className="block text-xs text-muted-foreground">
-                  HMRC response bodies do not identify the person.
-                </span>
-              </label>
-              <label
-                htmlFor="hmrc-import-tax-year"
-                className="space-y-1.5 text-sm"
-              >
-                <span className="font-medium">Tax year</span>
-                <select
-                  id="hmrc-import-tax-year"
-                  value={taxYear}
-                  onChange={(event) => setTaxYear(event.target.value)}
-                  className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 h-10 w-full rounded-md border px-3 shadow-xs outline-none focus-visible:ring-[3px]"
-                >
-                  {taxYearOptions().map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-                <span className="block text-xs text-muted-foreground">
-                  Plain response bodies do not include the requested tax year.
-                </span>
-              </label>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label htmlFor="hmrc-income-file" className="space-y-1.5 text-sm">
-                <span className="font-medium">Individual Income 1.2 JSON</span>
-                <Input
-                  id="hmrc-income-file"
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={(event) => void chooseFile(event, "income")}
-                />
-                <span className="block text-xs text-muted-foreground">
-                  {income == null
-                    ? "Optional if you only have tax data."
-                    : `Reviewing ${income.fileName}`}
-                </span>
-              </label>
-              <label htmlFor="hmrc-tax-file" className="space-y-1.5 text-sm">
-                <span className="font-medium">Individual Tax 1.1 JSON</span>
-                <Input
-                  id="hmrc-tax-file"
-                  type="file"
-                  accept=".json,application/json"
-                  onChange={(event) => void chooseFile(event, "tax")}
-                />
-                <span className="block text-xs text-muted-foreground">
-                  {tax == null
-                    ? "Optional if you only have income data."
-                    : `Reviewing ${tax.fileName}`}
-                </span>
-              </label>
-            </div>
-
-            {review.diagnostics.length > 0 && (
-              <section aria-live="polite" className="space-y-2">
-                <h3 className="font-semibold">Import diagnostics</h3>
-                <ul className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">
-                  {review.diagnostics.map((diagnostic) => (
-                    <li key={`${diagnostic.file}-${diagnostic.message}`}>
-                      {diagnostic.message}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {(income != null || tax != null) &&
-              review.diagnostics.length === 0 &&
-              review.rows.length === 0 && (
-                <p className="rounded-md border p-3 text-sm text-muted-foreground">
-                  These responses contain no employment income or tax rows to
-                  accept.
-                </p>
-              )}
-
-            {review.rows.length > 0 && (
-              <section className="space-y-3">
-                <div>
-                  <h3 className="font-semibold">
-                    Review {review.rows.length} employment observation
-                    {review.rows.length === 1 ? "" : "s"}
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Rows join only on tax year and PAYE reference.
-                    payFromEmployment is recorded as observed taxable pay. It is
-                    not gross-before-pension salary.
-                  </p>
-                </div>
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full min-w-[52rem] text-sm">
-                    <thead className="bg-muted/50 text-left">
-                      <tr>
-                        {REVIEW_COLUMNS.map((column) => (
-                          <th key={column} className="px-3 py-2">
-                            {column}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {review.rows.map((row) => {
-                        const reconciliation = reconcileHmrcDraftRow(
-                          row,
-                          hmrcEmploymentObservations,
-                          salaryHistory,
-                        );
-                        return (
-                          <tr
-                            key={row.payeReference}
-                            className="border-t align-top"
-                          >
-                            <td className="px-3 py-3 font-mono text-xs">
-                              {row.payeReference}
-                            </td>
-                            <td className="px-3 py-3 tabular-nums">
-                              {formatMoney(row.observedTaxablePay)}
-                            </td>
-                            <td className="px-3 py-3 tabular-nums">
-                              {formatMoney(row.observedIncomeTax)}
-                            </td>
-                            <td className="px-3 py-3">
-                              <label
-                                className="sr-only"
-                                htmlFor={`hmrc-label-${row.payeReference}`}
-                              >
-                                Employer label for {row.payeReference}
-                              </label>
-                              <Input
-                                id={`hmrc-label-${row.payeReference}`}
-                                value={labels[row.payeReference] ?? ""}
-                                onChange={(event) =>
-                                  setLabels((current) => ({
-                                    ...current,
-                                    [row.payeReference]: event.target.value,
-                                  }))
-                                }
-                                placeholder="Optional employer label"
-                                maxLength={120}
-                              />
-                              <span className="mt-1 block text-xs text-muted-foreground">
-                                Saved as a separate manual fact.
-                              </span>
-                            </td>
-                            <td className="max-w-72 px-3 py-3 text-xs text-muted-foreground">
-                              {reconciliationText(reconciliation)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            )}
-
-            {review.rows.length > 0 && (
-              <section className="rounded-md border p-3">
-                <h3 className="text-sm font-semibold">
-                  Not present in these APIs
-                </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The review leaves these unknown. Add any known values through
-                  their normal manual or document import, not as HMRC-derived
-                  facts.
-                </p>
-                <ul className="mt-2 grid list-disc gap-x-6 gap-y-1 pl-5 text-xs text-muted-foreground sm:grid-cols-2">
-                  {ABSENT_HMRC_FIELDS.map((field) => (
-                    <li key={field}>{field}</li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <div className="flex shrink-0 flex-wrap gap-2 border-t p-4">
-            <Button
-              type="submit"
-              disabled={
-                submitting ||
-                review.rows.length === 0 ||
-                review.diagnostics.length > 0
-              }
-            >
-              Accept {review.rows.length || "reviewed"} observation
-              {review.rows.length === 1 ? "" : "s"}
-            </Button>
-            <DrawerClose asChild>
-              <Button type="button" variant="outline">
-                Cancel
-              </Button>
-            </DrawerClose>
-          </div>
+          <ImportContent state={state} />
+          <ImportFooter state={state} />
         </form>
       </DrawerContent>
     </Drawer>
