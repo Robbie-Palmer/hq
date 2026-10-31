@@ -20,6 +20,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 const chartConfig = {
   estimate: {
@@ -32,21 +33,18 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
-const valuationLabels = {
-  "purchase-price": "Purchase price",
-  "formal-valuation": "Formal valuation",
-  "manual-valuation": "Manual valuation",
-} as const;
-
 type ChartPoint = {
   date: string;
   estimate?: number;
   recorded?: number;
 };
 
-function chartPoints(
-  view: Extract<PropertyValueHistoryView, { status: "ready" }>,
-): ChartPoint[] {
+type ReadyPropertyValueHistoryView = Extract<
+  PropertyValueHistoryView,
+  { status: "ready" }
+>;
+
+function chartPoints(view: ReadyPropertyValueHistoryView): ChartPoint[] {
   const byDate = new Map<string, ChartPoint>();
   for (const estimate of view.history.estimates) {
     const point = byDate.get(estimate.date) ?? { date: estimate.date };
@@ -63,186 +61,236 @@ function chartPoints(
   );
 }
 
-export function PropertyValueHistory({
+function UnavailablePropertyValueHistory({
   view,
 }: Readonly<{ view: PropertyValueHistoryView }>) {
-  if (view.status === "unavailable") {
-    return (
-      <section className="rounded-lg border p-3">
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium">Indexed property history</h3>
-          <Badge variant="outline">Unavailable</Badge>
-        </div>
-        <p className="mt-2 text-sm text-muted-foreground">{view.message}</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Dataset {view.datasetVersion}
-        </p>
-      </section>
-    );
-  }
-
-  const { history } = view;
-  const points = chartPoints(view);
-  const availableEstimates = history.estimates.filter(
-    (estimate) => estimate.kind === "index-estimate",
-  );
-  const latestEstimate = availableEstimates.at(-1);
-  const unavailablePeriods = history.estimates.filter(
-    (estimate) => estimate.kind === "index-unavailable",
-  );
-
+  if (view.status !== "unavailable") return null;
   return (
     <section className="rounded-lg border p-3">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-medium">Indexed property history</h3>
+        <Badge variant="outline">Unavailable</Badge>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{view.message}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Dataset {view.datasetVersion}
+      </p>
+    </section>
+  );
+}
+
+function PropertyHistoryHeader({ fallback }: Readonly<{ fallback: boolean }>) {
+  return (
+    <>
       <div className="flex flex-wrap items-center gap-2">
         <h3 className="text-sm font-medium">Indexed property history</h3>
         <Badge variant="secondary">Estimate</Badge>
-        {history.calculation.series.fallback && (
-          <Badge variant="outline">Fallback series</Badge>
-        )}
+        {fallback && <Badge variant="outline">Fallback series</Badge>}
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         Purchase prices and valuations stay recorded separately from the index
         estimate.
       </p>
-      {latestEstimate && (
-        <p className="mt-3 text-sm">
-          <span className="text-muted-foreground">Latest index estimate</span>{" "}
-          <span className="font-semibold">
-            {formatAccountCurrency(latestEstimate.value, "GBP")}
-          </span>{" "}
-          <span className="text-xs text-muted-foreground">
-            at {latestEstimate.date}
-          </span>
-        </p>
-      )}
+    </>
+  );
+}
 
-      <ChartContainer
-        config={chartConfig}
-        className="mt-3 aspect-auto w-full"
-        role="img"
-        aria-label="Recorded and UK HPI indexed property values"
-      >
-        <ResponsiveContainer width="100%" height={200}>
-          <LineChart
-            data={points}
-            margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-            <XAxis dataKey="date" className="text-xs" hide />
-            <YAxis
-              className="text-xs"
-              width={52}
-              tickFormatter={formatAxisTick}
-            />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              formatter={(value) =>
-                formatAccountCurrency(value as number, "GBP")
-              }
-            />
-            <Line
-              type="monotone"
-              dataKey="estimate"
-              stroke="hsl(220, 70%, 50%)"
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              connectNulls
-            />
-            <Line
-              type="linear"
-              dataKey="recorded"
-              stroke="hsl(150, 55%, 42%)"
-              strokeWidth={0}
-              dot={{ r: 4, fill: "hsl(150, 55%, 42%)" }}
-              connectNulls={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
-      </ChartContainer>
-      <div className="sr-only">
-        <table>
-          <caption>Recorded and indexed property values</caption>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Index estimate</th>
-              <th>Recorded valuation</th>
+function PropertyHistoryLineChart({
+  points,
+}: Readonly<{ points: ChartPoint[] }>) {
+  return (
+    <ChartContainer
+      config={chartConfig}
+      className="mt-3 aspect-auto w-full"
+      role="img"
+      aria-label="Recorded and UK HPI indexed property values"
+    >
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart
+          data={points}
+          margin={{ top: 5, right: 10, left: 0, bottom: 5 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis dataKey="date" className="text-xs" hide />
+          <YAxis
+            className="text-xs"
+            width={52}
+            tickFormatter={formatAxisTick}
+          />
+          <ChartTooltip
+            content={<ChartTooltipContent />}
+            formatter={(value) => formatAccountCurrency(value as number, "GBP")}
+          />
+          <Line
+            type="monotone"
+            dataKey="estimate"
+            stroke="hsl(220, 70%, 50%)"
+            strokeWidth={2}
+            strokeDasharray="6 4"
+            dot={false}
+            connectNulls
+          />
+          <Line
+            type="linear"
+            dataKey="recorded"
+            stroke="hsl(150, 55%, 42%)"
+            strokeWidth={0}
+            dot={{ r: 4, fill: "hsl(150, 55%, 42%)" }}
+            connectNulls={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </ChartContainer>
+  );
+}
+
+function AccessiblePropertyHistory({
+  points,
+}: Readonly<{ points: ChartPoint[] }>) {
+  return (
+    <div className="sr-only">
+      <table>
+        <caption>Recorded and indexed property values</caption>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Index estimate</th>
+            <th>Recorded valuation</th>
+          </tr>
+        </thead>
+        <tbody>
+          {points.map((point) => (
+            <tr key={point.date}>
+              <td>{point.date}</td>
+              <td>
+                {point.estimate == null
+                  ? "Unavailable"
+                  : formatAccountCurrency(point.estimate, "GBP")}
+              </td>
+              <td>
+                {point.recorded == null
+                  ? "No recorded valuation"
+                  : formatAccountCurrency(point.recorded, "GBP")}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {points.map((point) => (
-              <tr key={point.date}>
-                <td>{point.date}</td>
-                <td>
-                  {point.estimate == null
-                    ? "Unavailable"
-                    : formatAccountCurrency(point.estimate, "GBP")}
-                </td>
-                <td>
-                  {point.recorded == null
-                    ? "No recorded valuation"
-                    : formatAccountCurrency(point.recorded, "GBP")}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="text-xs font-medium">Recorded valuations</p>
-          <ul className="mt-1 space-y-1 text-xs">
-            {history.recordedValuations.map((valuation) => (
-              <li
-                key={valuation.id}
-                className="flex items-center justify-between gap-2"
-              >
-                <span className="text-muted-foreground">
-                  {valuationLabels[valuation.kind]} · {valuation.date}
-                </span>
-                <span className="font-mono">
-                  {formatAccountCurrency(valuation.value, valuation.currency)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-        <div>
-          <p className="text-xs font-medium">Selected index series</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {history.calculation.series.label}
-          </p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            {history.calculation.dataset.provider} · release{" "}
-            {history.calculation.dataset.releasePeriod} · dataset{" "}
-            {history.calculation.dataset.versionId}
-          </p>
-        </div>
+function RecordedHousingValues({
+  values,
+}: Readonly<{
+  values: ReadyPropertyValueHistoryView["history"]["housingValues"];
+}>) {
+  return (
+    <div>
+      <p className="text-xs font-medium">Recorded valuations</p>
+      <div className="mt-2 grid gap-2">
+        {values.map((value) => (
+          <HousingValueDisclosure key={value.id} value={value} compact />
+        ))}
       </div>
+    </div>
+  );
+}
 
-      {unavailablePeriods.length > 0 && (
+function SelectedIndexSeries({
+  history,
+}: Readonly<{ history: ReadyPropertyValueHistoryView["history"] }>) {
+  const { dataset, series } = history.calculation;
+  return (
+    <div>
+      <p className="text-xs font-medium">Selected index series</p>
+      <p className="mt-1 text-xs text-muted-foreground">{series.label}</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {dataset.provider} · release {dataset.releasePeriod} · dataset{" "}
+        {dataset.versionId}
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Published {dataset.publishedAt} · retrieved{" "}
+        {dataset.retrievedAt.slice(0, 10)} · geography {series.geographyName}
+      </p>
+    </div>
+  );
+}
+
+function PropertyHistoryCalculation({
+  calculation,
+}: Readonly<{
+  calculation: ReadyPropertyValueHistoryView["history"]["calculation"];
+}>) {
+  return (
+    <details className="mt-3 border-t pt-3 text-xs text-muted-foreground">
+      <summary className="cursor-pointer font-medium text-foreground">
+        Calculation details
+      </summary>
+      <p className="mt-2 font-mono">{calculation.formula}</p>
+      <p className="mt-1">
+        Anchor {calculation.anchor.date} ·{" "}
+        {formatAccountCurrency(
+          calculation.anchor.value,
+          calculation.anchor.currency,
+        )}{" "}
+        · index {calculation.anchor.indexLevel}
+      </p>
+    </details>
+  );
+}
+
+function ReadyPropertyValueHistory({
+  view,
+}: Readonly<{ view: ReadyPropertyValueHistoryView }>) {
+  const { history } = view;
+  const points = chartPoints(view);
+  const latestEstimate = history.estimates
+    .filter((estimate) => estimate.kind === "index-estimate")
+    .at(-1);
+  const latestHousingValue = history.housingValues.find(
+    ({ id }) => id === `index-estimate:${latestEstimate?.date}`,
+  );
+  const recordedHousingValues = history.housingValues.filter(
+    ({ kind }) =>
+      kind === "recorded-purchase" ||
+      kind === "recorded-valuation" ||
+      kind === "manual-override",
+  );
+  const unavailablePeriods = history.estimates
+    .filter((estimate) => estimate.kind === "index-unavailable")
+    .map(({ period }) => period);
+
+  return (
+    <section className="rounded-lg border p-3">
+      <PropertyHistoryHeader fallback={history.calculation.series.fallback} />
+      {latestHousingValue && (
+        <div className="mt-3">
+          <p className="mb-2 text-xs font-medium">Latest index estimate</p>
+          <HousingValueDisclosure value={latestHousingValue} compact />
+        </div>
+      )}
+      <PropertyHistoryLineChart points={points} />
+      <AccessiblePropertyHistory points={points} />
+      <div className="mt-3 grid gap-3">
+        <RecordedHousingValues values={recordedHousingValues} />
+        <SelectedIndexSeries history={history} />
+      </div>
+      {unavailablePeriods.length !== 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
-          No index observation for{" "}
-          {unavailablePeriods.map(({ period }) => period).join(", ")}.
+          No index observation for {unavailablePeriods.join(", ")}.
         </p>
       )}
-
-      <details className="mt-3 border-t pt-3 text-xs text-muted-foreground">
-        <summary className="cursor-pointer font-medium text-foreground">
-          Calculation details
-        </summary>
-        <p className="mt-2 font-mono">{history.calculation.formula}</p>
-        <p className="mt-1">
-          Anchor {history.calculation.anchor.date} ·{" "}
-          {formatAccountCurrency(
-            history.calculation.anchor.value,
-            history.calculation.anchor.currency,
-          )}{" "}
-          · index {history.calculation.anchor.indexLevel}
-        </p>
-      </details>
+      <PropertyHistoryCalculation calculation={history.calculation} />
     </section>
   );
+}
+
+export function PropertyValueHistory({
+  view,
+}: Readonly<{ view: PropertyValueHistoryView }>) {
+  if (view.status === "unavailable") {
+    return <UnavailablePropertyValueHistory view={view} />;
+  }
+  return <ReadyPropertyValueHistory view={view} />;
 }

@@ -38,10 +38,24 @@ describe("PropertyValueHistory", () => {
     ).toBeVisible();
     expect(screen.getByText("Latest index estimate")).toBeVisible();
     expect(screen.getAllByText("£322,905.00").length).toBeGreaterThan(0);
-    expect(screen.getByText(/Formal valuation · 2024-12-01/)).toBeVisible();
+    expect(screen.getAllByText("Recorded valuation").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2024-12-01").length).toBeGreaterThan(0);
     expect(screen.getAllByText("£298,000.00").length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Indicative range £/)).toBeVisible();
+    expect(screen.getAllByText("Stale").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(
+        /Official index · HM Land Registry UK House Price Index/,
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText(/Belfast · local authority/).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText(/HM Land Registry · release 2026-07/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Published 2026-09-16 · retrieved 2026-10-04/),
     ).toBeVisible();
     expect(screen.getByText("Calculation details")).toBeVisible();
     expect(container.querySelector('[data-series="estimate"]')).toBeVisible();

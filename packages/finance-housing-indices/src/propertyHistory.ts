@@ -5,6 +5,13 @@ import {
   HousePriceIndexReleaseSchema,
   HousePropertyTypeSchema,
 } from "./schema";
+import {
+  type HousingValue,
+  HousingValueSchema,
+  HousingValueSourceSchema,
+  HousingValueUncertaintySchema,
+  indicativeRange,
+} from "./valueConfidence";
 
 export const PropertyValuationKindSchema = z.enum([
   "purchase-price",
@@ -15,14 +22,50 @@ export type PropertyValuationKind = z.infer<
   typeof PropertyValuationKindSchema
 >;
 
-export const RecordedPropertyValuationSchema = z.object({
-  id: z.string().min(1),
-  date: z.iso.date(),
-  value: z.number().positive(),
-  currency: z.literal("GBP"),
-  kind: PropertyValuationKindSchema,
-  sourceLabel: z.string().min(1).optional(),
-});
+export const RecordedPropertyValuationSchema = z
+  .object({
+    id: z.string().min(1),
+    date: z.iso.date(),
+    value: z.number().positive(),
+    currency: z.literal("GBP"),
+    kind: PropertyValuationKindSchema,
+    source: HousingValueSourceSchema,
+    dataStatus: z.enum(["final", "provisional", "revised"]),
+    revisionNote: z.string().min(1).optional(),
+    uncertainty: HousingValueUncertaintySchema,
+    explanation: z.string().min(1),
+    freshness: z.object({
+      assessedAt: z.iso.date(),
+      staleAfterDays: z.number().int().nonnegative(),
+    }),
+  })
+  .superRefine((valuation, context) => {
+    const parsed = HousingValueSchema.safeParse({
+      id: valuation.id,
+      kind:
+        valuation.kind === "purchase-price"
+          ? "recorded-purchase"
+          : valuation.kind === "formal-valuation"
+            ? "recorded-valuation"
+            : "manual-override",
+      amount: valuation.value,
+      currency: valuation.currency,
+      asOf: valuation.date,
+      source: valuation.source,
+      dataStatus: valuation.dataStatus,
+      revisionNote: valuation.revisionNote,
+      uncertainty: valuation.uncertainty,
+      explanation: valuation.explanation,
+      freshness: valuation.freshness,
+    });
+    for (const issue of parsed.error?.issues ?? []) {
+      context.addIssue({
+        code: "custom",
+        message: issue.message,
+        path: issue.path,
+      });
+    }
+  });
 export type RecordedPropertyValuation = z.infer<
   typeof RecordedPropertyValuationSchema
 >;
@@ -47,6 +90,16 @@ export type HousePriceIndexSeriesCandidate = z.infer<
   typeof HousePriceIndexSeriesCandidateSchema
 >;
 
+export const PropertyValueConfidencePolicySchema = z.object({
+  assessedAt: z.iso.date(),
+  staleAfterDays: z.number().int().nonnegative(),
+  rangePercent: z.number().positive().max(1),
+  rangeRule: z.string().min(1),
+});
+export type PropertyValueConfidencePolicy = z.infer<
+  typeof PropertyValueConfidencePolicySchema
+>;
+
 export const PropertyValueHistoryInputSchema = z
   .object({
     recordedValuations: z.array(RecordedPropertyValuationSchema).min(1),
@@ -55,6 +108,7 @@ export const PropertyValueHistoryInputSchema = z
     seriesHierarchy: z
       .array(HousePriceIndexSeriesCandidateSchema)
       .min(1),
+    confidencePolicy: PropertyValueConfidencePolicySchema,
   })
   .superRefine((input, context) => {
     const valuationIds = input.recordedValuations.map(({ id }) => id);
@@ -135,6 +189,8 @@ export type PropertyIndexCalculation = {
     versionId: string;
     releasePeriod: string;
     publishedAt: string;
+    retrievedAt: string;
+    pageUrl: string;
     checksum: string;
   };
 };
@@ -147,6 +203,7 @@ export type IndexedPropertyValueEstimate = {
   currency: "GBP";
   targetIndexLevel: number;
   provisional: boolean;
+  revisionStatus?: "revised";
 };
 
 export type UnavailablePropertyValueEstimate = {
@@ -164,7 +221,102 @@ export type PropertyValueHistory = {
   recordedValuations: RecordedPropertyValuation[];
   calculation: PropertyIndexCalculation;
   estimates: PropertyValueEstimate[];
+  housingValues: HousingValue[];
 };
+
+function recordedHousingValue(
+  valuation: RecordedPropertyValuation,
+): HousingValue {
+  return HousingValueSchema.parse({
+    id: valuation.id,
+    kind:
+      valuation.kind === "purchase-price"
+        ? "recorded-purchase"
+        : valuation.kind === "formal-valuation"
+          ? "recorded-valuation"
+          : "manual-override",
+    amount: valuation.value,
+    currency: valuation.currency,
+    asOf: valuation.date,
+    source: valuation.source,
+    dataStatus: valuation.dataStatus,
+    revisionNote: valuation.revisionNote,
+    uncertainty: valuation.uncertainty,
+    explanation: valuation.explanation,
+    freshness: valuation.freshness,
+  });
+}
+
+function geographyPrecision(
+  series: SelectedHousePriceIndexSeries,
+): "local-authority" | "region" | "nation" {
+  if (series.geographyMatch === "national") return "nation";
+  if (series.geographyMatch === "broader") return "region";
+  return "local-authority";
+}
+
+function indexedHousingValue(
+  release: HousePriceIndexRelease,
+  calculation: PropertyIndexCalculation,
+  estimate: IndexedPropertyValueEstimate,
+  policy: PropertyValueConfidencePolicy,
+): HousingValue {
+  const dataStatus = estimate.provisional
+    ? "provisional"
+    : estimate.revisionStatus === "revised"
+      ? "revised"
+      : "final";
+  return HousingValueSchema.parse({
+    id: `index-estimate:${estimate.date}`,
+    kind: "index-estimate",
+    amount: estimate.value,
+    currency: estimate.currency,
+    asOf: estimate.date,
+    source: {
+      kind: "official-index",
+      name: `${calculation.dataset.provider} ${calculation.dataset.name}`,
+      date: release.source.publishedAt,
+      dateKind: "published",
+      geography: {
+        name: calculation.series.geographyName,
+        code: calculation.series.geographyCode,
+        precision: geographyPrecision(calculation.series),
+      },
+    },
+    dataStatus,
+    ...(dataStatus === "provisional"
+      ? {
+          revisionNote:
+            "The official index observation is provisional and may be revised in a later release.",
+        }
+      : {}),
+    ...(dataStatus === "revised"
+      ? {
+          revisionNote:
+            "The official source revised this observation after its first publication.",
+        }
+      : {}),
+    uncertainty: indicativeRange(
+      estimate.value,
+      policy.rangePercent,
+      policy.rangeRule,
+    ),
+    ...(calculation.series.fallback
+      ? {
+          fallback: {
+            used: true,
+            explanation: calculation.series.label,
+          },
+        }
+      : {}),
+    explanation:
+      "This estimate applies official area index movement to the recorded anchor value. It is not an appraisal of the individual property.",
+    freshness: {
+      assessedAt: policy.assessedAt,
+      staleAfterDays: policy.staleAfterDays,
+    },
+  });
+}
 
 function monthForDate(date: string): string {
   return date.slice(0, 7);
@@ -286,31 +438,53 @@ export function estimatePropertyValueHistory(
         currency: anchor.currency,
         targetIndexLevel: target.index,
         provisional: target.provisional,
+        ...(target.revisionStatus == null
+          ? {}
+          : { revisionStatus: target.revisionStatus }),
       };
     });
 
+  const calculation: PropertyIndexCalculation = {
+    method: "uk-hpi-index-ratio",
+    formula: PROPERTY_INDEX_FORMULA,
+    anchor: {
+      ...anchor,
+      period: anchorPeriod,
+      indexLevel: anchorObservation.index,
+      provisional: anchorObservation.provisional,
+    },
+    series: selected,
+    skippedSeries: skipped,
+    dataset: {
+      provider: release.source.provider,
+      name: release.source.dataset,
+      versionId: release.versionId,
+      releasePeriod: release.source.releasePeriod,
+      publishedAt: release.source.publishedAt,
+      retrievedAt: release.source.retrievedAt,
+      pageUrl: release.source.pageUrl,
+      checksum: release.source.checksum,
+    },
+  };
+
   return {
     recordedValuations: input.recordedValuations,
-    calculation: {
-      method: "uk-hpi-index-ratio",
-      formula: PROPERTY_INDEX_FORMULA,
-      anchor: {
-        ...anchor,
-        period: anchorPeriod,
-        indexLevel: anchorObservation.index,
-        provisional: anchorObservation.provisional,
-      },
-      series: selected,
-      skippedSeries: skipped,
-      dataset: {
-        provider: release.source.provider,
-        name: release.source.dataset,
-        versionId: release.versionId,
-        releasePeriod: release.source.releasePeriod,
-        publishedAt: release.source.publishedAt,
-        checksum: release.source.checksum,
-      },
-    },
+    calculation,
     estimates,
+    housingValues: [
+      ...input.recordedValuations.map(recordedHousingValue),
+      ...estimates.flatMap((estimate) =>
+        estimate.kind === "index-estimate"
+          ? [
+              indexedHousingValue(
+                release,
+                calculation,
+                estimate,
+                input.confidencePolicy,
+              ),
+            ]
+          : [],
+      ),
+    ],
   };
 }
