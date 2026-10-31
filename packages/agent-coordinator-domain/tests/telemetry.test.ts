@@ -249,6 +249,7 @@ describe("private execution telemetry", () => {
         eventId: "fcf55c38-78ea-472f-bb26-8a2a28e2c9f4",
         eventType: "intervention",
         interventionId: "intervention:manual-review",
+        attentionRequestId: "80000000-4000-4000-8000-000000000001",
         outcome: "requested",
         reason: "Owner approval is required.",
       },
@@ -265,6 +266,13 @@ describe("private execution telemetry", () => {
       handoffs: 1,
       interventions: 1,
       costByCurrency: { USD: 0.42 },
+    });
+    expect(
+      queryExecutionTelemetry(records(harness)).find(
+        (event) => event.eventType === "intervention",
+      ),
+    ).toMatchObject({
+      attentionRequestId: "80000000-4000-4000-8000-000000000001",
     });
   });
 

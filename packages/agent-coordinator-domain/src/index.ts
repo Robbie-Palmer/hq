@@ -15,6 +15,7 @@ export * from "./task";
 export * from "./telemetry";
 export * from "./vocabulary";
 export * from "./vulnerability";
+export * from "./vulnerability-evaluation";
 export * from "./vulnerability-incident";
 export * from "./vulnerability-controller";
 export * from "./work-graph";
