@@ -20,6 +20,7 @@ add_library(
   satellite_swarm
   src/satellite_swarm/controller.cpp
   src/satellite_swarm/historical_orbital_scorer.cpp
+  src/satellite_swarm/protocol_evolution.cpp
   src/satellite_swarm/resource_observer.cpp
   src/satellite_swarm/shared_radio_scheduler.cpp
   src/satellite_swarm/telemetry.cpp
@@ -237,6 +238,7 @@ if(BUILD_TESTING)
     tests/historical_orbital_scorer_test.cpp
     tests/invariant_test.cpp
     tests/orbit_test.cpp
+    tests/protocol_evolution_test.cpp
     tests/resource_observer_test.cpp
     tests/shared_radio_scheduler_test.cpp
     tests/telemetry_codec_test.cpp

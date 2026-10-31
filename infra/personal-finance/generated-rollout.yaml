@@ -1,0 +1,26 @@
+# Managed by Copier; record evidence in the project profile, not in this file.
+schema_version: 1
+project: "project:personal-finance-app"
+operational_checks:
+  - id: "browser-export-recovery"
+    command: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts app/_projects/personal-finance-app/tests/api/assettracker.test.ts"
+  - id: "compiled-provider-boundary"
+    command: "mise //infra/project-modules:check"
+  - id: "copier-profile-conformance"
+    command: "mise //packages/project-generator:check"
+migration_checkpoints:
+  - id: "export-browser-state-before-import"
+    action: "Export and validate the current browser household backup before importing any data into the relational store."
+    verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+    status: "pending"
+    evidence: []
+  - id: "preserve-browser-recovery-during-dual-read"
+    action: "Keep assettracker:data:v1 readable and keep legacy raw and version-zero backup recovery while browser and server reads overlap."
+    verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/api/assettracker.test.ts app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+    status: "pending"
+    evidence: []
+  - id: "prove-relational-restore-before-cutover"
+    action: "Complete a relational restore drill and retain the browser export until server reads and rollback have both been verified."
+    verification: "mise //infra/personal-finance:test"
+    status: "pending"
+    evidence: []

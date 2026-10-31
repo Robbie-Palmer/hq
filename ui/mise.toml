@@ -192,7 +192,27 @@ run = "pnpm images:health-check"
 [tasks.deploy]
 description = "Deploy to Cloudflare Pages via Wrangler"
 depends = ["//ui:build"]
-run = "pnpm exec wrangler pages deploy ui/out --cwd .. --project-name=personal-site --branch=\"${DEPLOY_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}\""
+run = "pnpm exec wrangler pages deploy ui/out --cwd .. --project-name=personal-site --branch=\"${DEPLOY_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}\" --commit-hash=\"${DEPLOY_REVISION:-$(git rev-parse HEAD)}\" --commit-dirty=false"
+
+[tasks."smoke:production"]
+description = "Smoke-test the public production site and agent-readable pages"
+depends = ["//ui:install"]
+run = "pnpm exec tsx scripts/production-delivery.ts smoke"
+
+[tasks."rollback:production"]
+description = "Roll Pages production back to a verified main deployment"
+depends = ["//ui:install"]
+run = "pnpm exec tsx scripts/production-delivery.ts rollback"
+
+[tasks."delivery:test"]
+description = "Test production smoke and guarded rollback behavior"
+depends = ["//ui:install"]
+run = "pnpm exec vitest run tests/scripts/production-delivery.test.ts"
+
+[tasks."delivery:test:coverage"]
+description = "Cover production smoke and guarded rollback behavior"
+depends = ["//ui:install"]
+run = "pnpm exec vitest run tests/scripts/production-delivery.test.ts --coverage --coverage.include=scripts/production-delivery.ts --coverage.thresholds.lines=80 --coverage.thresholds.statements=80 --coverage.thresholds.functions=80"
 
 # Lighthouse performance testing tasks
 [tasks.lighthouse]

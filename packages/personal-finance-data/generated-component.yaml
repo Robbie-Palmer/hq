@@ -1,0 +1,33 @@
+# Managed by Copier; product logic and secret values do not belong in this file.
+schema_version: 1
+component:
+  id: "personal-finance-data"
+  stable_id: "component:personal-finance-app/personal-finance-data"
+  name: "Personal Finance data boundary"
+  kind: "typescript-package"
+  path: "packages/personal-finance-data"
+  project: "project:personal-finance-app"
+ownership:
+  template_files:
+    - "generated-component.yaml"
+    - "mise.toml"
+  product_logic: "project"
+  secrets: "external"
+rollout:
+  operational_checks:
+    - id: "browser-export-recovery"
+      command: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts app/_projects/personal-finance-app/tests/api/assettracker.test.ts"
+    - id: "compiled-provider-boundary"
+      command: "mise //infra/project-modules:check"
+    - id: "copier-profile-conformance"
+      command: "mise //packages/project-generator:check"
+  migration_checkpoints:
+    - id: "export-browser-state-before-import"
+      status: "pending"
+      verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+    - id: "preserve-browser-recovery-during-dual-read"
+      status: "pending"
+      verification: "mise //ui:test -- app/_projects/personal-finance-app/tests/api/assettracker.test.ts app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts"
+    - id: "prove-relational-restore-before-cutover"
+      status: "pending"
+      verification: "mise //infra/personal-finance:test"

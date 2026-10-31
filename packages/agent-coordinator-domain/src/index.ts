@@ -13,4 +13,5 @@ export * from "./session";
 export * from "./task";
 export * from "./telemetry";
 export * from "./vocabulary";
+export * from "./vulnerability";
 export * from "./work-graph";
