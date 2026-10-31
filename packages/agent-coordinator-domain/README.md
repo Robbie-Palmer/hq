@@ -9,6 +9,25 @@ The public API is exported from `src/index.ts`. See
 See `docs/execution-telemetry.md` for the private event contract, access rules,
 retention policy, and public Work Graph projection.
 
+## Vulnerability correlation
+
+`queryGithubVulnerability` reads the current repository identity, one Dependabot
+alert, open Renovate pull requests, changed files, mergeability, check runs, and
+commit statuses through the shared `GithubClient`. The returned snapshot keeps
+the alert number, package, manifest, vulnerable ranges, severity, fix version,
+and state. It drops response fields that the decision does not need.
+
+`decideVulnerabilityCorrelation` matches a Renovate proposal only when its bot
+identity, base repository ID, package-table entry, and changed manifest all
+match the alert. It returns `use`, `repair`, `replace`, or `decline` with the
+evidence used for that choice. The incident ID combines GitHub's immutable
+repository ID with the Dependabot alert number, so webhook redelivery and
+controller restarts address the same incident.
+
+The decision record contains no authentication values, pull-request body, file
+patch, or webhook content. The incident-ledger integration can validate and
+write this record without retaining provider credentials or request text.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a

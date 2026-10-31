@@ -20,6 +20,7 @@
     "./task": "./src/task.ts",
     "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
+    "./vulnerability": "./src/vulnerability.ts",
     "./work-graph": "./src/work-graph.ts"
   },
   "scripts": {
