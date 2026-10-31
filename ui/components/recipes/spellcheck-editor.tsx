@@ -1,7 +1,12 @@
 "use client";
 
 import { Check, RefreshCw, SpellCheck, X } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  type CooklangToken,
+  type CooklangTokenKind,
+  tokenizeCooklang,
+} from "recipe-domain/cooklang-highlighting";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -330,36 +335,112 @@ interface BackdropSegment {
   /** Source offset where this segment starts — a stable React key. */
   readonly offset: number;
   readonly text: string;
+  readonly token: CooklangTokenKind;
   readonly misspelling: Misspelling | null;
+}
+
+function advanceRangeIndex(
+  ranges: readonly { readonly end: number }[],
+  index: number,
+  offset: number,
+) {
+  let nextIndex = index;
+  while (true) {
+    const range = ranges[nextIndex];
+    if (!range || range.end > offset) return nextIndex;
+    nextIndex += 1;
+  }
 }
 
 function buildSegments(
   value: string,
+  tokens: readonly CooklangToken[],
   misspellings: readonly Misspelling[],
 ): BackdropSegment[] {
-  const segments: BackdropSegment[] = [];
-  let cursor = 0;
-  for (const misspelling of misspellings) {
-    if (misspelling.start > cursor) {
-      segments.push({
-        offset: cursor,
-        text: value.slice(cursor, misspelling.start),
-        misspelling: null,
-      });
-    }
-    segments.push({
-      offset: misspelling.start,
-      text: value.slice(misspelling.start, misspelling.end),
-      misspelling,
-    });
-    cursor = misspelling.end;
+  const boundaries = new Set([0, value.length]);
+  for (const token of tokens) {
+    boundaries.add(token.start);
+    boundaries.add(token.end);
   }
-  segments.push({
-    offset: cursor,
-    text: value.slice(cursor),
-    misspelling: null,
-  });
+  for (const misspelling of misspellings) {
+    boundaries.add(misspelling.start);
+    boundaries.add(misspelling.end);
+  }
+
+  const offsets = [...boundaries].sort((a, b) => a - b);
+  const segments: BackdropSegment[] = [];
+  let tokenIndex = 0;
+  let misspellingIndex = 0;
+  for (let index = 0; index < offsets.length - 1; index += 1) {
+    const start = offsets[index];
+    const end = offsets[index + 1];
+    if (start === undefined || end === undefined || start === end) continue;
+
+    tokenIndex = advanceRangeIndex(tokens, tokenIndex, start);
+    misspellingIndex = advanceRangeIndex(misspellings, misspellingIndex, start);
+
+    const misspelling = misspellings[misspellingIndex];
+    segments.push({
+      offset: start,
+      text: value.slice(start, end),
+      token: tokens[tokenIndex]?.kind ?? "instruction",
+      misspelling:
+        misspelling && misspelling.start <= start && misspelling.end >= end
+          ? misspelling
+          : null,
+    });
+  }
   return segments;
+}
+
+const TOKEN_CLASSES = {
+  instruction: "text-[var(--ink)]",
+  ingredient: "text-[var(--terracotta-deep)]",
+  cookware: "text-[var(--berry)]",
+  timer: "text-[var(--terracotta)]",
+  quantity: "font-semibold text-[var(--berry)]",
+  unit: "text-[var(--terracotta)]",
+  punctuation: "text-[var(--terracotta)]",
+} satisfies Record<CooklangTokenKind, string>;
+
+function HighlightSegment({
+  segment,
+  onMarkClick,
+}: {
+  readonly segment: BackdropSegment;
+  readonly onMarkClick: (misspelling: Misspelling, rect: DOMRect) => void;
+}) {
+  const flagged = segment.misspelling;
+  if (!flagged) {
+    return (
+      <span
+        data-cooklang-token={segment.token}
+        className={TOKEN_CLASSES[segment.token]}
+      >
+        {segment.text}
+      </span>
+    );
+  }
+  // The inline button preserves the backdrop's text metrics. The aria-hidden
+  // parent and tabIndex keep it out of the accessibility and keyboard trees;
+  // those users act through the issues list instead.
+  return (
+    <button
+      type="button"
+      tabIndex={-1}
+      data-spellcheck-mark
+      data-cooklang-token={segment.token}
+      onClick={(event) =>
+        onMarkClick(flagged, event.currentTarget.getBoundingClientRect())
+      }
+      className={cn(
+        TOKEN_CLASSES[segment.token],
+        "pointer-events-auto inline cursor-pointer border-0 bg-transparent p-0 underline decoration-[var(--terracotta)] decoration-wavy decoration-2 underline-offset-2",
+      )}
+    >
+      {segment.text}
+    </button>
+  );
 }
 
 function HighlightBackdrop({
@@ -373,15 +454,17 @@ function HighlightBackdrop({
   readonly misspellings: readonly Misspelling[];
   readonly onMarkClick: (misspelling: Misspelling, rect: DOMRect) => void;
 }) {
+  const tokens = useMemo(() => tokenizeCooklang(value), [value]);
   const segments = useMemo(
-    () => buildSegments(value, misspellings),
-    [value, misspellings],
+    () => buildSegments(value, tokens, misspellings),
+    [value, tokens, misspellings],
   );
 
   return (
     <div
       ref={ref}
       aria-hidden="true"
+      data-cooklang-highlight-backdrop
       className={cn(
         SHARED_BOX,
         // Sits over the textarea; only marks capture pointer events so typing
@@ -389,30 +472,13 @@ function HighlightBackdrop({
         "pointer-events-none absolute inset-0 z-10 select-none overflow-hidden whitespace-pre-wrap break-words border-transparent text-[var(--ink)]",
       )}
     >
-      {segments.map((segment) => {
-        const flagged = segment.misspelling;
-        if (!flagged) {
-          return <Fragment key={segment.offset}>{segment.text}</Fragment>;
-        }
-        // A real (inline) button is keyboard/AT-native so it satisfies the a11y
-        // linters, while inline display keeps the highlight metrically identical
-        // to the textarea text. It sits in the aria-hidden layer with tabIndex
-        // -1, so screen-reader and keyboard users act through the issues list.
-        return (
-          <button
-            key={segment.offset}
-            type="button"
-            tabIndex={-1}
-            data-spellcheck-mark
-            onClick={(event) =>
-              onMarkClick(flagged, event.currentTarget.getBoundingClientRect())
-            }
-            className="pointer-events-auto inline cursor-pointer border-0 bg-transparent p-0 text-[var(--ink)] underline decoration-[var(--terracotta)] decoration-wavy decoration-2 underline-offset-2"
-          >
-            {segment.text}
-          </button>
-        );
-      })}
+      {segments.map((segment) => (
+        <HighlightSegment
+          key={segment.offset}
+          segment={segment}
+          onMarkClick={onMarkClick}
+        />
+      ))}
       {/* Keeps the backdrop's final line height in step with the textarea when
           the text ends on a newline. */}
       {"\n"}

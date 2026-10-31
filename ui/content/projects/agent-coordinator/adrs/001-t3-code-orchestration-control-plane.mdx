@@ -1,0 +1,135 @@
+---
+title: "ADR 001: Use T3 Code as the orchestration control plane"
+date: "2026-10-30"
+status: "Accepted"
+supersedes: "agent-coordinator:000-provider-supported-session-routing"
+tech_stack: ["t3-code"]
+implements_product_decisions:
+  - "agent-coordinator:000-severe-vulnerability-resolution"
+---
+
+## Context
+
+[PDR 000](/projects/agent-coordinator/pdrs/000-severe-vulnerability-resolution)
+requires an external security event to start agent work that may continue
+through pull request, merge, deployment, validation, and recovery.
+
+The earlier architecture selected workers at the session boundary and planned
+custom adapters for provider clients, subscription authentication, model
+routing, usage limits, session handoff, and Work Graph launch. That boundary was
+reasonable before T3 Code exposed its orchestration controls.
+
+T3 Code now supplies provider-backed threads, managed worktrees, top-level
+thread launch, scheduled webhook tasks, T3 Connect public webhook delivery,
+request signature checks, filters, replay and coalescing keys, offline holding,
+delivery inspection, pull-request watches, and
+[subscription-limit reporting](https://github.com/pingdotgg/t3code/blob/main/docs/user/usage.md#track-subscription-limits).
+It can [snooze limited threads and resume them when the allowance resets](https://github.com/pingdotgg/t3code/blob/main/docs/user/thread-sidebar.md#inspect-agent-work),
+and it can [continue supported threads after an update, crash, or machine restart](https://github.com/pingdotgg/t3code/blob/main/docs/user/updating.md#before-you-update).
+Its current
+[webhook documentation](https://github.com/pingdotgg/t3code/blob/main/docs/user/project-settings.md#webhook-automations)
+also marks request substitutions as untrusted and supports GitHub's
+`X-Hub-Signature-256` scheme.
+
+Reimplementing those features would split execution state between two
+orchestrators and make the project responsible for provider and session details
+that T3 Code already owns.
+
+## Decision
+
+Use T3 Code as Agent Coordinator's execution control plane.
+
+Create a persistent controller thread for the vulnerability-remediation
+workflow. Bind a T3 Code webhook task to that thread. Configure the task with
+GitHub signature verification, repository and event filters, the GitHub delivery
+ID as its replay key, and an age limit for requests held while the Vector
+environment is offline. Pass only the event identity and the minimum routing
+fields into the prompt. Fetch authoritative alert, pull-request, workflow, and
+deployment state from GitHub before acting.
+
+The controller decides whether to admit an event and launches top-level worker
+threads through T3 Code. Each implementation worker receives a T3-managed
+worktree created from the intended remote base. Workers use T3 Code's provider
+selection, session lifecycle, thread tools, pull-request links, and native PR
+watching. A worker may launch focused research, review, validation, or recovery
+threads when the parent retains ownership of the incident.
+
+Enable T3 Code's automatic resume after usage limits, snooze-until-reset, and
+continuation after restarts on the Vector environment. Let T3 Code retain and
+resume the provider session. Agent Coordinator must not add a second checkpoint,
+limit timer, or session-restart mechanism.
+
+Keep the Vector T3 Code application private on the tailnet. Use the T3 Connect
+managed Cloudflare Tunnel and webhook URL as the narrow public ingress. Enable
+offline holding for the accepted retention period. Do not expose the full T3
+Code service or operate a second tunnel solely for webhook delivery. T3 Code's
+[T3 Connect design](https://github.com/pingdotgg/t3code/blob/main/docs/internals/t3-connect.md)
+owns tunnel allocation, connector recovery, and webhook forwarding.
+
+Agent Coordinator code owns only the domain-specific parts T3 Code does not:
+
+* alert admission and authority policy;
+* correlation with Renovate pull requests and existing incident work;
+* selection of the required security outcome;
+* repository-specific merge, rollout, validation, and rollback contracts;
+* routing later delivery events to the owning thread; and
+* outcome records used to evaluate and improve the policy.
+
+Do not build provider adapters, subscription credential handling, a generic
+session dispatcher, worktree lifecycle management, or a parallel PR watcher.
+Provider authentication must still use the supported paths configured in T3
+Code, but Agent Coordinator no longer intermediates those credentials or routes.
+
+## Consequences
+
+The project can start at the security decision and delivery loop instead of
+building a second agent runtime. T3 Code improvements become immediately
+available to the workflow, including new providers and stronger thread tools.
+
+T3 Code becomes a material runtime dependency. A regression in its webhook,
+thread, worktree, or PR-watch behaviour can stop remediation. Pin and test the
+deployed version on Vector, keep the integration thin, and exercise webhook
+redelivery and reboot recovery before granting unattended merge authority.
+
+The managed relay may retain a signed webhook request while Vector is offline.
+That improves recovery but places the request body in T3 Connect for the holding
+period. Pass and retain only the GitHub payload needed for the workflow, and do
+not use the webhook body as trusted instructions.
+
+Superseding ADR 000 stops further investment in custom provider and session
+adapters. The current implementation remains available during the transition.
+Remove it after the T3 Code path has replaced its live uses. ADR 000's
+requirement to use provider-supported authentication remains an operating
+constraint satisfied by T3 Code configuration rather than new Agent
+Coordinator code.
+
+## Alternatives considered
+
+### Retain the custom Work Graph launcher
+
+The repository already has a Work Graph poller, a T3 thread launcher, and a
+provider-session domain package. They remain useful until the replacement is
+working, so keep them during the transition and limit changes to maintenance
+needed by their current users.
+
+Remove them once the T3 Code control plane can admit work, launch the owning
+thread, recover from a limit or restart, and carry a real incident through its
+required outcome. Do not retain the old path as a permanent fallback after
+cutover. Git history is enough if the earlier implementation needs to be
+studied later.
+
+### Start a fresh thread for every webhook delivery
+
+T3 Code supports an unbound webhook task that creates a thread per run. That is
+simple for independent jobs, but security remediation receives related alert,
+workflow, and deployment events. A bound controller can deduplicate, correlate,
+and route those events before spending an implementation session.
+
+### Operate a separate Cloudflare Tunnel
+
+A separately managed tunnel could provide direct ingress while keeping the
+tailnet route. T3 Connect already allocates and operates a Cloudflare Tunnel for
+the linked environment, then adds webhook forwarding, signature validation,
+offline holding, and delivery logs. A second tunnel adds configuration without
+adding a distinct ingress capability. Revisit it only if the managed relay's
+retention or availability fails the workflow's needs.

@@ -249,6 +249,7 @@ async function preparedReview(
     omitted: snapshot.decision.omittedPaths,
     hunks: snapshot.decision.reviewedHunks,
     coverage: snapshot.decision.coverage,
+    coverageManifest: snapshot.decision.coverageManifest,
     changeProfile: snapshot.decision.changeProfile,
     priorOpenFindings: snapshot.input.priorOpenFindings,
     replayFindings: snapshot.input.affectedOpenFindings,

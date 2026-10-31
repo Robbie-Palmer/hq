@@ -1462,6 +1462,9 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     localhostProfile: "t3-code-agent-browser",
     type: "Localhost",
   });
+  assert.deepEqual(valueAt(t3Container, ["securityContext", "seccompProfile"]), {
+    type: "Unconfined",
+  });
   const initContainers = valueAt(podSpec, ["initContainers"]);
   assert.ok(Array.isArray(initContainers));
   for (const container of [...initContainers, dockerContainer]) {
@@ -2528,6 +2531,19 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
 
   assert.match(hostConfig, /profile t3-code-agent-browser flags=\(unconfined\)/);
   assert.match(hostConfig, /\n\s+userns,\n/);
+  assert.match(hostConfig, /packages = \[ pkgs\.apparmor-profiles \];/);
+  assert.match(
+    hostConfig,
+    /includes\."tunables\/global" = ''[\s\S]*?apparmor-profiles\}\/etc\/apparmor\.d\/tunables\/global/,
+  );
+  assert.match(
+    hostConfig,
+    /systemd\.services\.k3s = \{[\s\S]*?after = \[[\s\S]*?"apparmor\.service"[\s\S]*?requires = \[[\s\S]*?"apparmor\.service"[\s\S]*?path = \[[\s\S]*?pkgs\.apparmor-parser/,
+  );
+  assert.match(
+    hostConfig,
+    /L\+ \/sbin\/apparmor_parser - - - - \$\{pkgs\.apparmor-parser\}\/bin\/apparmor_parser/,
+  );
   assert.match(
     healthCheck,
     /containerd_config=\/var\/lib\/rancher\/k3s\/agent\/etc\/containerd\/config\.toml/,
@@ -2537,6 +2553,8 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
     healthCheck,
     /grep -Fx 't3-code-agent-browser \(unconfined\)'/,
   );
+  assert.match(healthCheck, /test -x \/sbin\/apparmor_parser/);
+  assert.match(healthCheck, /test -r \/etc\/apparmor\.d\/tunables\/global/);
   assert.match(healthCheck, /timeout 30s chromium/);
   assert.match(healthCheck, /--dump-dom about:blank/);
   assert.doesNotMatch(healthCheck, /--no-sandbox/);
@@ -2607,6 +2625,16 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.match(
     healthCheck,
     /git -C "\$\{github_probe_dir\}" push --dry-run[\s\\]+https:\/\/github\.com\/Robbie-Palmer\/hq\.git/,
+  );
+  assert.match(
+    healthCheck,
+    /gh api --include --method POST[\s\\]+repos\/Robbie-Palmer\/hq\/deployments --input -/,
+  );
+  assert.ok(healthCheck.includes('$2 == "422"'));
+  assert.ok(
+    healthCheck.includes(
+      "The Vector GitHub token lacks Deployments read/write permission",
+    ),
   );
   assert.ok(!healthCheck.includes('.permissions.push'));
   assert.ok(

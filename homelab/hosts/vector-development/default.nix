@@ -309,6 +309,10 @@ in
   security = {
     apparmor = {
       enable = true;
+      includes."tunables/global" = ''
+        include "${pkgs.apparmor-profiles}/etc/apparmor.d/tunables/global"
+      '';
+      packages = [ pkgs.apparmor-profiles ];
       policies."t3-code-agent-browser".profile = ''
         abi <abi/4.0>,
 
@@ -533,19 +537,28 @@ in
     };
   };
 
+  # containerd probes this fixed FHS path, then invokes the parser through PATH.
+  systemd.tmpfiles.rules = [
+    "d /sbin 0755 root root - -"
+    "L+ /sbin/apparmor_parser - - - - ${pkgs.apparmor-parser}/bin/apparmor_parser"
+  ];
+
   systemd.services.k3s = {
     after = [
+      "apparmor.service"
       "nvidia-container-toolkit-cdi-generator.service"
       "vector-development-data-layout.service"
       "vector-development-project-quotas.service"
     ];
     wants = [ "nvidia-container-toolkit-cdi-generator.service" ];
     requires = [
+      "apparmor.service"
       "vector-development-data-layout.service"
       "vector-development-project-quotas.service"
     ];
     path = [
       nvidiaContainerTools
+      pkgs.apparmor-parser
       pkgs.runc
     ];
   };

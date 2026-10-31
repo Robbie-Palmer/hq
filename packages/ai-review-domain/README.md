@@ -9,6 +9,11 @@ vendor SDKs. The Worker passes retrieved data into this package for finding
 validation, publication selection, outcome evaluation, pull-request
 classification, and replay validation.
 
+`coverage-manifest` owns the versioned path selector and terminal coverage
+decisions. Its defaults include Markdown, MDX, and test paths. Callers must
+configure exclusions in the selection policy, then persist the returned fixed
+reason codes instead of deriving coverage from provider results.
+
 Generic web-platform helpers belong in `ts-base`. In particular, the Worker
 uses `ts-base/http` for JSON requests and `ts-base/strings` for environment
 list parsing.
