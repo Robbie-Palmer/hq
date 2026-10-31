@@ -10,7 +10,7 @@ const CedarFileNameSchema = z
   .regex(/^[a-z0-9][a-z0-9.-]*\.(?:cedar|json)$/);
 const CedarEntityTypeSchema = z
   .string()
-  .regex(/^AgentCoordinator::[A-Za-z][A-Za-z0-9_]*$/);
+  .regex(/^AgentCoordinator::[A-Za-z]\w*$/);
 const Sha256Schema = z.string().regex(/^[a-f0-9]{64}$/);
 
 export const CONTROLLER_CEDAR_POLICY_FILES = [
@@ -99,7 +99,7 @@ type CedarInputValue =
 const CedarInputValueSchema: z.ZodType<CedarInputValue> = z.lazy(() =>
   z.union([
     z.boolean(),
-    z.number().int().safe(),
+    z.int(),
     z.string(),
     z.null(),
     z.array(CedarInputValueSchema),
