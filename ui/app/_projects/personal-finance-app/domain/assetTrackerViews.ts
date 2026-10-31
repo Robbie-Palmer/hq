@@ -1,5 +1,6 @@
 import {
   type Account,
+  type AccountAccessPolicy,
   type AssetType,
   type ExpectedReturnChange,
   isLiability,
@@ -60,6 +61,7 @@ export type AccountSummaryView = {
   assetType: AssetType;
   liquidity?: LiquidityTier;
   taxWrapper?: TaxWrapper;
+  accessPolicy?: AccountAccessPolicy;
   expectedAnnualReturn: number;
   isOpen: boolean;
   latestBalance: number | null;
@@ -320,6 +322,7 @@ export function buildAccountReadModel(
     assetType: account.assetType,
     liquidity: account.liquidity,
     taxWrapper: account.taxWrapper,
+    accessPolicy: account.accessPolicy,
     expectedAnnualReturn: account.expectedAnnualReturn,
     isOpen: !account.closedAt,
     latestBalance: latest?.balance ?? null,
