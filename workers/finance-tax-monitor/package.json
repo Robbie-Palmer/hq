@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "db:check": "bash scripts/check-migrations.sh",
+    "db:check": "check-drizzle-migrations",
     "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
     "db:migrate": "drizzle-kit migrate",
     "deploy:check": "bash scripts/deploy.sh --dry-run",
@@ -26,6 +26,7 @@
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "drizzle-kit": "^0.31.0",
+    "drizzle-tooling": "workspace:*",
     "typescript": "^5",
     "vitest": "^5.0.0",
     "wrangler": "^4"

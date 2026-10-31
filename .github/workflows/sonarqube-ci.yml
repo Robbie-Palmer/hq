@@ -135,7 +135,9 @@ jobs:
             packages/finance-housing-indices/coverage/lcov.info
             packages/finance-inflation-indices/coverage/lcov.info
             packages/finance-tax-rules/coverage/lcov.info
+            packages/inbox-signal-data/coverage/lcov.info
             packages/node-base/coverage/lcov.info
+            packages/object-storage/coverage/lcov.info
             packages/observability/coverage/lcov.info
             packages/platform-contracts/coverage/lcov.info
             packages/project-economics-domain/coverage/lcov.info

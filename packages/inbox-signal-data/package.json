@@ -1,0 +1,34 @@
+{
+  "name": "inbox-signal-data",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mailbox persistence and encrypted object storage contracts for Inbox Signal",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./object-storage": "./src/object-storage.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "db:check": "check-drizzle-migrations",
+    "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "object-storage": "workspace:*"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.0",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "drizzle-kit": "^0.31.0",
+    "drizzle-tooling": "workspace:*",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}
