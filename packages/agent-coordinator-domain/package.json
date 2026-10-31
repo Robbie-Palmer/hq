@@ -21,6 +21,7 @@
     "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
     "./vulnerability": "./src/vulnerability.ts",
+    "./vulnerability-incident": "./src/vulnerability-incident.ts",
     "./work-graph": "./src/work-graph.ts"
   },
   "scripts": {
