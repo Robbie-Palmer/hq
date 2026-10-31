@@ -28,6 +28,27 @@ The decision record contains no authentication values, pull-request body, file
 patch, or webhook content. The incident-ledger integration can validate and
 write this record without retaining provider credentials or request text.
 
+## Vulnerability incident ledger
+
+`VulnerabilityIncidentLedger` creates one Work Graph item for the immutable
+repository ID and Dependabot alert number. Admission writes the policy revision,
+controller thread, initial decision, and any selected Renovate pull request.
+Later typed events link the worker thread, agent and Renovate pull requests,
+accepted commit, deployment target, validation, recovery, and attention request.
+Each mutation ID derives from the incident and event identity, so webhook
+redelivery and controller restart replay the same write.
+
+GitHub pull-request, workflow, and deployment facts come from Work Graph's
+existing evidence ingestion. `recordGithubObservation` accepts a fact only when
+the current projection matches the repository, linked pull request, evidence
+identity, state, and exact commit. The ledger has no ready-work polling method.
+
+Call `authorizeUnattendedMerge` before an automatic merge. It links the
+implementation pull request and returns a receipt only after Work Graph stores
+the policy and accepted head commit. A Work Graph error throws
+`UnattendedMergeBlockedError`, so callers cannot treat a thread-only decision as
+merge authority.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a
