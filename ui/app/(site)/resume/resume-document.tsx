@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import type { Experience } from "@/lib/api/experience";
 import { formatExperienceDateRange } from "@/lib/api/experience";
 import styles from "./resume.module.css";
-import type { ResumeData, ResumeProject } from "./resume-data";
+import type {
+  ResumeData,
+  ResumeProfessionalProject,
+  ResumeProject,
+} from "./resume-data";
 
 function BrandIcon({ path }: Readonly<{ path: string }>) {
   return (
@@ -23,10 +27,12 @@ function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
 
 function ExperienceEntry({
   experience,
+  highlightedResponsibility,
   responsibilityLimit,
   showTechnology,
 }: Readonly<{
   experience: Experience;
+  highlightedResponsibility?: string;
   responsibilityLimit: number;
   showTechnology: boolean;
 }>) {
@@ -46,6 +52,9 @@ function ExperienceEntry({
       <p className={styles.description}>{experience.description}</p>
       <ul>
         {experience.responsibilities
+          .filter(
+            (responsibility) => responsibility !== highlightedResponsibility,
+          )
           .slice(0, responsibilityLimit)
           .map((responsibility) => (
             <li key={responsibility}>{responsibility}</li>
@@ -56,6 +65,22 @@ function ExperienceEntry({
           {experience.technologies.slice(0, 7).join(" · ")}
         </p>
       )}
+    </article>
+  );
+}
+
+function ProfessionalProjectEntry({
+  project,
+}: Readonly<{ project: ResumeProfessionalProject }>) {
+  return (
+    <article className={styles.projectEntry}>
+      <div className={styles.projectHeading}>
+        <a href={project.companyUrl}>{project.company}</a>
+      </div>
+      <p>{project.description}</p>
+      <p className={styles.technologyLine}>
+        {project.technologies.join(" · ")}
+      </p>
     </article>
   );
 }
@@ -145,8 +170,38 @@ function ResumeHeader({ data }: Readonly<{ data: ResumeData }>) {
   );
 }
 
+function EvidenceColumn({ data }: Readonly<{ data: ResumeData }>) {
+  return (
+    <aside className={styles.evidenceColumn}>
+      <SectionTitle>Career projects</SectionTitle>
+      <div className={styles.projectList}>
+        {data.professionalProjects.map((project) => (
+          <ProfessionalProjectEntry
+            key={`${project.company}-${project.experienceStartDate}`}
+            project={project}
+          />
+        ))}
+      </div>
+      <SectionTitle>Independent builds</SectionTitle>
+      <div className={styles.projectList}>
+        {data.independentProjects.map((project) => (
+          <ProjectEntry key={project.slug} project={project} />
+        ))}
+      </div>
+      <SectionTitle>Earlier experience</SectionTitle>
+      <EarlierExperience experiences={data.experiences.slice(5)} />
+    </aside>
+  );
+}
+
 function ResumePage({ data }: Readonly<{ data: ResumeData }>) {
-  const recentExperiences = data.experiences.slice(0, 4);
+  const recentExperiences = data.experiences.slice(0, 5);
+  const professionalProjectByExperience = new Map(
+    data.professionalProjects.map((project) => [
+      `${project.company}-${project.experienceStartDate}`,
+      project.description,
+    ]),
+  );
   return (
     <section className={styles.sheet} data-testid="resume-sheet">
       <ResumeHeader data={data} />
@@ -164,22 +219,16 @@ function ResumePage({ data }: Readonly<{ data: ResumeData }>) {
               <ExperienceEntry
                 key={`${experience.company}-${experience.startDate}`}
                 experience={experience}
+                highlightedResponsibility={professionalProjectByExperience.get(
+                  `${experience.company}-${experience.startDate}`,
+                )}
                 responsibilityLimit={index === 0 ? 3 : 2}
                 showTechnology={index < 2}
               />
             ))}
           </div>
         </div>
-        <aside className={styles.evidenceColumn}>
-          <SectionTitle>Selected projects</SectionTitle>
-          <div className={styles.projectList}>
-            {data.projects.map((project) => (
-              <ProjectEntry key={project.slug} project={project} />
-            ))}
-          </div>
-          <SectionTitle>Earlier experience</SectionTitle>
-          <EarlierExperience experiences={data.experiences.slice(4)} />
-        </aside>
+        <EvidenceColumn data={data} />
       </div>
       <footer className={styles.pageFooter}>
         <span>robbiepalmer.me/resume</span>

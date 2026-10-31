@@ -2,8 +2,14 @@ import type { Experience } from "@/lib/api/experience";
 import type { Project } from "@/lib/api/projects";
 
 const INCLUDED_PROJECT_STATUSES = new Set(["completed", "in_progress", "live"]);
-const PROJECT_LIMIT = 5;
+const INDEPENDENT_PROJECT_LIMIT = 2;
 const SKILL_LIMIT = 15;
+const PROFESSIONAL_PROJECT_SELECTIONS = [
+  { experienceIndex: 0, responsibilityIndex: 0 },
+  { experienceIndex: 1, responsibilityIndex: 1 },
+  { experienceIndex: 2, responsibilityIndex: 3 },
+  { experienceIndex: 3, responsibilityIndex: 5 },
+] as const;
 
 export interface ResumeProject {
   slug: string;
@@ -11,6 +17,14 @@ export interface ResumeProject {
   description: string;
   technologies: string[];
   repositoryUrl?: string;
+}
+
+export interface ResumeProfessionalProject {
+  company: string;
+  companyUrl: string;
+  description: string;
+  experienceStartDate: string;
+  technologies: string[];
 }
 
 export interface ResumeData {
@@ -23,7 +37,8 @@ export interface ResumeData {
   headline: string;
   summary: string;
   experiences: Experience[];
-  projects: ResumeProject[];
+  independentProjects: ResumeProject[];
+  professionalProjects: ResumeProfessionalProject[];
   skills: string[];
 }
 
@@ -38,7 +53,7 @@ function projectSortKey(project: Project): string {
   return `${project.updated ?? project.date}\0${project.date}\0${project.title}`;
 }
 
-function selectProjects(projects: Project[]): ResumeProject[] {
+function selectIndependentProjects(projects: Project[]): ResumeProject[] {
   return projects
     .filter(
       (project) =>
@@ -53,7 +68,7 @@ function selectProjects(projects: Project[]): ResumeProject[] {
     .sort((left, right) =>
       projectSortKey(right).localeCompare(projectSortKey(left), "en"),
     )
-    .slice(0, PROJECT_LIMIT)
+    .slice(0, INDEPENDENT_PROJECT_LIMIT)
     .map((project) => ({
       slug: project.slug,
       title: project.title,
@@ -63,6 +78,27 @@ function selectProjects(projects: Project[]): ResumeProject[] {
         .map((technology) => technology.name),
       repositoryUrl: project.repoUrl,
     }));
+}
+
+function selectProfessionalProjects(
+  experiences: Experience[],
+): ResumeProfessionalProject[] {
+  return PROFESSIONAL_PROJECT_SELECTIONS.flatMap(
+    ({ experienceIndex, responsibilityIndex }) => {
+      const experience = experiences[experienceIndex];
+      const description = experience?.responsibilities[responsibilityIndex];
+      if (!experience || !description) return [];
+      return [
+        {
+          company: experience.company,
+          companyUrl: experience.companyUrl,
+          description,
+          experienceStartDate: experience.startDate,
+          technologies: experience.technologies.slice(0, 4),
+        },
+      ];
+    },
+  );
 }
 
 function selectSkills(experiences: Experience[]): string[] {
@@ -95,7 +131,8 @@ export function buildResumeData(
     headline: currentExperience.title,
     summary: currentExperience.description,
     experiences,
-    projects: selectProjects(projects),
+    independentProjects: selectIndependentProjects(projects),
+    professionalProjects: selectProfessionalProjects(experiences),
     skills: selectSkills(experiences),
   };
 }

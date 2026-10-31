@@ -12,7 +12,10 @@ const experiences: Experience[] = [
     location: "Remote",
     startDate: "2024-01",
     description: "Builds canonical products.",
-    responsibilities: ["Ships useful software"],
+    responsibilities: [
+      "Ships useful software",
+      "Built a current-company platform",
+    ],
     technologies: ["TypeScript", "React", "Python"],
   },
   {
@@ -24,7 +27,7 @@ const experiences: Experience[] = [
     startDate: "2020-01",
     endDate: "2023-12",
     description: "Built earlier products.",
-    responsibilities: ["Led delivery"],
+    responsibilities: ["Led delivery", "Built a previous-company platform"],
     technologies: ["TypeScript", "Python", "AWS"],
   },
 ];
@@ -72,9 +75,19 @@ describe("buildResumeData", () => {
     expect(data.summary).toBe("Builds canonical products.");
     expect(data.skills.slice(0, 2)).toEqual(["Python", "TypeScript"]);
     expect(data.experiences).toBe(experiences);
+    expect(data.professionalProjects).toEqual([
+      expect.objectContaining({
+        company: "Current Company",
+        description: experiences[0]?.responsibilities[0],
+      }),
+      expect.objectContaining({
+        company: "Previous Company",
+        description: experiences[1]?.responsibilities[1],
+      }),
+    ]);
   });
 
-  it("selects the five newest eligible canonical projects", () => {
+  it("selects two recent eligible canonical independent projects", () => {
     const projects = [
       project("one", "2024-01-01"),
       project("two", "2024-02-01"),
@@ -87,14 +100,11 @@ describe("buildResumeData", () => {
 
     const data = buildResumeData(experiences, projects, profile);
 
-    expect(data.projects.map(({ slug }) => slug)).toEqual([
+    expect(data.independentProjects.map(({ slug }) => slug)).toEqual([
       "six",
       "five",
-      "four",
-      "three",
-      "two",
     ]);
-    expect(data.projects[0]?.technologies).toEqual(["TypeScript"]);
+    expect(data.independentProjects[0]?.technologies).toEqual(["TypeScript"]);
   });
 
   it("requires canonical experience content", () => {

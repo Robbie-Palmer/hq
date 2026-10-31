@@ -61,7 +61,16 @@ const data: ResumeData = {
     { ...experience, company: "Fourth Company" },
     { ...experience, company: "Earlier Company" },
   ],
-  projects: [
+  professionalProjects: [
+    {
+      company: "Example Company",
+      companyUrl: "https://company.example",
+      description: "Led delivery",
+      experienceStartDate: "2024-01",
+      technologies: ["TypeScript", "React"],
+    },
+  ],
+  independentProjects: [
     {
       slug: "example-project",
       title: "Example Project",
@@ -80,7 +89,7 @@ const data: ResumeData = {
 };
 
 describe("ResumeDocument", () => {
-  it("renders one printable sheet with projects and earlier experience", () => {
+  it("renders professional and independent work on one printable sheet", () => {
     render(<ResumeDocument data={data} />);
 
     expect(screen.getAllByTestId("resume-sheet")).toHaveLength(1);
@@ -88,6 +97,12 @@ describe("ResumeDocument", () => {
       screen.getByRole("heading", { name: "Example Person", level: 1 }),
     ).toBeInTheDocument();
     expect(screen.getByText("Earlier Company")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Career projects" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Independent builds" }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Example Project")).toHaveAttribute(
       "href",
       "/projects/example-project",

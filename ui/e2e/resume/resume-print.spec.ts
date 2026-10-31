@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("renders a one-page A4 résumé with projects and live links", async ({
+test("renders a one-page A4 résumé with professional and independent work", async ({
   page,
 }, testInfo) => {
   const pageErrors: string[] = [];
@@ -21,8 +21,11 @@ test("renders a one-page A4 résumé with projects and live links", async ({
   const text = await page.getByLabel("Robbie Palmer résumé").innerText();
   expect(text.length).toBeGreaterThan(3_000);
   expect(text).toContain("Terminal Industries");
+  expect(text).toContain("PII-redaction");
+  expect(text).toContain("NHS funding");
   expect(text).toContain("Microsoft");
-  expect(text).toContain("SELECTED PROJECTS");
+  expect(text).toContain("CAREER PROJECTS");
+  expect(text).toContain("INDEPENDENT BUILDS");
 
   const links = await page
     .getByLabel("Robbie Palmer résumé")
@@ -30,8 +33,13 @@ test("renders a one-page A4 résumé with projects and live links", async ({
     .evaluateAll((anchors) =>
       anchors.map((anchor) => (anchor as HTMLAnchorElement).href),
     );
-  expect(new Set(links).size).toBeGreaterThan(15);
+  expect(new Set(links).size).toBeGreaterThan(12);
   expect(links).toContain("https://robbiepalmer.me/");
+  expect(links).toContain("https://terminal-industries.com/");
+  expect(links).toContain("https://confluent.io/");
+  expect(
+    links.some((link) => new URL(link).pathname.startsWith("/projects/")),
+  ).toBe(true);
   expect(links.every((link) => URL.canParse(link))).toBe(true);
 
   await page.screenshot({
