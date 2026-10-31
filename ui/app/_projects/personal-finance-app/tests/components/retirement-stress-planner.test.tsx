@@ -77,12 +77,20 @@ describe("RetirementStressPlanner", () => {
         name: "Retirement timing and replacement income comparison",
       }),
     ).toHaveTextContent("Work 2 years longer");
+    expect(
+      screen.getByLabelText("Severe downside annual return, %"),
+    ).toHaveValue(3);
+    expect(screen.getByLabelText("Central annual return, %")).toHaveValue(6.5);
+    expect(screen.getByLabelText("Optimistic annual return, %")).toHaveValue(9);
+    expect(
+      screen.getByText(/Default returns assume a 100% equity portfolio/),
+    ).toBeVisible();
   });
 
   it("persists named assumptions and keeps every changed value visible", async () => {
     render(<RetirementStressPlanner />);
 
-    fireEvent.change(screen.getByLabelText("Conservative name"), {
+    fireEvent.change(screen.getByLabelText("Severe downside name"), {
       target: { value: "Long downturn" },
     });
     fireEvent.change(screen.getByLabelText("Central inflation, %"), {
@@ -117,7 +125,7 @@ describe("RetirementStressPlanner", () => {
     render(<RetirementStressPlanner />);
 
     fireEvent.change(
-      screen.getByLabelText("Conservative longevity horizon, years"),
+      screen.getByLabelText("Severe downside longevity horizon, years"),
       { target: { value: "20" } },
     );
 

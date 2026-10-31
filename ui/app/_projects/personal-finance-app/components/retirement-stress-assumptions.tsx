@@ -285,7 +285,9 @@ export function RetirementStressAssumptions({
         <div>
           <h3 className="font-semibold">Named stress assumptions</h3>
           <p className="text-sm text-muted-foreground">
-            Every input is explicit. Early shocks apply before the steady
+            Default returns assume a 100% equity portfolio and apply across the
+            whole portfolio. Adjust them for cash, bonds, or other asset mixes.
+            Every input is explicit, and early shocks apply before the steady
             return.
           </p>
         </div>
