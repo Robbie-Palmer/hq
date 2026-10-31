@@ -243,10 +243,12 @@ function distributeByBasis(total: number, basis: readonly number[]): number[] {
     Math.floor((total * amount) / basisTotal),
   );
   let remainder = total - amounts.reduce((sum, amount) => sum + amount, 0);
-  for (let index = 0; remainder > 0; index += 1) {
+  let index = 0;
+  while (remainder > 0) {
     const period = index % amounts.length;
     amounts[period] = (amounts[period] ?? 0) + 1;
     remainder -= 1;
+    index += 1;
   }
   return amounts;
 }
@@ -370,12 +372,17 @@ function employeeContributionByPeriod(
   if (request.employee.kind !== "percentage") {
     return distributeByBasis(grossContributionPence, grossPay);
   }
-  const basis =
-    request.employee.basis === "gross-pay"
-      ? grossPay
-      : request.employee.basis === "qualifying-earnings"
-        ? (qualifyingEarningsPence ?? grossPay.map(() => 0))
-        : distributedPeriods(request.annualPensionablePayPence ?? 0, periods);
+  let basis: number[];
+  if (request.employee.basis === "gross-pay") {
+    basis = grossPay;
+  } else if (request.employee.basis === "qualifying-earnings") {
+    basis = qualifyingEarningsPence ?? grossPay.map(() => 0);
+  } else {
+    basis = distributedPeriods(
+      request.annualPensionablePayPence ?? 0,
+      periods,
+    );
+  }
   return distributeByBasis(grossContributionPence, basis);
 }
 

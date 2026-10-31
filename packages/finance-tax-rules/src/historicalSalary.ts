@@ -33,18 +33,22 @@ const pensionSchema = z
   .superRefine((pension, context) => {
     const cashAndProviderRelief =
       pension.employeeCashDeductionPence + pension.providerTaxReliefPence;
-    const validEmployeeAmounts =
-      pension.method === "salary-sacrifice"
-        ? pension.salarySacrificePence ===
-            pension.employeeGrossContributionPence &&
-          cashAndProviderRelief === 0
-        : pension.method === "net-pay"
-          ? pension.salarySacrificePence === 0 &&
-            pension.employeeCashDeductionPence ===
-              pension.employeeGrossContributionPence &&
-            pension.providerTaxReliefPence === 0
-          : pension.salarySacrificePence === 0 &&
-            cashAndProviderRelief === pension.employeeGrossContributionPence;
+    let validEmployeeAmounts: boolean;
+    if (pension.method === "salary-sacrifice") {
+      validEmployeeAmounts =
+        pension.salarySacrificePence ===
+          pension.employeeGrossContributionPence && cashAndProviderRelief === 0;
+    } else if (pension.method === "net-pay") {
+      validEmployeeAmounts =
+        pension.salarySacrificePence === 0 &&
+        pension.employeeCashDeductionPence ===
+          pension.employeeGrossContributionPence &&
+        pension.providerTaxReliefPence === 0;
+    } else {
+      validEmployeeAmounts =
+        pension.salarySacrificePence === 0 &&
+        cashAndProviderRelief === pension.employeeGrossContributionPence;
+    }
     if (!validEmployeeAmounts) {
       context.addIssue({
         code: "custom",
