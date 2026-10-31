@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "ticket": "pep-oci-registry-implementation-spike",
-  "observedAt": "2026-10-31T00:23:36Z",
+  "observedAt": "2026-10-31T00:32:39Z",
   "environment": {
     "objectStorage": "LocalStack 4.8.1 S3 API",
     "hostArchitecture": "linux/amd64",
@@ -91,7 +91,7 @@
       "sourcePatches": [],
       "runtimeUser": "65532:65532",
       "measurements": {
-        "imageBytes": 321811229,
+        "imageBytes": 321807128,
         "matrixPass": 15,
         "matrixFail": 0,
         "conformance": {
@@ -175,7 +175,7 @@
       "sourcePatches": [],
       "runtimeUser": "65532:65532",
       "measurements": {
-        "imageBytes": 86644616,
+        "imageBytes": 86640518,
         "matrixPass": 13,
         "matrixFail": 2,
         "conformance": {

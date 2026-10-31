@@ -26,6 +26,13 @@ bash scripts/teardown.sh >/dev/null 2>&1 || true
 bash scripts/setup.sh
 source .state/auth.env
 
+resource_file="$run_root/resources.json"
+jq -n \
+  --argjson zotImageBytes "$(docker image inspect "$ZOT_RUNTIME_IMAGE" --format '{{.Size}}')" \
+  --argjson distributionImageBytes "$(docker image inspect "$DISTRIBUTION_RUNTIME_IMAGE" --format '{{.Size}}')" \
+  '{measurement: "uncompressed local runtime image size before the test cases", zot: {imageBytes: $zotImageBytes}, distribution: {imageBytes: $distributionImageBytes}}' \
+  > "$resource_file"
+
 export DOCKER_CONFIG="$project_root/.state/docker"
 export HELM_CONFIG_HOME="$project_root/.state/helm/config"
 export HELM_CACHE_HOME="$project_root/.state/helm/cache"
@@ -74,6 +81,11 @@ endpoint_for() {
   fi
 }
 
+registry_url_for() {
+  # Compose binds these disposable registries to loopback, and this suite intentionally tests with TLS disabled.
+  printf 'http://%s' "$(endpoint_for "$1")" # NOSONAR
+}
+
 bucket_for() {
   if [[ "$1" == "zot" ]]; then
     printf 'zot-registry'
@@ -91,11 +103,11 @@ oras_args() {
 }
 
 test_authentication() {
-  local endpoint
-  endpoint="$(endpoint_for "$1")"
-  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://$endpoint/v2/")" == "401" ]]
-  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$REGISTRY_USERNAME:wrong" "http://$endpoint/v2/")" == "401" ]]
-  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$REGISTRY_USERNAME:$REGISTRY_PASSWORD" "http://$endpoint/v2/")" == "200" ]]
+  local registry_url
+  registry_url="$(registry_url_for "$1")"
+  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' "$registry_url/v2/")" == "401" ]]
+  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$REGISTRY_USERNAME:wrong" "$registry_url/v2/")" == "401" ]]
+  [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$REGISTRY_USERNAME:$REGISTRY_PASSWORD" "$registry_url/v2/")" == "200" ]]
 }
 
 test_conformance() {
@@ -231,13 +243,14 @@ test_signing_referrers() {
 
 test_native_referrers() {
   local implementation="$1"
-  local endpoint digest status
+  local endpoint digest registry_url status
   endpoint="$(endpoint_for "$implementation")"
+  registry_url="$(registry_url_for "$implementation")"
   oras_args
   digest="$(oras resolve "${ORAS_AUTH_ARGS[@]}" "$endpoint/spike/$implementation/oras:v1")"
   status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
     --user "$REGISTRY_USERNAME:$REGISTRY_PASSWORD" \
-    "http://$endpoint/v2/spike/$implementation/oras/referrers/$digest")"
+    "$registry_url/v2/spike/$implementation/oras/referrers/$digest")"
   [[ "$status" == "200" ]]
 }
 
@@ -431,15 +444,6 @@ for implementation in zot distribution; do
   run_case "$implementation" metrics test_metrics
   run_case "$implementation" upgrade test_upgrade
 done
-
-sleep 2
-resource_file="$run_root/resources.json"
-
-jq -n \
-  --argjson zotImageBytes "$(docker image inspect "$ZOT_RUNTIME_IMAGE" --format '{{.Size}}')" \
-  --argjson distributionImageBytes "$(docker image inspect "$DISTRIBUTION_RUNTIME_IMAGE" --format '{{.Size}}')" \
-  '{measurement: "uncompressed local runtime image size after the upgrade case", zot: {imageBytes: $zotImageBytes}, distribution: {imageBytes: $distributionImageBytes}}' \
-  > "$resource_file"
 
 jq -s \
   --arg revision "$(git -C "$repository_root" rev-parse HEAD)" \
