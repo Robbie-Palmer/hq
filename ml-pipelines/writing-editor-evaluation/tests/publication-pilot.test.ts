@@ -262,6 +262,23 @@ function evaluateFixture(fixture: ReturnType<typeof writeFixture>) {
   });
 }
 
+function publicationPilotArgs(fixture: ReturnType<typeof writeFixture>): string[] {
+  return [
+    "--preregistration",
+    fixture.preregistrationFile,
+    "--evidence",
+    fixture.evidenceFile,
+    "--evidence-root",
+    fixture.root,
+    "--repository",
+    fixture.repositoryRoot,
+    "--output",
+    "outputs/publication-pilot/report.json",
+    "--report",
+    "outputs/publication-pilot/report.md",
+  ];
+}
+
 describe("publication pilot evaluation", () => {
   it("keeps the checked-in preregistration valid", () => {
     const value = JSON.parse(fs.readFileSync(
@@ -382,20 +399,7 @@ describe("publication pilot evaluation", () => {
 
   it("writes CLI reports only below the working directory output root", () => {
     const fixture = writeFixture();
-    const args = [
-      "--preregistration",
-      fixture.preregistrationFile,
-      "--evidence",
-      fixture.evidenceFile,
-      "--evidence-root",
-      fixture.root,
-      "--repository",
-      fixture.repositoryRoot,
-      "--output",
-      "outputs/publication-pilot/report.json",
-      "--report",
-      "outputs/publication-pilot/report.md",
-    ];
+    const args = publicationPilotArgs(fixture);
     runPublicationPilotCli(args, fixture.root);
     expect(fs.existsSync(path.join(
       fixture.root,
@@ -410,6 +414,54 @@ describe("publication pilot evaluation", () => {
     unsafeArgs[unsafeArgs.indexOf("--output") + 1] = "../outside.json";
     expect(() => runPublicationPilotCli(unsafeArgs, fixture.root)).toThrow(
       "JSON report must be a file below",
+    );
+  });
+
+  it("rejects CLI input paths that escape the working directory", () => {
+    const fixture = writeFixture();
+    const args = publicationPilotArgs(fixture);
+    const preregistrationIndex = args.indexOf("--preregistration") + 1;
+
+    const traversalArgs = [...args];
+    traversalArgs[preregistrationIndex] = "../outside.json";
+    expect(() => runPublicationPilotCli(traversalArgs, fixture.root)).toThrow(
+      "publication pilot preregistration must resolve to a file within",
+    );
+
+    const absoluteArgs = [...args];
+    absoluteArgs[preregistrationIndex] = path.resolve(fixture.root, "../outside.json");
+    expect(() => runPublicationPilotCli(absoluteArgs, fixture.root)).toThrow(
+      "publication pilot preregistration must resolve to a file within",
+    );
+
+    const outside = temporaryDirectory();
+    const outsideFile = path.join(outside, "preregistration.json");
+    writeJson(outsideFile, preregistration());
+    const linkedFile = path.join(fixture.root, "linked-preregistration.json");
+    fs.symlinkSync(outsideFile, linkedFile);
+    const symlinkArgs = [...args];
+    symlinkArgs[preregistrationIndex] = linkedFile;
+    expect(() => runPublicationPilotCli(symlinkArgs, fixture.root)).toThrow(
+      "publication pilot preregistration must resolve to a file within",
+    );
+
+    const evidenceArgs = [...args];
+    evidenceArgs[evidenceArgs.indexOf("--evidence") + 1] = "../outside.json";
+    expect(() => runPublicationPilotCli(evidenceArgs, fixture.root)).toThrow(
+      "publication pilot evidence must resolve to a file within",
+    );
+
+    const evidenceRootArgs = [...args];
+    evidenceRootArgs[evidenceRootArgs.indexOf("--evidence-root") + 1] = "../outside";
+    expect(() => runPublicationPilotCli(evidenceRootArgs, fixture.root)).toThrow(
+      "publication pilot evidence root must resolve to a directory within",
+    );
+
+    const nonDirectoryRootArgs = [...args];
+    nonDirectoryRootArgs[nonDirectoryRootArgs.indexOf("--evidence-root") + 1] =
+      fixture.evidenceFile;
+    expect(() => runPublicationPilotCli(nonDirectoryRootArgs, fixture.root)).toThrow(
+      "publication pilot evidence root must resolve to a directory",
     );
   });
 });
