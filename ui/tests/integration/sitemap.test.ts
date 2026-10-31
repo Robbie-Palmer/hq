@@ -25,6 +25,7 @@ const STATIC_ASSET_SEGMENTS = new Set(["recipe-site-design"]);
 // out of the sitemap on purpose.
 const NOINDEX_PAGES = new Set([
   "initiatives",
+  "recipes/admin/terms",
   "recipes/add",
   "recipes/cooks",
   "recipes/discover",

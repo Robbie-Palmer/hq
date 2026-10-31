@@ -14,6 +14,7 @@ describe("term review page", () => {
     expect(metadata).toMatchObject({
       title: "Term review",
       description: "Review unresolved ingredient and equipment terms.",
+      robots: { index: false, follow: false },
     });
   });
 });

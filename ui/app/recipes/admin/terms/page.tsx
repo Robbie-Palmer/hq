@@ -4,6 +4,7 @@ import { TermReviewDashboard } from "@/components/recipes/admin/term-review-dash
 export const metadata: Metadata = {
   title: "Term review",
   description: "Review unresolved ingredient and equipment terms.",
+  robots: { index: false, follow: false },
 };
 
 export default function TermReviewPage() {
