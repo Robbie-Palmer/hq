@@ -4,11 +4,11 @@ import type { Project } from "@/lib/api/projects";
 const INCLUDED_PROJECT_STATUSES = new Set(["completed", "in_progress", "live"]);
 const INDEPENDENT_PROJECT_LIMIT = 2;
 const SKILL_LIMIT = 15;
-const PROFESSIONAL_PROJECT_SELECTIONS = [
-  { experienceIndex: 0, responsibilityIndex: 0 },
-  { experienceIndex: 1, responsibilityIndex: 1 },
-  { experienceIndex: 2, responsibilityIndex: 3 },
-  { experienceIndex: 3, responsibilityIndex: 5 },
+const CAREER_PROJECT_SLUGS = [
+  "real-time-multi-camera-video-analytics",
+  "multi-modal-product-search",
+  "pii-detection",
+  "genomic-prediction",
 ] as const;
 
 export interface ResumeProject {
@@ -21,10 +21,10 @@ export interface ResumeProject {
 
 export interface ResumeProfessionalProject {
   company: string;
-  companyUrl: string;
   description: string;
-  experienceStartDate: string;
+  slug: string;
   technologies: string[];
+  title: string;
 }
 
 export interface ResumeData {
@@ -57,13 +57,9 @@ function selectIndependentProjects(projects: Project[]): ResumeProject[] {
   return projects
     .filter(
       (project) =>
+        !project.role &&
         INCLUDED_PROJECT_STATUSES.has(project.status) &&
-        Boolean(
-          project.role ||
-            project.repoUrl ||
-            project.demoUrl ||
-            project.productUrl,
-        ),
+        Boolean(project.repoUrl || project.demoUrl || project.productUrl),
     )
     .sort((left, right) =>
       projectSortKey(right).localeCompare(projectSortKey(left), "en"),
@@ -81,24 +77,26 @@ function selectIndependentProjects(projects: Project[]): ResumeProject[] {
 }
 
 function selectProfessionalProjects(
-  experiences: Experience[],
+  projects: Project[],
 ): ResumeProfessionalProject[] {
-  return PROFESSIONAL_PROJECT_SELECTIONS.flatMap(
-    ({ experienceIndex, responsibilityIndex }) => {
-      const experience = experiences[experienceIndex];
-      const description = experience?.responsibilities[responsibilityIndex];
-      if (!experience || !description) return [];
-      return [
-        {
-          company: experience.company,
-          companyUrl: experience.companyUrl,
-          description,
-          experienceStartDate: experience.startDate,
-          technologies: experience.technologies.slice(0, 4),
-        },
-      ];
-    },
+  const projectsBySlug = new Map(
+    projects.map((project) => [project.slug, project]),
   );
+  return CAREER_PROJECT_SLUGS.flatMap((slug) => {
+    const project = projectsBySlug.get(slug);
+    if (!project?.role) return [];
+    return [
+      {
+        company: project.role.company,
+        description: project.description,
+        slug: project.slug,
+        technologies: project.technologies
+          .slice(0, 4)
+          .map((technology) => technology.name),
+        title: project.title,
+      },
+    ];
+  });
 }
 
 function selectSkills(experiences: Experience[]): string[] {
@@ -132,7 +130,7 @@ export function buildResumeData(
     summary: currentExperience.description,
     experiences,
     independentProjects: selectIndependentProjects(projects),
-    professionalProjects: selectProfessionalProjects(experiences),
+    professionalProjects: selectProfessionalProjects(projects),
     skills: selectSkills(experiences),
   };
 }

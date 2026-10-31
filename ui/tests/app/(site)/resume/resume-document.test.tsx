@@ -23,6 +23,7 @@ vi.mock("@/app/(site)/resume/resume.module.css", () => ({
     projectEntry: "projectEntry",
     projectHeading: "projectHeading",
     projectList: "projectList",
+    projectCompany: "projectCompany",
     resumeHeader: "resumeHeader",
     sectionTitle: "sectionTitle",
     sheet: "sheet",
@@ -64,10 +65,10 @@ const data: ResumeData = {
   professionalProjects: [
     {
       company: "Example Company",
-      companyUrl: "https://company.example",
-      description: "Led delivery",
-      experienceStartDate: "2024-01",
+      description: "A canonical employer project.",
+      slug: "career-project",
       technologies: ["TypeScript", "React"],
+      title: "Career Project",
     },
   ],
   independentProjects: [
@@ -103,6 +104,10 @@ describe("ResumeDocument", () => {
     expect(
       screen.getByRole("heading", { name: "Independent builds" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Career Project")).toHaveAttribute(
+      "href",
+      "/projects/career-project",
+    );
     expect(screen.getByText("Example Project")).toHaveAttribute(
       "href",
       "/projects/example-project",

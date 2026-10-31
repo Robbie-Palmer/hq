@@ -278,10 +278,17 @@
   color: #71717a;
 }
 
-.projectEntry > p:not(.technologyLine) {
+.projectEntry > p:not(.technologyLine, .projectCompany) {
   margin: 1mm 0 0;
   font-size: 7.4pt;
   line-height: 1.32;
+}
+
+.projectCompany {
+  margin: 0.7mm 0 0;
+  color: #52525b;
+  font-size: 6.8pt;
+  font-weight: 700;
 }
 
 .earlierExperienceList {

@@ -27,12 +27,10 @@ function SectionTitle({ children }: Readonly<{ children: React.ReactNode }>) {
 
 function ExperienceEntry({
   experience,
-  highlightedResponsibility,
   responsibilityLimit,
   showTechnology,
 }: Readonly<{
   experience: Experience;
-  highlightedResponsibility?: string;
   responsibilityLimit: number;
   showTechnology: boolean;
 }>) {
@@ -52,9 +50,6 @@ function ExperienceEntry({
       <p className={styles.description}>{experience.description}</p>
       <ul>
         {experience.responsibilities
-          .filter(
-            (responsibility) => responsibility !== highlightedResponsibility,
-          )
           .slice(0, responsibilityLimit)
           .map((responsibility) => (
             <li key={responsibility}>{responsibility}</li>
@@ -75,8 +70,9 @@ function ProfessionalProjectEntry({
   return (
     <article className={styles.projectEntry}>
       <div className={styles.projectHeading}>
-        <a href={project.companyUrl}>{project.company}</a>
+        <Link href={`/projects/${project.slug}`}>{project.title}</Link>
       </div>
+      <p className={styles.projectCompany}>{project.company}</p>
       <p>{project.description}</p>
       <p className={styles.technologyLine}>
         {project.technologies.join(" · ")}
@@ -176,10 +172,7 @@ function EvidenceColumn({ data }: Readonly<{ data: ResumeData }>) {
       <SectionTitle>Career projects</SectionTitle>
       <div className={styles.projectList}>
         {data.professionalProjects.map((project) => (
-          <ProfessionalProjectEntry
-            key={`${project.company}-${project.experienceStartDate}`}
-            project={project}
-          />
+          <ProfessionalProjectEntry key={project.slug} project={project} />
         ))}
       </div>
       <SectionTitle>Independent builds</SectionTitle>
@@ -196,12 +189,6 @@ function EvidenceColumn({ data }: Readonly<{ data: ResumeData }>) {
 
 function ResumePage({ data }: Readonly<{ data: ResumeData }>) {
   const recentExperiences = data.experiences.slice(0, 5);
-  const professionalProjectByExperience = new Map(
-    data.professionalProjects.map((project) => [
-      `${project.company}-${project.experienceStartDate}`,
-      project.description,
-    ]),
-  );
   return (
     <section className={styles.sheet} data-testid="resume-sheet">
       <ResumeHeader data={data} />
@@ -219,9 +206,6 @@ function ResumePage({ data }: Readonly<{ data: ResumeData }>) {
               <ExperienceEntry
                 key={`${experience.company}-${experience.startDate}`}
                 experience={experience}
-                highlightedResponsibility={professionalProjectByExperience.get(
-                  `${experience.company}-${experience.startDate}`,
-                )}
                 responsibilityLimit={index === 0 ? 3 : 2}
                 showTechnology={index < 2}
               />

@@ -60,6 +60,19 @@ function project(
   };
 }
 
+function careerProject(slug: string, company: string, date: string): Project {
+  return {
+    ...project(slug, date, "completed"),
+    role: {
+      slug: company.toLowerCase().replaceAll(" ", "-"),
+      company,
+      logoPath: "/company-logos/example.png",
+      title: "Engineer",
+      startDate: "2020-01",
+    },
+  };
+}
+
 const profile = {
   name: "Example Person",
   website: "https://example.com",
@@ -75,16 +88,7 @@ describe("buildResumeData", () => {
     expect(data.summary).toBe("Builds canonical products.");
     expect(data.skills.slice(0, 2)).toEqual(["Python", "TypeScript"]);
     expect(data.experiences).toBe(experiences);
-    expect(data.professionalProjects).toEqual([
-      expect.objectContaining({
-        company: "Current Company",
-        description: experiences[0]?.responsibilities[0],
-      }),
-      expect.objectContaining({
-        company: "Previous Company",
-        description: experiences[1]?.responsibilities[1],
-      }),
-    ]);
+    expect(data.professionalProjects).toEqual([]);
   });
 
   it("selects two recent eligible canonical independent projects", () => {
@@ -96,6 +100,7 @@ describe("buildResumeData", () => {
       project("five", "2024-05-01"),
       project("six", "2024-06-01"),
       project("archived", "2025-01-01", "archived"),
+      careerProject("genomic-prediction", "Sonrai Analytics", "2025-02-01"),
     ];
 
     const data = buildResumeData(experiences, projects, profile);
@@ -105,6 +110,35 @@ describe("buildResumeData", () => {
       "five",
     ]);
     expect(data.independentProjects[0]?.technologies).toEqual(["TypeScript"]);
+  });
+
+  it("selects career projects through canonical employment relationships", () => {
+    const projects = [
+      careerProject("genomic-prediction", "Sonrai Analytics", "2020-03-30"),
+      careerProject("pii-detection", "Confluent", "2022-05-01"),
+      careerProject("multi-modal-product-search", "Bestomer", "2023-07-01"),
+      careerProject(
+        "real-time-multi-camera-video-analytics",
+        "Terminal Industries",
+        "2024-05-01",
+      ),
+    ];
+
+    const data = buildResumeData(experiences, projects, profile);
+
+    expect(data.professionalProjects.map(({ slug }) => slug)).toEqual([
+      "real-time-multi-camera-video-analytics",
+      "multi-modal-product-search",
+      "pii-detection",
+      "genomic-prediction",
+    ]);
+    expect(data.professionalProjects.at(-1)).toEqual(
+      expect.objectContaining({
+        company: "Sonrai Analytics",
+        description: "genomic-prediction description",
+        title: "GENOMIC-PREDICTION",
+      }),
+    );
   });
 
   it("requires canonical experience content", () => {

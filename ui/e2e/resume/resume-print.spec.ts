@@ -21,8 +21,11 @@ test("renders a one-page A4 résumé with professional and independent work", as
   const text = await page.getByLabel("Robbie Palmer résumé").innerText();
   expect(text.length).toBeGreaterThan(3_000);
   expect(text).toContain("Terminal Industries");
-  expect(text).toContain("PII-redaction");
-  expect(text).toContain("NHS funding");
+  expect(text).toContain("Real-Time Multi-Camera Video Analytics");
+  expect(text).toContain("Multi-Modal Product Search");
+  expect(text).toContain("Automated PII Detection");
+  expect(text).toContain("Genomic Prediction from Histology");
+  expect(text).toContain("MSI/MSS");
   expect(text).toContain("Microsoft");
   expect(text).toContain("CAREER PROJECTS");
   expect(text).toContain("INDEPENDENT BUILDS");
@@ -37,9 +40,14 @@ test("renders a one-page A4 résumé with professional and independent work", as
   expect(links).toContain("https://robbiepalmer.me/");
   expect(links).toContain("https://terminal-industries.com/");
   expect(links).toContain("https://confluent.io/");
-  expect(
-    links.some((link) => new URL(link).pathname.startsWith("/projects/")),
-  ).toBe(true);
+  expect(links.map((link) => new URL(link).pathname)).toEqual(
+    expect.arrayContaining([
+      "/projects/real-time-multi-camera-video-analytics",
+      "/projects/multi-modal-product-search",
+      "/projects/pii-detection",
+      "/projects/genomic-prediction",
+    ]),
+  );
   expect(links.every((link) => URL.canParse(link))).toBe(true);
 
   await page.screenshot({
