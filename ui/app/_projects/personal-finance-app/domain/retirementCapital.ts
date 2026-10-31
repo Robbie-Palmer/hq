@@ -57,6 +57,8 @@ export type RetirementCapitalScenario = {
   startDate: string;
   endDate: string;
   annualSpending: number;
+  /** Annual nominal change in spending after the forecast starts. */
+  annualSpendingGrowthRate?: number;
   accounts: RetirementCapitalAccount[];
   /** Only listed accounts may fund spending, in this exact order. */
   withdrawalOrder: string[];
@@ -365,6 +367,12 @@ function validateScenario(scenario: RetirementCapitalScenario): void {
   ) {
     throw new Error("Annual retirement spending must be a non-negative number");
   }
+  if (
+    !Number.isFinite(scenario.annualSpendingGrowthRate ?? 0) ||
+    (scenario.annualSpendingGrowthRate ?? 0) <= -1
+  ) {
+    throw new Error("Annual retirement spending growth must be above -100%");
+  }
   const accountsById = new Map(
     scenario.accounts.map((account) => [account.id, account]),
   );
@@ -669,7 +677,6 @@ export function projectRetirementCapital(
   }
 
   const points: RetirementCapitalForecastPoint[] = [];
-  const monthlySpending = scenario.annualSpending / 12;
   let date = scenario.startDate;
   let monthIndex = 0;
   let accessibleCapitalExhaustionDate: string | null = null;
@@ -681,7 +688,9 @@ export function projectRetirementCapital(
       selectedAccountIds,
       releases: releasesByDate.get(date) ?? [],
       date,
-      monthlySpending,
+      monthlySpending:
+        (scenario.annualSpending / 12) *
+        (1 + (scenario.annualSpendingGrowthRate ?? 0)) ** (monthIndex / 12),
       applyReturns: monthIndex > 0,
     });
     if (
