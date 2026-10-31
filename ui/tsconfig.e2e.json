@@ -8,8 +8,10 @@
   "include": [
     "e2e/mermaid/**/*.ts",
     "e2e/preview/**/*.ts",
+    "e2e/resume/**/*.ts",
     "playwright.mermaid.config.ts",
-    "playwright.preview.config.ts"
+    "playwright.preview.config.ts",
+    "playwright.resume.config.ts"
   ],
   "exclude": ["node_modules"]
 }

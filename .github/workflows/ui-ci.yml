@@ -87,6 +87,9 @@ jobs:
       - name: Run integration tests
         run: mise run //ui:test:integration
 
+      - name: Verify printable résumé
+        run: mise run //ui:test:e2e:resume
+
       - name: Render Mermaid diagrams with Playwright
         if: steps.mermaid-dependency.outputs.changed == 'true'
         run: mise run //ui:test:e2e:mermaid

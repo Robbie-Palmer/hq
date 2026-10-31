@@ -5,7 +5,7 @@ export function Footer() {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="border-t mt-auto">
+    <footer className="border-t mt-auto" data-site-chrome="footer">
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col items-center gap-4">
           <FooterLinks
