@@ -109,6 +109,7 @@ describe("playlist editor", () => {
       .mockImplementation(() => {});
 
     render(<PlaylistHarness />);
+    expect(screen.getByRole("heading", { name: "Music" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Create playlist" }));
     expect(screen.getByRole("heading", { name: "Music" })).toBeInTheDocument();
 

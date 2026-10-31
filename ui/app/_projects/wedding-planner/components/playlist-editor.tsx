@@ -510,27 +510,35 @@ function SongCard({
 
 function EmptyPlaylist({ onUpdate }: Readonly<{ onUpdate: UpdatePlan }>) {
   return (
-    <Card className="playlist-empty">
-      <CardHeader>
-        <ListMusic size={30} />
-        <CardTitle>Start the wedding playlist</CardTitle>
-        <CardDescription>
-          Collect guest ideas, choose the final songs, then hand the DJ one
-          clean brief.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Button
-          onClick={() =>
-            onUpdate((draft) => {
-              draft.playlist = createCollaborativePlaylist();
-            })
-          }
-        >
-          Create playlist
-        </Button>
-      </CardContent>
-    </Card>
+    <>
+      <div className="page-heading">
+        <div>
+          <h2>Music</h2>
+          <p>Guest ideas come here for review before they reach the DJ.</p>
+        </div>
+      </div>
+      <Card className="playlist-empty">
+        <CardHeader>
+          <ListMusic size={30} />
+          <CardTitle>Start the wedding playlist</CardTitle>
+          <CardDescription>
+            Collect guest ideas, choose the final songs, then hand the DJ one
+            clean brief.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button
+            onClick={() =>
+              onUpdate((draft) => {
+                draft.playlist = createCollaborativePlaylist();
+              })
+            }
+          >
+            Create playlist
+          </Button>
+        </CardContent>
+      </Card>
+    </>
   );
 }
 

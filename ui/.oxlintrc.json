@@ -44,7 +44,11 @@
       }
     },
     {
-      "files": ["app/_projects/wedding-planner/components/**"],
+      "files": [
+        "app/_projects/wedding-planner/components/**",
+        "app/_projects/wedding-planner/routes/**",
+        "app/wedding-planner/**"
+      ],
       "rules": {
         "shadcn/no-unknown-classes": "off"
       }

@@ -42,7 +42,17 @@ const NOINDEX_PAGES = new Set([
   "recipes/settings/agents/approve",
   "recipes/shopping",
   "wedding-planner",
+  "wedding-planner/accommodation",
+  "wedding-planner/accommodation/inventory",
+  "wedding-planner/accommodation/result",
+  "wedding-planner/accommodation/rooms",
+  "wedding-planner/accommodation/sharing",
+  "wedding-planner/exports",
+  "wedding-planner/guests",
+  "wedding-planner/music",
   "wedding-planner/playlist",
+  "wedding-planner/readiness",
+  "wedding-planner/seating",
 ]);
 
 function expectedUrlForFile(
