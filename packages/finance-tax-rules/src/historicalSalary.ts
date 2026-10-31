@@ -18,13 +18,66 @@ const assumptionSchema = z.object({
   value: z.union([z.string(), z.number(), z.boolean()]),
 });
 
-const pensionSchema = z.object({
-  method: pensionContributionMethodSchema,
-  employeeGrossContributionPence: moneyPenceSchema,
-  employeeCashDeductionPence: moneyPenceSchema,
-  salarySacrificePence: moneyPenceSchema,
-  employerContributionPence: moneyPenceSchema,
-  providerTaxReliefPence: moneyPenceSchema,
+const pensionSchema = z
+  .object({
+    method: pensionContributionMethodSchema,
+    employeeGrossContributionPence: moneyPenceSchema,
+    employeeCashDeductionPence: moneyPenceSchema,
+    salarySacrificePence: moneyPenceSchema,
+    employerContributionPence: moneyPenceSchema,
+    providerTaxReliefPence: moneyPenceSchema,
+    employerNationalInsuranceSavingPence: moneyPenceSchema.optional(),
+    employerNationalInsuranceSavingContributionPence:
+      moneyPenceSchema.optional(),
+  })
+  .superRefine((pension, context) => {
+    const cashAndProviderRelief =
+      pension.employeeCashDeductionPence + pension.providerTaxReliefPence;
+    const validEmployeeAmounts =
+      pension.method === "salary-sacrifice"
+        ? pension.salarySacrificePence ===
+            pension.employeeGrossContributionPence &&
+          cashAndProviderRelief === 0
+        : pension.method === "net-pay"
+          ? pension.salarySacrificePence === 0 &&
+            pension.employeeCashDeductionPence ===
+              pension.employeeGrossContributionPence &&
+            pension.providerTaxReliefPence === 0
+          : pension.salarySacrificePence === 0 &&
+            cashAndProviderRelief === pension.employeeGrossContributionPence;
+    if (!validEmployeeAmounts) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Gross contribution must equal salary sacrifice or the member cash deduction plus provider relief for the selected method.",
+      });
+    }
+    if (
+      (pension.employerNationalInsuranceSavingPence ?? 0) > 0 &&
+      pension.method !== "salary-sacrifice"
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "Employer National Insurance savings only apply to salary sacrifice.",
+        path: ["employerNationalInsuranceSavingPence"],
+      });
+    }
+  });
+
+const nationalInsurancePayPeriodSchema = z.enum([
+  "weekly",
+  "fortnightly",
+  "four-weekly",
+  "monthly",
+  "quarterly",
+  "half-yearly",
+  "annual",
+]);
+
+const nationalInsurancePeriodsSchema = z.object({
+  payPeriod: nationalInsurancePayPeriodSchema,
+  postSacrificeEarningsPence: z.array(moneyPenceSchema).min(1),
 });
 
 export const historicalSalaryRequestSchema = z
@@ -37,10 +90,12 @@ export const historicalSalaryRequestSchema = z
     otherDeductionsPence: moneyPenceSchema,
     nationalInsuranceCategory: z.literal("A"),
     isCompanyDirector: z.literal(false),
+    nationalInsurancePeriods: nationalInsurancePeriodsSchema.optional(),
     pension: pensionSchema.nullable(),
     assumptions: z.array(assumptionSchema),
   })
-  .superRefine(({ effectiveDate, taxYear }, context) => {
+  .superRefine((request, context) => {
+    const { effectiveDate, taxYear } = request;
     const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
     const endYear = startYear + 1;
     if (
@@ -54,19 +109,59 @@ export const historicalSalaryRequestSchema = z
         path: ["effectiveDate"],
       });
     }
+    if (request.nationalInsurancePeriods != null) {
+      const statedEarnings =
+        request.nationalInsurancePeriods.postSacrificeEarningsPence.reduce(
+          (total, amount) => total + amount,
+          0,
+        );
+      const expectedEarnings = Math.max(
+        0,
+        request.contractualGrossPayPence -
+          (request.pension?.salarySacrificePence ?? 0),
+      );
+      if (statedEarnings !== expectedEarnings) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "National Insurance period earnings must total post-sacrifice employment pay.",
+          path: ["nationalInsurancePeriods", "postSacrificeEarningsPence"],
+        });
+      }
+    }
+    const employerSaving =
+      request.pension?.employerNationalInsuranceSavingPence ?? 0;
+    const sharedSaving =
+      request.pension?.employerNationalInsuranceSavingContributionPence ?? 0;
+    if (sharedSaving > employerSaving) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "The employer National Insurance amount added to the pension cannot exceed the stated saving.",
+        path: [
+          "pension",
+          "employerNationalInsuranceSavingContributionPence",
+        ],
+      });
+    }
   });
 
 const calculationComponentsSchema = z.object({
   contractualGrossPayPence: moneyPenceSchema,
   grossCashPayPence: moneyPenceSchema,
   taxablePayPence: moneyPenceSchema,
+  nationalInsuranceEarningsPence: moneyPenceSchema,
   incomeTaxPence: moneyPenceSchema,
   employeeNationalInsurancePence: moneyPenceSchema,
   employeePensionContributionPence: moneyPenceSchema,
   salarySacrificePence: moneyPenceSchema,
   memberPensionDeductionPence: moneyPenceSchema,
   employerPensionContributionPence: moneyPenceSchema,
+  employerNationalInsuranceSavingPence: moneyPenceSchema,
+  employerNationalInsuranceSavingContributionPence: moneyPenceSchema,
+  totalEmployerPensionContributionPence: moneyPenceSchema,
   providerTaxReliefPence: moneyPenceSchema,
+  furtherPensionTaxReliefPence: moneyPenceSchema,
   otherDeductionsPence: moneyPenceSchema,
   takeHomePayPence: moneyPenceSchema,
 });
@@ -95,8 +190,8 @@ const availableResultSchema = z.object({
   components: calculationComponentsSchema,
   notes: z.array(z.string().min(1)),
   lineage: z.object({
-    calculationVersion: z.literal("historical-salary-v1"),
-    engineId: z.literal("saving-tool-annual-with-reviewed-ni-v1"),
+    calculationVersion: z.literal("historical-salary-v2"),
+    engineId: z.literal("saving-tool-annual-with-pay-period-ni-v2"),
     engineVersion: z.literal("3.0.1"),
     ruleDatasetVersion: z.string().min(1),
     taxYear: taxYearSchema,
@@ -222,19 +317,107 @@ function incomeTaxFor(
   );
 }
 
-function annualNationalInsurance(
-  annualPayPence: number,
+function periodThreshold(
+  values: NationalInsuranceRule["thresholds"]["primaryThresholdPence"],
+  payPeriod: z.infer<typeof nationalInsurancePayPeriodSchema>,
+): number {
+  if (payPeriod === "weekly") return values.weekly;
+  if (payPeriod === "fortnightly") return values.weekly * 2;
+  if (payPeriod === "four-weekly") return values.weekly * 4;
+  if (payPeriod === "monthly") return values.monthly;
+  if (payPeriod === "quarterly") return values.monthly * 3;
+  if (payPeriod === "half-yearly") return values.monthly * 6;
+  return values.monthly * 12;
+}
+
+function employeeNationalInsurance(
+  earningsPence: readonly number[],
+  payPeriod: z.infer<typeof nationalInsurancePayPeriodSchema>,
   rule: NationalInsuranceRule,
 ): number {
-  const monthlyPay = annualPayPence / 12;
-  const primary = rule.thresholds.primaryThresholdPence.monthly;
-  const upper = rule.thresholds.upperEarningsLimitPence.monthly;
-  const main = Math.max(0, Math.min(monthlyPay, upper) - primary);
-  const above = Math.max(0, monthlyPay - upper);
-  return (
-    roundTax(main, rule.rates.primaryToUpperBasisPoints) * 12 +
-    roundTax(above, rule.rates.aboveUpperBasisPoints) * 12
+  const primary = periodThreshold(
+    rule.thresholds.primaryThresholdPence,
+    payPeriod,
   );
+  const upper = periodThreshold(
+    rule.thresholds.upperEarningsLimitPence,
+    payPeriod,
+  );
+  return earningsPence.reduce((total, earnings) => {
+    const main = Math.max(0, Math.min(earnings, upper) - primary);
+    const above = Math.max(0, earnings - upper);
+    return (
+      total +
+      roundTax(main, rule.rates.primaryToUpperBasisPoints) +
+      roundTax(above, rule.rates.aboveUpperBasisPoints)
+    );
+  }, 0);
+}
+
+function distributedPeriods(total: number, periods: number): number[] {
+  const base = Math.floor(total / periods);
+  const remainder = total - base * periods;
+  return Array.from(
+    { length: periods },
+    (_, index) => base + (index < remainder ? 1 : 0),
+  );
+}
+
+function furtherPensionTaxRelief(
+  request: HistoricalSalaryRequest,
+  pension: HistoricalSalaryRequest["pension"],
+  rule: IncomeTaxRule,
+  totalIncomePence: number,
+  incomeTaxPence: number,
+): number {
+  if (pension?.method !== "relief-at-source") return 0;
+  const allowanceWithoutReliefPence = personalAllowance(
+    totalIncomePence,
+    rule,
+  );
+  const incomeTaxWithoutReliefPence = Math.max(
+    0,
+    incomeTaxFor(
+      totalIncomePence,
+      allowanceWithoutReliefPence,
+      rule,
+      request.jurisdiction,
+      0,
+    ) -
+      incomeTaxFor(
+        request.otherTaxableIncomePence,
+        allowanceWithoutReliefPence,
+        rule,
+        request.jurisdiction,
+        0,
+      ),
+  );
+  return Math.max(0, incomeTaxWithoutReliefPence - incomeTaxPence);
+}
+
+function calculationNotes(
+  request: HistoricalSalaryRequest,
+  pension: HistoricalSalaryRequest["pension"],
+  nationalInsurancePeriods: z.infer<typeof nationalInsurancePeriodsSchema>,
+  employerNationalInsuranceSavingPence: number,
+): string[] {
+  const notes = [
+    "Income Tax is an annual liability estimate, not a PAYE withholding calculation.",
+    request.nationalInsurancePeriods == null
+      ? "Employee National Insurance is annualised from twelve estimated monthly earnings periods, not reconciled to payslips."
+      : `Employee National Insurance applies ${nationalInsurancePeriods.payPeriod} thresholds to the supplied post-sacrifice earnings periods. It remains an estimate, not payslip reconciliation.`,
+  ];
+  if (pension?.method === "relief-at-source") {
+    notes.push(
+      "Provider basic-rate relief is separate from further Income Tax relief. Further relief may need to be claimed from HMRC.",
+    );
+  }
+  if (employerNationalInsuranceSavingPence > 0) {
+    notes.push(
+      "Employer National Insurance savings are supplied assumptions. They are separate from contractual employer pension contributions and enacted employee National Insurance rules.",
+    );
+  }
+  return notes;
 }
 
 function selectedRules(request: HistoricalSalaryRequest): {
@@ -342,8 +525,25 @@ export function calculateHistoricalSalary(
         reliefAtSource,
       ),
   );
-  const employeeNationalInsurancePence = annualNationalInsurance(
-    grossCashPayPence,
+  const furtherPensionTaxReliefPence = furtherPensionTaxRelief(
+    request,
+    pension,
+    rules.incomeTax,
+    totalIncomePence,
+    incomeTaxPence,
+  );
+  const nationalInsurancePeriods = request.nationalInsurancePeriods ?? {
+    payPeriod: "monthly" as const,
+    postSacrificeEarningsPence: distributedPeriods(grossCashPayPence, 12),
+  };
+  const nationalInsuranceEarningsPence =
+    nationalInsurancePeriods.postSacrificeEarningsPence.reduce(
+      (total, earnings) => total + earnings,
+      0,
+    );
+  const employeeNationalInsurancePence = employeeNationalInsurance(
+    nationalInsurancePeriods.postSacrificeEarningsPence,
+    nationalInsurancePeriods.payPeriod,
     rules.nationalInsurance,
   );
   const memberPensionDeductionPence =
@@ -357,6 +557,12 @@ export function calculateHistoricalSalary(
       request.otherDeductionsPence,
   );
   const selected = [rules.incomeTax, rules.nationalInsurance, rules.pension];
+  const employerNationalInsuranceSavingPence =
+    pension?.employerNationalInsuranceSavingPence ?? 0;
+  const employerNationalInsuranceSavingContributionPence =
+    pension?.employerNationalInsuranceSavingContributionPence ?? 0;
+  const employerPensionContributionPence =
+    pension?.employerContributionPence ?? 0;
   const sourceIds = new Set(
     selected.flatMap(({ provenance }) => provenance.sourceIds),
   );
@@ -378,25 +584,33 @@ export function calculateHistoricalSalary(
       contractualGrossPayPence: request.contractualGrossPayPence,
       grossCashPayPence,
       taxablePayPence,
+      nationalInsuranceEarningsPence,
       incomeTaxPence,
       employeeNationalInsurancePence,
       employeePensionContributionPence:
         pension?.employeeGrossContributionPence ?? 0,
       salarySacrificePence: pension?.salarySacrificePence ?? 0,
       memberPensionDeductionPence,
-      employerPensionContributionPence:
-        pension?.employerContributionPence ?? 0,
+      employerPensionContributionPence,
+      employerNationalInsuranceSavingPence,
+      employerNationalInsuranceSavingContributionPence,
+      totalEmployerPensionContributionPence:
+        employerPensionContributionPence +
+        employerNationalInsuranceSavingContributionPence,
       providerTaxReliefPence: pension?.providerTaxReliefPence ?? 0,
+      furtherPensionTaxReliefPence,
       otherDeductionsPence: request.otherDeductionsPence,
       takeHomePayPence,
     },
-    notes: [
-      "Income Tax is an annual liability estimate, not a PAYE withholding calculation.",
-      "Employee National Insurance is annualised from twelve monthly threshold periods at the rate effective on the calculation date.",
-    ],
+    notes: calculationNotes(
+      request,
+      pension,
+      nationalInsurancePeriods,
+      employerNationalInsuranceSavingPence,
+    ),
     lineage: {
-      calculationVersion: "historical-salary-v1",
-      engineId: "saving-tool-annual-with-reviewed-ni-v1",
+      calculationVersion: "historical-salary-v2",
+      engineId: "saving-tool-annual-with-pay-period-ni-v2",
       engineVersion: "3.0.1",
       ruleDatasetVersion: ruleDataset.datasetVersion,
       taxYear: request.taxYear,
@@ -407,7 +621,7 @@ export function calculateHistoricalSalary(
       assumptions: request.assumptions,
       rounding: [
         "Income Tax is rounded to the nearest penny after calculating the annual liability.",
-        "Employee National Insurance is rounded to the nearest penny for each representative monthly period, then multiplied by twelve.",
+        "Employee National Insurance is rounded to the nearest penny in each earnings period.",
         "Pension and other deductions preserve the supplied penny amounts.",
       ],
     },

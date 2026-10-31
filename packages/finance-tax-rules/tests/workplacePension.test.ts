@@ -56,6 +56,10 @@ describe("workplace pension contributions", () => {
       employeeGrossContributionPence: 300_000,
       employeeCashDeductionPence: 0,
       salarySacrificePence: 300_000,
+      salarySacrificeByPeriodPence: Array.from(
+        { length: 12 },
+        () => 25_000,
+      ),
       employerContributionPence: 180_000,
       providerTaxReliefPence: 0,
     });
@@ -144,6 +148,10 @@ describe("workplace pension contributions", () => {
     expect(result).toMatchObject({
       available: true,
       employeeGrossContributionPence: 1_994_900,
+      employeeGrossContributionByPeriodPence: [
+        366_900,
+        ...Array.from({ length: 11 }, () => 148_000),
+      ],
     });
   });
 

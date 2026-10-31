@@ -135,8 +135,10 @@ export type WorkplacePensionResult =
   | {
       available: true;
       employeeGrossContributionPence: number;
+      employeeGrossContributionByPeriodPence: number[];
       employeeCashDeductionPence: number;
       salarySacrificePence: number;
+      salarySacrificeByPeriodPence: number[];
       employerContributionPence: number;
       providerTaxReliefPence: number;
       bases: {
@@ -183,25 +185,41 @@ function distributedPeriods(total: number, periods: number): number[] {
   );
 }
 
-function qualifyingEarningsBasis(
-  request: z.output<typeof workplacePensionRequestSchema>,
-  rule: (typeof ruleDataset.pensions)[number],
-): number | null {
-  const total = request.annualQualifyingEarningsPayPence;
-  if (total == null) return null;
-  const periods = periodsPerYear[request.payPeriod];
-  const variables = request.qualifyingEarningsVariablePaymentsPence;
+function payByPeriod(
+  total: number,
+  variables: readonly number[],
+  periods: number,
+): number[] {
   const variableTotal = variables.reduce((sum, amount) => sum + amount, 0);
   const pay = distributedPeriods(total - variableTotal, periods);
   for (const [index, amount] of variables.entries()) {
     pay[index % periods] = (pay[index % periods] ?? 0) + amount;
   }
-  const band = rule.qualifyingEarnings.bands[request.payPeriod];
-  return pay.reduce(
-    (sum, amount) =>
-      sum + Math.max(0, Math.min(amount, band.upperPence) - band.lowerPence),
-    0,
+  return pay;
+}
+
+function qualifyingEarningsByPeriod(
+  request: z.output<typeof workplacePensionRequestSchema>,
+  rule: (typeof ruleDataset.pensions)[number],
+): number[] | null {
+  const total = request.annualQualifyingEarningsPayPence;
+  if (total == null) return null;
+  const periods = periodsPerYear[request.payPeriod];
+  const pay = payByPeriod(
+    total,
+    request.qualifyingEarningsVariablePaymentsPence,
+    periods,
   );
+  const band = rule.qualifyingEarnings.bands[request.payPeriod];
+  return pay.map((amount) =>
+    Math.max(0, Math.min(amount, band.upperPence) - band.lowerPence),
+  );
+}
+
+function qualifyingEarningsBasis(
+  earningsByPeriod: readonly number[] | null,
+): number | null {
+  return earningsByPeriod?.reduce((sum, amount) => sum + amount, 0) ?? null;
 }
 
 function basisAmount(
@@ -216,6 +234,21 @@ function basisAmount(
 
 function percentage(amount: number, rateBasisPoints: number): number {
   return Math.round((amount * rateBasisPoints) / 10_000);
+}
+
+function distributeByBasis(total: number, basis: readonly number[]): number[] {
+  const basisTotal = basis.reduce((sum, amount) => sum + amount, 0);
+  if (total === 0 || basisTotal === 0) return basis.map(() => 0);
+  const amounts = basis.map((amount) =>
+    Math.floor((total * amount) / basisTotal),
+  );
+  let remainder = total - amounts.reduce((sum, amount) => sum + amount, 0);
+  for (let index = 0; remainder > 0; index += 1) {
+    const period = index % amounts.length;
+    amounts[period] = (amounts[period] ?? 0) + 1;
+    remainder -= 1;
+  }
+  return amounts;
 }
 
 function cappedEmployerContribution(
@@ -323,6 +356,29 @@ function employeeGrossContribution(
   return percentage(basis, request.employee.rateBasisPoints);
 }
 
+function employeeContributionByPeriod(
+  request: ParsedWorkplacePensionRequest,
+  qualifyingEarningsPence: number[] | null,
+  grossContributionPence: number,
+): number[] {
+  const periods = periodsPerYear[request.payPeriod];
+  const grossPay = payByPeriod(
+    request.annualGrossPayPence,
+    request.qualifyingEarningsVariablePaymentsPence,
+    periods,
+  );
+  if (request.employee.kind !== "percentage") {
+    return distributeByBasis(grossContributionPence, grossPay);
+  }
+  const basis =
+    request.employee.basis === "gross-pay"
+      ? grossPay
+      : request.employee.basis === "qualifying-earnings"
+        ? (qualifyingEarningsPence ?? grossPay.map(() => 0))
+        : distributedPeriods(request.annualPensionablePayPence ?? 0, periods);
+  return distributeByBasis(grossContributionPence, basis);
+}
+
 function employeeTaxTreatment(
   employee: WorkplacePensionEmployeeContribution,
 ) {
@@ -334,9 +390,15 @@ function employeeTaxTreatment(
 function employeeAmounts(
   request: ParsedWorkplacePensionRequest,
   qualifyingEarningsPence: number | null,
+  qualifyingEarningsByPeriodPence: number[] | null,
   rule: PensionRule,
 ) {
   const gross = employeeGrossContribution(request, qualifyingEarningsPence);
+  const grossByPeriod = employeeContributionByPeriod(
+    request,
+    qualifyingEarningsByPeriodPence,
+    gross,
+  );
   const taxTreatment = employeeTaxTreatment(request.employee);
   const method = rule.methods.find(
     (candidate) => candidate.method === taxTreatment,
@@ -345,9 +407,14 @@ function employeeAmounts(
     method == null ? 0 : percentage(gross, method.providerReliefBasisPoints);
   return {
     gross,
+    grossByPeriod,
     cashDeduction:
       taxTreatment === "salary-sacrifice" ? 0 : gross - providerRelief,
     salarySacrifice: taxTreatment === "salary-sacrifice" ? gross : 0,
+    salarySacrificeByPeriod:
+      taxTreatment === "salary-sacrifice"
+        ? grossByPeriod
+        : grossByPeriod.map(() => 0),
     providerRelief,
   };
 }
@@ -404,11 +471,22 @@ export function calculateWorkplacePension(
       ],
     };
   }
-  const qualifyingEarningsPence = qualifyingEarningsBasis(request, rule);
+  const qualifyingEarningsByPeriodPence = qualifyingEarningsByPeriod(
+    request,
+    rule,
+  );
+  const qualifyingEarningsPence = qualifyingEarningsBasis(
+    qualifyingEarningsByPeriodPence,
+  );
   const reasons = calculationReasons(request, qualifyingEarningsPence);
   if (reasons.length > 0) return { available: false, reasons };
 
-  const employee = employeeAmounts(request, qualifyingEarningsPence, rule);
+  const employee = employeeAmounts(
+    request,
+    qualifyingEarningsPence,
+    qualifyingEarningsByPeriodPence,
+    rule,
+  );
   const employerContributionPence = employerContribution(
     request,
     qualifyingEarningsPence,
@@ -418,8 +496,10 @@ export function calculateWorkplacePension(
   return {
     available: true,
     employeeGrossContributionPence: employee.gross,
+    employeeGrossContributionByPeriodPence: employee.grossByPeriod,
     employeeCashDeductionPence: employee.cashDeduction,
     salarySacrificePence: employee.salarySacrifice,
+    salarySacrificeByPeriodPence: employee.salarySacrificeByPeriod,
     employerContributionPence,
     providerTaxReliefPence: employee.providerRelief,
     bases: {

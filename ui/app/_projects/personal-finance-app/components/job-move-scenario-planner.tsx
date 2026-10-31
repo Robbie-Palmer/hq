@@ -76,6 +76,8 @@ type Draft = {
     | "grossPay"
     | "qualifyingEarnings"
     | "pensionablePay";
+  annualEmployerNationalInsuranceSaving?: number;
+  annualEmployerNationalInsuranceSavingContribution?: number;
   annualPensionablePay?: number;
   variablePayPensionTreatment: "" | "singlePayment" | "spreadEvenly";
   annualTakeHomeOverride?: number;
@@ -153,6 +155,10 @@ function scenarioDraft(
     employeePensionBasis: scenario.employeePensionBasis ?? "",
     employerPensionRate: scenario.employerPensionRate,
     employerPensionBasis: scenario.employerPensionBasis ?? "",
+    annualEmployerNationalInsuranceSaving:
+      scenario.annualEmployerNationalInsuranceSaving,
+    annualEmployerNationalInsuranceSavingContribution:
+      scenario.annualEmployerNationalInsuranceSavingContribution,
     annualPensionablePay: scenario.annualPensionablePay,
     variablePayPensionTreatment: scenario.variablePayPensionTreatment ?? "",
     annualTakeHomeOverride: scenario.annualTakeHomeOverride,
@@ -213,6 +219,10 @@ function inputFromDraft(draft: Draft): JobMoveScenarioInput {
     employeePensionBasis: draft.employeePensionBasis || undefined,
     employerPensionRate: draft.employerPensionRate,
     employerPensionBasis: draft.employerPensionBasis || undefined,
+    annualEmployerNationalInsuranceSaving:
+      draft.annualEmployerNationalInsuranceSaving,
+    annualEmployerNationalInsuranceSavingContribution:
+      draft.annualEmployerNationalInsuranceSavingContribution,
     annualPensionablePay: draft.annualPensionablePay,
     variablePayPensionTreatment: draft.variablePayPensionTreatment || undefined,
     annualTakeHomeOverride: draft.annualTakeHomeOverride,
@@ -232,6 +242,8 @@ function inputFromDraft(draft: Draft): JobMoveScenarioInput {
       variableGrossPay: 0,
       employeePensionRate: 0,
       employerPensionRate: 0,
+      annualEmployerNationalInsuranceSaving: undefined,
+      annualEmployerNationalInsuranceSavingContribution: undefined,
       annualTakeHomeOverride: undefined,
       destinationAccountId: undefined,
       pensionAccountId: undefined,
@@ -905,6 +917,45 @@ function EmployerPensionFields({
         value={draft.employerPensionBasis}
         onChange={(value) => update("employerPensionBasis", value)}
       />
+      <Field id="job-employer-ni-saving" label="Annual employer NI saving">
+        <Input
+          id="job-employer-ni-saving"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Enter the employer's estimate"
+          value={draft.annualEmployerNationalInsuranceSaving ?? ""}
+          onChange={(event) =>
+            update(
+              "annualEmployerNationalInsuranceSaving",
+              event.target.value === ""
+                ? undefined
+                : Number(event.target.value),
+            )
+          }
+        />
+      </Field>
+      <Field
+        id="job-employer-ni-pension"
+        label="Employer NI saving added to pension"
+      >
+        <Input
+          id="job-employer-ni-pension"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="Separate from the employer pension rate"
+          value={draft.annualEmployerNationalInsuranceSavingContribution ?? ""}
+          onChange={(event) =>
+            update(
+              "annualEmployerNationalInsuranceSavingContribution",
+              event.target.value === ""
+                ? undefined
+                : Number(event.target.value),
+            )
+          }
+        />
+      </Field>
       <PensionSchemePayFields draft={draft} update={update} />
       <Field id="job-take-home-override" label="Annual take-home override">
         <Input
@@ -1188,6 +1239,79 @@ function payFrequencyLabel(frequency: SalaryPayFrequency) {
   return frequency[0]?.toUpperCase() + frequency.slice(1);
 }
 
+const pensionMethodLabel = {
+  salarySacrifice: "salary sacrifice",
+  netPay: "net pay",
+  reliefAtSource: "relief at source",
+} as const;
+
+const pensionBasisLabel = {
+  grossPay: "full gross pay",
+  qualifyingEarnings: "qualifying earnings",
+  pensionablePay: "pensionable pay",
+} as const;
+
+function prospectiveRoleRows(
+  scenario: JobMoveScenario,
+): Array<[string, string]> {
+  if (scenario.employmentStatus !== "employed") return [];
+  const employeeBasis =
+    scenario.employeePensionBasis == null
+      ? "an unrecorded basis"
+      : pensionBasisLabel[scenario.employeePensionBasis];
+  const employerBasis =
+    scenario.employerPensionBasis == null
+      ? "an unrecorded basis"
+      : pensionBasisLabel[scenario.employerPensionBasis];
+  const rows: Array<[string, string]> = [
+    ["Prospective employer", scenario.employer ?? "Not entered"],
+    ["New role starts", scenario.roleStartDate ?? "Not entered"],
+    [
+      "Annual base gross",
+      formatCurrency(scenario.baseGrossPay, scenario.currency),
+    ],
+    [
+      "Expected annual variable gross",
+      formatCurrency(scenario.variableGrossPay, scenario.currency),
+    ],
+    ["Pay frequency", payFrequencyLabel(scenario.payFrequency)],
+    ["Tax jurisdiction", scenario.jurisdiction],
+    [
+      "Employee pension",
+      `${(scenario.employeePensionRate * 100).toFixed(1)}% of ${employeeBasis} by ${pensionMethodLabel[scenario.employeePensionMethod]}`,
+    ],
+    [
+      "Employer pension",
+      `${(scenario.employerPensionRate * 100).toFixed(1)}% of ${employerBasis}`,
+    ],
+  ];
+  if ((scenario.annualEmployerNationalInsuranceSaving ?? 0) > 0) {
+    rows.push(
+      [
+        "Annual employer NI saving",
+        formatCurrency(
+          scenario.annualEmployerNationalInsuranceSaving ?? 0,
+          scenario.currency,
+        ),
+      ],
+      [
+        "Employer NI saving added to pension",
+        formatCurrency(
+          scenario.annualEmployerNationalInsuranceSavingContribution ?? 0,
+          scenario.currency,
+        ),
+      ],
+    );
+  }
+  if (scenario.annualTakeHomeOverride != null) {
+    rows.push([
+      "Annual take-home fallback",
+      formatCurrency(scenario.annualTakeHomeOverride, scenario.currency),
+    ]);
+  }
+  return rows;
+}
+
 function assumptionRows(
   scenario: JobMoveScenario,
   flowNames: ReadonlyMap<string, string>,
@@ -1241,36 +1365,7 @@ function assumptionRows(
       formatCurrency(scenario.annualSpendingOverride, scenario.currency),
     ]);
   }
-  if (scenario.employmentStatus === "employed") {
-    rows.push(
-      ["Prospective employer", scenario.employer ?? "Not entered"],
-      ["New role starts", scenario.roleStartDate ?? "Not entered"],
-      [
-        "Annual base gross",
-        formatCurrency(scenario.baseGrossPay, scenario.currency),
-      ],
-      [
-        "Expected annual variable gross",
-        formatCurrency(scenario.variableGrossPay, scenario.currency),
-      ],
-      ["Pay frequency", payFrequencyLabel(scenario.payFrequency)],
-      ["Tax jurisdiction", scenario.jurisdiction],
-      [
-        "Employee pension",
-        `${(scenario.employeePensionRate * 100).toFixed(1)}% by ${scenario.employeePensionMethod === "salarySacrifice" ? "salary sacrifice" : "net pay"}`,
-      ],
-      [
-        "Employer pension",
-        `${(scenario.employerPensionRate * 100).toFixed(1)}%`,
-      ],
-    );
-    if (scenario.annualTakeHomeOverride != null) {
-      rows.push([
-        "Annual take-home fallback",
-        formatCurrency(scenario.annualTakeHomeOverride, scenario.currency),
-      ]);
-    }
-  }
+  rows.push(...prospectiveRoleRows(scenario));
   return rows;
 }
 
@@ -1338,6 +1433,39 @@ function comparisonCardRows(
             comparison.compensation.currency,
           ),
       formatCurrency(pensionTotal, comparison.compensation.currency),
+    ],
+    [
+      "Provider pension tax relief",
+      "Not separated",
+      formatCurrency(
+        comparison.compensation.scenarioAnnualProviderPensionTaxRelief,
+        comparison.compensation.currency,
+      ),
+    ],
+    [
+      "Further pension tax relief",
+      "Not separated",
+      formatCurrency(
+        comparison.compensation.scenarioAnnualFurtherPensionTaxRelief,
+        comparison.compensation.currency,
+      ),
+    ],
+    [
+      "Employer NI saving",
+      "Not separated",
+      formatCurrency(
+        comparison.compensation.scenarioAnnualEmployerNationalInsuranceSaving,
+        comparison.compensation.currency,
+      ),
+    ],
+    [
+      "Employer NI saving added to pension",
+      "Not separated",
+      formatCurrency(
+        comparison.compensation
+          .scenarioAnnualEmployerNationalInsuranceSavingContribution,
+        comparison.compensation.currency,
+      ),
     ],
     [
       "Cash at horizon",
