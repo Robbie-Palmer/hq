@@ -7,6 +7,11 @@ const productionBranch = "main";
 
 type Fetcher = typeof fetch;
 type Wait = (milliseconds: number) => Promise<void>;
+type CloudflareRequest = <T>(
+	path: string,
+	operation: string,
+	init?: RequestInit,
+) => Promise<T>;
 
 type Probe = {
 	path: string;
@@ -91,7 +96,8 @@ async function readEnvelope<T>(response: Response, operation: string): Promise<T
 		const detail = body.errors
 			?.map((error) => error.message ?? String(error.code ?? "unknown"))
 			.join("; ");
-		throw new Error(`${operation} failed${detail ? `: ${detail}` : ""}`);
+		const detailSuffix = detail ? `: ${detail}` : "";
+		throw new Error(`${operation} failed${detailSuffix}`);
 	}
 	return body.result;
 }
@@ -138,18 +144,18 @@ async function runProbeWithRetries(
 	probe: Probe,
 	attempts: number,
 	pause: Wait,
+	attempt = 1,
 ): Promise<void> {
-	let lastFailure = "no response";
-	for (let attempt = 1; attempt <= attempts; attempt += 1) {
-		try {
-			await runProbe(fetcher, probe);
-			return;
-		} catch (error) {
-			lastFailure = error instanceof Error ? error.message : String(error);
-			if (attempt < attempts) await pause(attempt * 500);
+	try {
+		await runProbe(fetcher, probe);
+	} catch (error) {
+		const failure = error instanceof Error ? error.message : String(error);
+		if (attempt >= attempts) {
+			throw new Error(`production probe ${probe.path} failed: ${failure}`);
 		}
+		await pause(attempt * 500);
+		await runProbeWithRetries(fetcher, probe, attempts, pause, attempt + 1);
 	}
-	throw new Error(`production probe ${probe.path} failed: ${lastFailure}`);
 }
 
 export async function smokeProductionSite(
@@ -157,9 +163,28 @@ export async function smokeProductionSite(
 	attempts = 5,
 	pause: Wait = wait,
 ): Promise<void> {
-	for (const probe of probes) {
-		await runProbeWithRetries(fetcher, probe, attempts, pause);
+	await Promise.all(
+		probes.map((probe) => runProbeWithRetries(fetcher, probe, attempts, pause)),
+	);
+}
+
+async function confirmRollback(
+	request: CloudflareRequest,
+	projectPath: string,
+	targetRevision: string,
+	pause: Wait,
+	attempt = 1,
+): Promise<boolean> {
+	const updated = await request<PagesProject>(
+		projectPath,
+		"confirm Pages rollback",
+	);
+	if (deploymentRevision(updated.canonical_deployment ?? undefined) === targetRevision) {
+		return true;
 	}
+	if (attempt >= 5) return false;
+	await pause(attempt * 1_000);
+	return confirmRollback(request, projectPath, targetRevision, pause, attempt + 1);
 }
 
 export async function rollbackProduction(
@@ -170,7 +195,11 @@ export async function rollbackProduction(
 	validateRollbackInput(input);
 
 	const projectPath = `/accounts/${encodeURIComponent(input.accountId)}/pages/projects/${pagesProject}`;
-	const request = async <T>(path: string, operation: string, init?: RequestInit) =>
+	const request: CloudflareRequest = async <T>(
+		path: string,
+		operation: string,
+		init?: RequestInit,
+	) =>
 		readEnvelope<T>(
 			await fetcher(`${cloudflareApiOrigin}${path}`, {
 				...init,
@@ -221,15 +250,12 @@ export async function rollbackProduction(
 		{ method: "POST", body: "{}" },
 	);
 
-	let confirmed = false;
-	for (let attempt = 1; attempt <= 5; attempt += 1) {
-		const updated = await request<PagesProject>(projectPath, "confirm Pages rollback");
-		if (deploymentRevision(updated.canonical_deployment ?? undefined) === input.targetRevision) {
-			confirmed = true;
-			break;
-		}
-		if (attempt < 5) await pause(attempt * 1_000);
-	}
+	const confirmed = await confirmRollback(
+		request,
+		projectPath,
+		input.targetRevision,
+		pause,
+	);
 	if (!confirmed) {
 		throw new Error("Pages accepted the rollback but did not activate the target revision");
 	}
