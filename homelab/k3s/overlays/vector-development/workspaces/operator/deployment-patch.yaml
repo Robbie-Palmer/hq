@@ -136,6 +136,9 @@ spec:
             seccompProfile:
               type: Unconfined
           volumeMounts:
+            - name: agent-coordinator-vulnerability-controller
+              mountPath: /etc/agent-coordinator
+              readOnly: true
             - name: vector-doppler-wrapper
               mountPath: /opt/vector/bin
               readOnly: true
@@ -211,6 +214,10 @@ spec:
             - name: docker-data
               mountPath: /home/rootless/.local/share/docker
       volumes:
+        - name: agent-coordinator-vulnerability-controller
+          configMap:
+            name: agent-coordinator-vulnerability-controller
+            defaultMode: 292
         - name: vector-doppler-wrapper
           configMap:
             name: vector-doppler-wrapper

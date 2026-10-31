@@ -49,6 +49,20 @@ the policy and accepted head commit. A Work Graph error throws
 `UnattendedMergeBlockedError`, so callers cannot treat a thread-only decision as
 merge authority.
 
+## Vulnerability admission
+
+`VulnerabilityControllerPolicySchema` validates the Vector controller's
+checked-in webhook policy. `decideVulnerabilityAdmission` accepts only a narrow
+routing record plus a fresh Dependabot alert fetched from GitHub. Webhook
+signature, replay, age, and request filtering stay in T3 Code.
+
+The controller authorization module verifies the checked-in Cedar bundle
+digest, validates every policy against its schema, and denies requests that
+produce Cedar diagnostics. Its actions name concrete GitHub, T3, Work Graph,
+and deployment operations. Provider credentials and provider-side rules remain
+separate enforcement layers, so a Cedar permit alone never guarantees that an
+operation can run.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a
