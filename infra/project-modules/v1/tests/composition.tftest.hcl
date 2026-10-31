@@ -300,7 +300,7 @@ run "configuration_cannot_enable_an_unselected_capability" {
     }
   }
 
-  expect_failures = [terraform_data.profile_guard]
+  expect_failures = [output.selected_capabilities]
 }
 
 run "selected_capability_requires_configuration" {
@@ -319,7 +319,7 @@ run "selected_capability_requires_configuration" {
     }
   }
 
-  expect_failures = [terraform_data.profile_guard]
+  expect_failures = [output.selected_capabilities]
 }
 
 run "preview_database_requires_a_distinct_project" {
@@ -348,7 +348,33 @@ run "preview_database_requires_a_distinct_project" {
     }
   }
 
-  expect_failures = [terraform_data.profile_guard]
+  expect_failures = [output.selected_capabilities]
+}
+
+run "worker_route_requires_zone_and_hostname_together" {
+  command = plan
+
+  variables {
+    resolved_profile = {
+      schema_version = 2
+      project = {
+        id   = "invalid-worker-route"
+        name = "Invalid worker route"
+      }
+      selections = [
+        { slot = "backend-api.runtime", value = "cloudflare-workers" },
+      ]
+    }
+    cloudflare_worker = {
+      account_id         = "dcd7cd68dd892d610267ded6b1af567b"
+      name               = "invalid-worker-route"
+      content            = "export default { fetch() { return new Response('ok'); } };"
+      compatibility_date = "2026-10-24"
+      hostname           = "worker.example.com"
+    }
+  }
+
+  expect_failures = [output.selected_capabilities]
 }
 
 run "alternative_preview_access_provider_is_not_selected" {

@@ -47,41 +47,36 @@ locals {
     for capability, selected in local.selected : capability
     if capability != "neon_preview" && selected != local.supplied[capability]
   ]
+
+  neon_preview_valid = !local.selected.neon_preview || try(
+    local.selected.neon &&
+    var.neon.preview_project_name != null &&
+    var.neon.preview_project_name != var.neon.project_name,
+    false,
+  )
+  worker_route_valid = try(
+    var.cloudflare_worker == null ||
+    (var.cloudflare_worker.zone_id == null) == (var.cloudflare_worker.hostname == null),
+    true,
+  )
+  profile_valid = (
+    length(local.configuration_mismatches) == 0 &&
+    local.neon_preview_valid &&
+    local.worker_route_valid
+  )
 }
 
-resource "terraform_data" "profile_guard" {
+removed {
+  from = terraform_data.profile_guard
+
   lifecycle {
-    precondition {
-      condition     = length(local.configuration_mismatches) == 0
-      error_message = "Capability configuration must be supplied exactly when selected by the resolved profile. Mismatches: ${join(", ", local.configuration_mismatches)}."
-    }
-
-    precondition {
-      condition = !local.selected.neon_preview || try(
-        local.selected.neon &&
-        var.neon.preview_project_name != null &&
-        var.neon.preview_project_name != var.neon.project_name,
-        false,
-      )
-      error_message = "database.preview-isolation requires a separate Neon preview project."
-    }
-
-    precondition {
-      condition = try(
-        var.cloudflare_worker == null ||
-        (var.cloudflare_worker.zone_id == null) == (var.cloudflare_worker.hostname == null),
-        true,
-      )
-      error_message = "cloudflare_worker zone_id and hostname must be supplied together."
-    }
+    destroy = false
   }
 }
 
 module "terraform_state" {
-  for_each = var.deletion_protection && local.selected.terraform_state && local.supplied.terraform_state ? { selected = var.terraform_state } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.terraform_state && local.supplied.terraform_state ? { selected = var.terraform_state } : {}
   source   = "./modules/terraform-state"
-
-  depends_on = [terraform_data.profile_guard]
 
   organization      = each.value.organization
   project_name      = each.value.project_name
@@ -91,10 +86,8 @@ module "terraform_state" {
 }
 
 module "delivery" {
-  for_each = var.deletion_protection && local.selected.delivery && local.supplied.delivery ? { selected = var.delivery } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.delivery && local.supplied.delivery ? { selected = var.delivery } : {}
   source   = "./modules/delivery"
-
-  depends_on = [terraform_data.profile_guard]
 
   project_id                  = var.resolved_profile.project.id
   doppler_project_name        = each.value.doppler_project_name
@@ -104,10 +97,8 @@ module "delivery" {
 }
 
 module "cloudflare_pages" {
-  for_each = var.deletion_protection && local.selected.cloudflare_pages && local.supplied.cloudflare_pages ? { selected = var.cloudflare_pages } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.cloudflare_pages && local.supplied.cloudflare_pages ? { selected = var.cloudflare_pages } : {}
   source   = "./modules/cloudflare-pages"
-
-  depends_on = [terraform_data.profile_guard]
 
   account_id           = each.value.account_id
   name                 = each.value.name
@@ -124,10 +115,8 @@ module "cloudflare_pages" {
 }
 
 module "cloudflare_worker" {
-  for_each = var.deletion_protection && local.selected.cloudflare_worker && local.supplied.cloudflare_worker ? { selected = var.cloudflare_worker } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.cloudflare_worker && local.supplied.cloudflare_worker ? { selected = var.cloudflare_worker } : {}
   source   = "./modules/cloudflare-worker"
-
-  depends_on = [terraform_data.profile_guard]
 
   account_id         = each.value.account_id
   name               = each.value.name
@@ -138,10 +127,10 @@ module "cloudflare_worker" {
 }
 
 module "cloudflare_access" {
-  for_each = var.deletion_protection && local.selected.cloudflare_access && local.supplied.cloudflare_access ? { selected = var.cloudflare_access } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.cloudflare_access && local.supplied.cloudflare_access ? { selected = var.cloudflare_access } : {}
   source   = "./modules/cloudflare-access"
 
-  depends_on = [terraform_data.profile_guard, module.cloudflare_pages]
+  depends_on = [module.cloudflare_pages]
 
   account_id       = each.value.account_id
   name             = each.value.name
@@ -151,30 +140,24 @@ module "cloudflare_access" {
 }
 
 module "cloudflare_r2" {
-  for_each = var.deletion_protection && local.selected.cloudflare_r2 && local.supplied.cloudflare_r2 ? { selected = var.cloudflare_r2 } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.cloudflare_r2 && local.supplied.cloudflare_r2 ? { selected = var.cloudflare_r2 } : {}
   source   = "./modules/cloudflare-r2"
-
-  depends_on = [terraform_data.profile_guard]
 
   account_id = each.value.account_id
   buckets    = each.value.buckets
 }
 
 module "cloudflare_dns" {
-  for_each = var.deletion_protection && local.selected.cloudflare_dns && local.supplied.cloudflare_dns ? { selected = var.cloudflare_dns } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.cloudflare_dns && local.supplied.cloudflare_dns ? { selected = var.cloudflare_dns } : {}
   source   = "./modules/cloudflare-dns"
-
-  depends_on = [terraform_data.profile_guard]
 
   zone_id = each.value.zone_id
   records = each.value.records
 }
 
 module "neon" {
-  for_each = var.deletion_protection && local.selected.neon && local.supplied.neon ? { selected = var.neon } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.neon && local.supplied.neon ? { selected = var.neon } : {}
   source   = "./modules/neon"
-
-  depends_on = [terraform_data.profile_guard]
 
   org_id                    = each.value.org_id
   project_name              = each.value.project_name
@@ -188,10 +171,8 @@ module "neon" {
 }
 
 module "telemetry" {
-  for_each = var.deletion_protection && local.selected.telemetry && local.supplied.telemetry ? { selected = var.telemetry } : {}
+  for_each = local.profile_valid && var.deletion_protection && local.selected.telemetry && local.supplied.telemetry ? { selected = var.telemetry } : {}
   source   = "./modules/telemetry"
-
-  depends_on = [terraform_data.profile_guard]
 
   project_id            = var.resolved_profile.project.id
   dashboard_name        = each.value.dashboard_name
@@ -200,10 +181,8 @@ module "telemetry" {
 }
 
 module "disposable" {
-  count  = var.deletion_protection ? 0 : 1
+  count  = var.deletion_protection || !local.profile_valid ? 0 : 1
   source = "./modules/disposable"
-
-  depends_on = [terraform_data.profile_guard]
 
   project_id           = var.resolved_profile.project.id
   terraform_state      = local.selected.terraform_state ? var.terraform_state : null

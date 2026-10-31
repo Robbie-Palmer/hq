@@ -12,6 +12,21 @@ output "selected_capabilities" {
     local.selected.neon_preview ? ["database.preview-isolation"] : [],
     local.selected.telemetry ? ["observability.application-telemetry"] : [],
   ))
+
+  precondition {
+    condition     = length(local.configuration_mismatches) == 0
+    error_message = "Capability configuration must be supplied exactly when selected by the resolved profile. Mismatches: ${join(", ", local.configuration_mismatches)}."
+  }
+
+  precondition {
+    condition     = local.neon_preview_valid
+    error_message = "database.preview-isolation requires a separate Neon preview project."
+  }
+
+  precondition {
+    condition     = local.worker_route_valid
+    error_message = "cloudflare_worker zone_id and hostname must be supplied together."
+  }
 }
 
 output "state_scope" {
