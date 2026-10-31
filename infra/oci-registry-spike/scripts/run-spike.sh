@@ -64,8 +64,13 @@ run_case() {
   local requirement="$2"
   local function_name="$3"
   local log="$logs_dir/${implementation}-${requirement}.log"
+  local exit_code=0
   echo "[$implementation] $requirement"
-  if (set -e; "$function_name" "$implementation") >"$log" 2>&1; then
+  set +e
+  (set -e; "$function_name" "$implementation") >"$log" 2>&1
+  exit_code=$?
+  set -e
+  if [[ "$exit_code" -eq 0 ]]; then
     record "$implementation" "$requirement" pass "logs/${implementation}-${requirement}.log"
     return 0
   fi
@@ -131,7 +136,7 @@ test_conformance() {
     --env OCI_VERSION=1.1 \
     --env OCI_RESULTS_DIR=/results \
     "oci-registry-spike-conformance:$CONFORMANCE_COMMIT")"
-  docker start --attach "$container_id"
+  docker start --attach "$container_id" || true
   exit_code="$(docker inspect "$container_id" --format '{{.State.ExitCode}}')"
   docker cp "$container_id:/results/." "$output_dir"
   docker rm "$container_id" >/dev/null
