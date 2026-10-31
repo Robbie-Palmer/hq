@@ -8,7 +8,7 @@ macos_required_commands:
 colima_k3s_profile: homelab-k3s
 colima_k3s_launchd_label: homelab.colima-k3s
 colima_k3s_required_colima_version: "0.10.3"
-colima_k3s_required_lima_version: "2.2.0"
+colima_k3s_required_lima_version: "2.2.1"
 colima_k3s_cpu: 2
 colima_k3s_memory_gib: 4
 colima_k3s_disk_gib: 60
