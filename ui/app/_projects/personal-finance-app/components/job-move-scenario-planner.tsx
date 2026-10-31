@@ -917,6 +917,19 @@ function EmployerPensionFields({
         value={draft.employerPensionBasis}
         onChange={(value) => update("employerPensionBasis", value)}
       />
+      <EmployerNationalInsuranceFields draft={draft} update={update} />
+      <PensionSchemePayFields draft={draft} update={update} />
+      <TakeHomeOverrideField draft={draft} update={update} />
+    </>
+  );
+}
+
+function EmployerNationalInsuranceFields({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <>
       <Field id="job-employer-ni-saving" label="Annual employer NI saving">
         <Input
           id="job-employer-ni-saving"
@@ -956,26 +969,31 @@ function EmployerPensionFields({
           }
         />
       </Field>
-      <PensionSchemePayFields draft={draft} update={update} />
-      <Field id="job-take-home-override" label="Annual take-home override">
-        <Input
-          id="job-take-home-override"
-          type="number"
-          min="0"
-          step="0.01"
-          placeholder="Only needed when tax rules are unavailable"
-          value={draft.annualTakeHomeOverride ?? ""}
-          onChange={(event) =>
-            update(
-              "annualTakeHomeOverride",
-              event.target.value === ""
-                ? undefined
-                : Number(event.target.value),
-            )
-          }
-        />
-      </Field>
     </>
+  );
+}
+
+function TakeHomeOverrideField({
+  draft,
+  update,
+}: Readonly<{ draft: Draft; update: DraftUpdate }>) {
+  return (
+    <Field id="job-take-home-override" label="Annual take-home override">
+      <Input
+        id="job-take-home-override"
+        type="number"
+        min="0"
+        step="0.01"
+        placeholder="Only needed when tax rules are unavailable"
+        value={draft.annualTakeHomeOverride ?? ""}
+        onChange={(event) =>
+          update(
+            "annualTakeHomeOverride",
+            event.target.value === "" ? undefined : Number(event.target.value),
+          )
+        }
+      />
+    </Field>
   );
 }
 
