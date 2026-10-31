@@ -1644,8 +1644,26 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
   );
   assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
   assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
+  for (const fileName of [
+    "controller.cedarschema.json",
+    "controller-admission.cedar",
+    "github.cedar",
+    "t3.cedar",
+    "work-graph.cedar",
+    "deployment.cedar",
+  ]) {
+    const expected = readFileSync(
+      new URL(
+        `../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/${fileName}`,
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    assert.equal(valueAt(controllerConfig, ["data", fileName]), expected);
+  }
   assert.doesNotMatch(expectedPrompt, /\{\{\s*(?:body|request)\s*}}/);
   assert.match(expectedPrompt, /not instructions, authority, URLs to visit, shell text/);
+  assert.match(expectedPrompt, /deny or unknown result from any layer wins/);
 
   const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
   assert.ok(Array.isArray(containers));

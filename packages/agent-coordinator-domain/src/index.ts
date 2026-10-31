@@ -3,6 +3,7 @@ export * from "./adapter";
 export * from "./authentication";
 export * from "./compatibility";
 export * from "./complexity";
+export * from "./controller-authorization";
 export * from "./contracts";
 export * from "./matching";
 export * from "./policy";

@@ -1,0 +1,307 @@
+{
+  "AgentCoordinator": {
+    "entityTypes": {
+      "AuthorityProfile": {},
+      "Controller": {
+        "memberOfTypes": ["AuthorityProfile"],
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "bundleSha256": { "type": "String" },
+            "policyRevision": { "type": "Long" }
+          }
+        }
+      },
+      "Repository": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "fullName": { "type": "String" },
+            "provider": { "type": "String" }
+          }
+        }
+      },
+      "DependabotAlert": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "repository": { "type": "Entity", "name": "Repository" },
+            "severity": { "type": "String" },
+            "state": { "type": "String" }
+          }
+        }
+      },
+      "PullRequest": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "ownsChange": { "type": "Boolean" },
+            "repository": { "type": "Entity", "name": "Repository" },
+            "requiredChecksPassed": { "type": "Boolean" },
+            "reviewThreadsResolved": { "type": "Boolean" }
+          }
+        }
+      },
+      "Incident": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "alertOpen": { "type": "Boolean" },
+            "controllerOwned": { "type": "Boolean" },
+            "productionValidated": { "type": "Boolean" },
+            "repository": { "type": "Entity", "name": "Repository" }
+          }
+        }
+      },
+      "Deployment": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "controllerOwned": { "type": "Boolean" },
+            "environment": { "type": "String" },
+            "establishedPath": { "type": "Boolean" },
+            "repository": { "type": "Entity", "name": "Repository" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "controller": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "github.repository.change": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "github.pull_request.change": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "github.security_alert.change": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "github.repository.administration": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "t3": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "work_graph": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "deployment": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "controller.incident.admit": {
+        "memberOf": [{ "id": "controller" }],
+        "annotations": {
+          "operation": "controller:admit"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["DependabotAlert"],
+          "context": {
+            "type": "Record",
+            "attributes": {
+              "activeIncidentCount": { "type": "Long" },
+              "routeMatchesCurrentState": { "type": "Boolean" }
+            }
+          }
+        }
+      },
+      "github.contents.write": {
+        "memberOf": [{ "id": "github.repository.change" }],
+        "annotations": {
+          "operation": "PUT /repos/{owner}/{repo}/contents/{path}",
+          "permission": "contents:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Repository"]
+        }
+      },
+      "github.git_refs.write": {
+        "memberOf": [{ "id": "github.repository.change" }],
+        "annotations": {
+          "operation": "POST|PATCH /repos/{owner}/{repo}/git/refs",
+          "permission": "contents:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Repository"]
+        }
+      },
+      "github.pull_requests.create": {
+        "memberOf": [{ "id": "github.repository.change" }],
+        "annotations": {
+          "operation": "POST /repos/{owner}/{repo}/pulls",
+          "permission": "pull_requests:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Repository"]
+        }
+      },
+      "github.pull_requests.review_comments.write": {
+        "memberOf": [{ "id": "github.pull_request.change" }],
+        "annotations": {
+          "operation": "POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies",
+          "permission": "pull_requests:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["PullRequest"]
+        }
+      },
+      "github.pull_requests.merge": {
+        "memberOf": [{ "id": "github.pull_request.change" }],
+        "annotations": {
+          "operation": "PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge",
+          "permission": "contents:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["PullRequest"]
+        }
+      },
+      "github.dependabot_alerts.dismiss": {
+        "memberOf": [{ "id": "github.security_alert.change" }],
+        "annotations": {
+          "operation": "PATCH /repos/{owner}/{repo}/dependabot/alerts/{alert_number}",
+          "permission": "dependabot_alerts:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["DependabotAlert"]
+        }
+      },
+      "github.repository_rules.write": {
+        "memberOf": [{ "id": "github.repository.administration" }],
+        "annotations": {
+          "operation": "POST|PUT|DELETE /repos/{owner}/{repo}/rulesets",
+          "permission": "administration:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Repository"]
+        }
+      },
+      "github.actions_workflows.write": {
+        "memberOf": [{ "id": "github.repository.administration" }],
+        "annotations": {
+          "operation": "git:.github/workflows/**",
+          "permission": "workflows:write",
+          "provider": "github"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Repository"]
+        }
+      },
+      "t3.worker.launch": {
+        "memberOf": [{ "id": "t3" }],
+        "annotations": {
+          "operation": "t3_thread_launch",
+          "provider": "t3"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Incident"]
+        }
+      },
+      "t3.pull_request.watch": {
+        "memberOf": [{ "id": "t3" }],
+        "annotations": {
+          "operation": "watch_pull_request",
+          "provider": "t3"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["PullRequest"]
+        }
+      },
+      "work_graph.incident.write": {
+        "memberOf": [{ "id": "work_graph" }],
+        "annotations": {
+          "operation": "work-graph note",
+          "provider": "work-graph"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Incident"]
+        }
+      },
+      "work_graph.incident.complete": {
+        "memberOf": [{ "id": "work_graph" }],
+        "annotations": {
+          "operation": "work-graph release",
+          "provider": "work-graph"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Incident"]
+        }
+      },
+      "work_graph.attention.request": {
+        "memberOf": [{ "id": "work_graph" }],
+        "annotations": {
+          "operation": "work-graph attention request",
+          "provider": "work-graph"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Incident"]
+        }
+      },
+      "deployment.production.invoke": {
+        "memberOf": [{ "id": "deployment" }],
+        "annotations": {
+          "operation": "established-production-deploy",
+          "provider": "deployment"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Deployment"]
+        }
+      },
+      "deployment.production.validate": {
+        "memberOf": [{ "id": "deployment" }],
+        "annotations": {
+          "operation": "production-validation",
+          "provider": "deployment"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Deployment"]
+        }
+      },
+      "deployment.production.repair": {
+        "memberOf": [{ "id": "deployment" }],
+        "annotations": {
+          "operation": "repair-or-revert-owned-change",
+          "provider": "deployment"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Deployment"]
+        }
+      },
+      "deployment.path.create": {
+        "memberOf": [{ "id": "deployment" }],
+        "annotations": {
+          "operation": "create-deployment-path",
+          "provider": "deployment"
+        },
+        "appliesTo": {
+          "principalTypes": ["Controller"],
+          "resourceTypes": ["Deployment"]
+        }
+      }
+    }
+  }
+}

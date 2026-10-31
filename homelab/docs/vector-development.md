@@ -160,11 +160,14 @@ Brave runs directly on the host. GNOME applications send print jobs to the
 
 ## Severe vulnerability controller
 
-The Vector overlay mounts the versioned controller policy and prompt at
-`/etc/agent-coordinator`. T3 Code remains a private NodePort reached through the
-tailnet. Do not add a public Kubernetes Ingress, Gateway, LoadBalancer, or a
-second Cloudflare Tunnel. T3 Connect supplies the public webhook URL and holds
-requests while Vector is offline.
+The Vector overlay mounts the versioned controller policy, Cedar schema,
+subsystem policy modules, and prompt at `/etc/agent-coordinator`. The JSON
+manifest pins the exact Cedar bundle digest. The controller must stop if the
+digest, schema validation, request validation, or policy evaluation fails.
+T3 Code remains a private NodePort reached through the tailnet. Do not add a
+public Kubernetes Ingress, Gateway, LoadBalancer, or a second Cloudflare
+Tunnel. T3 Connect supplies the public webhook URL and holds requests while
+Vector is offline.
 
 Create one persistent controller thread in the `hq` project and bind one
 enabled webhook task to it. Copy the task schedule from
@@ -173,6 +176,12 @@ the same secret as the task's HMAC-SHA256 signature. Subscribe only to
 `dependabot_alert`. The task must retain its repository, action, severity, and
 alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
 limit.
+
+The controller uses one Cedar decision point with separate policy modules for
+GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete
+provider actions against current resource facts. A Cedar permit, the relevant
+credential or runtime capability, and the provider's own controls must all
+allow an operation. Any denial or unknown result stops it.
 
 Run the admission test before enabling unattended incident work. Send a signed
 candidate with a unique delivery ID, then repeat that request with the same ID.

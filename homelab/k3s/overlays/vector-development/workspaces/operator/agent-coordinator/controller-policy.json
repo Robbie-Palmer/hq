@@ -1,30 +1,29 @@
 {
   "schemaVersion": 1,
   "policyId": "agent-coordinator:severe-vulnerability-controller",
-  "revision": 1,
+  "revision": 2,
+  "authorization": {
+    "engine": "cedar",
+    "principal": {
+      "type": "AgentCoordinator::Controller",
+      "id": "controller:severe-vulnerability"
+    },
+    "bundle": {
+      "schemaFile": "controller.cedarschema.json",
+      "policyFiles": [
+        "controller-admission.cedar",
+        "github.cedar",
+        "t3.cedar",
+        "work-graph.cedar",
+        "deployment.cedar"
+      ],
+      "sha256": "99090e5740c399fd540d83c249b39c793b1b0f3ddce012a859878543e852e29c"
+    }
+  },
   "repositories": [
     {
       "repository": "Robbie-Palmer/hq",
-      "authorityProfile": {
-        "profileId": "authority:personal-project-unattended",
-        "allowedActions": [
-          "modify-repository",
-          "push-branch",
-          "open-or-replace-pull-request",
-          "respond-to-review",
-          "merge-after-required-checks",
-          "invoke-established-deployment",
-          "validate-production",
-          "repair-or-revert-own-change"
-        ],
-        "deniedActions": [
-          "weaken-branch-protection",
-          "weaken-required-checks",
-          "dismiss-dependabot-alert",
-          "use-unestablished-deployment-path",
-          "claim-success-before-production-validation"
-        ]
-      }
+      "authorityProfileId": "authority:personal-project-unattended"
     }
   ],
   "admittedActions": [
