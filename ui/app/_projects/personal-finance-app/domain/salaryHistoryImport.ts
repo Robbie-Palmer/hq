@@ -280,8 +280,8 @@ export async function readSalaryImportFile(
   const bytes = new Uint8Array(await file.arrayBuffer());
   let matrix: unknown[][];
   if (/\.xlsx$/i.test(file.name)) {
-    const { default: readXlsxFile } = await import("read-excel-file");
-    matrix = await readXlsxFile(file);
+    const { readSheet } = await import("read-excel-file/browser");
+    matrix = await readSheet(file);
   } else if (/\.(csv|tsv)$/i.test(file.name)) {
     matrix = parseDelimitedText(new TextDecoder().decode(bytes));
   } else {
