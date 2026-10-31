@@ -1,8 +1,8 @@
 ---
 title: "Home Lab"
-description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, monitors itself, and gives old hardware a useful job"
+description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, and gives each active machine a real job"
 date: "2026-08-02"
-updated: "2026-10-24"
+updated: "2026-10-31"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -83,8 +83,9 @@ The home lab exists to serve four goals, in priority order:
 3. **Privacy.** Network-wide ad and tracker blocking keeps my devices from
    phoning home to trackers, applied to every device on the LAN regardless of
    what it runs.
-4. **Avoiding e-waste.** A 2011 printer, a Pascal-era GPU, and three old phones
-   get useful jobs instead of going in a drawer or to landfill.
+4. **Responsible hardware reuse.** Existing devices get useful jobs when they
+   fit the workload and the room. Hardware that remains idle, noisy, or costly
+   to maintain leaves the active fleet instead of becoming permanent clutter.
 
 The lab is also where I learn networking, DNS, and orchestration across macOS,
 Linux, Android, and iOS. Every experiment still has to solve a real problem.
@@ -117,10 +118,10 @@ the DNS layer covers devices nothing else can be installed on. This adds a
 dependency (the resolver), so it has to be built with redundancy from the
 start.
 
-**Unsupported hardware can still do narrow jobs well.** The Canon MX3100
-printer, GTX 1050, and old phones all work. Their vendors have moved on, but
-open drivers and careful isolation can keep the hardware useful. Buying new
-kit would solve a software problem with more hardware.
+**Old hardware has to earn its place.** The Canon MX3100 printer and old phones
+still have jobs that use their distinctive physical capabilities. Reuse is
+valuable only when the result is more useful than the space, noise, power, and
+maintenance it consumes.
 
 # User stories
 
@@ -140,9 +141,9 @@ kit would solve a software problem with more hardware.
   one DNS box reboots.
 * As someone who owns a 2011 printer, I want to print from my phone remotely
   over CUPS, so I keep using hardware that still works and avoid e-waste.
-* As someone running a NixOS box, I want the whole config declared in git, so
-  an upgrade can never silently break the GPU and every change is reviewable
-  and rollbackable.
+* As someone sharing living space with the lab, I want every active machine to
+  have a real job and an acceptable noise level, so spare hardware does not
+  turn the house into a server room.
 * As the lab owner, I want Netdata to tell Slack when something is
   overheating, down, or hung, so I find out about problems before they matter.
 * As a web developer, I want agents to test changes on real Android 10, newer
@@ -377,9 +378,10 @@ class DNS,Monitor,Print service
 
 ### Development planes and proposed devices
 
-The Mac mini sends jobs to the Asus desktop over the tailnet. The Vector laptop
-adds a graphical development plane with 64 GB of RAM and an RTX 4080, while the
-Hetzner plane provides off-site continuity. The proposed phone lab will run
+The Vector laptop is the local graphical development plane with 64 GB of RAM
+and an RTX 4080. The Hetzner plane provides off-site continuity. A quiet NixOS
+companion for persistent Linux services remains proposed while its capacity
+and the media-storage boundary are measured. The proposed phone lab will run
 browser tests, and the View 20 will check the live hosts over cellular so it
 can report a home power or internet failure.
 
@@ -387,18 +389,16 @@ can report a home power or internet failure.
   chart={`flowchart TB
 Mini["Mac mini<br/>Home hub"]
 Pi["Raspberry Pi<br/>Fallback host"]
-Worker["Asus desktop<br/>NixOS and GTX 1050"]
 Laptop["Vector laptop<br/>NixOS, GNOME, RTX 4080"]
-Cache[("1TB DVC cache")]
+Companion["Quiet NixOS companion<br/>Persistent services"]
 Phones["Phone lab<br/>Android and iOS QA"]
 Watchdog["View 20<br/>Cellular watchdog"]
 Remote["Hetzner VPS<br/>NixOS and independent K3s"]
 Slack["Slack"]
 GitHub["GitHub<br/>Branches and PRs"]
 
-Mini -->|"GPU jobs"| Worker
 Laptop -->|"Local t3-code"| GitHub
-Worker --> Cache
+Mini -.->|"Proposed service migration"| Companion
 Mini -->|"Browser tests"| Phones
 Watchdog -->|"Checks"| Mini
 Watchdog -->|"Checks"| Pi
@@ -410,10 +410,9 @@ classDef live fill:#0f766e,color:#fff,stroke:#115e59
 classDef accepted fill:#dbeafe,color:#1e3a8a,stroke:#2563eb
 classDef proposed fill:#fef3c7,color:#78350f,stroke:#d97706,stroke-dasharray:5 5
 classDef data fill:#4338ca,color:#fff,stroke:#3730a3
-class Mini,Pi,Worker live
+class Mini,Pi live
 class Laptop accepted
-class Phones,Watchdog,Remote proposed
-class Cache data
+class Companion,Phones,Watchdog,Remote proposed
 `}
 />
 
@@ -421,15 +420,17 @@ class Cache data
 
 ## Mac mini, the home hub
 
-The Mac mini is the primary always-on machine. It hosts the coding agents and
-owns the photo backup pipeline, the lab's two most important jobs.
+The Mac mini is the primary always-on home-services machine. It owns the photo
+backup pipeline and the storage-coupled media services. The Vector has become
+the primary development and build machine.
 
-* **Agentic development hub.** It runs [Claude Code](/projects/homelab/adrs/002-claude-code),
+* **Always-on development fallback.** It runs [Claude Code](/projects/homelab/adrs/002-claude-code),
   [Codex](/projects/homelab/adrs/003-codex) (both subscriptions),
   [OpenCode](/projects/homelab/adrs/003-opencode) and
   [Grok Build](/projects/homelab/adrs/002-grok-build), all orchestrated from
-  [t3-code](/projects/homelab/adrs/004-t3-code) so I can drive remote,
-  mobile-friendly, agentic development.
+  [t3-code](/projects/homelab/adrs/004-t3-code). It remains available for
+  lighter sessions and macOS work, while the 64 GB Vector carries primary
+  development and builds.
 * **Photo backup.** It connects to [Ente](/projects/homelab/adrs/005-ente-photo-backup),
   the end-to-end encrypted cloud photo provider, and regularly syncs my
   library down to a connected 10TB HDD as an offline backup.
@@ -516,39 +517,23 @@ the whole house depends on: DNS and monitoring.
   Canon no longer supports the printer, but Gutenprint lets every device on
   the network use it, including my phone over Tailscale.
 
-## Asus desktop, the NixOS GPU worker
-
-A headless batch-CV box, configured declaratively with
-[NixOS](/projects/homelab/adrs/007-nixos-gpu-worker). The host config lives in
-`homelab/hosts/asus-desktop` in this repo, defined by a flake locked to the
-pinned nixpkgs channel and deployed with `nixos-rebuild`.
-
-* **Old, unsupported 1050 GPU.** The GTX 1050 is Pascal-era (`sm_61`) with
-  2GB of VRAM. CUDA 13 and the newer driver branches dropped Pascal, so the
-  flake pins nixos-25.11, the 6.12 LTS kernel, and the 580 driver branch
-  (580.142, closed kernel modules, since the open modules need Turing or
-  newer).
-* **Batch GPU CV jobs.** It will run batch computer vision jobs. This workload
-  needs many GPU-hours, not a modern GPU.
-* **DVC data cache.** It inherits the
-  [DVC ADR](/projects/homelab/adrs/008-dvc) and its 1TB HDD is mounted at
-  `/data` (916G free), holding local copies of datasets for the ML pipelines
-  (`ml-pipelines/recipe-parsing/`) and any CV work.
-* **Reachable over the tailnet.** The desktop has no ethernet run to the
-  router, so its uplink is an Honor Magic5 Pro over USB tethering. That link
-  drops when the box sleeps and can't carry a WoL magic packet, so
-  wake-on-LAN and sleep-on-idle wait on a pair of powerline ethernet
-  adapters. The NixOS config already carries the WoL link policy for that
-  day. Until then, the box stays awake and is managed over Tailscale.
-
 ## Vector development workstation, accepted
 
 [ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
 turns the MSI Vector into a graphical NixOS workstation and an independent
-single-node K3s development plane. Its 64 GB of RAM and RTX 4080 complement the
-lighter everyday Mac, the continuity-focused Hetzner server, and the older GTX
-1050 batch worker. GNOME, Brave, the T3 Code client, and network printing keep
-the machine useful at its own screen.
+single-node K3s development plane. Its 64 GB of RAM and RTX 4080 provide the
+primary local development and GPU capacity while complementing the lighter
+everyday Mac and continuity-focused Hetzner server. GNOME, Brave, the T3 Code
+client, and network printing keep the machine useful at its own screen.
+
+## Quiet NixOS service companion, proposed
+
+[PDR 001](/projects/homelab/pdrs/001-separate-macos-work-from-persistent-linux-services)
+proposes a small, quiet NixOS machine with at least 32 GB of memory to relieve
+the 8 GB Mac mini's repeated memory exhaustion and reboots. The proposal does
+not yet select hardware or move workloads. Current measurements will size the
+machine and establish a reliable boundary for Jellyfin, media automation, VPN
+routing, photo export, and the 10 TB disk.
 
 ## Phone device lab, proposed
 
@@ -572,22 +557,22 @@ They will not become DNS servers, general compute nodes, or permanent cameras.
 The lab is being built incrementally, starting from the highest-value
 workloads and layering on the rest:
 
-| Phase | Workload                                                      | Status   |
-| ----- | ------------------------------------------------------------- | -------- |
-| 1     | Photo backup (Ente → 10TB HDD)                                | Live     |
-| 2     | Agentic development hub (t3-code + agents)                    | Live     |
-| 3     | DNS privacy (AdGuard Home, primary + failover)                | Live     |
-| 4     | CUPS printing on the Pi (avoiding printer e-waste)            | Live     |
-| 5     | NixOS GPU worker for batch CV jobs, with DVC-managed datasets | Live     |
-| 6     | Jellyfin media server for the Fire TV Stick                   | Live     |
-| 7     | Physical Android and iOS device lab                           | Proposed |
-| 8     | Cellular watchdog on the View 20                              | Proposed |
-| 9     | Graphical NixOS development plane on the 4080 laptop          | Accepted |
-| 10    | Automated media acquisition (arr stack behind the VPN gate)   | Live     |
-| 11    | Trakt watchlist recommendation loop into Jellyfin             | Live     |
-| 12    | Off-site t3-code environment on an independent NixOS/K3s VPS  | Proposed |
-| 13    | Encrypted offsite non-photo archive                           | Proposed |
-| 14    | Programmable VPN egress and container kill switch             | Proposed |
+| Phase | Workload                                                     | Status   |
+| ----- | ------------------------------------------------------------ | -------- |
+| 1     | Photo backup (Ente → 10TB HDD)                               | Live     |
+| 2     | Agentic development hub (t3-code + agents)                   | Live     |
+| 3     | DNS privacy (AdGuard Home, primary + failover)               | Live     |
+| 4     | CUPS printing on the Pi (avoiding printer e-waste)           | Live     |
+| 5     | Jellyfin media server for the Fire TV Stick                  | Live     |
+| 6     | Physical Android and iOS device lab                          | Proposed |
+| 7     | Cellular watchdog on the View 20                             | Proposed |
+| 8     | Graphical NixOS development plane on the 4080 laptop         | Accepted |
+| 9     | Automated media acquisition (arr stack behind the VPN gate)  | Live     |
+| 10    | Trakt watchlist recommendation loop into Jellyfin            | Live     |
+| 11    | Off-site t3-code environment on an independent NixOS/K3s VPS | Proposed |
+| 12    | Encrypted offsite non-photo archive                          | Proposed |
+| 13    | Programmable VPN egress and container kill switch            | Proposed |
+| 14    | Quiet NixOS companion for persistent Linux services          | Proposed |
 
 # What this is not
 
@@ -612,10 +597,6 @@ These ideas remain outside the current build plan:
   Ente photo system remains separate.
 * **Dashboards on this site.** A public page could show selected Netdata
   graphs and lab status without exposing the private services behind them.
-* **Heterogeneous orchestration.** If the lab grows past two compute nodes,
-  scheduling work across the 1050 box and the 4080 laptop becomes a real
-  orchestration problem. Kubernetes is one possible answer, but two machines
-  do not justify it yet.
 
 # Risks
 
@@ -673,14 +654,18 @@ documents the need for least-privilege filesystem rules and sandboxing on
 the connected host. This stays a first-class concern as more agents land on
 the hub, with backups covering the "wrong deletion" case.
 
-## Pascal never comes back
+## Mac mini resource exhaustion
 
-The 1050's driver support is a moving target that NixOS upgrades could
-silently break.
+The Mac mini has 8 GB of memory but owns the media stack, photo export,
+monitoring, VPN-dependent services, and macOS development. It has rebooted
+after repeated full-memory conditions. Moving agent development to the Vector
+reduces the pressure but does not prove the remaining services fit.
 
-**Mitigation.** The declarative NixOS config pins the driver, kernel, and CUDA
-container versions in git. No surprise upgrade can break the GPU without a
-reviewable, rollbackable diff.
+**Mitigation.** Record memory pressure, swap, container use, and reboot
+diagnostics under the remaining workload. PDR 001 proposes a quiet NixOS
+companion if configuration changes do not remove the bottleneck. Keep
+storage-coupled media services together rather than introducing an unreliable
+Wi-Fi filesystem dependency.
 
 ## Old phones widen the trust boundary
 

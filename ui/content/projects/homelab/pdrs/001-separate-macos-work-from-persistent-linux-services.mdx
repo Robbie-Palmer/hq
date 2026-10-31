@@ -1,0 +1,75 @@
+---
+title: "PDR 001: Separate macOS work from persistent Linux services"
+date: "2026-10-31"
+status: "Proposed"
+informed_by_adrs:
+  - "homelab:008-jellyfin"
+  - "homelab:013-media-automation-arr-stack"
+  - "homelab:020-k3s-declarative-workloads"
+  - "homelab:025-graphical-nixos-development-workstation"
+---
+
+## Context
+
+The Mac mini has 8 GB of memory and carries several unrelated jobs. It provides
+macOS and iOS development, owns the 10 TB photo and media disk, and runs
+Jellyfin, media automation, monitoring, VPN-dependent services, and coding
+tools. Repeated full-memory conditions have caused complete host reboots.
+Moving development work to the 64 GB Vector has reduced pressure, but it has
+also made room for more development rather than eliminating demand.
+
+The retired Asus desktop has 16 GB of memory, but its noise, size, old CPU, and
+maintenance requirements make it a poor always-on companion. A small NixOS
+computer could provide more memory and a quieter home for Linux-native
+services while preserving the Mac for work that requires macOS.
+
+The media services cannot be divided only by process name. Jellyfin, Sonarr,
+Radarr, qBittorrent, photo export, and the 10 TB disk share storage paths and
+failure modes. Splitting them across an unreliable upstairs Wi-Fi mount could
+replace memory pressure with storage and network failures.
+
+## Proposed decision
+
+Add a quiet, small, always-on NixOS companion to move persistent Linux services
+out of the Mac's constrained memory. The observed reboots already establish the
+need. Measurements will size the new host and identify the services to move.
+
+The companion should support at least 32 GB of memory, or allow a later upgrade
+to that capacity. It does not need a discrete GPU or legacy CUDA support. Its
+purchase must account for fan noise, Linux support, wired networking, storage
+attachment, power recovery, and the physical location of every cable and disk.
+
+Use it to move a cohesive set of Linux-native services rather than scattering
+one storage workflow across unreliable links. Treat Jellyfin, media automation,
+VPN routing, and the 10 TB disk as one placement decision. They may remain on
+the Mac, or move together behind a reliable local storage boundary. Keep the
+Mac as the macOS and iOS development machine and retain services that genuinely
+depend on macOS.
+
+Do not buy the companion merely to replace the retired desktop. Its capacity
+and service placement must address the observed Mac pressure without creating
+a fragile storage path.
+
+## Consequences
+
+A companion could stop Linux containers from competing with Xcode and macOS in
+8 GB of memory. NixOS would also give its persistent services the same reviewed
+and repeatable host configuration used by the Vector.
+
+It would add another machine, operating system, power supply, backup boundary,
+and purchase. Moving the media disk away from the Mac may also change the Ente
+photo-export path. Keeping the disk on the Mac while moving the services may
+create a network dependency that is worse than the memory problem.
+
+The proposal therefore does not select hardware or move a service yet. A later
+architecture decision must define the host and storage boundary after current
+resource use and the physical network path are measured.
+
+## Evaluation
+
+Before accepting this proposal, record Mac memory pressure, swap, container
+memory, and reboot diagnostics during normal media use. Use that evidence to
+size the companion and choose which services move. Compare keeping the
+storage-coupled services on the Mac with moving the complete group and disk to
+the companion. After migration, normal media and macOS development use should
+no longer exhaust memory or reboot the Mac.

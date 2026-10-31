@@ -1,0 +1,94 @@
+---
+title: "ADR 027: Retire the legacy NixOS GPU worker"
+date: "2026-10-31"
+status: "Accepted"
+supersedes: "homelab:007-nixos-gpu-worker"
+implements_product_decisions:
+  - "homelab:000-keep-active-home-lab-hardware-quiet-and-role-driven"
+---
+
+# Context
+
+[ADR 007](/projects/homelab/adrs/007-nixos-gpu-worker) kept an existing Asus
+desktop in service as a NixOS batch computer-vision worker and DVC cache. The
+machine has an AMD Athlon X4 880K, 16 GB of DDR3 memory, a GTX 1050 with 2 GB of
+VRAM, a 120 GB SATA SSD, and a 1 TB mechanical disk. It requires a pinned CUDA
+12 and Pascal driver path and currently reaches the tailnet through a tethered
+phone rather than a permanent Ethernet connection.
+
+No sustained batch workload emerged after the deployment. The
+[Vector workstation](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+now supplies 64 GB of memory, NVMe storage, and an RTX 4080 for the development
+and GPU work that the desktop was meant to cover. The lab has no remaining CUDA
+12 compatibility requirement.
+
+The tower is too large and noisy for its available locations. Rehousing it
+would preserve the old CPU, small GPU, and pinned software while adding case
+and cooling costs. Its unused memory capacity does not outweigh the cost of
+running and maintaining the complete machine.
+
+# Decision
+
+Retire `asus-desktop` as an active NixOS GPU worker and DVC cache. Do not
+rehouse it or preserve its Pascal software path for a hypothetical workload.
+Power it only for disk assessment, data migration, and any final inventory
+needed for decommissioning.
+
+Keep the current declarative configuration long enough to complete that work.
+After no unique data or recovery dependency remains, remove the host from
+active deployment, monitoring, and fleet verification. Git history preserves
+the old configuration if the implementation ever needs to be studied.
+
+Assess both SATA drives before assigning them another role. The 120 GB SSD is a
+candidate Raspberry Pi boot or recovery disk. The 1 TB disk may hold
+replaceable data or an additional offline copy only if its SMART report and
+self-tests are healthy. Neither disk becomes trusted storage or part of a RAID
+array merely because it is available.
+
+Do not retain the motherboard as a speculative lab component. Once the drives
+and any required data are removed, sell, donate, or recycle the motherboard,
+CPU, DDR3 memory, GTX 1050, case, and power supply as appropriate.
+
+# Alternatives
+
+## Keep it as a 16 GB service companion
+
+This would give the Mac mini more aggregate memory without buying another
+computer. It would also make the noisiest, largest, and oldest machine an
+always-on service dependency. The hardware has had ample time to find that job
+and has not done so.
+
+## Rehouse the components
+
+A smaller case could improve placement. It would not improve CPU performance,
+GPU memory, power use, driver support, or storage age. Spending on a case and
+cooling would make a later quiet mini computer harder to justify without
+solving the Mac's service pressure well.
+
+## Preserve the CUDA 12 worker
+
+The pinned stack still works for narrow Pascal-compatible jobs. There is no
+current workload that needs it, while the Vector handles modern GPU work with
+far more memory. Unused compatibility creates maintenance without giving the
+machine a role.
+
+## Replace it with a mini computer now
+
+A quiet NixOS companion may be useful, but replacement is not part of this
+retirement. The separate product proposal must first confirm the Mac bottleneck
+and decide whether storage-coupled media services stay together.
+
+# Consequences
+
+The active fleet loses a second local x86 host, 16 GB of memory, and the GTX
+1050\. The Vector becomes the only local CUDA machine. No live workload depends
+on the retired capacity.
+
+The lab stops carrying a Pascal-specific driver and CUDA maintenance obligation
+for an idle computer. Removing the tower also frees the study floor space and
+avoids adding its noise to the living room.
+
+Disk reuse remains unresolved until the SMART tests finish. A failing or badly
+worn drive will be securely erased where possible and recycled rather than
+given a new job. A future companion host will need its own architecture record
+and cannot use this retirement as evidence that a purchase is necessary.
