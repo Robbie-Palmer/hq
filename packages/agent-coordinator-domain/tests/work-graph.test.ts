@@ -272,7 +272,11 @@ class FakeWorkGraphClient implements WorkGraphClientPort {
       stage: "released",
       currentLease: null,
     });
-    return { lease: releasedLease, workItem: this.item };
+    return {
+      lease: releasedLease,
+      workItem: this.item,
+      unblockedWorkItemIds: ["next-ticket"],
+    };
   }
 }
 
@@ -419,6 +423,7 @@ describe("Work Graph coordinator integration", () => {
     ]);
     expect(released.lease.outcome).toBe("released");
     expect(released.workItem.lifecycle).toBe("released");
+    expect(released.unblockedWorkItemIds).toEqual(["next-ticket"]);
   });
 
   it("observes expiry and rejects a local mutation after the deadline", async () => {

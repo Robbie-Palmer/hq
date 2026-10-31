@@ -145,6 +145,10 @@ export const WORK_GRAPH_EVENT_TYPES = [
 export type WorkGraphEventType = (typeof WORK_GRAPH_EVENT_TYPES)[number];
 
 export type StoredLease = typeof lease.$inferSelect;
+export interface TerminateClaimedWorkItemResult {
+  readonly lease: StoredLease;
+  readonly unblockedWorkItemIds: readonly string[];
+}
 export type StoredNote = typeof note.$inferSelect;
 export type StoredEvent = typeof event.$inferSelect;
 export type StoredAttentionRequest = typeof attentionRequest.$inferSelect;
@@ -4558,7 +4562,7 @@ export class WorkGraphRepository {
 
   async terminateClaimedWorkItem(
     input: TerminateClaimedWorkItemInput,
-  ): Promise<StoredLease> {
+  ): Promise<TerminateClaimedWorkItemResult> {
     requireLeaseId(input.leaseId);
     requireLeaseEpoch(input.epoch);
     requireIdentifier(input.workItemId, "invalid_work_item_id");
@@ -4593,6 +4597,10 @@ export class WorkGraphRepository {
       if (!completedLease) {
         throw leaseNotCurrent(input.leaseId, input.epoch);
       }
+      const graphBeforeRelease =
+        input.outcome === "released"
+          ? await this.loadSchedulingGraph(transaction)
+          : null;
 
       const updated = await transaction
         .update(workItem)
@@ -4643,8 +4651,80 @@ export class WorkGraphRepository {
         },
       });
 
-      return completedLease;
+      return {
+        lease: completedLease,
+        unblockedWorkItemIds:
+          graphBeforeRelease === null
+            ? []
+            : await this.findNewlyReadyWorkItemIds(
+                transaction,
+                graphBeforeRelease,
+                completedAt,
+              ),
+      };
     });
+  }
+
+  private async findNewlyReadyWorkItemIds(
+    transaction: DbTransaction,
+    graphBeforeRelease: WorkGraph,
+    releasedAt: Date,
+  ): Promise<readonly string[]> {
+    const graphAfterRelease = await this.loadSchedulingGraph(transaction);
+    const currentLeases = await transaction
+      .select()
+      .from(lease)
+      .where(isNull(lease.endedAt));
+    const unresolvedBlockingAttention = await transaction
+      .select({ workItemId: attentionRequest.workItemId })
+      .from(attentionRequest)
+      .leftJoin(
+        attentionResolution,
+        eq(attentionResolution.attentionRequestId, attentionRequest.id),
+      )
+      .where(
+        and(
+          eq(attentionRequest.blocking, true),
+          isNull(attentionResolution.id),
+        ),
+      );
+    const leasesByWorkItemId = new Map(
+      currentLeases.map((storedLease) => [
+        storedLease.workItemId,
+        storedLease,
+      ]),
+    );
+    const workItemIdsNeedingAttention = new Set(
+      unresolvedBlockingAttention.map(({ workItemId }) => workItemId),
+    );
+    const operationalState = (workItemId: string) => {
+      const currentLease = leasesByWorkItemId.get(workItemId);
+      return {
+        currentLease: currentLease
+          ? { expiresAt: currentLease.expiresAt.getTime() }
+          : null,
+        now: releasedAt.getTime(),
+        hasUnresolvedBlockingAttention:
+          workItemIdsNeedingAttention.has(workItemId),
+      };
+    };
+
+    return graphBeforeRelease.workItems
+      .filter(
+        ({ id }) =>
+          projectWorkItemStage(
+            graphBeforeRelease,
+            id,
+            operationalState(id),
+          ) === "blocked" &&
+          projectWorkItemStage(
+            graphAfterRelease,
+            id,
+            operationalState(id),
+          ) === "ready",
+      )
+      .map(({ id }) => id)
+      .sort((left, right) => left.localeCompare(right));
   }
 
   async listLeases(

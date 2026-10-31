@@ -382,6 +382,13 @@ export type LeaseResponse = {
     lease: Lease;
 };
 
+export type ReleaseResponse = LeaseWithWorkItem & {
+    /**
+     * Open work items whose derived stage changed from blocked to ready because of this release.
+     */
+    unblockedWorkItemIds: Array<string>;
+};
+
 export type WorkItemDecomposition = {
     parent: WorkItem;
     children: Array<{
@@ -3181,7 +3188,7 @@ export type CreateWorkItemReleaseResponses = {
     /**
      * Completed work released and lease ended
      */
-    201: LeaseWithWorkItem;
+    201: ReleaseResponse;
 };
 
 export type CreateWorkItemReleaseResponse = CreateWorkItemReleaseResponses[keyof CreateWorkItemReleaseResponses];
