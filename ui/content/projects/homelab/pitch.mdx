@@ -3,17 +3,19 @@ title: "Home Lab pitch"
 description: "A persistent, multi-provider agent workspace that also runs useful household services"
 ---
 
-# My phone reaches the same development machine as my laptop
+# My phone reaches the same development plane as my laptop
 
-t3-code runs on an always-on Mac mini behind Tailscale.
+t3-code runs on the Vector workstation behind Tailscale, with the Mac mini as
+an always-on fallback.
 
 <PitchNotes>
-  The Mac mini does the development work. The phone drives it. Repositories, tools, credentials, worktrees, browsers,
-  and telemetry stay on the Mac mini.
+  The Vector does the primary development and build work. The phone drives it remotely. Repositories, tools,
+  credentials, worktrees, browsers, and telemetry stay on the selected home development plane.
 
   \[Sources]
 
   * [t3-code ADR](/projects/homelab/adrs/004-t3-code)
+  * [Vector workstation ADR](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
   * [Tailscale ADR](/projects/homelab/adrs/000-tailscale)
     \[/Sources]
 </PitchNotes>
@@ -58,7 +60,7 @@ t3-code runs on an always-on Mac mini behind Tailscale.
   </div>
 </div>
 
-<p className="pitch-slide__statement">Models come from subscriptions. Repos, tools and sessions stay on the Mac mini.</p>
+<p className="pitch-slide__statement">Models come from subscriptions. Repos, tools and sessions stay on the Vector.</p>
 
 <PitchNotes>
   The comparison comes from my own use. Claude Code on the web and Codex cloud both support remote, persistent work.
@@ -107,7 +109,7 @@ t3-code runs on an always-on Mac mini behind Tailscale.
 
 <PitchNotes>
   Codespaces remains useful when a disposable hosted machine is the goal. Claude and Codex cloud remain useful for
-  background work that should not consume the Mac mini. Claude Remote Control gets closest to the local-machine part
+  background work that should not consume the Vector. Claude Remote Control gets closest to the local-machine part
   of this setup. t3-code puts thread state and GitHub actions in the same view. Harness switching adds to that.
 
   \[Sources]
@@ -122,11 +124,11 @@ t3-code runs on an always-on Mac mini behind Tailscale.
 
 ***
 
-## The phone is a control surface. The Mac mini does the work.
+## The phone is a control surface. The Vector does the work.
 
 <Mermaid
   chart={`flowchart LR
-A[Phone or laptop<br/>via Tailscale] --> B[t3-code<br/>Mac mini]
+A[Phone or laptop<br/>via Tailscale] --> B[t3-code<br/>Vector]
 B --> C[Four coding harnesses<br/>Claude Code · Codex<br/>Grok Build · OpenCode]
 C --> D[Models and threads]
 B --- G[Repos and worktrees]
@@ -138,7 +140,8 @@ Every thread shares the host's repos, tools, GitHub auth, browser, and telemetry
 
 <PitchNotes>
   Tailscale provides private network access. t3-code starts the agent backends and serves the shared interface. The
-  agents work against the Mac mini rather than a newly provisioned cloud environment.
+  agents work against the prepared Vector environment rather than a newly provisioned cloud environment. The Mac mini
+  remains available for macOS-specific work and lighter fallback sessions.
 
   \[Sources]
 
@@ -205,28 +208,27 @@ Every thread shares the host's repos, tools, GitHub auth, browser, and telemetry
 
 ***
 
-## Old hardware gets jobs that suit the hardware
+## Hardware keeps a place only while it has a job
 
 <div className="pitch-ledger">
   <div><strong>Mac mini</strong><span>Agent sessions, services and the 10TB disk</span></div>
   <div><strong>Raspberry Pi</strong><span>Fallback DNS and a USB print server</span></div>
-  <div><strong>NixOS desktop</strong><span>GTX 1050 worker and 1TB DVC cache</span></div>
+  <div><strong>Vector laptop</strong><span>64GB development plane and RTX 4080 workloads</span></div>
   <div><strong>Retired phones</strong><span>Proposed browser targets and cellular watchdog</span></div>
 </div>
 
 <PitchStep>
-  A NAS is easier. Reusing the Mac and printer avoids two purchases.
+  Reuse avoids a purchase only when the old machine still suits the work and the room.
 </PitchStep>
 
 <PitchNotes>
-  Placement follows physical constraints. Disks stay with the Mac mini, the printer stays with the Pi, the GPU job
-  stays with the machine that has a GPU, and phones provide the mobile browsers and cellular radios that server
-  hardware lacks.
+  Placement follows physical constraints. Disks stay with the Mac mini, the printer stays with the Pi, the Vector
+  stays wired for remote wake, and phones provide the mobile browsers and cellular radios that server hardware lacks.
 
   \[Sources]
 
   * [Home Lab nodes](/projects/homelab?tab=overview#nodes)
-  * [NixOS GPU worker ADR](/projects/homelab/adrs/007-nixos-gpu-worker)
+  * [Role-driven hardware PDR](/projects/homelab/pdrs/000-keep-active-home-lab-hardware-quiet-and-role-driven)
   * [CUPS ADR](/projects/homelab/adrs/009-cups)
   * [Phone device lab ADR](/projects/homelab/adrs/012-phone-device-lab)
     \[/Sources]
@@ -249,7 +251,8 @@ Every thread shares the host's repos, tools, GitHub auth, browser, and telemetry
   The streaming claim is deliberately tentative. Netflix, Disney Plus, Amazon Prime, and Apple TV remain subscribed
   today. The current gain is a quicker route from Trakt discovery to Jellyfin playback for content already owned. A
   Synology NAS would package storage, backup, sync, clients, and administration more neatly. The current lab accepts
-  more assembly work because the Mac mini and disk already cover the immediate jobs.
+  more assembly work because the Mac mini and disk already cover the immediate jobs. The Mac's 8GB memory limit is
+  now under review before that assumption drives a quiet NixOS companion purchase.
 
   \[Sources]
 
@@ -263,23 +266,23 @@ Every thread shares the host's repos, tools, GitHub auth, browser, and telemetry
 
 ***
 
-## The Mac mini concentrates three failure modes
+## The Mac mini still concentrates three failure modes
 
 <div className="pitch-risk-map">
   <div className="pitch-risk-map__hub">
     <span>one host</span>
     <strong>Mac mini</strong>
-    <p>agents · credentials · photos</p>
+    <p>services · credentials · photos</p>
   </div>
 
   <div className="pitch-risk-map__risk pitch-risk-map__risk--outage">
     <span>Outage</span>
-    <strong>Remote coding stops</strong>
+    <strong>Media, primary DNS and photo jobs stop</strong>
   </div>
 
   <div className="pitch-risk-map__risk pitch-risk-map__risk--permissions">
     <span>Permissions</span>
-    <strong>Agents share a host with personal data</strong>
+    <strong>Services share a host with personal data</strong>
   </div>
 
   <div className="pitch-risk-map__risk pitch-risk-map__risk--backup">
@@ -288,17 +291,18 @@ Every thread shares the host's repos, tools, GitHub auth, browser, and telemetry
   </div>
 </div>
 
-<p className="pitch-slide__statement">Accept outage · isolate agent storage · add an off-site copy</p>
+<p className="pitch-slide__statement">Keep Pi failover · reduce Mac load · add an off-site copy</p>
 
 <PitchNotes>
-  I accept that remote coding stops when the Mac mini fails. Agent access to the photo disk still needs a hard
-  boundary, and the 10TB backup does not cover theft or fire. I have not tracked maintenance time or measured cash
-  savings. I still own the host, the permissions, and the consequences of a bad change.
+  The Vector keeps local development separate from a Mac mini service failure, and the Pi keeps fallback DNS. The Mac
+  still owns several household services and the 10TB photo disk. Its 8GB memory limit now needs evidence-led relief,
+  while the local backup still does not cover theft or fire.
 
   \[Sources]
 
   * [Home Lab risks](/projects/homelab?tab=overview#risks)
   * [Home Lab future direction](/projects/homelab?tab=overview#future-direction)
+  * [Linux service separation PDR](/projects/homelab/pdrs/001-separate-macos-work-from-persistent-linux-services)
     \[/Sources]
 </PitchNotes>
 

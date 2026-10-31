@@ -193,11 +193,11 @@ description = "Rebuild the Basic Memory index from Markdown files"
 run = "PATH=\"$HOME/.local/bin:$PATH\" bm reset"
 
 # ---------------------------------------------------------------------------
-# asus-desktop (NixOS GPU worker, deployed from the Mac mini)
+# asus-desktop (retiring NixOS GPU worker, recovery only)
 # ---------------------------------------------------------------------------
 
 [tasks.asus-deploy]
-description = "Deploy and verify the current pushed NixOS revision with Ansible"
+description = "Recovery-only deploy for the retiring Asus desktop"
 dir = "."
 run = "ansible/scripts/deploy_asus.sh"
 

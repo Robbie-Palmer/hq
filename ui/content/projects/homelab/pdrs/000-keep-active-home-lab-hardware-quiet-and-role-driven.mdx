@@ -1,0 +1,80 @@
+---
+title: "PDR 000: Keep active home-lab hardware quiet and role-driven"
+date: "2026-10-31"
+status: "Accepted"
+decision_date: "2026-10-31"
+informed_by_adrs:
+  - "homelab:007-nixos-gpu-worker"
+  - "homelab:025-graphical-nixos-development-workstation"
+  - "homelab:026-vault-assisted-vector-remote-boot"
+---
+
+## Context
+
+The lab has grown from a Mac mini and Raspberry Pi into several computers,
+phones, powered disks, and their cables. Some devices need a particular
+location. The Pi must connect to the upstairs printer, the Mac must connect to
+the iPhone for iOS work, and the Vector currently needs wired Ethernet beside
+the downstairs router for remote wake and unlock.
+
+Physical reuse is no longer enough to justify an active machine. The Asus
+desktop has remained too large, noisy, and slow to earn a workload. Its 16 GB
+of memory and 1 TB disk are useful components, but the Vector has taken its
+development and GPU jobs. There is no remaining need for the desktop's CUDA 12
+compatibility. Rehousing it would spend money without fixing its old processor,
+graphics limit, or maintenance burden.
+
+Noise also changes whether a technically capable device belongs in a shared
+room. The Vector's fan is already intrusive in the living room. A cabinet that
+adds another computer and ventilation fans would make that problem worse.
+
+## Decision
+
+Keep a computer in the active home lab only while it has a distinct current
+job that the other machines do not cover well. Fit its placement to the
+physical dependency that gives it that job. Temporary placement may tolerate
+clutter while a network or mounting constraint remains unresolved, but it must
+not become a reason to add idle hardware permanently.
+
+Treat noise, size, ventilation, cabling, and power as product requirements for
+hardware used in shared rooms. Do not buy a cabinet or cooling equipment to
+hide a machine whose workload does not justify running it. A new computer must
+solve an observed capacity or availability problem and must have an agreed
+location before purchase.
+
+Retire the Asus desktop from the active fleet instead of rehousing it. Keep it
+powered only long enough to inspect the disks, copy any needed data, and prove
+that retirement is safe. Reuse a component only when it has a named next job.
+Sell, donate, or recycle the remaining working parts rather than preserving an
+indefinite parts pile.
+
+For the present layout:
+
+* keep the Vector beside the router while wired remote wake and unlock require
+  that connection;
+* keep the quiet Mac mini, iPhone, and 10 TB disk together in the study;
+* mount the Raspberry Pi beside the printer it serves; and
+* keep the old desktop out of the permanent layout.
+
+## Consequences
+
+The lab gives up 16 GB of fallback memory, the GTX 1050, and a nominal second
+local compute tower. Those resources had no current workload. Retirement also
+removes a pinned end-of-life NixOS and CUDA configuration from the active
+maintenance burden.
+
+The Vector becomes the only local CUDA-capable development node. Its temporary
+living-room placement still has a noise cost, so a later network change may
+move it to the study without changing this policy.
+
+The 120 GB SSD may become Raspberry Pi storage or a recovery disk. The 1 TB
+hard disk may hold replaceable data or an additional offline copy. Neither disk
+has an accepted role until SMART data and self-tests show its condition. Old,
+mismatched disks will not become the basis of a new RAID array.
+
+## Evaluation
+
+Review the policy when an active machine lacks a named workload, a shared room
+gains persistent fan noise, or a proposed purchase has no agreed placement.
+Successful retirement leaves no unique data on the Asus desktop and no
+dependency that requires it to remain powered.
