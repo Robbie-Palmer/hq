@@ -334,6 +334,19 @@ describe("historical salary calculation", () => {
     );
   });
 
+  it("rejects NI earnings with the wrong number of pay periods", () => {
+    expect(() =>
+      calculateHistoricalSalary({
+        ...request,
+        pension: null,
+        nationalInsurancePeriods: {
+          payPeriod: "monthly",
+          postSacrificeEarningsPence: [2_000_000, 2_000_000, 2_000_000],
+        },
+      }),
+    ).toThrow("Expected 12 monthly earnings periods");
+  });
+
   it("extends the Scottish basic band for relief-at-source contributions", () => {
     const result = calculateHistoricalSalary({
       ...request,

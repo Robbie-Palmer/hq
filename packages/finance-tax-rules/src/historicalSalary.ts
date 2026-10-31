@@ -79,10 +79,31 @@ const nationalInsurancePayPeriodSchema = z.enum([
   "annual",
 ]);
 
-const nationalInsurancePeriodsSchema = z.object({
-  payPeriod: nationalInsurancePayPeriodSchema,
-  postSacrificeEarningsPence: z.array(moneyPenceSchema).min(1),
-});
+const nationalInsurancePeriodCount = {
+  weekly: 52,
+  fortnightly: 26,
+  "four-weekly": 13,
+  monthly: 12,
+  quarterly: 4,
+  "half-yearly": 2,
+  annual: 1,
+} as const;
+
+const nationalInsurancePeriodsSchema = z
+  .object({
+    payPeriod: nationalInsurancePayPeriodSchema,
+    postSacrificeEarningsPence: z.array(moneyPenceSchema).min(1),
+  })
+  .superRefine(({ payPeriod, postSacrificeEarningsPence }, context) => {
+    const expectedPeriods = nationalInsurancePeriodCount[payPeriod];
+    if (postSacrificeEarningsPence.length !== expectedPeriods) {
+      context.addIssue({
+        code: "custom",
+        path: ["postSacrificeEarningsPence"],
+        message: `Expected ${expectedPeriods} ${payPeriod} earnings periods.`,
+      });
+    }
+  });
 
 export const historicalSalaryRequestSchema = z
   .object({

@@ -114,6 +114,13 @@ export const workplacePensionRequestSchema = z
           "Variable qualifying earnings cannot exceed total qualifying earnings",
       });
     }
+    if (variableTotal > request.annualGrossPayPence) {
+      context.addIssue({
+        code: "custom",
+        path: ["qualifyingEarningsVariablePaymentsPence"],
+        message: "Variable qualifying earnings cannot exceed annual gross pay",
+      });
+    }
   });
 
 export type WorkplacePensionContributionBasis = z.infer<
@@ -253,6 +260,30 @@ function distributeByBasis(total: number, basis: readonly number[]): number[] {
   return amounts;
 }
 
+function distributeWithinCapacity(
+  total: number,
+  basis: readonly number[],
+  capacity: readonly number[],
+): number[] {
+  const amounts = distributeByBasis(total, basis);
+  let excess = 0;
+  for (const [index, amount] of amounts.entries()) {
+    const periodCapacity = capacity[index] ?? 0;
+    if (amount > periodCapacity) {
+      excess += amount - periodCapacity;
+      amounts[index] = periodCapacity;
+    }
+  }
+  for (const [index, periodCapacity] of capacity.entries()) {
+    if (excess === 0) break;
+    const available = periodCapacity - (amounts[index] ?? 0);
+    const redistributed = Math.min(excess, available);
+    amounts[index] = (amounts[index] ?? 0) + redistributed;
+    excess -= redistributed;
+  }
+  return amounts;
+}
+
 function cappedEmployerContribution(
   basisPence: number,
   rateBasisPoints: number,
@@ -300,6 +331,7 @@ type PensionRule = (typeof ruleDataset.pensions)[number];
 function calculationReasons(
   request: ParsedWorkplacePensionRequest,
   qualifyingEarningsPence: number | null,
+  employeeGrossContributionPence: number,
 ): CalculationReason[] {
   const reasons: CalculationReason[] = [];
   if (request.employee.kind === "unknown") {
@@ -340,6 +372,16 @@ function calculationReasons(
       code: "missing-pensionable-pay",
       detail:
         "Pensionable-pay contributions need the scheme's explicit pensionable pay amount.",
+    });
+  }
+  if (
+    employeeTaxTreatment(request.employee) === "salary-sacrifice" &&
+    employeeGrossContributionPence > request.annualGrossPayPence
+  ) {
+    reasons.push({
+      code: "salary-sacrifice-exceeds-gross-pay",
+      detail:
+        "Salary sacrifice cannot exceed the employment's annual gross pay.",
     });
   }
   return reasons;
@@ -383,7 +425,9 @@ function employeeContributionByPeriod(
       periods,
     );
   }
-  return distributeByBasis(grossContributionPence, basis);
+  return employeeTaxTreatment(request.employee) === "salary-sacrifice"
+    ? distributeWithinCapacity(grossContributionPence, basis, grossPay)
+    : distributeByBasis(grossContributionPence, basis);
 }
 
 function employeeTaxTreatment(
@@ -485,7 +529,15 @@ export function calculateWorkplacePension(
   const qualifyingEarningsPence = qualifyingEarningsBasis(
     qualifyingEarningsByPeriodPence,
   );
-  const reasons = calculationReasons(request, qualifyingEarningsPence);
+  const employeeGrossContributionPence = employeeGrossContribution(
+    request,
+    qualifyingEarningsPence,
+  );
+  const reasons = calculationReasons(
+    request,
+    qualifyingEarningsPence,
+    employeeGrossContributionPence,
+  );
   if (reasons.length > 0) return { available: false, reasons };
 
   const employee = employeeAmounts(
