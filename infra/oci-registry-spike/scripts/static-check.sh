@@ -25,6 +25,19 @@ case "$mode" in
   test)
     grep -Eq '^FROM scratch$' fixtures/container/Dockerfile
     grep -Eq '^CONFORMANCE_COMMIT=[0-9a-f]{40}$' versions.env
+    runtime_dockerfiles=(
+      conformance.Dockerfile
+      distribution.Dockerfile
+      fixtures/container/Dockerfile
+      zot-gc.Dockerfile
+      zot.Dockerfile
+    )
+    for dockerfile in "${runtime_dockerfiles[@]}"; do
+      grep -Eq '^USER 65532:65532$' "$dockerfile" || {
+        echo "$dockerfile must set the final image to UID/GID 65532" >&2
+        exit 1
+      }
+    done
     if grep -Eqi '(password|secret)[[:space:]]*=[[:space:]]*[^$<{[:space:]]+' versions.env; then
       echo "versions.env must not contain credentials" >&2
       exit 1

@@ -18,6 +18,9 @@ chmod 600 .state/auth/htpasswd .state/auth.env
 
 docker build --file zot.Dockerfile --build-arg "BASE_IMAGE=$ZOT_IMAGE" --tag "$ZOT_RUNTIME_IMAGE" .
 docker build --file distribution.Dockerfile --build-arg "BASE_IMAGE=$DISTRIBUTION_IMAGE" --tag "$DISTRIBUTION_RUNTIME_IMAGE" .
+for image in "$ZOT_RUNTIME_IMAGE" "$DISTRIBUTION_RUNTIME_IMAGE"; do
+  [[ "$(docker image inspect "$image" --format '{{.Config.User}}')" == "65532:65532" ]]
+done
 
 docker compose --env-file versions.env up --detach --wait localstack
 for bucket in zot-registry distribution-registry; do

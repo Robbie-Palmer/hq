@@ -14,7 +14,8 @@ RUN cd /src/conformance \
     && mkdir /results
 
 FROM scratch
-COPY --from=build /conformance /conformance
-COPY --from=build /results /results
+COPY --from=build --chown=65532:65532 /conformance /conformance
+COPY --from=build --chown=65532:65532 /results /results
+USER 65532:65532
 ENTRYPOINT ["/conformance"]
 

@@ -11,3 +11,5 @@ docker build \
   --tag "oci-registry-spike-conformance:$CONFORMANCE_COMMIT" \
   .
 
+[[ "$(docker image inspect "oci-registry-spike-conformance:$CONFORMANCE_COMMIT" --format '{{.Config.User}}')" == "65532:65532" ]]
+

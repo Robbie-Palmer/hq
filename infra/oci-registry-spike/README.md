@@ -3,7 +3,8 @@
 This project compares zot and CNCF Distribution against the same disposable,
 S3-compatible object store. The run is local, bounded, and destructive only to its
 Compose project. It generates credentials at runtime and does not persist secrets in
-Git.
+Git. Both registry images and the conformance and container fixtures run as UID/GID
+65532.
 
 The recorded result recommends zot. See the
 [machine-readable scorecard](evidence/scorecard.json) and the
