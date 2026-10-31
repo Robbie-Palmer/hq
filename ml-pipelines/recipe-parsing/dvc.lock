@@ -560,8 +560,8 @@ stages:
       nfiles: 28
     - path: ../../pnpm-lock.yaml
       hash: md5
-      md5: 9791070fc46f46bfbd785ebc85f72a0b
-      size: 738742
+      md5: 0aef3a10b5f1a0ade0b160f71c39019a
+      size: 739757
     - path: data/url-import-corpus/synthetic/v1/manifests/development.json
       hash: md5
       md5: e84e31244e3c085f292b9c8ba011efd9
@@ -634,3 +634,81 @@ stages:
       hash: md5
       md5: 4fa6586b0aa4839e2856c7b84436aa8d
       size: 689
+  evaluate_url_import_baseline:
+    cmd: pnpm exec tsx src/stages/evaluate-url-import-baseline.ts
+    deps:
+    - path: ../../packages/recipe-domain/src
+      hash: md5
+      md5: ba32503797d676b31729fb238ea08ecb.dir
+      size: 97005
+      nfiles: 22
+    - path: ../../packages/recipe-parsing/src
+      hash: md5
+      md5: d4d302c026f188e300a98edaa08b9884.dir
+      size: 155679
+      nfiles: 28
+    - path: ../../packages/ts-base/src
+      hash: md5
+      md5: c62e7f36300cb69dd7094585e67296e2.dir
+      size: 36936
+      nfiles: 14
+    - path: ../../pnpm-lock.yaml
+      hash: md5
+      md5: 0aef3a10b5f1a0ade0b160f71c39019a
+      size: 739757
+    - path: config/url-import-regression-contract.json
+      hash: md5
+      md5: f15a73830a84b516369c3d4d97b7cf98
+      size: 1303
+    - path: data/url-import-corpus/synthetic/v1/manifests/development.json
+      hash: md5
+      md5: e84e31244e3c085f292b9c8ba011efd9
+      size: 5125
+    - path: data/url-import-corpus/synthetic/v1/manifests/train.json
+      hash: md5
+      md5: e24cc70cf1f78687188dabd2c15ed95c
+      size: 3935
+    - path: data/url-import-corpus/synthetic/v1/snapshots/development
+      hash: md5
+      md5: 6e85d3aa3431052a8e3e8a2e24af4acc.dir
+      size: 2230
+      nfiles: 3
+    - path: data/url-import-corpus/synthetic/v1/snapshots/train
+      hash: md5
+      md5: d256463250dc7d67e5bc96dc2e27efb1.dir
+      size: 2697
+      nfiles: 2
+    - path: src/stages/cli-arguments.ts
+      hash: md5
+      md5: 1b7855521b953163b7e71b700c4cc9e9
+      size: 498
+    - path: src/stages/evaluate-url-import-baseline.ts
+      hash: md5
+      md5: 51e7b5d83a079d54d797a95accf55087
+      size: 2656
+    - path: src/url-import-baseline
+      hash: md5
+      md5: ab5f043da53457ec015923945e8fe24b.dir
+      size: 28774
+      nfiles: 4
+    - path: src/url-import-corpus/corpus.ts
+      hash: md5
+      md5: aa8250a99b1e845c8b456745ec794a6b
+      size: 9270
+    - path: src/url-import-corpus/schema.ts
+      hash: md5
+      md5: dc0d5395752b84ab340b0f52bad8e628
+      size: 5386
+    outs:
+    - path: outputs/url-import-deterministic-baseline.json
+      hash: md5
+      md5: 3141ed01d57539b945bd6f2d9d3d1419
+      size: 6466
+    - path: outputs/url-import-deterministic-failures.json
+      hash: md5
+      md5: 26a1709be3a343e17d3efcd46f168c25
+      size: 1305
+    - path: outputs/url-import-regression-gate.json
+      hash: md5
+      md5: 2e211c4854570f915f0f679429c570f5
+      size: 400

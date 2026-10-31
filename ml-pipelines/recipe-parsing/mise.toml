@@ -42,6 +42,11 @@ description = "Replay passing synthetic URL-import train and development fixture
 depends = ["//:install"]
 run = "pnpm exec tsx src/stages/replay-url-import-corpus.ts"
 
+[tasks."url-import:baseline"]
+description = "Evaluate and gate the offline deterministic URL-import baseline"
+depends = ["//:install"]
+run = "pnpm exec tsx src/stages/evaluate-url-import-baseline.ts"
+
 [tasks."url-import:replay-regression"]
 description = "Replay only the project-authored synthetic regression fixtures"
 depends = ["//:install"]
