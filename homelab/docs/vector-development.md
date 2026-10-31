@@ -182,6 +182,9 @@ GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete
 provider actions against current resource facts. A Cedar permit, the relevant
 credential or runtime capability, and the provider's own controls must all
 allow an operation. Any denial or unknown result stops it.
+Repository writes must use a controller-owned non-default ref. Cedar forbids
+direct default-branch writes, while the GitHub ruleset remains an independent
+provider-side control.
 
 Run the admission test before enabling unattended incident work. Send a signed
 candidate with a unique delivery ID, then repeat that request with the same ID.

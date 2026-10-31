@@ -21,6 +21,17 @@
           }
         }
       },
+      "Ref": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "controllerOwned": { "type": "Boolean" },
+            "isDefaultBranch": { "type": "Boolean" },
+            "name": { "type": "String" },
+            "repository": { "type": "Entity", "name": "Repository" }
+          }
+        }
+      },
       "DependabotAlert": {
         "shape": {
           "type": "Record",
@@ -116,7 +127,7 @@
         },
         "appliesTo": {
           "principalTypes": ["Controller"],
-          "resourceTypes": ["Repository"]
+          "resourceTypes": ["Ref"]
         }
       },
       "github.git_refs.write": {
@@ -128,7 +139,7 @@
         },
         "appliesTo": {
           "principalTypes": ["Controller"],
-          "resourceTypes": ["Repository"]
+          "resourceTypes": ["Ref"]
         }
       },
       "github.pull_requests.create": {

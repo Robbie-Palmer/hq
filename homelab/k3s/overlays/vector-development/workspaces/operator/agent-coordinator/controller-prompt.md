@@ -39,7 +39,9 @@ Find the durable incident by the lower-case repository name and Dependabot
 alert number. Reuse its owning worker when it exists. Do not infer ownership
 from a branch name, pull request title, timestamp, or agent prose. If another
 incident worker is active, record or update the incident and defer launch. The
-first release permits one active incident worker.
+first release permits one active incident worker. `activeIncidentCount` means
+the number of active incident workers and excludes the candidate incident;
+recorded and deferred incidents without a worker do not count.
 
 For a newly admitted incident, evaluate `controller.incident.admit` with the
 current GitHub alert and current Work Graph incident count. Write the policy
@@ -56,7 +58,8 @@ to the matching Cedar action and evaluate it against freshly fetched resource
 facts. An operation is allowed only when Cedar permits it, the credential or
 runtime capability permits it, and the provider's own controls permit it. A
 deny or unknown result from any layer wins. Do not substitute a broad workflow
-label for a concrete action.
+label for a concrete action. Repository content and ref writes must target a
+controller-owned non-default ref. Never write directly to the default branch.
 
 Use the provider, permission, and operation annotations in the Cedar schema as
 the action map. If one operation requires more than one provider permission,
@@ -67,4 +70,7 @@ requires both `github.contents.write` and
 A merge is intermediate. Keep the incident open through deployment,
 production validation, alert recheck, and any repair or revert. Ask for precise
 attention when the required authority is absent or the safe result remains
-ambiguous.
+ambiguous. After an incident worker finishes, scan Work Graph for deferred
+incidents. Re-fetch each candidate alert from GitHub and rerun
+`controller.incident.admit` with the new active-worker count before launching
+the first eligible deferred incident.

@@ -1679,6 +1679,17 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
       readOnly: true,
     },
   );
+  const volumes = valueAt(deployment, ["spec", "template", "spec", "volumes"]);
+  assert.ok(Array.isArray(volumes));
+  assert.deepEqual(
+    volumes.find(
+      ({ name }) => name === "agent-coordinator-vulnerability-controller",
+    )?.configMap,
+    {
+      defaultMode: 292,
+      name: controllerConfig.metadata.name,
+    },
+  );
 });
 
 test("the remote overlay isolates durable data from rebuildable caches", () => {

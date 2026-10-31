@@ -1,9 +1,38 @@
-@id("write-approved-repository")
+@id("create-pull-request-in-approved-repository")
 permit (
   principal in AgentCoordinator::AuthorityProfile::"authority:personal-project-unattended",
-  action in AgentCoordinator::Action::"github.repository.change",
+  action == AgentCoordinator::Action::"github.pull_requests.create",
   resource == AgentCoordinator::Repository::"robbie-palmer/hq"
 );
+
+@id("write-controller-owned-non-default-ref")
+permit (
+  principal in AgentCoordinator::AuthorityProfile::"authority:personal-project-unattended",
+  action in [
+    AgentCoordinator::Action::"github.contents.write",
+    AgentCoordinator::Action::"github.git_refs.write"
+  ],
+  resource is AgentCoordinator::Ref
+)
+when {
+  resource.repository == AgentCoordinator::Repository::"robbie-palmer/hq" &&
+  resource.controllerOwned &&
+  !resource.isDefaultBranch
+};
+
+@id("never-write-default-or-unowned-ref")
+forbid (
+  principal in AgentCoordinator::AuthorityProfile::"authority:personal-project-unattended",
+  action in [
+    AgentCoordinator::Action::"github.contents.write",
+    AgentCoordinator::Action::"github.git_refs.write"
+  ],
+  resource is AgentCoordinator::Ref
+)
+unless {
+  resource.controllerOwned &&
+  !resource.isDefaultBranch
+};
 
 @id("update-owned-pull-request")
 permit (
