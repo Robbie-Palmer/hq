@@ -1,0 +1,14 @@
+{
+  "api": "individual-income",
+  "version": "1.2",
+  "taxYear": "2024-25",
+  "response": {
+    "pensionsAnnuitiesAndOtherStateBenefits": {},
+    "employments": [
+      {
+        "employerPayeReference": "123/AB456",
+        "payFromEmployment": 22600
+      }
+    ]
+  }
+}

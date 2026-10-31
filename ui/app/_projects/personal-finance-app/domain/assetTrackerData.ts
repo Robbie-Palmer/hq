@@ -12,6 +12,10 @@ import {
   PlanningCaseSchema,
 } from "./futureCashFlow";
 import {
+  HmrcEmploymentLabelSchema,
+  HmrcEmploymentObservationSchema,
+} from "./hmrcStaticImport";
+import {
   DEFAULT_HOUSEHOLD,
   EMPTY_HOUSEHOLD_OWNERSHIP,
   HouseholdOwnershipIndexSchema,
@@ -89,6 +93,10 @@ export const AssetTrackerDataSchema = z
     capitalFlows: z.array(CapitalFlowSchema).default([]),
     incomeHistory: z.array(IncomeRecordSchema).default([]),
     salaryHistory: z.array(SalaryHistoryRecordSchema).default([]),
+    hmrcEmploymentObservations: z
+      .array(HmrcEmploymentObservationSchema)
+      .optional(),
+    hmrcEmploymentLabels: z.array(HmrcEmploymentLabelSchema).optional(),
     jobMoveScenarios: z.array(JobMoveScenarioSchema).optional(),
     transfers: z.array(TransferSchema).default([]),
     recurringFlows: z.array(RecurringFlowSchema).default([]),

@@ -69,6 +69,8 @@ function dataCollections(data: AssetTrackerData): readonly unknown[][] {
     data.capitalFlows,
     data.incomeHistory,
     data.salaryHistory,
+    data.hmrcEmploymentObservations ?? [],
+    data.hmrcEmploymentLabels ?? [],
     data.jobMoveScenarios ?? [],
     data.transfers,
     data.recurringFlows,

@@ -2,6 +2,7 @@
 
 import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 import { DataControls } from "./data-controls";
+import { HmrcStaticImportDrawer } from "./hmrc-static-import-drawer";
 import { IncomeHistoryImportDrawer } from "./income-history-import-drawer";
 import { SalaryCalculationHistory } from "./salary-calculation-history";
 import { SalaryHistoryManager } from "./salary-history-manager";
@@ -21,6 +22,7 @@ export function ImportsRoute() {
         <SpreadsheetImportDrawer />
         <AccountHistoryImportDrawer />
         <IncomeHistoryImportDrawer />
+        <HmrcStaticImportDrawer />
       </div>
       <SalaryHistoryManager />
       <SalaryCalculationHistory />

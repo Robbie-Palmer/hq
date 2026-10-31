@@ -20,6 +20,7 @@ export * from "./exchangeRateImport";
 export * from "./forecastAssumption";
 export * from "./futureCashFlow";
 export * from "./grossSalaryTrajectory";
+export * from "./hmrcStaticImport";
 export * from "./household";
 export * from "./housingStrategy";
 export * from "./incomeRecord";
