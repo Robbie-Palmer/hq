@@ -25,13 +25,14 @@ const effectiveAt = "2026-10-30T00:00:00Z";
 const repositoryRoot = new URL("../../../", import.meta.url);
 
 async function productionBlueprint() {
-  const [profileSource, layout, platform, nix, opentelemetry] =
+  const [profileSource, layout, platform, nix, opentelemetry, deploymentMaturity] =
     await Promise.all([
       readFile(profileUrl, "utf8"),
       readFile(new URL("repository-layout.yaml", platformRoot), "utf8"),
       readFile(new URL("platform.yaml", platformRoot), "utf8"),
       readFile(new URL("nix-flake-contract.yaml", platformRoot), "utf8"),
       readFile(new URL("opentelemetry-contract.yaml", platformRoot), "utf8"),
+      readFile(new URL("deployment-maturity.yaml", platformRoot), "utf8"),
     ]);
   const profile = parseProjectProfile(profileSource);
   const contracts = parseProjectProfileContracts({
@@ -39,6 +40,7 @@ async function productionBlueprint() {
     platform,
     nix,
     opentelemetry,
+    deploymentMaturity,
   });
   return {
     blueprint: resolveProjectProfile(profile, contracts, effectiveAt),

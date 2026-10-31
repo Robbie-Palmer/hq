@@ -1,6 +1,10 @@
 import { parse } from "yaml";
 import { z } from "zod";
 import {
+  type DeploymentMaturityContract,
+  parseDeploymentMaturityContract,
+} from "platform-contracts/deployment-maturity";
+import {
   type NixFlakeContract,
   parseNixFlakeContract,
 } from "platform-contracts/nix-flake";
@@ -18,6 +22,11 @@ import {
   type RepositoryLayoutContract,
 } from "platform-contracts/repository-layout";
 import {
+  parseWorkloadDefinition,
+  type WorkloadDefinition,
+  workloadDefinitionSchema,
+} from "platform-contracts/workload";
+import {
   compareUtcInstants,
   isUtcInstant,
   UTC_INSTANT_PATTERN,
@@ -31,8 +40,8 @@ import {
 const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export const PROJECT_PROFILE_SCHEMA_VERSION = 1;
-export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 2;
+export const PROJECT_PROFILE_SCHEMA_VERSION = 2;
+export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 3;
 
 const slugSchema = z.string().regex(LOWERCASE_KEBAB_CASE_PATTERN);
 const slotSchema = z.string().regex(SLOT_PATTERN);
@@ -303,9 +312,9 @@ const unsupportedCapabilitiesSchema = z
     }
   });
 
-const projectProfileFieldsSchema = z
+const projectProfileVersion1FieldsSchema = z
   .object({
-    schema_version: z.literal(PROJECT_PROFILE_SCHEMA_VERSION),
+    schema_version: z.literal(1),
     project: z
       .object({
         id: slugSchema,
@@ -330,7 +339,21 @@ const projectProfileFieldsSchema = z
   })
   .strict();
 
-type ProjectProfileInput = z.infer<typeof projectProfileFieldsSchema>;
+const projectProfileVersion2FieldsSchema = projectProfileVersion1FieldsSchema
+  .omit({ schema_version: true, capabilities: true })
+  .extend({
+    schema_version: z.literal(PROJECT_PROFILE_SCHEMA_VERSION),
+    capabilities: z
+      .object({
+        workloads: z.array(workloadDefinitionSchema).min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
+type ProjectProfileInput =
+  | z.infer<typeof projectProfileVersion1FieldsSchema>
+  | z.infer<typeof projectProfileVersion2FieldsSchema>;
 
 function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx): void {
   addDuplicateIssues(
@@ -380,7 +403,12 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
   }
 }
 
-export const projectProfileSchema = projectProfileFieldsSchema.superRefine(validateProfile);
+export const projectProfileSchema = z
+  .discriminatedUnion("schema_version", [
+    projectProfileVersion1FieldsSchema,
+    projectProfileVersion2FieldsSchema,
+  ])
+  .superRefine(validateProfile);
 export type ProjectProfile = z.infer<typeof projectProfileSchema>;
 
 export interface ProjectProfileContracts {
@@ -419,6 +447,7 @@ export interface ProjectProfileContracts {
     > & Record<string, unknown>;
     processing: Pick<OpenTelemetryContract["processing"], "failure_mode">;
   };
+  deployment_maturity: DeploymentMaturityContract;
 }
 
 export interface ResolvedSelection {
@@ -448,8 +477,8 @@ export interface ResolvedFulfillmentCheckpoint {
 }
 
 export interface ResolvedProjectBlueprint {
-  readonly schema_version: 2;
-  readonly profile_schema_version: 1;
+  readonly schema_version: 2 | 3;
+  readonly profile_schema_version: 1 | 2;
   readonly effective_at: string;
   readonly project: {
     readonly id: string;
@@ -494,6 +523,7 @@ export interface ResolvedProjectBlueprint {
   };
   readonly nix: Record<string, unknown>;
   readonly opentelemetry: Record<string, unknown>;
+  readonly workloads?: readonly WorkloadDefinition[];
   readonly fulfillment_checkpoints: readonly ResolvedFulfillmentCheckpoint[];
   readonly rollout: {
     readonly operational_checks: readonly {
@@ -524,13 +554,37 @@ export function parseProjectProfileContracts(sources: {
   platform: string;
   nix: string;
   opentelemetry: string;
+  deploymentMaturity: string;
 }): ProjectProfileContracts {
   return {
     layout: parseRepositoryLayoutContract(parse(sources.layout)),
     platform: parsePlatformManifestSource(parse(sources.platform)),
     nix: parseNixFlakeContract(parse(sources.nix)),
     opentelemetry: parseOpenTelemetryContract(parse(sources.opentelemetry)),
+    deployment_maturity: parseDeploymentMaturityContract(
+      parse(sources.deploymentMaturity),
+    ),
   };
+}
+
+function resolveProfileWorkloads(
+  profile: ProjectProfile,
+  contracts: ProjectProfileContracts,
+): readonly WorkloadDefinition[] {
+  if (profile.schema_version === 1) return [];
+  return profile.capabilities.workloads.map((workload) => {
+    if (workload.project.id !== profile.project.id) {
+      throw new Error(
+        `Workload '${workload.workload.id}' project id must match profile project '${profile.project.id}'`,
+      );
+    }
+    if (workload.project.catalog_id !== `project:${profile.project.id}`) {
+      throw new Error(
+        `Workload '${workload.workload.id}' catalog id must be 'project:${profile.project.id}'`,
+      );
+    }
+    return parseWorkloadDefinition(workload, contracts.deployment_maturity);
+  });
 }
 
 function isEffectiveAt(period: { effective_from: string; effective_until?: string }, instant: string): boolean {
@@ -980,6 +1034,7 @@ export function resolveProjectProfile(
   const instant = utcInstantSchema.parse(effectiveAt);
   validateAgainstContracts(profile, contracts);
   const components = resolveComponents(profile, contracts);
+  const workloads = resolveProfileWorkloads(profile, contracts);
   const { selections, checkpoints } = resolveSelections(profile, contracts, instant);
   const paths = contracts.layout.knowledge_graph;
   const substituteProject = (template: string) => substitutePath(template, { project: profile.project.id, sequence: "{sequence}", slug: "{slug}" });
@@ -1007,7 +1062,10 @@ export function resolveProjectProfile(
   if (otelRuntime && !transport) throw new Error(`OpenTelemetry runtime '${otelRuntime}' has no current transport default`);
 
   return {
-    schema_version: RESOLVED_BLUEPRINT_SCHEMA_VERSION,
+    schema_version:
+      profile.schema_version === PROJECT_PROFILE_SCHEMA_VERSION
+        ? RESOLVED_BLUEPRINT_SCHEMA_VERSION
+        : 2,
     profile_schema_version: profile.schema_version,
     effective_at: instant,
     project: {
@@ -1078,6 +1136,7 @@ export function resolveProjectProfile(
       cardinality: contracts.opentelemetry.cardinality,
       failure_mode: contracts.opentelemetry.processing.failure_mode,
     } : { enabled: false },
+    ...(workloads.length > 0 ? { workloads } : {}),
     fulfillment_checkpoints: checkpoints,
     rollout: {
       operational_checks: [...profile.rollout.operational_checks]

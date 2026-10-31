@@ -983,10 +983,14 @@ describe("CLI", () => {
       "../../../ui/content/projects/personal-engineering-platform/",
       import.meta.url,
     );
-    const [nix, opentelemetry] = await Promise.all([
+    const [nix, opentelemetry, deploymentMaturity] = await Promise.all([
       readFile(new URL("nix-flake-contract.yaml", productionContracts), "utf8"),
       readFile(
         new URL("opentelemetry-contract.yaml", productionContracts),
+        "utf8",
+      ),
+      readFile(
+        new URL("deployment-maturity.yaml", productionContracts),
         "utf8",
       ),
     ]);
@@ -1077,6 +1081,11 @@ describe("CLI", () => {
       contractsDirectory,
       "opentelemetry-contract.yaml",
       opentelemetry,
+    );
+    await write(
+      contractsDirectory,
+      "deployment-maturity.yaml",
+      deploymentMaturity,
     );
     const baseProfile = {
       schema_version: 1,
