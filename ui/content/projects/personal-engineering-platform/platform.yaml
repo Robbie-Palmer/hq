@@ -20,7 +20,9 @@ catalog:
       relations:
         - type: "part_of"
           target: "project:personal-engineering-platform"
-      decision_refs: [ "personal-engineering-platform:032-monorepo-project-package-layout" ]
+      decision_refs:
+        - "personal-engineering-platform:032-monorepo-project-package-layout"
+        - "personal-engineering-platform:047-deployment-maturity-contract"
     - id: "component:personal-engineering-platform/project-economics-domain"
       kind: "component"
       name: "Project economics domain"

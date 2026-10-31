@@ -16,6 +16,16 @@ description = "Test platform contracts"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."docs:generate"]
+description = "Generate deployment maturity contract documentation"
+depends = ["install"]
+run = "pnpm docs:generate"
+
+[tasks."docs:check"]
+description = "Check generated deployment maturity contract documentation"
+depends = ["install"]
+run = "pnpm docs:check"
+
 [tasks."python:lock"]
 description = "Lock Python feature-flag conformance dependencies"
 run = "uv lock --project python"
@@ -63,4 +73,4 @@ run = "pnpm test:coverage"
 
 [tasks.check]
 description = "Check platform contracts"
-depends = ["typecheck", "test", "python:lint", "python:typecheck", "python:test", "feature-flags:worker:check"]
+depends = ["typecheck", "test", "docs:check", "python:lint", "python:typecheck", "python:test", "feature-flags:worker:check"]

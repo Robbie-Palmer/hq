@@ -3,7 +3,7 @@ title: "Personal Engineering Platform"
 description: "An executable developer platform for building and operating personal projects"
 date: "2026-09-12"
 status: "live"
-updated: "2026-10-29"
+updated: "2026-10-30"
 initiatives:
   - "semi-autonomous-software-development"
 ---
@@ -162,6 +162,21 @@ Tracking projects follow accepted replacements. Completed or deliberately
 frozen projects close their adoption periods and keep the stack they last used.
 The platform has no coordinated version number. Each policy and selection
 changes on its own timeline.
+
+# Deployment maturity
+
+[ADR 047](/projects/personal-engineering-platform/adrs/047-deployment-maturity-contract)
+defines the delivery stages as a versioned contract. Serverless, managed
+application runtimes, NixOS hosts, single-node K3s, multi-node K3s, and
+Kubernetes each declare supported workload shapes, ownership, evidence gates,
+cost and recovery assumptions, and required operating capabilities.
+
+The stages are not a growth ladder. A project stays on the lowest stage that
+meets its measured needs. Moving targets preserves project, workload, release,
+data, routing, and telemetry identity. Only the target adapter's provider,
+resource, binding, scaling, deployment, rollback, and incident-access fields
+change. The checked example and generated reference live with the contract, so
+profile compilers can consume the same data that reviewers read.
 
 # Promotion test
 
