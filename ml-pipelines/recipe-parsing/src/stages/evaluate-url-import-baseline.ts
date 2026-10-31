@@ -33,7 +33,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   const configFile = resolvedArgument(
     argv,
     "--config",
-    "config/url-import-deterministic-baseline.json",
+    "config/url-import-regression-contract.json",
   );
   const reportFile = resolvedArgument(
     argv,

@@ -86,7 +86,11 @@ describe("URL-import corpus partition isolation", () => {
       false,
     );
     expect(
-      baselineStage.deps.some((dependency) => dependency.includes("regression")),
+      baselineStage.deps.some(
+        (dependency) =>
+          dependency.includes("manifests/regression.json") ||
+          dependency.includes("snapshots/regression"),
+      ),
     ).toBe(false);
     expect(baselineStage.deps).toContain("../../packages/ts-base/src");
   });

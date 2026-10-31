@@ -33,7 +33,7 @@ const CORPUS_ROOT = path.join(
 );
 const CONFIG_FILE = path.join(
   PROJECT_ROOT,
-  "config/url-import-deterministic-baseline.json",
+  "config/url-import-regression-contract.json",
 );
 const temporaryDirectories: string[] = [];
 

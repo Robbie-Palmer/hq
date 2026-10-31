@@ -656,7 +656,7 @@ stages:
       hash: md5
       md5: 0aef3a10b5f1a0ade0b160f71c39019a
       size: 739757
-    - path: config/url-import-deterministic-baseline.json
+    - path: config/url-import-regression-contract.json
       hash: md5
       md5: f15a73830a84b516369c3d4d97b7cf98
       size: 1303
@@ -684,8 +684,8 @@ stages:
       size: 498
     - path: src/stages/evaluate-url-import-baseline.ts
       hash: md5
-      md5: cddf03ac5bc0ef13f30ff92b2b2cb4d3
-      size: 2659
+      md5: 51e7b5d83a079d54d797a95accf55087
+      size: 2656
     - path: src/url-import-baseline
       hash: md5
       md5: ab5f043da53457ec015923945e8fe24b.dir
@@ -702,13 +702,13 @@ stages:
     outs:
     - path: outputs/url-import-deterministic-baseline.json
       hash: md5
-      md5: 2c6dc9692ce2425be212b768a38e3e3d
+      md5: 3141ed01d57539b945bd6f2d9d3d1419
       size: 6466
     - path: outputs/url-import-deterministic-failures.json
       hash: md5
-      md5: 6170c8c396f22465bd8c7cc11dbedf8f
+      md5: 26a1709be3a343e17d3efcd46f168c25
       size: 1305
     - path: outputs/url-import-regression-gate.json
       hash: md5
-      md5: ea5d971ea54334ed15e7c99d697f71b0
+      md5: 2e211c4854570f915f0f679429c570f5
       size: 400

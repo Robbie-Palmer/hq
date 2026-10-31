@@ -67,7 +67,7 @@ The command writes three stable JSON reports under `outputs/`:
 - `url-import-regression-gate.json` records the declared budgets and any
   violations.
 
-`config/url-import-deterministic-baseline.json` pins the corpus 1.0.0 reference.
+`config/url-import-regression-contract.json` pins the corpus 1.0.0 reference.
 The current reference allows no drop in usable-import rate, ontology coverage,
 or field precision and recall, and no increase in categorized failures. The
 three existing unmatched ontology terms remain explicit baseline failures.

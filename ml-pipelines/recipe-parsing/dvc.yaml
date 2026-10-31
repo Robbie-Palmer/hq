@@ -31,7 +31,7 @@ stages:
   evaluate_url_import_baseline:
     cmd: pnpm exec tsx src/stages/evaluate-url-import-baseline.ts
     deps:
-      - config/url-import-deterministic-baseline.json
+      - config/url-import-regression-contract.json
       - data/url-import-corpus/synthetic/v1/manifests/train.json
       - data/url-import-corpus/synthetic/v1/manifests/development.json
       - data/url-import-corpus/synthetic/v1/snapshots/train
