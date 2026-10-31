@@ -398,7 +398,7 @@ Slack["Slack"]
 GitHub["GitHub<br/>Branches and PRs"]
 
 Laptop -->|"Local t3-code"| GitHub
-Companion -.->|"Proposed service migration"| Mini
+Mini -.->|"Proposed service migration"| Companion
 Mini -->|"Browser tests"| Phones
 Watchdog -->|"Checks"| Mini
 Watchdog -->|"Checks"| Pi
@@ -597,10 +597,6 @@ These ideas remain outside the current build plan:
   Ente photo system remains separate.
 * **Dashboards on this site.** A public page could show selected Netdata
   graphs and lab status without exposing the private services behind them.
-* **Quiet service companion.** The 8 GB Mac mini has rebooted under combined
-  development and service load. A 32 GB NixOS mini computer may take a cohesive
-  group of Linux services, but only after measurements identify the pressure
-  and the media disk has a reliable owner.
 
 # Risks
 
