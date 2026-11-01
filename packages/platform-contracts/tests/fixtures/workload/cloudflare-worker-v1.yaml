@@ -1,0 +1,102 @@
+contract: workload-definition
+contract_version: 1
+project:
+  id: edge-status
+  catalog_id: project:edge-status
+  owner: personal-engineering-platform
+release:
+  id: release-2026-10-31-1
+  artifact:
+    kind: cloudflare-worker-bundle
+    repository: r2://release-artifacts/edge-status/worker.mjs
+    digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+    signature:
+      kind: sigstore-bundle
+      signer: https://github.com/example/edge-status/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/edge-status.sigstore.json
+workload:
+  id: edge-status-api
+  shape: request-driven-service
+  runtime_family: cloudflare-worker
+  processes:
+    - id: api
+      kind: serverless-handler
+      artifact_ref: release
+      entrypoint: dist/worker.mjs
+      handlers:
+        fetch: true
+        queues: [status-events]
+        schedules: ["*/10 * * * *"]
+  configuration:
+    APP_ENV:
+      kind: literal
+      value: production
+    STATUS_BUCKET:
+      kind: dependency-output
+      dependency: status-store
+      output: binding
+  secrets:
+    - dependency: upstream-api
+      output: token
+      environment_variable: UPSTREAM_API_TOKEN
+  dependencies:
+    status-store:
+      kind: data
+      type: object-store
+      version: "1"
+      logical_id: object-store:edge-status/production
+    upstream-api:
+      kind: service
+      type: http-api
+      version: v1
+  ingress:
+    path: /
+    public_urls:
+      - https://status.example.test
+  scaling:
+    min_instances: 0
+    max_instances: 100
+  telemetry:
+    contract_version: 1
+    service_namespace: personal-engineering-platform
+    service_name: edge-status-api
+    transport: otlp-http-protobuf
+  capability_requirements:
+    - capability: immutable-artifact
+      mode: required
+    - capability: serverless-handlers
+      mode: required
+    - capability: scheduled-jobs
+      mode: required
+    - capability: configuration
+      mode: required
+    - capability: secret-references
+      mode: required
+    - capability: dependencies
+      mode: required
+    - capability: http-ingress
+      mode: required
+    - capability: horizontal-scaling
+      mode: required
+    - capability: otlp-telemetry
+      mode: required
+    - capability: environment-overlays
+      mode: required
+deployment_targets:
+  - contract: deployment-target
+    contract_version: 1
+    id: production-cloudflare
+    kind: cloudflare-worker
+    environment: production
+    stage: serverless
+    required_capabilities:
+      - identity
+      - secrets
+      - networking
+      - telemetry
+      - deployment
+      - rollback
+    extensions:
+      compatibility_date: "2026-10-31"
+      routes:
+        - status.example.test/*

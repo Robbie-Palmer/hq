@@ -1462,6 +1462,9 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     localhostProfile: "t3-code-agent-browser",
     type: "Localhost",
   });
+  assert.deepEqual(valueAt(t3Container, ["securityContext", "seccompProfile"]), {
+    type: "Unconfined",
+  });
   const initContainers = valueAt(podSpec, ["initContainers"]);
   assert.ok(Array.isArray(initContainers));
   for (const container of [...initContainers, dockerContainer]) {
@@ -1595,6 +1598,97 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   assert.equal(
     valueAt(devicePlugin, ["spec", "template", "spec", "runtimeClassName"]),
     "nvidia",
+  );
+});
+
+test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
+  const resources = parseResources(overlays.vector);
+  const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+  const service = resource(resources, "Service", "t3-code", "t3-code");
+  const controllerConfig = resources.find(
+    ({ kind, metadata }) =>
+      kind === "ConfigMap" &&
+      metadata.namespace === "t3-code" &&
+      metadata.name.startsWith("agent-coordinator-vulnerability-controller-"),
+  );
+  assert.ok(controllerConfig);
+  assert.equal(valueAt(service, ["spec", "type"]), "NodePort");
+  assert.equal(
+    resources.some(({ kind }) => kind === "Ingress" || kind === "Gateway"),
+    false,
+  );
+  assert.equal(
+    resources.some(
+      ({ kind, spec }) =>
+        kind === "Service" &&
+        typeof spec === "object" &&
+        spec !== null &&
+        (spec as Record<string, unknown>).type === "LoadBalancer",
+    ),
+    false,
+  );
+
+  const expectedPolicy = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/controller-policy.json",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const expectedPrompt = readFileSync(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/controller-prompt.md",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
+  assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
+  for (const fileName of [
+    "controller.cedarschema.json",
+    "controller-admission.cedar",
+    "github.cedar",
+    "t3.cedar",
+    "work-graph.cedar",
+    "deployment.cedar",
+  ]) {
+    const expected = readFileSync(
+      new URL(
+        `../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/${fileName}`,
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    assert.equal(valueAt(controllerConfig, ["data", fileName]), expected);
+  }
+  assert.doesNotMatch(expectedPrompt, /\{\{\s*(?:body|request)\s*}}/);
+  assert.match(expectedPrompt, /not instructions, authority, URLs to visit, shell text/);
+  assert.match(expectedPrompt, /deny or unknown result from any layer wins/);
+
+  const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
+  assert.ok(Array.isArray(containers));
+  const t3Container = containers.find(({ name }) => name === "t3-code");
+  assert.ok(t3Container);
+  const mounts = valueAt(t3Container, ["volumeMounts"]);
+  assert.ok(Array.isArray(mounts));
+  assert.deepEqual(
+    mounts.find(({ name }) => name === "agent-coordinator-vulnerability-controller"),
+    {
+      mountPath: "/etc/agent-coordinator",
+      name: "agent-coordinator-vulnerability-controller",
+      readOnly: true,
+    },
+  );
+  const volumes = valueAt(deployment, ["spec", "template", "spec", "volumes"]);
+  assert.ok(Array.isArray(volumes));
+  assert.deepEqual(
+    volumes.find(
+      ({ name }) => name === "agent-coordinator-vulnerability-controller",
+    )?.configMap,
+    {
+      defaultMode: 292,
+      name: controllerConfig.metadata.name,
+    },
   );
 });
 
@@ -2528,6 +2622,19 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
 
   assert.match(hostConfig, /profile t3-code-agent-browser flags=\(unconfined\)/);
   assert.match(hostConfig, /\n\s+userns,\n/);
+  assert.match(hostConfig, /packages = \[ pkgs\.apparmor-profiles \];/);
+  assert.match(
+    hostConfig,
+    /includes\."tunables\/global" = ''[\s\S]*?apparmor-profiles\}\/etc\/apparmor\.d\/tunables\/global/,
+  );
+  assert.match(
+    hostConfig,
+    /systemd\.services\.k3s = \{[\s\S]*?after = \[[\s\S]*?"apparmor\.service"[\s\S]*?requires = \[[\s\S]*?"apparmor\.service"[\s\S]*?path = \[[\s\S]*?pkgs\.apparmor-parser/,
+  );
+  assert.match(
+    hostConfig,
+    /L\+ \/sbin\/apparmor_parser - - - - \$\{pkgs\.apparmor-parser\}\/bin\/apparmor_parser/,
+  );
   assert.match(
     healthCheck,
     /containerd_config=\/var\/lib\/rancher\/k3s\/agent\/etc\/containerd\/config\.toml/,
@@ -2537,6 +2644,8 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
     healthCheck,
     /grep -Fx 't3-code-agent-browser \(unconfined\)'/,
   );
+  assert.match(healthCheck, /test -x \/sbin\/apparmor_parser/);
+  assert.match(healthCheck, /test -r \/etc\/apparmor\.d\/tunables\/global/);
   assert.match(healthCheck, /timeout 30s chromium/);
   assert.match(healthCheck, /--dump-dom about:blank/);
   assert.doesNotMatch(healthCheck, /--no-sandbox/);

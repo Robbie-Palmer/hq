@@ -74,6 +74,51 @@ const PERIODS_PER_YEAR: Record<SalaryPayFrequency, number | null> = {
   irregular: null,
 };
 
+const nationalInsurancePayPeriod = {
+  weekly: "weekly",
+  fortnightly: "fortnightly",
+  fourWeekly: "four-weekly",
+  monthly: "monthly",
+  quarterly: "quarterly",
+  annual: "annual",
+  irregular: null,
+} as const;
+
+function distributedPeriods(total: number, periods: number): number[] {
+  const base = Math.floor(total / periods);
+  const remainder = total - base * periods;
+  return Array.from(
+    { length: periods },
+    (_, index) => base + (index < remainder ? 1 : 0),
+  );
+}
+
+function nationalInsurancePeriods(
+  record: SalaryHistoryRecord,
+  multiplier: number,
+  pension: ReturnType<typeof buildPension>,
+  oneOffGrossPay: number,
+) {
+  const payPeriod = nationalInsurancePayPeriod[record.payFrequency];
+  const periods = PERIODS_PER_YEAR[record.payFrequency];
+  if (payPeriod == null || periods == null || record.grossPay == null) {
+    return undefined;
+  }
+  const regularPayPence = Math.round(record.grossPay * multiplier * 100);
+  const earnings = distributedPeriods(regularPayPence, periods);
+  if (oneOffGrossPay > 0) {
+    earnings[0] = (earnings[0] ?? 0) + Math.round(oneOffGrossPay * 100);
+  }
+  const sacrifice =
+    pension.pension?.salarySacrificeByPeriodPence ?? earnings.map(() => 0);
+  return {
+    payPeriod,
+    postSacrificeEarningsPence: earnings.map((amount, index) =>
+      Math.max(0, amount - (sacrifice[index] ?? 0)),
+    ),
+  };
+}
+
 function taxYearForDate(date: string): string {
   const year = Number(date.slice(0, 4));
   const startYear = date.slice(5) < "04-06" ? year - 1 : year;
@@ -404,6 +449,7 @@ function buildPension(
     salarySacrificePence: number;
     employerContributionPence: number;
     providerTaxReliefPence: number;
+    salarySacrificeByPeriodPence: number[];
   } | null;
   reasons: CalculationReason[];
 } {
@@ -471,6 +517,8 @@ function buildPension(
           salarySacrificePence: calculation.salarySacrificePence,
           employerContributionPence: calculation.employerContributionPence,
           providerTaxReliefPence: calculation.providerTaxReliefPence,
+          salarySacrificeByPeriodPence:
+            calculation.salarySacrificeByPeriodPence,
         }
       : null,
     reasons: [],
@@ -559,6 +607,8 @@ function buildNoEmployeePension(
             salarySacrificePence: 0,
             employerContributionPence: employerAmount,
             providerTaxReliefPence: 0,
+            salarySacrificeByPeriodPence:
+              calculation.salarySacrificeByPeriodPence,
           },
     reasons: [],
     employerContributionPence: employerAmount,
@@ -672,6 +722,12 @@ function calculateResult(
     otherDeductionsPence: annualMoney(record.otherDeductions, multiplier) ?? 0,
     nationalInsuranceCategory: "A",
     isCompanyDirector: false,
+    nationalInsurancePeriods: nationalInsurancePeriods(
+      record,
+      multiplier,
+      pension,
+      oneOffGrossPay,
+    ),
     pension: pension.pension,
     assumptions: [
       { id: "salary-fact", value: `${record.id}:${record.acceptedAt}` },

@@ -1,0 +1,112 @@
+---
+title: "ADR 047: Executable deployment maturity contract"
+date: "2026-10-30"
+status: "Accepted"
+---
+
+## Context
+
+[ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+defines executable project profiles and resolved blueprints.
+[ADR 043](/projects/personal-engineering-platform/adrs/043-portable-workload-contract)
+keeps workload intent independent from target packaging. Neither decision says
+when a project should stay on serverless infrastructure, operate a NixOS host,
+or accept the cost of K3s or Kubernetes.
+
+A prose ladder would name the targets but leave the important claims unchecked.
+It could not tell a profile compiler whether a workload shape fits a stage,
+which capabilities the target must supply, what evidence permits promotion, or
+whether a claimed recovery property has support. It would also invite each
+adapter to rename project, workload, release, data, routing, and telemetry
+identity during a move.
+
+The progression must support small projects. Kubernetes is one of six targets.
+A move earns its operating cost only when the current stage fails a
+measured workload, recovery, control, or cost need.
+
+## Decision
+
+Adopt version 1 of the deployment maturity contract in
+`ui/content/projects/personal-engineering-platform/deployment-maturity.yaml`.
+`packages/platform-contracts` owns its Zod schema, cross-field validation,
+types, checked promotion fixture, and deterministic Markdown renderer.
+`docs/contracts/deployment-maturity.md` is generated from the contract and
+fails CI when stale.
+
+The ordered stages are serverless, managed application runtime, self-managed
+NixOS host, single-node K3s, multi-node K3s, and Kubernetes. Each stage declares
+supported workload shapes, ownership for the application, runtime, control
+plane, data, and incident response, entry criteria, exit triggers, cost and
+recovery assumptions, and required behavior for identity, secrets, networking,
+storage, databases, telemetry, backup, deployment, rollback, and incident
+access.
+
+The order is a comparison model rather than an automatic promotion path. A
+project stays at the lowest stage that meets its proved requirements. Entry
+criteria name the required evidence class. Exit triggers require runtime tests,
+recovery exercises, contract checks, provider documentation, or measured cost
+records. A profile or reconciler may use these fields later, but version 1 does
+not make a placement decision from prose or an unmeasured preference.
+
+Project ID, catalog ID, owner, workload ID, runtime family, ports, health
+contract, dependencies, telemetry identity, release ID, artifact repository,
+artifact digest, and signer remain invariant during promotion. The target
+adapter owns the deployment stage, provider, generated resource names, scaling,
+network, secret, storage, and database bindings, rollback mechanism, and
+incident-access implementation. Adapters must not rewrite invariant fields to
+fit a target.
+
+The checked example promotes one Sigstore-signed OCI digest through a managed
+serverless container runtime, a NixOS systemd OCI service, and a Kubernetes
+Deployment. Every target retains the same public URLs, logical PostgreSQL
+identity and schema, OpenTelemetry service identity, signature evidence, and
+previous artifact. Contract tests reject a changed digest, URL, data binding,
+telemetry identity, missing verification class, incompatible adapter family,
+or backward stage order.
+
+Availability is a checked claim. Version 1 claims only `single-instance` for
+the NixOS and single-node K3s stages. It makes no high-availability claim for
+serverless, managed application, multi-node K3s, or Kubernetes. The validator
+accepts `high-availability` only when the stage names at least two failure
+domains and supplies capacity, failover, and recovery test references. Node
+count, replicas, provider marketing, and Kubernetes adoption are not evidence
+by themselves.
+
+## Alternatives
+
+A prose standard would be easier to publish. It would leave Copier profiles,
+validators, and target adapters to create incompatible interpretations, and it
+could not reject unsupported availability claims.
+
+Making Kubernetes the common source format would simplify the last two stages.
+It would force serverless and NixOS projects to carry Kubernetes objects or a
+reverse translation even when they never use a cluster. ADR 043 already puts
+portable workload intent above target packaging.
+
+Modeling every capability as an independent maturity axis would avoid a linear
+stage order. It would make placement more precise, but it would not give project
+profiles a bounded set of owned deployment targets. Version 1 keeps capability
+requirements inside each stage and permits a later compiler to explain which
+single requirement blocks a target.
+
+Treating provider service tiers or multiple nodes as high availability would
+make the contract look stronger. It would confuse purchased features with a
+tested application and data recovery outcome.
+
+## Consequences
+
+Copier profiles and workload adapters can consume one versioned source for
+target eligibility, ownership, promotion evidence, and rollback expectations.
+Generated documentation remains useful for review without becoming a second
+source of truth. A stage change can preserve application identity while making
+the target-specific changes explicit in a diff.
+
+The platform now owns another contract version and its migration path. Adding a
+stage, invariant, capability, or evidence rule may require a new contract
+version before profiles adopt it. Target adapters still need conformance tests
+that prove they implement their declared capability modes.
+
+The contract does not prove that any current deployment is highly available.
+Projects must attach current recovery and failover evidence before making that
+claim. A multi-node cluster without that evidence remains `not-claimed`, which
+is intentionally less flattering and more accurate.

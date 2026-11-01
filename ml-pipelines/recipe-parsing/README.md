@@ -46,11 +46,42 @@ mise //ml-pipelines/recipe-parsing:url-import:validate
 mise //ml-pipelines/recipe-parsing:url-import:replay
 ```
 
+Run the complete deterministic baseline with one offline command:
+
+```bash
+mise //ml-pipelines/recipe-parsing:url-import:baseline
+```
+
+The command runs the shared schema.org and DOM extraction path, Cooklang
+normalization, quantity and unit parsing, step segmentation, and deterministic
+ingredient and equipment ontology matching. It reads saved train and
+development snapshots only. The regression partition is not a dependency, so
+routine evaluation does not inspect or tune against its known failures.
+
+The command writes three stable JSON reports under `outputs/`:
+
+- `url-import-deterministic-baseline.json` has field precision and recall,
+  usable-import rate, ontology coverage, and source strata.
+- `url-import-deterministic-failures.json` lists failures by category and
+  fixture.
+- `url-import-regression-gate.json` records the declared budgets and any
+  violations.
+
+`config/url-import-regression-contract.json` pins the corpus 1.0.0 reference.
+The current reference allows no drop in usable-import rate, ontology coverage,
+or field precision and recall, and no increase in categorized failures. The
+three existing unmatched ontology terms remain explicit baseline failures.
+Content hashes for the selected corpus files, parser code, ontology data,
+configuration, and lockfile form the local cache key. DVC also caches and diffs
+the reports through the `evaluate_url_import_baseline` stage. CI runs the same
+mise command and fails when the gate reports a violation.
+
 The matching DVC stages are `validate_url_import_corpus` and
-`replay_url_import_corpus`. Validation checks all three synthetic partitions.
-The gating replay stage lists only the currently passing train and development
-partitions as dependencies. Reproduce both local stages and update `dvc.lock`
-with:
+`replay_url_import_corpus`. The baseline adds
+`evaluate_url_import_baseline`. Validation checks all three synthetic
+partitions. The gating replay and baseline stages list only the currently
+passing train and development partitions as dependencies. Reproduce all local
+URL-import stages and update `dvc.lock` with:
 
 ```bash
 mise //ml-pipelines/recipe-parsing:url-import:repro

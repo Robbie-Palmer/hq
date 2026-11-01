@@ -1,4 +1,4 @@
-_commit: 6d9f9044e7d74e50270f61eccc19001b54cd317a
+_commit: 6fdbc10f6700a9a42c2288e4e301a7fd86ed3367
 _src_path: https://github.com/Robbie-Palmer/hq.git
 blueprint:
   catalog:
@@ -39,6 +39,33 @@ blueprint:
             type: part_of
         source_paths:
           - infra/personal-finance
+      - id: component:personal-finance-app/personal-finance-api
+        kind: component
+        name: Personal Finance API
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - workers/personal-finance-api
+      - id: component:personal-finance-app/personal-finance-contracts
+        kind: component
+        name: Personal Finance contracts
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/personal-finance-contracts
+      - id: component:personal-finance-app/personal-finance-data
+        kind: component
+        name: Personal Finance data boundary
+        project: project:personal-finance-app
+        relations:
+          - target: system:personal-finance-app/application
+            type: part_of
+        source_paths:
+          - packages/personal-finance-data
       - id: component:personal-finance-app/planning-case-domain
         kind: component
         name: Planning case domain
@@ -68,8 +95,11 @@ blueprint:
         - packages/finance-housing-indices
         - packages/finance-inflation-indices
         - packages/finance-tax-rules
+        - packages/personal-finance-contracts
+        - packages/personal-finance-data
         - packages/planning-case-domain
         - ui/app/_projects/personal-finance-app
+        - workers/personal-finance-api
   components:
     - id: finance-housing-indices
       kind: typescript-package
@@ -151,6 +181,70 @@ blueprint:
           name: test
         - disposition: inherited
           name: typecheck-or-compile
+      template_ownership: project
+    - id: personal-finance-api
+      kind: worker
+      name: Personal Finance API
+      path: workers/personal-finance-api
+      stable_id: component:personal-finance-app/personal-finance-api
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+      template_ownership: structure-only
+    - id: personal-finance-contracts
+      kind: typescript-package
+      name: Personal Finance contracts
+      path: packages/personal-finance-contracts
+      stable_id: component:personal-finance-app/personal-finance-contracts
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+      template_ownership: structure-only
+    - id: personal-finance-data
+      kind: typescript-package
+      name: Personal Finance data boundary
+      path: packages/personal-finance-data
+      stable_id: component:personal-finance-app/personal-finance-data
+      tasks:
+        - disposition: inherited
+          name: build
+        - disposition: inherited
+          name: clean
+        - disposition: inherited
+          name: format
+        - disposition: inherited
+          name: install
+        - disposition: inherited
+          name: lint
+        - disposition: inherited
+          name: test
+        - disposition: inherited
+          name: typecheck-or-compile
+      template_ownership: structure-only
     - id: planning-case-domain
       kind: typescript-package
       name: Planning case domain
@@ -199,7 +293,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-10-25 12:40:00+00:00
+  effective_at: 2026-10-30 23:18:00+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
@@ -447,9 +541,12 @@ blueprint:
       - packages/finance-housing-indices
       - packages/finance-inflation-indices
       - packages/finance-tax-rules
+      - packages/personal-finance-contracts
+      - packages/personal-finance-data
       - packages/planning-case-domain
       - ui/app/_projects/personal-finance-app
       - ui/content/projects/personal-finance-app
+      - workers/personal-finance-api
     structural_edits:
       - .mise.toml#monorepo.config_roots
       - pnpm-workspace.yaml#packages
@@ -460,12 +557,45 @@ blueprint:
     id: personal-finance-app
     kind: application
     name: Personal Finance App
+    published: true
     stable_id: project:personal-finance-app
   repository_paths:
     architecture_decisions: ui/content/projects/personal-finance-app/adrs/{sequence}-{slug}.mdx
     copier_answers: .copier/projects/personal-finance-app.yml
     product_decisions: ui/content/projects/personal-finance-app/pdrs/{sequence}-{slug}.mdx
     project_index: ui/content/projects/personal-finance-app/index.mdx
+  rollout:
+    migration_checkpoints:
+      - action: Export and validate the current browser household backup before
+          importing any data into the relational store.
+        evidence: []
+        id: export-browser-state-before-import
+        status: pending
+        verification: mise //ui:test --
+          app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts
+      - action: Keep assettracker:data:v1 readable and keep legacy raw and version-zero
+          backup recovery while browser and server reads overlap.
+        evidence: []
+        id: preserve-browser-recovery-during-dual-read
+        status: pending
+        verification: mise //ui:test --
+          app/_projects/personal-finance-app/tests/api/assettracker.test.ts
+          app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts
+      - action: Complete a relational restore drill and retain the browser export until
+          server reads and rollback have both been verified.
+        evidence: []
+        id: prove-relational-restore-before-cutover
+        status: pending
+        verification: mise //infra/personal-finance:test
+    operational_checks:
+      - command: mise //ui:test --
+          app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts
+          app/_projects/personal-finance-app/tests/api/assettracker.test.ts
+        id: browser-export-recovery
+      - command: mise //infra/project-modules:check
+        id: compiled-provider-boundary
+      - command: mise //packages/project-generator:check
+        id: copier-profile-conformance
   schema_version: 2
   selections:
     - decision: personal-engineering-platform:017-relational-data-stack

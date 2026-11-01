@@ -16,6 +16,7 @@ import {
 import { useAssetTracker } from "./asset-tracker-provider";
 import { CompoundGrowthPlanner } from "./compound-growth-planner";
 import { PortfolioGoal } from "./portfolio-goal";
+import { RetirementStressPlanner } from "./retirement-stress-planner";
 
 const checklistStatuses: Array<{
   value: ChecklistStatus;
@@ -173,6 +174,7 @@ export function PlanningRoute() {
         </p>
       </div>
       <CompoundGrowthPlanner />
+      <RetirementStressPlanner />
       <PortfolioGoal showIncomeTools={false} />
       <PlanningCaseChecklists />
     </div>

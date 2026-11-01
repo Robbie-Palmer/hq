@@ -11,6 +11,7 @@
     "./authentication": "./src/authentication.ts",
     "./compatibility": "./src/compatibility.ts",
     "./complexity": "./src/complexity.ts",
+    "./controller-authorization": "./src/controller-authorization.ts",
     "./matching": "./src/matching.ts",
     "./policy": "./src/policy.ts",
     "./native-client": "./src/native-client.ts",
@@ -20,6 +21,10 @@
     "./task": "./src/task.ts",
     "./telemetry": "./src/telemetry.ts",
     "./vocabulary": "./src/vocabulary.ts",
+    "./vulnerability": "./src/vulnerability.ts",
+    "./vulnerability-evaluation": "./src/vulnerability-evaluation.ts",
+    "./vulnerability-incident": "./src/vulnerability-incident.ts",
+    "./vulnerability-controller": "./src/vulnerability-controller.ts",
     "./work-graph": "./src/work-graph.ts"
   },
   "scripts": {
@@ -28,6 +33,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@cedar-policy/cedar-wasm": "4.14.0",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.222.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",

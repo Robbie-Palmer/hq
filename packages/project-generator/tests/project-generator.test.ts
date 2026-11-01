@@ -257,6 +257,10 @@ function adoptionBlueprint(
     nix: { enabled: false },
     opentelemetry: { enabled: false },
     fulfillment_checkpoints: [],
+    rollout: {
+      operational_checks: [],
+      migration_checkpoints: [],
+    },
   };
 }
 
@@ -979,10 +983,14 @@ describe("CLI", () => {
       "../../../ui/content/projects/personal-engineering-platform/",
       import.meta.url,
     );
-    const [nix, opentelemetry] = await Promise.all([
+    const [nix, opentelemetry, deploymentMaturity] = await Promise.all([
       readFile(new URL("nix-flake-contract.yaml", productionContracts), "utf8"),
       readFile(
         new URL("opentelemetry-contract.yaml", productionContracts),
+        "utf8",
+      ),
+      readFile(
+        new URL("deployment-maturity.yaml", productionContracts),
         "utf8",
       ),
     ]);
@@ -1073,6 +1081,11 @@ describe("CLI", () => {
       contractsDirectory,
       "opentelemetry-contract.yaml",
       opentelemetry,
+    );
+    await write(
+      contractsDirectory,
+      "deployment-maturity.yaml",
+      deploymentMaturity,
     );
     const baseProfile = {
       schema_version: 1,
@@ -1268,6 +1281,23 @@ describe("CLI", () => {
             evidence: ["ci://runs/current-runner-token"],
           },
         ],
+        rollout: {
+          operational_checks: [
+            {
+              id: "profile-conformance",
+              command: "mise //packages/project-generator:check",
+            },
+          ],
+          migration_checkpoints: [
+            {
+              id: "preserve-local-export",
+              action: "Preserve the local export during migration.",
+              verification: "mise //ui:test",
+              status: "pending",
+              evidence: [],
+            },
+          ],
+        },
       }),
     );
     const reconciliationArgs = args.map((argument) =>
@@ -1302,6 +1332,16 @@ describe("CLI", () => {
             kind: "fulfillment_checkpoint",
             summary:
               "Provision Runner cache for project-task-runner-current",
+          },
+          {
+            kind: "operational_check",
+            summary:
+              "Run 'mise //packages/project-generator:check' for rollout check 'profile-conformance'.",
+          },
+          {
+            kind: "migration_checkpoint",
+            summary:
+              "Preserve the local export during migration. Verify with 'mise //ui:test'.",
           },
         ],
       },
@@ -1362,6 +1402,16 @@ describe("CLI", () => {
     await expect(
       readFile(path.join(repository, "packages/alpha/domain.ts"), "utf8"),
     ).resolves.toBe("export const productCode = 'preserved';\n");
+
+    output.length = 0;
+    expect(
+      await runCli(["profile-plan", ...reconciliationArgs], dependencies),
+    ).toBe(0);
+    expect(JSON.parse(output.join(""))).toMatchObject({
+      projectId: "alpha",
+      applied: false,
+      changedPaths: [],
+    });
 
     await commit(repository, "Reconcile alpha to current defaults");
     const statusBeforeBlockedPlans = await git(repository, "status", "--short");
@@ -1436,7 +1486,7 @@ describe("CLI", () => {
     expect(await git(repository, "status", "--short")).toBe(
       statusBeforeBlockedPlans,
     );
-  });
+  }, 60_000);
 
   it("rejects unknown commands and missing option values", async () => {
     const stderr: string[] = [];

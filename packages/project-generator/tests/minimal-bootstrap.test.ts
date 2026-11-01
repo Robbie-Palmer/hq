@@ -18,16 +18,23 @@ const profileUrl = new URL(
 );
 
 async function resolveCanary() {
-  const [profile, layout, platform, nix, opentelemetry] = await Promise.all([
+  const [profile, layout, platform, nix, opentelemetry, deploymentMaturity] = await Promise.all([
     readFile(profileUrl, "utf8"),
     readFile(new URL("repository-layout.yaml", contractRoot), "utf8"),
     readFile(new URL("platform.yaml", contractRoot), "utf8"),
     readFile(new URL("nix-flake-contract.yaml", contractRoot), "utf8"),
     readFile(new URL("opentelemetry-contract.yaml", contractRoot), "utf8"),
+    readFile(new URL("deployment-maturity.yaml", contractRoot), "utf8"),
   ]);
   return resolveProjectProfile(
     parseProjectProfile(profile),
-    parseProjectProfileContracts({ layout, platform, nix, opentelemetry }),
+    parseProjectProfileContracts({
+      layout,
+      platform,
+      nix,
+      opentelemetry,
+      deploymentMaturity,
+    }),
     "2026-10-27T00:00:00Z",
   );
 }
@@ -101,6 +108,10 @@ describe("minimal managed-project bootstrap", () => {
       nix: await readFile(new URL("nix-flake-contract.yaml", contractRoot), "utf8"),
       opentelemetry: await readFile(
         new URL("opentelemetry-contract.yaml", contractRoot),
+        "utf8",
+      ),
+      deploymentMaturity: await readFile(
+        new URL("deployment-maturity.yaml", contractRoot),
         "utf8",
       ),
     });

@@ -579,7 +579,6 @@ mise run //homelab:ansible-syntax
 mise run //homelab:ansible-lint
 mise run //homelab:ansible-facts
 mise run //homelab:ansible-discover-pi
-mise run //homelab:asus-deploy
 mise run //homelab:ansible-verify
 mise run //homelab:ansible-check-mac
 mise run //homelab:ansible-configure-mac
@@ -600,45 +599,9 @@ to the separate Doppler `homelab` project. Check access without printing values
 with `mise run //homelab:doppler-check`. Native session databases such as the
 Ente CLI database stay local. Do not upload them to Doppler.
 
-## asus-desktop, the NixOS GPU worker
-
-The Asus desktop (ADR 010) runs NixOS, declared in [`flake.nix`](flake.nix)
-and [`hosts/asus-desktop/`](hosts/asus-desktop/). Nothing on the box is
-hand-edited; every change goes through this repo. It is reachable over the
-tailnet as `asus-desktop`.
-
-### Deploying a change
-
-1. Edit the config under `hosts/asus-desktop/` and commit.
-2. Push the commit (the deploy target resolves it from GitHub).
-3. From the Mac mini: `mise run //homelab:asus-deploy`
-
-Ansible deploys the exact checked-out commit, verifies that NixOS reports the
-same revision, and runs the CUDA 12 container check. Rollback options: revert
-the commit and re-deploy, pick the previous generation in the boot menu, or
-run `sudo nixos-rebuild --rollback` over SSH.
-
-### Using the GPU
-
-CUDA runs in Docker containers only, from the CUDA 12 image family (CUDA 13
-dropped Pascal):
-
-```bash
-docker run --rm --device nvidia.com/gpu=all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-```
-
-The GTX 1050 has 2GB of VRAM, so batch sizes and model sizes are capped.
-
-### Caveats
-
-- The uplink is an Honor Magic5 Pro over USB tethering. Keep the phone
-  charged with tethering enabled, or the box drops off the tailnet.
-- Wake-on-LAN waits on powerline ethernet adapters, so the box must stay
-  awake. Suspending it strands it: the tether link dies with it.
-
 ## Jellyfin on the Mac mini
 
-Jellyfin (ADR 011) runs with the media automation applications in the home
+Jellyfin (ADR 008) runs with the media automation applications in the home
 K3s cluster. Its configuration lives under
 `~/.local/share/homelab/k3s/media/jellyfin`, outside the repository and Colima
 VM. The library remains on the Expansion disk.
