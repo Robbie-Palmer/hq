@@ -590,6 +590,9 @@ importers:
 
   packages/finance-housing-indices:
     dependencies:
+      iso-codes:
+        specifier: workspace:*
+        version: link:../iso-codes
       ts-base:
         specifier: workspace:*
         version: link:../ts-base

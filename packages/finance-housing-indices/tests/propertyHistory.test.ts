@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   estimatePropertyValueHistory,
+  HOUSING_CURRENCY,
   type HousePriceIndexRelease,
   type PropertyHistoryError,
   PROPERTY_INDEX_FORMULA,
+  PropertyValueConfidencePolicySchema,
 } from "../src";
 
 function release(
@@ -14,6 +16,7 @@ function release(
     propertyType?: "all" | "detached";
     index: number;
     provisional?: boolean;
+    revisionStatus?: "revised";
   }>,
   overrides: Partial<HousePriceIndexRelease> = {},
 ): HousePriceIndexRelease {
@@ -48,18 +51,58 @@ const recordedValuations = [
     id: "purchase",
     date: "2024-01-15",
     value: 200_000,
-    currency: "GBP" as const,
+    currency: HOUSING_CURRENCY,
     kind: "purchase-price" as const,
+    source: {
+      kind: "transaction-record" as const,
+      name: "Completion statement",
+      date: "2024-01-15",
+      dateKind: "recorded" as const,
+      geography: {
+        name: "Fixture home",
+        precision: "exact-property" as const,
+      },
+    },
+    dataStatus: "final" as const,
+    uncertainty: {
+      kind: "point" as const,
+      explanation: "Recorded completed transaction price.",
+    },
+    explanation: "The purchase price is not a current valuation.",
+    freshness: { assessedAt: "2025-06-01", staleAfterDays: 365 },
   },
   {
     id: "survey",
     date: "2024-03-20",
     value: 230_000,
-    currency: "GBP" as const,
+    currency: HOUSING_CURRENCY,
     kind: "formal-valuation" as const,
-    sourceLabel: "Chartered surveyor",
+    source: {
+      kind: "professional-valuation" as const,
+      name: "Chartered surveyor",
+      date: "2024-03-20",
+      dateKind: "recorded" as const,
+      geography: {
+        name: "Fixture home",
+        precision: "exact-property" as const,
+      },
+    },
+    dataStatus: "final" as const,
+    uncertainty: {
+      kind: "point" as const,
+      explanation: "Recorded professional valuation.",
+    },
+    explanation: "The valuation applies on its recorded date.",
+    freshness: { assessedAt: "2025-06-01", staleAfterDays: 365 },
   },
 ];
+
+const confidencePolicy = {
+  assessedAt: "2025-06-01",
+  staleAfterDays: 180,
+  rangePercent: 0.1,
+  rangeRule: "Indicative range is plus or minus 10% of the point estimate.",
+};
 
 const exactSeries = {
   geographyCode: "E06000001",
@@ -69,6 +112,15 @@ const exactSeries = {
 };
 
 describe("indexed property history", () => {
+  it("rejects a confidence range that can reach zero", () => {
+    expect(
+      PropertyValueConfidencePolicySchema.safeParse({
+        ...confidencePolicy,
+        rangePercent: 1,
+      }).success,
+    ).toBe(false);
+  });
+
   it("calculates rising and falling values with reproducible provenance", () => {
     const dataset = release([
       { period: "2024-01", index: 100 },
@@ -80,6 +132,7 @@ describe("indexed property history", () => {
       anchorValuationId: "purchase",
       targetDates: ["2024-03-01", "2024-02-01"],
       seriesHierarchy: [exactSeries],
+      confidencePolicy,
     };
 
     const history = estimatePropertyValueHistory(dataset, input);
@@ -90,7 +143,7 @@ describe("indexed property history", () => {
         date: "2024-02-01",
         period: "2024-02",
         value: 240_000,
-        currency: "GBP",
+        currency: HOUSING_CURRENCY,
         targetIndexLevel: 120,
         provisional: false,
       },
@@ -99,7 +152,7 @@ describe("indexed property history", () => {
         date: "2024-03-01",
         period: "2024-03",
         value: 180_000,
-        currency: "GBP",
+        currency: HOUSING_CURRENCY,
         targetIndexLevel: 90,
         provisional: true,
       },
@@ -131,6 +184,35 @@ describe("indexed property history", () => {
         checksum: `sha256:${"a".repeat(64)}`,
       },
     });
+    expect(history.housingValues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "purchase",
+          kind: "recorded-purchase",
+          source: expect.objectContaining({
+            kind: "transaction-record",
+            geography: expect.objectContaining({ name: "Fixture home" }),
+          }),
+        }),
+        expect.objectContaining({
+          id: "index-estimate:2024-03-01",
+          kind: "index-estimate",
+          dataStatus: "provisional",
+          uncertainty: expect.objectContaining({
+            kind: "indicative-range",
+          }),
+        }),
+      ]),
+    );
+    const provisionalValue = history.housingValues.find(
+      ({ id }) => id === "index-estimate:2024-03-01",
+    );
+    expect(provisionalValue?.uncertainty.kind).toBe("indicative-range");
+    if (provisionalValue?.uncertainty.kind !== "indicative-range") {
+      throw new Error("Expected an indicative range");
+    }
+    expect(provisionalValue.uncertainty.lower).toBeCloseTo(162_000);
+    expect(provisionalValue.uncertainty.upper).toBeCloseTo(198_000);
     expect(estimatePropertyValueHistory(dataset, input)).toEqual(history);
   });
 
@@ -171,6 +253,7 @@ describe("indexed property history", () => {
           propertyTypeMatch: "all",
         },
       ],
+      confidencePolicy,
     });
 
     expect(history.calculation.series).toMatchObject({
@@ -213,6 +296,7 @@ describe("indexed property history", () => {
           propertyTypeMatch: "all",
         },
       ],
+      confidencePolicy,
     });
 
     expect(history.calculation.series.geographyCode).toBe("E06000001");
@@ -234,7 +318,7 @@ describe("indexed property history", () => {
     const revised = release(
       [
         { period: "2024-01", index: 100 },
-        { period: "2024-02", index: 115 },
+        { period: "2024-02", index: 115, revisionStatus: "revised" },
       ],
       {
         versionId: "2025-04:bbbbbbbbbbbb",
@@ -251,6 +335,7 @@ describe("indexed property history", () => {
       anchorValuationId: "purchase",
       targetDates: ["2024-02-01"],
       seriesHierarchy: [exactSeries],
+      confidencePolicy,
     };
 
     const originalHistory = estimatePropertyValueHistory(first, input);
@@ -270,6 +355,14 @@ describe("indexed property history", () => {
     expect(revisedHistory.calculation.dataset.versionId).toBe(
       revised.versionId,
     );
+    expect(
+      revisedHistory.housingValues.find(
+        ({ id }) => id === "index-estimate:2024-02-01",
+      ),
+    ).toMatchObject({
+      dataStatus: "revised",
+      revisionNote: expect.stringContaining("revised this observation"),
+    });
   });
 
   it("returns recorded values separately and never replaces a formal valuation", () => {
@@ -283,6 +376,7 @@ describe("indexed property history", () => {
       anchorValuationId: "purchase",
       targetDates: ["2024-03-20"],
       seriesHierarchy: [exactSeries],
+      confidencePolicy,
     });
 
     expect(history.recordedValuations).toEqual(recordedValuations);
@@ -307,6 +401,7 @@ describe("indexed property history", () => {
         anchorValuationId: "missing",
         targetDates: ["2024-02-01"],
         seriesHierarchy: [exactSeries],
+        confidencePolicy,
       }),
     ).toThrowError(
       expect.objectContaining<Partial<PropertyHistoryError>>({
@@ -319,6 +414,7 @@ describe("indexed property history", () => {
         anchorValuationId: "purchase",
         targetDates: ["2024-02-01"],
         seriesHierarchy: [exactSeries],
+        confidencePolicy,
       }),
     ).toThrowError(
       expect.objectContaining<Partial<PropertyHistoryError>>({
