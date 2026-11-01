@@ -307,6 +307,13 @@ function useIngredientPicker({
     open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
 
   useEffect(() => {
+    if (!activeOptionId) return;
+    document
+      .getElementById(activeOptionId)
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [activeOptionId]);
+
+  useEffect(() => {
     return () => {
       if (closeTimeoutRef.current !== null) {
         window.clearTimeout(closeTimeoutRef.current);

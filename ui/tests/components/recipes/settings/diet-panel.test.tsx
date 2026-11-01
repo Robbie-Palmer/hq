@@ -1,7 +1,8 @@
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DietPanel } from "@/components/recipes/settings/diet-panel";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
-import { act, fireEvent, render, screen } from "@/tests/test-utils";
+import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
 
 const apiMocks = vi.hoisted(() => ({
   getDietOptions: vi.fn(),
@@ -141,12 +142,13 @@ describe("DietPanel", () => {
   });
 
   it("exposes and operates the ingredient picker as a keyboard combobox", async () => {
+    const user = userEvent.setup();
     render(<DietPanel />);
     const input = await screen.findByRole("combobox", {
       name: "Search or enter ingredients to exclude",
     });
 
-    fireEvent.focus(input);
+    await user.click(input);
     const listbox = screen.getByRole("listbox", {
       name: "Matching ingredients",
     });
@@ -156,11 +158,11 @@ describe("DietPanel", () => {
     expect(input).toHaveAttribute("aria-controls", listbox.id);
     expect(bacon).toHaveAttribute("aria-selected", "false");
 
-    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await user.keyboard("{ArrowDown}");
     expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
     expect(bacon).toHaveAttribute("aria-selected", "true");
 
-    fireEvent.keyDown(input, { key: "Enter" });
+    await user.keyboard("{Enter}");
     expect(screen.getByText("Bacon")).toBeInTheDocument();
     expect(input).toHaveAttribute("aria-expanded", "false");
     expect(input).not.toHaveAttribute("aria-activedescendant");
@@ -170,6 +172,7 @@ describe("DietPanel", () => {
   });
 
   it("cycles ingredient options and dismisses the popup from the keyboard", async () => {
+    const user = userEvent.setup();
     apiMocks.getDietOptions.mockResolvedValue({
       presets: [],
       groups: [],
@@ -183,24 +186,52 @@ describe("DietPanel", () => {
       name: "Search or enter ingredients to exclude",
     });
 
-    fireEvent.focus(input);
+    await user.click(input);
     const bacon = screen.getByRole("option", { name: /Bacon/ });
     const carrot = screen.getByRole("option", { name: /Carrot/ });
     fireEvent.mouseEnter(bacon);
     expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
 
-    fireEvent.keyDown(input, { key: "ArrowUp" });
+    await user.keyboard("{ArrowUp}");
     expect(input).toHaveAttribute("aria-activedescendant", carrot.id);
-    fireEvent.keyDown(input, { key: "ArrowUp" });
+    await user.keyboard("{ArrowUp}");
     expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await user.keyboard("{ArrowDown}");
     expect(input).toHaveAttribute("aria-activedescendant", carrot.id);
-    fireEvent.keyDown(input, { key: "ArrowDown" });
+    await user.keyboard("{ArrowDown}");
     expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
 
-    fireEvent.keyDown(input, { key: "Escape" });
+    await user.keyboard("{Escape}");
     expect(input).toHaveAttribute("aria-expanded", "false");
     expect(input).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("scrolls a keyboard-active ingredient option into view", async () => {
+    const user = userEvent.setup();
+    const scrollIntoView = vi.fn();
+    apiMocks.getDietOptions.mockResolvedValue({
+      presets: [],
+      groups: [],
+      ingredients: Array.from({ length: 8 }, (_, index) => ({
+        slug: `ingredient-${index}`,
+        name: `Ingredient ${index}`,
+        category: "test",
+      })),
+    });
+    render(<DietPanel />);
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
+
+    await user.click(input);
+    const lastOption = screen.getByRole("option", { name: /Ingredient 7/ });
+    Object.defineProperty(lastOption, "scrollIntoView", {
+      value: scrollIntoView,
+    });
+    await user.keyboard("{ArrowUp}");
+
+    expect(input).toHaveAttribute("aria-activedescendant", lastOption.id);
+    expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
   });
 
   it("handles an empty ingredient catalog without an active option", async () => {
@@ -223,18 +254,20 @@ describe("DietPanel", () => {
   });
 
   it("closes the ingredient popup after the blur delay", async () => {
+    const user = userEvent.setup();
     render(<DietPanel />);
     const input = await screen.findByRole("combobox", {
       name: "Search or enter ingredients to exclude",
     });
-    vi.useFakeTimers();
 
-    fireEvent.focus(input);
+    await user.click(input);
     expect(input).toHaveAttribute("aria-expanded", "true");
-    fireEvent.blur(input);
-    act(() => vi.advanceTimersByTime(120));
+    await user.tab();
+    expect(input).not.toHaveFocus();
 
-    expect(input).toHaveAttribute("aria-expanded", "false");
+    await waitFor(() =>
+      expect(input).toHaveAttribute("aria-expanded", "false"),
+    );
   });
 
   it("clears the delayed picker close when unmounted", async () => {
