@@ -1,5 +1,6 @@
 import {
   evaluateCompletionCandidate,
+  normalizeRepositoryCompletionPolicyDefaultRevision,
   normalizeEvidenceObservation,
   projectCurrentDeliveryEvidence,
   type WorkGraphError,
@@ -103,6 +104,39 @@ const evidenceFor = (
 ];
 
 describe("delivery evidence", () => {
+  it("normalizes immutable repository completion-policy defaults", () => {
+    expect(
+      normalizeRepositoryCompletionPolicyDefaultRevision({
+        repository: " Example/Repository ",
+        revision: 2,
+        policyId: " production ",
+        policyRevision: 4,
+        enabled: true,
+        createdAt: "2026-09-22T09:00:00Z",
+      }),
+    ).toEqual({
+      repository: "example/repository",
+      revision: 2,
+      policyId: "production",
+      policyRevision: 4,
+      enabled: true,
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+  });
+
+  it("rejects invalid repository completion-policy defaults", () => {
+    expect(() =>
+      normalizeRepositoryCompletionPolicyDefaultRevision({
+        repository: "repository-only",
+        revision: 0,
+        policyId: "production",
+        policyRevision: 1,
+        enabled: true,
+        createdAt: "not-a-time",
+      }),
+    ).toThrow(/repository completion-policy default/u);
+  });
+
   it("keeps immutable history while projecting the latest provider observation", () => {
     const latest = observation(2, {
       externalId: "workflow-1",

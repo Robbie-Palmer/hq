@@ -96,18 +96,29 @@ repository file.
 
 Use one real `hq` change to verify the full path:
 
-Before the pilot, create an immutable owner policy and assign it to the ticket.
-Assignment evaluates evidence that has already arrived. Later webhook and
-reconciliation deliveries reevaluate the same ticket and may release it when
-the policy opts in.
+Before the pilot, create an immutable owner policy. Assign it directly for a
+one-off pilot, or make it the repository default. Direct assignment evaluates
+evidence that has already arrived. Repository defaults apply when an unassigned
+ticket with linked implementation pull requests is next evaluated. PR linking,
+webhook delivery, and reconciliation all trigger evaluation.
 
 ```bash
 work-graph completion-policy put --json '{"policyId":"hq-production","revision":1,"requiredCiNames":["Work Graph Observer CI"],"productionEnvironments":["production-work-graph"],"automaticRelease":true}'
 work-graph completion-policy assign <ticket> --policy-id hq-production --policy-revision 1
+work-graph completion-policy default put Robbie-Palmer/hq 1 --policy-id hq-production --policy-revision 1
 ```
 
 Use a new revision when requirements change. Reusing a policy ID and revision
-with different contents is rejected.
+with different contents is rejected. The highest repository-default revision
+wins. Add a later revision with `--enabled false` to pause new default
+assignments. Existing explicit ticket assignments remain unchanged.
+
+For the `hq` repository, production CD jobs publish distinct GitHub deployment
+environments. Examples include `production-site-ui`, `production-recipe-api`,
+`production-recipe-ingest`, `production-ai-review`, `production-work-graph`,
+and `production-infra`. Put every owner-approved environment in the policy's
+`productionEnvironments` list. A successful deployment in any listed
+environment can satisfy the deployment requirement for its exact merge commit.
 
 1. Attach its pull request to the ticket with
    `work-graph pr attach <ticket> <url> --role implementation`.

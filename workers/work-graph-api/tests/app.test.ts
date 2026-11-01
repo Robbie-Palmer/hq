@@ -159,6 +159,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   listWorkItemDeliveryEvidence: vi.fn(async () => []),
   getCompletionCandidate: vi.fn(async () => null),
   putCompletionPolicyRevision: vi.fn(async (input) => input),
+  putRepositoryCompletionPolicyDefaultRevision: vi.fn(async (input) => input),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
   evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
@@ -1107,6 +1108,38 @@ describe("Given work items with derived readiness", () => {
     expect(repository.evaluateCompletionCandidateAndReleaseIfConfigured).toHaveBeenCalledWith(
       expect.objectContaining({ workItemId: "ticket" }),
     );
+  });
+
+  it("creates immutable repository completion-policy defaults", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+
+    const response = await app.request(
+      "/api/github/repositories/Robbie-Palmer/hq/completion-policy-defaults/2",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          policyId: "hq-production",
+          policyRevision: 3,
+          enabled: true,
+          createdAt,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision,
+    ).toHaveBeenCalledWith({
+      repository: "Robbie-Palmer/hq",
+      revision: 2,
+      policyId: "hq-production",
+      policyRevision: 3,
+      enabled: true,
+      createdAt,
+    });
   });
 
   it("refreshes and links pull requests outside claim operations", async () => {

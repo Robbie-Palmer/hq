@@ -504,6 +504,40 @@ export const completionPolicyRevision = pgTable(
   ],
 );
 
+export const repositoryCompletionPolicyDefaultRevision = pgTable(
+  "repository_completion_policy_default_revisions",
+  {
+    repository: text().notNull(),
+    revision: integer().notNull(),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    enabled: boolean().notNull().default(true),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "repository_completion_policy_default_revisions_pk",
+      columns: [table.repository, table.revision],
+    }),
+    foreignKey({
+      name: "repository_completion_policy_default_revisions_policy_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "repository_completion_policy_default_revisions_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "repository_completion_policy_default_revisions_revision_positive_check",
+      sql`${table.revision} > 0`,
+    ),
+  ],
+);
+
 export const workItemCompletionPolicy = pgTable(
   "work_item_completion_policies",
   {

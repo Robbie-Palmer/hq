@@ -239,7 +239,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(18);
+  expect(migrationCount?.count).toBe(19);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -257,6 +257,7 @@ beforeAll(async () => {
     "leases",
     "notes",
     "pull_requests",
+    "repository_completion_policy_default_revisions",
     "work_item_architecture_decisions",
     "work_item_completion_candidates",
     "work_item_completion_policies",
@@ -891,6 +892,9 @@ beforeEach(async () => {
     await transaction.delete(schema.completionCandidateEvaluation);
     await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} enable trigger completion_candidate_evaluations_immutable`);
     await transaction.delete(schema.workItemCompletionPolicy);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} disable trigger repository_completion_policy_default_revisions_immutable`);
+    await transaction.delete(schema.repositoryCompletionPolicyDefaultRevision);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} enable trigger repository_completion_policy_default_revisions_immutable`);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} disable trigger completion_policy_revisions_immutable`);
     await transaction.delete(schema.completionPolicyRevision);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} enable trigger completion_policy_revisions_immutable`);
@@ -1056,6 +1060,169 @@ describe("GitHub delivery consumption", () => {
       evidenceObservationIds: expect.arrayContaining([
         expect.any(String),
       ]),
+    });
+  });
+
+  it("applies an enabled repository default when a PR link recovers retained evidence", async () => {
+    await repository.createWorkItem({ id: "github-work", title: "Ship" });
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    const policyDefault = {
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    } as const;
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision(policyDefault),
+    ).resolves.toEqual(policyDefault);
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision({
+        ...policyDefault,
+        enabled: false,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_completion_policy_default" });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+    await repository.putWorkItemPullRequest({
+      workItemId: "github-work",
+      repository: githubRepository,
+      number: 7,
+      role: "implementation",
+    });
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "released",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toMatchObject({
+      candidate: true,
+      policyId: "github-default",
+      policyRevision: 1,
+    });
+  });
+
+  it("fails closed when the latest repository default is disabled", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 2,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: false,
+      createdAt: "2026-10-01T09:02:00.000Z",
+    });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "open",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toBeNull();
+  });
+
+  it("requires linked repositories to agree and preserves explicit assignments", async () => {
+    await repository.createWorkItem({
+      id: "multi-repository-work",
+      title: "Ship across repositories",
+    });
+    for (const [repositoryName, number] of [
+      ["example/first", 1],
+      ["example/second", 2],
+    ] as const) {
+      await repository.refreshPullRequest({
+        repository: repositoryName,
+        number,
+        url: `https://github.com/${repositoryName}/pull/${number}`,
+        headSha: commitSha(String(number)),
+        acceptedHeadSha: commitSha(String(number)),
+        mergeCommitSha: commitSha(String(number + 2)),
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-10-01T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "multi-repository-work",
+        repository: repositoryName,
+        number,
+        role: "implementation",
+      });
+    }
+    for (const [policyId, repositoryName] of [
+      ["first-policy", "example/first"],
+      ["second-policy", "example/second"],
+    ] as const) {
+      await repository.putCompletionPolicyRevision({
+        policyId,
+        revision: 1,
+        requiredCiNames: ["CI"],
+        productionEnvironments: ["production"],
+        automaticRelease: true,
+        createdAt: "2026-10-01T09:00:00.000Z",
+      });
+      await repository.putRepositoryCompletionPolicyDefaultRevision({
+        repository: repositoryName,
+        revision: 1,
+        policyId,
+        policyRevision: 1,
+        enabled: true,
+        createdAt: "2026-10-01T09:01:00.000Z",
+      });
+    }
+
+    await expect(
+      repository.evaluateCompletionCandidateAndReleaseIfConfigured({
+        id: recordId(906),
+        workItemId: "multi-repository-work",
+        evaluatedAt: "2026-10-01T11:00:00.000Z",
+      }),
+    ).resolves.toBeNull();
+
+    await repository.assignCompletionPolicy({
+      workItemId: "multi-repository-work",
+      policyId: "first-policy",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T11:01:00.000Z",
+    });
+    await expect(
+      repository.evaluateCompletionCandidateAndReleaseIfConfigured({
+        id: recordId(907),
+        workItemId: "multi-repository-work",
+        evaluatedAt: "2026-10-01T11:02:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      automaticReleaseOutcome: "completion_requirements_not_met",
+      evaluation: { policyId: "first-policy", policyRevision: 1 },
     });
   });
 

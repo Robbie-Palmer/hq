@@ -127,6 +127,13 @@
       "when": 1792330134967,
       "tag": "0017_enable_policy_driven_automatic_release",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793550996043,
+      "tag": "0018_add_repository_completion_policy_defaults",
+      "breakpoints": true
     }
   ]
 }
