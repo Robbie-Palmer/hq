@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WeddingPlannerLayout as ProjectLayout } from "@/app/_projects/wedding-planner/routes/layout";
 import "@/app/_projects/wedding-planner/components/style.css";
 
 export const metadata: Metadata = {
@@ -11,5 +12,5 @@ export const metadata: Metadata = {
 export default function WeddingPlannerLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return children;
+  return <ProjectLayout>{children}</ProjectLayout>;
 }

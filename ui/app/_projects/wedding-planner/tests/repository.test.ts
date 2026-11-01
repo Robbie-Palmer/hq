@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { setCouple } from "wedding-planner-domain";
+import {
+  parseWeddingPlan,
+  setCouple,
+  type WeddingPlan,
+} from "wedding-planner-domain";
 import { createBrowserWeddingPlanRepository } from "@/app/_projects/wedding-planner/application/browser-repository";
 import {
   editorStateToPlan,
@@ -19,20 +23,23 @@ import {
   setTablePairDecision,
 } from "@/app/_projects/wedding-planner/application/table-state";
 
-function legacy() {
-  return {
-    guests: ["a", "b"].map((id) => ({
-      id,
-      name: id,
-      overnight: "yes",
-      attendance: "yes",
-      fixed_bed_group_id: "ab",
-    })),
-    payment_modes: {},
-    cottage_options: {},
-    cottage_paid_by_us_gbp: {},
-    custom_note: "Keep this in backups",
-  };
+function currentPlan(): WeddingPlan {
+  return parseWeddingPlan({
+    version: 2,
+    guests: ["a", "b"].map((id) => ({ id, name: id, attendance: "yes" })),
+    couples: [{ id: "ab", guest_ids: ["a", "b"] }],
+    hosts: ["You", "Your partner"],
+    accommodation: {
+      guests: Object.fromEntries(
+        ["a", "b"].map((id) => [
+          id,
+          { overnight: "yes", fixed_bed_group_id: "ab" },
+        ]),
+      ),
+    },
+    seating: { top_table_capacity: 2, table_capacities: [8] },
+    extensions: { custom_note: "Keep this in backups" },
+  });
 }
 
 function storage(initial: Record<string, string>) {
@@ -45,10 +52,10 @@ function storage(initial: Record<string, string>) {
   };
 }
 
-describe("wedding plan persistence and migrations", () => {
+describe("wedding plan persistence", () => {
   it("captures a save before the caller changes the supplied plan", async () => {
     const repository = createBrowserWeddingPlanRepository(storage({}));
-    const wedding = decodeWeddingPlan(legacy());
+    const wedding = currentPlan();
     const saved = repository.save(wedding);
     wedding.guests[0]!.name = "Changed after saving";
     await saved;
@@ -65,13 +72,11 @@ describe("wedding plan persistence and migrations", () => {
       },
     });
     await expect(repository.load()).rejects.toBe(error);
-    await expect(repository.save(decodeWeddingPlan(legacy()))).rejects.toBe(
-      error,
-    );
+    await expect(repository.save(currentPlan())).rejects.toBe(error);
   });
   it("keeps dismissed sharing suggestions through the editor and browser repository", async () => {
     const repository = createBrowserWeddingPlanRepository(storage({}));
-    const state = toEditorState(decodeWeddingPlan(legacy()));
+    const state = toEditorState(currentPlan());
     state.couples = [];
     state.guests[0]!.may_share_cottage_with = ["b"];
     expect(accommodationSeatingSuggestions(state)).toHaveLength(1);
@@ -84,27 +89,10 @@ describe("wedding plan persistence and migrations", () => {
       "dismissed_accommodation_suggestions",
     );
   });
-  it.each(["wedding-planner:plan:v1", "wedding-rooms:plan:v1"])(
-    "migrates %s to a canonical plan while retaining its original copy",
-    async (key) => {
-      const original = JSON.stringify(legacy());
-      const saved = storage({ [key]: original });
-      const repository = createBrowserWeddingPlanRepository(saved);
-      const wedding = await repository.load();
-      expect(wedding?.version).toBe(2);
-      expect(wedding?.couples).toEqual([{ id: "ab", guest_ids: ["a", "b"] }]);
-      expect(wedding?.accommodation.reservations).toEqual({});
-      expect(JSON.parse(saved.getItem("wedding-planner:plan:v2")!)).toEqual(
-        wedding,
-      );
-      expect(saved.getItem(key)).toBe(original);
-    },
-  );
-
   it("keeps the relationship after removing a bed pairing and reloading", async () => {
     const saved = storage({});
     const repository = createBrowserWeddingPlanRepository(saved);
-    const state = toEditorState(decodeWeddingPlan(legacy()));
+    const state = toEditorState(currentPlan());
     setPartner(state, "a", "");
     expect(state.guests.map((guest) => guest.fixed_bed_group_id)).toEqual([
       "",
@@ -118,7 +106,7 @@ describe("wedding plan persistence and migrations", () => {
   });
 
   it("preserves the couple when the editor asks for a separate double bed", () => {
-    const state = toEditorState(decodeWeddingPlan(legacy()));
+    const state = toEditorState(currentPlan());
     setOwnBed(state, "a", true);
     expect(state.guests[0]?.requires_own_bed).toBe(true);
     expect(state.guests.map((guest) => guest.fixed_bed_group_id)).toEqual([
@@ -131,7 +119,7 @@ describe("wedding plan persistence and migrations", () => {
   });
 
   it("does not infer couples again once an explicit relationship list exists", () => {
-    const state = toEditorState(decodeWeddingPlan(legacy()));
+    const state = toEditorState(currentPlan());
     state.couples = [];
     const wedding = editorStateToPlan(state);
     expect(wedding.couples).toEqual([]);
@@ -143,8 +131,8 @@ describe("wedding plan persistence and migrations", () => {
     ).toBe(true);
   });
 
-  it("round trips new backups and preserves legacy extension fields", () => {
-    const wedding = decodeWeddingPlan(legacy());
+  it("round trips current backups and preserves extension fields", () => {
+    const wedding = currentPlan();
     setCouple(wedding, "a", null);
     const imported = decodeWeddingPlan(encodeWeddingPlan(wedding));
     expect(imported).toEqual(wedding);
@@ -158,41 +146,16 @@ describe("wedding plan persistence and migrations", () => {
     );
   });
 
-  it("reports an invalid current plan rather than reverting to a stale legacy copy", async () => {
+  it("reports an invalid stored plan", async () => {
     const repository = createBrowserWeddingPlanRepository(
-      storage({
-        "wedding-planner:plan:v2": "{",
-        "wedding-planner:plan:v1": JSON.stringify(legacy()),
-      }),
+      storage({ "wedding-planner:plan:v2": "{" }),
     );
     await expect(repository.load()).rejects.toThrow();
   });
 
-  it("migrates old v2 top-table choices into seating and preserves explicit role choices", () => {
-    const existing = decodeWeddingPlan(legacy());
-    const { top_table_guest_ids, ...oldSeating } = existing.seating;
-    const guests = existing.guests.map(({ wedding_roles, ...guest }) => guest);
-    const migrated = decodeWeddingPlan({
-      ...existing,
-      guests,
-      seating: oldSeating,
-      wedding_party_guest_ids: ["a"],
-    });
-    expect(migrated.seating.top_table_guest_ids).toEqual(["a"]);
-    expect(migrated.guests[0]?.wedding_roles).toEqual(["wedding_party"]);
-    expect(migrated).not.toHaveProperty("wedding_party_guest_ids");
-    const explicit = decodeWeddingPlan({
-      ...existing,
-      seating: oldSeating,
-      wedding_party_guest_ids: ["a"],
-    });
-    expect(explicit.guests[0]?.wedding_roles).toEqual([]);
-    expect(decodeWeddingPlan(encodeWeddingPlan(migrated))).toEqual(migrated);
-  });
-
   it("rejects unknown future backup versions", () => {
-    expect(() =>
-      decodeWeddingPlan({ ...decodeWeddingPlan(legacy()), version: 3 }),
-    ).toThrow("compatible wedding planner plan");
+    expect(() => decodeWeddingPlan({ ...currentPlan(), version: 3 })).toThrow(
+      "compatible wedding planner plan",
+    );
   });
 });

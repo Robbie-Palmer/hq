@@ -132,85 +132,8 @@ function validateGuestLinks(
     throw new Error(`${id}: preferences have an invalid guest`);
 }
 
-function migrateLegacyWeddingParty(value: unknown): unknown {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("wedding_party_guest_ids" in value)
-  )
-    return value;
-  const legacyIds = z.array(z.string()).parse(value.wedding_party_guest_ids);
-  if (
-    !("seating" in value) ||
-    !value.seating ||
-    typeof value.seating !== "object" ||
-    Array.isArray(value.seating)
-  )
-    return value;
-  const guests =
-    "guests" in value && Array.isArray(value.guests)
-      ? value.guests.map((guest: unknown) => {
-          if (
-            !guest ||
-            typeof guest !== "object" ||
-            "wedding_roles" in guest ||
-            !("id" in guest)
-          )
-            return guest;
-          return {
-            ...guest,
-            wedding_roles: legacyIds.includes(String(guest.id))
-              ? ["wedding_party"]
-              : [],
-          };
-        })
-      : undefined;
-  return {
-    ...value,
-    guests,
-    seating: { top_table_guest_ids: legacyIds, ...value.seating },
-  };
-}
-
-function migrateLegacyGuestTags(value: unknown): unknown {
-  if (
-    !value ||
-    typeof value !== "object" ||
-    !("guests" in value) ||
-    !Array.isArray(value.guests)
-  )
-    return value;
-  return {
-    ...value,
-    guests: value.guests.map((guest: unknown) => {
-      if (!guest || typeof guest !== "object" || !("tags" in guest))
-        return guest;
-      let legacyTags: string[] = [];
-      if (Array.isArray(guest.tags))
-        legacyTags = guest.tags.filter(
-          (tag): tag is string => typeof tag === "string",
-        );
-      else if (typeof guest.tags === "string")
-        legacyTags = guest.tags
-          .split(/[;,]/)
-          .map((tag) => tag.trim())
-          .filter(Boolean);
-      const { tags: _tags, ...guestWithoutTags } = guest;
-      return {
-        ...guestWithoutTags,
-        relationship_groups:
-          "relationship_groups" in guest
-            ? guest.relationship_groups
-            : legacyTags,
-      };
-    }),
-  };
-}
-
 export function parseWeddingPlan(value: unknown): WeddingPlan {
-  const checked = weddingPlanSchema.safeParse(
-    migrateLegacyWeddingParty(migrateLegacyGuestTags(value)),
-  );
+  const checked = weddingPlanSchema.safeParse(value);
   if (!checked.success) {
     const issue = checked.error.issues[0];
     throw new Error(

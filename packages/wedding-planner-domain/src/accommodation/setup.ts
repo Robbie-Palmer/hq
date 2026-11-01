@@ -3,7 +3,6 @@ import type { PlannerInput, State } from "./types";
 export type ReservationRule = {
   roomId: string;
   label: string;
-  legacyFields?: { guestIds: string; approvedGuestIds: string };
   guestIds: (state: State) => string[];
   approvedGuestIds: (state: State) => string[];
   setApprovedGuestIds: (state: State, ids: string[]) => void;

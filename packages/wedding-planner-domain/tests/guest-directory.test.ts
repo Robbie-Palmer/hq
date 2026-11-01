@@ -94,15 +94,6 @@ describe("guest directory model", () => {
     ).toThrow("household does not exist");
   });
 
-  it("migrates legacy tags into relationship groups without retaining tags", () => {
-    const wedding = parseWeddingPlan({
-      ...plan(),
-      guests: [{ id: "legacy", name: "Legacy Guest", tags: "Family; Work" }],
-    });
-    expect(wedding.guests[0]?.relationship_groups).toEqual(["Family", "Work"]);
-    expect(wedding.guests[0]).not.toHaveProperty("tags");
-  });
-
   it("validates typed custom fields and relationship references", () => {
     const wedding = plan();
     expect(() =>
