@@ -94,6 +94,16 @@ Stir @broken{2%cup and ?unknown, then add @salt{1%tsp}.
     expect(tokenFor(container, "salt")).toBeDefined();
   });
 
+  it("renders HTML-like Cooklang instructions as inert text", async () => {
+    const source = '<script>alert("hot")</script> & add @salt{1%tsp}.';
+    const container = await renderCooklang(`\`\`\`cooklang
+${source}
+\`\`\``);
+
+    expect(container.querySelector("code")).toHaveTextContent(source);
+    expect(container.querySelector("script")).toBeNull();
+  });
+
   it("emits light and dark Shiki colors for Cooklang tokens", async () => {
     const container = await renderCooklang(`\`\`\`cooklang
 Add @salt{1%tsp}.
