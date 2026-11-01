@@ -1,6 +1,7 @@
 import { Satellite } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageSourceLinks } from "@/components/page-source-links";
 import { siteConfig } from "@/lib/config/site-config";
 
 export const metadata: Metadata = {
@@ -50,9 +51,12 @@ export default function SatelliteSwarmLayout({
       <main className="flex-1">{children}</main>
 
       <footer className="mt-auto border-t">
-        <div className="container mx-auto max-w-7xl px-4 py-6 text-center text-sm text-muted-foreground">
-          © {currentYear} {siteConfig.author.name}. Research prototype, not
-          flight software.
+        <div className="container mx-auto flex max-w-7xl flex-col items-center gap-3 px-4 py-6 text-center text-sm text-muted-foreground">
+          <PageSourceLinks />
+          <p>
+            © {currentYear} {siteConfig.author.name}. Research prototype, not
+            flight software.
+          </p>
         </div>
       </footer>
     </div>

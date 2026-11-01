@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Caveat, JetBrains_Mono, Kalam } from "next/font/google";
+import { PageSourceLinks } from "@/components/page-source-links";
 import { AuthButton } from "@/components/recipes/auth-button";
 import { CookingCompletionOutbox } from "@/components/recipes/cooking-completion-outbox";
 import { DietProvider } from "@/components/recipes/diet-provider";
@@ -123,6 +124,10 @@ export default function RecipesLayout({
             <footer className="border-t border-[var(--line)] mt-auto">
               <div className="container mx-auto px-4 py-8">
                 <div className="flex flex-col items-center gap-4">
+                  <PageSourceLinks
+                    className="rt-mono text-[var(--ink-3)]"
+                    linkClassName="hover:text-[var(--ink)]"
+                  />
                   <p className="rt-mono text-[var(--ink-3)]">
                     © {currentYear} {siteConfig.author.name}
                   </p>
