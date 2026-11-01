@@ -87,6 +87,7 @@ filter_entries_for_environment() {
           or .name == "CLOUDFLARE_R2_AUDIT_API_TOKEN"
           or .name == "MODEL_R2_ACCESS_KEY_ID"
           or .name == "MODEL_R2_SECRET_ACCESS_KEY"
+          or .name == "R2_REGION"
           or .name == "RAW_R2_ACCESS_KEY_ID"
           or .name == "RAW_R2_SECRET_ACCESS_KEY"
           or .name == "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED"
@@ -135,6 +136,7 @@ validate_entries_for_environment() {
           "CLOUDFLARE_R2_AUDIT_API_TOKEN",
           "MODEL_R2_ACCESS_KEY_ID",
           "MODEL_R2_SECRET_ACCESS_KEY",
+          "R2_REGION",
           "RAW_R2_ACCESS_KEY_ID",
           "RAW_R2_SECRET_ACCESS_KEY",
           "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED"
@@ -150,8 +152,8 @@ validate_entries_for_environment() {
         [
           .[]
           | select(
-              ((.name == "CLOUDFLARE_ACCOUNT_ID" or .name == "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility != "unmasked")
-              or ((.name != "CLOUDFLARE_ACCOUNT_ID" and .name != "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility == "unmasked")
+              ((.name == "CLOUDFLARE_ACCOUNT_ID" or .name == "R2_REGION" or .name == "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility != "unmasked")
+              or ((.name != "CLOUDFLARE_ACCOUNT_ID" and .name != "R2_REGION" and .name != "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility == "unmasked")
             )
           | .name
         ]

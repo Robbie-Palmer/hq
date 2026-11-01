@@ -409,6 +409,7 @@ the private identity still stays outside Doppler and GitHub.
 - `CLOUDFLARE_R2_AUDIT_API_TOKEN`
 - `MODEL_R2_ACCESS_KEY_ID`
 - `MODEL_R2_SECRET_ACCESS_KEY`
+- `R2_REGION` (unmasked; `auto` for Cloudflare R2)
 - `RAW_R2_ACCESS_KEY_ID`
 - `RAW_R2_SECRET_ACCESS_KEY`
 - `WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED` (unmasked)

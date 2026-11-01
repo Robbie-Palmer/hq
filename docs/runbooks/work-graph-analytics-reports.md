@@ -120,8 +120,9 @@ Create `CLOUDFLARE_R2_AUDIT_API_TOKEN` with account-level R2 configuration read
 permission. It verifies that both the managed `r2.dev` URL and every custom
 domain are disabled; it has no object or configuration write permission.
 
-Store the pipeline values with `CLOUDFLARE_ACCOUNT_ID` in Doppler config
-`work-graph/prd_work_graph_analytics`, then sync only that config to GitHub
+Store the pipeline values with `CLOUDFLARE_ACCOUNT_ID` and unmasked `R2_REGION`
+set to `auto` in Doppler config `work-graph/prd_work_graph_analytics`, then sync
+only that config to GitHub
 environment `production-work-graph-analytics`. Do not add these keys to the API
 runtime config. Check anonymous denial without printing an account ID or object
 body:

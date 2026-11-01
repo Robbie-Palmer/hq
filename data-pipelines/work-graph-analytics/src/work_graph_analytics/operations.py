@@ -74,13 +74,13 @@ class DownloadedRaw(StrictModel):
 
 
 class R2Client:
-    def __init__(self, access_key: str, secret_key: str, account_id: str) -> None:
+    def __init__(self, access_key: str, secret_key: str, account_id: str, region: str) -> None:
         self.client: Any = boto3.client(
             "s3",
             endpoint_url=f"https://{account_id}.r2.cloudflarestorage.com",
             aws_access_key_id=access_key,
             aws_secret_access_key=secret_key,
-            region_name="auto",
+            region_name=region,
         )
         self.requests = 0
 
@@ -137,16 +137,19 @@ def _required_environment(name: str) -> str:
 
 def _clients() -> tuple[R2Client, R2Client]:
     account_id = _required_environment("CLOUDFLARE_ACCOUNT_ID")
+    region = _required_environment("R2_REGION")
     return (
         R2Client(
             _required_environment("RAW_R2_ACCESS_KEY_ID"),
             _required_environment("RAW_R2_SECRET_ACCESS_KEY"),
             account_id,
+            region,
         ),
         R2Client(
             _required_environment("MODEL_R2_ACCESS_KEY_ID"),
             _required_environment("MODEL_R2_SECRET_ACCESS_KEY"),
             account_id,
+            region,
         ),
     )
 

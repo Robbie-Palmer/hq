@@ -19,11 +19,12 @@ from work_graph_analytics.publication import (
 
 EVENTS_MODEL = "fct_events.parquet"
 SCOPES_MODEL = "fct_scopes.parquet"
+WAIT_EPISODES_MODEL = "fct_wait_episodes.parquet"
 REQUIRED_REPORT_MODELS = (
     EVENTS_MODEL,
     SCOPES_MODEL,
     "fct_tickets.parquet",
-    "fct_wait_episodes.parquet",
+    WAIT_EPISODES_MODEL,
 )
 INFERENCE_LIMITS = (
     "A missing work note is a failed-handoff proxy; it does not prove the handoff failed.",
@@ -320,7 +321,7 @@ def _metrics(
         [
             start,
             end,
-            str(paths["fct_wait_episodes.parquet"][0]),
+            str(paths[WAIT_EPISODES_MODEL][0]),
             str(paths[EVENTS_MODEL][0]),
             str(paths[SCOPES_MODEL][0]),
             project_id,
@@ -412,7 +413,7 @@ def operational_report(
             verified_model_bytes=sum(descriptor.size for descriptor in manifest.models),
             report_input_bytes_upper_bound=sum(
                 paths[filename][1].size
-                for filename in ("fct_wait_episodes.parquet", EVENTS_MODEL, SCOPES_MODEL)
+                for filename in (WAIT_EPISODES_MODEL, EVENTS_MODEL, SCOPES_MODEL)
             ),
         ),
         inference_limits=INFERENCE_LIMITS,

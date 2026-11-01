@@ -36,3 +36,4 @@ jobs:
           RAW_R2_SECRET_ACCESS_KEY: ${{ secrets.RAW_R2_SECRET_ACCESS_KEY }}
           MODEL_R2_ACCESS_KEY_ID: ${{ secrets.MODEL_R2_ACCESS_KEY_ID }}
           MODEL_R2_SECRET_ACCESS_KEY: ${{ secrets.MODEL_R2_SECRET_ACCESS_KEY }}
+          R2_REGION: ${{ vars.R2_REGION }}

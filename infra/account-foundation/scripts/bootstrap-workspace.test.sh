@@ -224,6 +224,10 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "fixture-raw-secret",
     "computedVisibility": "masked"
   },
+  "R2_REGION": {
+    "computed": "auto",
+    "computedVisibility": "unmasked"
+  },
   "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED": {
     "computed": "false",
     "computedVisibility": "unmasked"
@@ -304,6 +308,9 @@ for name in \
 done
 grep -Fxq -- \
   "variable set CLOUDFLARE_ACCOUNT_ID production-work-graph-analytics" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "variable set R2_REGION production-work-graph-analytics" \
   "$work_dir/github-calls"
 grep -Fxq -- \
   "variable set WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED production-work-graph-analytics" \
