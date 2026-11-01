@@ -39,6 +39,9 @@ jobs:
       - name: Lint Terraform
         run: mise run //infra/remote-development:lint:tflint
 
+      - name: Test Terraform lifecycle states
+        run: mise run //infra/remote-development:test
+
       - name: Terraform Plan
         run: mise run //infra/remote-development:plan
         env:

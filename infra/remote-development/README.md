@@ -109,3 +109,54 @@ Application-level encrypted backups and a tested restore remain required.
 Hetzner server backups default to disabled because they cover only the
 reproducible root disk, not the attached workspace volume. Enable them only if
 faster root-disk rollback is worth the additional cost.
+
+## Suspend and resume
+
+`server_state` controls the compute lifecycle without changing ownership of the
+workspace volume:
+
+| State | Server | Server deletion protection | Workspace volume |
+| --- | --- | --- | --- |
+| `active` | Present | Enabled | Attached and protected |
+| `suspend-ready` | Present | Disabled | Attached and protected |
+| `suspended` | Absent | Not applicable | Detached and protected |
+
+Suspension needs two reviewed applies because Hetzner will reject deletion of a
+protected server. First set `server_state` to `suspend-ready`, merge the change,
+and apply it with the protected `Remote Development Infrastructure` workflow.
+Confirm that the plan only changes server deletion and rebuild protection.
+Then set the state to `suspended`, merge, and apply again. The second plan must
+delete only the server and volume attachment. It must retain
+`hcloud_volume.workspace`, the firewall, and the bootstrap SSH key.
+
+Before the second apply:
+
+1. Run `mise run //homelab:remote-backup` and require a successful fresh
+   encrypted snapshot.
+2. Pause the `remote-development-host` Healthchecks.io check.
+3. Confirm that no T3 Code work remains active on the remote host.
+
+The suspended configuration keeps the encrypted 100 GiB volume, R2 backups,
+HCP Terraform state, Doppler configs, and GitHub delivery environments. Hetzner
+stops billing for the deleted server and its automatically managed Primary
+IPv4. The retained volume continues to incur storage charges.
+
+To resume, set `server_state` to `active`. Before applying, temporarily enable
+bootstrap mode and publish one operator CIDR through
+`homelab/prd_remote_development_infra`. An exact CX33 allocation is not
+guaranteed, so select another available x86 server type in `nbg1` if needed.
+After Terraform creates the server and attaches the existing volume:
+
+1. Read `nixos_anywhere_target` from the reviewed Terraform output and pass it
+   as `REMOTE_DEVELOPMENT_TARGET` to the installation task.
+2. Verify the replacement host key through the Hetzner console and remove only
+   the old entry from the dedicated known-hosts file.
+3. Run the installation, Tailscale enrollment, kubeconfig, Doppler operator,
+   K3s deployment, backup credential, observability credential, and health
+   tasks from the commissioning sections above. The installation guard accepts
+   the retained LUKS volume and refuses to format it.
+4. Disable bootstrap mode, clear its CIDRs, and apply the firewall change.
+
+The root disk and K3s datastore are rebuilt. T3 Code userdata, repositories,
+worktrees, and agent state return from the retained encrypted volume. The R2
+snapshot remains the recovery path if that volume is unavailable.
