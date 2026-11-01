@@ -19,8 +19,39 @@ describe("technology icons", () => {
     ["Filen", undefined, "custom:filen"],
     ["Proton Pass", undefined, "custom:protonpass"],
     ["Proton Mail", undefined, "custom:protonmail"],
+    ["Greptile", undefined, "custom:greptile"],
+    ["Playwright", undefined, "custom:playwright"],
+    ["Slack", undefined, "custom:slack"],
   ])("resolves the %s logo", (name, iconSlug, expected) => {
     expect(getTechIconKey(name, iconSlug)).toBe(expected);
+  });
+
+  it.each([
+    ["uv", "simple:uv"],
+    ["Ruff", "simple:ruff"],
+    ["pytest", "simple:pytest"],
+    ["Pydantic", "simple:pydantic"],
+    ["Biome", "simple:biome"],
+    ["StrykerJS", "simple:stryker"],
+    ["Backblaze B2", "simple:backblaze"],
+    ["Helm", "simple:helm"],
+    ["WebAssembly", "simple:webassembly"],
+    ["CesiumJS", "simple:cesium"],
+    ["CMake", "simple:cmake"],
+    ["ESP32", "simple:espressif"],
+    ["SemaphoreCI", "simple:semaphoreci"],
+    ["OpenAPI", "simple:openapiinitiative"],
+    ["AdGuard Home", "simple:adguard"],
+    ["Proton VPN", "simple:protonvpn"],
+    ["Dashlane", "simple:dashlane"],
+    ["pg_trgm", "simple:postgresql"],
+    ["AWS Textract", "custom:aws"],
+    ["@hono/zod-openapi", "simple:hono"],
+    ["Kube-Hetzner", "simple:hetzner"],
+    ["Flux Schema", "simple:flux"],
+    ["Nix", "simple:nixos"],
+  ])("resolves the %s catalog logo", (name, expected) => {
+    expect(getTechIconKey(name)).toBe(expected);
   });
 
   it("preserves the full-color t3-code logo", () => {
@@ -39,7 +70,7 @@ describe("technology icons", () => {
     expect(markup).toContain("dark:invert");
   });
 
-  it.each(["Proton Pass", "Proton Mail"])(
+  it.each(["Playwright", "Proton Pass", "Proton Mail", "Slack"])(
     "preserves the full-color %s logo",
     (name) => {
       const markup = renderToStaticMarkup(TechIcon({ name }));
