@@ -39,6 +39,14 @@ vi.mock(
   }),
 );
 vi.mock(
+  "@/app/_projects/personal-finance-app/components/foreign-exchange-decision-workspace",
+  () => ({
+    ForeignExchangeDecisionWorkspace: () => (
+      <div>Currency decision workspace</div>
+    ),
+  }),
+);
+vi.mock(
   "@/app/_projects/personal-finance-app/components/job-move-scenario-planner",
   () => ({
     JobMoveScenarioPlanner: () => <div>Job move workspace</div>,
@@ -158,6 +166,7 @@ describe("DecisionsRoute", () => {
     ["Recorded", "No decision records yet"],
     ["Job moves", "Job move workspace"],
     ["Scenarios", "Scenario workspace"],
+    ["Currency", "Currency decision workspace"],
   ])("opens the %s workspace", async (tab, expectedText) => {
     mockUseAssetTracker.mockReturnValue({
       accountDetails: [],
