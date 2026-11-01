@@ -1,0 +1,58 @@
+---
+title: "PDR 002: Keep unpublished writing and editorial decisions private"
+date: "2026-09-06"
+status: "Accepted"
+decision_date: "2026-09-06"
+---
+
+## Context
+
+Evaluating an editor needs more than published text. Useful evidence may
+include raw agent output, unpublished drafts, proposed rewrites, accepted and
+rejected edits, and the final text. Those records can expose unfinished ideas,
+private notes, and a detailed account of how an author works.
+
+Git history is public and durable. General analytics, hosted browser sessions,
+and model-training datasets can also create copies that outlive the evaluation
+that needed them.
+
+## Decision
+
+Keep unpublished writing, generated passages, and editorial decisions in the
+private evaluation boundary. Do not commit them to the public repository,
+republish them, send them to general analytics, or use them for training unless
+the author makes a separate explicit decision.
+
+A browser handoff discards transfer data when the session ends. Add a
+before-and-after pair to the private corpus only when the author selects that
+document. Limit access to the author and the evaluation jobs that need it.
+
+Removing a corpus entry removes its tracked object. Purge any unreferenced
+remote cache within 30 days. Public source documents may remain public, but the
+private review decisions attached to them keep this policy.
+
+## Consequences
+
+The evaluation can use authentic editorial evidence without turning private
+drafts into public fixtures or an undeclared training corpus. The product will
+have less data available for broad analysis, and every storage or browser
+integration must account for retention and deletion.
+
+Reproducibility relies on hashes, manifests, parameters, and private artifact
+storage rather than checking the full corpus into Git. A collaborator or
+hosted service does not receive the corpus merely because it can run the
+editor.
+
+## Evaluation
+
+Tests must prove that public builds and Git contain no private source text or
+generated passages. A selected corpus item must be traceable to its private
+storage entry, and removing it must leave no referenced object after the purge
+window.
+
+## Migration note
+
+This record extracts the privacy and retention policy first recorded alongside
+the DVC pipeline and the proposed Grammarly handoff. ADR 004 retains the
+artifact-versioning decision. ADR 007 retains the browser-integration proposal.
+The migration does not broaden corpus use or authorize training.
