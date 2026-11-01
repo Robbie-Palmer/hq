@@ -26,17 +26,20 @@ vi.mock("@/components/projects/project-tabs", () => ({
     adrs,
     pdrs,
     pitch,
+    platform,
   }: {
     overview: React.ReactNode;
     adrs: React.ReactNode;
     pdrs: React.ReactNode;
     pitch: React.ReactNode;
+    platform: React.ReactNode;
   }) => (
     <div>
       <div data-testid="overview">{overview}</div>
       <div data-testid="adrs">{adrs}</div>
       <div data-testid="pdrs">{pdrs}</div>
       <div data-testid="pitch">{pitch}</div>
+      <div data-testid="platform">{platform}</div>
     </div>
   ),
 }));
@@ -218,6 +221,32 @@ describe("project page", () => {
     });
     render(await ProjectPage({ params: Promise.resolve({ slug: "homelab" }) }));
     expect(screen.getByText("pitch-content")).toBeInTheDocument();
+  });
+
+  it("passes the platform manifest through to the project tabs", async () => {
+    (getProject as Mock).mockReturnValue({
+      ...fixture,
+      slug: "personal-engineering-platform",
+      platformManifest: {
+        schemaVersion: 1,
+        catalog: { records: [] },
+        layers: [],
+        policies: [],
+        slots: [],
+      },
+    });
+
+    render(
+      await ProjectPage({
+        params: Promise.resolve({ slug: "personal-engineering-platform" }),
+      }),
+    );
+
+    expect(
+      within(screen.getByTestId("platform")).getByRole("heading", {
+        name: "Component catalog",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("shows initiatives as relationships outside the breadcrumb", async () => {

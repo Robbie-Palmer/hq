@@ -74,6 +74,29 @@ describe("ProjectTabs", () => {
     });
   });
 
+  it("keeps platform data in a dedicated tab", async () => {
+    const user = userEvent.setup();
+    render(
+      <ProjectTabs
+        projectSlug="personal-engineering-platform"
+        adrCount={1}
+        overview={<div>Overview content</div>}
+        platform={<div>Platform manifest</div>}
+        adrs={<div>ADR content</div>}
+      />,
+    );
+
+    expect(screen.getByText("Overview content")).toBeVisible();
+    expect(screen.queryByText("Platform manifest")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Platform" }));
+
+    expect(replaceMock).toHaveBeenCalledWith(
+      "/projects/personal-engineering-platform?tab=platform",
+      { scroll: false },
+    );
+  });
+
   it.each([
     ["tab=pdrs", "Product policy"],
     ["tab=missing", "Overview content"],
