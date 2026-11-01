@@ -2,6 +2,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { PlannerApplication } from "@/app/_projects/wedding-planner/application/application";
 import { createSampleEditorPlan } from "@/app/_projects/wedding-planner/application/bootstrap";
+import { encodeWeddingPlanDraft } from "@/app/_projects/wedding-planner/application/plan-codec";
 import { useWeddingPlan } from "@/app/_projects/wedding-planner/components/use-wedding-plan";
 import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
 
@@ -137,10 +138,10 @@ describe("useWeddingPlan", () => {
     expect(createObjectURL).not.toHaveBeenCalled();
 
     const state = createSampleEditorPlan();
-    const valid = Object.assign(
-      new File([JSON.stringify(state)], "plan.json"),
-      { text: async () => JSON.stringify(state) },
-    );
+    const serialized = encodeWeddingPlanDraft(state);
+    const valid = Object.assign(new File([serialized], "plan.json"), {
+      text: async () => serialized,
+    });
     fireEvent.change(screen.getByLabelText("Import probe"), {
       target: { files: [valid] },
     });

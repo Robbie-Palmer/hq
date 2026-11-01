@@ -2,8 +2,9 @@
 
 import { ArrowRight } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import type { PlannerApplication } from "../application/application";
 import type { TableAllocation, WeddingPlanDraft } from "../application/types";
 import { DataControls } from "../components/data-controls";
 import { PlaylistEditor } from "../components/playlist-editor";
@@ -149,17 +150,21 @@ export function MusicWorkflow() {
   );
 }
 
-export function SeatingWorkflow() {
-  const plan = useWeddingPlan();
+export function SeatingWorkflow({
+  application,
+}: Readonly<{ application?: PlannerApplication }>) {
+  const plan = useWeddingPlan(application);
   const [allocation, setAllocation] = useState<TableAllocation | null>(null);
   const [busy, setBusy] = useState(false);
   const [calculationError, setCalculationError] = useState("");
+  const calculationRevision = useRef(0);
 
   function update(
     change: (draft: WeddingPlanDraft) => void,
     layoutOnly = false,
   ) {
     if (!layoutOnly) {
+      calculationRevision.current += 1;
       setAllocation(null);
       setCalculationError("");
     }
@@ -168,11 +173,13 @@ export function SeatingWorkflow() {
 
   async function calculate() {
     if (!plan.state) return;
+    const revision = calculationRevision.current;
     setBusy(true);
     setCalculationError("");
     try {
       await plan.flush();
-      setAllocation(await plan.application.calculateTables(plan.state));
+      const result = await plan.application.calculateTables(plan.state);
+      if (calculationRevision.current === revision) setAllocation(result);
     } catch (cause) {
       setCalculationError(
         cause instanceof Error ? cause.message : "Could not calculate tables",

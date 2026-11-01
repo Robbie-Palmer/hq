@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   AccommodationEditor,
+  type AccommodationEditorView,
   type EditorView,
 } from "../components/accommodation-editor";
 import { workflowHref } from "./workflow-paths";
@@ -22,12 +23,12 @@ export function AccommodationWorkflow({
   return <EditorWorkflow view={view} />;
 }
 
-function EditorWorkflow({ view }: Readonly<{ view: EditorView }>) {
+function EditorWorkflow({ view }: Readonly<{ view: AccommodationEditorView }>) {
   const router = useRouter();
   const searchParams = useSearchParams();
   return (
     <AccommodationEditor
-      routeView={view}
+      view={view}
       selectedGuestId={
         view === "guests" ? searchParams.get("guest") : undefined
       }

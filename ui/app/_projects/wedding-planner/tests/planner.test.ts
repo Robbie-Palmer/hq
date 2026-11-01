@@ -1,9 +1,7 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { browserWeddingPlanRepository } from "@/app/_projects/wedding-planner/application/browser-repository";
 import { calculateRooms } from "@/app/_projects/wedding-planner/application/calculate";
-import { decodeWeddingPlan } from "@/app/_projects/wedding-planner/application/plan-codec";
 import type { AccommodationSetup } from "@/app/_projects/wedding-planner/application/setup";
 import {
   markNotCouple,
@@ -219,52 +217,10 @@ describe("wedding planner accommodation", () => {
     expect(html).not.toContain("annex cottage booking");
   });
 
-  it("copies a saved wedding rooms plan to the wedding planner key", async () => {
-    const legacy = {
-      ...plan(linenCouple()),
-      reservations: undefined,
-      linen_guest_ids: ["linen-a", "linen-b"],
-      linen_approved_guest_ids: [],
-    };
-    window.localStorage.clear();
-    try {
-      window.localStorage.setItem(
-        "wedding-rooms:plan:v1",
-        JSON.stringify(legacy),
-      );
-      expect(await browserWeddingPlanRepository.load()).toEqual(
-        decodeWeddingPlan(legacy),
-      );
-      expect(
-        JSON.parse(
-          window.localStorage.getItem("wedding-planner:plan:v2") ?? "null",
-        ),
-      ).toEqual(decodeWeddingPlan(legacy));
-    } finally {
-      window.localStorage.clear();
-    }
-  });
-
   it("explains why an unrelated JSON file cannot be imported", () => {
     expect(() => parseState({})).toThrow(
       "not a compatible wedding planner plan",
     );
-  });
-
-  it("migrates saved guest tags into relationship groups", () => {
-    const state = plan(linenCouple());
-    const firstGuest = state.guests[0];
-    if (!firstGuest) throw new Error("Expected a guest fixture");
-    const { relationship_groups: _groups, ...legacyGuest } = firstGuest;
-    const parsed = parseState({
-      ...state,
-      guests: [
-        { ...legacyGuest, tags: "Family; Work" },
-        ...state.guests.slice(1),
-      ],
-    });
-    expect(parsed.guests[0]?.relationship_groups).toEqual(["Family", "Work"]);
-    expect(parsed.guests[0]).not.toHaveProperty("tags");
   });
 
   it("rejects unsupported saved choices before building a plan", () => {
@@ -311,7 +267,11 @@ describe("wedding planner accommodation", () => {
   });
 
   it("gives a free guest's bed partner a free stay by default", () => {
-    const { input } = buildInput(plan(linenCouple()));
+    const { input } = buildInput(
+      plan(linenCouple(), {
+        couples: [{ id: "linen-couple", guest_ids: ["linen-a", "linen-b"] }],
+      }),
+    );
     expect(
       input.parties.find((party) => party.id === "linen-a")?.free_guest_indexes,
     ).toEqual([0, 1]);
@@ -341,6 +301,7 @@ describe("wedding planner accommodation", () => {
       guest("visitor", { fixed_room_id: "linen_2" }),
     ];
     const state = plan(guests, {
+      couples: [{ id: "linen-couple", guest_ids: ["linen-a", "linen-b"] }],
       reservations: {
         linen_1: {
           guest_ids: ["linen-a", "linen-b"],

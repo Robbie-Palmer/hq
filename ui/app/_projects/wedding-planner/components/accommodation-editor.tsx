@@ -3,16 +3,9 @@
 import {
   ArrowRight,
   BedDouble,
-  Building2,
-  Check,
   ChevronRight,
-  Heart,
-  House,
-  LayoutDashboard,
-  Music2,
   Search,
   Sparkles,
-  Users,
   Waypoints,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,7 +41,6 @@ import type {
   PairDecision,
   PartyName,
   SharingLevel,
-  TableAllocation,
   WeddingPlanDraft,
 } from "@/app/_projects/wedding-planner/application/types";
 import {
@@ -79,8 +71,6 @@ import {
   EditorToggle as Toggle,
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
-import { PlaylistEditor } from "./playlist-editor";
-import { ReadinessDashboard } from "./readiness-dashboard";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -91,7 +81,6 @@ import {
   roomName,
   venueRooms,
 } from "./room-data";
-import { TableEditor } from "./table-editor";
 import {
   WorkflowEmptyState,
   WorkflowErrorState,
@@ -142,76 +131,34 @@ function PaymentChoice({
   );
 }
 
-const plannerSections = [
-  { id: "readiness", label: "Readiness", icon: LayoutDashboard },
-  { id: "bed_groups", label: "Bed groups", icon: BedDouble },
-  { id: "guests", label: "Guests", icon: Users },
-  { id: "sharing", label: "Sharing map", icon: Waypoints },
-  { id: "inventory", label: "Accommodation", icon: Building2 },
-  { id: "plan", label: "Rooms & costs", icon: House },
-  { id: "result", label: "Room plan", icon: Sparkles },
-  { id: "tables", label: "Tables", icon: Users },
-  { id: "music", label: "Music", icon: Music2 },
-] as const;
+export type EditorView =
+  | "readiness"
+  | "bed_groups"
+  | "guests"
+  | "sharing"
+  | "inventory"
+  | "plan"
+  | "result"
+  | "tables"
+  | "music"
+  | "exports";
 
-export type EditorView = (typeof plannerSections)[number]["id"] | "exports";
+export type AccommodationEditorView = Extract<
+  EditorView,
+  "bed_groups" | "guests" | "sharing" | "inventory" | "plan" | "result"
+>;
 
 function InventoryView({
   view,
   state,
   onUpdate,
 }: Readonly<{
-  view: EditorView;
+  view: AccommodationEditorView;
   state: WeddingPlanDraft | null;
   onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   if (view !== "inventory" || !state) return null;
   return <AccommodationInventoryEditor state={state} onUpdate={onUpdate} />;
-}
-
-function PlaylistView({
-  view,
-  state,
-  onUpdate,
-}: Readonly<{
-  view: EditorView;
-  state: WeddingPlanDraft | null;
-  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
-}>) {
-  if (view !== "music" || !state) return null;
-  return <PlaylistEditor playlist={state.playlist} onUpdate={onUpdate} />;
-}
-
-function PlannerNavigation({
-  view,
-  onViewChange,
-  pendingPairCount,
-  guestCount,
-}: Readonly<{
-  view: EditorView;
-  onViewChange: (view: EditorView) => void;
-  pendingPairCount: number;
-  guestCount: number;
-}>) {
-  const counts: Partial<Record<EditorView, number>> = {
-    bed_groups: pendingPairCount,
-    guests: guestCount,
-  };
-  return (
-    <nav className="editor-nav" aria-label="Planner sections">
-      {plannerSections.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          className={view === id ? "active" : ""}
-          onClick={() => onViewChange(id)}
-        >
-          <Icon size={18} /> {label}
-          {counts[id] !== undefined && <span>{counts[id] || ""}</span>}
-        </button>
-      ))}
-    </nav>
-  );
 }
 
 function selectedGuestConnections(selected: Guest | null, guests: Guest[]) {
@@ -341,32 +288,6 @@ function ResultView({
   );
 }
 
-function ReadinessView({
-  view,
-  state,
-  onUpdate,
-  onView,
-  onGuest,
-}: Readonly<{
-  view: EditorView;
-  state: WeddingPlanDraft | null;
-  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
-  onView: (view: EditorView, targetId?: string) => void;
-  onGuest: (guestId: string) => void;
-}>) {
-  if (view !== "readiness" || !state) return null;
-  return (
-    <ReadinessDashboard
-      state={state}
-      onUpdate={onUpdate}
-      onNavigate={(destination, targetId) => {
-        if (targetId && destination === "guests") onGuest(targetId);
-        onView(destination, targetId);
-      }}
-    />
-  );
-}
-
 function EditorPlanStatus({
   error,
   loading,
@@ -459,67 +380,24 @@ function BedGroupsSummary({
   );
 }
 
-interface LegacyPlannerViewsProps {
-  allocation: TableAllocation | null;
-  busy: boolean;
-  onCalculate(): Promise<void>;
-  onGuest(guestId: string): void;
-  onLayoutUpdate(change: (draft: WeddingPlanDraft) => void): void;
-  onUpdate(change: (draft: WeddingPlanDraft) => void): void;
-  onView(view: EditorView, targetId?: string): void;
-  state: WeddingPlanDraft | null;
-  view: EditorView;
-}
-
-function LegacyPlannerViews(props: Readonly<LegacyPlannerViewsProps>) {
-  return (
-    <>
-      {props.view === "tables" && props.state && (
-        <TableEditor
-          state={props.state}
-          allocation={props.allocation}
-          onLayoutUpdate={props.onLayoutUpdate}
-          busy={props.busy}
-          onUpdate={props.onUpdate}
-          onCalculate={props.onCalculate}
-        />
-      )}
-      <ReadinessView
-        view={props.view}
-        state={props.state}
-        onUpdate={props.onUpdate}
-        onView={props.onView}
-        onGuest={props.onGuest}
-      />
-      <PlaylistView
-        view={props.view}
-        state={props.state}
-        onUpdate={props.onUpdate}
-      />
-    </>
-  );
-}
-
 interface AccommodationEditorProps {
   application?: PlannerApplication;
   onGuestChange?(guestId: string | null): void;
-  onNavigate?(view: EditorView, targetId?: string): void;
-  routeView?: EditorView;
+  onNavigate(view: EditorView, targetId?: string): void;
   selectedGuestId?: string | null;
+  view: AccommodationEditorView;
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
-  routeView,
   selectedGuestId,
   onNavigate,
   onGuestChange,
+  view,
 }: Readonly<AccommodationEditorProps>) {
   const [state, setState] = useState<WeddingPlanDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [internalView, setInternalView] = useState<EditorView>("bed_groups");
-  const view = routeView ?? internalView;
   const [bedSearch, setBedSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
   const [sharingLevel, setSharingLevel] = useState<SharingLevel>("room");
@@ -537,9 +415,6 @@ export function AccommodationEditor({
   const [partyNames, setPartyNames] = useState<PartyName[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [tableAllocation, setTableAllocation] =
-    useState<TableAllocation | null>(null);
-  const [tableBusy, setTableBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
   const solverVersion = useRef(0);
@@ -548,8 +423,7 @@ export function AccommodationEditor({
   const pendingSaveTimer = useRef<number | null>(null);
 
   function setView(nextView: EditorView, targetId?: string) {
-    if (routeView) onNavigate?.(nextView, targetId);
-    else setInternalView(nextView);
+    onNavigate(nextView, targetId);
   }
 
   function selectGuest(guestId: string | null) {
@@ -591,16 +465,10 @@ export function AccommodationEditor({
     }
   }
 
-  function update(
-    change: (draft: WeddingPlanDraft) => void,
-    layoutOnly = false,
-  ) {
-    if (!layoutOnly) {
-      setTableAllocation(null);
-      setAllocation(null);
-      setReport("");
-      setWarnings([]);
-    }
+  function update(change: (draft: WeddingPlanDraft) => void) {
+    setAllocation(null);
+    setReport("");
+    setWarnings([]);
     setState((previous) => {
       if (!previous) return previous;
       const draft = structuredClone(previous);
@@ -611,7 +479,7 @@ export function AccommodationEditor({
         return previous;
       }
       editVersion.current += 1;
-      if (!layoutOnly) solverVersion.current += 1;
+      solverVersion.current += 1;
       setSaveStatus("Saving…");
       setError("");
       return draft;
@@ -667,7 +535,7 @@ export function AccommodationEditor({
 
   async function calculate() {
     if (!state) return;
-    if (routeView && view !== "result") {
+    if (view !== "result") {
       setView("result");
       return;
     }
@@ -676,7 +544,6 @@ export function AccommodationEditor({
     cancelPendingSave();
     setBusy(true);
     setError("");
-    if (!routeView) setView("result");
     try {
       await saveBeforeCalculation(state, version);
       const result = await application.calculateRooms(state);
@@ -703,7 +570,6 @@ export function AccommodationEditor({
   // biome-ignore lint/correctness/useExhaustiveDependencies: calculate is intentionally triggered once per route mount.
   useEffect(() => {
     if (
-      routeView !== "result" ||
       view !== "result" ||
       !state ||
       allocation ||
@@ -725,34 +591,11 @@ export function AccommodationEditor({
     setState(imported);
     setSelectedId(imported.guests[0]?.id ?? null);
     setAllocation(null);
-    setTableAllocation(null);
     setReport("");
     setWarnings([]);
     setError("");
     setSaveStatus("Saved in this browser");
     setView("bed_groups");
-  }
-
-  async function calculateTablePlan() {
-    if (!state) return;
-    const version = editVersion.current;
-    const calculationVersion = solverVersion.current;
-    cancelPendingSave();
-    setTableBusy(true);
-    setError("");
-    try {
-      await saveBeforeCalculation(state, version);
-      const result = await application.calculateTables(state);
-      if (solverVersion.current === calculationVersion)
-        setTableAllocation(result);
-    } catch (cause) {
-      if (solverVersion.current === calculationVersion)
-        setError(
-          cause instanceof Error ? cause.message : "Could not calculate tables",
-        );
-    } finally {
-      setTableBusy(false);
-    }
   }
 
   function exportPlan() {
@@ -931,40 +774,8 @@ export function AccommodationEditor({
   );
 
   return (
-    <div className={routeView ? "wedding-route" : "editor-app"}>
-      {!routeView && (
-        <header className="editor-header">
-          <div className="editor-brand">
-            <span className="brand-mark">
-              <Heart size={18} fill="currentColor" />
-            </span>
-            <span>
-              Wedding planner <small>Rooms, tables &amp; music</small>
-            </span>
-          </div>
-          <span className="save-status">
-            <Check size={15} /> {saveStatus}
-          </span>
-        </header>
-      )}
-      <div className={routeView ? undefined : "editor-shell"}>
-        {!routeView && (
-          <aside className="editor-sidebar">
-            <PlannerNavigation
-              view={view}
-              onViewChange={setView}
-              pendingPairCount={pendingInvitationPairs.length}
-              guestCount={guests.length}
-            />
-            {state && (
-              <DataControls
-                hasData
-                onImport={importPlan}
-                onExport={exportPlan}
-              />
-            )}
-          </aside>
-        )}
+    <div className="wedding-route">
+      <div className="wedding-route-content">
         <main id="wedding-planner-content" className="editor-main">
           <EditorPlanStatus
             error={error}
@@ -973,17 +784,6 @@ export function AccommodationEditor({
             onImport={importPlan}
             onLoadSample={loadSamplePlan}
             state={state}
-          />
-          <LegacyPlannerViews
-            allocation={tableAllocation}
-            busy={tableBusy}
-            onCalculate={calculateTablePlan}
-            onGuest={selectGuest}
-            onLayoutUpdate={(change) => update(change, true)}
-            onUpdate={update}
-            onView={setView}
-            state={state}
-            view={view}
           />
           {view === "bed_groups" && state && (
             <>

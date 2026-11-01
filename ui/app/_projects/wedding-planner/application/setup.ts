@@ -14,10 +14,6 @@ export const weddingAccommodationSetup: AccommodationSetup = {
   reservation: {
     roomId: "linen_1",
     label: "Linen Cottage",
-    legacyFields: {
-      guestIds: "linen_guest_ids",
-      approvedGuestIds: "linen_approved_guest_ids",
-    },
     guestIds: (state) => state.reservations.linen_1?.guest_ids ?? [],
     approvedGuestIds: (state) =>
       state.reservations.linen_1?.approved_guest_ids ?? [],

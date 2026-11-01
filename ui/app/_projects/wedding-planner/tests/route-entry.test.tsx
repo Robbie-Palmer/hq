@@ -24,16 +24,16 @@ vi.mock(
     AccommodationEditor: ({
       onGuestChange,
       onNavigate,
-      routeView,
       selectedGuestId,
+      view,
     }: {
       onGuestChange?(guestId: string | null): void;
       onNavigate?(view: string, targetId?: string): void;
-      routeView: string;
       selectedGuestId?: string | null;
+      view: string;
     }) => (
       <section>
-        <h1>{routeView}</h1>
+        <h1>{view}</h1>
         <output>{selectedGuestId ?? "no guest"}</output>
         <button type="button" onClick={() => onNavigate?.("readiness")}>
           Open readiness

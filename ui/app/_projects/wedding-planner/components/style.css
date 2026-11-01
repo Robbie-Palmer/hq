@@ -739,80 +739,6 @@
   background: #edf3eb;
   color: #45684d;
 }
-.save-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--soft-ink);
-  font-size: 12px;
-}
-.save-status svg {
-  color: #5c8064;
-}
-.editor-shell {
-  display: grid;
-  grid-template-columns: 274px minmax(0, 1fr);
-  min-height: calc(100vh - 76px);
-}
-.editor-sidebar {
-  background: #f0f3ed;
-  border-right: 1px solid var(--line);
-  padding: 36px 20px 30px;
-  display: flex;
-  flex-direction: column;
-}
-.sidebar-note p {
-  color: var(--soft-ink);
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0;
-}
-.editor-nav {
-  display: grid;
-  gap: 6px;
-}
-.editor-nav button {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: #4d5c52;
-  border-radius: 10px;
-  text-align: left;
-  padding: 12px 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 600;
-}
-.editor-nav button:hover,
-.editor-nav button.active {
-  background: #fff;
-  color: var(--ink);
-  box-shadow: 0 1px 4px #25372b12;
-}
-.editor-nav button.active svg {
-  color: #668c67;
-}
-.editor-nav button span {
-  margin-left: auto;
-  color: #8b998d;
-  font-size: 12px;
-}
-.sidebar-note {
-  display: flex;
-  gap: 11px;
-  background: #e4ede2;
-  border-radius: 14px;
-  padding: 16px;
-  margin-top: auto;
-}
-.sidebar-note svg {
-  color: #5a8060;
-  flex: none;
-  margin-top: 2px;
-}
 .sidebar-note strong {
   color: #354a3c;
 }
@@ -2009,12 +1935,6 @@
   font-size: 10px;
 }
 @media (max-width: 1000px) {
-  .editor-shell {
-    grid-template-columns: 210px minmax(0, 1fr);
-  }
-  .editor-sidebar {
-    padding: 28px 12px;
-  }
   .editor-main {
     padding: 32px 25px 70px;
   }
@@ -2038,28 +1958,6 @@
   .editor-header {
     height: 64px;
     padding: 0 18px;
-  }
-  .editor-shell {
-    display: block;
-  }
-  .editor-sidebar {
-    padding: 14px 18px;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-  }
-  .sidebar-note {
-    display: none;
-  }
-  .editor-nav {
-    display: flex;
-    gap: 4px;
-    overflow-x: auto;
-  }
-  .editor-nav button {
-    width: auto;
-    white-space: nowrap;
-    padding: 9px 10px;
-    font-size: 12px;
   }
   .editor-main {
     padding: 28px 16px 60px;
@@ -2147,12 +2045,6 @@
   }
   .table-workflow-content {
     padding: 12px;
-  }
-  .save-status {
-    font-size: 0;
-  }
-  .save-status svg {
-    width: 18px;
   }
 }
 

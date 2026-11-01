@@ -10,10 +10,10 @@ form, table, empty, loading, and error patterns live under `components`.
 `components` handles interaction and presentation. Business rules and the
 canonical `WeddingPlan` model belong to `packages/wedding-planner-domain`.
 
-`application/plan-codec.ts` is the boundary for saved plan text. It parses old
-and current backups into `WeddingPlan`, while `WeddingPlanDraft` remains an
-editor-only projection. Keep the `wedding-planner:plan:v2` key and legacy plan
-imports compatible when changing this boundary.
+`application/plan-codec.ts` is the boundary for saved plan text. It parses the
+current versioned backup into `WeddingPlan`, while `WeddingPlanDraft` remains an
+editor-only projection. The browser repository stores that format under the
+`wedding-planner:plan:v2` key.
 
 Private workflow URLs are `/wedding-planner/readiness`, `/guests`,
 `/accommodation`, `/seating`, `/music`, and `/exports`. Accommodation has

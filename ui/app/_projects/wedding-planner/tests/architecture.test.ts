@@ -113,7 +113,7 @@ describe("wedding planner dependency boundaries", () => {
       export { privateValue } from "../../personal-finance/private";
       void import("../application/state");
       void import("../application/state.js");
-      const legacy = require("../application/values");
+      const values = require("../application/values");
     `;
 
     expect(importSpecifiers(source, importer)).toEqual([
