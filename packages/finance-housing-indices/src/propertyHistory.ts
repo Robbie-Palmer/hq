@@ -8,6 +8,7 @@ import {
 import {
   type HousingValue,
   HousingCurrencySchema,
+  HousingValueRangePercentSchema,
   HousingValueSchema,
   HousingValueSourceSchema,
   HousingValueUncertaintySchema,
@@ -94,7 +95,7 @@ export type HousePriceIndexSeriesCandidate = z.infer<
 export const PropertyValueConfidencePolicySchema = z.object({
   assessedAt: z.iso.date(),
   staleAfterDays: z.number().int().nonnegative(),
-  rangePercent: z.number().positive().max(1),
+  rangePercent: HousingValueRangePercentSchema,
   rangeRule: z.string().min(1),
 });
 export type PropertyValueConfidencePolicy = z.infer<

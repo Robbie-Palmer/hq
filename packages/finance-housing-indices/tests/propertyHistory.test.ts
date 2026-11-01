@@ -5,6 +5,7 @@ import {
   type HousePriceIndexRelease,
   type PropertyHistoryError,
   PROPERTY_INDEX_FORMULA,
+  PropertyValueConfidencePolicySchema,
 } from "../src";
 
 function release(
@@ -111,6 +112,15 @@ const exactSeries = {
 };
 
 describe("indexed property history", () => {
+  it("rejects a confidence range that can reach zero", () => {
+    expect(
+      PropertyValueConfidencePolicySchema.safeParse({
+        ...confidencePolicy,
+        rangePercent: 1,
+      }).success,
+    ).toBe(false);
+  });
+
   it("calculates rising and falling values with reproducible provenance", () => {
     const dataset = release([
       { period: "2024-01", index: 100 },

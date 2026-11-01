@@ -4,6 +4,7 @@ import {
   HousingCurrencySchema,
   HousingValueSchema,
   housingValueAgeDays,
+  indicativeRange,
   isHousingValueStale,
   UnsupportedHousingRegionSchema,
 } from "../src";
@@ -19,6 +20,10 @@ import {
 } from "./valueConfidenceFixtures";
 
 describe("housing value confidence", () => {
+  it("rejects a range percentage that could produce a zero lower bound", () => {
+    expect(() => indicativeRange(250_000, 1, "Test range rule")).toThrow();
+  });
+
   it("uses the ISO-validated housing currency", () => {
     expect(HousingCurrencySchema.parse(HOUSING_CURRENCY)).toBe(
       HOUSING_CURRENCY,

@@ -163,6 +163,8 @@ export type UnsupportedHousingRegion = z.infer<
   typeof UnsupportedHousingRegionSchema
 >;
 
+export const HousingValueRangePercentSchema = z.number().positive().lt(1);
+
 const DAY_IN_MILLISECONDS = 86_400_000;
 
 function utcTime(date: string): number {
@@ -186,7 +188,7 @@ export function indicativeRange(
   rangePercent: number,
   rule: string,
 ): HousingValueUncertainty {
-  const parsedPercent = z.number().positive().max(1).parse(rangePercent);
+  const parsedPercent = HousingValueRangePercentSchema.parse(rangePercent);
   return {
     kind: "indicative-range",
     lower: amount * (1 - parsedPercent),
