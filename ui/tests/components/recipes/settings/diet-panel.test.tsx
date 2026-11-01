@@ -114,16 +114,18 @@ describe("DietPanel", () => {
 
   it("saves an ingredient outside the canonical catalog as written", async () => {
     render(<DietPanel />);
-    const input = await screen.findByLabelText(
-      "Search or enter ingredients to exclude",
-    );
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
 
     fireEvent.change(input, { target: { value: "Nightshade powder" } });
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: 'Save "Nightshade powder" as written',
-      }),
-    );
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    const customOption = screen.getByRole("option", {
+      name: 'Save "Nightshade powder" as written',
+    });
+    expect(input).toHaveAttribute("aria-activedescendant", customOption.id);
+    expect(customOption).toHaveAttribute("aria-selected", "true");
+    fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: "Save diet profile" }));
 
     expect(await screen.findByText("saved")).toBeInTheDocument();
@@ -135,6 +137,35 @@ describe("DietPanel", () => {
     expect(
       screen.getByText("saved as written, automatic matching unavailable"),
     ).toBeInTheDocument();
+  });
+
+  it("exposes and operates the ingredient picker as a keyboard combobox", async () => {
+    render(<DietPanel />);
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
+
+    fireEvent.focus(input);
+    const listbox = screen.getByRole("listbox", {
+      name: "Matching ingredients",
+    });
+    const bacon = screen.getByRole("option", { name: /Bacon/ });
+
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls", listbox.id);
+    expect(bacon).toHaveAttribute("aria-selected", "false");
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
+    expect(bacon).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByText("Bacon")).toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+    expect(
+      screen.queryByRole("listbox", { name: "Matching ingredients" }),
+    ).not.toBeInTheDocument();
   });
 
   it("clears the delayed picker close when unmounted", async () => {
