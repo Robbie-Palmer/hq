@@ -17,7 +17,8 @@ export const previewScenarios = [
   {
     id: "admin-user",
     name: "Administrator",
-    description: "An administrator with representative recipe fixtures.",
+    description:
+      "An administrator with a ranked unresolved-term queue and reversible audit history.",
     email: "admin-user@preview.invalid",
     role: "admin",
   },

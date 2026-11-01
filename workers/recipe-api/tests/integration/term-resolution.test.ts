@@ -1,8 +1,10 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { closeDbClient, createDb, schema } from "recipe-db";
 import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { seedPreviewTermReviewFixtures } from "../../scripts/preview-term-review-fixtures";
 import { observeAuthoredTerm } from "../../src/authored-terms";
 import {
+  listTermResolutionAudit,
   listTermReviewQueue,
   resolveAuthoredTerm,
   runTermReprojection,
@@ -14,6 +16,7 @@ if (!databaseURL) throw new Error("DATABASE_URL is required for integration test
 
 const { db, client } = createDb(databaseURL);
 const reviewerId = "term-reviewer";
+const previewTermHouseholdId = "preview-term-review-household";
 
 async function seedUsers() {
   await db.insert(schema.user).values([
@@ -75,6 +78,9 @@ beforeEach(async () => {
 afterEach(async () => {
   await client.unsafe('truncate table "user" restart identity cascade');
   await db
+    .delete(schema.organization)
+    .where(eq(schema.organization.id, previewTermHouseholdId));
+  await db
     .delete(schema.ingredient)
     .where(
       inArray(schema.ingredient.slug, [
@@ -92,6 +98,79 @@ afterAll(async () => {
 });
 
 describe("term resolution persistence", () => {
+  it("seeds a retry-safe preview queue with evidence and reversible audit history", async () => {
+    await db.insert(schema.organization).values({
+      id: previewTermHouseholdId,
+      name: "Preview term review household",
+      slug: previewTermHouseholdId,
+    });
+    const users = {
+      reviewerUserId: reviewerId,
+      recipesUserId: "cook-a",
+      householdOwnerUserId: "cook-b",
+      householdId: previewTermHouseholdId,
+    };
+
+    await seedPreviewTermReviewFixtures(db, users);
+    await seedPreviewTermReviewFixtures(db, users);
+
+    const queue = await listTermReviewQueue(db);
+    expect(queue).toHaveLength(6);
+    expect(queue[0]).toMatchObject({
+      normalizedText: "scallions",
+      locale: "en-US",
+      submissionCount: 7,
+      tenantCount: 2,
+    });
+    expect(queue[0]?.contexts).toHaveLength(3);
+    expect(
+      queue[0]?.contexts.map(({ submissionCount }) => submissionCount).sort(),
+    ).toEqual([2, 2, 3]);
+
+    const greenOnion = queue.filter(
+      ({ normalizedText }) => normalizedText === "green onion",
+    );
+    expect(greenOnion).toHaveLength(2);
+    expect(greenOnion).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          locale: "en-US",
+          localeReviewRequired: true,
+          collisionReviewRequired: true,
+        }),
+        expect.objectContaining({
+          locale: "en-GB",
+          localeReviewRequired: true,
+          collisionReviewRequired: true,
+        }),
+      ]),
+    );
+    expect(
+      queue.find(
+        ({ normalizedText }) => normalizedText === "stovetop griddle thing",
+      ),
+    ).toMatchObject({
+      kind: "equipment",
+      localeReviewRequired: true,
+      collisionReviewRequired: true,
+    });
+
+    const audit = await listTermResolutionAudit(db);
+    expect(audit).toHaveLength(1);
+    expect(audit[0]).toMatchObject({
+      normalizedText: "garbanzo bean",
+      action: "alias",
+      targetSlug: "chickpeas",
+      registryVersion: 1,
+      reprojection: {
+        status: "succeeded",
+        attemptCount: 1,
+        projectedTermCount: 1,
+        projectedContextCount: 1,
+      },
+    });
+  });
+
   it("ranks retained evidence and applies a concurrent alias command once", async () => {
     await observeIngredient({ rawText: "Scallion", locale: "en-US" });
     await observeIngredient({ rawText: "SCALLION", locale: "en-US" });
