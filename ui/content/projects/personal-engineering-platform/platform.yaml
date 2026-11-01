@@ -471,8 +471,13 @@ catalog:
       name: Wedding planner
       project: project:wedding-planner
       source_paths:
+        - infra/wedding-planner
+        - packages/wedding-planner-contracts
+        - packages/wedding-planner-data
         - packages/wedding-planner-domain
+        - ui/app/_projects/wedding-planner
         - ui/content/projects/wedding-planner
+        - workers/wedding-planner-api
     - id: component:wedding-planner/publication
       kind: component
       name: Wedding planner publication
@@ -518,6 +523,52 @@ catalog:
       relations:
         - type: part_of
           target: system:personal-finance-app/application
+    - id: component:wedding-planner/web
+      kind: component
+      name: Wedding planner
+      project: project:wedding-planner
+      source_paths:
+        - ui/app/_projects/wedding-planner
+      mount_path: /wedding-planner
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner
+      kind: component
+      name: Wedding Planner infrastructure
+      project: project:wedding-planner
+      source_paths:
+        - infra/wedding-planner
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-api
+      kind: component
+      name: Wedding Planner API
+      project: project:wedding-planner
+      source_paths:
+        - workers/wedding-planner-api
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-contracts
+      kind: component
+      name: Wedding Planner API contracts
+      project: project:wedding-planner
+      source_paths:
+        - packages/wedding-planner-contracts
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-data
+      kind: component
+      name: Wedding Planner relational data boundary
+      project: project:wedding-planner
+      source_paths:
+        - packages/wedding-planner-data
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
 layers:
   - slug: "base"
     title: "Base"

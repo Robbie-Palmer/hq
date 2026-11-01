@@ -1,6 +1,7 @@
-{% set cloudflare_pages = blueprint.selections | selectattr("slot", "equalto", "web-app.host") | selectattr("value", "equalto", "cloudflare-pages") | list | length > 0 -%}
+{% set owns_frontend_host = blueprint.components | selectattr("kind", "equalto", "ui") | list | length > 0 -%}
+{% set cloudflare_pages = owns_frontend_host and blueprint.selections | selectattr("slot", "equalto", "web-app.host") | selectattr("value", "equalto", "cloudflare-pages") | list | length > 0 -%}
 {% set cloudflare_worker = blueprint.selections | selectattr("slot", "equalto", "backend-api.runtime") | selectattr("value", "equalto", "cloudflare-workers") | list | length > 0 -%}
-{% set cloudflare_access = blueprint.selections | selectattr("slot", "equalto", "security.preview-access") | selectattr("value", "equalto", "cloudflare-access") | list | length > 0 -%}
+{% set cloudflare_access = cloudflare_pages and blueprint.selections | selectattr("slot", "equalto", "security.preview-access") | selectattr("value", "equalto", "cloudflare-access") | list | length > 0 -%}
 {% set cloudflare_r2 = blueprint.selections | selectattr("slot", "equalto", "storage.object-store") | selectattr("value", "equalto", "cloudflare-r2") | list | length > 0 -%}
 {% set public_ingress = blueprint.selections | selectattr("slot", "equalto", "network.public-ingress") | list | length > 0 -%}
 {% set cloudflare_dns = false -%}

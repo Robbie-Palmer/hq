@@ -16,14 +16,102 @@ components:
   - id: "wedding-planner-domain"
     name: "Wedding planner domain"
     kind: "typescript-package"
+  - id: "wedding-planner-api"
+    name: "Wedding Planner API"
+    kind: "worker"
+    template_ownership: "structure-only"
+  - id: "wedding-planner-contracts"
+    name: "Wedding Planner API contracts"
+    kind: "typescript-package"
+    template_ownership: "structure-only"
+  - id: "wedding-planner-data"
+    name: "Wedding Planner relational data boundary"
+    kind: "typescript-package"
+    template_ownership: "structure-only"
+  - id: "wedding-planner"
+    name: "Wedding Planner infrastructure"
+    kind: "terraform-root"
+    template_ownership: "structure-only"
 
 layers:
   - layer: "governance"
   - layer: "base"
+    slots:
+      - "secrets.runtime-store"
+      - "secrets.ci-store"
+      - "delivery.preview-environment"
+      - "security.preview-access"
   - layer: "typescript"
   - layer: "web-app"
     slots:
       - "web-app.host"
+      - "web-app.server-state-client"
+  - layer: "backend-api"
+    slots:
+      - "backend-api.runtime"
+      - "backend-api.http-framework"
+      - "backend-api.contract-format"
+      - "backend-api.contract-generator"
+      - "backend-api.relational-connection"
+  - layer: "identity"
+    slots:
+      - "identity.authentication-library"
+      - "identity.login-provider"
+      - "identity.session-transport"
+      - "identity.authorization-policy"
+  - layer: "api-governance"
+    slots:
+      - "api-governance.compatibility-check"
+  - layer: "database"
+    slots:
+      - "database.relational-engine"
+      - "database.relational-host"
+      - "database.relational-access"
+      - "database.migration-discipline"
+      - "database.backup-restore"
+      - "database.preview-isolation"
+  - layer: "infrastructure"
+    slots:
+      - "infrastructure.provisioner"
+      - "infrastructure.state-backend"
+  - layer: "observability"
+    slots:
+      - "observability.telemetry-protocol"
+      - "observability.application-telemetry"
+  - layer: "storage"
+    # R2 stores encrypted PostgreSQL backup archives only. Wedding plans and
+    # playlist collaboration remain relational application data.
+    slots:
+      - "storage.object-store"
+
+requirements:
+  - "preview-scoped-credentials"
+  - "synthetic-preview-data"
+  - "preview-cleanup"
+  - "provider-registration"
+  - "interactive-browser-server-state"
+  - "runtime-derived-api-contract"
+  - "javascript-typescript-server-component"
+  - "durable-session-store"
+  - "server-side-authorization"
+  - "same-origin-auth-routes"
+  - "secure-http-only-cookie"
+  - "environment-specific-redirect-uri"
+  - "committed-api-contract"
+  - "published-api-baseline"
+  - "committed-migration-history"
+  - "serialized-migration-runner"
+  - "backup-key-custody"
+  - "backup-retention-policy"
+  - "restore-drill"
+  - "fresh-migration-baseline"
+  - "instrumented-runtime"
+  - "telemetry-redaction"
+  - "bounded-exporter-failure"
+  - "telemetry-retention"
+  - "data-classification"
+  - "object-lifecycle-policy"
+  - "scoped-storage-credentials"
 
 reconciliation:
   mode: "tracking"
@@ -32,4 +120,32 @@ nix:
   boundary: "none"
 
 opentelemetry:
-  enabled: false
+  enabled: true
+  runtime: "typescript-worker"
+
+rollout:
+  operational_checks:
+    - id: "copier-profile-conformance"
+      command: "mise //packages/project-generator:check"
+    - id: "api-contract-conformance"
+      command: "mise //workers/wedding-planner-api:lint:api"
+    - id: "relational-integration"
+      command: "mise //workers/wedding-planner-api:test:integration"
+    - id: "browser-export-recovery"
+      command: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
+  migration_checkpoints:
+    - id: "export-browser-plan-before-import"
+      action: "Export and validate the current browser plan before importing it into the relational store."
+      verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts"
+      status: "pending"
+      evidence: []
+    - id: "preserve-browser-recovery-during-cutover"
+      action: "Keep wedding-planner:plan:v2 readable and exportable until server reads, writes, and rollback have been verified."
+      verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
+      status: "pending"
+      evidence: []
+    - id: "prove-relational-restore-before-cutover"
+      action: "Complete a relational restore drill before removing the browser rollback path."
+      verification: "mise //infra/wedding-planner:test"
+      status: "pending"
+      evidence: []
