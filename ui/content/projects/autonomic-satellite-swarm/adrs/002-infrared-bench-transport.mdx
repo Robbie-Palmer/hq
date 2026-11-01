@@ -2,13 +2,17 @@
 title: "ADR 002: Infrared as the Bench Transport"
 status: "Accepted"
 date: "2016-07-01"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:000-bounded-bench-demonstration"
 ---
 
 # Context
 
-The three agents need to discover mission requests, return scores, acknowledge messages, and relay
-an assignment. A spacecraft radio is outside the prototype's budget and would add licensing,
-hardware, and protocol work unrelated to the coordination experiment.
+[PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration) fixes the scope
+at three independent bench agents and permits a labelled stand-in for a spacecraft link. The agents
+need to discover mission requests, return scores, acknowledge messages, and relay an assignment. A
+spacecraft radio is outside the prototype's budget and would add licensing, hardware, and protocol
+work unrelated to the coordination experiment.
 
 Wired serial, I2C, or SPI would make the bench reliable, but a shared cable would poorly represent
 independent vehicles exchanging broadcasts. Cheap infrared transmitters and receivers are readily

@@ -3,6 +3,8 @@ title: "ADR 000: Arduino Uno Prototype Platform"
 status: "Accepted"
 date: "2016-07-01"
 tech_stack: ["Arduino"]
+implements_product_decisions:
+  - "autonomic-satellite-swarm:000-bounded-bench-demonstration"
 ---
 
 # Context
@@ -25,15 +27,9 @@ and a [2014 NASA comparison of Arduino and Raspberry Pi hardware](https://ntrs.n
 This is useful precedent for a research prototype, though it does not make an off-the-shelf Uno
 flight-qualified.
 
-ArduSat described itself as the first "open satellite platform." That matters beyond hardware
-choice. An accessible platform lets other people program experiments, inspect how they work,
-and build on the results. It follows my [build-in-public
-philosophy](/building-philosophy#build-in-public), creates [short feedback
-loops](/building-philosophy#short-feedback-loops) through external use and scrutiny, and starts a
-[flywheel](/building-philosophy#build-flywheels) in which shared tools and findings make each
-later experiment cheaper. Choosing a common, open-source board gives this project the same
-possibility instead of making the prototype a closed artifact that only its original author can
-reproduce.
+[PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration) requires an
+inexpensive, inspectable bench experiment. A common open-source board fits that boundary without
+making accessibility part of the hardware decision itself.
 
 A [Raspberry Pi 3 Model B](https://www.raspberrypi.com/products/raspberry-pi-3-model-b/) has much
 more computing power, memory, storage, and networking. The demonstration does not use that extra

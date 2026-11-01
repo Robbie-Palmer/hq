@@ -3,6 +3,8 @@ title: "ADR 007: Portable Core and Hardware Adapters"
 status: "Accepted"
 date: "2026-09-04"
 tech_stack: ["ESP32"]
+implements_product_decisions:
+  - "autonomic-satellite-swarm:001-reproducible-evidence-bounded-revival"
 ---
 
 # Context
@@ -11,8 +13,9 @@ The original proof of concept intertwined Arduino APIs, infrared details, health
 scoring, message ownership, and swarm state. That made the research hypothesis inseparable from the
 three boards used to demonstrate it.
 
-The exact three-board bench setup from 2016 is no longer available. The useful artifact is therefore
-the behavior and the ability to test alternatives, not a frozen pin-level implementation.
+The exact three-board bench setup from 2016 is no longer available. [PDR 001](/projects/autonomic-satellite-swarm/pdrs/001-reproducible-evidence-bounded-revival)
+defines the useful artifact as reproducible behavior with replaceable research assumptions, not a
+frozen pin-level implementation.
 
 # Decision
 

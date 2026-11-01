@@ -2,13 +2,16 @@
 title: "ADR 005: Agent Health States for the Apoptosis Demonstration"
 status: "Accepted"
 date: "2016-07-01"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:000-bounded-bench-demonstration"
 ---
 
 # Context
 
-The research asks whether a CubeSat can withdraw itself when it can no longer contribute safely to
-the swarm. The bench prototype cannot test deorbiting or destruction. It can test whether a node
-stops accepting work after local or peer-observed evidence of a fault.
+[PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration) defines
+"apoptosis" as software safe-disablement rather than destruction or deorbiting. This ADR chooses the
+states that implement that boundary. The bench can test whether a node stops accepting work after
+local or peer-observed evidence of a fault.
 
 Not every adverse condition should be permanent. Low light may require a temporary power-saving
 state, while a fatal local fault or repeated communication failure may require withdrawal that
