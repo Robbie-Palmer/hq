@@ -2,6 +2,7 @@ import { createDb, schema } from "recipe-db";
 import {
   publishIngredientPropertyCatalog,
   readIngredientPropertySelection,
+  readRecipeIngredientPropertySelections,
   stageIngredientPropertyRelease,
   validateIngredientPropertyRelease,
 } from "recipe-db/ingredient-properties";
@@ -10,6 +11,7 @@ import {
   type IngredientPropertyObservation,
   reconcileIngredientProperty,
 } from "recipe-domain/ingredient-property";
+import { calculateRecipeNutrition } from "recipe-domain/nutrition";
 import { afterAll, afterEach, describe, expect, it } from "vitest";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -244,6 +246,137 @@ describe("ingredient property catalog persistence", () => {
       redistributionAllowed: true,
       derivativeUseAllowed: true,
     });
+  });
+
+  it("reads an exact catalog snapshot for a reproducible recipe calculation", async () => {
+    const density = {
+      ...observation({
+        id: OBSERVATION_1_ID,
+        sourceRecordId: "cashews-density-reference",
+        density: "0.53",
+      }),
+      value: {
+        kind: "density" as const,
+        unit: "g_per_ml" as const,
+        gramsPerMilliliter: "0.53",
+        uncertainty: {
+          lowerBound: "0.52",
+          upperBound: "0.54",
+          basis: "Integration fixture interval",
+        },
+      },
+    };
+    const protein: IngredientPropertyObservation = {
+      ...density,
+      id: OBSERVATION_2_ID,
+      sourceRecordId: "cashews-protein-reference",
+      originalRecord: { foodDescription: "Cashew nuts, raw", protein: "18.22" },
+      value: {
+        kind: "nutrient",
+        nutrient: "protein",
+        category: "macronutrient",
+        amount: "18.22",
+        unit: "g",
+        perEdibleGrams: "100",
+        uncertainty: {
+          lowerBound: "18",
+          upperBound: "18.4",
+          basis: "Integration fixture interval",
+        },
+      },
+    };
+    await stageIngredientPropertyRelease(db, {
+      source: SOURCE_ADMISSION,
+      release: {
+        id: RELEASE_1_ID,
+        effectiveAt: new Date("2026-10-01T00:00:00.000Z"),
+        retrievedAt: new Date("2026-10-02T00:00:00.000Z"),
+        checksumSha256: "d".repeat(64),
+        connectorVersion: "1.0.0",
+      },
+      observations: [density, protein],
+    });
+    await validateIngredientPropertyRelease(db, RELEASE_1_ID);
+    await publishIngredientPropertyCatalog(db, {
+      version: "2026.10.0",
+      effectiveAt: new Date("2026-10-05T00:00:00.000Z"),
+      publishedAt: new Date("2026-10-05T12:00:00.000Z"),
+      selections: [
+        selection({
+          catalogVersion: "2026.10.0",
+          observations: [density],
+          selectedObservationId: density.id,
+        }),
+        selection({
+          catalogVersion: "2026.10.0",
+          observations: [protein],
+          selectedObservationId: protein.id,
+        }),
+      ],
+    });
+
+    const selections = await readRecipeIngredientPropertySelections(db, {
+      catalogVersion: "2026.10.0",
+      ingredients: [
+        { ingredientSlug: "cashews", preparationState: "raw" },
+      ],
+    });
+    expect(selections).toHaveLength(2);
+
+    const calculation = calculateRecipeNutrition({
+      recipeVersion: "cashew-cream-v1",
+      catalogVersion: "2026.10.0",
+      servings: 2,
+      ingredientGroups: [
+        {
+          items: [
+            {
+              ingredient: "cashews",
+              amount: 100,
+              unit: "ml",
+              quantityBasis: "edible",
+              preparation: "raw",
+            },
+          ],
+        },
+      ],
+      selections,
+      decimalPlaces: 4,
+    });
+    expect(calculation).toMatchObject({
+      recipeVersion: "cashew-cream-v1",
+      catalogVersion: "2026.10.0",
+      totals: [
+        {
+          nutrient: "protein",
+          amount: "9.6566",
+          unit: "g",
+          uncertainty: { lowerBound: "9.36", upperBound: "9.936" },
+          complete: true,
+        },
+      ],
+      perServing: [{ nutrient: "protein", amount: "4.8283", unit: "g" }],
+    });
+    expect(calculation.ingredients[0]?.nutrients[0]?.conversionPath).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ operation: "density" }),
+        expect.objectContaining({ operation: "nutrient" }),
+      ]),
+    );
+    await expect(
+      readRecipeIngredientPropertySelections(db, {
+        catalogVersion: "missing-version",
+        ingredients: [
+          { ingredientSlug: "cashews", preparationState: "raw" },
+        ],
+      }),
+    ).rejects.toThrow("missing-version is not published");
+    await expect(
+      readRecipeIngredientPropertySelections(db, {
+        catalogVersion: "2026.10.0",
+        ingredients: [],
+      }),
+    ).resolves.toEqual([]);
   });
 
   it("rejects a changed payload for an existing source version", async () => {

@@ -78,23 +78,36 @@ describe("parsePastedHistory", () => {
 
   it("reports every malformed and duplicate row", () => {
     const result = parsePastedHistory(
-      "2024-02-30,10\n2024-01-31,nope\n2024-01-31,20\n2024-01-31,30",
+      [
+        "date,value",
+        "",
+        "one-column-only",
+        "2024-02-30,10",
+        "2024-01-31,nope",
+        "2024-01-31,20",
+        "2024-01-31,30",
+      ].join("\n"),
     );
 
     expect(result.rows).toEqual([{ date: "2024-01-31", value: 20 }]);
     expect(result.issues).toEqual([
       {
-        line: 1,
+        line: 3,
+        message: "Expected two columns: date and value",
+        source: "one-column-only",
+      },
+      {
+        line: 4,
         message: "Use YYYY-MM-DD or DD/MM/YYYY (leading zeroes are optional)",
         source: "2024-02-30,10",
       },
       {
-        line: 2,
+        line: 5,
         message: "Value must be a valid number",
         source: "2024-01-31,nope",
       },
       {
-        line: 4,
+        line: 7,
         message: "Duplicate date 2024-01-31",
         source: "2024-01-31,30",
       },

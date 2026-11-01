@@ -1,11 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   parseSalaryImport,
   readSalaryImportFile,
   suggestSalaryColumnMapping,
 } from "@/app/_projects/personal-finance-app/domain/salaryHistoryImport";
+
+const { readSheetMock } = vi.hoisted(() => ({ readSheetMock: vi.fn() }));
+
+vi.mock("read-excel-file/browser", () => ({ readSheet: readSheetMock }));
 
 async function fixtureFile(): Promise<File> {
   const source = await readFile(
@@ -18,6 +22,23 @@ async function fixtureFile(): Promise<File> {
 }
 
 describe("salary history import", () => {
+  it("reads an Excel worksheet through the browser API", async () => {
+    readSheetMock.mockResolvedValue([
+      ["employer", "gross pay before pension"],
+      ["Northstar Ltd", 55_000],
+    ]);
+    const file = new File(["workbook"], "salary-history.xlsx", {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+
+    await expect(readSalaryImportFile(file)).resolves.toMatchObject({
+      fileName: "salary-history.xlsx",
+      headers: ["employer", "gross pay before pension"],
+      rows: [["Northstar Ltd", 55_000]],
+    });
+    expect(readSheetMock).toHaveBeenCalledWith(file);
+  });
+
   it("maps a synthetic history with raises, bonuses, pension changes, partial years, and multiple employments", async () => {
     const sheet = await readSalaryImportFile(await fixtureFile());
     const mapping = suggestSalaryColumnMapping(sheet.headers);

@@ -25,6 +25,11 @@ const HEADER_VALUE =
   /^(value|market value|current value|balance|amount|income|earnings|deposits?\/withdrawals?|deposit|withdrawal|flow)$/i;
 const MAX_PASTED_HISTORY_CHARACTERS = 1_000_000;
 
+type ParsedHistoryLine =
+  | { issue: PastedHistoryIssue }
+  | { line: number; row: PastedHistoryRow; source: string }
+  | null;
+
 function csvFields(line: string): string[] {
   if (line.includes("\t")) return line.split("\t");
 
@@ -87,12 +92,74 @@ function parseAmount(rawFields: string[]): number | null {
   return parenthesised ? -value : value;
 }
 
+function isHistoryHeader(fields: readonly string[]): boolean {
+  return (
+    fields.length >= 2 &&
+    HEADER_DATE.test(fields[0] ?? "") &&
+    HEADER_VALUE.test(fields[1] ?? "")
+  );
+}
+
+function historyIssue(
+  line: number,
+  message: string,
+  source: string,
+): ParsedHistoryLine {
+  return { issue: { line, message, source } };
+}
+
+function parseHistoryLine(rawLine: string, line: number): ParsedHistoryLine {
+  if (rawLine.trim() === "") return null;
+
+  const fields = csvFields(rawLine).map((field) => field.trim());
+  if (isHistoryHeader(fields)) return null;
+  if (fields.length < 2) {
+    return historyIssue(line, "Expected two columns: date and value", rawLine);
+  }
+
+  const date = normaliseDate(fields[0] ?? "");
+  if (date == null) {
+    return historyIssue(
+      line,
+      "Use YYYY-MM-DD or DD/MM/YYYY (leading zeroes are optional)",
+      rawLine,
+    );
+  }
+
+  const value = parseAmount(fields.slice(1));
+  if (value == null) {
+    return historyIssue(line, "Value must be a valid number", rawLine);
+  }
+  return { line, row: { date, value }, source: rawLine };
+}
+
+function appendHistoryLine(
+  parsed: ParsedHistoryLine,
+  result: PastedHistoryResult,
+  seenDates: Set<string>,
+): void {
+  if (parsed == null) return;
+  if ("issue" in parsed) {
+    result.issues.push(parsed.issue);
+    return;
+  }
+  if (seenDates.has(parsed.row.date)) {
+    result.issues.push({
+      line: parsed.line,
+      message: `Duplicate date ${parsed.row.date}`,
+      source: parsed.source,
+    });
+    return;
+  }
+  seenDates.add(parsed.row.date);
+  result.rows.push(parsed.row);
+}
+
 /**
  * Parses two-column spreadsheet history. CSV and tab-separated clipboard data
  * are accepted, with an optional header. Dates are normalised to ISO and all
  * issues are returned together so the UI can reject the import atomically.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
 export function parsePastedHistory(input: string): PastedHistoryResult {
   if (input.length > MAX_PASTED_HISTORY_CHARACTERS) {
     return {
@@ -106,63 +173,16 @@ export function parsePastedHistory(input: string): PastedHistoryResult {
     };
   }
 
-  const rows: PastedHistoryRow[] = [];
-  const issues: PastedHistoryIssue[] = [];
+  const result: PastedHistoryResult = { rows: [], issues: [] };
   const seenDates = new Set<string>();
 
   for (const [index, rawLine] of input.split(/\r?\n/).entries()) {
-    if (rawLine.trim() === "") continue;
-    const line = index + 1;
-    const fields = csvFields(rawLine).map((field) => field.trim());
-    if (
-      fields.length >= 2 &&
-      HEADER_DATE.test(fields[0] ?? "") &&
-      HEADER_VALUE.test(fields[1] ?? "")
-    ) {
-      continue;
-    }
-    if (fields.length < 2) {
-      issues.push({
-        line,
-        message: "Expected two columns: date and value",
-        source: rawLine,
-      });
-      continue;
-    }
-
-    const date = normaliseDate(fields[0] ?? "");
-    if (date == null) {
-      issues.push({
-        line,
-        message: "Use YYYY-MM-DD or DD/MM/YYYY (leading zeroes are optional)",
-        source: rawLine,
-      });
-      continue;
-    }
-    const value = parseAmount(fields.slice(1));
-    if (value == null) {
-      issues.push({
-        line,
-        message: "Value must be a valid number",
-        source: rawLine,
-      });
-      continue;
-    }
-    if (seenDates.has(date)) {
-      issues.push({
-        line,
-        message: `Duplicate date ${date}`,
-        source: rawLine,
-      });
-      continue;
-    }
-    seenDates.add(date);
-    rows.push({ date, value });
+    appendHistoryLine(parseHistoryLine(rawLine, index + 1), result, seenDates);
   }
 
   return {
-    rows: rows.toSorted((a, b) => a.date.localeCompare(b.date)),
-    issues,
+    rows: result.rows.toSorted((a, b) => a.date.localeCompare(b.date)),
+    issues: result.issues,
   };
 }
 

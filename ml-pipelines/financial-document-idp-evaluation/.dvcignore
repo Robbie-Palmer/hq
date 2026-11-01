@@ -1,0 +1,7 @@
+# Keep local test and coverage state out of DVC dependency walks.
+.pytest_cache/
+.ruff_cache/
+.venv/
+**/__pycache__/
+**/*.py[cod]
+coverage.xml

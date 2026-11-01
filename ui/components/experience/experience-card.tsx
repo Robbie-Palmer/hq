@@ -1,10 +1,12 @@
 "use client";
 
+import { smoothScrollTo } from "browser-base/scroll";
 import { Calendar, ChevronDown, MapPin } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import posthog from "posthog-js";
 import { useEffect, useState } from "react";
+import { normalizeSlug } from "ts-base/strings";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,8 +27,6 @@ import { getTitleTimeline } from "@/lib/api/experience";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
 import type { BlogListItemView } from "@/lib/domain/blog/blogViews";
 import type { ProjectListItemView } from "@/lib/domain/project/projectViews";
-import { smoothScrollTo } from "@/lib/generic/scroll";
-import { normalizeSlug } from "@/lib/generic/slugs";
 import { BlogBadge } from "./blog-badge";
 import { ProjectBadge } from "./project-badge";
 

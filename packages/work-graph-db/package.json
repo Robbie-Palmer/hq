@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test:integration": "bash scripts/test-integration.sh",
     "test:coverage": "bash scripts/test-integration.sh --coverage",
-    "db:check": "bash scripts/check-migrations.sh",
+    "db:check": "check-drizzle-migrations",
     "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
     "db:migrate": "drizzle-kit migrate"
   },
@@ -25,6 +25,7 @@
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "drizzle-kit": "^0.31.0",
+    "drizzle-tooling": "workspace:*",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
   }

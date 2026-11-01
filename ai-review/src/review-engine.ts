@@ -2038,14 +2038,8 @@ function terminalCoverageManifest(
   prepared: PreparedReview | undefined,
   status: ReviewRecordStatus,
 ): ReviewCoverageManifest | undefined {
-  if (!prepared) return undefined;
-  return finalizeReviewCoverageManifest(
-    prepared.coverageManifest ?? selectReviewPaths([
-      ...prepared.paths,
-      ...prepared.omitted,
-    ]),
-    status,
-  );
+  if (!prepared?.coverageManifest) return undefined;
+  return finalizeReviewCoverageManifest(prepared.coverageManifest, status);
 }
 
 export async function recordReviewTerminal(

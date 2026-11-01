@@ -6,6 +6,9 @@
   ],
   "dependencyDashboard": true,
   "minimumReleaseAge": "7 days",
+  "toolSettings": {
+    "nodeMaxMemory": 2048
+  },
   "nix": {
     "enabled": true
   },
@@ -97,6 +100,7 @@
       ],
       "matchFileNames": [
         "infra/account-foundation/hcp.tf",
+        "infra/project-modules/v1/modules/disposable/main.tf",
         "infra/project-modules/v1/modules/terraform-state/main.tf"
       ],
       "matchPackageNames": [
@@ -216,7 +220,7 @@
       "automerge": true
     },
     {
-      "description": "Resolve the t3-code runtime packages from Debian Bookworm repositories",
+      "description": "Pause t3-code Debian package lookups until renovatebot/renovate#44330 adds Packages.xz support",
       "matchFileNames": [
         "homelab/images/t3-code/bindep.txt"
       ],
@@ -228,7 +232,8 @@
         "https://deb.debian.org/debian?suite=bookworm-updates&components=main&binaryArch=amd64",
         "https://security.debian.org/debian-security?suite=bookworm-security&components=main&binaryArch=amd64"
       ],
-      "groupName": "t3-code Debian packages"
+      "groupName": "t3-code Debian packages",
+      "enabled": false
     },
     {
       "description": "Review age and jq by hand - the backup job runs against real data and no CI job proves these beforehand",

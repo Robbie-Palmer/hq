@@ -1,6 +1,6 @@
+import { normalizeSlug } from "ts-base/strings";
 import { experiences } from "@/content/experience";
 import type { JobRoleContent } from "@/lib/domain/role/jobRole";
-import { normalizeSlug } from "@/lib/generic/slugs";
 
 export type Experience = JobRoleContent;
 

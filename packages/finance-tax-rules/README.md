@@ -13,7 +13,7 @@ household estimates.
 | Jurisdictions | England and Northern Ireland, Scotland, Wales |
 | Income Tax | Annual liability on employment non-savings, non-dividend income; standard Personal Allowance and taper |
 | National Insurance | Employee Class 1 category A; weekly and monthly pay periods; non-directors |
-| Pensions | Salary sacrifice, net pay, relief at source; relief limit, annual allowance, taper, and MPAA |
+| Pensions | Salary sacrifice, net pay, relief at source; qualifying-earnings bands; gross-pay and explicit pensionable-pay bases; fixed, flat-rate, and tiered employer policies; relief limit, annual allowance, taper, and MPAA |
 
 ## Household tax position
 
@@ -36,6 +36,12 @@ Insurance categories, Capital Gains Tax reliefs, or a pension annual allowance
 excess. It also does not model foreign savings, accrued income securities,
 chargeable-event gains, property income, Marriage Allowance, Blind Person's
 Allowance, pension carry forward, or defined benefit input amounts.
+
+The workplace-pension calculator does not infer a scheme basis. Percentage
+contributions must name full gross pay, qualifying earnings, or an explicit
+pensionable-pay amount. Employer matching tiers, minimums, and caps are scheme
+facts. An unknown employee or employer rule returns an unavailable result unless
+the caller supplies an explicit amount.
 
 ## Salary validation corpus
 

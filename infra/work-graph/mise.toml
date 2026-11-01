@@ -1,3 +1,6 @@
+[tools]
+doppler = { version = "3.76.6", github_attestations = false }
+
 [tasks.init]
 description = "Initialize Work Graph Terraform"
 run = "bash scripts/doppler-terraform-env.sh terraform init"

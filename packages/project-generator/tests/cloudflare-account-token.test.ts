@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   conformCloudflareAccountTokenAuthority,
   createCloudflareAccountToken,
+  handoffCloudflareAccountTokenAuthority,
 } from "../src/cloudflare-account-token.js";
 import {
   secretBootstrapPlanSchema,
@@ -22,9 +23,13 @@ function plan() {
     },
     identities: {
       doppler: {
-        token_env: "DOPPLER_BOOTSTRAP_TOKEN",
         project: "sample-service",
-        configs: ["prd"],
+        configs: [
+          {
+            name: "prd",
+            token_env: "DOPPLER_BOOTSTRAP_TOKEN_PRD",
+          },
+        ],
       },
       github: {
         token_env: "GH_BOOTSTRAP_TOKEN",
@@ -178,6 +183,51 @@ describe("Cloudflare account-token provisioner", () => {
       ],
     });
     expect(JSON.stringify(creation?.init)).not.toContain("generated-secret");
+  });
+
+  it("validates a manually created replacement authority before handoff", async () => {
+    const base = plan();
+    const authorityPlan = secretBootstrapPlanSchema.parse({
+      ...base,
+      checkpoints: [
+        {
+          id: "rotate-token-authority",
+          provider: "cloudflare",
+          instructions: "Create the replacement in the owner dashboard.",
+        },
+      ],
+      secrets: [
+        {
+          ...base.secrets[0],
+          creation: {
+            mode: "extension",
+            extension: "cloudflare-account-token-authority",
+            checkpoint: "rotate-token-authority",
+            value_env: "NEW_CLOUDFLARE_TOKEN_PROVISIONER_TOKEN",
+          },
+        },
+      ],
+    });
+    const secret = authorityPlan.secrets[0];
+    if (!secret) throw new Error("missing authority test secret");
+    const { fetchCredential, requests } = conformantFetch();
+
+    await expect(
+      handoffCloudflareAccountTokenAuthority({
+        plan: authorityPlan,
+        secret,
+        environment: {
+          ...environment,
+          NEW_CLOUDFLARE_TOKEN_PROVISIONER_TOKEN: "replacement-authority",
+        },
+        fetch: fetchCredential,
+      }),
+    ).resolves.toBe("replacement-authority");
+    expect(requests).toHaveLength(3);
+    expect(requests.every(({ init }) => init.method !== "POST")).toBe(true);
+    expect(requests[0]?.init.headers).toMatchObject({
+      Authorization: "Bearer replacement-authority",
+    });
   });
 
   it("rejects extra bootstrap privilege, wrong account scope, and renamed permissions", async () => {

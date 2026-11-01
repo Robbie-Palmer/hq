@@ -2705,6 +2705,58 @@ describe("lease-backed claiming", () => {
     );
   });
 
+  it("returns every work item made ready by a claimed release", async () => {
+    await repository.createWorkItem({ id: "parent", title: "Parent" });
+    await repository.createWorkItem({
+      id: "blocker",
+      title: "Blocker",
+      parentId: "parent",
+    });
+    await repository.createWorkItem({ id: "dependent", title: "Dependent" });
+    await repository.createWorkItem({ id: "ancestor", title: "Ancestor" });
+    await repository.createWorkItem({
+      id: "descendant",
+      title: "Descendant",
+      parentId: "ancestor",
+    });
+    await repository.createWorkItem({
+      id: "still-blocked",
+      title: "Still blocked",
+    });
+    await repository.createWorkItem({
+      id: "other-blocker",
+      title: "Other blocker",
+    });
+    await repository.addDependency(dependency("dependent", "blocker"));
+    await repository.addDependency(dependency("ancestor", "blocker"));
+    await repository.addDependency(dependency("still-blocked", "blocker"));
+    await repository.addDependency(
+      dependency("still-blocked", "other-blocker"),
+    );
+    const blockerLease = await repository.claimWorkItem({
+      leaseId: leaseId(7),
+      workerId: "worker-a",
+      leaseDurationSeconds: 300,
+      workItemId: "blocker",
+    });
+    if (!blockerLease) throw new Error("Expected blocker to be claimable.");
+
+    const result = await repository.terminateClaimedWorkItem({
+      leaseId: blockerLease.id,
+      epoch: blockerLease.epoch,
+      workItemId: "blocker",
+      outcome: "released",
+      ...completionEvidence,
+    });
+
+    expect(result.lease.outcome).toBe("released");
+    expect(result.unblockedWorkItemIds).toEqual([
+      "dependent",
+      "descendant",
+      "parent",
+    ]);
+  });
+
   it("lets exactly one worker win a race for a specified item", async () => {
     await repository.createWorkItem({ id: "work", title: "Contended work" });
 
@@ -3521,8 +3573,9 @@ describe("lease-backed claiming", () => {
       ...completionEvidence,
     });
 
-    expect(completed.outcome).toBe("released");
-    expect(completed.endedAt).toBeInstanceOf(Date);
+    expect(completed.lease.outcome).toBe("released");
+    expect(completed.lease.endedAt).toBeInstanceOf(Date);
+    expect(completed.unblockedWorkItemIds).toEqual([]);
     expect(projectWorkItemStage(await repository.load(), "work")).toBe(
       "released",
     );

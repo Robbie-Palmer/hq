@@ -1,0 +1,203 @@
+import type { Code, Paragraph, Root, RootContent } from "mdast";
+import { remark } from "remark";
+import remarkGfm from "remark-gfm";
+import remarkMdx from "remark-mdx";
+
+export interface MdxToMarkdownOptions {
+  resolveImageUrl?: (src: string) => string | null;
+}
+
+type MdxJsxAttribute = {
+  type: string;
+  name?: string;
+  value?: string | { type: string; value: string } | null;
+};
+
+type MdxJsxNode = {
+  type: string;
+  name?: string | null;
+  attributes?: MdxJsxAttribute[];
+  children?: RootContent[];
+};
+
+function attributeExpression(value: string): string {
+  const expression = value.trim();
+  const templateLiteral = /^`([\s\S]*)`$/.exec(expression);
+  if (templateLiteral?.[1] !== undefined) return templateLiteral[1];
+  const stringLiteral = /^(["'])([\s\S]*)\1$/.exec(expression);
+  return stringLiteral?.[2] ?? expression;
+}
+
+function getAttribute(node: MdxJsxNode, name: string): string | null {
+  for (const attr of node.attributes ?? []) {
+    if (attr.type !== "mdxJsxAttribute" || attr.name !== name) continue;
+    if (typeof attr.value === "string") return attr.value;
+    if (attr.value && typeof attr.value === "object") {
+      return attributeExpression(attr.value.value);
+    }
+  }
+  return null;
+}
+
+function mermaidToCodeBlock(node: MdxJsxNode): Code | null {
+  const chart = getAttribute(node, "chart");
+  if (!chart) return null;
+  return { type: "code", lang: "mermaid", value: chart.trim() };
+}
+
+function imageToMarkdown(
+  node: MdxJsxNode,
+  resolveImageUrl: (src: string) => string | null,
+): Paragraph | null {
+  const src = getAttribute(node, "src");
+  if (!src) return null;
+  const url = src.startsWith("http") ? src : resolveImageUrl(src);
+  if (!url) return null;
+  return {
+    type: "paragraph",
+    children: [{ type: "image", url, alt: getAttribute(node, "alt") ?? "" }],
+  };
+}
+
+function componentPlaceholder(name: string): Paragraph {
+  return {
+    type: "paragraph",
+    children: [
+      {
+        type: "emphasis",
+        children: [
+          {
+            type: "text",
+            value: `(Interactive ${name} component — view it on the HTML page)`,
+          },
+        ],
+      },
+    ],
+  };
+}
+
+function replaceMdxJsxNode(
+  node: RootContent,
+  resolveImageUrl: (src: string) => string | null,
+): RootContent[] {
+  const jsxNode = node as unknown as MdxJsxNode;
+  const name = jsxNode.name ?? "";
+  if (name === "Mermaid") {
+    const code = mermaidToCodeBlock(jsxNode);
+    return code ? [code] : [];
+  }
+  if (name === "img" || name === "Image") {
+    const image = imageToMarkdown(jsxNode, resolveImageUrl);
+    return image ? [image] : [];
+  }
+  const jsxChildren = jsxNode.children ?? [];
+  if (jsxChildren.length > 0) {
+    return replaceMdxNodes(jsxChildren, resolveImageUrl);
+  }
+  return node.type === "mdxJsxFlowElement" && name
+    ? [componentPlaceholder(name)]
+    : [];
+}
+
+function replaceMdxNodes(
+  children: RootContent[],
+  resolveImageUrl: (src: string) => string | null,
+): RootContent[] {
+  const result: RootContent[] = [];
+  for (const node of children) {
+    switch (node.type) {
+      case "mdxjsEsm":
+      case "mdxFlowExpression":
+      case "mdxTextExpression":
+        break;
+      case "mdxJsxFlowElement":
+      case "mdxJsxTextElement": {
+        result.push(...replaceMdxJsxNode(node, resolveImageUrl));
+        break;
+      }
+      default: {
+        const container = node as { children?: RootContent[] };
+        if (Array.isArray(container.children)) {
+          container.children = replaceMdxNodes(
+            container.children,
+            resolveImageUrl,
+          );
+        }
+        result.push(node);
+      }
+    }
+  }
+  return result;
+}
+
+export function mdxToAgentMarkdown(
+  mdxContent: string,
+  options: MdxToMarkdownOptions = {},
+): string {
+  const resolveImageUrl = options.resolveImageUrl ?? ((src) => src);
+  const processor = remark().use(remarkMdx).use(remarkGfm);
+  const tree = processor.parse(mdxContent) as Root;
+  tree.children = replaceMdxNodes(tree.children, resolveImageUrl);
+  return processor.stringify(tree);
+}
+
+export interface PageMetadata {
+  title: string;
+  htmlPath: string;
+  description?: string;
+  facts?: [string, string][];
+}
+
+export interface AgentMarkdownSiteOptions {
+  siteUrl: string;
+  markdownIndexPath?: string;
+}
+
+export interface AgentMarkdownPageHelpers {
+  markdownUrl: (htmlPath: string) => string;
+  renderPageFooter: () => string;
+  renderPageHeader: (meta: PageMetadata) => string;
+  renderPage: (meta: PageMetadata, body: string) => string;
+}
+
+function removeTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value.codePointAt(end - 1) === 47) end -= 1;
+  return value.slice(0, end);
+}
+
+export function createAgentMarkdownPages({
+  siteUrl,
+  markdownIndexPath = "/llms.txt",
+}: AgentMarkdownSiteOptions): AgentMarkdownPageHelpers {
+  const baseUrl = removeTrailingSlashes(siteUrl);
+
+  function renderPageHeader(meta: PageMetadata): string {
+    const lines = [`# ${meta.title}`, ""];
+    if (meta.description) {
+      lines.push(`> ${meta.description}`, "");
+    }
+    const htmlUrl = meta.htmlPath === "/" ? baseUrl : `${baseUrl}${meta.htmlPath}`;
+    lines.push(`- HTML version: ${htmlUrl}`);
+    for (const [key, value] of meta.facts ?? []) {
+      lines.push(`- ${key}: ${value}`);
+    }
+    lines.push("");
+    return lines.join("\n");
+  }
+
+  function renderPageFooter(): string {
+    return `---\n\nMarkdown index of this site: ${baseUrl}${markdownIndexPath}\n`;
+  }
+
+  function renderPage(meta: PageMetadata, body: string): string {
+    return `${renderPageHeader(meta)}\n${body.trim()}\n\n${renderPageFooter()}`;
+  }
+
+  function markdownUrl(htmlPath: string): string {
+    if (htmlPath === "/") return `${baseUrl}/index.md`;
+    return `${baseUrl}${htmlPath}.md`;
+  }
+
+  return { markdownUrl, renderPageFooter, renderPageHeader, renderPage };
+}

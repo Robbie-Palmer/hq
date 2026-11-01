@@ -1,0 +1,13 @@
+{
+  "pensionsAnnuitiesAndOtherStateBenefits": {},
+  "employments": [
+    {
+      "employerPayeReference": "123/AB456",
+      "payFromEmployment": 1000
+    },
+    {
+      "employerPayeReference": "123/ab456",
+      "payFromEmployment": 2000
+    }
+  ]
+}

@@ -247,9 +247,13 @@ const buildRepository = (): WorkGraphApiRepository => ({
   claimWorkItem: vi.fn(async () => lease()),
   renewLease: vi.fn(async () => lease()),
   terminateClaimedWorkItem: vi.fn(async (input) => ({
-    ...lease(input.workItemId),
-    endedAt: expiresAt,
-    outcome: input.outcome,
+    lease: {
+      ...lease(input.workItemId),
+      endedAt: expiresAt,
+      outcome: input.outcome,
+    },
+    unblockedWorkItemIds:
+      input.outcome === "released" ? ["next-ticket"] : [],
   })),
   decomposeClaimedWorkItem: vi.fn(async (input: DecomposeClaimedWorkItemInput) => ({
     children: input.children
@@ -1888,24 +1892,22 @@ describe("Given a worker managing a lease", () => {
   it("decomposes into ranked children and claims one for the same worker", async () => {
     const repository = buildRepository();
     vi.mocked(repository.listWorkItems).mockResolvedValue(
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      ["parent", "first", "second"].map((workItemId) => ({
-        ...item(
-          workItemId,
-          workItemId === "parent"
-            ? "blocked"
-            : workItemId === "first"
-              ? "in_progress"
-              : "blocked",
-          "open",
-          workItemId === "first"
-            ? { ...lease("first"), id: childLeaseId }
-            : null,
-        ),
-        parentId: workItemId === "parent" ? null : "parent",
-        rank:
-          workItemId === "first" ? 10 : workItemId === "second" ? 20 : null,
-      })),
+      [
+        { ...item("parent", "blocked"), parentId: null, rank: null },
+        {
+          ...item("first", "in_progress", "open", {
+            ...lease("first"),
+            id: childLeaseId,
+          }),
+          parentId: "parent",
+          rank: 10,
+        },
+        {
+          ...item("second", "blocked"),
+          parentId: "parent",
+          rank: 20,
+        },
+      ],
     );
     const app = createWorkGraphApp(repository);
     const body = {
@@ -2079,6 +2081,7 @@ describe("Given a worker managing a lease", () => {
     });
     expect(await responseJson(releaseResponse)).toEqual(
       expect.objectContaining({
+        unblockedWorkItemIds: ["next-ticket"],
         workItem: expect.objectContaining({
           lifecycle: "released",
           stage: "released",

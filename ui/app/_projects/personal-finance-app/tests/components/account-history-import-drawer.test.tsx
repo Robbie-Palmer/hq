@@ -152,6 +152,24 @@ describe("AccountHistoryImportDrawer", () => {
     expect(importAccountHistory).not.toHaveBeenCalled();
   });
 
+  it("keeps valid pasted records available when the import fails", async () => {
+    importAccountHistory.mockRejectedValueOnce(new Error("Storage failed"));
+    const user = userEvent.setup();
+    render(<AccountHistoryImportDrawer account={account} />);
+
+    await user.click(screen.getByRole("button", { name: "Paste history" }));
+    fireEvent.change(screen.getByLabelText("Market value history"), {
+      target: { value: "2024-01-31,10000" },
+    });
+    await user.click(screen.getByRole("button", { name: "Import 1 rows" }));
+
+    expect(await screen.findByText("Something went wrong")).toBeVisible();
+    expect(screen.getByLabelText("Market value history")).toHaveValue(
+      "2024-01-31,10000",
+    );
+    expect(screen.getByRole("button", { name: "Import 1 rows" })).toBeEnabled();
+  });
+
   it("shows every invalid source row and selects it in the textarea", async () => {
     const user = userEvent.setup();
     render(<AccountHistoryImportDrawer account={account} />);

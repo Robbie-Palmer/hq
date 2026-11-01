@@ -1,0 +1,51 @@
+schema_version: 1
+project_id: cloudflare-token-provisioner
+
+provider_origins:
+  doppler: https://api.doppler.com
+  github: https://api.github.com
+  cloudflare: https://api.cloudflare.com
+
+identities:
+  doppler:
+    project: cloudflare-token-bootstrap
+    configs:
+      - name: ops_provisioner
+        token_env: DOPPLER_BOOTSTRAP_TOKEN
+  github:
+    token_env: GH_BOOTSTRAP_TOKEN
+    repository: Robbie-Palmer/hq
+    environments:
+      - production-cloudflare-token-bootstrap
+  cloudflare_token_provisioner:
+    token_env: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    account_id_env: CLOUDFLARE_ACCOUNT_ID
+
+checkpoints:
+  - id: rotate-cloudflare-token-provisioner
+    provider: cloudflare
+    instructions: >-
+      Record the active provisioner token ID from the verify endpoint. The
+      Cloudflare owner creates one account-owned replacement in the dashboard
+      with only Account API Tokens Write, then supplies it as
+      NEW_CLOUDFLARE_TOKEN_PROVISIONER_TOKEN. Revoke the recorded token only
+      after the replacement passes conformance from both destinations.
+
+secrets:
+  - id: cloudflare-token-provisioner
+    name: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    sensitive: true
+    system_of_record:
+      kind: doppler
+      config: ops_provisioner
+      name: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    consumers:
+      - kind: github-environment
+        environment: production-cloudflare-token-bootstrap
+        name: CLOUDFLARE_TOKEN_PROVISIONER_TOKEN
+    rotation_owner: platform-operations
+    creation:
+      mode: extension
+      extension: cloudflare-account-token-authority
+      checkpoint: rotate-cloudflare-token-provisioner
+      value_env: NEW_CLOUDFLARE_TOKEN_PROVISIONER_TOKEN

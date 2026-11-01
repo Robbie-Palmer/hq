@@ -135,8 +135,11 @@ jobs:
             packages/finance-housing-indices/coverage/lcov.info
             packages/finance-inflation-indices/coverage/lcov.info
             packages/finance-tax-rules/coverage/lcov.info
+            packages/inbox-signal-data/coverage/lcov.info
             packages/node-base/coverage/lcov.info
+            packages/object-storage/coverage/lcov.info
             packages/observability/coverage/lcov.info
+            packages/platform-contracts/coverage/lcov.info
             packages/project-economics-domain/coverage/lcov.info
             packages/project-generator/coverage/lcov.info
             packages/recipe-domain/coverage/lcov.info
@@ -148,10 +151,12 @@ jobs:
             packages/writing-editor-domain/coverage/lcov.info
             packages/wedding-planner-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
+            ml-pipelines/financial-document-idp-evaluation/coverage.xml
             ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
             ml-pipelines/wsi-analysis/coverage.xml
+            data-pipelines/work-graph-analytics/coverage.xml
             workers/finance-tax-monitor/coverage/lcov.info
             workers/recipe-api/coverage/lcov.info
             workers/recipe-api/coverage-integration/lcov.info

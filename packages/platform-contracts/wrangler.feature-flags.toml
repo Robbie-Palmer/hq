@@ -1,0 +1,4 @@
+name = "platform-feature-flag-conformance"
+main = "fixtures/cloudflare-worker.ts"
+compatibility_date = "2026-10-29"
+compatibility_flags = ["nodejs_compat"]

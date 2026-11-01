@@ -21,7 +21,7 @@ run = "pnpm dev:qr"
 description = "Build Next.js application for production"
 depends = ["//ui:install", "//cpp/autonomic-satellite-swarm:browser:build"]
 run = "pnpm exec tsx ../scripts/shared-task-cache.ts run --task ui-build --cwd ui --output ui/out --env CF_PAGES_URL --env NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH --env NEXT_PUBLIC_POSTHOG_HOST --env NEXT_PUBLIC_POSTHOG_KEY --env NEXT_PUBLIC_PREVIEW_BACKEND --env NODE_ENV -- pnpm build"
-sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "../packages/wedding-planner-domain/src/**/*", "*.ts", "*.tsx", "*.json"]
+sources = ["app/**/*", "components/**/*", "content/**/*", "lib/**/*", "public/**/*", "scripts/**/*", "../packages/mdx-rendering/package.json", "../packages/mdx-rendering/src/**/*", "../packages/wedding-planner-domain/src/**/*", "*.ts", "*.tsx", "*.json"]
 outputs = ["out/**/*"]
 
 [tasks.test]
@@ -48,6 +48,11 @@ run = "pnpm test:e2e:preview"
 description = "Render Mermaid diagrams in light and dark themes with Playwright"
 depends = ["//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
 run = "pnpm test:e2e:mermaid"
+
+[tasks."test:e2e:resume"]
+description = "Verify the browser-rendered résumé and its print-to-PDF output"
+depends = ["//ui:build", "//ui:test:e2e:install", "//ui:test:e2e:typecheck"]
+run = "pnpm exec playwright test --config playwright.resume.config.ts"
 
 [tasks."test:e2e:install"]
 description = "Install Chromium for Playwright tests"
@@ -187,7 +192,27 @@ run = "pnpm images:health-check"
 [tasks.deploy]
 description = "Deploy to Cloudflare Pages via Wrangler"
 depends = ["//ui:build"]
-run = "pnpm exec wrangler pages deploy ui/out --cwd .. --project-name=personal-site --branch=\"${DEPLOY_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}\""
+run = "pnpm exec wrangler pages deploy ui/out --cwd .. --project-name=personal-site --branch=\"${DEPLOY_BRANCH:-$(git rev-parse --abbrev-ref HEAD)}\" --commit-hash=\"${DEPLOY_REVISION:-$(git rev-parse HEAD)}\" --commit-dirty=false"
+
+[tasks."smoke:production"]
+description = "Smoke-test the public production site and agent-readable pages"
+depends = ["//ui:install"]
+run = "pnpm exec tsx scripts/production-delivery.ts smoke"
+
+[tasks."rollback:production"]
+description = "Roll Pages production back to a verified main deployment"
+depends = ["//ui:install"]
+run = "pnpm exec tsx scripts/production-delivery.ts rollback"
+
+[tasks."delivery:test"]
+description = "Test production smoke and guarded rollback behavior"
+depends = ["//ui:install"]
+run = "pnpm exec vitest run tests/scripts/production-delivery.test.ts"
+
+[tasks."delivery:test:coverage"]
+description = "Cover production smoke and guarded rollback behavior"
+depends = ["//ui:install"]
+run = "pnpm exec vitest run tests/scripts/production-delivery.test.ts --coverage --coverage.include=scripts/production-delivery.ts --coverage.thresholds.lines=80 --coverage.thresholds.statements=80 --coverage.thresholds.functions=80"
 
 # Lighthouse performance testing tasks
 [tasks.lighthouse]

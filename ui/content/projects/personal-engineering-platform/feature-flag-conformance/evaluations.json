@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "context": {
+    "targetingKey": "person-123",
+    "personProperties": {
+      "plan": "pro",
+      "region": "eu"
+    },
+    "groups": {
+      "company": "company-7"
+    },
+    "groupProperties": {
+      "company": {
+        "tier": "enterprise"
+      }
+    }
+  },
+  "evaluations": [
+    {
+      "key": "checkout-kill-switch",
+      "type": "boolean",
+      "default": false,
+      "result": {
+        "enabled": true,
+        "variant": null,
+        "payload": null,
+        "reason": "condition_match"
+      },
+      "expected": {
+        "value": true,
+        "reason": "TARGETING_MATCH"
+      }
+    },
+    {
+      "key": "checkout-experiment",
+      "type": "string",
+      "default": "control",
+      "result": {
+        "enabled": true,
+        "variant": "test",
+        "payload": null,
+        "reason": "condition_match"
+      },
+      "expected": {
+        "value": "test",
+        "variant": "test",
+        "reason": "TARGETING_MATCH"
+      }
+    },
+    {
+      "key": "search-result-limit",
+      "type": "number",
+      "default": 10,
+      "result": {
+        "enabled": true,
+        "variant": "25",
+        "payload": null,
+        "reason": "condition_match"
+      },
+      "expected": {
+        "value": 25,
+        "variant": "25",
+        "reason": "TARGETING_MATCH"
+      }
+    },
+    {
+      "key": "checkout-copy",
+      "type": "object",
+      "default": {
+        "buttonLabel": "Continue"
+      },
+      "result": {
+        "enabled": true,
+        "variant": "test",
+        "payload": {
+          "buttonLabel": "Pay now"
+        },
+        "reason": "condition_match"
+      },
+      "expected": {
+        "value": {
+          "buttonLabel": "Pay now"
+        },
+        "variant": "test",
+        "reason": "TARGETING_MATCH"
+      }
+    }
+  ],
+  "safeDefaults": [
+    {
+      "case": "kill-switch-missing",
+      "state": "ready",
+      "critical": true,
+      "default": false,
+      "expected": false,
+      "errorCode": "FLAG_NOT_FOUND"
+    },
+    {
+      "case": "offline",
+      "state": "error",
+      "critical": true,
+      "default": false,
+      "expected": false,
+      "errorCode": "GENERAL"
+    },
+    {
+      "case": "stale-critical",
+      "state": "stale",
+      "critical": true,
+      "cached": true,
+      "default": false,
+      "expected": false
+    },
+    {
+      "case": "stale-noncritical",
+      "state": "stale",
+      "critical": false,
+      "cached": true,
+      "default": false,
+      "expected": true
+    },
+    {
+      "case": "not-ready",
+      "state": "not-ready",
+      "critical": false,
+      "default": false,
+      "expected": false
+    }
+  ]
+}

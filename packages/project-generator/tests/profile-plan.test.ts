@@ -230,7 +230,7 @@ function contracts(): ProjectProfileContracts {
       },
       processing: { failure_mode: "fail-open" },
     },
-  } as ProjectProfileContracts;
+  } as unknown as ProjectProfileContracts;
 }
 
 const examples = [

@@ -9,6 +9,7 @@ export const RecipeIngredientSchema = z.object({
   ingredient: IngredientSlugSchema,
   amount: z.number().positive().optional(),
   unit: UnitSchema.optional(),
+  quantityBasis: z.enum(["edible", "as_purchased"]).optional(),
   preparation: z.string().optional(),
   note: z.string().optional(),
 });

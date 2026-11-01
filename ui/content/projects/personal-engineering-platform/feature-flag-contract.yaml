@@ -1,0 +1,98 @@
+schema_version: 1
+contract: "feature-flags"
+
+api:
+  standard: "OpenFeature"
+  control_plane: "PostHog"
+  analytics_boundary: "native-posthog-sdk"
+
+context:
+  targeting_key:
+    server: "required"
+    browser: "native-sdk-identity"
+  groups_attribute: "groups"
+  group_properties_attributes:
+    javascript: "groupProperties"
+    python: "group_properties"
+  person_properties: "all-unreserved-attributes"
+
+values:
+  supported: [ "boolean", "string", "number", "object" ]
+  payload: "json-object-or-array"
+  number_source: "variant-key"
+  safe_default_required: true
+
+details:
+  required: [ "value", "reason", "errorCode", "errorMessage" ]
+  optional: [ "variant", "flagMetadata" ]
+  posthog_reason_location: "flagMetadata.posthog_reason"
+
+lifecycle:
+  initialize_with: "setProviderAndWait"
+  provider_replacement: "await-before-use"
+  state_actions:
+    not-ready: "default"
+    ready: "evaluate"
+    stale: "cached-or-default"
+    error: "default"
+  stale_critical_action: "default"
+  stale_noncritical_action: "cached-or-default"
+
+exposure:
+  owner: "native-posthog-sdk"
+  event: "$feature_flag_called"
+  openfeature_capture_hook: "forbidden"
+  per_logical_evaluation: "exactly-once"
+  experiments_require_exposure: true
+
+credentials:
+  browser: "public-project-token-only"
+  remote_server: "public-project-token"
+  local_evaluation: "server-secret-key"
+  secret_in_client_runtime: false
+
+evaluation:
+  public_client: "remote"
+  server_default: "remote"
+  local_evaluation: "server-only"
+  local_definition_failure: "remote-or-default"
+  offline: "default-unless-explicit-stale-cache-policy"
+
+providers:
+  browser_javascript:
+    package: "@posthog/openfeature-web-provider"
+    tested_version: "0.1.1"
+    provider: "PostHogWebProvider"
+    backing_sdk: "posthog-js"
+    backing_sdk_tested_version: "1.442.1"
+  nodejs:
+    package: "@posthog/openfeature-node-provider"
+    tested_version: "0.1.3"
+    provider: "PostHogServerProvider"
+    backing_sdk: "posthog-node"
+    backing_sdk_tested_version: "5.60.1"
+  python:
+    package: "openfeature-provider-posthog"
+    tested_version: "0.1.134"
+    provider: "PostHogProvider"
+    backing_sdk: "posthog"
+    backing_sdk_tested_version: "7.80.3"
+  cloudflare_worker:
+    package: "@posthog/openfeature-node-provider"
+    tested_version: "0.1.3"
+    provider: "PostHogServerProvider"
+    backing_sdk: "posthog-node"
+    backing_sdk_tested_version: "5.60.1"
+    export_condition: "workerd"
+    compatibility_flag: "nodejs_compat"
+
+testing:
+  provider: "deterministic-fake-or-in-memory"
+  production_credentials: false
+  live_project_mutation: false
+  fixture: "feature-flag-conformance/evaluations.json"
+  required_runtimes:
+    - "browser-javascript"
+    - "nodejs"
+    - "python"
+    - "cloudflare-worker"

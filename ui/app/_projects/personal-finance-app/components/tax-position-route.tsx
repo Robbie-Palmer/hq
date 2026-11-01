@@ -6,6 +6,7 @@ import type {
 } from "finance-tax-rules/household-tax";
 import { DownloadIcon } from "lucide-react";
 import { useState } from "react";
+import { formatMinorCurrency } from "ts-base/money";
 import {
   annualisedGrossPay,
   defaultTaxProfile,
@@ -23,7 +24,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatMinorCurrency } from "@/lib/generic/money";
 import { useAssetTracker } from "./asset-tracker-provider";
 import {
   AnnualAllowanceUsageChart,

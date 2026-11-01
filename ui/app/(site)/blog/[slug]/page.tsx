@@ -2,6 +2,7 @@ import { Tag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { formatDate } from "ts-base/dates";
 import {
   DebtInvestmentChart,
   FinancialIndependenceChart,
@@ -17,7 +18,6 @@ import { Separator } from "@/components/ui/separator";
 import { getAllPostSlugs, getPostBySlug } from "@/lib/api/blog";
 import { getIdeasForBlog } from "@/lib/api/ideas";
 import { siteConfig } from "@/lib/config/site-config";
-import { formatDate } from "@/lib/generic/date";
 import {
   getImageSrcSet,
   getImageUrl,

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0.0",
+  "provider": "local-deterministic",
+  "model": "financial-fixture-parser-v1",
+  "parserVersion": "1.0.0",
+  "promptVersion": "extraction-v1",
+  "deterministic": true,
+  "externalInference": false,
+  "dataRetention": "none"
+}

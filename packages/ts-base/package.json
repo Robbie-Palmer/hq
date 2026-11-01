@@ -13,6 +13,7 @@
     "./http": "./src/http.ts",
     "./json": "./src/json.ts",
     "./layered-graph": "./src/layered-graph.ts",
+    "./money": "./src/money.ts",
     "./numbers": "./src/numbers.ts",
     "./promises": "./src/promises.ts",
     "./records": "./src/records.ts",

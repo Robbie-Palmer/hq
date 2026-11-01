@@ -1,0 +1,113 @@
+---
+title: "ADR 046: Property-based testing for TypeScript domain packages"
+date: "2026-10-29"
+status: "Proposed"
+tech_stack: ["fast-check"]
+ideas: ["property-based-testing"]
+---
+
+## Context
+
+[ADR 007](/projects/personal-engineering-platform/adrs/007-language-toolchains)
+selects Vitest as the default TypeScript test runner but leaves specialised
+test techniques with each package. Example-based tests work well for named
+cases. Parsers, serializers, normalizers, conversions, and domain models also
+have [properties](/ideas/property-based-testing) that should hold across many
+valid and invalid inputs.
+
+The first repository pilot added fast-check to `recipe-domain` and
+`recipe-parsing`. The suites cover parser safety, Cooklang and schema round
+trips, normalization idempotence, compatible quantity conversion, and recipe
+model invariants. Each property runs 100 cases from a fixed default seed.
+Arbitraries cap their strings and collections, each package records a
+five-second budget, and the two tasks share a ten-second budget.
+
+The parser-safety property found that malformed Cooklang input `~0` escaped as
+an exception. The parser now returns `null`, and a focused example preserves the
+counterexample. Separate checks deliberately remove a serving count or create
+an invalid quantity and prove that the properties fail and shrink useful
+counterexamples.
+
+Two packages show that the pattern works in Recipe Site. They do not show that
+it should become a platform default for independent projects.
+
+## Decision
+
+Add `typescript.property-testing` as a preferred Personal Engineering Platform
+capability for deterministic TypeScript packages with invariant-rich logic.
+Select fast-check for packages that use Vitest. Do not require property-based
+tests from every TypeScript package.
+
+A package may activate the capability when it can state stable behavioural
+laws and generate representative inputs without copying the production
+implementation. Parsers, serializers, normalizers, conversions, state
+transitions, and domain value objects are likely candidates. Browser layout,
+integration-heavy services, generated declarations, and thin adapters remain
+outside the default scope unless a local decision identifies useful properties.
+
+Each adopting package will:
+
+* expose a dedicated property-test task through mise;
+* keep strings, collections, recursion, case counts, and runtime bounded;
+* report a reproducible seed and shrink path and document exact replay;
+* reuse production schemas and existing fixtures where they describe valid
+  inputs without duplicating the implementation;
+* record its routine CI budget instead of inheriting one repository-wide
+  duration; and
+* preserve important failures as focused examples while keeping the property
+  that found them.
+
+Each adopting package's initial suite must also show that a plausible broken
+implementation produces a meaningful counterexample. This guards against
+properties that pass because their assertions or generators are too weak.
+
+Keep the ADR proposed until at least one project outside Recipe Site completes
+a pilot. That pilot must record its case count, elapsed time, replay contract,
+counterexamples, generator maintenance, and any production or test changes
+prompted by the run.
+
+## Alternatives
+
+Keeping fast-check local to Recipe Site avoids another platform capability. It
+also leaves each project to rediscover bounds, replay conventions, CI budgets,
+and the need to test the tests against broken behaviour.
+
+Relying on examples and coverage costs less and remains the right default for
+many packages. The recipe pilot showed the gap for parsers: a two-character
+malformed input reached an exception path that the existing examples had not
+covered.
+
+General-purpose fuzzing can search arbitrary byte streams and exercise native
+sanitizers or coverage-guided paths. It fits security and crash discovery well,
+but it does not replace typed generators, domain-aware shrinking, or assertions
+about round trips and invariants in a fast TypeScript unit suite.
+
+## Consequences
+
+If accepted, suitable packages gain one shared convention for generated inputs,
+shrinking, replay, and CI bounds. Counterexamples become ordinary regression
+tests instead of failures that disappear with the next random run.
+
+Generators and properties are test code that needs review. Narrow generators
+can miss important states, broad generators can waste the budget on invalid
+values, and an assertion can restate the implementation. Fixed seeds improve
+routine determinism but explore the same cases until a developer changes the
+seed or runs a broader diagnostic scope.
+
+The capability remains optional after acceptance. Projects may choose a
+different property-testing library through a local override, and packages
+without stable laws keep example-based tests and ordinary coverage.
+
+## Decision criteria
+
+Accept this ADR after a second project completes the pilot and both projects
+run five consecutive routine CI suites within their recorded budgets without a
+tooling or infrastructure failure. Each pilot must demonstrate at least one
+meaningful counterexample, show seed-and-path replay, and document how
+contributors add properties without building a second domain model.
+
+Reject the ADR if the second pilot mainly produces vacuous properties,
+requires generators that duplicate production logic, cannot replay failures,
+or needs enough cases to exceed a useful pull-request feedback budget.
+Rejection will leave fast-check as a Recipe Site choice rather than remove its
+working local suites.

@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import {
   IngredientPropertyObservationSchema,
   IngredientPropertySelectionSchema,
@@ -500,4 +500,114 @@ export async function readIngredientPropertySelection(
       row.selection
         .reconciliationDecision as IngredientPropertyReconciliationDecision,
   });
+}
+
+/**
+ * Read every catalog selection needed by structured recipe ingredients from
+ * one explicit published version. Callers must keep the version with any
+ * derived calculation so a later catalog publication cannot change a replay.
+ */
+export async function readRecipeIngredientPropertySelections(
+  db: Pick<Db, "select"> | Tx,
+  input: {
+    catalogVersion: string;
+    ingredients: Array<{
+      ingredientSlug: string;
+      preparationState: string;
+    }>;
+  },
+): Promise<IngredientPropertySelection[]> {
+  const [catalog] = await db
+    .select({ version: schema.ingredientPropertyCatalogVersion.version })
+    .from(schema.ingredientPropertyCatalogVersion)
+    .where(
+      and(
+        eq(
+          schema.ingredientPropertyCatalogVersion.version,
+          input.catalogVersion,
+        ),
+        eq(schema.ingredientPropertyCatalogVersion.status, "published"),
+      ),
+    )
+    .limit(1);
+  if (!catalog) {
+    throw new Error(
+      `Ingredient property catalog ${input.catalogVersion} is not published`,
+    );
+  }
+
+  const ingredientStates = new Set(
+    input.ingredients.map(
+      ({ ingredientSlug, preparationState }) =>
+        `${ingredientSlug}\u0000${preparationState}`,
+    ),
+  );
+  const ingredientSlugs = [
+    ...new Set(input.ingredients.map(({ ingredientSlug }) => ingredientSlug)),
+  ];
+  if (ingredientSlugs.length === 0) return [];
+
+  const rows = await db
+    .select({
+      selection: schema.ingredientPropertySelection,
+      observation: schema.ingredientPropertyObservation,
+      release: schema.ingredientPropertySourceRelease,
+      source: schema.ingredientPropertySource,
+    })
+    .from(schema.ingredientPropertySelection)
+    .innerJoin(
+      schema.ingredientPropertyObservation,
+      eq(
+        schema.ingredientPropertySelection.observationId,
+        schema.ingredientPropertyObservation.id,
+      ),
+    )
+    .innerJoin(
+      schema.ingredientPropertySourceRelease,
+      eq(
+        schema.ingredientPropertyObservation.sourceReleaseId,
+        schema.ingredientPropertySourceRelease.id,
+      ),
+    )
+    .innerJoin(
+      schema.ingredientPropertySource,
+      eq(
+        schema.ingredientPropertySourceRelease.sourceId,
+        schema.ingredientPropertySource.id,
+      ),
+    )
+    .where(
+      and(
+        eq(
+          schema.ingredientPropertySelection.catalogVersion,
+          input.catalogVersion,
+        ),
+        inArray(
+          schema.ingredientPropertySelection.ingredientSlug,
+          ingredientSlugs,
+        ),
+      ),
+    )
+    .orderBy(
+      asc(schema.ingredientPropertySelection.ingredientSlug),
+      asc(schema.ingredientPropertySelection.preparationState),
+      asc(schema.ingredientPropertySelection.propertyKey),
+    );
+
+  return rows
+    .filter(({ selection }) =>
+      ingredientStates.has(
+        `${selection.ingredientSlug}\u0000${selection.preparationState}`,
+      ),
+    )
+    .map((row) =>
+      IngredientPropertySelectionSchema.parse({
+        catalogVersion: row.selection.catalogVersion,
+        observation: observationFromJoin(row),
+        confidence: Number(row.selection.confidence),
+        decision:
+          row.selection
+            .reconciliationDecision as IngredientPropertyReconciliationDecision,
+      }),
+    );
 }

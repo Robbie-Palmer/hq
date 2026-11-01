@@ -160,6 +160,12 @@ Do not copy the Access pair into shell startup files. The CLI refuses to send
 it to an origin outside `WORK_GRAPH_CF_ACCESS_ALLOWED_ORIGINS` and refuses HTTP
 redirects.
 
+MCP clients use the Streamable HTTP endpoint at `/mcp` on the same origin.
+Cloudflare Access protects that endpoint with the service's existing policy.
+The adapter is stateless and delegates tool calls to the canonical REST
+application in the same Worker invocation. It does not access the database or
+implement separate queue, claim, fencing, pagination, or error rules.
+
 `GET /api/work-items` accepts `initiativeId`, `projectId`, and `parentId`
 filters. `POST /api/leases` accepts the same filters when it selects the next
 ticket. The service computes global priority first, then filters that order.

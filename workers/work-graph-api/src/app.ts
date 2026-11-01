@@ -46,6 +46,7 @@ import {
   type StoredCompletionCandidateEvaluation,
   type StoredWorkItemDeliveryEvidence,
   type TerminateClaimedWorkItemInput,
+  type TerminateClaimedWorkItemResult,
   type WorkItemDependencyCursor,
   type WorkItemReadModel,
   type WorkItemSchedulingScopeInput,
@@ -89,12 +90,14 @@ import {
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
+import { handleWorkGraphMcpRequest } from "./mcp";
 
 const MAX_IDENTIFIER_LENGTH = 200;
 const MAX_TITLE_LENGTH = 10_000;
 const MAX_LEASE_DURATION_SECONDS = 86_400;
 const MAX_DECOMPOSITION_CHILDREN = 100;
 const MAX_DECOMPOSITION_DEPENDENCIES = 1_000;
+const MAX_UNBLOCKED_WORK_ITEMS = 10_000;
 const DEFAULT_LIST_LIMIT = 50;
 const MAX_URL_LENGTH = 2_048;
 
@@ -683,6 +686,17 @@ const attentionResolutionResponseSchema = z
 const leaseWithWorkItemSchema = z
   .object({ lease: leaseSchema, workItem: workItemSchema })
   .openapi("LeaseWithWorkItem");
+const releaseResponseSchema = leaseWithWorkItemSchema
+  .extend({
+    unblockedWorkItemIds: z
+      .array(identifierSchema)
+      .max(MAX_UNBLOCKED_WORK_ITEMS)
+      .openapi({
+        description:
+          "Open work items whose derived stage changed from blocked to ready because of this release.",
+      }),
+  })
+  .openapi("ReleaseResponse");
 const claimResponseSchema = leaseWithWorkItemSchema
   .extend({ context: z.array(resolvedWorkItemContextSchema).max(1_000) })
   .openapi("ClaimResponse");
@@ -2148,7 +2162,7 @@ const releaseWorkItemRoute = createRoute({
   responses: {
     201: {
       description: "Completed work released and lease ended",
-      content: { "application/json": { schema: leaseWithWorkItemSchema } },
+      content: { "application/json": { schema: releaseResponseSchema } },
     },
     ...standardErrors,
   },
@@ -2356,7 +2370,7 @@ export interface WorkGraphApiRepository {
   renewLease(input: RenewLeaseInput): Promise<StoredLease>;
   terminateClaimedWorkItem(
     input: TerminateClaimedWorkItemInput,
-  ): Promise<StoredLease>;
+  ): Promise<TerminateClaimedWorkItemResult>;
   decomposeClaimedWorkItem(
     input: DecomposeClaimedWorkItemInput,
     options?: IdempotentMutationOptions,
@@ -3434,14 +3448,18 @@ export const createWorkGraphApp = (
   app.openapi(releaseWorkItemRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const request = context.req.valid("json");
-    const ended = await repository.terminateClaimedWorkItem({
+    const result = await repository.terminateClaimedWorkItem({
       ...request,
       workItemId,
       outcome: "released",
     });
     const item = await repository.getWorkItem(workItemId);
     return context.json(
-      { lease: serializeLease(ended), workItem: serializeWorkItem(item) },
+      {
+        lease: serializeLease(result.lease),
+        workItem: serializeWorkItem(item),
+        unblockedWorkItemIds: [...result.unblockedWorkItemIds],
+      },
       201,
     );
   });
@@ -3449,14 +3467,14 @@ export const createWorkGraphApp = (
   app.openapi(cancelWorkItemRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const request = context.req.valid("json");
-    const ended = await repository.terminateClaimedWorkItem({
+    const result = await repository.terminateClaimedWorkItem({
       ...request,
       workItemId,
       outcome: "cancelled",
     });
     const item = await repository.getWorkItem(workItemId);
     return context.json(
-      { lease: serializeLease(ended), workItem: serializeWorkItem(item) },
+      { lease: serializeLease(result.lease), workItem: serializeWorkItem(item) },
       201,
     );
   });
@@ -3493,6 +3511,12 @@ export const createWorkGraphApp = (
       201,
     );
   });
+
+  app.all("/mcp", (context) =>
+    handleWorkGraphMcpRequest(context.req.raw, (request) =>
+      app.request(request),
+    ),
+  );
 
   return app;
 };

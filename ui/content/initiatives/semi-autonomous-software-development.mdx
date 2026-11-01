@@ -42,9 +42,9 @@ parts are connected systems with different responsibilities:
   output of research and agent sessions into writing people can absorb.
 * The [Work Graph](/projects/work-graph) records desired outcomes, dependencies,
   evidence, leases, and requests for attention.
-* The [Agent Coordinator](/projects/agent-coordinator) matches ready work to an
-  available person or agent without making execution concerns part of the work
-  model.
+* The [Agent Coordinator](/projects/agent-coordinator) directs agents across
+  automatable software-development work and carries selected tasks through a
+  verified outcome.
 * [Agent-friendly Remote Development](/projects/agent-friendly-remote-development)
   gives each person a durable, private place to run those agents and answer
   requests across devices.
@@ -119,9 +119,12 @@ delivery, including handoff costs, model limits, and tool access. My judgment an
 attention remain constraints that additional agents cannot automatically remove.
 
 The Work Graph stores the plan and its revisions. The knowledge graph holds
-accepted findings and their evidence. The Agent Coordinator matches ready work
-to actors. Analytics should use delivery results, waiting time, rework, and
-human interventions to propose changes across that system.
+accepted findings and their evidence. The Agent Coordinator matches automatable
+work to available agent capacity and coordinates execution through a verified
+outcome. Agents can pull ordinary ready work from the graph and launch parallel
+work without a separate allocation service. Analytics should use delivery
+results, waiting time, rework, and human interventions to propose changes
+across that system.
 
 For example, if review is repeatedly the bottleneck, starting more coding tasks
 may make delivery worse. Improving the
@@ -274,10 +277,11 @@ agent sessions, and memory still compete as sources of truth for work.
 4. Build the attention inbox around real exceptions from that loop.
 5. Connect one event source, likely GitHub or PostHog, without turning either
    into the source of truth.
-6. Add the Agent Coordinator after the Work Graph has enough real work to test
-   matching, leases, expiry, and handoff.
-7. Increase automatic merge and deployment only where Agentic Code Review,
-   deterministic checks, and owner policy provide adequate evidence.
+6. Use severe dependency vulnerability resolution as the Agent Coordinator's
+   first complete event-to-production workflow.
+7. Grant automatic merge, deployment, validation, and recovery authority where
+   deterministic checks, repository policy, and observed evidence define a
+   safe operating boundary.
 8. Use intervention analytics to create and rank work that removes recurring
    human bottlenecks.
 9. Test the system with a team before attempting open collective development.

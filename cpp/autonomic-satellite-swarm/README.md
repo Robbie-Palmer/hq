@@ -147,8 +147,9 @@ The core and its platform boundary use six interfaces:
 - `ResourceObserver` supplies timestamped, explicitly available platform measurements without
   deciding health or allocation policy.
 
-See [Architecture](docs/architecture.md), [Wire protocol](docs/wire-protocol.md), and [Resource
-evidence and shared-radio budgets](docs/resource-evidence.md) for the detailed contracts.
+See [Architecture](docs/architecture.md), [Wire protocol](docs/wire-protocol.md), [protocol
+evolution](docs/protocol-evolution.md), and [resource evidence and shared-radio
+budgets](docs/resource-evidence.md) for the detailed contracts.
 
 ## Firmware builds
 
@@ -193,6 +194,7 @@ the controller records a rejected result and preserves its software latch.
 
 - [Architecture](docs/architecture.md)
 - [Wire protocol](docs/wire-protocol.md)
+- [Protocol and durable-state evolution](docs/protocol-evolution.md)
 - [Bounded telemetry](docs/telemetry.md)
 - [Resource evidence and shared-radio budgets](docs/resource-evidence.md)
 - [Deterministic orbit simulation](docs/orbit-simulation.md)

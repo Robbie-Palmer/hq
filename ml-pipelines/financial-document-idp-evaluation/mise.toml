@@ -1,0 +1,62 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked financial-document IDP evaluation environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the financial-document IDP evaluation lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format financial-document IDP Python code"
+depends = ["sync"]
+run = "uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint financial-document IDP Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check financial-document IDP Python code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run financial-document IDP tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run financial-document IDP tests with Cobertura coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.schemas]
+description = "Write canonical extraction and corpus manifest JSON Schemas"
+depends = ["sync"]
+run = "uv run --locked financial-document-idp schemas"
+
+[tasks."schemas:check"]
+description = "Check committed JSON Schemas for drift"
+depends = ["sync"]
+run = "uv run --locked financial-document-idp schemas --check"
+
+[tasks.dvc]
+description = "Run a DVC command in the financial-document evaluation project"
+run = "bash ../scripts/dvc.sh"
+
+[tasks.repro]
+description = "Reproduce the synthetic financial-document evaluation"
+run = "bash ../scripts/dvc.sh repro"
+
+[tasks.verify]
+description = "Verify artifact hashes, schema contracts, and the release decision"
+depends = ["sync", "repro"]
+run = "uv run --locked financial-document-idp verify"
+
+[tasks.check]
+description = "Run all deterministic financial-document evaluation checks"
+depends = ["lint", "typecheck", "test:coverage", "schemas:check", "verify"]

@@ -1,0 +1,178 @@
+---
+title: "ADR 044: OpenFeature evaluation with PostHog feature flags"
+date: "2026-10-29"
+status: "Accepted"
+tech_stack: ["OpenFeature"]
+---
+
+## Context
+
+The platform already uses PostHog for product analytics and experimentation
+through [ADR 023](/projects/personal-engineering-platform/adrs/023-application-observability-stack).
+Applications still need a small flag API that does not spread PostHog method
+names, credentials, or failure behavior through business code. The boundary
+must work in browsers, Node.js services, Python services, and the Cloudflare
+Workers runtime selected by
+[ADR 002](/projects/personal-engineering-platform/adrs/002-cloudflare-workers).
+
+OpenFeature standardizes typed evaluation, context, resolution details,
+provider lifecycle, and hooks. PostHog now publishes official OpenFeature
+providers for
+[browser JavaScript and Node.js](https://github.com/PostHog/posthog-js/tree/main/packages)
+and [Python](https://github.com/PostHog/posthog-python/tree/main/openfeature-provider).
+The providers deliberately retain PostHog's native SDKs underneath. That is
+useful because the native SDK owns remote and local evaluation, flag payloads,
+and the `$feature_flag_called` event used for exposure and experiment
+attribution.
+
+The providers are not identical. Browser identity belongs to `posthog-js`,
+while server providers require an OpenFeature targeting key. JavaScript calls
+group properties `groupProperties`; Python calls them `group_properties`.
+Provider readiness does not provide one portable cache-age signal. PostHog can
+also return any JSON payload, while the providers' OpenFeature object getter
+accepts only objects and arrays. The platform contract must record these
+differences instead of hiding them behind a larger wrapper.
+
+## Decision
+
+Adopt OpenFeature as the application evaluation API and PostHog as the flag
+control plane. Version 1 of the executable contract lives in
+`feature-flag-contract.yaml`. Its shared fixture and provider tests define the
+runtime behavior. Native PostHog analytics, event capture, session replay,
+surveys, and experiment management remain outside the OpenFeature API.
+
+### Runtime providers
+
+Use the official provider for each supported runtime:
+
+| Runtime            | OpenFeature provider                 | Native SDK                                  | Evaluation mode                                           |
+| ------------------ | ------------------------------------ | ------------------------------------------- | --------------------------------------------------------- |
+| Browser JavaScript | `@posthog/openfeature-web-provider`  | `posthog-js`                                | Remote, single user, synchronous after provider readiness |
+| Node.js            | `@posthog/openfeature-node-provider` | `posthog-node`                              | Remote by default, optional server-side local evaluation  |
+| Python             | `openfeature-provider-posthog`       | `posthog`                                   | Remote by default, optional server-side local evaluation  |
+| Cloudflare Workers | `@posthog/openfeature-node-provider` | `posthog-node` through its `workerd` export | Remote by default, optional server-side local evaluation  |
+
+Always await `setProviderAndWait` before first use and before replacing a
+provider. Existing OpenFeature clients then observe the replacement. The
+application owns the native PostHog client lifecycle and flushes it within the
+runtime's shutdown or deferred-work rules.
+
+The Cloudflare result comes from a build measurement. The package name alone
+was insufficient evidence. The checked fixture enables `nodejs_compat`, imports
+the official server provider and `posthog-node`, and runs a Wrangler dry-run
+build. The check asserts that
+Wrangler selects the `posthog-edge` implementation and rejects a bundle that
+contains the Node-only `async_hooks`, filesystem, operating-system, or zlib
+imports. The pinned proof uses provider `0.1.3` and `posthog-node` `5.60.1`.
+It passed, so this decision adds no Worker-specific provider or adapter.
+
+### Context and values
+
+Server evaluations require `targetingKey`, which maps to the PostHog distinct
+ID. A missing key returns the caller's default with
+`TARGETING_KEY_MISSING`. The browser provider does not use `targetingKey` to
+change identity. Browser code calls `posthog.identify` through its native
+analytics integration before evaluation.
+
+The reserved `groups` attribute maps group types to group keys. JavaScript uses
+`groupProperties`; Python uses `group_properties`. Every other context
+attribute becomes a person property. Applications pass the context needed for
+the current decision. They do not put credentials, authorization data, or
+unbounded request data into targeting properties.
+
+The contract supports boolean, string, number, and object getters. String
+values are PostHog variant keys. Number values parse a numeric variant key.
+Object values come from a JSON object or array payload. Primitive PostHog
+payloads are outside version 1 because the official object resolvers reject
+them; use a typed variant or keep the value in application configuration.
+
+Every call supplies a code-owned default of the same type and inspects
+OpenFeature resolution details when behavior depends on the failure reason.
+The portable fields are value, variant, reason, error code, and error message.
+Provider metadata may carry `posthog_reason`, but application decisions do not
+branch on it.
+
+### Readiness, stale state, and failures
+
+The host records one of four states: `not-ready`, `ready`, `stale`, or `error`.
+Only `ready` permits ordinary evaluation. `not-ready` and `error` use the
+code-owned default. `stale` may use a cached value for a non-critical cosmetic
+flag when the adopting project sets a bounded cache policy. A kill switch,
+authorization-sensitive branch, destructive action, or costly operation uses
+its safe default while stale.
+
+The providers do not expose one cross-runtime cache timestamp, so OpenFeature
+resolution details alone cannot prove freshness. The host sets stale state
+from explicit SDK or connectivity health and its own cache deadline. If it
+cannot measure that deadline, it treats the result as stale. This limitation
+is recorded rather than patched with an adapter that would still lack the
+underlying timestamp.
+
+Missing flags, type mismatches, offline evaluation, and provider exceptions
+return the caller's default with an OpenFeature error. Kill switches therefore
+default to the state that disables the risky feature. A local-definition load
+failure may fall back to remote evaluation. If remote evaluation also fails,
+the same default rule applies.
+
+### Credentials and evaluation modes
+
+Browser code receives only the public PostHog project token. It never receives
+a PostHog secret key. Node.js, Python, and Workers can also use the public token
+for remote evaluation. Local evaluation is server-only and requires the
+PostHog feature-flag secret key from the runtime secret store. Keep secrets out
+of flag payloads.
+
+Tests use fake native clients or OpenFeature in-memory providers. They never
+need production credentials and never create or change a live PostHog flag.
+The shared JSON fixture drives the JavaScript and Python proofs for evaluation
+context, all four value types, payloads, reasons, errors, safe defaults, stale
+state, and kill switches.
+
+### Exposure and experiment attribution
+
+The native PostHog SDK is the sole owner of `$feature_flag_called`. Each
+logical decision makes one typed OpenFeature getter call with native exposure
+events enabled. Do not add an OpenFeature hook that captures the same event.
+The conformance tests use recording fake clients and prove that a typed getter
+causes one native evaluation and one exposure, that a missing or failed flag
+causes none, and that provider replacement does not duplicate the decision.
+The experiment fixture also checks that the variant recorded for attribution
+matches the value returned to application code.
+
+## Alternatives
+
+Calling PostHog SDK methods directly would have fewer dependencies. It would
+also give each language a different application API and make provider
+replacement, typed defaults, and error details application concerns.
+
+A platform-owned provider for every runtime could force identical context
+keys and freshness metadata. It would duplicate the official providers and
+the native SDK evaluation behavior, including exposure events and local
+evaluation. The current differences are small enough to record in the
+contract.
+
+Capturing exposures in an OpenFeature hook would appear provider-neutral. With
+PostHog's official providers it sends a second event or competes with native
+SDK deduplication. Keeping the event in the native SDK preserves PostHog's
+experiment fields and gives one owner for delivery.
+
+Using server secrets in the browser would enable local evaluation there. It
+would also expose read authority for flag definitions and violate the client
+credential boundary. Browser evaluation remains public and remote.
+
+## Consequences
+
+Applications get one typed evaluation API across the four required runtimes.
+PostHog remains free to provide analytics and experimentation through its
+native SDK without expanding the OpenFeature abstraction.
+
+Projects must declare safe defaults and criticality with each flag. They must
+also wait for provider readiness, track stale state outside resolution
+details, and flush server-side exposure events according to their runtime
+lifecycle. A public project token cannot be promoted into a server secret by
+putting it behind OpenFeature.
+
+The contract intentionally excludes primitive payloads and portable cache-age
+metadata. Revisit the contract if official providers expose those behaviors,
+if Wrangler stops selecting the `workerd` build, or if an adopting project can
+show that the recorded runtime differences require a small adapter.

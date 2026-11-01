@@ -1,0 +1,117 @@
+---
+title: "ADR 024: Capability-Gated Protocol and Durable-State Evolution"
+status: "Accepted"
+date: "2026-10-29"
+---
+
+## Context
+
+[ADR 014](/projects/autonomic-satellite-swarm/adrs/014-stable-mission-keys) gives each mission a
+stable origin, boot epoch, and sequence. The current controller and reference firmware still use one
+exact 18-byte mission packet, while telemetry uses its own exact frame. Their codecs reject other
+versions. This is safe for one deployed version but does not describe what nodes may exchange when
+a swarm updates in stages, one node remains isolated, or software rolls back after writing durable
+state.
+
+A single protocol version cannot answer every compatibility question. Two builds may share a wire
+format while supporting different work. A newer process may read an old state schema without making
+that state safe for an old process after a later write. Software identity, wire format, durable-state
+schema, and supported capabilities therefore change on separate schedules.
+
+The project needs a bounded experiment that makes those differences observable. It must fit the
+portable core's fixed-capacity approach, preserve sender identity across restart, reject unsupported
+work before changing state, and replay mixed-version rollout and rollback without claiming that the
+reference firmware already provides persistent storage or an upgrade mechanism.
+
+## Decision
+
+Add a separate protocol-evolution envelope for capability advertisement and bounded journal
+exchange. Keep the existing mission and telemetry frames unchanged. The new envelope has a fixed
+32-byte representation with explicit wire version, record type, sender, sender boot epoch, sender
+sequence, payload length, zero padding, and CRC-8. Encode integers in big-endian order and never
+transmit C++ object layout.
+
+Treat published field positions and record codes as permanent. A later version may reserve an old
+field but must not give it a different meaning. Check integrity before classifying an unknown wire
+version or record type, then report those cases separately from malformed data.
+
+Advertise software version, supported wire range, durable-state schema, and capability bits. Select
+the highest shared wire version, then check every capability required by the proposed work. Wire
+agreement alone does not authorize a record. A newer node may exchange older summaries, requests,
+and ordinary journal entries with an older peer, but it must withhold work whose meaning depends on
+a capability that peer did not advertise.
+
+Use bounded journal-summary, missing-record-request, and journal-entry records. A request names an
+inclusive sequence range and may receive a partial answer because retention and transmission
+budgets are finite. The requester must ask again rather than treating an incomplete answer as proof
+that later records do not exist. The full field contract belongs in the
+[protocol-evolution specification](https://github.com/Robbie-Palmer/hq/blob/main/cpp/autonomic-satellite-swarm/docs/protocol-evolution.md).
+
+Store both the current durable-state schema and the minimum reader schema. Validate migrations and
+appends against a candidate copy before replacing live state. Migrating schema 1 to schema 2 may
+retain minimum reader 1 until the first write that uses schema-2 meaning. That write raises the
+minimum reader to 2. Version-1 software must then reject rollback without truncating, coercing, or
+otherwise changing the state.
+
+Reserve each sender sequence in the candidate durable state before transmitting its envelope. If
+the caller cannot persist the reservation, it must not send the record. Exhausted sequence or
+journal capacity, invalid data, and missing capabilities all leave durable state unchanged.
+
+This decision adopts a host-tested research contract. It does not connect the envelope to infrared,
+ESP-NOW, telemetry, or reference-firmware persistence. A later decision must define the physical
+transport, storage atomicity, authentication, replay retention, and rollout controls before those
+adapters use it.
+
+## Alternatives
+
+### Use one version number for software, wire data, and stored state
+
+One number is smaller and simpler to compare. It cannot express a wire-compatible software change,
+a capability present on only some nodes, or a state migration that remains readable until the first
+new-kind write. It would turn version equality into a compatibility claim the system cannot prove.
+
+### Make newer decoders accept unknown fields and record types
+
+Permissive decoding can preserve some forward compatibility. Defaulting or dropping an unknown
+meaning can also authorize the wrong work or discard state needed for rollback. This project
+requires an explicit version or capability match before interpretation.
+
+### Require an atomic swarm-wide update
+
+This avoids mixed-version rules while every node remains reachable and every update succeeds.
+Partitions, delayed contact, reset, and failed delivery are conditions the research model already
+exercises, so atomic rollout is not a credible operating assumption.
+
+### Replace the mission packet with the evolution envelope now
+
+One frame family would reduce the number of codecs. It would also change working firmware
+transports before the journal and persistent-state design has target evidence. Keeping the
+experiment separate preserves the current bench protocol and makes adoption a later, explicit
+choice.
+
+## Acceptance evidence
+
+Host tests round-trip every record type and distinguish unknown versions, unknown types, corruption,
+invalid ranges, unsupported work, capacity exhaustion, and sender-sequence exhaustion. Replay tests
+cover an interrupted rollout, rollback after a schema-2 write, a minority that alone supports new
+work, and a long-isolated version-1 node rejoining a version-2 peer.
+
+The tests prove deterministic software behavior and unchanged state after rejected work. They do
+not prove flash-write atomicity, radio interoperability, authentication, replay protection, or
+flight suitability.
+
+## Consequences
+
+Compatibility becomes an explicit decision for each peer and record. A node can use an older shared
+wire format without pretending it supports newer work, and an old process cannot silently damage
+state after a write that raised the minimum reader.
+
+The project now owns another envelope, version vocabulary, capability registry, and bounded journal
+contract. Fixed capacities make exhaustion testable but limit retained history and payload size.
+Every future field or capability change must preserve old codes, define downgrade behavior, and add
+mixed-version replay evidence.
+
+Capability checks and journals do not create consensus, delivery certainty, or authority. CRC-8
+detects accidental corruption but does not authenticate a sender. The reference firmware remains on
+the existing mission and telemetry formats until later transport and persistence decisions have
+physical evidence.

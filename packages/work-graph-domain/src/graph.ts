@@ -316,8 +316,9 @@ const buildWaitsForGraph = (graph: WorkGraph) => {
   return waitsFor;
 };
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-const hasCycle = (waitsFor: ReadonlyMap<string, ReadonlySet<string>>) => {
+const countIncomingEdges = (
+  waitsFor: ReadonlyMap<string, ReadonlySet<string>>,
+) => {
   const incomingEdgeCounts = new Map<string, number>();
   for (const workItemId of waitsFor.keys()) {
     incomingEdgeCounts.set(workItemId, 0);
@@ -331,14 +332,39 @@ const hasCycle = (waitsFor: ReadonlyMap<string, ReadonlySet<string>>) => {
       );
     }
   }
+  return incomingEdgeCounts;
+};
 
+const findReadyWorkItemIds = (
+  incomingEdgeCounts: ReadonlyMap<string, number>,
+): string[] => {
   const readyWorkItemIds: string[] = [];
   for (const [workItemId, incomingEdgeCount] of incomingEdgeCounts) {
     if (incomingEdgeCount === 0) {
       readyWorkItemIds.push(workItemId);
     }
   }
+  return readyWorkItemIds;
+};
 
+const releaseBlockers = (
+  workItemId: string,
+  waitsFor: ReadonlyMap<string, ReadonlySet<string>>,
+  incomingEdgeCounts: Map<string, number>,
+  readyWorkItemIds: string[],
+) => {
+  for (const blockerId of waitsFor.get(workItemId) ?? []) {
+    const nextIncomingEdgeCount = (incomingEdgeCounts.get(blockerId) ?? 0) - 1;
+    incomingEdgeCounts.set(blockerId, nextIncomingEdgeCount);
+    if (nextIncomingEdgeCount === 0) {
+      readyWorkItemIds.push(blockerId);
+    }
+  }
+};
+
+const hasCycle = (waitsFor: ReadonlyMap<string, ReadonlySet<string>>) => {
+  const incomingEdgeCounts = countIncomingEdges(waitsFor);
+  const readyWorkItemIds = findReadyWorkItemIds(incomingEdgeCounts);
   let visitedCount = 0;
   for (
     let readyIndex = 0;
@@ -350,15 +376,12 @@ const hasCycle = (waitsFor: ReadonlyMap<string, ReadonlySet<string>>) => {
       continue;
     }
     visitedCount += 1;
-
-    for (const blockerId of waitsFor.get(workItemId) ?? []) {
-      const nextIncomingEdgeCount =
-        (incomingEdgeCounts.get(blockerId) ?? 0) - 1;
-      incomingEdgeCounts.set(blockerId, nextIncomingEdgeCount);
-      if (nextIncomingEdgeCount === 0) {
-        readyWorkItemIds.push(blockerId);
-      }
-    }
+    releaseBlockers(
+      workItemId,
+      waitsFor,
+      incomingEdgeCounts,
+      readyWorkItemIds,
+    );
   }
 
   return visitedCount !== waitsFor.size;

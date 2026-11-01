@@ -6,6 +6,7 @@ import { ruleDataset } from "./data";
 import { datasetSchema, type RuleDataset } from "./schema";
 import { validateValidationCorpus } from "./validation";
 import { validationCorpus } from "./validationData";
+import { workplacePensionFixtures } from "./workplacePensionFixtures";
 
 const canonicalJson = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (value: string) =>
@@ -160,6 +161,17 @@ const validateCoverage = (dataset: RuleDataset) => {
       `${rule.id} has an open tax band before its final band`,
     );
   }
+
+  for (const rule of dataset.pensions) {
+    for (const [period, band] of Object.entries(
+      rule.qualifyingEarnings.bands,
+    )) {
+      assert(
+        band.lowerPence < band.upperPence,
+        `${rule.id} ${period} qualifying-earnings band is empty`,
+      );
+    }
+  }
 };
 
 export const validateDataset = (input: unknown): RuleDataset => {
@@ -226,6 +238,10 @@ export const buildArtifacts = (packageRoot: string) => {
   assert(
     validatedCorpus.ruleDatasetVersion === dataset.datasetVersion,
     "Validation corpus must pin the built rule dataset version",
+  );
+  assert(
+    workplacePensionFixtures.ruleDatasetVersion === dataset.datasetVersion,
+    "Workplace pension fixtures must pin the built rule dataset version",
   );
   const resolvedSources: ResolvedSource[] = dataset.sources.map((source) => {
     const snapshot = readFileSync(join(packageRoot, source.snapshotPath), "utf8");
@@ -301,6 +317,29 @@ export const buildArtifacts = (packageRoot: string) => {
     },
     pensions: {
       methods: ["salary-sacrifice", "net-pay", "relief-at-source"],
+      contributionBases: [
+        "fixed-amount",
+        "full-gross-pay",
+        "qualifying-earnings",
+        "explicit-pensionable-pay",
+      ],
+      qualifyingEarningsPayPeriods: [
+        "weekly",
+        "fortnightly",
+        "four-weekly",
+        "monthly",
+        "quarterly",
+        "half-yearly",
+        "annual",
+      ],
+      employerPolicies: [
+        "fixed-amount",
+        "flat-rate",
+        "matching-tiers",
+        "scheme-minimum",
+        "rate-cap",
+        "amount-cap",
+      ],
       limits: [
         "member tax-relief earnings limit",
         "annual allowance",
@@ -332,6 +371,10 @@ export const buildArtifacts = (packageRoot: string) => {
     [
       `artifacts/validation/${validatedCorpus.corpusVersion}.json`,
       canonicalJson(validatedCorpus),
+    ],
+    [
+      `artifacts/workplace-pension/${workplacePensionFixtures.fixtureVersion}.json`,
+      canonicalJson(workplacePensionFixtures),
     ],
   ]);
   if (announcedRules.length > 0) {

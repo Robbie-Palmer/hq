@@ -16,17 +16,45 @@ export function resolveContainedFile(
   relativeFile: string,
   label: string,
 ): string {
+  return resolveContainedPath(rootDirectory, relativeFile, label, "file", false);
+}
+
+export function resolveContainedDirectory(
+  rootDirectory: string,
+  relativeDirectory: string,
+  label: string,
+): string {
+  const directory = resolveContainedPath(
+    rootDirectory,
+    relativeDirectory,
+    label,
+    "directory",
+    true,
+  );
+  if (!fs.statSync(directory).isDirectory()) {
+    throw new Error(`${label} must resolve to a directory`);
+  }
+  return directory;
+}
+
+function resolveContainedPath(
+  rootDirectory: string,
+  relativePath: string,
+  label: string,
+  kind: "directory" | "file",
+  allowRoot: boolean,
+): string {
   const root = path.resolve(rootDirectory);
-  const file = path.resolve(root, relativeFile);
-  assertContained(root, file, label);
+  const resolved = path.resolve(root, relativePath);
+  assertContained(root, resolved, label, kind, allowRoot);
 
   try {
     const realRoot = fs.realpathSync(root);
-    const realFile = fs.realpathSync(file);
-    assertContained(realRoot, realFile, label);
-    return realFile;
+    const realPath = fs.realpathSync(resolved);
+    assertContained(realRoot, realPath, label, kind, allowRoot);
+    return realPath;
   } catch (error) {
-    throw new Error(`cannot resolve ${label} ${file}: ${errorMessage(error)}`);
+    throw new Error(`cannot resolve ${label} ${resolved}: ${errorMessage(error)}`);
   }
 }
 
@@ -94,15 +122,21 @@ function assertNoSymlinkComponents(root: string, relative: string): void {
   }
 }
 
-function assertContained(root: string, file: string, label: string): void {
+function assertContained(
+  root: string,
+  file: string,
+  label: string,
+  kind: "directory" | "file" = "file",
+  allowRoot = false,
+): void {
   const relative = path.relative(root, file);
   if (
-    relative === "" ||
+    (!allowRoot && relative === "") ||
     relative === ".." ||
     relative.startsWith(`..${path.sep}`) ||
     path.isAbsolute(relative)
   ) {
-    throw new Error(`${label} must resolve to a file within ${root}`);
+    throw new Error(`${label} must resolve to a ${kind} within ${root}`);
   }
 }
 

@@ -12,6 +12,11 @@ description = "Run recipe-parsing tests"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."test:property"]
+description = "Run bounded recipe parser property tests"
+depends = ["install"]
+run = "pnpm test:property"
+
 [tasks."test:coverage"]
 description = "Run recipe-parsing tests with LCOV coverage"
 depends = ["//:install"]

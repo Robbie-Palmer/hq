@@ -11,7 +11,7 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(41);
+    expect(getAllIdeaSlugs()).toHaveLength(43);
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -20,7 +20,7 @@ describe("ideas API", () => {
     expect(ideas).toContainEqual(
       expect.objectContaining({
         slug: "goodharts-law",
-        referenceCount: 12,
+        referenceCount: 13,
       }),
     );
   });
@@ -33,6 +33,7 @@ describe("ideas API", () => {
       "adaptive-planning",
       "dora-metrics",
       "jevons-paradox",
+      "mutation-testing",
     ]);
     expect(idea.relatedContent.projects.map((project) => project.slug)).toEqual(
       ["agentic-code-review"],
@@ -64,6 +65,36 @@ describe("ideas API", () => {
         (technology) => technology.slug,
       ),
     ).toEqual(["kafka"]);
+
+    const mutationTesting = getIdea("mutation-testing");
+    if (!mutationTesting) throw new Error("Expected Mutation Testing to exist");
+    expect(
+      mutationTesting.relatedContent.technologies.map(
+        (technology) => technology.slug,
+      ),
+    ).toEqual(["strykerjs"]);
+    expect(mutationTesting.relatedIdeas.map((idea) => idea.slug)).toEqual([
+      "critical-rationalism",
+      "falsifiability",
+      "goodharts-law",
+      "postpositivism",
+      "property-based-testing",
+    ]);
+
+    const propertyTesting = getIdea("property-based-testing");
+    if (!propertyTesting) {
+      throw new Error("Expected Property-Based Testing to exist");
+    }
+    expect(
+      propertyTesting.relatedContent.technologies.map(
+        (technology) => technology.slug,
+      ),
+    ).toEqual(["fast-check"]);
+    expect(propertyTesting.relatedIdeas.map((idea) => idea.slug)).toEqual([
+      "critical-rationalism",
+      "falsifiability",
+      "mutation-testing",
+    ]);
   });
 
   it("finds ideas attached to projects, posts, and ADRs", () => {
@@ -153,6 +184,11 @@ describe("ideas API", () => {
     expect(
       getIdeasForADR("recipe-site:009-sonarqube").map((idea) => idea.slug),
     ).toEqual(["goodharts-law"]);
+    expect(
+      getIdeasForADR(
+        "personal-engineering-platform:046-property-based-testing-for-typescript-domain-packages",
+      ).map((idea) => idea.slug),
+    ).toEqual(["property-based-testing"]);
     expect(
       getIdeasForInitiative("digital-twin-of-the-yard").map(
         (idea) => idea.slug,

@@ -93,7 +93,11 @@ function trackerValue() {
         jurisdiction: "England",
         employeePensionRate: 0.05,
         employeePensionMethod: "salarySacrifice",
+        employeePensionBasis: "grossPay",
         employerPensionRate: 0.05,
+        employerPensionBasis: "grossPay",
+        annualEmployerNationalInsuranceSaving: 850,
+        annualEmployerNationalInsuranceSavingContribution: 425,
         annualTakeHomeOverride: 55_000,
         annualSpendingOverride: 42_000,
         destinationAccountId: "current",
@@ -111,14 +115,19 @@ function trackerValue() {
         baselineAnnualPensionContribution: 2_000,
         scenarioAnnualTakeHomePay: 48_000,
         scenarioAnnualEmployeePensionContribution: 4_250,
-        scenarioAnnualEmployerPensionContribution: 4_250,
+        scenarioAnnualContractualEmployerPensionContribution: 4_250,
+        scenarioAnnualEmployerPensionContribution: 4_675,
+        scenarioAnnualEmployerNationalInsuranceSaving: 850,
+        scenarioAnnualEmployerNationalInsuranceSavingContribution: 425,
+        scenarioAnnualProviderPensionTaxRelief: 0,
+        scenarioAnnualFurtherPensionTaxRelief: 0,
         currency: "GBP",
       },
       calculation: {
         kind: "tax-derived",
         taxYear: "2026-27",
-        calculationVersion: "historical-salary-v1",
-        ruleDatasetVersion: "2026.10.3",
+        calculationVersion: "historical-salary-v2",
+        ruleDatasetVersion: "2026.10.4",
       },
       timeline: [
         {
@@ -220,6 +229,10 @@ describe("JobMoveScenarioPlanner", () => {
     expect(screen.getByText("Hypothetical")).toBeVisible();
     expect(screen.getByText("Monthly take-home")).toBeVisible();
     expect(screen.getByText("Annual pension")).toBeVisible();
+    expect(screen.getAllByText("Employer NI saving").length).toBeGreaterThan(0);
+    expect(
+      screen.getAllByText("Employer NI saving added to pension").length,
+    ).toBeGreaterThan(0);
     expect(screen.getByText("Net worth at horizon")).toBeVisible();
     expect(screen.getByText("Liquid assets at horizon")).toBeVisible();
     expect(screen.getByText("Total runway at horizon")).toBeVisible();
@@ -237,7 +250,7 @@ describe("JobMoveScenarioPlanner", () => {
       screen.getByText("Selected pay and pension flows stop from this date."),
     ).toBeVisible();
     expect(screen.getByText("Scenario 2030-06")).toBeVisible();
-    expect(screen.getByText(/calculation historical-salary-v1/)).toBeVisible();
+    expect(screen.getByText(/calculation historical-salary-v2/)).toBeVisible();
   });
 
   it("saves unemployment as an indefinite income stop", async () => {
@@ -350,6 +363,13 @@ describe("JobMoveScenarioPlanner", () => {
     await user.selectOptions(
       screen.getByLabelText("Employee pension method"),
       "netPay",
+    );
+    fireEvent.change(screen.getByLabelText("Annual employer NI saving"), {
+      target: { value: "" },
+    });
+    fireEvent.change(
+      screen.getByLabelText("Employer NI saving added to pension"),
+      { target: { value: "" } },
     );
     fireEvent.change(screen.getByLabelText("Employer pension rate (%)"), {
       target: { value: "7.5" },

@@ -31,6 +31,14 @@ them through the owning mise task and pass the name as its first argument, for e
 `mise //workers/recipe-api:db:generate -- add_recipe_notes`. The task rejects omitted, random, and
 vague names. Do not invoke `drizzle-kit generate` directly.
 
+## Python Conventions
+
+Do not add module-level docstrings. Do not use `argparse` for Python CLIs; use Google Fire for
+command dispatch and Pydantic models for validating command inputs.
+
+Do not create generic `io.py` modules. Keep I/O helpers in a domain-specific module. If helpers are
+genuinely reusable across domains, move them into an established shared package.
+
 ## Agent-Friendly Markdown
 
 Every major page has a plain-Markdown twin at the same URL with a `.md` suffix (e.g.
@@ -46,6 +54,14 @@ When asked to take or update Work Graph tickets, read
 `.agents/skills/work-graph/SKILL.md`. Run `work-graph prime` for the current short workflow. The
 CLI can infer lease fencing fields for ticket commands, so do not carry lease UUIDs through the
 conversation unless a recovery or audit needs them.
+
+## Agent Coordinator delivery pilot
+
+Agents handling admitted dependency vulnerabilities for the `Robbie-Palmer/hq`
+personal-site pilot must follow
+[`docs/runbooks/agent-coordinator-hq-delivery.md`](docs/runbooks/agent-coordinator-hq-delivery.md).
+That contract defines the checks, merge policy, production proof, rollback path,
+and attention boundary. A merged pull request is not completion evidence.
 
 ## Protected Preview QA
 

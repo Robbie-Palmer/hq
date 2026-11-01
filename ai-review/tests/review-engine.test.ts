@@ -22,6 +22,7 @@ import {
   publishReview,
   publishSkippedReview,
   recordReview,
+  recordReviewTerminal,
   runScouts,
 } from "../src/review-engine";
 
@@ -1981,6 +1982,30 @@ describe("stateful review engine", () => {
         ({ sources }) => sources.map(({ reference }) => reference),
       ),
     ).toContain("AGENTS.md");
+  });
+
+  it("does not synthesize coverage for a resumed legacy review", async () => {
+    const put = vi.fn();
+
+    await recordReviewTerminal({
+      env: environment(put),
+      params,
+      instanceId: "legacy-review-delivery",
+      status: "published",
+      timestamp: new Date("2026-07-28T12:00:00Z"),
+      prepared: {
+        headSha: HEAD_SHA,
+        paths: ["app.ts"],
+        omitted: ["omitted.ts"],
+      },
+    });
+
+    expect(put).toHaveBeenCalledOnce();
+    const record = JSON.parse(String(put.mock.calls[0]?.[1])) as Record<
+      string,
+      unknown
+    >;
+    expect(record).not.toHaveProperty("coverageManifest");
   });
 
   it("keeps hunk identities stable when only unified-diff coordinates move", async () => {

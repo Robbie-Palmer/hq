@@ -60,6 +60,21 @@ describe("salary history calculations", () => {
     });
   });
 
+  it("supports fixed annual pension amounts without a regular pay period", () => {
+    const [calculation] = calculateSalaryHistory(
+      [salaryRecord({ payFrequency: "irregular" })],
+      "2026-04-05",
+    );
+
+    expect(calculation?.result).toMatchObject({
+      available: true,
+      components: {
+        employeePensionContributionPence: 600_000,
+        employerPensionContributionPence: 300_000,
+      },
+    });
+  });
+
   it("does not silently replace missing assumptions with zero", () => {
     const [calculation] = calculateSalaryHistory(
       [
@@ -420,5 +435,155 @@ describe("salary history calculations", () => {
         expect.objectContaining({ code: "unsupported-director-ni" }),
       ]),
     });
+  });
+
+  it("uses monthly qualifying-earnings bands and includes a bonus once", () => {
+    const [calculation] = calculateSalaryHistory(
+      [
+        salaryRecord({
+          grossPay: 24_000,
+          employeePension: {
+            arrangement: "salarySacrifice",
+            rate: 0.05,
+            basis: "qualifyingEarnings",
+          },
+          employerPension: {
+            arrangement: "other",
+            rate: 0.03,
+            basis: "qualifyingEarnings",
+          },
+        }),
+        salaryRecord({
+          id: "bonus-2025",
+          effectiveStart: "2025-12-20",
+          effectiveEnd: "2025-12-20",
+          amountKind: "periodPay",
+          payFrequency: "irregular",
+          grossPay: 6_000,
+          variablePay: 6_000,
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculation?.result).toMatchObject({
+      available: true,
+      components: {
+        contractualGrossPayPence: 3_000_000,
+        employeePensionContributionPence: 99_745,
+        employerPensionContributionPence: 59_847,
+      },
+    });
+  });
+
+  it("requires explicit pensionable pay instead of reusing base salary", () => {
+    const [missing] = calculateSalaryHistory(
+      [
+        salaryRecord({
+          baseSalary: 40_000,
+          employeePension: {
+            arrangement: "netPay",
+            rate: 0.05,
+            basis: "pensionablePay",
+          },
+        }),
+      ],
+      "2026-04-05",
+    );
+    const [provided] = calculateSalaryHistory(
+      [
+        salaryRecord({
+          baseSalary: 40_000,
+          pensionablePay: 36_000,
+          employeePension: {
+            arrangement: "netPay",
+            rate: 0.05,
+            basis: "pensionablePay",
+          },
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(missing?.result).toMatchObject({
+      available: false,
+      reasons: [expect.objectContaining({ code: "missing-pensionable-pay" })],
+    });
+    expect(provided?.result).toMatchObject({
+      available: true,
+      components: { employeePensionContributionPence: 180_000 },
+    });
+  });
+
+  it("applies an explicit employer matching policy and cap", () => {
+    const [calculation] = calculateSalaryHistory(
+      [
+        salaryRecord({
+          employeePension: {
+            arrangement: "salarySacrifice",
+            rate: 0.05,
+            basis: "grossPay",
+          },
+          employerPensionPolicy: {
+            kind: "matching",
+            basis: "gross-pay",
+            tiers: [
+              {
+                employeeRateUpToBasisPoints: 300,
+                matchRatioBasisPoints: 10_000,
+              },
+              {
+                employeeRateUpToBasisPoints: 500,
+                matchRatioBasisPoints: 5_000,
+              },
+            ],
+            schemeMinimumRateBasisPoints: 0,
+            maximumRateBasisPoints: 350,
+          },
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(calculation?.result).toMatchObject({
+      available: true,
+      components: { employerPensionContributionPence: 210_000 },
+    });
+  });
+
+  it("recalculates each mid-year salary period with the same calculator", () => {
+    const calculations = calculateSalaryHistory(
+      [
+        salaryRecord({
+          id: "before-rise",
+          effectiveEnd: "2025-09-30",
+          grossPay: 12_000,
+          employeePension: {
+            arrangement: "netPay",
+            rate: 0.05,
+            basis: "qualifyingEarnings",
+          },
+        }),
+        salaryRecord({
+          id: "after-rise",
+          effectiveStart: "2025-10-01",
+          grossPay: 60_000,
+          employeePension: {
+            arrangement: "netPay",
+            rate: 0.05,
+            basis: "qualifyingEarnings",
+          },
+        }),
+      ],
+      "2026-04-05",
+    );
+
+    expect(
+      calculations.map((calculation) =>
+        calculation.result.available
+          ? calculation.result.components.employeePensionContributionPence
+          : null,
+      ),
+    ).toEqual([28_800, 220_140]);
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  type ComponentProps,
   type ReactElement,
   type SVGProps,
   useEffect,
@@ -164,6 +165,36 @@ function createFlowSankeyLinkRenderer(activeFlowKeys: ReadonlySet<string>) {
   };
 }
 
+type SankeyMouseEnterHandler = NonNullable<
+  ComponentProps<typeof Sankey>["onMouseEnter"]
+>;
+
+function flowSankeyHoverSelection(
+  data: ReturnType<typeof prepareFlowSankeyData>,
+  item: Parameters<SankeyMouseEnterHandler>[0],
+  type: Parameters<SankeyMouseEnterHandler>[1],
+): {
+  flowKeys: ReadonlySet<string>;
+  nodeIds: ReadonlySet<string>;
+} | null {
+  if (type === "link") {
+    const link = item.payload as unknown as FlowSankeyRenderLink | undefined;
+    return link?.flowKey
+      ? {
+          flowKeys: new Set([link.flowKey]),
+          nodeIds: nodeIdsForFlow(data, link.flowKey),
+        }
+      : { flowKeys: new Set(), nodeIds: new Set() };
+  }
+
+  const node = item.payload as unknown as FlowSankeyRenderNode | undefined;
+  if (!node || node.isWaypoint) return null;
+  return {
+    flowKeys: flowKeysForNode(data, node.id),
+    nodeIds: new Set([node.id]),
+  };
+}
+
 type SankeyTooltipItem = Partial<FlowSankeyLink & FlowSankeyNode> & {
   value?: number;
   source?: Readonly<{ name?: string }>;
@@ -315,28 +346,15 @@ export function FlowSankeyChart({
                     align="left"
                     iterations={64}
                     sort={false}
-                    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
                     onMouseEnter={(item, type) => {
-                      if (type === "link") {
-                        const link = item.payload as unknown as
-                          | FlowSankeyRenderLink
-                          | undefined;
-                        setActiveFlowKeys(
-                          link?.flowKey ? new Set([link.flowKey]) : new Set(),
-                        );
-                        setActiveNodeIds(
-                          link?.flowKey
-                            ? nodeIdsForFlow(data, link.flowKey)
-                            : new Set(),
-                        );
-                        return;
-                      }
-                      const node = item.payload as unknown as
-                        | FlowSankeyRenderNode
-                        | undefined;
-                      if (!node || node.isWaypoint) return;
-                      setActiveFlowKeys(flowKeysForNode(data, node.id));
-                      setActiveNodeIds(new Set([node.id]));
+                      const selection = flowSankeyHoverSelection(
+                        data,
+                        item,
+                        type,
+                      );
+                      if (!selection) return;
+                      setActiveFlowKeys(selection.flowKeys);
+                      setActiveNodeIds(selection.nodeIds);
                     }}
                     onMouseLeave={() => {
                       setActiveFlowKeys(new Set());

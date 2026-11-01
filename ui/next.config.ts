@@ -174,7 +174,10 @@ function createNextConfig(phase: string): NextConfig {
         config.plugins.push(
           new webpack.NormalModuleReplacementPlugin(
             /^node:module$/,
-            path.join(__dirname, "lib/wedding-planner/browser-node-module.ts"),
+            path.join(
+              __dirname,
+              "app/_projects/wedding-planner/application/browser-node-module.ts",
+            ),
           ),
         );
         config.resolve = {

@@ -113,6 +113,18 @@ The module output `selected_capabilities` uses the same slot names as the
 resolved profile. `resource_ownership` returns provider IDs grouped under the
 profile project ID; it never returns secret values.
 
+## Profile validation
+
+The v1 module now checks the profile through output preconditions. These checks
+stop `terraform plan` with the same messages as the former
+`terraform_data.profile_guard`, but they do not add a managed resource to
+state.
+
+Existing state needs no special migration. The next apply deletes the former
+state-only guard through its normal resource lifecycle without affecting cloud
+infrastructure or provider resource addresses. A fully disabled module then has
+no addresses in `terraform state list`.
+
 ## Environments, data, and credentials
 
 Use distinct module instances and remote workspaces for projects with separate

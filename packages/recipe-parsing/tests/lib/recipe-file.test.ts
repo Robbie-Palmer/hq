@@ -92,5 +92,6 @@ Boil the pasta, then stir in the tomatoes.`;
     await expect(
       parseRecipeFile("recipe.json", "{not valid JSON"),
     ).resolves.toBeNull();
+    await expect(parseRecipeFile("recipe.cook", "~0")).resolves.toBeNull();
   });
 });

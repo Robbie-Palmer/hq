@@ -317,6 +317,7 @@ function salaryFactsFromForm(
       entryKind === "bonus"
         ? optionalNumber(data, "grossPay")
         : optionalNumber(data, "variablePay"),
+    pensionablePay: optionalNumber(data, "pensionablePay"),
     taxablePay: optionalNumber(data, "taxablePay"),
     takeHomePay: optionalNumber(data, "takeHomePay"),
     observedIncomeTax: optionalNumber(data, "observedIncomeTax"),
@@ -861,6 +862,12 @@ function MoreSalaryDetails({
       </p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <AdditionalPayFields knownPay={knownPay} record={record} />
+        <Field
+          label="Pensionable pay"
+          name="pensionablePay"
+          type="number"
+          defaultValue={record?.pensionablePay}
+        />
         <TaxDeductionFields record={record} />
         <div className="sm:col-span-2">
           <PensionFields

@@ -20,6 +20,25 @@ export function setsEqual<T>(
   );
 }
 
+/**
+ * Move items with selected keys first while preserving order within both
+ * groups.
+ */
+export function prioritiseSelected<T>(
+  items: T[],
+  selectedKeys: string[],
+  getKey: (item: T) => string,
+): T[] {
+  if (selectedKeys.length === 0) return items;
+  const selectedKeySet = new Set(selectedKeys);
+  const selected: T[] = [];
+  const unselected: T[] = [];
+  for (const item of items) {
+    (selectedKeySet.has(getKey(item)) ? selected : unselected).push(item);
+  }
+  return [...selected, ...unselected];
+}
+
 export class DisjointSet<T> {
   readonly #parents = new Map<T, T>();
   readonly #ranks = new Map<T, number>();

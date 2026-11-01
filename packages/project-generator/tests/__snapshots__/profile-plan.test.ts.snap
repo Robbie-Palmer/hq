@@ -252,7 +252,11 @@ exports[`resolved profile plan adapter > maps the application plus infrastructur
           "status": "pending",
           "evidence": []
         }
-      ]
+      ],
+      "rollout": {
+        "operational_checks": [],
+        "migration_checkpoints": []
+      }
     }
   },
   "owned_paths": [
@@ -495,7 +499,11 @@ exports[`resolved profile plan adapter > maps the package-producing project into
       "opentelemetry": {
         "enabled": false
       },
-      "fulfillment_checkpoints": []
+      "fulfillment_checkpoints": [],
+      "rollout": {
+        "operational_checks": [],
+        "migration_checkpoints": []
+      }
     }
   },
   "owned_paths": [
@@ -687,7 +695,11 @@ exports[`resolved profile plan adapter > maps the small single-technology projec
       "opentelemetry": {
         "enabled": false
       },
-      "fulfillment_checkpoints": []
+      "fulfillment_checkpoints": [],
+      "rollout": {
+        "operational_checks": [],
+        "migration_checkpoints": []
+      }
     }
   },
   "owned_paths": [

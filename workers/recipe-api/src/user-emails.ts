@@ -123,38 +123,23 @@ export async function syncLinkedAccountEmails(
   account: LinkedAccountIdentity,
 ) {
   try {
-    const emails = await verifiedEmailsFromLinkedAccount(account);
-    await Promise.all(
-      [...new Set(emails)].map(async (email) => {
-        const [existing] = await db
-          .select({ userId: schema.userEmail.userId })
-          .from(schema.userEmail)
-          .where(eq(schema.userEmail.email, email))
-          .limit(1);
-        if (existing && existing.userId !== account.userId) return;
-        if (existing) {
-          await db
-            .update(schema.userEmail)
-            .set({ verified: true })
-            .where(
-              and(
-                eq(schema.userEmail.email, email),
-                eq(schema.userEmail.userId, account.userId),
-              ),
-            );
-          return;
-        }
-        await db
-          .insert(schema.userEmail)
-          .values({
-            email,
-            userId: account.userId,
-            verified: true,
-            isPrimary: false,
-          })
-          .onConflictDoNothing({ target: schema.userEmail.email });
-      }),
-    );
+    const emails = [...new Set(await verifiedEmailsFromLinkedAccount(account))];
+    if (emails.length === 0) return;
+    await db
+      .insert(schema.userEmail)
+      .values(
+        emails.map((email) => ({
+          email,
+          userId: account.userId,
+          verified: true,
+          isPrimary: false,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: schema.userEmail.email,
+        set: { verified: true },
+        setWhere: eq(schema.userEmail.userId, account.userId),
+      });
   } catch (error) {
     // Provider lookup failure must not break sign-in. Account update hooks retry
     // the lookup on later sign-ins when Better Auth refreshes OAuth tokens.

@@ -28,6 +28,7 @@ Each project owns its details in its own README:
 - [`workers/recipe-ingest/`](workers/recipe-ingest/README.md), durable photo-to-recipe ingestion pipeline
 - [`packages/`](packages/), shared libraries (database schema, domain model, parsing, observability)
 - [`ml-pipelines/`](ml-pipelines/README.md), DVC-managed ML experiments feeding the recipe features
+- [`data-pipelines/`](data-pipelines/README.md), operational ELT pipelines and analytical marts
 - [`cpp/`](cpp/README.md), C++ projects with shared formatting and static-analysis tooling
 - [`ai-review/`](ai-review/README.md), stateful AI code-review service
 - [`homelab/`](homelab/README.md), home lab declared as code

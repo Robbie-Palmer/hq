@@ -1,4 +1,4 @@
-import { PublicPlaylist } from "@/components/wedding-planner/public-playlist";
+import { PublicPlaylist } from "@/app/_projects/wedding-planner/components/public-playlist";
 
 export default function WeddingPlaylistPage() {
   return <PublicPlaylist />;

@@ -1,0 +1,8 @@
+[core]
+    remote = r2
+    autostage = true
+    site_cache_dir = .dvc/site-cache
+['remote "r2"']
+    url = s3://dvc/financial-document-idp-evaluation
+    endpointurl = https://dcd7cd68dd892d610267ded6b1af567b.r2.cloudflarestorage.com
+    region = auto

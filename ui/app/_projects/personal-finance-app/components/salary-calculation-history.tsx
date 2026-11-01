@@ -1,5 +1,6 @@
 "use client";
 
+import { formatMinorCurrency } from "ts-base/money";
 import {
   calculateSalaryHistory,
   type SalaryPeriodCalculation,
@@ -12,7 +13,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { formatMinorCurrency } from "@/lib/generic/money";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 function Money({ value }: Readonly<{ value: number }>) {

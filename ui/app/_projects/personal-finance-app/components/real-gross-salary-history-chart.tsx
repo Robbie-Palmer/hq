@@ -1,8 +1,8 @@
 "use client";
 
+import { normalizeSlug } from "ts-base/strings";
 import type { GrossSalaryChartPoint } from "@/app/_projects/personal-finance-app/domain";
 import { experiences } from "@/content/experience";
-import { normalizeSlug } from "@/lib/generic/slugs";
 import {
   SalaryTrajectoryChart,
   type SalaryTrajectoryDateDomain,

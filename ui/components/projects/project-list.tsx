@@ -11,12 +11,12 @@ import {
   createTechFilterOptions,
 } from "@/components/command-palette-filters";
 import { useCommandPalette } from "@/components/command-palette-shell";
+import { cycleFilterFromCard } from "@/components/filters/cycle-filter-from-card";
 import { FilterableCardGrid } from "@/components/ui/filterable-card-grid";
 import { useFilterParams } from "@/hooks/use-filter-params";
 import type { Project, ProjectStatus } from "@/lib/api/projects";
 import { hasTechIcon, TechIcon } from "@/lib/api/tech-icons";
 import { PROJECT_STATUS_CONFIG } from "@/lib/domain/project/project";
-import { cycleFilterFromCard } from "@/lib/generic/filter-cycle";
 import { ProjectCard } from "./project-card";
 
 interface ProjectListProps {

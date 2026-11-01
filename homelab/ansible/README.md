@@ -2,9 +2,9 @@
 
 This directory implements the host-side bridge from
 [ADR 019](../../ui/content/projects/homelab/adrs/019-ansible-k3s-migration-bridge.mdx).
-It inventories the three live hosts, gathers facts, configures native Mac
-services, prepares an isolated K3s server, deploys the Asus NixOS flake, and
-checks fleet health. It does not configure workloads.
+It inventories the configured hosts, gathers facts, configures native Mac
+services, prepares an isolated K3s server, and checks fleet health. It does not
+configure workloads.
 
 Ansible Core is pinned in `homelab/mise.toml`. Run every command through mise
 from the repository root:
@@ -16,7 +16,6 @@ mise run //homelab:ansible-lint
 mise run //homelab:ansible-test
 mise run //homelab:ansible-facts
 mise run //homelab:ansible-discover-pi
-mise run //homelab:asus-deploy
 mise run //homelab:ansible-verify
 mise run //homelab:ansible-check-mac
 mise run //homelab:ansible-configure-mac
@@ -24,13 +23,11 @@ mise run //homelab:ansible-verify-ente-fail-closed
 ```
 
 The facts and verification playbooks only read remote state. They connect to
-one host at a time. Ansible runs locally on the Mac mini. The two Linux hosts
-use SSH through their MagicDNS names. Test Tailscale SSH before the first
-Ansible run:
+one host at a time. Ansible runs locally on the Mac mini. The Pi uses SSH
+through its MagicDNS name. Test Tailscale SSH before the first Ansible run:
 
 ```bash
 tailscale ssh pi@raspberrypi.tailaa0e46.ts.net true
-tailscale ssh robbie@asus-desktop.tailaa0e46.ts.net true
 ```
 
 The inventory keeps normal SSH host-key checking enabled. Accept each Linux
@@ -42,12 +39,6 @@ relevant package versions, matching systemd units, and CUPS queues. It does not
 read service configuration files, which may contain credentials.
 The dated findings live in
 [`hosts/raspberry-pi/README.md`](../hosts/raspberry-pi/README.md).
-
-Run `asus-deploy` from a clean, pushed Git revision. It deploys that
-exact revision through `nixos-rebuild`, checks that NixOS reports the same
-configuration revision, and runs `nvidia-smi` inside the existing CUDA 12
-container image. A second run skips `nixos-rebuild` when the host already runs
-that revision.
 
 `ansible-check-mac` previews the permanent Mac host changes. The apply command
 installs the pinned Ente CLI, wrappers, launchd jobs, and Netdata alarms. It

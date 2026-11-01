@@ -1,4 +1,10 @@
 import { sourcePrefix } from "recipe-domain/import-storage";
+import {
+  photoJobSourceManifestKey,
+  PhotoJobSourceManifestSchema,
+  type PhotoJobSourceManifest,
+} from "recipe-domain/photo-batch";
+import { sha256Hex } from "ts-base/crypto";
 import type { Env } from "./env";
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -30,6 +36,7 @@ export async function listSourceImageKeys(
 export async function loadImageDataUrls(
   env: Env,
   keys: string[],
+  expectedChecksums?: Map<string, string>,
 ): Promise<string[]> {
   return Promise.all(
     keys.map(async (key) => {
@@ -39,7 +46,27 @@ export async function loadImageDataUrls(
       }
       const contentType = object.httpMetadata?.contentType ?? "image/jpeg";
       const bytes = new Uint8Array(await object.arrayBuffer());
+      const expectedChecksum = expectedChecksums?.get(key);
+      if (expectedChecksum && (await sha256Hex(bytes)) !== expectedChecksum) {
+        throw new Error(`Source image checksum does not match: ${key}`);
+      }
       return `data:${contentType};base64,${bytesToBase64(bytes)}`;
     }),
   );
+}
+
+export async function readPhotoJobSourceManifest(
+  env: Env,
+  jobId: string,
+  expectedChecksum: string | null,
+): Promise<PhotoJobSourceManifest> {
+  const object = await env.ARTIFACTS.get(photoJobSourceManifestKey(jobId));
+  if (!object)
+    throw new Error(
+      "Photo grouping source has expired. Regroup the failed recipe and retry.",
+    );
+  const body = await object.text();
+  if (!expectedChecksum || (await sha256Hex(body)) !== expectedChecksum)
+    throw new Error("Photo grouping source manifest checksum does not match");
+  return PhotoJobSourceManifestSchema.parse(JSON.parse(body));
 }

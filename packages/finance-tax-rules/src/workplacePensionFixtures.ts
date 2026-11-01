@@ -1,0 +1,118 @@
+import type { WorkplacePensionRequest } from "./workplacePension";
+
+type WorkplacePensionFixture = {
+  id: string;
+  description: string;
+  input: WorkplacePensionRequest;
+  expected: {
+    employeeGrossContributionPence: number;
+    employerContributionPence: number;
+    providerTaxReliefPence: number;
+  };
+};
+
+export const workplacePensionFixtures = {
+  fixtureVersion: "2026.10.4",
+  ruleDatasetVersion: "2026.10.4",
+  releasedAt: "2026-10-29",
+  sources: [
+    {
+      id: "dwp-automatic-enrolment-earnings-bands",
+      title:
+        "Review of the Automatic Enrolment Earnings Trigger and Qualifying Earnings Band for 2026/27",
+      publisher: "Department for Work and Pensions",
+      publicationDate: "2025-12-18",
+      url: "https://www.gov.uk/government/publications/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627/review-of-the-automatic-enrolment-earnings-trigger-and-qualifying-earnings-band-for-202627",
+    },
+    {
+      id: "govuk-workplace-pension-employers",
+      title: "Set up and manage a workplace pension scheme",
+      publisher: "GOV.UK",
+      retrievalDate: "2026-10-29",
+      url: "https://www.gov.uk/workplace-pensions-employers/how-to-enrol-staff",
+    },
+  ],
+  fixtures: [
+    {
+      id: "2026-27-annual-at-lower-boundary",
+      description:
+        "Annual qualifying pay at the £6,240 lower limit has no earnings inside the band.",
+      input: {
+        effectiveDate: "2026-04-06",
+        payPeriod: "annual",
+        annualGrossPayPence: 624_000,
+        annualQualifyingEarningsPayPence: 624_000,
+        employee: {
+          kind: "percentage",
+          taxTreatment: "net-pay",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 500,
+        },
+        employer: {
+          kind: "flat-rate",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 300,
+        },
+      },
+      expected: {
+        employeeGrossContributionPence: 0,
+        employerContributionPence: 0,
+        providerTaxReliefPence: 0,
+      },
+    },
+    {
+      id: "2026-27-annual-at-upper-boundary",
+      description:
+        "Annual qualifying pay at the £50,270 upper limit contributes on £44,030.",
+      input: {
+        effectiveDate: "2026-04-06",
+        payPeriod: "annual",
+        annualGrossPayPence: 5_027_000,
+        annualQualifyingEarningsPayPence: 5_027_000,
+        employee: {
+          kind: "percentage",
+          taxTreatment: "net-pay",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 500,
+        },
+        employer: {
+          kind: "flat-rate",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 300,
+        },
+      },
+      expected: {
+        employeeGrossContributionPence: 220_150,
+        employerContributionPence: 132_090,
+        providerTaxReliefPence: 0,
+      },
+    },
+    {
+      id: "2026-27-annual-above-upper-boundary",
+      description:
+        "Annual qualifying pay above £50,270 remains capped at the upper limit.",
+      input: {
+        effectiveDate: "2026-04-06",
+        payPeriod: "annual",
+        annualGrossPayPence: 6_000_000,
+        annualQualifyingEarningsPayPence: 6_000_000,
+        employee: {
+          kind: "percentage",
+          taxTreatment: "net-pay",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 500,
+        },
+        employer: {
+          kind: "flat-rate",
+          basis: "qualifying-earnings",
+          rateBasisPoints: 300,
+        },
+      },
+      expected: {
+        employeeGrossContributionPence: 220_150,
+        employerContributionPence: 132_090,
+        providerTaxReliefPence: 0,
+      },
+    },
+  ] satisfies WorkplacePensionFixture[],
+};

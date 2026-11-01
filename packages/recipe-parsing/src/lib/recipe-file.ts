@@ -93,7 +93,13 @@ function parseCooklangRecipeFile(
   const body = cooklangBody(source);
   if (!body) return null;
 
-  const [parsed] = parser.parse(source.replace(/^\uFEFF/, ""));
+  const parsed = (() => {
+    try {
+      return parser.parse(source.replace(/^\uFEFF/, ""))[0];
+    } catch {
+      return undefined;
+    }
+  })();
   if (!parsed) return null;
   const title = (parsed.title?.trim() || fallbackTitle(filename)).slice(0, 120);
   const description = (

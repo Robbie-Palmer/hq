@@ -271,11 +271,9 @@ output "resource_ownership" {
 {% endif %}{% if telemetry %}    { telemetry_dashboard = module.telemetry.dashboard_id },
 {% endif %}  )
 }
-
-{% if neon_preview %}
-output "preview_database_connection_uri" {
+{% if neon_preview %}output "preview_database_connection_uri" {
   description = "Sensitive connection URI for the isolated preview database."
   value       = module.neon.preview_connection_uri
   sensitive   = true
 }
-{% endif %}
+{% endif -%}

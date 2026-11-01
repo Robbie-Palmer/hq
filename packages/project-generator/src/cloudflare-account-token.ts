@@ -292,3 +292,34 @@ export const createCloudflareAccountToken: SecretSourceExtension = async (input)
     "Cloudflare account-token creation",
   ).result.value;
 };
+
+export const handoffCloudflareAccountTokenAuthority: SecretSourceExtension = async (
+  input,
+) => {
+  const creation = input.secret.creation;
+  if (
+    creation.mode !== "extension" ||
+    creation.extension !== "cloudflare-account-token-authority" ||
+    !("value_env" in creation)
+  ) {
+    throw new Error(
+      "Cloudflare token-authority handoff received an incompatible secret",
+    );
+  }
+  const value = input.environment[creation.value_env];
+  if (!value) {
+    throw new Error(
+      `Required environment variable '${creation.value_env}' is missing`,
+    );
+  }
+  const identity = cloudflareIdentity(input.plan);
+  await conformCloudflareAccountTokenAuthority({
+    plan: input.plan,
+    environment: {
+      ...input.environment,
+      [identity.token_env]: value,
+    },
+    fetch: input.fetch,
+  });
+  return value;
+};

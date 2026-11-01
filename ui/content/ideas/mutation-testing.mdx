@@ -1,0 +1,72 @@
+---
+title: "Mutation Testing"
+description: "Mutation testing changes program behaviour on purpose and checks whether the test suite notices."
+source_url: "https://stryker-mutator.io/docs/"
+related_ideas:
+  - "critical-rationalism"
+  - "falsifiability"
+  - "goodharts-law"
+  - "postpositivism"
+---
+
+Mutation testing asks a sharper question than code coverage. Would the tests
+notice if the program behaved differently? A mutation tool makes small changes
+to production code, such as reversing a comparison or replacing a return value,
+then runs the tests against each changed version.
+
+A test kills a mutant when it fails against the changed code. A mutant survives
+when the tests still pass. Survival points to an assertion that may be missing,
+too broad, or focused on implementation details that do not protect the
+behaviour. A mutant with no coverage shows that no test exercised the changed
+code.
+
+These labels need judgement. Two expressions can differ in source code while
+remaining equivalent for every reachable input. Generated schemas and static
+initialisation can also create expensive mutants with little diagnostic value.
+The useful output is the list of behavioural changes that the tests failed to
+detect, not the raw count alone.
+
+## A demanding test of the tests
+
+[Critical rationalism](/ideas/critical-rationalism) treats knowledge as
+conjectural. Passing tests cannot prove that a program is correct. Mutation
+testing responds by proposing faulty variants and asking the tests to reject
+them. Each mutant is a concrete challenge to the suite's claim that it protects
+a behaviour.
+
+This follows the logic of [falsifiability](/ideas/falsifiability). A killed
+mutant refutes one changed version of the program. It corroborates the test
+against that change, but it does not verify the original program. A surviving
+mutant is more interesting because it exposes a change that the suite failed to
+distinguish.
+
+The result is still evidence about a bundle. A surviving mutant may reveal a
+weak test, unreachable code, an equivalent change, or a mutation operator that
+does not fit the domain. [Postpositivism](/ideas/postpositivism) helps here. The
+evidence depends on the chosen operators, source scope, reachable inputs, and
+the team's account of correct behaviour. Triage makes those judgements visible
+instead of treating the score as a mechanical verdict.
+
+## Scores are guardrails
+
+A mutation score reports the share of valid mutants that the tests detected.
+It is useful for watching one package over time after its survivors have been
+reviewed. It is a poor target for comparing unrelated packages because mutation
+operators, static code, test speed, and the chosen source scope all affect the
+number.
+
+[Goodhart's Law](/ideas/goodharts-law) applies quickly here. A team can raise the
+score by excluding difficult files, suppressing operators, or writing narrow
+assertions that add little protection. A threshold should prevent an understood
+baseline from slipping. It should not replace review of the surviving mutants
+or the tests added to kill them.
+
+## How I use it
+
+* Start with deterministic code whose ordinary tests are fast.
+* Review surviving and uncovered mutants before setting a threshold.
+* Keep thresholds local to a package and use them as regression limits.
+* Track tests and code changes prompted by the run, along with runtime and
+  noisy mutants.
+* Run broader diagnostic scopes separately when they cost too much for routine
+  feedback.

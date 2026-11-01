@@ -4,7 +4,7 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.1.5-agent-tools-19`. Its leading version matches the bundled T3
+release tag `0.1.5-agent-tools-20`. Its leading version matches the bundled T3
 release, which lets Renovate update the image references in the same pull
 request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its
@@ -63,6 +63,14 @@ pnpm dependencies and activates the Husky hooks. Playwright downloads its
 version-matched Chromium build into the persistent cache when
 `mise run //ui:test:e2e:install` runs. System Chromium remains available to
 Puppeteer and Lighthouse through `PUPPETEER_EXECUTABLE_PATH`.
+
+The Vector host loads the `t3-code-agent-browser` AppArmor profile and applies
+it only to the trusted T3 container. The profile grants unprivileged user
+namespace creation so Chromium can keep its process sandbox enabled. The
+container still runs as UID 2000, drops every capability, uses runtime-default
+seccomp, and has a read-only root filesystem. The Vector health check launches
+headless Chromium without `--no-sandbox` to catch policy regressions during a
+rollout.
 
 The image also includes the pinned Docker CLI, Buildx, and Compose plugins.
 The remote operator workspace connects them to its own rootless Docker daemon

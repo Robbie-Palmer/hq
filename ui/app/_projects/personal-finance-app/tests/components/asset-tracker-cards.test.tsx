@@ -3234,6 +3234,15 @@ describe("FlowSankeyChart", () => {
     expect(
       screen.getByTestId("sankey-node-isa").querySelector("rect"),
     ).toHaveAttribute("fill-opacity", "1");
+
+    const waypoint = document.querySelector(
+      '[data-testid^="sankey-node-__flow_waypoint:"]',
+    );
+    if (!(waypoint instanceof HTMLElement)) {
+      throw new Error("Expected the skipped-column flow to have a waypoint");
+    }
+    await user.hover(waypoint);
+    expect(unrelated).toHaveAttribute("stroke-opacity", "0.25");
   });
 });
 

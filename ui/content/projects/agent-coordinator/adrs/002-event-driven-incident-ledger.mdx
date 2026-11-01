@@ -1,0 +1,105 @@
+---
+title: "ADR 002: Write incident state from events instead of polling for work"
+date: "2026-10-30"
+status: "Accepted"
+implements_product_decisions:
+  - "agent-coordinator:000-severe-vulnerability-resolution"
+---
+
+## Context
+
+[ADR 001](/projects/agent-coordinator/adrs/001-t3-code-orchestration-control-plane)
+makes T3 Code's signed webhook task the entry point for severe vulnerability
+events. The project still needs durable state that correlates the GitHub alert,
+controller decision, worker thread, pull request, commits, deployment, validation,
+and any recovery.
+
+Work Graph already records project work and ingests GitHub pull-request,
+workflow, and deployment evidence. Its
+[dedicated GitHub observer](/projects/work-graph/adrs/008-github-delivery-evidence-ingestion)
+uses delivery identities, exact commit correlation, and reconciliation for
+missed events. The original Agent Coordinator direction planned to watch ready
+Work Graph tickets and launch sessions. Frequent polling would add Neon reads
+even when no work changes, and it would delay an event T3 Code can receive
+directly.
+
+Work Graph and T3 Code hold different state. Work Graph should explain the
+incident and its evidence. T3 Code should own live agent execution and thread
+lifecycle.
+
+## Decision
+
+Use Work Graph only as an event-written incident ledger for the vulnerability
+workflow. T3 Code starts and owns live execution.
+
+The signed GitHub webhook starts the bound T3 Code controller directly. After
+the controller validates and admits an alert, it creates or updates one Work
+Graph item with a deterministic external identity derived from the repository
+and Dependabot alert number. Record the severity policy revision, controller
+decision, owning T3 thread, related Renovate and agent pull requests, accepted
+commit, deployment target, validation result, recovery actions, and requests for
+attention as the incident progresses.
+
+Write state only on meaningful transitions or observed provider events. Reuse
+the existing GitHub observer for pull-request, workflow, and deployment evidence.
+Correlate by explicit links and exact commit identities. Do not infer ownership
+from branch names, pull-request titles, timestamps, or model prose.
+
+The controller may read Work Graph when admitting an alert, recovering after a
+restart, or routing a later delivery event. It must not run a short-interval loop
+that repeatedly asks for ready work. T3 Code's webhook delivery and PR watching
+wake agents when external state changes.
+
+Keep low-frequency reconciliation as a repair path. It may fetch open admitted
+alerts and current GitHub state to recover a missed delivery or incomplete
+projection. It must use stable identities and idempotent writes, and it must not
+be the normal latency path.
+
+Observed evidence does not finish the incident by itself. The owning worker or
+controller records completion after the required merge, deployment, validation,
+and alert state have been evaluated under the active policy. This preserves the
+separation established by Work Graph's
+[observed-evidence decision](/projects/work-graph/adrs/009-observed-evidence-before-automatic-release).
+
+## Consequences
+
+Neon load scales with actual incidents and delivery events instead of the number
+of idle polling intervals. Vector does not need a watcher daemon or a webhook
+forwarded by Work Graph. T3 Connect handles public ingress and temporary offline
+delivery; Work Graph preserves the durable account of what happened.
+
+Two systems retain related identities, so correlation is part of the product.
+Every accepted incident needs a stable alert identity and explicit thread and PR
+links. Missing mappings must stop automatic routing rather than guess which
+agent owns a deployment event.
+
+Work Graph can be unavailable while T3 Code receives an alert. The controller
+may continue safe investigation, but it must retry the incident write before an
+unattended merge so the recovery record does not exist only in thread history.
+
+Reconciliation still consumes provider and database capacity, but its cadence
+can be measured in hours rather than seconds or minutes. The initial cadence
+should reuse the existing Work Graph GitHub evidence recovery operation until
+real missed-delivery data justifies something else.
+
+## Alternatives considered
+
+### Poll Work Graph for ready vulnerability tickets
+
+This reuses the existing coordinator loop and keeps Work Graph in front of every
+launch. It adds idle Neon traffic, introduces polling latency, and duplicates a
+native event trigger. Rejected for the normal path.
+
+### Have Work Graph forward a webhook to T3 Code
+
+This would keep Work Graph as the ingress authority. It adds another delivery,
+signature, retry, and availability boundary without improving alert admission.
+GitHub can call T3 Code's signed endpoint directly while sending observation
+events to Work Graph independently.
+
+### Keep all incident state inside the controller thread
+
+Thread history is sufficient for a prototype and avoids database work. It is a
+poor correlation and audit boundary for later GitHub events, replacement
+workers, deployment evidence, and policy evaluation. Use thread history for
+execution detail and Work Graph for durable incident state.

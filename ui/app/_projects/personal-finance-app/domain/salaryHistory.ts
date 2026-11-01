@@ -1,3 +1,4 @@
+import { workplacePensionEmployerPolicySchema } from "finance-tax-rules/workplace-pension";
 import { z } from "zod";
 import { AssetTrackerDataError } from "./assetTrackerError";
 import { CurrencySchema } from "./currency";
@@ -82,6 +83,8 @@ const SalaryRecordFactsObjectSchema = z.object({
     .optional(),
   baseSalary: z.number().nonnegative().optional(),
   variablePay: z.number().nonnegative().optional(),
+  /** Pay covered by this pension scheme when it differs from gross pay. */
+  pensionablePay: z.number().nonnegative().optional(),
   taxablePay: z.number().nonnegative().optional(),
   takeHomePay: z.number().nonnegative().optional(),
   observedIncomeTax: z.number().nonnegative().optional(),
@@ -93,6 +96,7 @@ const SalaryRecordFactsObjectSchema = z.object({
   isCompanyDirector: z.boolean().optional(),
   employeePension: PensionContributionSchema.optional(),
   employerPension: PensionContributionSchema.optional(),
+  employerPensionPolicy: workplacePensionEmployerPolicySchema.optional(),
 });
 
 function hasValidEffectiveDates(record: {

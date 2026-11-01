@@ -4,7 +4,7 @@ import type {
   TaxBandScenario,
 } from "finance-tax-rules/household-tax";
 import { Fragment } from "react";
-import { formatMinorCurrency } from "@/lib/generic/money";
+import { formatMinorCurrency } from "ts-base/money";
 
 const categories = [
   {

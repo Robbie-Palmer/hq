@@ -39,10 +39,19 @@ mise //:project:profile:update -- path/to/profile.yaml --effective-at 2026-11-01
 ```
 
 These commands load the repository layout, platform manifest, Nix contract,
-and OpenTelemetry contract from the Personal Engineering Platform project. The
-explicit instant selects dated platform defaults. `--contracts`, `--registry`,
-`--repository`, and `--template-id` replace their repository defaults when a
-test or migration needs another input.
+OpenTelemetry contract, and deployment maturity contract from the Personal
+Engineering Platform project. The explicit instant selects dated platform
+defaults. `--contracts`, `--registry`, `--repository`, and `--template-id`
+replace their repository defaults when a test or migration needs another
+input.
+
+Project profile schema version 2 accepts checked workload definitions under
+`capabilities.workloads`. Resolution validates every non-local target against
+the deployment maturity contract before Copier receives blueprint version 3.
+The blueprint retains the signed artifact digest, project identity, workload
+intent, target extensions, and environment overlays. Profile version 1 remains
+valid and still resolves to blueprint version 2, so existing Copier receipts do
+not change until a project adopts workload definitions.
 
 Set `project.published: false` for an internal fixture. Copier still records
 its resolved blueprint and owns its declared component paths, but it does not

@@ -152,4 +152,5 @@ if [[ -n "$migration_recovery_url" ]]; then
 fi
 
 pnpm db:migrate
-pnpm exec vitest run --config vitest.integration.config.ts "$@"
+integration_vitest_config="${INTEGRATION_VITEST_CONFIG:-vitest.integration.config.ts}"
+pnpm exec vitest run --config "$integration_vitest_config" "$@"

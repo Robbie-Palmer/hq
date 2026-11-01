@@ -44,6 +44,7 @@ import {
 import {
   conformCloudflareAccountTokenAuthority,
   createCloudflareAccountToken,
+  handoffCloudflareAccountTokenAuthority,
 } from "./cloudflare-account-token.js";
 
 const DEFAULT_REGISTRY =
@@ -231,7 +232,15 @@ async function prepareProfileCommand(
   const contractDirectory = resolvePath(
     input.contracts ?? DEFAULT_CONTRACT_DIRECTORY,
   );
-  const [profileSource, registrySource, layout, platform, nix, opentelemetry] =
+  const [
+    profileSource,
+    registrySource,
+    layout,
+    platform,
+    nix,
+    opentelemetry,
+    deploymentMaturity,
+  ] =
     await Promise.all([
       readFile(profilePath, "utf8"),
       readFile(registryPath, "utf8"),
@@ -242,6 +251,10 @@ async function prepareProfileCommand(
         path.join(contractDirectory, "opentelemetry-contract.yaml"),
         "utf8",
       ),
+      readFile(
+        path.join(contractDirectory, "deployment-maturity.yaml"),
+        "utf8",
+      ),
     ]);
   const profile = parseProjectProfile(profileSource);
   const contracts = parseProjectProfileContracts({
@@ -249,6 +262,7 @@ async function prepareProfileCommand(
     platform,
     nix,
     opentelemetry,
+    deploymentMaturity,
   });
   const blueprint = resolveProjectProfile(
     profile,
@@ -383,6 +397,8 @@ async function runSecretBootstrapApplyCommand(
     persist: (state) => writeBootstrapState(prepared.statePath, state),
     extensions: {
       "cloudflare-account-token": createCloudflareAccountToken,
+      "cloudflare-account-token-authority":
+        handoffCloudflareAccountTokenAuthority,
     },
   });
 }

@@ -29,6 +29,7 @@ import {
 } from "react";
 import type { BatchDraft } from "recipe-domain/batch-import";
 import type { RecipeVisibility } from "recipe-domain/visibility";
+import { normalizeSlug } from "ts-base/strings";
 import {
   PhotoRecipeImport,
   type PhotoRecipeImportDraft,
@@ -55,8 +56,7 @@ import {
   type SavedRecipeApiRecord,
   serializeSavedRecipe,
 } from "@/lib/domain/recipe/recipeDraft";
-import { recipeSaveReturnPath } from "@/lib/generic/safe-return-path";
-import { normalizeSlug } from "@/lib/generic/slugs";
+import { recipeSaveReturnPath } from "@/lib/domain/recipe/returnPath";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
 
 const EXAMPLE_RECIPE = `Bring a large #pot{} of salted water to the boil. Add @dried pasta{200%g} and cook for ~{10%minutes}.

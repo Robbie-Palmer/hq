@@ -1,0 +1,105 @@
+---
+title: "ADR 045: Mutation testing for TypeScript domain packages"
+date: "2026-10-29"
+status: "Proposed"
+tech_stack: ["StrykerJS"]
+---
+
+## Context
+
+[ADR 007](/projects/personal-engineering-platform/adrs/007-language-toolchains)
+selects Vitest as the default TypeScript test runner but leaves specialised
+runner integration with each package. Line and branch coverage show which code
+a test executed. They do not show whether the assertions would detect a change
+in behaviour. [Mutation testing](/ideas/mutation-testing) tests that distinction
+by changing production code and checking whether the suite fails.
+
+The first repository pilot added StrykerJS to
+`packages/project-economics-domain`. Its routine scope ignores static mutants
+and uses incremental results in CI. A fresh run scored 71.50 percent: 610
+mutants were killed, 2 timed out, 175 survived, and 69 had no coverage. The
+package had 95 percent statement coverage at the same point. Reviewing the
+survivors expanded the suite from 22 to 33 tests.
+
+A separate uncached diagnostic run included static mutants. It processed 1,147
+mutants, scored 65.23 percent, and reported 57 errors. That run found gaps in
+schema tests, but it also showed why static mutation does not belong in every
+fast CI loop. One package is enough to justify a proposal. It is not enough to
+make mutation testing a platform default.
+
+## Decision
+
+Add `quality.mutation-testing` as a preferred Personal Engineering Platform
+capability for deterministic, logic-heavy TypeScript domain packages. Select
+StrykerJS for packages that use Vitest. Do not require mutation testing from
+every TypeScript package.
+
+A project may activate the capability when its normal unit suite is fast,
+repeatable, and focused on behaviour that mutation operators can challenge.
+Browser applications, integration-heavy services, generated code, and packages
+made mostly of static declarations stay outside the default scope unless a
+local decision shows useful results at an acceptable cost.
+
+Adopting packages will use two scopes:
+
+* A routine scope mutates reviewed logic, may ignore static mutants, and runs in
+  path-scoped CI.
+* A broader, uncached diagnostic scope includes static mutants when supported.
+  It runs manually or on a schedule and does not block pull requests.
+
+Each package will establish its own baseline after reviewing surviving,
+uncovered, and invalid mutants. A blocking threshold may then prevent the
+reviewed baseline from falling. The platform will not define one mutation score
+for all packages, use scores to compare projects, or raise a threshold without
+reviewing the mutants and tests behind the change.
+
+Keep the ADR proposed while the platform tests this policy in at least two
+domain packages owned by projects other than the Personal Engineering Platform.
+Those pilots must record fresh routine and diagnostic results, elapsed time,
+non-code failures, survivor triage, no-coverage findings, invalid mutants, and
+the tests or production changes prompted by the run.
+
+## Alternatives
+
+Keeping StrykerJS local to Project Economics avoids another platform capability.
+It also makes each project rediscover the same CI split, baseline policy, and
+reporting rules if the need recurs.
+
+Relying on coverage and review costs less. The pilot showed the limit of that
+choice: 95 percent statement coverage still allowed 244 survived or uncovered
+mutants in the routine scope.
+
+Requiring mutation testing for every TypeScript package would produce a simple
+rule. It would spend CI time on code where browser setup, external systems,
+generated declarations, or static initialisation make the signal weak.
+
+## Consequences
+
+If accepted, suitable packages gain an executable check on test effectiveness
+and a shared way to separate fast regression protection from expensive
+diagnosis. Surviving mutants give test work a concrete source location and
+behavioural change instead of relying on a coverage percentage alone.
+
+Mutation testing multiplies test executions. Every adopting package must own
+its source scope, baseline, runtime, reports, and noisy-mutant triage. An
+incremental result can also become stale when dependencies or configuration
+change outside the mutated source and test files, so diagnostic runs must remain
+uncached.
+
+The capability remains optional even if this ADR is accepted. Projects can use
+another mutation engine through a local override, and packages that do not meet
+the suitability test keep their ordinary test and coverage checks.
+
+## Decision criteria
+
+Accept this ADR only after two projects outside the platform complete the
+pilots and their owners judge the findings worth the routine CI and maintenance
+cost. Each pilot must complete five consecutive routine runs without a tooling
+or infrastructure failure and must document the disposition of every surviving
+or uncovered mutant in its selected source scope.
+
+Reject the ADR if the additional pilots mostly produce equivalent or
+unactionable mutants, cannot run reliably in path-scoped CI, or require broad
+exclusions to stay affordable. Rejection will leave the Project Economics
+configuration as a package-local choice rather than removing a useful local
+check.

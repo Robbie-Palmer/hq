@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "recordType": "recipe-url-import-corpus",
+  "corpusVersion": "1.0.0",
+  "corpusKind": "project-authored-synthetic",
+  "createdAt": "2026-10-30T00:00:00.000Z",
+  "description": "Project-authored synthetic HTML fixtures and reviewed ground truth for deterministic recipe URL-import regression testing. This corpus is not a real-world holdout.",
+  "license": "AGPL-3.0-only",
+  "requiredCoverage": [
+    "json-ld",
+    "json-ld-graph",
+    "incomplete-markup",
+    "conflicting-markup",
+    "unusual-ingredient-layout",
+    "unusual-step-layout",
+    "malformed-json-ld",
+    "known-failure",
+    "focaccia-known-failure"
+  ],
+  "evaluationScope": {
+    "intendedUse": "deterministic-regression",
+    "realWorldHoldout": false,
+    "supportsRealWorldGeneralizationClaims": false,
+    "knownFailurePartition": "regression",
+    "knownFailuresGateRoutineReplay": false
+  },
+  "partitions": [
+    {
+      "name": "train",
+      "manifest": "manifests/train.json",
+      "sha256": "sha256:63cf235ee49b1d9e7c1be6415e3e170da896507652fb684f6cd1ccb31c734116",
+      "fixtureCount": 2
+    },
+    {
+      "name": "development",
+      "manifest": "manifests/development.json",
+      "sha256": "sha256:d868567739e1b0216e83f8ebb162bf0f009dc2611330acc9204659218eb6788b",
+      "fixtureCount": 3
+    },
+    {
+      "name": "regression",
+      "manifest": "manifests/regression.json",
+      "sha256": "sha256:272920073dcb42e423bdec955af633148ee5cd193b92c00844fc948442996f94",
+      "fixtureCount": 2
+    }
+  ]
+}

@@ -1,170 +1,227 @@
 ---
 title: "Agent Coordinator"
-description: "A matching and handoff system that offers ready work to suitable people and agents without owning the work plan"
+description: "A coordination layer that puts available agent capacity to work across automatable software-development tasks and carries them to verified outcomes"
 date: "2026-09-04"
-updated: "2026-09-27"
-status: "idea"
+updated: "2026-10-30"
+status: "in_progress"
 initiatives:
   - "semi-autonomous-software-development"
 tags:
   - "agentic-engineering"
-  - "project-management"
+  - "software-delivery"
 ---
 
 # Vision
 
-Keep available agents working on the most useful tasks they can perform, while
-letting the Work Graph remain independent of models, subscriptions, machines,
-and agent products.
+Keep available agent capacity working on the most valuable automatable
+software-development tasks, and carry each task through a verified outcome
+without requiring a person to supervise every step.
 
-The coordinator answers a different question from the graph. The Work Graph
-says what is ready and what constraints apply. The coordinator finds an actor
-whose capabilities, interests, authority, budget, and current capacity fit the
-task.
+The Agent Coordinator covers coordination across the software-development
+lifecycle. It selects work that suits agents, allocates available reasoning
+capacity, owns continuity across sessions, and decides when evidence proves the
+outcome. It can coordinate planned work from the Work Graph or react to an
+external event. It does not rebuild execution machinery that the chosen agent
+runtime already provides.
 
-# Why this is separate
+# First product outcome
 
-Model choice changes quickly. Some work needs a frontier model for research or
-architecture. Some can run on a cheaper model. Mechanical maintenance may be
-suited to a free model. Available capacity also shifts as subscriptions reach
-usage limits or a person loses focus.
+The first workflow resolves severe dependency vulnerabilities across my
+projects. GitHub's Dependabot alerts provide the security signal. Renovate
+remains the deterministic dependency-update layer. The coordinator adds the
+judgment Renovate lacks when a safe update needs application changes, a broken
+proposal needs repair, or the result must be deployed and checked.
 
-Putting those details in the Work Graph would couple durable project knowledge
-to a temporary market. The graph should keep task complexity, required
-capabilities, authority, and evidence. The coordinator should map those needs
-to the actors available now.
+For each admitted alert, the controller will:
 
-# Architecture
+* confirm the current alert, affected dependency, severity, and available fix;
+* inspect open Renovate pull requests and decide whether one resolves the alert;
+* launch a T3 Code worker thread in an isolated worktree when code changes are
+  needed;
+* repair, replace, or create the pull request required to resolve the alert;
+* merge after the repository's required checks and review policy pass;
+* follow the resulting deployment and run project-specific validation; and
+* record enough evidence to explain the outcome and recover from failure.
 
-There is no deployed coordinator yet. Today, an owner or a directly supervised
-agent queries the Work Graph, chooses a ready item, and claims its lease. The
-Work Graph remains the authority for priority, dependencies, readiness, leases,
-attention, and completion evidence. It does not choose an actor or model.
+Normal execution does not wait for a human approval. The agent may merge,
+deploy through the repository's established delivery path, validate production,
+and repair or revert a failed rollout. It asks for attention when authority is
+missing, the safe outcome is genuinely ambiguous, or repeated recovery has not
+worked.
 
-The planned Agent Coordinator sits between that coordination record and a pool
-of candidate actors. It will read ready work and owner policy from the Work
-Graph, compare task requirements with actor capabilities and availability, and
-offer a bounded context package to a suitable actor. People, coding agents, and
-project-owned automation are candidate actors. Model providers are external
-services that supply models, sessions, prices, and capacity. They do not decide
-which work matters, and the coordinator does not receive a contributor's
-credentials.
+This choice is recorded in
+[PDR 000](/projects/agent-coordinator/pdrs/000-severe-vulnerability-resolution).
 
-The first routing mode will be advisory. The owner sees the proposed actor and
-task before anyone claims a lease. Later automatic routing may claim and renew
-leases only inside owner-defined limits for task class, budget, access, and
-concurrency. It cannot change Work Graph priority or dependencies, approve an
-attention request, or mark work complete without the evidence required by the
-graph. Actors return progress and delivery evidence through the Work Graph;
-execution telemetry stays outside the public task graph.
+# Why the direction changed
 
-## System context and authority boundary
+The original plan treated general Work Graph routing as the first release. A
+pilot showed that this eagerly picked up exploratory architecture, prose, UX,
+and other work that still needed substantial human judgment. The coordinator
+created a backlog of agent output to review instead of completing outcomes on
+its own.
+
+There is more immediate value in work that agents can perform well and verify
+without routine human input. Dependency remediation is the first example.
+Codebase analysis followed by bounded refactoring, failing delivery workflows,
+and other tasks with machine-checkable outcomes can follow.
+
+T3 Code can now receive signed webhooks, filter and deduplicate deliveries,
+hold them while an environment is temporarily offline, bind an automation to a
+controller thread, launch top-level threads with managed worktrees, monitor
+subscription limits, resume work after limits reset, continue interrupted
+threads after a restart, and wake threads for pull-request events. A capable
+controller thread can also query the Work Graph for safe ready work and fan it
+out directly. Rebuilding that machinery would create a weaker copy of the
+product already running the agents.
+
+The broader coordination goal remains. The project now starts with task classes
+whose outcomes can be evaluated without creating another human review queue. It
+supplies policy for choosing that work, deciding what outcome is required,
+coordinating agents, and judging the resulting evidence.
+
+# System boundary
 
 <Mermaid
   chart={`flowchart TB
-Owner["Project owner<br/>[Person, current]<br/>Sets policy and keeps final authority"]
-WorkGraph["Work Graph<br/>[External system, current]<br/>Priority, ready work, leases,<br/>attention, and evidence"]
-Coordinator["Agent Coordinator<br/>[Software system, planned]<br/>Advises first; automates only<br/>inside owner policy"]
-Actors["Candidate actors<br/>[People and agents, current]<br/>Declare capability, access,<br/>cost, and availability"]
-Providers["Model providers<br/>[External systems, current]<br/>Models, sessions, prices,<br/>and capacity"]
+GitHub["GitHub security and delivery events<br/>Dependabot alerts, PRs, workflows, deployments"]
+T3Connect["T3 Connect webhook relay<br/>Signature, filters, replay protection,<br/>offline holding"]
+Controller["Security controller thread<br/>Admission, policy, correlation,<br/>recovery decisions"]
+Workers["T3 Code worker threads<br/>Investigate, change, review,<br/>merge, deploy, validate"]
+Renovate["Renovate<br/>Deterministic update proposals"]
+WorkGraph["Work Graph<br/>Incident state and evidence,<br/>written on events"]
+Systems["Repositories and deployed systems"]
 
-Owner -->|"governs plan and exceptions"| WorkGraph
-Actors -->|"claim, progress, and evidence"| WorkGraph
-Actors -->|"use actor-owned credentials"| Providers
-Owner -.->|"sets automation limits"| Coordinator
-WorkGraph -.->|"ready work and constraints"| Coordinator
-Providers -.->|"availability and cost signals"| Coordinator
-Coordinator -.->|"offers task and bounded context"| Actors
+GitHub --> T3Connect --> Controller
+Controller -->|"launches and steers"| Workers
+Renovate -->|"candidate pull requests"| Workers
+Workers -->|"changes and delivery actions"| Systems
+Systems -->|"observed results"| GitHub
+Controller -->|"incident transitions"| WorkGraph
+Workers -->|"PR and validation evidence"| WorkGraph
 
-classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
-classDef current fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef managed fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef owned fill:#7c3aed,color:#fff,stroke:#6d28d9
 classDef external fill:#475569,color:#fff,stroke:#334155
-classDef planned fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
-class Owner person
-class Actors current
-class WorkGraph,Providers external
-class Coordinator planned
+class T3Connect,Workers managed
+class Controller owned
+class GitHub,Renovate,WorkGraph,Systems external
 `}
-  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[31rem]"
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[38rem]"
 />
 
-The initial routing model can use broad bands. Deep research and architecture
-need frontier reasoning. Well-bounded implementation can use mid-priced models.
-Mechanical maintenance may fit cheap or free models. The named models will
-rotate too quickly to make them part of the durable schema. Evaluation history,
-observed task outcomes, current prices, subscription allowances, and available
-capacity should drive the mapping.
+T3 Code is the execution control plane. It owns providers, authentication,
+sessions, scheduled webhook delivery, thread lifecycle, worktrees, and native
+pull-request watching. The Agent Coordinator is a project-specific controller
+implemented through T3 Code threads and a small amount of integration code.
 
-# Actors
+The Work Graph remains useful, but it is no longer the launch queue. It receives
+incident transitions and observed GitHub evidence. The controller reads it when
+correlation or recovery needs durable state. No process repeatedly polls Neon
+for work. A low-frequency reconciliation may repair missed events, but normal
+execution begins with a webhook.
 
-An actor may be a person, an agent directed by that person, or an agent running
-under authority owned by the project. Each actor brings claims about capability,
-interests, cost, access, and availability. The coordinator must treat those
-claims as inputs to test, not unquestioned facts.
+[ADR 001](/projects/agent-coordinator/adrs/001-t3-code-orchestration-control-plane)
+defines the T3 Code boundary. [ADR
+002](/projects/agent-coordinator/adrs/002-event-driven-incident-ledger) defines
+the event-driven Work Graph boundary.
 
-For public contribution, people cannot hand a project access to a subsidized
-agent subscription. That would break product terms and create a credential
-nightmare. Instead, a contributor can ask their own agent to claim the highest
-priority ready task matching their skills and interests. They continue steering
-their agent and contribute the resulting work and evidence.
+# Authority model
 
-# Responsibilities
+Authority follows the owning repository and deployment target. The personal
+projects have no external users today, so the initial policy favours completing
+the outcome over waiting for routine review.
 
-The coordinator should:
+An admitted worker may modify code and dependencies, push branches, open or
+replace pull requests, respond to review, merge, invoke established deployment
+workflows, inspect production, and revert its change. It must still respect
+branch protection and repository checks. It may not weaken those controls,
+dismiss the security alert as a substitute for fixing it, or claim success from
+a green pull request when the deployed system has not been checked.
 
-* query ready work from the Work Graph;
-* match task requirements to an actor's declared and observed capabilities;
-* respect owner policy, budgets, access boundaries, and concurrency limits;
-* claim and renew the Work Graph's lease on behalf of the actor;
-* assemble the smallest context package needed to begin;
-* checkpoint progress before time or usage runs out;
-* release work with a usable handoff; and
-* record execution events for later analysis without filling the public DAG
-  with raw telemetry.
+Later repositories can narrow this authority. The coordinator should make the
+active policy visible rather than encode one universal risk threshold.
 
-# Personal mode
+# Controller and worker roles
 
-The first coordinator can be small. It only needs to know which of my agents are
-available, what classes of work I trust each one to perform, and which ready
-task is most useful. It should make resuming after a usage limit routine rather
-than forcing the next session to rediscover the plan.
+The long-lived controller thread handles short decisions and coordination. It
+validates the current external state, deduplicates incidents, records the owning
+thread, and routes later workflow or deployment events. It should avoid doing
+large implementation work in its shared checkout.
 
-# Contributor mode
+A worker thread owns one admitted outcome. It investigates the alert, chooses
+between a Renovate proposal and an agent-authored change, runs the repository's
+checks, settles the pull request, merges, and remains responsible until
+deployment validation passes. It may launch focused research, review, or
+recovery threads when parallel work shortens the path to the outcome.
 
-A public contributor should be able to request work using their own agent. The
-request can include interests, skills, available tools, budget, and desired
-complexity. The coordinator returns a task and a bounded context package. The
-contributor's agent claims the lease, works in the contributor's environment,
-and returns evidence or a proposed change through normal project controls.
+The thread hierarchy records live operation. Work Graph and GitHub retain the
+durable incident, pull request, commit, workflow, deployment, and validation
+identities needed to reconstruct what happened.
 
-This creates a more useful entry point than a stale "good first issue". The
-work can match what the contributor wants to learn or support, while the graph
-explains why it matters and which evidence will prove completion.
+# What remains to build
 
-# First useful release
+T3 Code supplies the public webhook URL and delivery controls. The project
+still needs:
 
-1. Wait until the Work Graph contains real ready tasks and reliable leases.
-2. Define a portable description of task requirements and actor capabilities.
-3. Add advisory matching for my own agents, with the final choice visible before
-   claiming a lease.
-4. Add checkpoints and clean handoff when an execution session ends.
-5. Learn from completed, abandoned, and reassigned work instead of trusting
-   model labels alone.
-6. Add automatic matching within narrow owner-defined limits.
-7. Test contributor-directed matching only after the personal and team modes
-   work.
+1. A controller prompt and policy that admits the configured repositories,
+   severities, and alert states.
+2. GitHub queries that retrieve the authoritative alert and identify Renovate
+   pull requests that may resolve it.
+3. A durable mapping between alert, controller decision, worker thread, pull
+   request, merge commit, deployment, and validation result.
+4. Repository-specific merge, rollout, smoke-test, and rollback contracts that
+   agents can discover and execute.
+5. Event routing that returns workflow and deployment outcomes to the worker
+   responsible for the incident.
+6. Evaluation records for successful fixes, unnecessary launches, failed
+   rollouts, recoveries, human interventions, time, and model cost.
 
-# Success
+The existing Work Graph poller, custom launcher, and provider-session package
+remain useful while the T3 Code control plane is being built. Do not extend
+them with orchestration features that T3 Code already supplies. Remove them
+after the replacement can admit, launch, resume, and complete real work. At
+that point Git history is enough, and the project should not maintain two
+orchestration paths as fallbacks for each other.
 
-The coordinator succeeds when ready work spends less time waiting, actors receive
-tasks they can finish, and an expired session does not destroy its progress. It
-fails if it keeps cheap agents busy on low-value work or prizes subscription
-capacity over project outcomes.
+# First release
+
+The first release will connect one personal repository and one always-on Vector
+T3 Code environment. It will accept severe Dependabot alerts through a signed
+T3 Code webhook, use one persistent controller thread, and allow one incident
+worker at a time until the complete loop has survived real alerts.
+
+Success means the system can take an admitted alert to one of three honest
+outcomes:
+
+* the existing Renovate change is merged, deployed, validated, and closes the
+  alert;
+* an agent-authored replacement reaches the same verified result; or
+* the agent records why no safe fix can currently ship and requests the exact
+  missing judgment or authority.
+
+The first release is not successful merely because it creates pull requests.
+Production validation and recovery behaviour are part of the product.
+
+# Later expansion
+
+Once vulnerability remediation works, expand across automatable
+software-development tasks. Candidates include failing delivery workflows,
+production regressions, stale high-value pull requests, dependency migrations,
+codebase analytics followed by bounded refactoring, and ready Work Graph tasks
+with objective completion checks.
+
+General allocation remains part of the project. The coordinator should use
+available capacity where it can finish or precisely evaluate the result. Work
+that depends on open-ended product, design, architecture, or editorial judgment
+should remain visible for human direction instead of being fanned out merely
+because agents are idle.
 
 # Non-goals
 
-* Owning project priority, dependencies, or completion state
-* Receiving another person's subscription credentials
-* Pretending a model name is a stable measure of capability
-* Assigning every ready task when leaving capacity free is safer
-* Removing the project owner's authority over what may run
+* Rebuilding T3 Code's provider, session, webhook, worktree, or PR-watch layers
+* Maximising the number of active agents or consumed subscription tokens
+* Replacing Renovate's deterministic dependency discovery and proposal engine
+* Polling Work Graph as the normal way to discover security events
+* Treating pull-request creation or merge as sufficient delivery evidence
+* Granting every repository the same merge, deployment, or rollback authority
+* Filling a human review queue with work that lacks an objective completion test

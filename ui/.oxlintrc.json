@@ -44,7 +44,7 @@
       }
     },
     {
-      "files": ["components/wedding-planner/**"],
+      "files": ["app/_projects/wedding-planner/components/**"],
       "rules": {
         "shadcn/no-unknown-classes": "off"
       }

@@ -1,7 +1,14 @@
+import {
+  markdownCodeHighlighting,
+  remarkRestrictMdxExpressions,
+} from "mdx-rendering";
 import Link from "next/link";
-import { MDXRemote } from "next-mdx-remote/rsc";
+import {
+  type MDXComponents,
+  MDXRemote,
+  type MDXRemoteOptions,
+} from "next-mdx-remote-client/rsc";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
-import rehypePrettyCode from "rehype-pretty-code";
 import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import {
@@ -9,10 +16,7 @@ import {
   getImageUrl,
 } from "@/lib/integrations/cloudflare-images";
 
-type MDXComponents = React.ComponentProps<typeof MDXRemote>["components"];
-type MDXOptions = NonNullable<
-  NonNullable<React.ComponentProps<typeof MDXRemote>["options"]>["mdxOptions"]
->;
+type MDXOptions = NonNullable<NonNullable<MDXRemoteOptions>["mdxOptions"]>;
 
 export interface MarkdownProps {
   source: string;
@@ -109,22 +113,18 @@ export function MarkdownContent({
       components={{ ...baseComponents, ...components }}
       options={{
         parseFrontmatter: true,
-        blockJS: false,
+        disableImports: true,
+        disableExports: true,
         mdxOptions: {
-          remarkPlugins: [remarkGfm, ...(remarkPlugins ?? [])],
+          remarkPlugins: [
+            remarkGfm,
+            ...(remarkPlugins ?? []),
+            remarkRestrictMdxExpressions,
+          ],
           rehypePlugins: [
             rehypeSlug,
             rehypeAutolinkHeadings,
-            [
-              rehypePrettyCode,
-              {
-                theme: {
-                  dark: "github-dark",
-                  light: "github-light",
-                },
-                keepBackground: false,
-              },
-            ],
+            markdownCodeHighlighting,
           ],
         },
       }}
