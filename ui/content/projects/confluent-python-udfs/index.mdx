@@ -27,9 +27,10 @@ without needing to learn Java or manage complex microservices.
 
 Inspired by Apache Flink's architecture, I developed a bridge to unite these two worlds:
 
+* **Wheel Contract**: Required user-provided Python code to be packaged as a wheel that complied with the UDF interface.
+* **Generated Bindings**: Used the wheel's interface to generate Kotlin bindings that mapped JVM calls to the Python entry points.
 * **PemJa Bridge**: Used [PemJa](https://github.com/alibaba/pemja) to invoke an embedded CPython interpreter from the JVM through JNI. This retained native CPython support without relying on a Python implementation written for the JVM.
-* **Wheel Packaging**: Loaded user-provided Python code from a packaged wheel.
-* **Meta-programming**: Built a Python library that used meta-programming to dynamically generate the required Kotlin bindings. This meant users could write pure Python functions, and the library would automatically handle the complex glue code needed to interface with the Java backend.
+* **Bundled Runtime**: Bundled a Python runtime for deployment alongside ksqlDB.
 * **Rich Ecosystem Support**: Because it used a real C-based Python interpreter, the solution supported the full breadth of the Python ecosystem, including all major ML libraries.
 
 # Historical runtime design
@@ -41,24 +42,31 @@ use of [PemJa](https://github.com/alibaba/pemja), and the related research in
 the prototype, not later Confluent products.
 
 <Mermaid
-  chart={`flowchart LR
+  chart={`flowchart TB
 Kafka["Kafka record stream<br/>external"]
+Wheel["Interface-compliant wheel<br/>user code + Python entry points · external"]
 
-subgraph Worker["Confluent Platform worker process · historical"]
+subgraph Build["Build time · historical"]
+Generator["Binding generator<br/>reads the wheel interface"]
+Wheel -->|"interface contract"| Generator
+end
+
+subgraph Deployment["ksqlDB deployment · historical"]
+RuntimeBundle["Bundled Python runtime<br/>deployed alongside ksqlDB"]
+
+subgraph Worker["ksqlDB worker process"]
 subgraph JVM["JVM"]
 Host["ksqlDB UDF or<br/>Kafka Connect execution"]
-Bindings["Generated Kotlin bindings"]
+Bindings["Generated Kotlin bindings<br/>Python entry-point mapping"]
 PemJa["PemJa bridge<br/>JNI boundary"]
 Host --> Bindings
 Bindings <--> PemJa
 end
 
 subgraph Python["Embedded CPython runtime"]
-Wheel["Packaged wheel<br/>user-provided code · external"]
 Loader["Wheel and UDF loader"]
-Function["User-authored<br/>Python UDF"]
+Function["Mapped Python entry point(s)<br/>user-authored UDF"]
 Environment["Python dependency environment<br/>isolation scope not preserved<br/>packages + native C extensions"]
-Wheel --> Loader
 Loader --> Function
 Environment --> Function
 end
@@ -66,32 +74,41 @@ end
 PemJa <-->|"UDF arguments + result<br/>exact conversion not preserved"| Function
 end
 
+RuntimeBundle -.->|"provides CPython + dependencies"| Environment
+end
+
 Kafka <-->|"records"| Host
+Generator -.->|"generates mapping"| Bindings
+Wheel -.->|"packaged code"| Loader
 `}
   className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
 />
 
 ## Component view in text
 
-1. A Kafka record entered ksqlDB or Kafka Connect, both running in a Confluent
-   Platform JVM worker.
-2. Generated Kotlin bindings connected the host invocation to PemJa at the JNI
-   boundary.
-3. PemJa invoked the user-authored function in an embedded CPython interpreter
-   within the worker process.
-4. The runtime loaded the user code from a packaged wheel. Its Python
-   environment supplied ML packages and their native C extensions.
-5. The function result crossed the same boundaries in reverse and returned to
+1. The user packaged Python code and its entry points in a wheel that complied
+   with the UDF interface.
+2. A build-time generator read that interface and emitted Kotlin bindings that
+   mapped JVM calls to the Python entry points.
+3. The deployment bundled a Python runtime alongside ksqlDB, including the
+   environment needed for Python packages and native C extensions.
+4. A Kafka record entered ksqlDB or Kafka Connect in the JVM worker. The host
+   called the generated binding for the mapped Python entry point.
+5. PemJa crossed the JNI boundary and invoked that entry point in the embedded
+   CPython interpreter, loading the user code from the packaged wheel.
+6. The function result crossed the same boundaries in reverse and returned to
    ksqlDB or Kafka Connect for continued stream processing.
 
-The packaged wheel separated delivery of user code from the JVM application,
-but it did not make the embedded interpreter a process or security sandbox. The
-surviving material does not preserve the wheel installation and dependency
-resolution steps, interpreter lifetime, Java-to-Python object conversion, row
-or batch behavior, worker recovery, or the scope of each Python environment.
-Those details are labelled as unknown instead of being inferred from Flink or
-other later implementations. Proprietary implementation details are not
-reconstructed beyond the project account.
+The wheel contract defined the entry-point mapping, while the runtime bundle
+made CPython available alongside ksqlDB. Neither packaging boundary made the
+embedded interpreter a process or security sandbox. The surviving material
+does not preserve the exact interface schema and discovery mechanism, wheel
+installation and dependency resolution steps, interpreter lifetime,
+Java-to-Python object conversion, row or batch behavior, worker recovery, or
+the scope of each Python environment. Those details are labelled as unknown
+instead of being inferred from Flink or other later implementations.
+Proprietary implementation details are not reconstructed beyond the project
+account.
 
 # Impact
 
