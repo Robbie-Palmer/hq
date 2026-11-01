@@ -126,6 +126,122 @@ function RateSourceFields({
   );
 }
 
+function ConversionBasics() {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <Field label="Amount" name="amount">
+        <Input name="amount" inputMode="decimal" min="0" step="any" required />
+      </Field>
+      <Field label="From" name="sourceCurrency">
+        <select
+          aria-label="Source currency"
+          className={selectClassName}
+          defaultValue="GBP"
+          name="sourceCurrency"
+        >
+          {SUPPORTED_CURRENCIES.map((currency) => (
+            <option key={currency}>{currency}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="To" name="targetCurrency">
+        <select
+          aria-label="Target currency"
+          className={selectClassName}
+          defaultValue="EUR"
+          name="targetCurrency"
+        >
+          {SUPPORTED_CURRENCIES.map((currency) => (
+            <option key={currency}>{currency}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="Compared at" name="comparedAt">
+        <Input name="comparedAt" type="datetime-local" required />
+      </Field>
+    </div>
+  );
+}
+
+function ProviderFields() {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <RateSourceFields prefix="reference" title="Reference rate" />
+      <div className="space-y-3">
+        <RateSourceFields prefix="quote" title="Available quote" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Fixed fee, source currency" name="fixedFee">
+            <Input
+              defaultValue="0"
+              name="fixedFee"
+              inputMode="decimal"
+              min="0"
+              step="any"
+              required
+            />
+          </Field>
+          <Field label="Percentage fee" name="percentageFee">
+            <Input
+              defaultValue="0"
+              name="percentageFee"
+              inputMode="decimal"
+              min="0"
+              max="100"
+              step="any"
+              required
+            />
+          </Field>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AssumptionFields() {
+  return (
+    <fieldset className="space-y-3 rounded-lg border border-dashed p-4">
+      <legend className="px-1 text-sm font-semibold">
+        User assumptions, not forecasts
+      </legend>
+      <p className="text-sm text-muted-foreground">
+        These rates test the decision. They do not predict the exchange rate or
+        recommend a direction.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label="Future rate assumption" name="futureRate">
+          <Input
+            name="futureRate"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            required
+          />
+        </Field>
+        <Field label="Stress rate assumption" name="stressRate">
+          <Input
+            name="stressRate"
+            inputMode="decimal"
+            min="0"
+            step="any"
+            required
+          />
+        </Field>
+        <Field label="Convert now in staged case, %" name="stagedNowPercentage">
+          <Input
+            defaultValue="50"
+            name="stagedNowPercentage"
+            inputMode="decimal"
+            min="1"
+            max="99"
+            step="any"
+            required
+          />
+        </Field>
+      </div>
+    </fieldset>
+  );
+}
+
 export function ForeignExchangeInputForm({
   onCompare,
 }: Readonly<{
@@ -158,119 +274,9 @@ export function ForeignExchangeInputForm({
       </CardHeader>
       <CardContent>
         <form className="space-y-5" onSubmit={submit}>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Field label="Amount" name="amount">
-              <Input
-                name="amount"
-                inputMode="decimal"
-                min="0"
-                step="any"
-                required
-              />
-            </Field>
-            <Field label="From" name="sourceCurrency">
-              <select
-                aria-label="Source currency"
-                className={selectClassName}
-                defaultValue="GBP"
-                name="sourceCurrency"
-              >
-                {SUPPORTED_CURRENCIES.map((currency) => (
-                  <option key={currency}>{currency}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="To" name="targetCurrency">
-              <select
-                aria-label="Target currency"
-                className={selectClassName}
-                defaultValue="EUR"
-                name="targetCurrency"
-              >
-                {SUPPORTED_CURRENCIES.map((currency) => (
-                  <option key={currency}>{currency}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Compared at" name="comparedAt">
-              <Input name="comparedAt" type="datetime-local" required />
-            </Field>
-          </div>
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <RateSourceFields prefix="reference" title="Reference rate" />
-            <div className="space-y-3">
-              <RateSourceFields prefix="quote" title="Available quote" />
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Fixed fee, source currency" name="fixedFee">
-                  <Input
-                    defaultValue="0"
-                    name="fixedFee"
-                    inputMode="decimal"
-                    min="0"
-                    step="any"
-                    required
-                  />
-                </Field>
-                <Field label="Percentage fee" name="percentageFee">
-                  <Input
-                    defaultValue="0"
-                    name="percentageFee"
-                    inputMode="decimal"
-                    min="0"
-                    max="100"
-                    step="any"
-                    required
-                  />
-                </Field>
-              </div>
-            </div>
-          </div>
-
-          <fieldset className="space-y-3 rounded-lg border border-dashed p-4">
-            <legend className="px-1 text-sm font-semibold">
-              User assumptions, not forecasts
-            </legend>
-            <p className="text-sm text-muted-foreground">
-              These rates test the decision. They do not predict the exchange
-              rate or recommend a direction.
-            </p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Future rate assumption" name="futureRate">
-                <Input
-                  name="futureRate"
-                  inputMode="decimal"
-                  min="0"
-                  step="any"
-                  required
-                />
-              </Field>
-              <Field label="Stress rate assumption" name="stressRate">
-                <Input
-                  name="stressRate"
-                  inputMode="decimal"
-                  min="0"
-                  step="any"
-                  required
-                />
-              </Field>
-              <Field
-                label="Convert now in staged case, %"
-                name="stagedNowPercentage"
-              >
-                <Input
-                  defaultValue="50"
-                  name="stagedNowPercentage"
-                  inputMode="decimal"
-                  min="1"
-                  max="99"
-                  step="any"
-                  required
-                />
-              </Field>
-            </div>
-          </fieldset>
-
+          <ConversionBasics />
+          <ProviderFields />
+          <AssumptionFields />
           {error == null ? null : (
             <p className="text-sm text-destructive" role="alert">
               {error}

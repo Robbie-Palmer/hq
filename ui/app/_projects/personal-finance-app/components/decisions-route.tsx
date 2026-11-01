@@ -10,17 +10,19 @@ import { FutureCashFlowManager } from "./future-cash-flow-manager";
 import { ItemisedScenarioPlanner } from "./itemised-scenario-planner";
 import { JobMoveScenarioPlanner } from "./job-move-scenario-planner";
 
+const availableTabs = new Set([
+  "compare",
+  "currency",
+  "scenarios",
+  "inputs",
+  "recorded",
+]);
+
 export function DecisionsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const currentTab = [
-    "compare",
-    "currency",
-    "scenarios",
-    "inputs",
-    "recorded",
-  ].includes(requestedTab ?? "")
+  const currentTab = availableTabs.has(requestedTab ?? "")
     ? (requestedTab ?? "jobs")
     : "jobs";
 

@@ -82,46 +82,11 @@ function ScenarioTable({
         </thead>
         <tbody>
           {comparison.scenarios.map((scenario) => (
-            <tr className="border-t align-top" key={scenario.id}>
-              <td className="p-3">
-                <p className="font-medium">{scenario.label}</p>
-                {scenario.assumption ? (
-                  <Badge className="mt-1" variant="outline">
-                    Assumption
-                  </Badge>
-                ) : (
-                  <Badge className="mt-1" variant="secondary">
-                    Sourced quote
-                  </Badge>
-                )}
-              </td>
-              <td className="p-3 font-mono">
-                {formatRate(scenario.executableRate)}
-              </td>
-              <td className="p-3">
-                {formatAccountCurrency(
-                  scenario.sourceFees,
-                  comparison.input.sourceCurrency,
-                )}
-              </td>
-              <td className="p-3">
-                {formatAccountCurrency(
-                  scenario.spreadAndFeeCost,
-                  comparison.input.targetCurrency,
-                )}
-              </td>
-              <td className="p-3 font-semibold">
-                {formatAccountCurrency(
-                  scenario.netProceeds,
-                  comparison.input.targetCurrency,
-                )}
-              </td>
-              <td className="p-3 font-mono">
-                {scenario.breakEvenFutureRate == null
-                  ? "Not applicable"
-                  : formatRate(scenario.breakEvenFutureRate)}
-              </td>
-            </tr>
+            <ScenarioRow
+              key={scenario.id}
+              comparison={comparison}
+              scenario={scenario}
+            />
           ))}
         </tbody>
       </table>
@@ -129,7 +94,118 @@ function ScenarioTable({
   );
 }
 
-export function ForeignExchangeComparison({
+function ScenarioRow({
+  comparison,
+  scenario,
+}: Readonly<{
+  comparison: ForeignExchangeDecisionComparison;
+  scenario: ForeignExchangeDecisionComparison["scenarios"][number];
+}>) {
+  const sourceCurrency = comparison.input.sourceCurrency;
+  const targetCurrency = comparison.input.targetCurrency;
+  return (
+    <tr className="border-t align-top">
+      <td className="p-3">
+        <p className="font-medium">{scenario.label}</p>
+        <Badge
+          className="mt-1"
+          variant={scenario.assumption ? "outline" : "secondary"}
+        >
+          {scenario.assumption ? "Assumption" : "Sourced quote"}
+        </Badge>
+      </td>
+      <td className="p-3 font-mono">{formatRate(scenario.executableRate)}</td>
+      <td className="p-3">
+        {formatAccountCurrency(scenario.sourceFees, sourceCurrency)}
+      </td>
+      <td className="p-3">
+        {formatAccountCurrency(scenario.spreadAndFeeCost, targetCurrency)}
+      </td>
+      <td className="p-3 font-semibold">
+        {formatAccountCurrency(scenario.netProceeds, targetCurrency)}
+      </td>
+      <td className="p-3 font-mono">
+        {scenario.breakEvenFutureRate == null
+          ? "Not applicable"
+          : formatRate(scenario.breakEvenFutureRate)}
+      </td>
+    </tr>
+  );
+}
+
+function ComparisonHeader({
+  comparison,
+}: Readonly<{ comparison: ForeignExchangeDecisionComparison }>) {
+  return (
+    <CardHeader>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="space-y-1.5">
+          <CardTitle>Conversion comparison</CardTitle>
+          <CardDescription>
+            The available quote is {quoteAge(comparison.quoteAgeMinutes)} old.
+            Its spread against the reference rate is{" "}
+            {comparison.spreadPercentage.toFixed(2)}%.
+          </CardDescription>
+        </div>
+        <Badge variant="outline">No exchange-rate forecast</Badge>
+      </div>
+    </CardHeader>
+  );
+}
+
+function ScenarioChoice({
+  comparison,
+  selectedScenarioId,
+  onChange,
+}: Readonly<{
+  comparison: ForeignExchangeDecisionComparison;
+  selectedScenarioId: ForeignExchangeScenarioId;
+  onChange(value: ForeignExchangeScenarioId): void;
+}>) {
+  return (
+    <label className="space-y-1.5 text-xs font-medium" htmlFor="fx-chosen-case">
+      <span>Chosen case</span>
+      <select
+        aria-label="Chosen conversion case"
+        className={selectClassName}
+        id="fx-chosen-case"
+        value={selectedScenarioId}
+        onChange={(event) =>
+          onChange(event.target.value as ForeignExchangeScenarioId)
+        }
+      >
+        {comparison.scenarios.map((scenario) => (
+          <option key={scenario.id} value={scenario.id}>
+            {scenario.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function RationaleField({
+  rationale,
+  onChange,
+}: Readonly<{ rationale: string; onChange(value: string): void }>) {
+  return (
+    <label
+      className="space-y-1.5 text-xs font-medium sm:row-span-2"
+      htmlFor="fx-rationale"
+    >
+      <span>Rationale</span>
+      <Textarea
+        id="fx-rationale"
+        placeholder="Why this timing and split fit the known constraints"
+        required
+        value={rationale}
+        onChange={(event) => onChange(event.target.value)}
+      />
+    </label>
+  );
+}
+
+function DecisionForm({
   comparison,
   onSave,
 }: Readonly<{
@@ -163,20 +239,38 @@ export function ForeignExchangeComparison({
   }
 
   return (
+    <form
+      className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
+      onSubmit={save}
+    >
+      <ScenarioChoice
+        comparison={comparison}
+        selectedScenarioId={selectedScenarioId}
+        onChange={setSelectedScenarioId}
+      />
+      <RationaleField rationale={rationale} onChange={setRationale} />
+      <div className="self-end">
+        {error == null ? null : (
+          <p className="mb-2 text-sm text-destructive" role="alert">
+            {error}
+          </p>
+        )}
+        <Button type="submit">Save decision assumptions</Button>
+      </div>
+    </form>
+  );
+}
+
+export function ForeignExchangeComparison({
+  comparison,
+  onSave,
+}: Readonly<{
+  comparison: ForeignExchangeDecisionComparison;
+  onSave(record: ForeignExchangeDecisionRecord): boolean;
+}>) {
+  return (
     <Card>
-      <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="space-y-1.5">
-            <CardTitle>Conversion comparison</CardTitle>
-            <CardDescription>
-              The available quote is {quoteAge(comparison.quoteAgeMinutes)} old.
-              Its spread against the reference rate is{" "}
-              {comparison.spreadPercentage.toFixed(2)}%.
-            </CardDescription>
-          </div>
-          <Badge variant="outline">No exchange-rate forecast</Badge>
-        </div>
-      </CardHeader>
+      <ComparisonHeader comparison={comparison} />
       <CardContent className="space-y-5">
         <SourceTrace comparison={comparison} />
         <ScenarioTable comparison={comparison} />
@@ -185,55 +279,7 @@ export function ForeignExchangeComparison({
           the current quote&apos;s relative spread and provider fee schedule to
           later legs. A staged conversion pays the fixed fee on each leg.
         </p>
-        <form
-          className="grid gap-3 rounded-lg border p-4 sm:grid-cols-2"
-          onSubmit={save}
-        >
-          <label
-            className="space-y-1.5 text-xs font-medium"
-            htmlFor="fx-chosen-case"
-          >
-            <span>Chosen case</span>
-            <select
-              aria-label="Chosen conversion case"
-              className={selectClassName}
-              id="fx-chosen-case"
-              value={selectedScenarioId}
-              onChange={(event) =>
-                setSelectedScenarioId(
-                  event.target.value as ForeignExchangeScenarioId,
-                )
-              }
-            >
-              {comparison.scenarios.map((scenario) => (
-                <option key={scenario.id} value={scenario.id}>
-                  {scenario.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label
-            className="space-y-1.5 text-xs font-medium sm:row-span-2"
-            htmlFor="fx-rationale"
-          >
-            <span>Rationale</span>
-            <Textarea
-              id="fx-rationale"
-              placeholder="Why this timing and split fit the known constraints"
-              required
-              value={rationale}
-              onChange={(event) => setRationale(event.target.value)}
-            />
-          </label>
-          <div className="self-end">
-            {error == null ? null : (
-              <p className="mb-2 text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            )}
-            <Button type="submit">Save decision assumptions</Button>
-          </div>
-        </form>
+        <DecisionForm comparison={comparison} onSave={onSave} />
       </CardContent>
     </Card>
   );

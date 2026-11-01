@@ -19,6 +19,77 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+function ReconciliationInput({
+  id,
+  label,
+  name,
+  defaultValue,
+}: Readonly<{
+  id: string;
+  label: string;
+  name: string;
+  defaultValue?: string;
+}>) {
+  return (
+    <label className="space-y-1 text-xs font-medium" htmlFor={id}>
+      <span>{label}</span>
+      <Input
+        id={id}
+        defaultValue={defaultValue}
+        name={name}
+        min="0"
+        step="any"
+        type="number"
+        required
+      />
+    </label>
+  );
+}
+
+function ReconciliationFields({
+  record,
+}: Readonly<{ record: ForeignExchangeDecisionRecord }>) {
+  return (
+    <>
+      <label
+        className="space-y-1 text-xs font-medium"
+        htmlFor={`${record.id}-completed-at`}
+      >
+        <span>Completed at</span>
+        <Input
+          id={`${record.id}-completed-at`}
+          name="completedAt"
+          type="datetime-local"
+          required
+        />
+      </label>
+      <ReconciliationInput
+        id={`${record.id}-source-amount`}
+        label="Source amount converted"
+        name="sourceAmount"
+      />
+      <ReconciliationInput
+        id={`${record.id}-target-amount`}
+        label="Target amount received"
+        name="targetAmount"
+      />
+      <ReconciliationInput
+        id={`${record.id}-source-fees`}
+        label="Fees in source currency"
+        name="sourceFees"
+        defaultValue="0"
+      />
+      <label
+        className="space-y-1 text-xs font-medium sm:col-span-2"
+        htmlFor={`${record.id}-settlement-note`}
+      >
+        <span>Settlement note</span>
+        <Input id={`${record.id}-settlement-note`} name="note" required />
+      </label>
+    </>
+  );
+}
+
 function ReconciliationForm({
   record,
   onReconcile,
@@ -54,68 +125,7 @@ function ReconciliationForm({
       className="mt-4 grid gap-3 rounded-lg bg-muted/40 p-3 sm:grid-cols-2"
       onSubmit={submit}
     >
-      <label
-        className="space-y-1 text-xs font-medium"
-        htmlFor={`${record.id}-completed-at`}
-      >
-        <span>Completed at</span>
-        <Input
-          id={`${record.id}-completed-at`}
-          name="completedAt"
-          type="datetime-local"
-          required
-        />
-      </label>
-      <label
-        className="space-y-1 text-xs font-medium"
-        htmlFor={`${record.id}-source-amount`}
-      >
-        <span>Source amount converted</span>
-        <Input
-          id={`${record.id}-source-amount`}
-          name="sourceAmount"
-          min="0"
-          step="any"
-          type="number"
-          required
-        />
-      </label>
-      <label
-        className="space-y-1 text-xs font-medium"
-        htmlFor={`${record.id}-target-amount`}
-      >
-        <span>Target amount received</span>
-        <Input
-          id={`${record.id}-target-amount`}
-          name="targetAmount"
-          min="0"
-          step="any"
-          type="number"
-          required
-        />
-      </label>
-      <label
-        className="space-y-1 text-xs font-medium"
-        htmlFor={`${record.id}-source-fees`}
-      >
-        <span>Fees in source currency</span>
-        <Input
-          id={`${record.id}-source-fees`}
-          defaultValue="0"
-          name="sourceFees"
-          min="0"
-          step="any"
-          type="number"
-          required
-        />
-      </label>
-      <label
-        className="space-y-1 text-xs font-medium sm:col-span-2"
-        htmlFor={`${record.id}-settlement-note`}
-      >
-        <span>Settlement note</span>
-        <Input id={`${record.id}-settlement-note`} name="note" required />
-      </label>
+      <ReconciliationFields record={record} />
       {error == null ? null : (
         <p className="text-sm text-destructive sm:col-span-2" role="alert">
           {error}
@@ -125,6 +135,113 @@ function ReconciliationForm({
         Reconcile completed conversion
       </Button>
     </form>
+  );
+}
+
+function DecisionHeader({
+  record,
+  selectedLabel,
+}: Readonly<{
+  record: ForeignExchangeDecisionRecord;
+  selectedLabel: string;
+}>) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h4 className="font-semibold">{selectedLabel}</h4>
+        <p className="text-sm text-muted-foreground">
+          Saved {new Date(record.savedAt).toLocaleString("en-GB")}
+        </p>
+      </div>
+      <Badge variant={record.reconciliation == null ? "outline" : "secondary"}>
+        {record.reconciliation == null ? "Awaiting settlement" : "Reconciled"}
+      </Badge>
+    </div>
+  );
+}
+
+function DecisionSnapshot({
+  record,
+}: Readonly<{ record: ForeignExchangeDecisionRecord }>) {
+  const sourceCurrency = record.assumptions.sourceCurrency;
+  const targetCurrency = record.assumptions.targetCurrency;
+  return (
+    <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+      <div>
+        <dt className="text-xs text-muted-foreground">Amount</dt>
+        <dd className="font-medium">
+          {formatAccountCurrency(record.assumptions.amount, sourceCurrency)}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs text-muted-foreground">Expected proceeds</dt>
+        <dd className="font-medium">
+          {formatAccountCurrency(record.expectedNetProceeds, targetCurrency)}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs text-muted-foreground">
+          Assumed future / stress rates
+        </dt>
+        <dd className="font-mono">
+          {record.assumptions.futureRate} / {record.assumptions.stressRate}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
+function SourceLinks({
+  record,
+}: Readonly<{ record: ForeignExchangeDecisionRecord }>) {
+  const sources = compareForeignExchangeDecision(record.assumptions).sources;
+  return (
+    <div className="mt-3 flex flex-wrap gap-3 text-xs">
+      {sources.map((item) => (
+        <a
+          className="underline underline-offset-4"
+          href={item.source.url}
+          key={item.input}
+          rel="noreferrer"
+          target="_blank"
+        >
+          {item.input}: {item.source.provider}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function ReconciledOutcome({
+  record,
+}: Readonly<{ record: ForeignExchangeDecisionRecord }>) {
+  const reconciliation = record.reconciliation;
+  if (reconciliation == null) return null;
+  const summary = foreignExchangeReconciliationSummary(record);
+  const targetCurrency = record.assumptions.targetCurrency;
+  return (
+    <dl className="mt-4 grid gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-3">
+      <div>
+        <dt className="text-xs text-muted-foreground">Received</dt>
+        <dd className="font-medium">
+          {formatAccountCurrency(reconciliation.targetAmount, targetCurrency)}
+        </dd>
+      </div>
+      <div>
+        <dt className="text-xs text-muted-foreground">Actual effective rate</dt>
+        <dd className="font-mono">{summary?.actualRate.toFixed(6)}</dd>
+      </div>
+      <div>
+        <dt className="text-xs text-muted-foreground">Proceeds variance</dt>
+        <dd className="font-medium">
+          {formatAccountCurrency(
+            summary?.netProceedsVariance ?? 0,
+            targetCurrency,
+          )}
+        </dd>
+      </div>
+      <p className="sm:col-span-3">{reconciliation.note}</p>
+    </dl>
   );
 }
 
@@ -139,93 +256,20 @@ function DecisionRecord({
   const selected = comparison.scenarios.find(
     ({ id }) => id === record.selectedScenarioId,
   );
-  const summary = foreignExchangeReconciliationSummary(record);
-  const sourceCurrency = record.assumptions.sourceCurrency;
-  const targetCurrency = record.assumptions.targetCurrency;
 
   return (
     <article className="rounded-lg border p-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h4 className="font-semibold">
-            {selected?.label ?? record.selectedScenarioId}
-          </h4>
-          <p className="text-sm text-muted-foreground">
-            Saved {new Date(record.savedAt).toLocaleString("en-GB")}
-          </p>
-        </div>
-        <Badge
-          variant={record.reconciliation == null ? "outline" : "secondary"}
-        >
-          {record.reconciliation == null ? "Awaiting settlement" : "Reconciled"}
-        </Badge>
-      </div>
-      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
-        <div>
-          <dt className="text-xs text-muted-foreground">Amount</dt>
-          <dd className="font-medium">
-            {formatAccountCurrency(record.assumptions.amount, sourceCurrency)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">Expected proceeds</dt>
-          <dd className="font-medium">
-            {formatAccountCurrency(record.expectedNetProceeds, targetCurrency)}
-          </dd>
-        </div>
-        <div>
-          <dt className="text-xs text-muted-foreground">
-            Assumed future / stress rates
-          </dt>
-          <dd className="font-mono">
-            {record.assumptions.futureRate} / {record.assumptions.stressRate}
-          </dd>
-        </div>
-      </dl>
+      <DecisionHeader
+        record={record}
+        selectedLabel={selected?.label ?? record.selectedScenarioId}
+      />
+      <DecisionSnapshot record={record} />
       <p className="mt-3 text-sm">{record.rationale}</p>
-      <div className="mt-3 flex flex-wrap gap-3 text-xs">
-        {comparison.sources.map((item) => (
-          <a
-            className="underline underline-offset-4"
-            href={item.source.url}
-            key={item.input}
-            rel="noreferrer"
-            target="_blank"
-          >
-            {item.input}: {item.source.provider}
-          </a>
-        ))}
-      </div>
+      <SourceLinks record={record} />
       {record.reconciliation == null ? (
         <ReconciliationForm record={record} onReconcile={onReconcile} />
       ) : (
-        <dl className="mt-4 grid gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-3">
-          <div>
-            <dt className="text-xs text-muted-foreground">Received</dt>
-            <dd className="font-medium">
-              {formatAccountCurrency(
-                record.reconciliation.targetAmount,
-                targetCurrency,
-              )}
-            </dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">
-              Actual effective rate
-            </dt>
-            <dd className="font-mono">{summary?.actualRate.toFixed(6)}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Proceeds variance</dt>
-            <dd className="font-medium">
-              {formatAccountCurrency(
-                summary?.netProceedsVariance ?? 0,
-                targetCurrency,
-              )}
-            </dd>
-          </div>
-          <p className="sm:col-span-3">{record.reconciliation.note}</p>
-        </dl>
+        <ReconciledOutcome record={record} />
       )}
     </article>
   );
