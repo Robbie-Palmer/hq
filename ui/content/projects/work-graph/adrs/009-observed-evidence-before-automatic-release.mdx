@@ -1,98 +1,90 @@
 ---
-title: "ADR 009: Observed evidence before automatic release"
+title: "ADR 009: Immutable observed evidence and completion candidates"
 date: "2026-09-22"
 status: "Accepted"
+implements_product_decisions:
+  - "work-graph:002-require-deliberate-parent-termination"
+  - "work-graph:005-treat-delivery-observations-as-evidence"
 ---
 
 ## Context
 
-[ADR 005](/projects/work-graph/adrs/005-explicit-work-item-termination)
-requires an actor to terminate a work item deliberately. Repository-backed work
-also requires merge and deployment evidence. The initial API carries those as
-URLs on a lease-fenced release request.
-
+[PDR 005](/projects/work-graph/pdrs/005-treat-delivery-observations-as-evidence)
+keeps delivery observations separate from the decision to complete work.
 [ADR 008](/projects/work-graph/adrs/008-github-delivery-evidence-ingestion)
-adds delivery events from a system that observes work but does not own the Work
-Graph lifecycle. A merged pull request, successful CI run, or deployment is a
-fact. None proves by itself that the planned outcome is complete. One work item
-may have several implementation pull requests, a staging deployment may precede
-production, and an active worker may still need to verify or summarise the
-result.
+adds repeated and potentially out-of-order events from a GitHub observer. The
+coordination store must retain those facts, correlate them to work, and project
+completion candidacy without weakening lease fencing.
 
-Letting a webhook call the worker release operation would either require the
-integration to impersonate a lease holder or allow it to terminate work under
-an active worker. Both weaken fencing and make redelivery dangerous.
+The original release request carried merge and deployment URLs directly. An
+observed evidence model must preserve equivalent human-readable provenance
+while adding stable external identity and policy evaluation.
 
 ## Decision
 
 Store external observations as immutable evidence records. Each record keeps
 the provider, external identity, repository, commit SHA, evidence kind, state,
-source URL, provider time, ingestion time, and correlation provenance. Preserve
-each observation while projecting the latest state needed by queue and context
-reads.
+source URL, provider time, ingestion time, and correlation provenance.
+Preserve every accepted observation while projecting the latest state needed
+by queue and context reads.
 
-Link evidence to work through explicit implementation pull-request links and
-an exact commit chain. Preserve the accepted pull-request head, merge commit,
-CI commit, and deployed commit. Do not infer identity from a branch name,
-pull-request title, work-item-like text, or temporal proximity.
+Correlate evidence through explicit implementation pull-request links and an
+exact commit chain. Preserve the pull-request head, merge commit, CI commit, and
+deployed commit. Do not infer identity from branch names, titles,
+work-item-like text, or temporal proximity.
 
-Ingestion may refresh a pull-request projection, append evidence, or mark a
-work item as a completion candidate. It must not release or cancel the item,
-end or acquire a worker lease, satisfy dependencies, or automatically block
-unrelated work.
+Evidence ingestion may refresh a pull-request projection, append evidence, and
+recompute a completion candidate. It cannot release or cancel the item, end or
+acquire a lease, satisfy dependencies, or add unrelated blocking state.
 
-Derive completion candidacy from owner policy. The first policy must require
-all required implementation pull requests to be merged, required CI to pass
-for the accepted revisions, an allowed production environment to report a
-successful deployment of the resulting commit, no unfinished children, and no
-unresolved blocking attention. Record which evidence and policy revision
-produced the candidate state.
+Evaluate completion candidacy from versioned owner policy. The initial
+projection requires all implementation pull requests selected by the policy to
+be merged, required CI to pass for the accepted revisions, an allowed
+production environment to report a successful deployment of the resulting
+commit, no unfinished children, and no unresolved blocking attention. Store
+the evidence identities and policy revision behind the result.
 
-Keep worker-initiated release as the first consumer of ingested evidence. Evolve
-its request from unstructured URLs towards references to stored evidence while
-retaining a human-readable snapshot in the immutable lifecycle event.
-
-Automatic release is a later operation with its own owner policy and system
-actor. It must atomically recheck the evidence and work-item invariants. It
-must not mint, steal, or bypass a worker lease. Define what happens when a
-completion candidate has an active lease before enabling that transition.
+Change worker-initiated release to reference stored evidence while retaining a
+human-readable snapshot in the immutable lifecycle event. A future automatic
+release must be a separate domain operation with its own system actor. It must
+atomically recheck evidence and work-item invariants and follow PDR 005's rule
+for active leases.
 
 ## Consequences
 
-Work Graph can explain why an item appears complete and can revise a current
-projection without rewriting the facts that produced it. Duplicate and
-out-of-order provider events do not repeat a lifecycle transition.
-
-Evidence ingestion can ship before automatic release. Workers stop copying CI
-and deployment URLs by hand, while the existing authority and fencing rules
-remain intact.
+Duplicate or out-of-order provider events do not repeat lifecycle transitions.
+The system can explain a completion candidate and revise the current
+projection without rewriting the facts that produced it.
 
 The database and API gain evidence identities, projections, policy revisions,
-and correlation data. A successful deployment may still leave an item open.
-That is intentional when the graph lacks required evidence or a worker still
-owns completion work.
+and correlation data. A successful deployment can leave an item open because
+the candidate projection and work lifecycle remain separate.
 
-Automatic release will need a new domain operation rather than a privileged
-call to the current lease-fenced endpoint. This costs more work, but it keeps
-external observation separate from lifecycle authority.
+Automatic release cannot reuse the worker endpoint with elevated credentials.
+It needs a new atomic operation and an explicit answer for active leases.
 
 ## Alternatives considered
 
-### Release directly from the webhook consumer
+### Release from the webhook consumer
 
-This is short and appears idempotent once delivery IDs are unique. It still
-confuses one observed event with completion of the planned outcome, and it can
-race an active worker or other required pull requests and environments.
+Unique delivery IDs make event handling idempotent, but they do not prove the
+whole planned outcome. The consumer could also race an active lease or another
+required pull request.
 
-### Let workflows call the release endpoint
+### Let deployment workflows call the release endpoint
 
-A deployment workflow knows that its own job succeeded but does not own the
-work item's children, attention state, linked pull requests, or lease. Giving
-workflow jobs worker credentials would spread lifecycle authority and secrets
-across repositories.
+A workflow knows its own job result but not the complete child, attention,
+pull-request, or lease state. Giving workflows worker credentials would spread
+lifecycle authority across repositories.
 
 ### Keep only mutable snapshots
 
-Overwriting the pull-request and deployment state gives a compact current view.
-It cannot explain which facts justified a completion candidate, distinguish a
-late event from a regression, or audit an incorrect automatic decision.
+Overwriting current pull-request and deployment state is compact. It cannot
+explain which facts and policy produced a candidate or distinguish late events
+from regressions.
+
+## Migration note
+
+The 1 November 2026 PDR migration moved the completion policy into PDR 005.
+This ADR keeps the immutable evidence, correlation, candidacy projection, and
+release-operation architecture. No evidence or lifecycle rule changed.

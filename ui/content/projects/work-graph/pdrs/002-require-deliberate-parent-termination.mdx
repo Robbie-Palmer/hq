@@ -1,0 +1,61 @@
+---
+title: "PDR 002: Require a deliberate decision to finish decomposed work"
+date: "2026-09-13"
+status: "Accepted"
+decision_date: "2026-09-13"
+informed_by_adrs:
+  - "work-graph:000-flexible-work-item-graph"
+---
+
+## Context
+
+A work item can gain children after execution reveals more detail. Finishing
+the final child proves that the decomposition has no unfinished branch. It does
+not prove that the parent's outcome is complete.
+
+The parent may still need synthesis, verification, a handoff note, or evidence
+assembled from several children. Automatically completing it would make
+decomposition an undeclared completion policy and could hide the remaining
+work.
+
+## Decision
+
+Finishing the last direct child removes the child blocker but does not finish
+or cancel the parent. Work Graph recomputes the parent's readiness and requires
+a worker to claim it before making a deliberate terminal decision.
+
+A release means that the intended outcome succeeded. A cancellation means that
+the outcome is no longer wanted. Neither transition is a way to give up a lease
+or return unfinished work to the queue.
+
+The worker making the terminal decision must check the parent outcome and its
+acceptance criteria. It may use the children's results and evidence, but their
+terminal states do not stand in for that judgment.
+
+## Consequences
+
+Some decomposed items need a short final claim even when their children did all
+of the implementation. That extra step preserves an accountable decision at
+the level where the outcome was requested.
+
+The ready queue may show a parent again after its children finish. Agents must
+recognise that as synthesis or completion work rather than assume the graph
+duplicated the task.
+
+The product avoids silent completion at the cost of one more transition. A
+later automatic completion policy would need its own decision and evidence
+rules.
+
+## Evaluation
+
+The rule is working when decomposed work cannot lose parent-level acceptance
+criteria, and when a worker can explain who made the final decision and from
+which evidence. Revisit it if final parent claims are consistently mechanical
+and an explicit policy can prove when no judgment remains.
+
+## Migration note
+
+This record preserves the completion policy first recorded in ADR 005. It keeps
+the original date, rationale, and accepted status. ADR 005 now records the
+technical separation between work-item lifecycle and lease outcomes. The
+migration does not introduce automatic or stricter completion.

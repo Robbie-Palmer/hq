@@ -1,0 +1,104 @@
+---
+title: "PDR 004: Make Work Graph authoritative for executable work"
+date: "2026-09-19"
+status: "Accepted"
+decision_date: "2026-10-25"
+informed_by_adrs:
+  - "work-graph:000-flexible-work-item-graph"
+  - "work-graph:002-leases-with-fencing"
+  - "work-graph:003-rest-api-and-cli-first"
+  - "work-graph:006-contextual-stack-ranking"
+---
+
+## Context
+
+Shortcut supported quick capture, hierarchy, and backlog ordering for a
+human-led workflow. Semi-autonomous delivery needs one work authority that
+people and agents can use continuously. Reconstructing readiness, priority,
+ownership, evidence, and blocked decisions from several trackers makes every
+new session repeat planning work.
+
+Repository-local agent trackers solve a narrower coordination problem. This
+initiative spans projects, repositories, long-running environments, and
+delivery systems. Its authority must cross those boundaries without taking
+ownership of durable project prose.
+
+## Decision
+
+Use Work Graph as the authoritative source for migrated personal executable
+work. It owns what should happen, what is ready, the current priority, who holds
+the right to act, what needs human attention, and what evidence supports
+completion.
+
+Keep the public knowledge graph authoritative for initiative and project
+meaning, architecture, and other durable prose. Work Graph mirrors the stable
+scope identity needed for scheduling but does not replace those narratives.
+
+Treat Shortcut, GitHub Issues, dependency automation, security tools,
+telemetry, and live agent sessions as inputs, links, observations, or
+projections. They must not become competing places where authoritative
+lifecycle or priority changes. An editable projection writes through to Work
+Graph before presenting the change as committed.
+
+The installed CLI is the minimum complete operator interface. It must let an
+owner or agent capture, inspect, and reprioritise work and explain the current
+blocking paths, ready leaves, and independent branches. Access through an agent
+from another device is enough. A dedicated graphical client is optional and
+does not gate this decision.
+
+## Consequences
+
+Workers and the owner share one scheduling and coordination model across
+projects. They no longer need to reconcile several partial backlogs before
+claiming work.
+
+Work Graph becomes critical personal infrastructure. Its availability,
+backups, migrations, client compatibility, and recovery procedures replace
+some of the operational work previously owned by a tracker vendor.
+
+Integrations require explicit direction. A convenient view that accepts local
+state changes without writing through would recreate the split authority this
+decision removes.
+
+## Evaluation
+
+The proposal was accepted on 25 October 2026 after Work Graph had managed its
+own delivery for several weeks. Independent workers claimed work without
+double execution, stale lease operations were rejected, the CLI supported
+remote planning and critical-path inspection, active Shortcut work was
+reconciled into the graph, and delivery evidence could be tied back to work.
+
+The acceptance evidence remains on the `work-graph-authority-acceptance` work
+item and its delivery tickets. Revisit this decision if a second system must
+own lifecycle or priority for the same migrated scope, or if operating the
+central service costs more than the coordination it replaces.
+
+## Alternatives considered
+
+### Keep Shortcut authoritative
+
+Shortcut remains a capable human interface. It does not own worker leases,
+dependency-derived readiness, evidence policy, or the initiative-wide critical
+path. Adding those in a separate coordinator would leave two systems
+responsible for one lifecycle.
+
+### Adopt Beads
+
+Beads fits repository-scoped, offline-first agent work. Work Graph needs one
+server-side authority across projects and repositories, plus contextual
+ranking and observed delivery state. Adopting Beads would still require a
+separate policy and integration layer for those behaviours.
+
+### Return to GitHub Issues, Linear, or Jira
+
+These products provide mature human interfaces. Expressing Work Graph's
+relationships, leases, evidence, and scheduler semantics through fields and
+automation would move the real authority into an integration layer while the
+tracker showed only part of the state.
+
+## Migration note
+
+This record extracts the product decision opened in ADR 007 on 19 September
+2026 and accepted on 25 October 2026. The dates, rationale, acceptance evidence,
+and replacement of Shortcut remain unchanged. ADR 007 retains the central
+coordination and integration architecture that implements this policy.

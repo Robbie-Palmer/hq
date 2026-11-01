@@ -1,0 +1,71 @@
+---
+title: "PDR 001: Adapt plans with flexible work items"
+date: "2026-09-13"
+status: "Accepted"
+decision_date: "2026-09-13"
+ideas: ["adaptive-planning", "directed-acyclic-graph"]
+---
+
+## Context
+
+Execution changes the shape of knowledge work. A small ticket can reveal
+several dependent outcomes, while an apparent epic can collapse into one
+action. Fixed initiative, project, epic, task, and subtask types make those
+discoveries expensive to represent. The type chosen before work starts can
+outlive the reason for choosing it.
+
+The project and initiative narratives already belong to the public knowledge
+graph. Work Graph needs to plan against those scopes without copying their
+prose into a second source of truth.
+
+## Decision
+
+Represent executable work with one adaptable work-item concept rather than a
+fixed hierarchy of ticket types. A work item may finish directly, gain child
+work when execution reveals more detail, or become actionable again after its
+children finish.
+
+Keep containment and blocking distinct. Containment groups work and preserves
+the shape of a decomposition. Dependencies state what must finish before
+another outcome can proceed. Work Graph derives whether an item is ready from
+those relationships, active ownership, and unresolved requests for attention.
+It does not treat a label such as epic or task as an execution rule.
+
+Let workers revise the plan when evidence changes it. They may decompose
+claimed work, add a missing dependency, or replace an invalid route while
+retaining the earlier work and its history. Decomposition returns the new
+ready leaves to the normal queue instead of reserving the whole branch for the
+worker that discovered it.
+
+Initiatives and projects remain non-executable planning scopes. Work Graph may
+mirror their identity, lifecycle, and priority position, but the knowledge
+graph remains authoritative for their meaning.
+
+## Consequences
+
+Discovery and delivery use the same workflow. A spike can finish as one item or
+expand into a smaller work graph without changing record types. Plan revisions
+remain visible instead of being flattened into a rewritten ticket.
+
+The interface must explain why an item is ready or blocked. Users cannot infer
+that state from a fixed ticket type or one parent-child tree. They also need a
+clear distinction between grouping work and making one outcome depend on
+another.
+
+The product gives up type-specific workflows for epics, tasks, and subtasks.
+Those names may still appear as presentation language, but they do not control
+readiness or completion.
+
+## Evaluation
+
+The model is useful when a worker can split unexpectedly large work, preserve
+the original outcome and evidence, and expose the newly ready branches without
+manual ticket conversion. Revisit the decision if ordinary planning repeatedly
+needs durable work types with different lifecycle rules.
+
+## Migration note
+
+This record extracts the product behaviour first recorded in ADR 000. It keeps
+the original date and accepted status. ADR 000 retains the recursive data model,
+combined cycle checks, and atomic decomposition design. The migration does not
+change how existing work items behave.

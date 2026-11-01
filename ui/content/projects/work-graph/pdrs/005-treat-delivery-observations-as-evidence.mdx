@@ -1,0 +1,70 @@
+---
+title: "PDR 005: Keep delivery observations separate from completion"
+date: "2026-09-22"
+status: "Accepted"
+decision_date: "2026-09-22"
+informed_by_adrs:
+  - "work-graph:005-explicit-work-item-termination"
+  - "work-graph:008-github-delivery-evidence-ingestion"
+---
+
+## Context
+
+A merged pull request, passing workflow, or successful deployment records
+something that happened. None proves by itself that the requested outcome is
+complete. One work item may require several changes, a staging deployment may
+precede production, and a worker may still need to verify or summarise the
+result.
+
+The delivery observer does not own the work lifecycle. Letting one incoming
+event close work would confuse observation with judgment and could race an
+active worker or another required piece of evidence.
+
+## Decision
+
+Use source-control, CI, and deployment observations as durable completion
+evidence. They may update a linked delivery view and show that an item is a
+completion candidate. They do not release or cancel work, satisfy unrelated
+dependencies, or take ownership from a worker.
+
+Determine candidacy through owner policy. The first policy requires every
+required implementation pull request to be merged, required CI to pass for the
+accepted revisions, an allowed production environment to report a successful
+deployment of the resulting commit, and the work item to have no unfinished
+children or blocking attention request.
+
+Keep deliberate worker release as the first completion path. A later automatic
+release operation needs its own owner policy and system actor. It must recheck
+the evidence and work invariants at the transition and cannot mint, steal, or
+bypass an active worker lease.
+
+Preserve the evidence and policy revision that produced a candidacy decision
+so a person or agent can explain why an item appeared complete.
+
+## Consequences
+
+Delivery systems can remove manual URL collection without becoming the work
+authority. A successful deployment may still leave an item open when evidence
+is incomplete or parent-level work remains.
+
+Completion can lag delivery. That delay is deliberate, but the interface must
+make the missing evidence or judgment visible so open work does not look
+stuck for an unknown reason.
+
+Automatic release cannot be added as a privileged webhook shortcut. It needs a
+separate, auditable transition governed by the same outcome policy.
+
+## Evaluation
+
+The policy is working when duplicate or out-of-order delivery events cannot
+repeat a lifecycle transition, every completion candidate names its supporting
+evidence, and an active worker keeps control until it releases or another
+explicit policy applies.
+
+## Migration note
+
+This record extracts the product policy first recorded in ADR 009. It keeps the
+original date and accepted status. ADR 009 retains the immutable evidence
+model, exact correlation rules, and completion-candidate projection. The
+migration does not enable automatic release or change current evidence
+requirements.
