@@ -1,0 +1,62 @@
+---
+title: "PDR 003: Keep personal state private and share through households first"
+date: "2026-05-27"
+status: "Accepted"
+decision_date: "2026-05-27"
+---
+
+## Context
+
+Recipe Site combines public recipes with personal drafts, cooking activity,
+settings, and shared household work. Treating every signed-in record alike
+would either expose private state or make public recipes depend on an account.
+The first collaborative need was household access. A general role system and a
+second friend-to-friend permission graph could wait for observed demand.
+
+The product also needed to distinguish sharing from custody. Letting a
+household read a person's recipe did not by itself make the household its
+owner or give every member permission to change it.
+
+## Decision
+
+Make public readability an explicit choice. Public recipes remain readable
+without an account. New mutable user state is private unless the user
+deliberately publishes it or shares it with a household.
+
+Use the household as the first multi-user boundary. A person may share a
+personal resource with their household, and the service checks current
+membership whenever another member reads it. Household sharing does not imply
+friend sharing, public access, or access by another household.
+
+For the initial policy, sharing a user-owned recipe with a household grants
+read access. It does not transfer custody or let another member edit or delete
+the source recipe. Household membership and removal remain privileged actions
+for the household owner. More roles and direct friend sharing stay deferred
+until observed collaboration needs them.
+
+## Consequences
+
+The product can support public discovery, private work, and household use
+without a broad role matrix. Users must still understand whether an item is
+personal, household-shared, household-maintained, or public.
+
+This policy leaves direct co-editing of a personal recipe out of the initial
+scope. A later product decision may create a household-maintained recipe with
+different custody and editing rules without turning every shared personal
+resource into household property.
+
+## Evaluation
+
+Authorization tests must prove that anonymous visitors can read only public
+recipes, new user state starts private, household members can read only items
+shared with their current household, and membership removal ends future access.
+The interface must show the current audience before a user publishes or shares
+an item.
+
+## Migration note
+
+This record preserves the product policy originally mixed into ADR 005. The
+migration does not change the May 2026 visibility or household-sharing choice.
+PDR 000 later added scope-owned household recipe branches and retained recipe
+continuity. That later choice extends household custody without replacing the
+private-by-default baseline in this record.

@@ -3,12 +3,15 @@ title: "ADR 007: Google OIDC Login"
 date: "2026-06-19"
 status: "Accepted"
 tech_stack: ["Google OAuth"]
+implements_product_decisions:
+  - "recipe-site:002-federated-sign-in-without-first-party-passwords"
 ---
 
 # Summary
 
-Use **Sign in with Google** (Google's OAuth 2.0 / OpenID Connect implementation) as the recipe
-site's primary sign-in method.
+Implement the primary provider selected by
+[PDR 002](/projects/recipe-site/pdrs/002-federated-sign-in-without-first-party-passwords)
+with **Sign in with Google**, using Google's OAuth 2.0 and OpenID Connect implementation.
 
 [ADR 003](/projects/recipe-site/adrs/003-better-auth) chose Better Auth as the authentication
 library and named Google as the expected default sign-in path. This ADR formalises *why* Google
@@ -22,8 +25,9 @@ baseline ([ADR 006](/projects/recipe-site/adrs/006-application-security-baseline
 
 # Context
 
-The recipe site is moving from a shared public collection toward authenticated, user-specific state
-and household sharing. That needs a sign-in method.
+PDR 002 owns the product choice to lead with Google, offer GitHub second, and
+avoid first-party passwords. This ADR evaluates the Google provider and its
+deployment constraints.
 
 Two goals dominate the choice:
 
@@ -35,8 +39,8 @@ Two goals dominate the choice:
    for all of it. None of that is differentiating work for a recipe site. Deferring it to Google
    removes a whole category of code, support burden, and security risk.
 
-Better Auth ([ADR 003](/projects/recipe-site/adrs/003-better-auth)) already states the social-first
-position: email/password is out of scope, and Google is the default path.
+Better Auth ([ADR 003](/projects/recipe-site/adrs/003-better-auth)) supplies the
+provider integration selected here.
 
 # Decision
 

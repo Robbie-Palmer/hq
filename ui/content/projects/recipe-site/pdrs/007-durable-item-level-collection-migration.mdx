@@ -1,0 +1,63 @@
+---
+title: "PDR 007: Migrate recipe collections through durable item-level review"
+date: "2026-08-08"
+status: "Proposed"
+---
+
+## Context
+
+Moving a recipe collection is different from capturing one recipe. One action
+may contain hundreds of independent sources, duplicates, malformed items, and
+photographs whose recipe boundaries are unclear. A failed source should not
+discard the rest of the migration, and a completed parser should not fill the
+recipe box with content nobody has reviewed.
+
+The migration may outlive a browser session. Users need to return to its
+progress, find the next item that needs attention, and undo safe results without
+deleting unrelated recipes.
+
+## Proposed decision
+
+Treat a collection import as a durable batch of independently reviewable items.
+Each URL, file, archive entry, or confirmed photo group has its own processing,
+diagnostics, draft, retry, skip, rejection, and acceptance state. One failed
+item does not fail valid siblings.
+
+Keep the batch and review queue on the server so work survives navigation and
+browser restarts. The workspace shows aggregate progress, but item state remains
+authoritative. Shared defaults may reduce repetitive editing without accepting
+an item on the user's behalf.
+
+Require the user to confirm how photographs group into recipes before
+processing. Automated boundary suggestions may help, but they do not become an
+input until confirmed. Apply PDR 004 to every item, including structured archive
+entries.
+
+Retain source and batch provenance for accepted recipes. A whole-batch undo
+first shows a dry run, then removes only recipes created by that batch that have
+not since been transferred, forked, or otherwise made unsafe to delete. Report
+unsafe items for manual resolution instead of forcing the rollback.
+
+## Consequences
+
+Large migrations can continue through isolated failures and return users to a
+stable review queue. The product gains more preparation and review steps than a
+bulk copy operation, especially when grouping photographs or resolving
+duplicates.
+
+Precise undo depends on durable provenance and per-item safety checks. Labels
+and timestamps are useful for finding a batch but are not safe deletion rules.
+
+## Evaluation
+
+Accept this proposal when a user can leave and resume a mixed-result batch,
+review every successful item before publication, retry one failure without
+restarting its siblings, confirm multi-page photo groups, and preview a batch
+undo that preserves recipes with later dependencies.
+
+## Migration note
+
+This PDR moves the user workflow and recovery policy out of proposed ADR 024.
+It preserves the original date and Proposed status. ADR 024 retains the batch,
+job, draft, concurrency, provenance, and undo architecture needed to implement
+the proposal.

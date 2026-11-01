@@ -1,0 +1,60 @@
+---
+title: "PDR 004: Review imported recipes before publication"
+date: "2026-07-08"
+status: "Accepted"
+decision_date: "2026-07-08"
+---
+
+## Context
+
+Recipe imports can begin with a structured file, a web page, photographs, or
+model output. Even a plausible result may omit an instruction, misread a
+quantity, join two source pages incorrectly, or infer the wrong ingredient.
+Publishing that result immediately would put uncertain content into recipe
+boxes and public pages while hiding what the importer actually produced.
+
+Import processing may continue after the browser closes. Durable background
+execution solves that operational problem, but completion of a job is not the
+same as a user's decision to keep the recipe.
+
+## Decision
+
+Every import produces an editable draft before it can create a canonical
+recipe. The user reviews that draft and explicitly accepts it. Successful
+parsing, a confidence score, a known archive format, or a shared batch default
+cannot replace item-level acceptance.
+
+Keep the generated result and its source provenance intact while the user
+edits a separate draft. Record the accepted recipe and the correction from the
+generated result so the ingestion pipeline can be evaluated without treating
+model output as ground truth.
+
+An unfinished draft stays outside the normal recipe box and outside public
+discovery. Retry, skip, reject, and cancellation do not create a canonical
+recipe. Import agents may prepare a draft, but publication remains an explicit
+human action.
+
+## Consequences
+
+Imports take an extra review step, including sources that usually parse cleanly.
+That cost is deliberate. It prevents uncertain content from looking finished
+and gives users one place to correct title, ingredients, quantities,
+instructions, attribution, and audience before publication.
+
+The system must preserve immutable generated evidence separately from mutable
+editor state. It also needs durable drafts so review survives navigation,
+restarts, and long-running imports.
+
+## Evaluation
+
+Tests must prove that no import path creates a canonical recipe before an
+authenticated acceptance action. A reviewer must be able to compare the source,
+generated draft, edited draft, and accepted recipe. The accepted record must
+retain enough provenance to explain its source and later undo a safe migration.
+
+## Migration note
+
+This record extracts the review boundary first published with ADR 012. ADR 024
+later applied the same policy to collection and photo batches. The migration
+preserves the original date, Accepted status, and explicit-review requirement.
+It does not make any proposed batch-import architecture Accepted.
