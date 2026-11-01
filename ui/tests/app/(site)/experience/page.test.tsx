@@ -9,10 +9,6 @@ vi.mock("@/components/experience/experience-card", () => ({
   ),
 }));
 
-vi.mock("@/components/experience/searchable-technology-grid", () => ({
-  SearchableTechnologyGrid: () => null,
-}));
-
 vi.mock("@/lib/api/experience", () => ({
   formatExperienceDateLabel: vi.fn(() => "server-formatted date label"),
   getAllExperience: () => [
@@ -36,11 +32,6 @@ vi.mock("@/lib/domain/project/projectQueries", () => ({
   getRoleProjects: () => [],
 }));
 
-vi.mock("@/lib/domain/technology", () => ({
-  getAllTechnologyBadges: () => [],
-  rankTechnologiesByConnections: () => [],
-}));
-
 describe("ExperiencePage", () => {
   it("formats client card dates on the server", () => {
     render(<ExperiencePage />);
@@ -49,6 +40,10 @@ describe("ExperiencePage", () => {
     expect(formatExperienceDateLabel).toHaveBeenCalledWith(
       "2024-05",
       undefined,
+    );
+    expect(screen.getByRole("link", { name: /Technologies/ })).toHaveAttribute(
+      "href",
+      "/technologies",
     );
   });
 });

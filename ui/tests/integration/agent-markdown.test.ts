@@ -38,6 +38,7 @@ describe("agent markdown generation", () => {
     for (const file of [
       "index.md",
       "experience.md",
+      "technologies.md",
       "projects.md",
       "building-philosophy.md",
       "ideas.md",

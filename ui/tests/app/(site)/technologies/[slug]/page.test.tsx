@@ -38,6 +38,10 @@ describe("technology page", () => {
       "href",
       "/projects/personal-engineering-platform/adrs/043-portable-workload-contract",
     );
+    expect(screen.getByRole("link", { name: "Technologies" })).toHaveAttribute(
+      "href",
+      "/technologies",
+    );
   });
 
   it("renders a configured technology demo", async () => {
