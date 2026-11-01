@@ -764,15 +764,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "PlatformManifest",
-    "maximums": {
-      "lines": 232,
-      "renderComplexity": 28
-    },
-    "path": "components/projects/platform-manifest.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "PlatformSummary",
     "maximums": {
       "lines": 191,
