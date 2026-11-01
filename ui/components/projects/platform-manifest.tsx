@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { type ReactNode, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   compareUtcInstants,
@@ -22,13 +25,35 @@ function adrHref(adrRef: string): string {
   return `/projects/${project}/adrs/${adr}`;
 }
 
+function ManifestSection({
+  title,
+  description,
+  count,
+  children,
+}: Readonly<{
+  title: string;
+  description: string;
+  count: string;
+  children: ReactNode;
+}>) {
+  return (
+    <details className="overflow-hidden rounded-lg border" aria-label={title}>
+      <summary className="cursor-pointer p-4 marker:text-muted-foreground sm:p-5">
+        <span className="text-lg font-semibold">{title}</span>{" "}
+        <Badge variant="secondary">{count}</Badge>
+        <span className="mt-1 block text-sm font-normal text-muted-foreground">
+          {description}
+        </span>
+      </summary>
+      <div className="border-t p-4 sm:p-5">{children}</div>
+    </details>
+  );
+}
+
 function ComponentCatalog({ manifest }: Readonly<{ manifest: Manifest }>) {
   return (
-    <section aria-labelledby="component-catalog-heading">
-      <h2 id="component-catalog-heading" className="text-2xl font-semibold">
-        Component catalog
-      </h2>
-      <p className="mt-2 text-sm text-muted-foreground">
+    <>
+      <p className="text-sm text-muted-foreground">
         Schema version {manifest.schemaVersion}. Repository declarations are
         authoritative; projects, technologies, decisions, and policy records
         join these declarations in the derived{" "}
@@ -53,7 +78,7 @@ function ComponentCatalog({ manifest }: Readonly<{ manifest: Manifest }>) {
           </li>
         ))}
       </ul>
-    </section>
+    </>
   );
 }
 
@@ -61,12 +86,35 @@ export function PlatformManifest({
   manifest,
 }: Readonly<{ manifest: Manifest }>) {
   const instant = new Date().toISOString();
+
+  useEffect(() => {
+    const revealFragment = () => {
+      const targetId = window.location.hash.slice(1);
+      const target = targetId ? document.getElementById(targetId) : null;
+      const section = target?.closest<HTMLDetailsElement>("details");
+      if (section) section.open = true;
+    };
+
+    revealFragment();
+    window.addEventListener("hashchange", revealFragment);
+    return () => window.removeEventListener("hashchange", revealFragment);
+  }, []);
+
   return (
-    <section className="space-y-8" aria-label="Platform manifest">
-      <ComponentCatalog manifest={manifest} />
-      <div>
-        <h2 className="text-2xl font-semibold">Current layer manifest</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
+    <section className="space-y-4" aria-label="Platform manifest">
+      <ManifestSection
+        title="Component catalog"
+        description="Repository components and their catalog IDs."
+        count={`${manifest.catalog.records.length} records`}
+      >
+        <ComponentCatalog manifest={manifest} />
+      </ManifestSection>
+      <ManifestSection
+        title="Current layer manifest"
+        description="Active layers, activation rules, and slot policies."
+        count={`${manifest.layers.length} layers`}
+      >
+        <div className="grid gap-4 md:grid-cols-2">
           {manifest.layers.map((layer) => {
             const policies = manifest.policies.filter(
               (policy) =>
@@ -134,11 +182,14 @@ export function PlatformManifest({
             );
           })}
         </div>
-      </div>
+      </ManifestSection>
 
-      <div>
-        <h2 className="text-2xl font-semibold">Default history</h2>
-        <div className="mt-4 space-y-4">
+      <ManifestSection
+        title="Default history"
+        description="Selections, decision history, adopters, and overrides."
+        count={`${manifest.slots.length} slots`}
+      >
+        <div className="space-y-4">
           {manifest.slots.map((slot) => (
             <article
               key={slot.slug}
@@ -284,7 +335,7 @@ export function PlatformManifest({
             </article>
           ))}
         </div>
-      </div>
+      </ManifestSection>
     </section>
   );
 }

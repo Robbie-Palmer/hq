@@ -1,4 +1,5 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
@@ -6,7 +7,7 @@ import { getProjectWithADRs } from "@/lib/domain/project/projectQueries";
 import { loadDomainRepository } from "@/lib/repository";
 
 describe("project platform components", () => {
-  it("renders the platform's layers, defaults, adopters, consumers, and overrides", () => {
+  it("keeps the platform sections collapsed until requested", async () => {
     const repository = loadDomainRepository();
     const project = getProjectWithADRs(
       repository,
@@ -17,19 +18,18 @@ describe("project platform components", () => {
 
     render(<PlatformManifest manifest={project.platformManifest} />);
 
-    expect(
-      screen.getByRole("heading", { name: "Component catalog" }),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Component catalog")).toBeVisible();
+    expect(screen.getByText("component:recipe-site/web")).not.toBeVisible();
+
+    const user = userEvent.setup();
+    await user.click(screen.getByText("Component catalog"));
+    await user.click(screen.getByText("Current layer manifest"));
+    await user.click(screen.getByText("Default history"));
+
     expect(
       screen.getByRole("link", { name: "machine-readable catalog" }),
     ).toHaveAttribute("href", "/catalog.json");
     expect(screen.getByText("component:recipe-site/web")).toBeVisible();
-    expect(
-      screen.getByRole("heading", { name: "Current layer manifest" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Default history" }),
-    ).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Backend API" })).toBeVisible();
     expect(screen.getAllByText("preferred").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Adopters:/).length).toBeGreaterThan(0);
@@ -57,11 +57,12 @@ describe("project platform components", () => {
     ).toHaveTextContent("project-owned-slack-credentials");
   }, 30_000);
 
-  it("keeps adopters and layer consumers under their labels", () => {
+  it("keeps adopters and layer consumers under their labels", async () => {
     const project = getProjectWithADRs(
       loadDomainRepository(),
       "personal-engineering-platform",
     );
+
     expect(project?.platformManifest).toBeDefined();
     if (!project?.platformManifest) return;
     const slot = project.platformManifest.slots.find(
@@ -86,6 +87,8 @@ describe("project platform components", () => {
       />,
     );
 
+    await userEvent.setup().click(screen.getByText("Default history"));
+
     expect(
       within(screen.getByText(/Adopters:/)).getByRole("link", {
         name: "adopter-fixture",
@@ -96,6 +99,22 @@ describe("project platform components", () => {
         name: "layer-consumer-fixture",
       }),
     ).toBeInTheDocument();
+  });
+
+  it("opens the section containing a linked manifest item", async () => {
+    const project = getProjectWithADRs(
+      loadDomainRepository(),
+      "personal-engineering-platform",
+    );
+    expect(project?.platformManifest).toBeDefined();
+    if (!project?.platformManifest) return;
+
+    window.history.replaceState(null, "", "#slot-backend-api.runtime");
+    render(<PlatformManifest manifest={project.platformManifest} />);
+
+    const section = screen.getByText("Default history").closest("details");
+    await waitFor(() => expect(section).toHaveAttribute("open"));
+    window.history.replaceState(null, "", "/");
   });
 
   it("renders adopted layers and expandable platform technologies", () => {
@@ -112,6 +131,12 @@ describe("project platform components", () => {
     );
 
     expect(screen.getByLabelText("Platform")).toHaveTextContent("Built on");
+    expect(
+      screen.getAllByRole("link", { name: "Governance" })[0],
+    ).toHaveAttribute(
+      "href",
+      "/projects/personal-engineering-platform?tab=platform#layer-governance",
+    );
     expect(screen.getByText(/platform technologies/)).toBeVisible();
     expect(screen.getByText(/platform policies/)).toBeVisible();
     expect(screen.getByText("Adoption provenance")).toBeVisible();

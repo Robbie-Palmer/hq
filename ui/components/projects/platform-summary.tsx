@@ -53,7 +53,7 @@ export function PlatformSummary({
         {builtOn.map((layer, index) => (
           <span key={layer.slug}>
             <Link
-              href={`/projects/personal-engineering-platform#layer-${layer.slug}`}
+              href={`/projects/personal-engineering-platform?tab=platform#layer-${layer.slug}`}
               className="text-foreground/80 underline-offset-4 hover:text-foreground hover:underline"
             >
               {layer.title}
@@ -70,7 +70,7 @@ export function PlatformSummary({
           {builtOn.map((layer) => (
             <li key={layer.slug}>
               <Link
-                href={`/projects/personal-engineering-platform#layer-${layer.slug}`}
+                href={`/projects/personal-engineering-platform?tab=platform#layer-${layer.slug}`}
                 className="text-foreground/80 underline underline-offset-4"
               >
                 {layer.title}
@@ -173,7 +173,7 @@ export function PlatformSummary({
             {platformPolicies.map((policy) => (
               <li key={`${policy.slot}:${policy.value}`}>
                 <Link
-                  href={`/projects/personal-engineering-platform#slot-${policy.slot}`}
+                  href={`/projects/personal-engineering-platform?tab=platform#slot-${policy.slot}`}
                 >
                   <Badge
                     variant="outline"
