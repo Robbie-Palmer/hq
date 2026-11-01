@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ReplayProviderSchema } from "./replay";
 import { ReviewCoverageManifestSchema } from "./coverage-manifest";
+import { ReviewRulePreviewSchema } from "./rule-resolution";
 
 export const FindingOutcomeValueSchema = z.enum([
   "confirmed-fixed",
@@ -117,6 +118,7 @@ export const ReplayInputSnapshotSchema = z.looseObject({
     reviewedDiff: z.string(),
     boundedFileContext: z.string(),
     repositoryGuidelines: z.string(),
+    effectiveReviewRules: z.string().optional(),
     reviewThreads: z.string(),
     priorOpenFindings: z.array(OpenFindingBaselineSchema),
     affectedOpenFindings: z.array(OpenFindingBaselineSchema),
@@ -125,6 +127,7 @@ export const ReplayInputSnapshotSchema = z.looseObject({
     changeProfile: ChangeProfileSchema.optional(),
     coverage: ReviewCoverageSchema.optional(),
     coverageManifest: ReviewCoverageManifestSchema.optional(),
+    rulePreview: ReviewRulePreviewSchema.optional(),
     paths: z.array(z.string()),
     omittedPaths: z.array(z.string()),
     reviewedHunks: z.array(ReviewHunkSchema).optional(),
@@ -165,6 +168,7 @@ export const ReviewTerminalRecordSchema = z.looseObject({
   change: ChangeProfileSchema.partial().optional(),
   coverage: PartialReviewCoverageSchema.optional(),
   coverageManifest: ReviewCoverageManifestSchema.optional(),
+  rulePreview: ReviewRulePreviewSchema.optional(),
   findings: z.looseObject({ published: z.array(ReviewFindingSchema).optional() }).optional(),
 });
 export type ReviewTerminalRecord = z.infer<typeof ReviewTerminalRecordSchema>;

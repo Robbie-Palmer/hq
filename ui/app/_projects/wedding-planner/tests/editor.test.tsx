@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { PlannerApplication } from "@/app/_projects/wedding-planner/application/application";
 import { calculateRooms } from "@/app/_projects/wedding-planner/application/calculate";
@@ -5,13 +6,18 @@ import {
   editorStateToPlan,
   toEditorState,
 } from "@/app/_projects/wedding-planner/application/editor-projection";
+import { encodeWeddingPlanDraft } from "@/app/_projects/wedding-planner/application/plan-codec";
 import { solveTables } from "@/app/_projects/wedding-planner/application/solve-tables";
 import { buildTableInput } from "@/app/_projects/wedding-planner/application/table-state";
 import type {
   Guest,
   WeddingPlanDraft,
 } from "@/app/_projects/wedding-planner/application/types";
-import { AccommodationEditor } from "@/app/_projects/wedding-planner/components/accommodation-editor";
+import {
+  AccommodationEditor,
+  type AccommodationEditorView,
+} from "@/app/_projects/wedding-planner/components/accommodation-editor";
+import { SeatingWorkflow } from "@/app/_projects/wedding-planner/routes/feature-workflows";
 import {
   act,
   fireEvent,
@@ -86,6 +92,7 @@ function sampleState(): WeddingPlanDraft {
       reservations: {
         linen_1: { guest_ids: ["linen-a", "linen-b"], approved_guest_ids: [] },
       },
+      couples: [{ id: "linen-couple", guest_ids: ["linen-a", "linen-b"] }],
       reviewed_non_couples: [],
       suite_billing_modes: {},
       guest_charge_cap_gbp: "",
@@ -100,6 +107,32 @@ vi.mock("@/app/_projects/wedding-planner/components/table-room-canvas", () => ({
   default: () => null,
 }));
 
+function renderAccommodationEditor(
+  application: PlannerApplication,
+  initialView: AccommodationEditorView,
+) {
+  let navigate: (view: AccommodationEditorView) => void = () => {
+    throw new Error("Route harness has not rendered");
+  };
+  function RouteHarness() {
+    const [view, setView] = useState(initialView);
+    navigate = setView;
+    return (
+      <AccommodationEditor
+        application={application}
+        view={view}
+        onNavigate={(nextView) => setView(nextView as AccommodationEditorView)}
+      />
+    );
+  }
+  return {
+    ...render(<RouteHarness />),
+    navigate(view: AccommodationEditorView) {
+      act(() => navigate(view));
+    },
+  };
+}
+
 describe("accommodation editor", () => {
   it("models accommodation inventory and assigns guests to rooms and beds", async () => {
     const state = sampleState();
@@ -110,9 +143,8 @@ describe("accommodation editor", () => {
       calculateRooms,
       calculateTables: (draft) => solveTables(buildTableInput(draft)),
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: "Accommodation" }));
+    renderAccommodationEditor(application, "inventory");
+    await screen.findByRole("textbox", { name: "New accommodation name" });
     fireEvent.change(
       screen.getByRole("textbox", { name: "New accommodation name" }),
       { target: { value: "Guest House" } },
@@ -178,11 +210,11 @@ describe("accommodation editor", () => {
       calculateRooms,
       calculateTables: (state) => solveTables(buildTableInput(state)),
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    render(<SeatingWorkflow application={application} />);
     expect(
-      screen.getByRole("button", { name: "Accept all 2 sharing suggestions" }),
+      await screen.findByRole("button", {
+        name: "Accept all 2 sharing suggestions",
+      }),
     ).toBeInTheDocument();
     fireEvent.change(
       screen.getByRole("combobox", { name: "Table preferences for guest" }),
@@ -235,9 +267,8 @@ describe("accommodation editor", () => {
       save,
       calculateRooms: calculateRooms,
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    render(<SeatingWorkflow application={application} />);
+    await screen.findByRole("button", { name: "Calculate tables" });
     fireEvent.change(
       screen.getByRole("spinbutton", { name: "Number of guest tables" }),
       { target: { value: "2" } },
@@ -367,9 +398,8 @@ describe("accommodation editor", () => {
       save,
       calculateRooms,
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    render(<SeatingWorkflow application={application} />);
+    await screen.findByRole("button", { name: "Calculate tables" });
 
     fireEvent.change(
       screen.getByRole("spinbutton", { name: "Top table capacity" }),
@@ -535,9 +565,8 @@ describe("accommodation editor", () => {
         calculateRooms,
         calculateTables,
       };
-      render(<AccommodationEditor application={application} />);
-      await screen.findByText("Who shares a bed?");
-      fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+      render(<SeatingWorkflow application={application} />);
+      await screen.findByRole("button", { name: "Calculate tables" });
       fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
       await waitFor(() => expect(calculateTables).toHaveBeenCalledOnce());
       if (edit === "layout") {
@@ -583,9 +612,8 @@ describe("accommodation editor", () => {
       save: vi.fn<PlannerApplication["save"]>().mockResolvedValue(),
       calculateRooms: calculateRooms,
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
+    render(<SeatingWorkflow application={application} />);
+    await screen.findByRole("button", { name: "Calculate tables" });
     fireEvent.click(screen.getByRole("button", { name: "Calculate tables" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("only 2");
     fireEvent.change(
@@ -607,13 +635,12 @@ describe("accommodation editor", () => {
       calculateRooms,
       calculateTables: (state) => solveTables(buildTableInput(state)),
     };
-    render(<AccommodationEditor application={application} />);
+    renderAccommodationEditor(application, "guests");
     fireEvent.click(
       await screen.findByRole("button", { name: "Use sample plan" }),
     );
     await screen.findByText(/26 fictional guests/);
     expect(save.mock.lastCall?.[0].guests).toHaveLength(26);
-    fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
     fireEvent.click(
       screen.getByRole("button", { name: /Casey Brooks.*Staying/ }),
     );
@@ -630,10 +657,6 @@ describe("accommodation editor", () => {
       save.mock.lastCall?.[0].guests.find((guest) => guest.id === "casey")
         ?.wedding_roles,
     ).toEqual(["bridesmaid", "parent_of_groom"]);
-    fireEvent.click(screen.getByRole("button", { name: "Tables" }));
-    expect(
-      screen.getByText("Bridesmaid · Parent of the groom"),
-    ).toBeInTheDocument();
   });
 
   it("records partners independently of their own-bed choices", async () => {
@@ -644,9 +667,8 @@ describe("accommodation editor", () => {
       calculateRooms,
       calculateTables: (state) => solveTables(buildTableInput(state)),
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+    renderAccommodationEditor(application, "guests");
+    await screen.findByRole("heading", { name: "Guests" });
     fireEvent.click(screen.getByRole("button", { name: /Casey.*Staying/ }));
     fireEvent.change(screen.getByRole("combobox", { name: "Casey partner" }), {
       target: { value: "drew" },
@@ -680,20 +702,20 @@ describe("accommodation editor", () => {
       save,
       calculateRooms: calculateRooms,
     };
-    render(<AccommodationEditor application={application} />);
+    const editor = renderAccommodationEditor(application, "bed_groups");
 
     expect(await screen.findByText("Casey & Drew")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Not a couple" }));
     expect(screen.getByText(/Casey.*Drew.*Not a couple/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Guests/ }));
+    editor.navigate("guests");
     fireEvent.click(screen.getByRole("button", { name: /Casey.*Staying/ }));
     fireEvent.click(screen.getByRole("button", { name: "No" }));
     expect(
       screen.getByText("Not staying", { selector: "small" }),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-    fireEvent.click(screen.getByRole("button", { name: /Sharing map/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Open map" }));
     fireEvent.click(screen.getByRole("button", { name: "One double bed" }));
     fireEvent.click(
       screen.getByRole("checkbox", { name: /Needs their own double bed/ }),
@@ -711,7 +733,7 @@ describe("accommodation editor", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Cottage" }));
     fireEvent.click(screen.getByRole("button", { name: "Only yes matches" }));
-    fireEvent.click(screen.getByRole("button", { name: /Rooms & costs/ }));
+    editor.navigate("plan");
     fireEvent.change(
       screen.getByRole("spinbutton", { name: "Guest charge cap" }),
       {
@@ -727,8 +749,7 @@ describe("accommodation editor", () => {
     expect(saved?.guest_charge_cap_gbp).toBe("100");
     expect(saved?.reviewed_non_couples).toEqual([["casey", "drew"]]);
 
-    fireEvent.click(screen.getByRole("button", { name: /Room plan/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Calculate rooms" }));
+    editor.navigate("result");
     expect(
       await screen.findByText(
         "Guests expected to pay",
@@ -747,7 +768,7 @@ describe("accommodation editor", () => {
       save,
       calculateRooms: vi.fn(),
     };
-    render(<AccommodationEditor application={application} />);
+    renderAccommodationEditor(application, "bed_groups");
     expect(await screen.findByText("No plan loaded")).toBeInTheDocument();
     const input = screen.getByLabelText("Choose a wedding room plan");
     const invalid = Object.assign(new File(["{}"], "invalid.json"), {
@@ -759,12 +780,10 @@ describe("accommodation editor", () => {
     );
 
     const state = sampleState();
-    const valid = Object.assign(
-      new File([JSON.stringify(state)], "plan.json"),
-      {
-        text: async () => JSON.stringify(state),
-      },
-    );
+    const encoded = encodeWeddingPlanDraft(state);
+    const valid = Object.assign(new File([encoded], "plan.json"), {
+      text: async () => encoded,
+    });
     fireEvent.change(input, { target: { files: [valid] } });
     expect(await screen.findByText("Who shares a bed?")).toBeInTheDocument();
     expect(save).toHaveBeenCalledWith(state);
@@ -785,22 +804,19 @@ describe("accommodation editor", () => {
       save,
       calculateRooms: solve,
     };
-    render(<AccommodationEditor application={application} />);
-    await screen.findByText("Who shares a bed?");
-    fireEvent.click(screen.getByRole("button", { name: /Rooms & costs/ }));
+    const editor = renderAccommodationEditor(application, "plan");
+    await screen.findByRole("heading", { name: "Rooms & costs" });
     fireEvent.change(
       screen.getByRole("spinbutton", { name: "Guest charge cap" }),
       { target: { value: "19.99" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: /Room plan/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Calculate rooms" }));
+    editor.navigate("result");
 
     expect(
       await screen.findByText("Guests expected to pay"),
     ).toBeInTheDocument();
     expect(solve).toHaveBeenCalledTimes(1);
     expect(save.mock.lastCall?.[0].guest_charge_cap_gbp).toBe("19.99");
-    expect(screen.getByText("Saved in this browser")).toBeInTheDocument();
     await new Promise((resolve) => setTimeout(resolve, 550));
     expect(save).toHaveBeenCalledTimes(1);
   });

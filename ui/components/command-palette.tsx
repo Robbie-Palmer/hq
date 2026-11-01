@@ -83,6 +83,12 @@ const NAVIGATION_ITEMS: NavigationItem[] = [
     keywords: ["experience", "jobs", "career", "work history"],
   },
   {
+    label: "Technologies",
+    href: "/technologies",
+    icon: <Code2 className="size-4" />,
+    keywords: ["technologies", "tech", "tools", "languages", "frameworks"],
+  },
+  {
     label: "Ideas",
     href: "/ideas",
     icon: <Lightbulb className="size-4" />,

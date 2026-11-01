@@ -462,15 +462,15 @@ describe("shared table state", () => {
     );
   }
 
-  it("opens older plans without assuming overnight attendance or table preferences", () => {
-    const legacy = state();
+  it("uses default seating inputs when the draft has no table choices", () => {
+    const draft = state();
     expect(
-      legacy.guests.every((person) => person.attendance === undefined),
+      draft.guests.every((person) => person.attendance === undefined),
     ).toBe(true);
-    expect(legacy.table_plan).toBeUndefined();
-    expect(getTablePlan(legacy).table_capacities).toEqual([8]);
-    expect(buildTableInput(legacy).guests.map((person) => person.id)).toEqual(
-      legacy.guests.map((person) => person.id),
+    expect(draft.table_plan).toBeUndefined();
+    expect(getTablePlan(draft).table_capacities).toEqual([8]);
+    expect(buildTableInput(draft).guests.map((person) => person.id)).toEqual(
+      draft.guests.map((person) => person.id),
     );
   });
 
@@ -494,12 +494,7 @@ describe("shared table state", () => {
     };
     setTablePairDecision(plan, "a", "b", "yes");
     const source = createPlannerApplication(
-      createBrowserWeddingPlanRepository(
-        window.localStorage,
-        "table-test",
-        [],
-        emptySetup,
-      ),
+      createBrowserWeddingPlanRepository(window.localStorage, "table-test"),
       emptySetup,
     );
     try {

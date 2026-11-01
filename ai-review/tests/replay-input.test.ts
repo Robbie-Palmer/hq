@@ -60,6 +60,27 @@ multiline-single-secret',"ａｐｉＫｅｙ":"compatibility-secret","pаssword"
     },
     paths: ["src/app.ts"],
     omitted: [],
+    rulePreview: {
+      schemaVersion: 1,
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      paths: [{
+        path: "src/app.ts",
+        language: "typescript",
+        effectiveRules: [{
+          key: "review-focus",
+          instruction: "Review concrete defects.",
+          layer: "global",
+          ruleIds: ["builtin:concrete-defects"],
+          sources: [{
+            kind: "builtin",
+            reference: "ai-review-domain/reviewer",
+            revision: "production-review-rules-v1",
+          }],
+        }],
+      }],
+      conflicts: [],
+    },
     priorOpenFindings: [finding],
     replayFindings: mode === "incremental" ? [finding] : [],
     coverage: {
@@ -136,14 +157,25 @@ describe("replay input corpus", () => {
       assertReplaySchemaCompatible(parsed);
       const snapshot = parsed as typeof parsed & {
         git: { baseSha: string; headSha: string };
-        decision: { coverage: { mode: string } };
-        input: { priorOpenFindings: unknown[]; affectedOpenFindings: unknown[] };
+        decision: {
+          coverage: { mode: string };
+          rulePreview: { ruleSetVersion: string };
+        };
+        input: {
+          priorOpenFindings: unknown[];
+          affectedOpenFindings: unknown[];
+          effectiveReviewRules: string;
+        };
         pullRequest: { author: string; reviewers: string[] };
         policy: { credentials: { algorithm: string } };
         provenance: { liveCredentialsIncluded: boolean };
       };
       expect(snapshot.git).toEqual({ baseSha: "a".repeat(40), headSha: "b".repeat(40) });
       expect(snapshot.decision.coverage.mode).toBe(mode);
+      expect(snapshot.decision.rulePreview.ruleSetVersion).toBe(
+        "production-review-rules-v1",
+      );
+      expect(snapshot.input.effectiveReviewRules).toContain("Review carefully");
       expect(snapshot.input.priorOpenFindings).toHaveLength(1);
       expect(snapshot.input.affectedOpenFindings).toHaveLength(mode === "incremental" ? 1 : 0);
       expect(snapshot.pullRequest).toMatchObject({ author: "octocat", reviewers: ["hubot"] });
@@ -195,6 +227,30 @@ describe("replay input corpus", () => {
     await persistReplayInput(input);
     expect(put.mock.calls[0]?.slice(0, 2)).toEqual(put.mock.calls[2]?.slice(0, 2));
     expect(put.mock.calls[1]?.slice(0, 2)).toEqual(put.mock.calls[3]?.slice(0, 2));
+  });
+
+  it("stops YAML block redaction at the next dedented field", async () => {
+    const { env, put } = fixture();
+    const input = prepared("full");
+    input.guidelines = "token: |\n  nested-secret\npublic_note: visible";
+
+    await persistReplayInput({
+      env,
+      params,
+      instanceId: "run-yaml-boundary",
+      status: "published",
+      prepared: input,
+      timestamp: new Date("2026-08-31T12:00:00Z"),
+      ...configuration,
+    });
+
+    const snapshot = JSON.parse(String(put.mock.calls[0]?.[1])) as {
+      input: { effectiveReviewRules: string };
+      provenance: { redactions: Record<string, number> };
+    };
+    expect(snapshot.input.effectiveReviewRules).not.toContain("nested-secret");
+    expect(snapshot.input.effectiveReviewRules).toContain("public_note: visible");
+    expect(snapshot.provenance.redactions["assigned-secret"]).toBeGreaterThan(0);
   });
 
   it("writes the production record before the snapshot and manifest commit marker", async () => {

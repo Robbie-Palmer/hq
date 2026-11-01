@@ -1,0 +1,498 @@
+{
+  "rulesetVersion": "2026-10-31",
+  "sources": [
+    {
+      "id": "register-sole-trader",
+      "publisher": "GOV.UK",
+      "title": "Register as a sole trader",
+      "url": "https://www.gov.uk/become-sole-trader/register-sole-trader",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "tax-free-allowances-on-property-and-trading-income",
+      "publisher": "GOV.UK",
+      "title": "Tax-free allowances on property and trading income",
+      "url": "https://www.gov.uk/guidance/tax-free-allowances-on-property-and-trading-income",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "register-your-company",
+      "publisher": "GOV.UK",
+      "title": "Register your company",
+      "url": "https://www.gov.uk/limited-company-formation/register-your-company",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "directors-responsibilities",
+      "publisher": "GOV.UK",
+      "title": "Directors' responsibilities",
+      "url": "https://www.gov.uk/running-a-limited-company/directors-responsibilities",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "register-employer",
+      "publisher": "GOV.UK",
+      "title": "Register as an employer",
+      "url": "https://www.gov.uk/register-employer",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "taking-money-out-of-a-limited-company",
+      "publisher": "GOV.UK",
+      "title": "Taking money out of a limited company",
+      "url": "https://www.gov.uk/running-a-limited-company/taking-money-out-of-a-limited-company",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "register-for-vat",
+      "publisher": "GOV.UK",
+      "title": "When to register for VAT",
+      "url": "https://www.gov.uk/register-for-vat",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "using-making-tax-digital-for-income-tax-for-the-first-time",
+      "publisher": "GOV.UK",
+      "title": "Using Making Tax Digital for Income Tax for the first time",
+      "url": "https://www.gov.uk/guidance/use-making-tax-digital-for-income-tax/using-making-tax-digital-for-income-tax-for-the-first-time",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "understanding-off-payroll-working-ir35",
+      "publisher": "GOV.UK",
+      "title": "Understanding off-payroll working",
+      "url": "https://www.gov.uk/guidance/understanding-off-payroll-working-ir35",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "working-through-an-umbrella-company",
+      "publisher": "GOV.UK",
+      "title": "Working through an umbrella company",
+      "url": "https://www.gov.uk/guidance/working-through-an-umbrella-company",
+      "checkedOn": "2026-10-31"
+    },
+    {
+      "id": "paye-rules-for-labour-supply-chains-that-include-umbrella-companies-from-6-april-2026",
+      "publisher": "GOV.UK",
+      "title": "PAYE rules for labour supply chains that include umbrella companies from 6 April 2026",
+      "url": "https://www.gov.uk/guidance/paye-rules-for-labour-supply-chains-that-include-umbrella-companies-from-6-april-2026",
+      "checkedOn": "2026-10-31"
+    }
+  ],
+  "rules": [
+    {
+      "id": "uk.sole-trader.self-assessment-registration",
+      "version": "2026-10-31",
+      "topic": "sole-trader-registration",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2017-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "The threshold uses aggregate gross trading income for a tax year, before costs.",
+          "Other registration reasons can apply below the threshold."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "annual-gross-trading-income",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 100000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": null
+      },
+      "outcome": "Register for Self Assessment as a sole trader.",
+      "sourceId": "register-sole-trader"
+    },
+    {
+      "id": "uk.sole-trader.trading-allowance",
+      "version": "2026-10-31",
+      "topic": "trading-allowance",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2017-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "The allowance is shared across an individual's trades.",
+          "Partnership income and specified connected-party or employer-related income are excluded.",
+          "Claiming partial relief replaces deductions for actual expenses and other allowances."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "annual-gross-trading-income",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 100000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": null
+      },
+      "outcome": "Check full or partial trading-allowance relief against actual costs.",
+      "sourceId": "tax-free-allowances-on-property-and-trading-income"
+    },
+    {
+      "id": "uk.company.formation",
+      "version": "2026-10-31",
+      "topic": "company-formation",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": null,
+        "effectiveTo": null,
+        "structures": [
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Register the company with Companies House and identify people with significant control.",
+          "Company registration usually sets up Corporation Tax unless the company is dormant."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "company-exists"
+      },
+      "outcome": "Maintain the registered company and its Corporation Tax account.",
+      "sourceId": "register-your-company"
+    },
+    {
+      "id": "uk.company.director-reporting",
+      "version": "2026-10-31",
+      "topic": "company-reporting",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": null,
+        "effectiveTo": null,
+        "structures": [
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Directors remain responsible for company records, annual accounts, Company Tax Returns, filing, and Corporation Tax."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "company-exists"
+      },
+      "outcome": "Keep company records and meet Companies House and HMRC filing duties.",
+      "sourceId": "directors-responsibilities"
+    },
+    {
+      "id": "uk.company.paye-registration",
+      "version": "2026-10-31",
+      "topic": "payroll",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": null,
+        "effectiveTo": null,
+        "structures": [
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "A company normally registers before its first payday, including when it employs only its director."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "company-pays-salary-benefits-or-expenses"
+      },
+      "outcome": "Register as an employer and operate PAYE.",
+      "sourceId": "register-employer"
+    },
+    {
+      "id": "uk.company.withdrawals",
+      "version": "2026-10-31",
+      "topic": "company-withdrawals",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": null,
+        "effectiveTo": null,
+        "structures": [
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Salary uses payroll; dividends require available profit and company records.",
+          "Company revenue, company profit, and company cash are not personal salary or household cash."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "company-pays-dividend"
+      },
+      "outcome": "Document dividends and keep them separate from salary and company costs.",
+      "sourceId": "taking-money-out-of-a-limited-company"
+    },
+    {
+      "id": "uk.vat.registration",
+      "version": "2026-10-31",
+      "topic": "vat",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2024-04-01",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader",
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Test both rolling 12-month taxable turnover and expected taxable turnover in the next 30 days.",
+          "Voluntary registration and special rules can apply below or outside this threshold."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "trailing-twelve-month-taxable-turnover",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 9000000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": null
+      },
+      "outcome": "Register for VAT unless an exemption or exception applies.",
+      "sourceId": "register-for-vat"
+    },
+    {
+      "id": "uk.mtd-income-tax.2024-25",
+      "version": "2026-10-31",
+      "topic": "making-tax-digital",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2026-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Qualifying income is gross self-employment and property income from the specified prior tax return.",
+          "The person must already be registered for Self Assessment and have submitted a return."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "prior-return-qualifying-income",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 5000000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": "2024-25"
+      },
+      "outcome": "Use Making Tax Digital for Income Tax from 2026-04-06.",
+      "sourceId": "using-making-tax-digital-for-income-tax-for-the-first-time"
+    },
+    {
+      "id": "uk.mtd-income-tax.2025-26",
+      "version": "2026-10-31",
+      "topic": "making-tax-digital",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2027-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Qualifying income is gross self-employment and property income from the specified prior tax return.",
+          "The person must already be registered for Self Assessment and have submitted a return."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "prior-return-qualifying-income",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 3000000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": "2025-26"
+      },
+      "outcome": "Use Making Tax Digital for Income Tax from 2027-04-06.",
+      "sourceId": "using-making-tax-digital-for-income-tax-for-the-first-time"
+    },
+    {
+      "id": "uk.mtd-income-tax.2026-27",
+      "version": "2026-10-31",
+      "topic": "making-tax-digital",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2028-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "sole-trader"
+        ],
+        "activityKinds": [
+          "product-sales",
+          "subscription-sales",
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Qualifying income is gross self-employment and property income from the specified prior tax return.",
+          "The person must already be registered for Self Assessment and have submitted a return."
+        ]
+      },
+      "test": {
+        "kind": "threshold",
+        "measure": "prior-return-qualifying-income",
+        "comparison": "more-than",
+        "amount": {
+          "minorUnits": 2000000,
+          "currency": "GBP",
+          "jurisdiction": "GB"
+        },
+        "referenceTaxYear": "2026-27"
+      },
+      "outcome": "Use Making Tax Digital for Income Tax from 2028-04-06.",
+      "sourceId": "using-making-tax-digital-for-income-tax-for-the-first-time"
+    },
+    {
+      "id": "uk.off-payroll.contract-assessment",
+      "version": "2026-10-31",
+      "topic": "off-payroll-working",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2021-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "uk-limited-company"
+        ],
+        "activityKinds": [
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "Apply the status test contract by contract when services pass through an intermediary.",
+          "The responsible party depends on the client sector and size."
+        ]
+      },
+      "test": {
+        "kind": "contract-assessment",
+        "trigger": "services-through-intermediary",
+        "assessmentScope": "each-contract"
+      },
+      "outcome": "Record an employment-status determination for each relevant service contract.",
+      "sourceId": "understanding-off-payroll-working-ir35"
+    },
+    {
+      "id": "uk.umbrella.employment-arrangement",
+      "version": "2026-10-31",
+      "topic": "umbrella-employment",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": null,
+        "effectiveTo": null,
+        "structures": [
+          "umbrella-employment"
+        ],
+        "activityKinds": [
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "An umbrella company employs the worker; it is not a business entity for the worker to establish.",
+          "The arrangement needs a provider and a contract of employment."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "umbrella-arrangement-used"
+      },
+      "outcome": "Confirm a suitable umbrella provider and employment arrangement.",
+      "sourceId": "working-through-an-umbrella-company"
+    },
+    {
+      "id": "uk.umbrella.paye-chain-2026",
+      "version": "2026-10-31",
+      "topic": "payroll",
+      "applicability": {
+        "jurisdiction": "GB",
+        "effectiveFrom": "2026-04-06",
+        "effectiveTo": null,
+        "structures": [
+          "umbrella-employment"
+        ],
+        "activityKinds": [
+          "freelance-services",
+          "contracting-services"
+        ],
+        "notes": [
+          "The agency nearest the end client, or the end client without an agency, must ensure PAYE is operated correctly.",
+          "Non-UK labour-supply chains need a separate review."
+        ]
+      },
+      "test": {
+        "kind": "duty",
+        "trigger": "umbrella-payment-on-or-after-date"
+      },
+      "outcome": "Confirm PAYE responsibility across the labour-supply chain.",
+      "sourceId": "paye-rules-for-labour-supply-chains-that-include-umbrella-companies-from-6-april-2026"
+    }
+  ]
+}

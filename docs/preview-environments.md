@@ -32,6 +32,16 @@ the deployed application code is still the PR's code.
 For setup, recovery, credential rotation, and smoke tests, use the
 [PR preview environment runbook](runbooks/preview-environments.md).
 
+## Preview links
+
+The preview workflow adds a managed section to each internal PR description.
+Project-owned browser applications get their links from
+`ui/content/projects/*/project-profile.yaml`. A component with
+`kind: project-ui` contributes its `name` and `mount_path`, so adding another
+project UI does not require a workflow edit. The Recipe Site and Satellite
+Swarm links remain workflow-owned until their shared frontend ownership is
+represented by the same metadata.
+
 ## Runtime safeguards
 
 - Preview Workers use direct pooled Neon URLs and never receive the production

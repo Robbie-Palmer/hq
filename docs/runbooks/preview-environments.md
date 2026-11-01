@@ -277,7 +277,8 @@ available in Cloudflare Workers Logs.
 To validate the pipeline (after recreating any of the above, or when debugging),
 open or update an internal PR. The workflow runs from `main`. Confirm:
 
-1. The PR receives one `Preview environment` comment.
+1. The PR description contains one managed `Preview environment` section,
+   including every `project-ui` component from the checked-in project profiles.
 2. The dedicated Neon preview project contains `preview-pr-<number>` as a child
    of `preview-base`, with no production rows.
 3. Cloudflare contains `recipe-api-pr-<number>` with no Hyperdrive binding.

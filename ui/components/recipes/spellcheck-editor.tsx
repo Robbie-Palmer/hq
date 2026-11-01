@@ -151,7 +151,7 @@ export function SpellcheckEditor({
           spellCheck={false}
           className={cn(
             SHARED_BOX,
-            "relative z-0 block resize-y bg-[var(--paper)] text-transparent caret-[var(--ink)] outline-none transition-shadow placeholder:text-[var(--ink-4)] focus:border-[var(--terracotta)] focus:ring-3 focus:ring-[var(--terracotta)]/15",
+            "relative z-0 block resize-y bg-[var(--paper)] text-transparent caret-[var(--ink)] outline-none transition-shadow motion-reduce:transition-none placeholder:text-[var(--ink-4)] focus:border-[var(--terracotta)] focus:ring-3 focus:ring-[var(--terracotta)]/15",
           )}
         />
         <HighlightBackdrop

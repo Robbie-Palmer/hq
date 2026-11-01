@@ -10,6 +10,7 @@
     "./guardrails": "./src/guardrails.ts",
     "./records": "./src/records.ts",
     "./replay": "./src/replay.ts",
+    "./rule-resolution": "./src/rule-resolution.ts",
     "./reviewer": "./src/reviewer.ts"
   },
   "scripts": {

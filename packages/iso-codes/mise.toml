@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install ISO code dependencies"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck ISO code schemas"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test ISO code schemas"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test ISO code schemas with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Validate ISO code schemas"
+depends = ["typecheck", "test"]

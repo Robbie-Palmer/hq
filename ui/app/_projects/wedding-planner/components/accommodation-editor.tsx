@@ -3,16 +3,9 @@
 import {
   ArrowRight,
   BedDouble,
-  Building2,
-  Check,
   ChevronRight,
-  Heart,
-  House,
-  LayoutDashboard,
-  Music2,
   Search,
   Sparkles,
-  Users,
   Waypoints,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -48,7 +41,6 @@ import type {
   PairDecision,
   PartyName,
   SharingLevel,
-  TableAllocation,
   WeddingPlanDraft,
 } from "@/app/_projects/wedding-planner/application/types";
 import {
@@ -79,8 +71,6 @@ import {
   EditorToggle as Toggle,
 } from "./editor-controls";
 import { GuestRoles } from "./guest-roles";
-import { PlaylistEditor } from "./playlist-editor";
-import { ReadinessDashboard } from "./readiness-dashboard";
 import { ResultPlan } from "./result-plan";
 import {
   includedPackageFigure,
@@ -91,7 +81,11 @@ import {
   roomName,
   venueRooms,
 } from "./room-data";
-import { TableEditor } from "./table-editor";
+import {
+  WorkflowEmptyState,
+  WorkflowErrorState,
+  WorkflowLoadingState,
+} from "./workflow-patterns";
 
 const initialFilter = "all";
 
@@ -137,76 +131,34 @@ function PaymentChoice({
   );
 }
 
-const plannerSections = [
-  { id: "readiness", label: "Readiness", icon: LayoutDashboard },
-  { id: "bed_groups", label: "Bed groups", icon: BedDouble },
-  { id: "guests", label: "Guests", icon: Users },
-  { id: "sharing", label: "Sharing map", icon: Waypoints },
-  { id: "inventory", label: "Accommodation", icon: Building2 },
-  { id: "plan", label: "Rooms & costs", icon: House },
-  { id: "result", label: "Room plan", icon: Sparkles },
-  { id: "tables", label: "Tables", icon: Users },
-  { id: "music", label: "Music", icon: Music2 },
-] as const;
+export type EditorView =
+  | "readiness"
+  | "bed_groups"
+  | "guests"
+  | "sharing"
+  | "inventory"
+  | "plan"
+  | "result"
+  | "tables"
+  | "music"
+  | "exports";
 
-type EditorView = (typeof plannerSections)[number]["id"];
+export type AccommodationEditorView = Extract<
+  EditorView,
+  "bed_groups" | "guests" | "sharing" | "inventory" | "plan" | "result"
+>;
 
 function InventoryView({
   view,
   state,
   onUpdate,
 }: Readonly<{
-  view: EditorView;
+  view: AccommodationEditorView;
   state: WeddingPlanDraft | null;
   onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
 }>) {
   if (view !== "inventory" || !state) return null;
   return <AccommodationInventoryEditor state={state} onUpdate={onUpdate} />;
-}
-
-function PlaylistView({
-  view,
-  state,
-  onUpdate,
-}: Readonly<{
-  view: EditorView;
-  state: WeddingPlanDraft | null;
-  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
-}>) {
-  if (view !== "music" || !state) return null;
-  return <PlaylistEditor playlist={state.playlist} onUpdate={onUpdate} />;
-}
-
-function PlannerNavigation({
-  view,
-  onViewChange,
-  pendingPairCount,
-  guestCount,
-}: Readonly<{
-  view: EditorView;
-  onViewChange: (view: EditorView) => void;
-  pendingPairCount: number;
-  guestCount: number;
-}>) {
-  const counts: Partial<Record<EditorView, number>> = {
-    bed_groups: pendingPairCount,
-    guests: guestCount,
-  };
-  return (
-    <nav className="editor-nav" aria-label="Planner sections">
-      {plannerSections.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          type="button"
-          className={view === id ? "active" : ""}
-          onClick={() => onViewChange(id)}
-        >
-          <Icon size={18} /> {label}
-          {counts[id] !== undefined && <span>{counts[id] || ""}</span>}
-        </button>
-      ))}
-    </nav>
-  );
 }
 
 function selectedGuestConnections(selected: Guest | null, guests: Guest[]) {
@@ -336,41 +288,116 @@ function ResultView({
   );
 }
 
-function ReadinessView({
-  view,
+function EditorPlanStatus({
+  error,
+  loading,
+  onExport,
+  onImport,
+  onLoadSample,
   state,
-  onUpdate,
-  onView,
-  onGuest,
 }: Readonly<{
-  view: EditorView;
+  error: string;
+  loading: boolean;
+  onExport(): void;
+  onImport(file: File): Promise<void>;
+  onLoadSample(): Promise<void>;
   state: WeddingPlanDraft | null;
-  onUpdate: (change: (draft: WeddingPlanDraft) => void) => void;
-  onView: (view: EditorView) => void;
-  onGuest: (guestId: string) => void;
 }>) {
-  if (view !== "readiness" || !state) return null;
+  if (loading) return <WorkflowLoadingState />;
+  if (!state)
+    return (
+      <>
+        {error && <WorkflowErrorState message={error} />}
+        <WorkflowEmptyState
+          className="editor-start-card"
+          title="No plan loaded"
+          description="Plans stay in this browser. Start with fictional data or import a JSON backup."
+          action={
+            <>
+              <Button className="mb-4" onClick={onLoadSample}>
+                Use sample plan
+              </Button>
+              <DataControls
+                hasData={false}
+                onImport={onImport}
+                onExport={onExport}
+              />
+            </>
+          }
+        />
+      </>
+    );
   return (
-    <ReadinessDashboard
-      state={state}
-      onUpdate={onUpdate}
-      onNavigate={(destination, targetId) => {
-        if (targetId && destination === "guests") onGuest(targetId);
-        onView(destination);
-      }}
-    />
+    <>
+      {state.sample_plan && (
+        <output className="editor-hint mb-5 block">
+          Sample plan · 26 fictional guests
+        </output>
+      )}
+      {error && <WorkflowErrorState message={error} />}
+    </>
   );
+}
+
+function BedGroupsSummary({
+  ownBedCount,
+  pendingPairCount,
+  sharedBedCount,
+  unpairedCount,
+  onOpenSharing,
+}: Readonly<{
+  ownBedCount: number;
+  pendingPairCount: number;
+  sharedBedCount: number;
+  unpairedCount: number;
+  onOpenSharing(): void;
+}>) {
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <h2>Who shares a bed?</h2>
+        </div>
+        <Button onClick={onOpenSharing}>
+          Sharing map <ArrowRight size={16} />
+        </Button>
+      </div>
+      <div className="progress-strip bed-progress-strip">
+        <span>
+          <strong>{sharedBedCount}</strong> shared beds
+        </span>
+        <span>
+          <strong>{unpairedCount}</strong> currently unpaired
+        </span>
+        <span>
+          <strong>{pendingPairCount}</strong> suggestions to review
+        </span>
+        <span>
+          <strong>{ownBedCount}</strong> own beds
+        </span>
+      </div>
+    </>
+  );
+}
+
+interface AccommodationEditorProps {
+  application?: PlannerApplication;
+  onGuestChange?(guestId: string | null): void;
+  onNavigate(view: EditorView, targetId?: string): void;
+  selectedGuestId?: string | null;
+  view: AccommodationEditorView;
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Planner view orchestration.
 export function AccommodationEditor({
   application = browserPlannerApplication,
-}: Readonly<{
-  application?: PlannerApplication;
-}>) {
+  selectedGuestId,
+  onNavigate,
+  onGuestChange,
+  view,
+}: Readonly<AccommodationEditorProps>) {
   const [state, setState] = useState<WeddingPlanDraft | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [view, setView] = useState<EditorView>("bed_groups");
   const [bedSearch, setBedSearch] = useState("");
   const [partnerSearch, setPartnerSearch] = useState("");
   const [sharingLevel, setSharingLevel] = useState<SharingLevel>("room");
@@ -388,14 +415,27 @@ export function AccommodationEditor({
   const [partyNames, setPartyNames] = useState<PartyName[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const [tableAllocation, setTableAllocation] =
-    useState<TableAllocation | null>(null);
-  const [tableBusy, setTableBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const editVersion = useRef(0);
   const solverVersion = useRef(0);
+  const autoRoomCalculationStarted = useRef(false);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
   const pendingSaveTimer = useRef<number | null>(null);
+
+  function setView(nextView: EditorView, targetId?: string) {
+    onNavigate(nextView, targetId);
+  }
+
+  function selectGuest(guestId: string | null) {
+    setSelectedId(guestId);
+    onGuestChange?.(guestId);
+  }
+
+  useEffect(() => {
+    if (selectedGuestId === undefined) return;
+    setSelectedId(selectedGuestId ?? state?.guests[0]?.id ?? null);
+  }, [selectedGuestId, state]);
+
   useEffect(() => {
     loadEditorPlan(
       application,
@@ -425,16 +465,10 @@ export function AccommodationEditor({
     }
   }
 
-  function update(
-    change: (draft: WeddingPlanDraft) => void,
-    layoutOnly = false,
-  ) {
-    if (!layoutOnly) {
-      setTableAllocation(null);
-      setAllocation(null);
-      setReport("");
-      setWarnings([]);
-    }
+  function update(change: (draft: WeddingPlanDraft) => void) {
+    setAllocation(null);
+    setReport("");
+    setWarnings([]);
     setState((previous) => {
       if (!previous) return previous;
       const draft = structuredClone(previous);
@@ -445,7 +479,7 @@ export function AccommodationEditor({
         return previous;
       }
       editVersion.current += 1;
-      if (!layoutOnly) solverVersion.current += 1;
+      solverVersion.current += 1;
       setSaveStatus("Saving…");
       setError("");
       return draft;
@@ -501,12 +535,15 @@ export function AccommodationEditor({
 
   async function calculate() {
     if (!state) return;
+    if (view !== "result") {
+      setView("result");
+      return;
+    }
     const version = editVersion.current;
     const calculationVersion = solverVersion.current;
     cancelPendingSave();
     setBusy(true);
     setError("");
-    setView("result");
     try {
       await saveBeforeCalculation(state, version);
       const result = await application.calculateRooms(state);
@@ -528,6 +565,22 @@ export function AccommodationEditor({
     }
   }
 
+  // A room-plan URL must work after a refresh, when no prior component owns
+  // the calculated projection.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: calculate is intentionally triggered once per route mount.
+  useEffect(() => {
+    if (
+      view !== "result" ||
+      !state ||
+      allocation ||
+      busy ||
+      autoRoomCalculationStarted.current
+    )
+      return;
+    autoRoomCalculationStarted.current = true;
+    void calculate();
+  }, [view, state, allocation, busy]);
+
   async function importPlan(file: File) {
     const imported = decodeWeddingPlanDraft(await file.text());
     cancelPendingSave();
@@ -538,34 +591,11 @@ export function AccommodationEditor({
     setState(imported);
     setSelectedId(imported.guests[0]?.id ?? null);
     setAllocation(null);
-    setTableAllocation(null);
     setReport("");
     setWarnings([]);
     setError("");
     setSaveStatus("Saved in this browser");
     setView("bed_groups");
-  }
-
-  async function calculateTablePlan() {
-    if (!state) return;
-    const version = editVersion.current;
-    const calculationVersion = solverVersion.current;
-    cancelPendingSave();
-    setTableBusy(true);
-    setError("");
-    try {
-      await saveBeforeCalculation(state, version);
-      const result = await application.calculateTables(state);
-      if (solverVersion.current === calculationVersion)
-        setTableAllocation(result);
-    } catch (cause) {
-      if (solverVersion.current === calculationVersion)
-        setError(
-          cause instanceof Error ? cause.message : "Could not calculate tables",
-        );
-    } finally {
-      setTableBusy(false);
-    }
   }
 
   function exportPlan() {
@@ -744,118 +774,34 @@ export function AccommodationEditor({
   );
 
   return (
-    <div className="editor-app">
-      <header className="editor-header">
-        <div className="editor-brand">
-          <span className="brand-mark">
-            <Heart size={18} fill="currentColor" />
-          </span>
-          <span>
-            Wedding planner <small>Rooms, tables &amp; music</small>
-          </span>
-        </div>
-        <span className="save-status">
-          <Check size={15} /> {saveStatus}
-        </span>
-      </header>
-      <div className="editor-shell">
-        <aside className="editor-sidebar">
-          <PlannerNavigation
-            view={view}
-            onViewChange={setView}
-            pendingPairCount={pendingInvitationPairs.length}
-            guestCount={guests.length}
-          />
-          {state && (
-            <DataControls hasData onImport={importPlan} onExport={exportPlan} />
-          )}
-        </aside>
-        <main className="editor-main">
-          {!loading && !state && (
-            <Card className="editor-start-card">
-              <CardHeader>
-                <CardTitle>No plan loaded</CardTitle>
-                <CardDescription>Plans stay in this browser.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="mb-4" onClick={loadSamplePlan}>
-                  Use sample plan
-                </Button>
-                <DataControls
-                  hasData={false}
-                  onImport={importPlan}
-                  onExport={exportPlan}
-                />
-              </CardContent>
-            </Card>
-          )}
-          {state?.sample_plan === true && (
-            <output className="editor-hint mb-5 block">
-              Sample plan · 26 fictional guests
-            </output>
-          )}
-          {error && (
-            <div role="alert" className="editor-error">
-              {error}
-            </div>
-          )}
-          {view === "tables" && state && (
-            <TableEditor
-              state={state}
-              allocation={tableAllocation}
-              onLayoutUpdate={(change) => update(change, true)}
-              busy={tableBusy}
-              onUpdate={update}
-              onCalculate={calculateTablePlan}
-            />
-          )}
-          <ReadinessView
-            view={view}
+    <div className="wedding-route">
+      <div className="wedding-route-content">
+        <main id="wedding-planner-content" className="editor-main">
+          <EditorPlanStatus
+            error={error}
+            loading={loading}
+            onExport={exportPlan}
+            onImport={importPlan}
+            onLoadSample={loadSamplePlan}
             state={state}
-            onUpdate={update}
-            onView={setView}
-            onGuest={setSelectedId}
           />
-          <PlaylistView view={view} state={state} onUpdate={update} />
           {view === "bed_groups" && state && (
             <>
-              <div className="page-heading">
-                <div>
-                  <h2>Who shares a bed?</h2>
-                </div>
-                <Button onClick={() => setView("sharing")}>
-                  Sharing map <ArrowRight size={16} />
-                </Button>
-              </div>
-              <div className="progress-strip bed-progress-strip">
-                <span>
-                  <strong>
-                    {
-                      bedGroups.filter((group) => group.guestIds.length === 2)
-                        .length
-                    }
-                  </strong>{" "}
-                  shared beds
-                </span>
-                <span>
-                  <strong>{unpairedGuests.length}</strong> currently unpaired
-                </span>
-                <span>
-                  <strong>{pendingInvitationPairs.length}</strong> suggestions
-                  to review
-                </span>
-                <span>
-                  <strong>
-                    {
-                      guests.filter(
-                        (guest) =>
-                          guest.requires_own_bed && guest.overnight !== "no",
-                      ).length
-                    }
-                  </strong>{" "}
-                  own beds
-                </span>
-              </div>
+              <BedGroupsSummary
+                ownBedCount={
+                  guests.filter(
+                    (guest) =>
+                      guest.requires_own_bed && guest.overnight !== "no",
+                  ).length
+                }
+                pendingPairCount={pendingInvitationPairs.length}
+                sharedBedCount={
+                  bedGroups.filter((group) => group.guestIds.length === 2)
+                    .length
+                }
+                unpairedCount={unpairedGuests.length}
+                onOpenSharing={() => setView("sharing")}
+              />
               {pendingInvitationPairs.length > 0 && (
                 <Card className="bed-review-card">
                   <CardHeader>
@@ -935,7 +881,7 @@ export function AccommodationEditor({
                               selectedUnpaired?.id === guest.id && "selected",
                             )}
                             onClick={() => {
-                              setSelectedId(guest.id);
+                              selectGuest(guest.id);
                               setPartnerSearch("");
                             }}
                           >
@@ -1121,7 +1067,7 @@ export function AccommodationEditor({
                         type="button"
                         key={guest.id}
                         className={`guest-row ${selectedId === guest.id ? "selected" : ""}`}
-                        onClick={() => setSelectedId(guest.id)}
+                        onClick={() => selectGuest(guest.id)}
                       >
                         <span className="guest-avatar">
                           {guest.name.charAt(0)}
@@ -1570,9 +1516,7 @@ export function AccommodationEditor({
                           type="button"
                           key={group.id}
                           className={`sharing-focus-row ${group.id === focusGroup?.id ? "selected" : ""}`}
-                          onClick={() =>
-                            setSelectedId(group.guestIds[0] ?? null)
-                          }
+                          onClick={() => selectGuest(group.guestIds[0] ?? null)}
                         >
                           <span className="guest-avatar">
                             {group.name.charAt(0)}
@@ -1988,7 +1932,7 @@ export function AccommodationEditor({
                       className="linen-map-button"
                       variant="outline"
                       onClick={() => {
-                        setSelectedId(
+                        selectGuest(
                           weddingAccommodationSetup.reservation?.guestIds(
                             state,
                           )[0] ?? null,
