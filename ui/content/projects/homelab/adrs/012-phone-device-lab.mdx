@@ -3,6 +3,8 @@ title: "ADR 012: Old phones as a physical device lab and cellular watchdog"
 date: "2026-08-22"
 status: "Proposed"
 tech_stack: ["Tailscale"]
+implements_product_decisions:
+  - "homelab:008-use-old-phones-for-mobile-evidence-and-outage-detection"
 ---
 
 # Context
@@ -19,31 +21,16 @@ node. A phone would be worse at either job. Android background limits, ageing
 batteries, and awkward service management would add failure modes without
 removing any existing ones.
 
-The phones have something the servers do not: real mobile browsers, touch
-input, batteries, sensors, and mobile radios. Those capabilities fit two
-problems already present in the lab.
+[PDR 008](/projects/homelab/pdrs/008-use-old-phones-for-mobile-evidence-and-outage-detection)
+proposes two jobs that depend on physical phone capabilities: repeatable
+mobile-browser evidence and an outside observer using mobile data. This ADR
+chooses the USB automation, stock operating systems, tailnet policy, alerting,
+and power controls for those pilots.
 
-First, the Mac mini hosts coding agents that work on web applications. Preview
-testing now happens in desktop browsers and emulators. Real Android and iOS
-hardware would let an agent reproduce mobile browser bugs, record the result,
-and test a pull request on the devices people actually hold.
-
-Second, [Netdata](/projects/homelab/adrs/006-netdata) shares fate with the
-network it monitors. If both AdGuard Home resolvers fail, or the home loses
-power or internet access, Netdata may be unable to deliver the alert. A phone
-using mobile data can observe the lab from outside that failure.
-
-Requirements:
-
-1. Agents can run repeatable browser checks and collect screenshots from each
-   phone without someone tapping through the test by hand.
-2. The setup stays private. Test devices must not expose debugging ports to the
-   LAN or gain broad access to the tailnet.
-3. A watchdog must use a network path independent of the home LAN and its DNS.
-4. The phones must not become another source of irreplaceable data or
-   credentials.
-5. Battery wear and heat must be visible rather than hidden behind a permanent
-   charger.
+The architecture must not expose debugging ports to the LAN, give a stale
+phone broad tailnet access, or make the phones another source of irreplaceable
+data and credentials. The watchdog path must remain independent of home DNS
+and broadband. Battery wear and heat must stay visible.
 
 # Decision, proposed
 

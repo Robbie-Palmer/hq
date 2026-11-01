@@ -3,12 +3,15 @@ title: "ADR 004: t3-code as the agent orchestrator"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["t3-code"]
+implements_product_decisions:
+  - "homelab:005-run-persistent-agent-work-from-personal-devices"
 ---
 
 # Context
 
-The Mac mini's primary use case is remote, mobile-friendly, agentic
-development. It hosts four coding harnesses, [Claude Code](/projects/homelab/adrs/002-claude-code),
+[PDR 005](/projects/homelab/pdrs/005-run-persistent-agent-work-from-personal-devices)
+requires one mobile-friendly interface over prepared, persistent agent hosts.
+The Mac mini hosts four coding harnesses, [Claude Code](/projects/homelab/adrs/002-claude-code),
 [Codex](/projects/homelab/adrs/003-codex) (two subscriptions),
 [Grok Build](/projects/homelab/adrs/002-grok-build), and
 [OpenCode](/projects/homelab/adrs/003-opencode), and I want to drive them

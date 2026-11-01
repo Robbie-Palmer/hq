@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, and gives each active machine a real job"
 date: "2026-08-02"
-updated: "2026-10-31"
+updated: "2026-11-01"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -73,26 +73,30 @@ network privacy, and monitoring without relying on me to remember each job.
 
 The home lab exists to serve four goals, in priority order:
 
-1. **Data backup and coordination.** The lab syncs and backs up cloud photo
-   libraries, datasets, and project files. Manual drive synchronisation has
-   failed repeatedly. The machines now own that work.
-2. **Agentic development environments.** Always-available machines host my
-   coding harnesses (Claude Code, Codex, OpenCode, Grok Build) behind a
-   mobile-friendly GUI, so I can drive real development work from my phone over
-   the tailnet even when the home power or broadband is unavailable.
-3. **Privacy.** Network-wide ad and tracker blocking keeps my devices from
-   phoning home to trackers, applied to every device on the LAN regardless of
-   what it runs.
-4. **Responsible hardware reuse.** Existing devices get useful jobs when they
-   fit the workload and the room. Hardware that remains idle, noisy, or costly
-   to maintain leaves the active fleet instead of becoming permanent clutter.
+1. **[Data backup and coordination](/projects/homelab/pdrs/004-automate-recoverable-personal-data-copies).**
+   The lab syncs and backs up cloud photo libraries, datasets, and project
+   files. Manual drive synchronisation has failed repeatedly. The machines now
+   own that work.
+2. **[Agentic development environments](/projects/homelab/pdrs/005-run-persistent-agent-work-from-personal-devices).**
+   Always-available machines host my coding harnesses (Claude Code, Codex,
+   OpenCode, Grok Build) behind a mobile-friendly GUI, so I can drive real
+   development work from my phone over the tailnet even when the home power or
+   broadband is unavailable.
+3. **[Privacy](/projects/homelab/pdrs/006-filter-tracking-for-every-household-device).**
+   Network-wide ad and tracker blocking keeps my devices from phoning home to
+   trackers, applied to every device on the LAN regardless of what it runs.
+4. **[Responsible hardware reuse](/projects/homelab/pdrs/000-keep-active-home-lab-hardware-quiet-and-role-driven).**
+   Existing devices get useful jobs when they fit the workload and the room.
+   Hardware that remains idle, noisy, or costly to maintain leaves the active
+   fleet instead of becoming permanent clutter.
 
 The lab is also where I learn networking, DNS, and orchestration across macOS,
 Linux, Android, and iOS. Every experiment still has to solve a real problem.
 
 Core services are reachable from my personal devices over the
 [Tailscale](/projects/homelab/adrs/000-tailscale) tailnet, so I can inspect and
-drive the lab without exposing it to the public internet.
+drive the lab without exposing it to the public internet. [PDR 003](/projects/homelab/pdrs/003-keep-home-lab-services-private)
+records that audience boundary.
 
 # Problem statement
 
@@ -466,14 +470,16 @@ the primary development and build machine.
   and [Recyclarr](/projects/homelab/adrs/016-recyclarr-trash-guides), in
   Docker Compose under colima, supervised by a launchd agent that only starts
   it while the VPN tunnel is up ([ADR 017](/projects/homelab/adrs/017-vpn-gated-stack)).
-  Trakt watchlist taps become monitored titles, and finished downloads land
-  straight in Jellyfin ([ADR 018](/projects/homelab/adrs/018-trakt-watchlist)).
+  [Trakt watchlist taps](/projects/homelab/pdrs/009-turn-watchlist-selections-into-library-items)
+  become monitored titles, and finished downloads land straight in Jellyfin
+  through [ADR 018](/projects/homelab/adrs/018-trakt-watchlist).
 
 ## Remote development plane, proposed
 
-[ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane) proposes
-a long-lived Hetzner VPS so a home power or broadband outage does not remove
-all coding capacity. Terraform provisions it, the repository's NixOS flake
+[PDR 010](/projects/homelab/pdrs/010-keep-agent-work-available-during-home-outages)
+proposes keeping agent work available through a home power or broadband
+outage. [ADR 021](/projects/homelab/adrs/021-cloud-remote-development-plane)
+implements that proposal with a long-lived Hetzner VPS. Terraform provisions it, the repository's NixOS flake
 declares the host, and an independent single-node K3s cluster runs t3-code for
 one operator. Multi-user capacity belongs on dedicated workspace nodes in a
 separately tested cluster, not on this VPS.
@@ -491,9 +497,10 @@ project owns provider choice, cross-device access, account policy, recovery,
 portability, and the combined subscription budget. The Home Lab implements the
 parts that need local machines or scheduled jobs:
 
-* [ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive) keeps
-  an independent encrypted archive in Backblaze B2 and requires recovery
-  drills before it counts as a backup.
+* [PDR 011](/projects/homelab/pdrs/011-keep-an-independent-offsite-personal-archive)
+  proposes an independent encrypted archive, and
+  [ADR 023](/projects/homelab/adrs/023-restic-backblaze-personal-archive)
+  defines the Backblaze B2 and recovery design.
 * [ADR 024](/projects/homelab/adrs/024-proton-vpn-programmable-egress) trials
   Proton VPN and Gluetun as a container-scoped, testable replacement for the
   GUI-controlled Hotspot Shield tunnel on the Mac mini.
@@ -542,9 +549,11 @@ targets for the coding agents. Wired connections to the Mac mini provide the
 most reliable control. Together they cover an old Android release, a newer
 Android release, and iOS 15 WebKit.
 
-The [phone device lab ADR](/projects/homelab/adrs/012-phone-device-lab) also
-proposes a second job for the View 20. A cheap data SIM, Tailscale, and a small
-Termux watchdog would let it check both DNS servers and the hub from cellular.
+[PDR 008](/projects/homelab/pdrs/008-use-old-phones-for-mobile-evidence-and-outage-detection)
+proposes the mobile evidence and outside-observer workflows. The
+[phone device lab ADR](/projects/homelab/adrs/012-phone-device-lab) gives the
+View 20 a second job using a cheap data SIM, Tailscale, and a small Termux
+watchdog to check both DNS servers and the hub from cellular.
 That closes the monitoring gap where Netdata cannot send a Slack alert because
 the network or DNS it depends on has failed.
 

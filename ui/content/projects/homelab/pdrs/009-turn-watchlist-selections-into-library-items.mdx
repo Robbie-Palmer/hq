@@ -1,0 +1,52 @@
+---
+title: "PDR 009: Turn watchlist selections into library items"
+date: "2026-08-23"
+status: "Accepted"
+decision_date: "2026-08-23"
+informed_by_adrs:
+  - "homelab:008-jellyfin"
+---
+
+## Context
+
+The home media library already had a private playback system. Adding a film or
+series through separate administration panels still made choosing what to
+watch feel like operating infrastructure. The natural selection point is a
+phone recommendation feed while deciding what looks interesting.
+
+Watch history also affects future recommendations. A disconnected acquisition
+queue and playback history would leave that feedback incomplete.
+
+## Decision
+
+Use one watchlist as the human-facing selection workflow for the private media
+library. Adding a film or series to the list should place it into the monitored
+acquisition pipeline without requiring an administration-panel visit.
+
+Send completed playback history back to the same service so its recommendations
+reflect what the household actually watched. A selection requests acquisition;
+it does not promise that a matching release exists or bypass the library's
+quality rules.
+
+Keep queue behavior explicit. Removing an item from the watchlist does not
+silently delete or unmonitor an existing library entry.
+
+## Consequences
+
+Media selection becomes a phone workflow instead of an infrastructure task.
+The library now depends on an external recommendation account and its OAuth
+connections. Availability, quality rules, and delayed list refresh can still
+prevent immediate acquisition.
+
+## Evaluation
+
+A watchlist addition should appear as a monitored film or series and follow the
+normal search and import path. A completed playback should update watched state
+without custom synchronization code.
+
+## Migration note
+
+ADR 008 established the earlier playback architecture and informed this later
+product choice. This PDR extracts the accepted watchlist workflow from ADR 018
+and keeps its original date. ADRs 013 and 018 retain the acquisition stack and
+native Trakt integration details.

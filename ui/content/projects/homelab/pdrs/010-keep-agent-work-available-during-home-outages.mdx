@@ -1,0 +1,48 @@
+---
+title: "PDR 010: Keep agent work available during home outages"
+date: "2026-09-04"
+status: "Proposed"
+---
+
+## Context
+
+The home development host provides the persistent workflow from PDR 005, but
+the Mac mini, router, broadband, and household power form one failure domain.
+When that domain is unavailable, the prepared repositories and agent interface
+disappear together.
+
+Creating a temporary cloud machine after an outage would begin with setup at
+the moment the fallback is needed.
+
+## Proposed decision
+
+Keep one off-site agent environment prepared before a home outage begins. It
+must provide the same private, mobile workflow for starting an agent, changing
+a repository, and pushing a branch or pull request over a modest mobile
+connection.
+
+Use Git branches and pull requests as the handoff boundary between home and
+off-site environments. Do not promise live session, database, or worktree
+synchronization. Work that exists only in one unpushed worktree is outside the
+continuity guarantee until a separate backup protects it.
+
+Keep the fallback single-user and private. The product decision does not
+require active-active service or a cluster spanning home and cloud.
+
+## Consequences
+
+A home outage need not stop all agent work. The fallback adds a continuing
+provider cost, another credential and recovery boundary, and discipline around
+pushing work that needs to move between environments.
+
+## Evaluation
+
+Accept the proposal only after the Mac mini is off, the test device is off home
+broadband, and the user can reach the off-site interface over mobile data,
+start an agent, change a repository, and push the result.
+
+## Migration note
+
+This PDR extracts the outage-continuity promise and its real success test from
+ADR 021. It keeps the original date and Proposed status. ADR 021 retains the
+Hetzner, Terraform, NixOS, K3s, storage, access, and recovery architecture.

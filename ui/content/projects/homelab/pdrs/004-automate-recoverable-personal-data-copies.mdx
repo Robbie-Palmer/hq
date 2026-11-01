@@ -1,0 +1,47 @@
+---
+title: "PDR 004: Automate recoverable copies of personal data"
+date: "2026-08-02"
+status: "Accepted"
+decision_date: "2026-08-02"
+---
+
+## Context
+
+Manual drive synchronization had repeatedly left personal files stale or
+uncertain. The family photo library depended on one cloud account, while other
+personal files existed on individual machines or disks. A copy that nobody can
+verify or restore is not a dependable backup.
+
+Different data already has different distribution. Photos, source code, and a
+personal archive do not need one provider or one retention rule.
+
+## Decision
+
+Use the lab to create automatic, inspectable copies of personal data outside
+each source system. Keep copied files readable without the source application
+where practical. Monitor recurring copy jobs, surface failures and full
+storage, and prove recovery rather than treating a completed upload as enough.
+
+Define backup scope by data class. A new source joins only after its owner,
+destination, retention needs, and restore path are clear. Existing independent
+copies may satisfy the policy when their recovery path has been checked.
+
+## Consequences
+
+The lab owns recurring backup work that manual copying handled badly. It also
+owns monitoring, restore drills, credentials, capacity, and retention costs.
+Not every file belongs in every backup, so exclusions must remain deliberate
+and documented.
+
+## Evaluation
+
+Each protected data class must have a recent independent copy, a visible
+failure signal for recurring jobs, and a restore performed without relying on
+the source application or source machine.
+
+## Migration note
+
+This PDR preserves the backup policy from the original narrative and the
+product requirements mixed into ADR 005. ADR 005 retains the Ente export and
+local-drive design. ADR 023 later applies the same policy to a separate
+non-photo archive with its own proposed scope and recovery boundary.

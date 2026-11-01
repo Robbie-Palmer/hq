@@ -3,13 +3,16 @@ title: "ADR 009: CUPS for the unsupported printer"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["CUPS"]
+implements_product_decisions:
+  - "homelab:002-reuse-unsupported-hardware-for-real-jobs"
 ---
 
 # Context
 
-I own a 2011 Canon MX3100 printer. Canon no longer supports it, the vendor
-would have me buy a new printer, but the hardware still works, so the plan
-is to avoid ewaste by keeping it in service with free software.
+[PDR 002](/projects/homelab/pdrs/002-reuse-unsupported-hardware-for-real-jobs)
+keeps working unsupported hardware when maintained software can give it a real
+job. The 2011 Canon MX3100 works mechanically, but Canon no longer supports it
+on current client operating systems.
 
 My own experience with the open-source route: it printed fine from an old
 Ubuntu 18 setup, but not from Ubuntu 22+ or from macOS, and I couldn't test

@@ -3,6 +3,7 @@ title: "PDR 000: Keep active home-lab hardware quiet and role-driven"
 date: "2026-10-31"
 status: "Accepted"
 decision_date: "2026-10-31"
+supersedes: "homelab:002-reuse-unsupported-hardware-for-real-jobs"
 informed_by_adrs:
   - "homelab:007-nixos-gpu-worker"
   - "homelab:025-graphical-nixos-development-workstation"
@@ -80,3 +81,11 @@ Review the policy when an active machine lacks a named workload, a shared room
 gains persistent fan noise, or a proposed purchase has no agreed placement.
 Successful retirement leaves no unique data on the Asus desktop and no
 dependency that requires it to remain powered.
+
+## Migration note
+
+This decision changed the original reuse policy recorded on 2026-08-02. The
+earlier policy treated continued usefulness as enough reason to keep old
+hardware active. Experience with the Asus desktop added noise, placement,
+power, and maintenance as product constraints. The supersession link records
+that later change; adding the historical PDR does not backdate it.

@@ -1,0 +1,50 @@
+---
+title: "PDR 003: Keep home-lab services private"
+date: "2026-08-02"
+status: "Accepted"
+decision_date: "2026-08-02"
+---
+
+## Context
+
+The lab provides DNS, development, media, printing, monitoring, and backup
+services for personal and household devices. None of those services needs a
+public audience. Exposing each one through an internet-facing endpoint would
+add authentication and patching boundaries for little benefit.
+
+The owner still needs to reach the lab from a phone or laptop away from home,
+including across mobile networks and restrictive Wi-Fi.
+
+## Decision
+
+Keep lab applications and management interfaces private to approved personal
+devices. Do not forward router ports, publish service dashboards, or create
+public application routes for convenience.
+
+Remote access must use one private device network with name-based addressing.
+A new lab node or personal device joins that network explicitly before it can
+reach a service. Machines that perform narrow lab duties may receive narrower
+access than the owner's devices.
+
+Public provider endpoints remain external dependencies when a workload needs
+them, but they do not turn a lab service into a public application.
+
+## Consequences
+
+The lab has no intended public service surface. Remote use depends on the
+private-network control plane and on keeping device membership trustworthy.
+Sharing a service with somebody outside the approved device set requires a new
+product decision rather than an ad hoc public tunnel.
+
+## Evaluation
+
+The policy holds when every application and management interface is reachable
+from an approved remote device without a public inbound route, and an
+unapproved internet client cannot reach it.
+
+## Migration note
+
+This PDR extracts the private-access promise from the original project
+narrative and ADR 000. ADR 000 retains the Tailscale architecture. Later
+tailnet-policy ADRs retain authorization and delivery details. The migration
+does not change the lab's audience or expose a new route.
