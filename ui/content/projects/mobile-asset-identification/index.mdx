@@ -48,6 +48,62 @@ The service joins the identifier inferred from each photo with the location supp
 * Check a vehicle into or out of the yard
 * Verify yard inventory against the assets found on site
 
+# Identification data flow
+
+This is a conceptual view of the implemented, team-delivered workflow. It uses only the public facts described on
+this page. It does not show customer details, internal service names, cloud accounts, queue names, network boundaries,
+data volumes, or the production deployment topology.
+
+<Mermaid
+  chart={`flowchart TB
+FieldPhotos["Field photos<br/>External input collected across customer sites"]
+
+subgraph Development["Development and evaluation · implemented"]
+Annotation["Manual annotation<br/>Purpose-built labelling tools"]
+Dataset[("Labelled image dataset")]
+Evaluation["Fixed evaluation benchmark"]
+Iteration["Image-processing and recognition iterations<br/>Built around existing models"]
+Annotation -->|"consistent identifier labels"| Dataset
+Dataset -->|"fixed evaluation examples"| Evaluation
+Iteration -->|"measured against the benchmark"| Evaluation
+Evaluation -->|"failure cases guide the next change"| Iteration
+end
+
+subgraph Product["Mobile identification workflow · implemented"]
+Capture["Mobile web app<br/>Photo capture and phone location"]
+Integration["Application integration<br/>SNS and SQS"]
+Inference["Python and OpenCV<br/>image-analysis service on AWS ECS"]
+Candidates["Candidate asset identifiers"]
+Actions["Yard workflow<br/>Record asset and location,<br/>check in or out, or verify inventory"]
+Capture -->|"photo for analysis"| Integration
+Integration -->|"image-analysis request"| Inference
+Inference -->|"inferred identifier"| Candidates
+end
+Operator["Yard operator<br/>Person outside the software boundary<br/>Human decision boundary"]
+
+FieldPhotos -->|"examples to label"| Annotation
+Iteration -->|"evaluated recognition changes"| Inference
+Candidates -->|"candidate identifier"| Operator
+Capture -->|"phone location and workflow context"| Operator
+Operator -->|"decides whether and how to apply the result"| Actions
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[38rem]"
+/>
+
+## Equivalent text
+
+1. Field photos collected across customer sites pass through manual annotation tooling to create a consistently
+   labelled image dataset.
+2. A fixed evaluation benchmark draws examples from that dataset. Image-processing and recognition changes built
+   around the existing models run against the benchmark, and the resulting failure cases guide the next iteration.
+3. Evaluated recognition changes move into the Python and OpenCV image-analysis service running on AWS ECS.
+4. In the mobile workflow, the web app captures a photo and the phone's location. SNS and SQS connect the photo to
+   the image-analysis service through the wider application workflow.
+5. The service returns candidate asset identifiers. The operator receives a candidate alongside the phone location
+   and the workflow context.
+6. The operator remains the decision boundary. They decide whether and how to use the result to record an asset and
+   its location, check a vehicle in or out, or verify yard inventory.
+
 # Result
 
 The project turned Terminal's existing computer-vision models into a mobile product for sites and workflows that do not depend on fixed cameras. My work covered the labelled dataset, annotation tools, ML pipeline, benchmark, algorithm iteration, web service, and infrastructure as code.
