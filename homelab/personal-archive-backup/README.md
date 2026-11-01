@@ -139,3 +139,55 @@ Do not record credentials or full source paths here.
 | Recovery egress | The restore materialized 3,700,154,368 bytes and triggered the account's 100 percent daily download-cap alert; exact billable egress was not available from the alert |
 | Mac mini 10 TB drive copy | Pending |
 | Object Lock maintenance test | Pending |
+
+## Controlled one-day Object Lock experiment
+
+Run this experiment only against a unique prefix under
+`object-lock-experiments/`. It never accepts a prefix in the production
+`restic/` namespace. The command creates temporary policy and data keys, and
+revokes both before it exits. The data key is restricted to the disposable
+prefix and deliberately omits `bypassGovernance`.
+
+First, run the idle check on the archive source host and keep its JSON output
+in a temporary file. The proof expires after 15 minutes:
+
+```bash
+idle_proof=$(mktemp)
+mise run //homelab:personal-archive-object-lock-idle-check \
+  >"${idle_proof}"
+```
+
+Provide the Backblaze administrative key ID and secret through private files,
+not command-line arguments or environment values. Then start the experiment:
+
+```bash
+B2_ADMIN_KEY_ID_FILE=/private/path/key-id \
+B2_ADMIN_APPLICATION_KEY_FILE=/private/path/application-key \
+  mise run //homelab:personal-archive-object-lock -- \
+    start --idle-proof "${idle_proof}"
+```
+
+The command checks the exact private bucket, Object Lock capability, and empty
+default-retention setting before creating keys. It installs its teardown trap
+before enabling a one-day governance default. After the upload, it verifies
+every object under the disposable prefix, removes the default, and proves both
+direct deletion and restic prune fail without governance bypass. Its JSON
+output is safe to use as the non-secret evidence record. `retainedBytes` and
+`retainedByteDays` quantify the experiment's one-day storage behavior. Object
+Lock has no separate fee, but those bytes remain subject to normal B2 storage
+charges until the reported retention time expires.
+
+After the reported `retainUntil` time, clean up only the recorded prefix:
+
+```bash
+B2_ADMIN_KEY_ID_FILE=/private/path/key-id \
+B2_ADMIN_APPLICATION_KEY_FILE=/private/path/application-key \
+  mise run //homelab:personal-archive-object-lock -- \
+    cleanup --prefix object-lock-experiments/YYYYMMDDTHHMMSSZ-NONCE/restic \
+    --retain-until YYYY-MM-DDTHH:MM:SSZ
+```
+
+The cleanup command refuses to run before expiry or while any bucket default
+retention exists. It creates a fresh prefix-only key without governance bypass,
+deletes every version in the disposable repository, proves the prefix is
+empty, and revokes the key.

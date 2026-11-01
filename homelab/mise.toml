@@ -3,6 +3,7 @@
 
 [tools]
 python = "3.12.14"
+"pipx:b2" = "5.0.2"
 "aqua:abiosoft/colima" = "0.10.3"
 "aqua:lima-vm/lima" = "2.2.1"
 "pipx:ansible-core" = "2.21.4"
@@ -425,7 +426,15 @@ run = "personal-archive-status.sh"
 [tasks.personal-archive-test]
 description = "Test personal archive backup, recovery, and maintenance boundaries"
 depends = ["//:install"]
-run = "pnpm exec tsx --test personal-archive-backup/tests/backup.test.ts"
+run = "pnpm exec tsx --test personal-archive-backup/tests/*.test.ts"
+
+[tasks.personal-archive-object-lock-idle-check]
+description = "Prove the personal archive backup is idle before an Object Lock experiment"
+run = "bash personal-archive-backup/scripts/object-lock-idle-check.sh"
+
+[tasks.personal-archive-object-lock]
+description = "Run or clean up the guarded disposable B2 Object Lock experiment"
+run = "bash personal-archive-backup/scripts/object-lock-experiment.sh"
 
 [tasks.remote-kubeconfig]
 description = "Fetch the remote cluster kubeconfig over Tailscale into a gitignored file"
