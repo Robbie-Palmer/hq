@@ -74,6 +74,42 @@ TEST_CASE("frame transforms reject invalid frame, time, and objective inputs") {
       ManeuverPlanningError);
 }
 
+TEST_CASE("frame transforms reject each non-finite orientation input") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  const OrbitalStateVector state = orbit.propagate(orbit.epochUnixMilliseconds()).teme;
+  const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+  OrbitalStateVector invalid_state = state;
+  invalid_state.position_metres.x = not_a_number;
+  CHECK_THROWS_AS(temeToGcrf(invalid_state, {}), ManeuverPlanningError);
+
+  EarthOrientationInputs invalid_orientation;
+  invalid_orientation.tai_minus_utc_seconds = 0;
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.ut1_minus_utc_seconds = not_a_number;
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.polar_motion_x_radians = not_a_number;
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.polar_motion_y_radians = not_a_number;
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  CHECK_THROWS_AS(objectivePositionInGcrf(Coordinate(0.0F, 0.0F), not_a_number,
+                                          orbit.epochUnixMilliseconds(), {}),
+                  ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.ut1_minus_utc_seconds = not_a_number;
+  CHECK_THROWS_AS(objectivePositionInGcrf(Coordinate(0.0F, 0.0F), 550'000.0,
+                                          orbit.epochUnixMilliseconds(), invalid_orientation),
+                  ManeuverPlanningError);
+}
+
 TEST_CASE("the WGS84 objective transform uses the pinned arrival epoch and GCRF frame") {
   const CartesianVector south_pole =
       objectivePositionInGcrf(Coordinate(0.0F, -90.0F), 550'000.0, 962'136'019'734, {});
@@ -109,6 +145,48 @@ TEST_CASE("two-body propagation conserves circular-orbit energy over one revolut
   CHECK(specificEnergy(propagated) == Catch::Approx(specificEnergy(initial)).epsilon(1e-12));
 }
 
+TEST_CASE("two-body propagation rejects wrong frames and degenerate states") {
+  OrbitalStateVector state;
+  state.frame = OrbitalCoordinateFrame::Teme;
+  state.epoch_unix_milliseconds = 1'000'000;
+  state.position_metres = {7'000'000.0, 0.0, 0.0};
+  state.velocity_metres_per_second = {0.0, 7'500.0, 0.0};
+  CHECK_THROWS_AS(propagateTwoBody(state, state.epoch_unix_milliseconds + 1'000),
+                  ManeuverPlanningError);
+
+  state.frame = OrbitalCoordinateFrame::Gcrf;
+  state.position_metres = {};
+  CHECK_THROWS_AS(propagateTwoBody(state, state.epoch_unix_milliseconds + 1'000),
+                  ManeuverPlanningError);
+}
+
+TEST_CASE("two-body propagation handles backward, parabolic, and hyperbolic motion") {
+  constexpr double kRadiusMetres = 7'000'000.0;
+  const double escape_speed =
+      std::sqrt(2.0 * kEarthGravitationalParameterMetresCubedPerSecondSquared / kRadiusMetres);
+  OrbitalStateVector state;
+  state.frame = OrbitalCoordinateFrame::Gcrf;
+  state.epoch_unix_milliseconds = 1'000'000;
+  state.position_metres = {kRadiusMetres, 0.0, 0.0};
+
+  state.velocity_metres_per_second = {0.0, escape_speed, 0.0};
+  const OrbitalStateVector parabolic =
+      propagateTwoBody(state, state.epoch_unix_milliseconds + 60'000);
+  CHECK(parabolic.epoch_unix_milliseconds == state.epoch_unix_milliseconds + 60'000);
+  CHECK(magnitude(parabolic.position_metres) > kRadiusMetres);
+
+  state.velocity_metres_per_second = {0.0, escape_speed * 1.1, 0.0};
+  const OrbitalStateVector hyperbolic =
+      propagateTwoBody(state, state.epoch_unix_milliseconds + 60'000);
+  CHECK(hyperbolic.epoch_unix_milliseconds == state.epoch_unix_milliseconds + 60'000);
+  CHECK(magnitude(hyperbolic.position_metres) > kRadiusMetres);
+
+  const OrbitalStateVector backward =
+      propagateTwoBody(state, state.epoch_unix_milliseconds - 60'000);
+  CHECK(backward.epoch_unix_milliseconds == state.epoch_unix_milliseconds - 60'000);
+  CHECK(magnitude(backward.position_metres) > kRadiusMetres);
+}
+
 TEST_CASE("maneuver planning joins coast, transfer, burns, and target orbit at fixed epochs") {
   const Sgp4Orbit orbit(kReferenceElements);
   const ManeuverScenario scenario = referenceScenario(orbit);
@@ -132,6 +210,76 @@ TEST_CASE("maneuver planning joins coast, transfer, burns, and target orbit at f
   CHECK(plan.total_delta_velocity_metres_per_second > 0.0);
   CHECK(plan.total_delta_velocity_metres_per_second <
         scenario.maximum_total_delta_velocity_metres_per_second);
+}
+
+TEST_CASE("maneuver sampling includes exact event epochs for uneven intervals") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  ManeuverScenario scenario = referenceScenario(orbit);
+  scenario.sample_interval_milliseconds = 137'000U;
+
+  const ManeuverPlan plan = planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario);
+
+  CHECK(plan.current_coast.back().state.epoch_unix_milliseconds ==
+        scenario.departure_epoch_unix_milliseconds);
+  CHECK(plan.transfer.back().state.epoch_unix_milliseconds ==
+        scenario.arrival_epoch_unix_milliseconds);
+  CHECK(plan.target_orbit.back().state.epoch_unix_milliseconds ==
+        scenario.end_epoch_unix_milliseconds);
+}
+
+TEST_CASE("maneuver planning supports distinct target directions") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  ManeuverScenario scenario = referenceScenario(orbit);
+  scenario.maximum_total_delta_velocity_metres_per_second = 30'000.0;
+
+  for (const Coordinate objective : {Coordinate(0.0F, 90.0F), Coordinate(0.0F, 0.0F),
+                                     Coordinate(90.0F, 0.0F), Coordinate(-90.0F, 0.0F)}) {
+    const ManeuverPlan plan = planManeuver(orbit, objective, scenario);
+    CHECK(plan.events.size() == 2U);
+    CHECK(plan.transfer.back().state.epoch_unix_milliseconds ==
+          scenario.arrival_epoch_unix_milliseconds);
+  }
+}
+
+TEST_CASE("maneuver planning rejects every invalid scenario boundary") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  const ManeuverScenario reference = referenceScenario(orbit);
+
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, 91.0F), reference), ManeuverPlanningError);
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(181.0F, 0.0F), reference), ManeuverPlanningError);
+
+  ManeuverScenario scenario = reference;
+  scenario.departure_epoch_unix_milliseconds = orbit.epochUnixMilliseconds() - 1;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.arrival_epoch_unix_milliseconds = scenario.departure_epoch_unix_milliseconds;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.end_epoch_unix_milliseconds = scenario.arrival_epoch_unix_milliseconds - 1;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.sample_interval_milliseconds = 0U;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.target_altitude_metres = std::numeric_limits<double>::quiet_NaN();
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.target_altitude_metres = -1.0;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.maximum_total_delta_velocity_metres_per_second =
+      std::numeric_limits<double>::quiet_NaN();
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.maximum_total_delta_velocity_metres_per_second = 0.0;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
 }
 
 TEST_CASE("maneuver failures have stable typed error codes") {
