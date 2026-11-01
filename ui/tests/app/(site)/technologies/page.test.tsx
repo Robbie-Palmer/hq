@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TechnologiesPage from "@/app/(site)/technologies/page";
 
-vi.mock("@/components/technology/searchable-technology-grid", () => ({
+vi.mock("@/components/experience/searchable-technology-grid", () => ({
   SearchableTechnologyGrid: ({ technologies }: { technologies: unknown[] }) => (
     <div>{technologies.length} technologies</div>
   ),

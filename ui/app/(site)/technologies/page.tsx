@@ -1,6 +1,6 @@
 import { Layers, Rss } from "lucide-react";
 import type { Metadata } from "next";
-import { SearchableTechnologyGrid } from "@/components/technology/searchable-technology-grid";
+import { SearchableTechnologyGrid } from "@/components/experience/searchable-technology-grid";
 import { Button } from "@/components/ui/button";
 import { siteConfig } from "@/lib/config/site-config";
 import { loadDomainRepository } from "@/lib/domain";

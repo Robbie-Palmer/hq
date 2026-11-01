@@ -56,15 +56,7 @@ export function TechNavContent({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       <div className="flex flex-col gap-2 pb-4 shrink-0">
-        <h3 className="px-2 text-lg font-semibold">
-          <Link
-            href="/technologies"
-            onClick={onLinkClick}
-            className="hover:text-primary"
-          >
-            Technologies
-          </Link>
-        </h3>
+        <h3 className="font-semibold text-lg px-2">Technologies</h3>
         <div className="relative px-2">
           <Search className="absolute left-5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
