@@ -55,6 +55,19 @@ TEST_CASE("the pinned TEME to GCRF transform matches the scenario reference vect
   CHECK(gcrf.velocity_metres_per_second.z == Catch::Approx(4'534.914).margin(0.001));
 }
 
+TEST_CASE("the TEME transform normalizes sidereal time before J2000") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  OrbitalStateVector teme = orbit.propagate(orbit.epochUnixMilliseconds()).teme;
+  teme.epoch_unix_milliseconds = 0;
+
+  const OrbitalStateVector gcrf = temeToGcrf(teme, {});
+
+  CHECK(gcrf.frame == OrbitalCoordinateFrame::Gcrf);
+  CHECK(gcrf.epoch_unix_milliseconds == 0);
+  CHECK(std::isfinite(magnitude(gcrf.position_metres)));
+  CHECK(std::isfinite(magnitude(gcrf.velocity_metres_per_second)));
+}
+
 TEST_CASE("frame transforms reject invalid frame, time, and objective inputs") {
   const Sgp4Orbit orbit(kReferenceElements);
   OrbitalStateVector state = orbit.propagate(orbit.epochUnixMilliseconds()).teme;
@@ -108,6 +121,22 @@ TEST_CASE("frame transforms reject each non-finite orientation input") {
   CHECK_THROWS_AS(objectivePositionInGcrf(Coordinate(0.0F, 0.0F), 550'000.0,
                                           orbit.epochUnixMilliseconds(), invalid_orientation),
                   ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.ut1_minus_utc_seconds = std::numeric_limits<double>::infinity();
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.polar_motion_x_radians = std::numeric_limits<double>::infinity();
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.polar_motion_y_radians = -std::numeric_limits<double>::infinity();
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
+
+  invalid_orientation = {};
+  invalid_orientation.tai_minus_utc_seconds = -1;
+  CHECK_THROWS_AS(temeToGcrf(state, invalid_orientation), ManeuverPlanningError);
 }
 
 TEST_CASE("maneuver inputs reject every non-finite state component") {
@@ -206,6 +235,16 @@ TEST_CASE("two-body propagation rejects wrong frames and degenerate states") {
 
   state.frame = OrbitalCoordinateFrame::Gcrf;
   state.position_metres = {};
+  CHECK_THROWS_AS(propagateTwoBody(state, state.epoch_unix_milliseconds + 1'000),
+                  ManeuverPlanningError);
+
+  state.position_metres = {7'000'000.0, 0.0, 0.0};
+  state.velocity_metres_per_second = {0.0, std::numeric_limits<double>::infinity(), 0.0};
+  CHECK_THROWS_AS(propagateTwoBody(state, state.epoch_unix_milliseconds + 1'000),
+                  ManeuverPlanningError);
+
+  state.velocity_metres_per_second = {0.0, 7'500.0, 0.0};
+  state.position_metres.z = std::numeric_limits<double>::quiet_NaN();
   CHECK_THROWS_AS(propagateTwoBody(state, state.epoch_unix_milliseconds + 1'000),
                   ManeuverPlanningError);
 }
@@ -323,6 +362,10 @@ TEST_CASE("maneuver planning rejects every invalid scenario boundary") {
   CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
 
   scenario = reference;
+  scenario.target_altitude_metres = std::numeric_limits<double>::infinity();
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
   scenario.maximum_total_delta_velocity_metres_per_second =
       std::numeric_limits<double>::quiet_NaN();
   CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
@@ -330,6 +373,30 @@ TEST_CASE("maneuver planning rejects every invalid scenario boundary") {
   scenario = reference;
   scenario.maximum_total_delta_velocity_metres_per_second = 0.0;
   CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.maximum_total_delta_velocity_metres_per_second = std::numeric_limits<double>::infinity();
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+
+  scenario = reference;
+  scenario.maximum_total_delta_velocity_metres_per_second = -1.0;
+  CHECK_THROWS_AS(planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario), ManeuverPlanningError);
+}
+
+TEST_CASE("maneuver sampling supports zero-length coast and target-orbit segments") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  ManeuverScenario scenario = referenceScenario(orbit);
+  scenario.departure_epoch_unix_milliseconds = orbit.epochUnixMilliseconds();
+  scenario.end_epoch_unix_milliseconds = scenario.arrival_epoch_unix_milliseconds;
+
+  const ManeuverPlan plan = planManeuver(orbit, Coordinate(0.0F, -90.0F), scenario);
+
+  REQUIRE(plan.current_coast.size() == 1U);
+  REQUIRE(plan.target_orbit.size() == 1U);
+  CHECK(plan.current_coast.front().state.epoch_unix_milliseconds ==
+        scenario.departure_epoch_unix_milliseconds);
+  CHECK(plan.target_orbit.front().state.epoch_unix_milliseconds ==
+        scenario.arrival_epoch_unix_milliseconds);
 }
 
 TEST_CASE("maneuver failures have stable typed error codes") {

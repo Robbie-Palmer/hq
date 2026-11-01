@@ -578,6 +578,91 @@ TEST_CASE("browser serialization rejects incomplete traces and results") {
   }
 }
 
+TEST_CASE("browser serialization preserves optional and unknown event fields") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  SimulationResult result = runSimulationTrace(simulation.trace);
+
+  SimulationEvent command;
+  command.type = SimulationEventType::MissionCommand;
+  command.accepted = true;
+  command.objective = Coordinate(12.5F, -34.5F);
+  result.events.push_back(command);
+
+  SimulationEvent completion;
+  completion.type = SimulationEventType::MissionCompletion;
+  completion.accepted = true;
+  result.events.push_back(completion);
+
+  SimulationEvent sent;
+  sent.type = SimulationEventType::MessageSent;
+  sent.message.target = kBroadcastNode;
+  sent.message.mission_key = {};
+  result.events.push_back(sent);
+
+  SimulationEvent link_drop = sent;
+  link_drop.type = SimulationEventType::MessageDropped;
+  link_drop.drop_reason = MessageDropReason::LinkUnavailable;
+  result.events.push_back(link_drop);
+
+  SimulationEvent scripted_drop = link_drop;
+  scripted_drop.drop_reason = MessageDropReason::Scripted;
+  result.events.push_back(scripted_drop);
+
+  for (const SimulationEventType type :
+       {SimulationEventType::MessageDelayed, SimulationEventType::MessageDuplicated,
+        SimulationEventType::DelayedMessageDelivered}) {
+    SimulationEvent delivery = sent;
+    delivery.type = type;
+    delivery.deliver_at_ms = 42U;
+    result.events.push_back(delivery);
+  }
+
+  SimulationEvent disconnected;
+  disconnected.type = SimulationEventType::LinkChanged;
+  disconnected.connected = false;
+  result.events.push_back(disconnected);
+
+  for (const SimulationEventType type :
+       {SimulationEventType::MessageDelivered, SimulationEventType::DeliveryDecision,
+        SimulationEventType::PacketQueued, SimulationEventType::TransmissionStarted,
+        SimulationEventType::TransmissionCompleted, SimulationEventType::PacketForwarded,
+        SimulationEventType::ContactObserved, SimulationEventType::StoragePressureChanged,
+        SimulationEventType::NodeCrashed, SimulationEventType::NodeReset,
+        SimulationEventType::ResourceSample, SimulationEventType::StateChanged,
+        static_cast<SimulationEventType>(255)}) {
+    SimulationEvent state_event;
+    state_event.type = type;
+    state_event.previous_state = ControllerState::Quiescent;
+    state_event.current_state = ControllerState::SafeDisabled;
+    result.events.push_back(state_event);
+  }
+
+  SimulationEvent telemetry;
+  telemetry.type = SimulationEventType::ControllerTelemetry;
+  telemetry.telemetry.type = static_cast<TelemetryEventType>(255);
+  telemetry.telemetry.reason = static_cast<TelemetryReason>(255);
+  telemetry.telemetry.priority = static_cast<TelemetryPriority>(255);
+  telemetry.telemetry.mission_key = {};
+  telemetry.telemetry.related_node = kBroadcastNode;
+  telemetry.telemetry.previous_state = static_cast<ControllerState>(255);
+  telemetry.telemetry.current_state = static_cast<ControllerState>(255);
+  result.events.push_back(telemetry);
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+
+  CHECK(json.find(R"("accepted":true)") != std::string::npos);
+  CHECK(json.find(R"("target":null,"missionKey":null)") != std::string::npos);
+  CHECK(json.find(R"("reason":"link-unavailable")") != std::string::npos);
+  CHECK(json.find(R"("reason":"scripted-drop")") != std::string::npos);
+  CHECK(json.find(R"("deliverAtMs":42)") != std::string::npos);
+  CHECK(json.find(R"("event":"unknown","reason":"unknown","priority":"unknown")") !=
+        std::string::npos);
+  CHECK(json.find(R"("relatedNode":null)") != std::string::npos);
+  CHECK(json.find(R"("previousState":"unknown","currentState":"unknown")") != std::string::npos);
+  CHECK(json.find(R"("type":"unknown")") != std::string::npos);
+}
+
 TEST_CASE("the browser demonstration rejects an invalid objective") {
   CHECK_THROWS_AS(makeBrowserDemonstration(Coordinate(0.0F, 91.0F)), std::invalid_argument);
 }
