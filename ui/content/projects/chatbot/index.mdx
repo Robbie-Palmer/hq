@@ -43,3 +43,9 @@ I architected and built the real-time RAG infrastructure:
 * **Scalable Architecture**: Established a robust streaming RAG pipeline that successfully bridged disparate data sources (Postgres, Weaviate) with mobile experiences.
 * **Improved Retrieval**: Hybrid search implementation significantly outperformed naive vector-only approaches for specific product queries.
 * **Strategic Direction**: The implementation provided critical insights into the capabilities of LLMs for high-trust commercial tasks, shaping the platform's future interaction models.
+
+# Diagram assessment
+
+This page does not include an architecture diagram. The documented system has one short request path: a mobile client sent a question, the backend retrieved account data from PostgreSQL and product matches from Weaviate, it called a model through OpenRouter, and SSE carried the response back to the client. A diagram would repeat those steps without explaining another boundary or design decision.
+
+Revisit this choice if more project evidence documents a separate indexing pipeline, another request path, or a distinct ownership or trust boundary. Those additions would create relationships that a diagram could explain better than prose.
