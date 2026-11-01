@@ -401,6 +401,14 @@ run = "bash scripts/install-remote-development-observability-credentials.sh"
 description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
 run = "bash scripts/reconcile-remote-development-healthchecks.sh"
 
+[tasks.remote-healthchecks-pause]
+description = "Pause the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh pause"
+
+[tasks.remote-healthchecks-resume]
+description = "Resume the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh resume"
+
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
 depends = ["//:install"]
