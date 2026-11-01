@@ -67,8 +67,16 @@ function formatSimulationTime(timeMs: number): string {
 
 function describeMissionOrbit(
   missionOrbit: SimulationData["missionOrbit"],
-  waitingForAuthorization: boolean,
+  scenarioEpochUnixMilliseconds: number,
+  frameTimeMs: number,
 ): string {
+  const authorizationTimeMs =
+    missionOrbit.authorizationEpochUnixMilliseconds === null
+      ? null
+      : missionOrbit.authorizationEpochUnixMilliseconds -
+        scenarioEpochUnixMilliseconds;
+  const waitingForAuthorization =
+    authorizationTimeMs !== null && frameTimeMs < authorizationTimeMs;
   if (waitingForAuthorization) return "Waiting for an accepted assignment.";
   if (missionOrbit.status === "executed") {
     return `Node ${missionOrbit.selectedNodeId} accepted the assignment. C++ recorded the departure burn, transfer, arrival burn, and target orbit.`;
@@ -140,13 +148,6 @@ export function SatelliteSwarmSimulation({
   }, []);
   if (!frame) return null;
   const coordinationPhase = frame.playbackMultiplier < 1;
-  const authorizationTimeMs =
-    data.missionOrbit.authorizationEpochUnixMilliseconds === null
-      ? null
-      : data.missionOrbit.authorizationEpochUnixMilliseconds -
-        data.scenarioEpochUnixMilliseconds;
-  const waitingForAuthorization =
-    authorizationTimeMs !== null && frame.timeMs < authorizationTimeMs;
 
   return (
     <Card className="not-prose my-8 gap-0 overflow-hidden p-0">
@@ -227,7 +228,11 @@ export function SatelliteSwarmSimulation({
             </div>
             <p>
               <span className="font-medium text-zinc-100">Mission orbit:</span>{" "}
-              {describeMissionOrbit(data.missionOrbit, waitingForAuthorization)}
+              {describeMissionOrbit(
+                data.missionOrbit,
+                data.scenarioEpochUnixMilliseconds,
+                frame.timeMs,
+              )}
             </p>
             {primaryEvent && (
               <p aria-live="polite">

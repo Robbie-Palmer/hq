@@ -110,6 +110,56 @@ TEST_CASE("frame transforms reject each non-finite orientation input") {
                   ManeuverPlanningError);
 }
 
+TEST_CASE("maneuver inputs reject every non-finite state component") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  const OrbitalStateVector reference = orbit.propagate(orbit.epochUnixMilliseconds()).teme;
+  const double not_a_number = std::numeric_limits<double>::quiet_NaN();
+
+  for (const CartesianVector position : {
+           CartesianVector{not_a_number, reference.position_metres.y, reference.position_metres.z},
+           CartesianVector{reference.position_metres.x, not_a_number, reference.position_metres.z},
+           CartesianVector{reference.position_metres.x, reference.position_metres.y, not_a_number},
+       }) {
+    OrbitalStateVector invalid = reference;
+    invalid.position_metres = position;
+    CHECK_THROWS_AS(temeToGcrf(invalid, {}), ManeuverPlanningError);
+  }
+
+  for (const CartesianVector velocity : {
+           CartesianVector{not_a_number, reference.velocity_metres_per_second.y,
+                           reference.velocity_metres_per_second.z},
+           CartesianVector{reference.velocity_metres_per_second.x, not_a_number,
+                           reference.velocity_metres_per_second.z},
+           CartesianVector{reference.velocity_metres_per_second.x,
+                           reference.velocity_metres_per_second.y, not_a_number},
+       }) {
+    OrbitalStateVector invalid = reference;
+    invalid.velocity_metres_per_second = velocity;
+    CHECK_THROWS_AS(temeToGcrf(invalid, {}), ManeuverPlanningError);
+  }
+
+  OrbitalStateVector unknown_frame = reference;
+  unknown_frame.frame = static_cast<OrbitalCoordinateFrame>(255);
+  CHECK_THROWS_AS(temeToGcrf(unknown_frame, {}), ManeuverPlanningError);
+}
+
+TEST_CASE("maneuver planning rejects every invalid coordinate boundary") {
+  const Sgp4Orbit orbit(kReferenceElements);
+  const ManeuverScenario scenario = referenceScenario(orbit);
+  const float not_a_number = std::numeric_limits<float>::quiet_NaN();
+
+  for (const Coordinate objective : {
+           Coordinate(not_a_number, 0.0F),
+           Coordinate(0.0F, not_a_number),
+           Coordinate(-181.0F, 0.0F),
+           Coordinate(181.0F, 0.0F),
+           Coordinate(0.0F, -91.0F),
+           Coordinate(0.0F, 91.0F),
+       }) {
+    CHECK_THROWS_AS(planManeuver(orbit, objective, scenario), ManeuverPlanningError);
+  }
+}
+
 TEST_CASE("the WGS84 objective transform uses the pinned arrival epoch and GCRF frame") {
   const CartesianVector south_pole =
       objectivePositionInGcrf(Coordinate(0.0F, -90.0F), 550'000.0, 962'136'019'734, {});

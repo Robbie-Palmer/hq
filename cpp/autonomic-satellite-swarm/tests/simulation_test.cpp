@@ -2,6 +2,7 @@
 #include "satellite_swarm/fair_allocation_simulation.hpp"
 #include "satellite_swarm/simulation.hpp"
 
+#include <algorithm>
 #include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <cstdint>
@@ -515,6 +516,46 @@ TEST_CASE("browser serialization rejects incomplete traces and results") {
     CHECK_THROWS_AS(serializeBrowserSimulation(simulation, complete_result), std::invalid_argument);
   }
 
+  SECTION("missing trace") {
+    trace.frames.clear();
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, complete_result), std::invalid_argument);
+  }
+
+  SECTION("missing assignment decision") {
+    SimulationResult incomplete_result = complete_result;
+    incomplete_result.events.clear();
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("assignment decision without a boot epoch") {
+    SimulationResult incomplete_result = complete_result;
+    for (SimulationEvent& event : incomplete_result.events) {
+      if (event.type == SimulationEventType::ControllerTelemetry &&
+          event.telemetry.type == TelemetryEventType::MissionAssigned &&
+          event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+        event.telemetry.mission_key = {};
+        break;
+      }
+    }
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
+  SECTION("assignment decision without a mission sequence") {
+    SimulationResult incomplete_result = complete_result;
+    for (SimulationEvent& event : incomplete_result.events) {
+      if (event.type == SimulationEventType::ControllerTelemetry &&
+          event.telemetry.type == TelemetryEventType::MissionAssigned &&
+          event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+        event.telemetry.mission_key = MissionKey(0U, 1U, 0U);
+        break;
+      }
+    }
+    CHECK_THROWS_AS(serializeBrowserSimulation(simulation, incomplete_result),
+                    std::invalid_argument);
+  }
+
   SECTION("missing sampled frame") {
     SimulationResult incomplete_result = complete_result;
     incomplete_result.frames.resize(12U);
@@ -856,8 +897,13 @@ TEST_CASE("an unavailable selected node cannot execute the planned departure bur
   for (FrameObservation& frame : result.frames) {
     if (frame.now_ms == 600'000U) {
       REQUIRE(static_cast<std::size_t>(selected_node) < frame.nodes.size());
-      frame.nodes[selected_node].running = false;
-      frame.nodes[selected_node].state = ControllerState::SafeDisabled;
+      SECTION("the node is stopped") { frame.nodes[selected_node].running = false; }
+      SECTION("the node is not active") {
+        frame.nodes[selected_node].state = ControllerState::Idle;
+      }
+      SECTION("the node has a different mission") {
+        frame.nodes[selected_node].mission_key.sequence += 1U;
+      }
       found_departure_frame = true;
       break;
     }
@@ -869,6 +915,108 @@ TEST_CASE("an unavailable selected node cannot execute the planned departure bur
   CHECK(json.find(R"("maneuvers": [])") != std::string::npos);
   CHECK(json.find(R"("transfer": null)") != std::string::npos);
   CHECK(json.find(R"("target": null)") != std::string::npos);
+}
+
+TEST_CASE("maneuver authorization must precede a recorded departure frame") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  SimulationResult result = runSimulationTrace(simulation.trace);
+
+  SECTION("authorization arrives after departure") {
+    for (SimulationEvent& event : result.events) {
+      if (event.type == SimulationEventType::ControllerTelemetry &&
+          event.telemetry.type == TelemetryEventType::MissionAssigned) {
+        event.now_ms = 600'001U;
+      }
+    }
+  }
+
+  SECTION("the selected node records the assignment broadcast") {
+    NodeId selected_node = kBroadcastNode;
+    for (const SimulationEvent& event : result.events) {
+      if (event.type == SimulationEventType::ControllerTelemetry &&
+          event.telemetry.type == TelemetryEventType::MissionAssigned &&
+          event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+        selected_node = event.telemetry.related_node;
+        break;
+      }
+    }
+    REQUIRE(selected_node != kBroadcastNode);
+    for (SimulationEvent& event : result.events) {
+      if (event.type == SimulationEventType::ControllerTelemetry &&
+          event.telemetry.type == TelemetryEventType::MissionAssigned &&
+          event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+        event.node_id = selected_node;
+        break;
+      }
+    }
+    const std::string json = serializeBrowserSimulation(simulation, result);
+    CHECK(json.find(R"("status": "executed")") != std::string::npos);
+    return;
+  }
+
+  SECTION("the departure frame is absent") {
+    const auto departure_frame =
+        std::find_if(result.frames.begin(), result.frames.end(),
+                     [](const FrameObservation& frame) { return frame.now_ms == 600'000U; });
+    REQUIRE(departure_frame != result.frames.end());
+    departure_frame->now_ms = 600'001U;
+  }
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+  CHECK(json.find(R"("status": "node-unavailable-before-burn")") != std::string::npos);
+  CHECK(json.find(R"("maneuvers": [])") != std::string::npos);
+}
+
+TEST_CASE("assignment scanning ignores telemetry near-misses") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  SimulationResult result = runSimulationTrace(simulation.trace);
+  const auto assignment =
+      std::find_if(result.events.begin(), result.events.end(), [](const SimulationEvent& event) {
+        return event.type == SimulationEventType::ControllerTelemetry &&
+               event.telemetry.type == TelemetryEventType::MissionAssigned &&
+               event.telemetry.reason == TelemetryReason::AssignmentBroadcast;
+      });
+  REQUIRE(assignment != result.events.end());
+  const NodeId selected_node = assignment->telemetry.related_node;
+  const MissionKey mission_key = assignment->telemetry.mission_key;
+
+  SimulationEvent wrong_event_type;
+  wrong_event_type.type = SimulationEventType::MessageSent;
+  wrong_event_type.node_id = selected_node;
+
+  SimulationEvent wrong_telemetry_type;
+  wrong_telemetry_type.type = SimulationEventType::ControllerTelemetry;
+  wrong_telemetry_type.node_id = selected_node;
+  wrong_telemetry_type.telemetry.type = TelemetryEventType::HealthChanged;
+
+  SimulationEvent wrong_reason = wrong_telemetry_type;
+  wrong_reason.telemetry.type = TelemetryEventType::MissionAssigned;
+  wrong_reason.telemetry.reason = TelemetryReason::None;
+
+  SimulationEvent wrong_mission = wrong_reason;
+  wrong_mission.telemetry.reason = TelemetryReason::AssignmentReceived;
+  wrong_mission.telemetry.mission_key = MissionKey(0U, 1U, mission_key.sequence + 1U);
+  wrong_mission.telemetry.related_node = selected_node;
+
+  SimulationEvent wrong_related_node = wrong_mission;
+  wrong_related_node.telemetry.mission_key = mission_key;
+  wrong_related_node.telemetry.related_node = kBroadcastNode;
+
+  result.events.insert(result.events.begin(), {wrong_event_type, wrong_telemetry_type, wrong_reason,
+                                               wrong_mission, wrong_related_node});
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+  CHECK(json.find(R"("status": "executed")") != std::string::npos);
+}
+
+TEST_CASE("browser serialization names an unknown scenario deterministically") {
+  BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), static_cast<BrowserScenario>(255));
+  const std::string json =
+      serializeBrowserSimulation(simulation, runSimulationTrace(simulation.trace));
+  CHECK(json.find(R"("scenario": "unknown")") != std::string::npos);
 }
 
 TEST_CASE("the browser safe-state scenario records successful execution") {
