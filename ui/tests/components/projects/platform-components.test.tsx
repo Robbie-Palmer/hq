@@ -57,6 +57,62 @@ describe("project platform components", () => {
     ).toHaveTextContent("project-owned-slack-credentials");
   }, 30_000);
 
+  it("groups catalog records by project and kind", async () => {
+    const project = getProjectWithADRs(
+      loadDomainRepository(),
+      "personal-engineering-platform",
+    );
+    expect(project?.platformManifest).toBeDefined();
+    if (!project?.platformManifest) return;
+
+    render(<PlatformManifest manifest={project.platformManifest} />);
+    await userEvent.setup().click(screen.getByText("Component catalog"));
+
+    const recipeCatalog = screen.getByRole("region", {
+      name: "recipe-site catalog records",
+    });
+    expect(
+      within(recipeCatalog).getByRole("link", { name: "recipe-site" }),
+    ).toHaveAttribute("href", "/projects/recipe-site");
+    expect(
+      within(recipeCatalog).getByText("component:recipe-site/recipe-api"),
+    ).toBeVisible();
+
+    const kinds = within(recipeCatalog)
+      .getAllByRole("heading", { level: 4 })
+      .map((heading) => heading.textContent?.match(/^[a-z]+/)?.[0]);
+    expect(kinds).toEqual([
+      "system",
+      "component",
+      "api",
+      "workload",
+      "resource",
+      "package",
+      "environment",
+    ]);
+
+    const expectedComponentIds = project.platformManifest.catalog.records
+      .filter(
+        (record) =>
+          record.project === "project:recipe-site" &&
+          record.kind === "component",
+      )
+      .toSorted(
+        (left, right) =>
+          left.name.localeCompare(right.name) ||
+          left.id.localeCompare(right.id),
+      )
+      .map((record) => record.id);
+    const componentRecords = within(recipeCatalog).getByRole("region", {
+      name: "component records",
+    });
+    expect(
+      within(componentRecords)
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("code")?.textContent),
+    ).toEqual(expectedComponentIds);
+  }, 30_000);
+
   it("keeps adopters and layer consumers under their labels", async () => {
     const project = getProjectWithADRs(
       loadDomainRepository(),

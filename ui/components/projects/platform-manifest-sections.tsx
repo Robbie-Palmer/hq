@@ -16,6 +16,37 @@ type Policy = PlatformManifestView["policies"][number];
 type Prerequisite = Policy["prerequisites"][number];
 type Slot = PlatformManifestView["slots"][number];
 type Selection = Slot["selections"][number];
+type CatalogRecord = PlatformManifestView["catalog"]["records"][number];
+
+const CATALOG_KIND_ORDER: CatalogRecord["kind"][] = [
+  "project",
+  "system",
+  "component",
+  "api",
+  "workload",
+  "resource",
+  "capability",
+  "slot",
+  "technology",
+  "package",
+  "artifact",
+  "environment",
+  "decision",
+  "evidence",
+  "adoption",
+  "override",
+];
+
+type CatalogKindGroup = {
+  kind: CatalogRecord["kind"];
+  records: CatalogRecord[];
+};
+
+type CatalogProjectGroup = {
+  project?: string;
+  records: CatalogRecord[];
+  kinds: CatalogKindGroup[];
+};
 
 function prerequisiteLabel(prerequisite: Prerequisite): string {
   if ("requirement" in prerequisite) return prerequisite.requirement;
@@ -27,6 +58,44 @@ function prerequisiteLabel(prerequisite: Prerequisite): string {
 function adrHref(adrRef: string): string {
   const [project, adr] = adrRef.split(":");
   return `/projects/${project}/adrs/${adr}`;
+}
+
+function groupCatalogKinds(records: CatalogRecord[]): CatalogKindGroup[] {
+  const groups = new Map<CatalogRecord["kind"], CatalogRecord[]>();
+  for (const record of records) {
+    const kindRecords = groups.get(record.kind) ?? [];
+    kindRecords.push(record);
+    groups.set(record.kind, kindRecords);
+  }
+  return CATALOG_KIND_ORDER.flatMap((kind) => {
+    const kindRecords = groups.get(kind);
+    if (!kindRecords) return [];
+    return [
+      {
+        kind,
+        records: kindRecords.toSorted(
+          (left, right) =>
+            left.name.localeCompare(right.name) ||
+            left.id.localeCompare(right.id),
+        ),
+      },
+    ];
+  });
+}
+
+function groupCatalogProjects(records: CatalogRecord[]): CatalogProjectGroup[] {
+  const groups = new Map<string, CatalogRecord[]>();
+  for (const record of records) {
+    const project = record.project ?? "";
+    const projectRecords = groups.get(project) ?? [];
+    projectRecords.push(record);
+    groups.set(project, projectRecords);
+  }
+  return Array.from(groups, ([project, projectRecords]) => ({
+    project: project || undefined,
+    records: projectRecords,
+    kinds: groupCatalogKinds(projectRecords),
+  }));
 }
 
 export function ManifestSection({
@@ -54,9 +123,75 @@ export function ManifestSection({
   );
 }
 
+function CatalogRecordList({
+  records,
+}: Readonly<{ records: CatalogRecord[] }>) {
+  return (
+    <ul className="mt-2 divide-y rounded-md border">
+      {records.map((record) => (
+        <li
+          key={record.id}
+          className="flex flex-wrap items-baseline gap-2 p-3 text-sm"
+        >
+          <span className="font-medium">{record.name}</span>
+          <code className="break-all text-xs text-muted-foreground">
+            {record.id}
+          </code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CatalogKindSection({ group }: Readonly<{ group: CatalogKindGroup }>) {
+  return (
+    <section aria-label={`${group.kind} records`}>
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        {group.kind} <Badge variant="outline">{group.records.length}</Badge>
+      </h4>
+      <CatalogRecordList records={group.records} />
+    </section>
+  );
+}
+
+function CatalogProjectSection({
+  group,
+}: Readonly<{ group: CatalogProjectGroup }>) {
+  const projectSlug = group.project?.slice("project:".length);
+  const label = projectSlug ?? "Shared catalog";
+  return (
+    <section
+      aria-label={`${label} catalog records`}
+      className="rounded-lg border p-4"
+    >
+      <div className="flex flex-wrap items-baseline gap-2">
+        <h3 className="font-semibold">
+          {projectSlug ? (
+            <Link
+              href={`/projects/${projectSlug}`}
+              className="underline underline-offset-4"
+            >
+              {projectSlug}
+            </Link>
+          ) : (
+            label
+          )}
+        </h3>
+        <Badge variant="secondary">{group.records.length} records</Badge>
+      </div>
+      <div className="mt-4 space-y-4">
+        {group.kinds.map((kindGroup) => (
+          <CatalogKindSection key={kindGroup.kind} group={kindGroup} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function ComponentCatalog({
   manifest,
 }: Readonly<{ manifest: PlatformManifestView }>) {
+  const projectGroups = groupCatalogProjects(manifest.catalog.records);
   return (
     <>
       <p className="text-sm text-muted-foreground">
@@ -68,22 +203,14 @@ export function ComponentCatalog({
         </Link>
         .
       </p>
-      <ul className="mt-4 divide-y rounded-lg border">
-        {manifest.catalog.records.map((record) => (
-          <li
-            key={record.id}
-            className="flex flex-wrap items-baseline gap-2 p-3 text-sm"
-          >
-            <span className="font-medium">{record.name}</span>
-            <code className="break-all text-xs text-muted-foreground">
-              {record.id}
-            </code>
-            <span className="ml-auto">
-              <Badge variant="outline">{record.kind}</Badge>
-            </span>
-          </li>
+      <div className="mt-4 space-y-4">
+        {projectGroups.map((group) => (
+          <CatalogProjectSection
+            key={group.project ?? "shared"}
+            group={group}
+          />
         ))}
-      </ul>
+      </div>
     </>
   );
 }
