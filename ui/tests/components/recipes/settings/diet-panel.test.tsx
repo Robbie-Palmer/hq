@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DietPanel } from "@/components/recipes/settings/diet-panel";
 import { recipeQueryKeys } from "@/lib/query/recipe-query-keys";
-import { fireEvent, render, screen } from "@/tests/test-utils";
+import { act, fireEvent, render, screen } from "@/tests/test-utils";
 
 const apiMocks = vi.hoisted(() => ({
   getDietOptions: vi.fn(),
@@ -123,6 +123,7 @@ describe("DietPanel", () => {
     const customOption = screen.getByRole("option", {
       name: 'Save "Nightshade powder" as written',
     });
+    fireEvent.mouseEnter(customOption);
     expect(input).toHaveAttribute("aria-activedescendant", customOption.id);
     expect(customOption).toHaveAttribute("aria-selected", "true");
     fireEvent.keyDown(input, { key: "Enter" });
@@ -166,6 +167,74 @@ describe("DietPanel", () => {
     expect(
       screen.queryByRole("listbox", { name: "Matching ingredients" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("cycles ingredient options and dismisses the popup from the keyboard", async () => {
+    apiMocks.getDietOptions.mockResolvedValue({
+      presets: [],
+      groups: [],
+      ingredients: [
+        { slug: "bacon", name: "Bacon", category: "protein" },
+        { slug: "carrot", name: "Carrot", category: "vegetable" },
+      ],
+    });
+    render(<DietPanel />);
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
+
+    fireEvent.focus(input);
+    const bacon = screen.getByRole("option", { name: /Bacon/ });
+    const carrot = screen.getByRole("option", { name: /Carrot/ });
+    fireEvent.mouseEnter(bacon);
+    expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
+
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveAttribute("aria-activedescendant", carrot.id);
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", carrot.id);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(input).toHaveAttribute("aria-activedescendant", bacon.id);
+
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+  });
+
+  it("handles an empty ingredient catalog without an active option", async () => {
+    apiMocks.getDietOptions.mockResolvedValue({
+      presets: [],
+      groups: [],
+      ingredients: [],
+    });
+    render(<DietPanel />);
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
+
+    expect(input).toHaveAttribute("placeholder", "Enter an ingredient");
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+  });
+
+  it("closes the ingredient popup after the blur delay", async () => {
+    render(<DietPanel />);
+    const input = await screen.findByRole("combobox", {
+      name: "Search or enter ingredients to exclude",
+    });
+    vi.useFakeTimers();
+
+    fireEvent.focus(input);
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    fireEvent.blur(input);
+    act(() => vi.advanceTimersByTime(120));
+
+    expect(input).toHaveAttribute("aria-expanded", "false");
   });
 
   it("clears the delayed picker close when unmounted", async () => {

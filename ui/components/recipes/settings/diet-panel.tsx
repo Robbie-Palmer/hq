@@ -196,7 +196,7 @@ function IngredientMatches({
     );
   }
   return matches.map((ingredient, index) => (
-    <button
+    <button // NOSONAR -- A native option cannot serve an editable combobox.
       id={`${listboxId}-option-${index}`}
       key={ingredient.slug}
       type="button"
@@ -240,7 +240,7 @@ function CustomIngredientButton({
 }>) {
   if (!canAdd) return null;
   return (
-    <button
+    <button // NOSONAR -- A native option cannot serve an editable combobox.
       id={optionId}
       type="button"
       role="option"
@@ -439,7 +439,7 @@ function IngredientPicker(props: IngredientPickerProps) {
         className="bg-[var(--card)] pl-9"
       />
       {picker.open && (
-        <div
+        <div // NOSONAR -- This custom popup is owned by the editable combobox.
           id={picker.listboxId}
           role="listbox"
           aria-label="Matching ingredients"
