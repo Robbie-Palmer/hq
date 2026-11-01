@@ -427,6 +427,30 @@ test("ambiguous hunk matches require manual adjudication", () => {
   assert.deepEqual(result.historicalFindingIds, ["a", "b"]);
 });
 
+test("single hunk match changes state only above the confidence boundary", () => {
+  const labels: HistoricalFinding[] = [{
+    finding: { findingId: "historical", file: "src/app.ts", hunkIds: ["h1"] },
+    outcome: null,
+    outcomeSource: null,
+  }];
+  const candidate = { findingId: "candidate", file: "src/app.ts", hunkIds: ["h1"] };
+
+  assert.equal(
+    matchFinding(candidate, labels, {
+      methods: ["file-hunk"],
+      manualAdjudicationBelowConfidence: 0.95,
+    }).status,
+    "matched",
+  );
+  assert.equal(
+    matchFinding(candidate, labels, {
+      methods: ["file-hunk"],
+      manualAdjudicationBelowConfidence: 0.951,
+    }).status,
+    "manual-adjudication-required",
+  );
+});
+
 test("execute mode blocks underpowered decisions unless an explicit pilot is allowed", () => {
   const temporary = fs.mkdtempSync(path.join(os.tmpdir(), "ai-review-execution-mode-"));
   const cohortRoot = path.join(temporary, "frozen");

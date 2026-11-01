@@ -42,6 +42,17 @@ completed review. Markdown, MDX, and test files are included by default. The
 scorecard publishes the same entries in `review_path_fact` and adds decision
 counts plus a path-accounting rate to its run and pull-request marts.
 
+Review preparation also resolves a schema-v1 rule preview for every selected
+path. Rule keys use the fixed `global < repository < directory < language <
+file` precedence chain from `ai-review-domain/rule-resolution`; the deepest
+matching directory wins within the directory layer. The preview records the
+resolver version, rule-set version, winning instructions, rule IDs, source
+paths, and source revisions. Different instructions at the same winning rank
+are unresolved conflicts, so preparation fails before a scout or merger can
+run. Terminal records and replay snapshots persist the same preview. Replays
+therefore use the recorded effective rules instead of resolving against newer
+repository contents.
+
 An exact `/ai-review` or `/ai-review full` issue comment from an owner, member,
 or collaborator forces a full review of the current head, including on a draft.
 If that same head is subsequently merged, its latest successful full review is
