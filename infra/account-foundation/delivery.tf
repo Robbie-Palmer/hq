@@ -245,7 +245,8 @@ locals {
           prd = {
             name             = "Production"
             personal_configs = false
-            configs          = ["prd", "prd_work_graph", "prd_work_graph_analytics", "prd_work_graph_backup", "prd_work_graph_infra"]
+            configs          = ["prd", "prd_work_graph", "prd_work_graph_backup", "prd_work_graph_infra"]
+            new_configs      = ["prd_work_graph_analytics"]
           }
         }
       }
@@ -263,6 +264,7 @@ locals {
           analytics = {
             name               = "production-work-graph-analytics"
             protected_branches = true
+            imported           = false
           }
           infrastructure = {
             name               = "production-work-graph-infra"
@@ -403,7 +405,7 @@ locals {
   doppler_config_ids = flatten([
     for entry in local.delivery_registry_entries : flatten([
       for environment_slug, environment in entry.root.doppler.environments : [
-        for config_name in environment.configs :
+        for config_name in concat(tolist(environment.configs), tolist(try(environment.new_configs, []))) :
         "${entry.root.doppler.project.name}/${environment_slug}/${config_name}"
       ]
     ])
@@ -458,16 +460,19 @@ locals {
   doppler_configs = merge(flatten([
     for root_id, root in local.root_delivery_registry : [
       for environment_slug, environment in root.doppler.environments : {
-        for config_name in environment.configs :
+        for config_name in concat(tolist(environment.configs), tolist(try(environment.new_configs, []))) :
         "${root.doppler.project.name}/${environment_slug}/${config_name}" => {
           root_id     = root_id
           project     = root.doppler.project.name
           environment = environment_slug
           name        = config_name
           imported = (
-            root.imported ||
-            "${root.doppler.project.name}/${environment_slug}/${config_name}" == local.cloudflare_token_bootstrap_config_id
-          ) && var.enable_existing_imports
+            !contains(toset(try(environment.new_configs, [])), config_name) &&
+            (
+              root.imported ||
+              "${root.doppler.project.name}/${environment_slug}/${config_name}" == local.cloudflare_token_bootstrap_config_id
+            ) && var.enable_existing_imports
+          )
         }
       }
     ]
