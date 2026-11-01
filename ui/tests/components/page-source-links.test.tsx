@@ -25,7 +25,7 @@ describe("PageSourceLinks", () => {
 
     expect(screen.getByRole("link", { name: "Page source" })).toHaveAttribute(
       "href",
-      `${siteConfig.url}/ideas/data-provenance.md`,
+      `${siteConfig.author.sourceRepo}/blob/main/ui/content/ideas/data-provenance.mdx`,
     );
     expect(screen.getByRole("link", { name: "Repository" })).toHaveAttribute(
       "href",
@@ -40,9 +40,9 @@ describe("PageSourceLinks", () => {
 
     expect(posthog.capture).toHaveBeenCalledWith("source_code_viewed", {
       source: "page_footer",
-      source_kind: "canonical-markdown",
+      source_kind: "repository-file",
       pathname: navigation.pathname,
-      url: `${siteConfig.url}/ideas/data-provenance.md`,
+      url: `${siteConfig.author.sourceRepo}/blob/main/ui/content/ideas/data-provenance.mdx`,
     });
   });
 

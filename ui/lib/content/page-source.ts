@@ -1,8 +1,6 @@
 import { siteConfig } from "@/lib/config/site-config";
-import { markdownUrl } from "@/lib/content/agent-markdown";
 
 export type PageSourceKind =
-  | "canonical-markdown"
   | "repository-file"
   | "runtime-fallback"
   | "repository-fallback";
@@ -16,6 +14,10 @@ type RepositoryPath = `ui/${string}`;
 
 function siteSource<Path extends string>(path: Path): `ui/app/(site)/${Path}` {
   return `ui/app/(site)/${path}`;
+}
+
+function contentSource<Path extends string>(path: Path): `ui/content/${Path}` {
+  return `ui/content/${path}`;
 }
 
 // Collection indexes are composed in their route modules instead of a single
@@ -33,19 +35,19 @@ const authoredPageSources = {
   "/building-philosophy": "ui/content/projects/building-philosophy.mdx",
   "/experience": "ui/content/experience.ts",
   "/posthog": "ui/content/posthog.ts",
+  "/recipes": "ui/app/recipes/page.tsx",
+  "/satellite-swarm": "ui/app/satellite-swarm/page.tsx",
 } as const satisfies Record<string, RepositoryPath>;
 
-const markdownTwinPatterns = [
-  /^\/blog\/[^/]+$/,
-  /^\/ideas\/[^/]+$/,
-  /^\/initiatives\/[^/]+$/,
-  /^\/projects\/[^/]+$/,
-  /^\/projects\/[^/]+\/adrs\/[^/]+$/,
-  /^\/projects\/[^/]+\/pdrs\/[^/]+$/,
-  /^\/technologies\/[^/]+$/,
-] as const;
-
-const markdownTwinPaths = new Set(["/recipes", "/satellite-swarm"]);
+// Renamed URLs resolve to the same checked-in source as their canonical page.
+const renamedPageSources = {
+  "/projects/personal-site": contentSource(
+    "projects/personal-knowledge-graph/index.mdx",
+  ),
+  "/projects/recipe-site/adrs/000-github-public-repo": contentSource(
+    "projects/personal-knowledge-graph/adrs/000-github-public-repo.mdx",
+  ),
+} as const satisfies Record<string, RepositoryPath>;
 
 const runtimeFallbacks = [
   ["/recipes", "ui/app/recipes"],
@@ -67,6 +69,38 @@ function repositoryFileSource(path: RepositoryPath): PageSource {
   return { kind: "repository-file", url: repositoryUrl(path, "blob") };
 }
 
+function resolveContentSource(pathname: string): RepositoryPath | undefined {
+  const [section, slug, recordType, recordSlug, extra] = pathname
+    .slice(1)
+    .split("/");
+  if (!slug || extra) return undefined;
+
+  if (!recordType) {
+    switch (section) {
+      case "blog":
+      case "ideas":
+      case "initiatives":
+        return contentSource(`${section}/${slug}.mdx`);
+      case "projects":
+        return contentSource(`projects/${slug}/index.mdx`);
+      case "technologies":
+        return contentSource("technologies.ts");
+      default:
+        return undefined;
+    }
+  }
+
+  if (
+    section === "projects" &&
+    recordSlug &&
+    (recordType === "adrs" || recordType === "pdrs")
+  ) {
+    return contentSource(`projects/${slug}/${recordType}/${recordSlug}.mdx`);
+  }
+
+  return undefined;
+}
+
 export function resolvePageSource(pathname: string | null): PageSource {
   const normalizedPath = normalizePathname(pathname);
   const generatedSource =
@@ -77,12 +111,12 @@ export function resolvePageSource(pathname: string | null): PageSource {
     authoredPageSources[normalizedPath as keyof typeof authoredPageSources];
   if (authoredSource) return repositoryFileSource(authoredSource);
 
-  if (
-    markdownTwinPaths.has(normalizedPath) ||
-    markdownTwinPatterns.some((pattern) => pattern.test(normalizedPath))
-  ) {
-    return { kind: "canonical-markdown", url: markdownUrl(normalizedPath) };
-  }
+  const renamedSource =
+    renamedPageSources[normalizedPath as keyof typeof renamedPageSources];
+  if (renamedSource) return repositoryFileSource(renamedSource);
+
+  const contentSourcePath = resolveContentSource(normalizedPath);
+  if (contentSourcePath) return repositoryFileSource(contentSourcePath);
 
   const runtimeFallback = runtimeFallbacks.find(
     ([prefix]) =>

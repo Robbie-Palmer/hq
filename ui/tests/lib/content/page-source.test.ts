@@ -14,6 +14,30 @@ const repositoryFileCases = [
   ["/building-philosophy", "ui/content/projects/building-philosophy.mdx"],
   ["/experience", "ui/content/experience.ts"],
   ["/posthog", "ui/content/posthog.ts"],
+  [
+    "/blog/2021-12-10-just-right-engineering",
+    "ui/content/blog/2021-12-10-just-right-engineering.mdx",
+  ],
+  ["/ideas/data-provenance", "ui/content/ideas/data-provenance.mdx"],
+  [
+    "/initiatives/semi-autonomous-software-development",
+    "ui/content/initiatives/semi-autonomous-software-development.mdx",
+  ],
+  [
+    "/projects/personal-knowledge-graph",
+    "ui/content/projects/personal-knowledge-graph/index.mdx",
+  ],
+  [
+    "/projects/personal-knowledge-graph/adrs/038-content-graph",
+    "ui/content/projects/personal-knowledge-graph/adrs/038-content-graph.mdx",
+  ],
+  [
+    "/projects/personal-finance-app/pdrs/000-data-entry-first-wealth-tracking",
+    "ui/content/projects/personal-finance-app/pdrs/000-data-entry-first-wealth-tracking.mdx",
+  ],
+  ["/technologies/typescript", "ui/content/technologies.ts"],
+  ["/recipes", "ui/app/recipes/page.tsx"],
+  ["/satellite-swarm", "ui/app/satellite-swarm/page.tsx"],
 ] as const;
 
 describe("resolvePageSource", () => {
@@ -31,31 +55,26 @@ describe("resolvePageSource", () => {
   );
 
   it.each([
-    "/blog/2021-12-10-just-right-engineering",
-    "/ideas/data-provenance",
-    "/initiatives/semi-autonomous-software-development",
-    "/projects/personal-knowledge-graph",
-    "/projects/personal-knowledge-graph/adrs/038-content-graph",
-    "/projects/personal-knowledge-graph/pdrs/000-example",
-    "/technologies/typescript",
-    "/recipes",
-    "/satellite-swarm",
-  ])("uses the canonical Markdown twin for %s", (pathname) => {
-    expect(resolvePageSource(pathname)).toEqual({
-      kind: "canonical-markdown",
-      url: `${siteConfig.url}${pathname}.md`,
-    });
-  });
-
-  it.each([
-    "/projects/personal-site",
-    "/projects/recipe-site/adrs/000-github-public-repo",
-  ])("keeps renamed routes on their generated alias twin", (pathname) => {
-    expect(resolvePageSource(`${pathname}///`)).toEqual({
-      kind: "canonical-markdown",
-      url: `${siteConfig.url}${pathname}.md`,
-    });
-  });
+    [
+      "/projects/personal-site",
+      "ui/content/projects/personal-knowledge-graph/index.mdx",
+    ],
+    [
+      "/projects/recipe-site/adrs/000-github-public-repo",
+      "ui/content/projects/personal-knowledge-graph/adrs/000-github-public-repo.mdx",
+    ],
+  ])(
+    "maps renamed route %s to its canonical repository source",
+    (pathname, sourcePath) => {
+      expect(resolvePageSource(`${pathname}///`)).toEqual({
+        kind: "repository-file",
+        url: `${siteConfig.author.sourceRepo}/blob/main/${sourcePath}`,
+      });
+      expect(fs.existsSync(path.join(process.cwd(), "..", sourcePath))).toBe(
+        true,
+      );
+    },
+  );
 
   it.each([
     ["/recipes/settings", "ui/app/recipes"],
