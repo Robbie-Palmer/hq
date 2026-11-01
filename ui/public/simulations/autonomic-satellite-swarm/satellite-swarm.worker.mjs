@@ -1,7 +1,7 @@
 import createSatelliteSwarmModule from "./wasm/satellite-swarm.mjs";
 
-const PROTOCOL_VERSION = 5;
-const BROWSER_API_VERSION = 8;
+const PROTOCOL_VERSION = 6;
+const BROWSER_API_VERSION = 9;
 let modulePromise;
 
 function errorMessage(error) {

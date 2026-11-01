@@ -69,6 +69,7 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
     satellite_swarm_simulation
     simulation/src/browser_simulation.cpp
     simulation/src/fair_allocation_simulation.cpp
+    simulation/src/maneuver.cpp
     simulation/src/network_laboratory.cpp
     simulation/src/orbit.cpp
     simulation/src/simulation.cpp)
@@ -237,6 +238,7 @@ if(BUILD_TESTING)
     tests/controller_test.cpp
     tests/historical_orbital_scorer_test.cpp
     tests/invariant_test.cpp
+    tests/maneuver_test.cpp
     tests/orbit_test.cpp
     tests/protocol_evolution_test.cpp
     tests/resource_observer_test.cpp

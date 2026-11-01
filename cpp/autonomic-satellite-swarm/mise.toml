@@ -81,7 +81,7 @@ run = '''
 browser_fixture_check_file=$(mktemp)
 trap 'cmake -E rm -f "$browser_fixture_check_file"' EXIT
 ./build/dev/autonomic-satellite-swarm-simulation --json > "$browser_fixture_check_file"
-diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v7.json \
+diff -u ../../ui/public/simulations/autonomic-satellite-swarm/demonstration.v8.json \
   "$browser_fixture_check_file"
 '''
 

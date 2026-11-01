@@ -65,6 +65,20 @@ function formatSimulationTime(timeMs: number): string {
     : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
+function describeMissionOrbit(
+  missionOrbit: SimulationData["missionOrbit"],
+  waitingForAuthorization: boolean,
+): string {
+  if (waitingForAuthorization) return "Waiting for an accepted assignment.";
+  if (missionOrbit.status === "executed") {
+    return `Node ${missionOrbit.selectedNodeId} accepted the assignment. C++ recorded the departure burn, transfer, arrival burn, and target orbit.`;
+  }
+  if (missionOrbit.status === "assignment-not-received") {
+    return `Node ${missionOrbit.selectedNodeId} did not receive the assignment. No maneuver executed.`;
+  }
+  return `Node ${missionOrbit.selectedNodeId} became unavailable before departure. No maneuver executed.`;
+}
+
 export function SatelliteSwarmSimulation({
   data,
   executionMode = "recorded",
@@ -91,10 +105,6 @@ export function SatelliteSwarmSimulation({
   const replayAction = getReplayAction(playing, frameIndex, stopAt);
   const primaryEvent = currentEvents[0];
   const additionalEventCount = Math.max(0, currentEvents.length - 1);
-  const activeNode = frame?.nodes.find(
-    (node) => node.state === "active" && node.assignedNode === node.id,
-  );
-
   useEffect(() => {
     if (reducedMotion) {
       setPlaying(false);
@@ -130,6 +140,13 @@ export function SatelliteSwarmSimulation({
   }, []);
   if (!frame) return null;
   const coordinationPhase = frame.playbackMultiplier < 1;
+  const authorizationTimeMs =
+    data.missionOrbit.authorizationEpochUnixMilliseconds === null
+      ? null
+      : data.missionOrbit.authorizationEpochUnixMilliseconds -
+        data.scenarioEpochUnixMilliseconds;
+  const waitingForAuthorization =
+    authorizationTimeMs !== null && frame.timeMs < authorizationTimeMs;
 
   return (
     <Card className="not-prose my-8 gap-0 overflow-hidden p-0">
@@ -210,9 +227,7 @@ export function SatelliteSwarmSimulation({
             </div>
             <p>
               <span className="font-medium text-zinc-100">Mission orbit:</span>{" "}
-              {activeNode
-                ? `Node ${activeNode.id} accepted the assignment. Its orbit is unchanged because this simulation does not model maneuvers.`
-                : "Waiting for an accepted assignment. This simulation does not model maneuvers or a target orbit."}
+              {describeMissionOrbit(data.missionOrbit, waitingForAuthorization)}
             </p>
             {primaryEvent && (
               <p aria-live="polite">

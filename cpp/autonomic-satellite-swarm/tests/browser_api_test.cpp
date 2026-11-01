@@ -4,7 +4,7 @@
 #include <string>
 
 TEST_CASE("the browser bridge exposes a versioned JSON result") {
-  CHECK(satellite_swarm_browser_api_version() == 8U);
+  CHECK(satellite_swarm_browser_api_version() == 9U);
   CHECK(std::string(satellite_swarm_source_revision()) == "unknown");
 
   const char* result = satellite_swarm_run_demonstration(12.5F, -45.25F, 0U);
@@ -13,12 +13,21 @@ TEST_CASE("the browser bridge exposes a versioned JSON result") {
   CHECK(json.find(R"("source": "portable C++ SimulationTrace")") != std::string::npos);
   CHECK(json.find(R"("objective": {"longitudeDegrees":12.5,"latitudeDegrees":-45.25})") !=
         std::string::npos);
+  CHECK(json.find(R"("schemaVersion": 8)") != std::string::npos);
+  CHECK(json.find(R"("status": "executed")") != std::string::npos);
+  CHECK(json.find(R"("role":"departure-burn")") != std::string::npos);
+  CHECK(json.find(R"("role":"transfer-trajectory")") != std::string::npos);
+  CHECK(json.find(R"("role":"target-orbit")") != std::string::npos);
   CHECK(std::string(satellite_swarm_last_error()).empty());
 
   const char* fault_result = satellite_swarm_run_demonstration(0.0F, -90.0F, 1U);
   REQUIRE(fault_result != nullptr);
   CHECK(std::string(fault_result).find(R"("scenario": "three-node-assignment-loss")") !=
         std::string::npos);
+  CHECK(std::string(fault_result).find(R"("status": "assignment-not-received")") !=
+        std::string::npos);
+  CHECK(std::string(fault_result).find(R"("maneuvers": [])") != std::string::npos);
+  CHECK(std::string(fault_result).find(R"("transfer": null)") != std::string::npos);
 
   const char* safe_state_result = satellite_swarm_run_demonstration(0.0F, -90.0F, 2U);
   REQUIRE(safe_state_result != nullptr);

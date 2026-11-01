@@ -44,6 +44,100 @@ const nodeSchema = z.object({
   telemetryDrops: uint32Schema,
 });
 
+const trajectorySampleSchema = z.object({
+  epochUnixMilliseconds: z.number().int(),
+  positionMetres: cartesianIntegerSchema,
+  velocityMillimetresPerSecond: cartesianIntegerSchema,
+});
+
+const trajectoryFields = {
+  epochScale: z.literal("UTC"),
+  frame: z.literal("GCRF"),
+  positionUnit: z.literal("metre"),
+  samples: z.array(trajectorySampleSchema).min(1),
+  velocityUnit: z.literal("millimetre-per-second"),
+};
+
+const trajectorySchema = z.discriminatedUnion("role", [
+  z.object({ ...trajectoryFields, role: z.literal("current-orbit") }),
+  z.object({
+    ...trajectoryFields,
+    role: z.literal("transfer-trajectory"),
+  }),
+  z.object({ ...trajectoryFields, role: z.literal("target-orbit") }),
+]);
+
+const maneuverEventFields = {
+  deltaVelocityMillimetresPerSecond: cartesianIntegerSchema,
+  deltaVelocityUnit: z.literal("millimetre-per-second"),
+  epochScale: z.literal("UTC"),
+  epochUnixMilliseconds: z.number().int(),
+  frame: z.literal("GCRF"),
+  positionMetres: cartesianIntegerSchema,
+  positionUnit: z.literal("metre"),
+};
+
+const maneuverEventSchema = z.discriminatedUnion("role", [
+  z.object({ ...maneuverEventFields, role: z.literal("departure-burn") }),
+  z.object({ ...maneuverEventFields, role: z.literal("arrival-burn") }),
+]);
+
+const missionOrbitSchema = z
+  .object({
+    authorizationEpochUnixMilliseconds: z.number().int().nullable(),
+    current: trajectorySchema,
+    maneuvers: z.array(maneuverEventSchema).max(2),
+    quantization: z.object({
+      positionMetres: z.literal(1),
+      velocityMillimetresPerSecond: z.literal(1),
+    }),
+    selectedNodeId: z.number().int().min(0).max(15),
+    status: z.enum([
+      "assignment-not-received",
+      "executed",
+      "node-unavailable-before-burn",
+    ]),
+    target: trajectorySchema.nullable(),
+    transfer: trajectorySchema.nullable(),
+  })
+  .superRefine((missionOrbit, context) => {
+    if (missionOrbit.current.role !== "current-orbit") {
+      context.addIssue({
+        code: "custom",
+        message: "The current trajectory must have the current-orbit role.",
+        path: ["current", "role"],
+      });
+    }
+    if (missionOrbit.status === "executed") {
+      if (
+        missionOrbit.authorizationEpochUnixMilliseconds === null ||
+        missionOrbit.maneuvers.length !== 2 ||
+        missionOrbit.maneuvers[0]?.role !== "departure-burn" ||
+        missionOrbit.maneuvers[1]?.role !== "arrival-burn" ||
+        missionOrbit.transfer?.role !== "transfer-trajectory" ||
+        missionOrbit.target?.role !== "target-orbit"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message:
+            "An executed maneuver requires authorization, both burns, and both trajectories.",
+        });
+      }
+      return;
+    }
+    if (
+      missionOrbit.maneuvers.length > 0 ||
+      missionOrbit.transfer !== null ||
+      missionOrbit.target !== null
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "A maneuver that did not execute cannot contain burns or post-burn trajectories.",
+      });
+    }
+  });
+
 const missionCommandEventSchema = z.object({
   accepted: z.boolean(),
   nodeId: z.number().int().min(0).max(15),
@@ -281,13 +375,14 @@ const simulationSchema = z.object({
       }),
     )
     .min(1),
+  missionOrbit: missionOrbitSchema,
   objective: coordinateSchema,
   positionModel: z.string().min(1),
   propagationFrame: z.literal("TEME"),
   renderingFrame: z.string().min(1),
   scenario: z.string().min(1),
   scenarioEpochUnixMilliseconds: z.number().int(),
-  schemaVersion: z.literal(7),
+  schemaVersion: z.literal(8),
   source: z.literal("portable C++ SimulationTrace"),
   sourceRevision: z.string().regex(/^[0-9a-f]{40}$/),
   traceVersion: z.literal(6),

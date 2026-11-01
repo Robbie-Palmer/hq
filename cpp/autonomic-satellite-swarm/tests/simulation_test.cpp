@@ -130,7 +130,6 @@ TEST_CASE("browser serialization names every telemetry event, reason, priority, 
   const BrowserSimulation simulation =
       makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
   SimulationResult result = runSimulationTrace(simulation.trace);
-  result.events.clear();
 
   constexpr std::array<TelemetryEventType, 12> kEventTypes = {
       TelemetryEventType::StateTransition,  TelemetryEventType::MissionProposed,
@@ -836,6 +835,40 @@ TEST_CASE("the browser assignment-loss scenario records the dropped delivery") {
     }
   }
   CHECK(found_winner_drop);
+}
+
+TEST_CASE("an unavailable selected node cannot execute the planned departure burn") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  SimulationResult result = runSimulationTrace(simulation.trace);
+  NodeId selected_node = kBroadcastNode;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::ControllerTelemetry &&
+        event.telemetry.type == TelemetryEventType::MissionAssigned &&
+        event.telemetry.reason == TelemetryReason::AssignmentBroadcast) {
+      selected_node = event.telemetry.related_node;
+      break;
+    }
+  }
+  REQUIRE(selected_node != kBroadcastNode);
+
+  bool found_departure_frame = false;
+  for (FrameObservation& frame : result.frames) {
+    if (frame.now_ms == 600'000U) {
+      REQUIRE(static_cast<std::size_t>(selected_node) < frame.nodes.size());
+      frame.nodes[selected_node].running = false;
+      frame.nodes[selected_node].state = ControllerState::SafeDisabled;
+      found_departure_frame = true;
+      break;
+    }
+  }
+  REQUIRE(found_departure_frame);
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+  CHECK(json.find(R"("status": "node-unavailable-before-burn")") != std::string::npos);
+  CHECK(json.find(R"("maneuvers": [])") != std::string::npos);
+  CHECK(json.find(R"("transfer": null)") != std::string::npos);
+  CHECK(json.find(R"("target": null)") != std::string::npos);
 }
 
 TEST_CASE("the browser safe-state scenario records successful execution") {
