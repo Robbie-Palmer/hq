@@ -2,7 +2,7 @@
 title: "Agent Coordinator"
 description: "A coordination layer that puts available agent capacity to work across automatable software-development tasks and carries them to verified outcomes"
 date: "2026-09-04"
-updated: "2026-10-30"
+updated: "2026-11-01"
 status: "in_progress"
 initiatives:
   - "semi-autonomous-software-development"
@@ -50,15 +50,16 @@ missing, the safe outcome is genuinely ambiguous, or repeated recovery has not
 worked.
 
 This choice is recorded in
-[PDR 000](/projects/agent-coordinator/pdrs/000-severe-vulnerability-resolution).
+[PDR 001](/projects/agent-coordinator/pdrs/001-severe-vulnerability-resolution).
 
 # Why the direction changed
 
-The original plan treated general Work Graph routing as the first release. A
-pilot showed that this eagerly picked up exploratory architecture, prose, UX,
-and other work that still needed substantial human judgment. The coordinator
-created a backlog of agent output to review instead of completing outcomes on
-its own.
+The original plan treated
+[advisory Work Graph routing](/projects/agent-coordinator/pdrs/000-advisory-work-graph-routing)
+as the first release. A pilot showed that this eagerly picked up exploratory
+architecture, prose, UX, and other work that still needed substantial human
+judgment. The coordinator created a backlog of agent output to review instead
+of completing outcomes on its own.
 
 There is more immediate value in work that agents can perform well and verify
 without routine human input. Dependency remediation is the first example.
