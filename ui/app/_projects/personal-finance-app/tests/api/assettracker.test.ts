@@ -929,6 +929,61 @@ describe("createLocalAssetTrackerApi", () => {
     expect(restored.salaryHistory).toEqual(corrected.salaryHistory);
   });
 
+  it("persists accepted HMRC observations locally without duplicating a re-import", async () => {
+    const api = createApi();
+    const input = {
+      rows: [
+        {
+          memberId: "alex",
+          taxYear: "2024-25",
+          payeReference: "123/AB456",
+          observedTaxablePay: 22_500,
+          observedIncomeTax: 890.35,
+          sources: [
+            {
+              api: "individual-income" as const,
+              version: "1.2" as const,
+              fingerprint: "a".repeat(64),
+              importedAt: "2026-10-31T10:00:00.000Z",
+              objectPath: "/employments/0/payFromEmployment",
+            },
+            {
+              api: "individual-tax" as const,
+              version: "1.1" as const,
+              fingerprint: "b".repeat(64),
+              importedAt: "2026-10-31T10:00:00.000Z",
+              objectPath: "/employments/0/taxTakenOffPay",
+            },
+          ],
+        },
+      ],
+      labels: { "123/AB456": "Invented employer" },
+    };
+
+    await api.acceptHmrcImport(input);
+    await api.acceptHmrcImport(input);
+    const loaded = await createApi().load();
+
+    expect(loaded.data.hmrcEmploymentObservations).toEqual([
+      expect.objectContaining({
+        memberId: "alex",
+        taxYear: "2024-25",
+        payeReference: "123/AB456",
+        observedTaxablePay: 22_500,
+        observedIncomeTax: 890.35,
+        acceptedAt: expect.any(String),
+        sources: input.rows[0]?.sources,
+      }),
+    ]);
+    expect(loaded.data.hmrcEmploymentLabels).toEqual([
+      expect.objectContaining({
+        payeReference: "123/AB456",
+        label: "Invented employer",
+        source: "manual",
+      }),
+    ]);
+  });
+
   it("stores an explicit no-pension answer in a rollback-compatible form", async () => {
     const seed = getDemoAssetTrackerData();
     const api = createApi();

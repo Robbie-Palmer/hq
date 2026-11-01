@@ -1,0 +1,192 @@
+contract: workload-definition
+contract_version: 1
+project:
+  id: representative-service
+  catalog_id: project:representative-service
+  owner: personal-engineering-platform
+release:
+  id: release-2026-10-31-1
+  artifact:
+    kind: oci-image
+    repository: ghcr.io/example/representative-service
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    signature:
+      kind: sigstore-bundle
+      signer: https://github.com/example/representative-service/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/release-2026-10-31-1.sigstore.json
+workload:
+  id: representative-service
+  shape: request-driven-service
+  runtime_family: container
+  processes:
+    - id: api
+      kind: service
+      artifact_ref: release
+      command: ["httpd", "-f", "-p", "8080"]
+    - id: reconcile
+      kind: job
+      artifact_ref: release
+      command: ["representative-service", "reconcile"]
+      schedule: "0 4 * * *"
+  ports:
+    - name: http
+      container_port: 8080
+      protocol: http
+  health:
+    liveness:
+      path: /health/live
+      port: http
+    readiness:
+      path: /health/ready
+      port: http
+  resources:
+    requests:
+      cpu: 100m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  configuration:
+    APP_ENV:
+      kind: literal
+      value: prototype
+    DATABASE_URL:
+      kind: dependency-output
+      dependency: database
+      output: connection
+  secrets:
+    - dependency: database
+      output: password
+      environment_variable: DATABASE_PASSWORD
+  dependencies:
+    database:
+      kind: data
+      type: postgres
+      version: "17"
+      logical_id: database:representative-service/production
+  ingress:
+    port: http
+    path: /
+    public_urls:
+      - https://representative.example.test
+  scaling:
+    min_instances: 1
+    max_instances: 3
+  persistence:
+    - id: cache
+      mount_path: /var/cache/representative-service
+      capacity: 1Gi
+      access: read-write
+  migrations:
+    - id: database
+      artifact_ref: release
+      command: ["representative-service", "migrate"]
+      dependency: database
+      order: 1
+  telemetry:
+    contract_version: 1
+    service_namespace: personal-engineering-platform
+    service_name: representative-service
+    transport: otlp-http-protobuf
+  capability_requirements:
+    - capability: immutable-artifact
+      mode: required
+    - capability: container-processes
+      mode: required
+    - capability: scheduled-jobs
+      mode: required
+    - capability: ports
+      mode: required
+    - capability: http-health-checks
+      mode: preferred
+    - capability: resource-bounds
+      mode: preferred
+    - capability: configuration
+      mode: required
+    - capability: secret-references
+      mode: required
+    - capability: dependencies
+      mode: required
+    - capability: http-ingress
+      mode: required
+    - capability: horizontal-scaling
+      mode: preferred
+    - capability: persistence
+      mode: required
+    - capability: ordered-migrations
+      mode: required
+    - capability: otlp-telemetry
+      mode: required
+    - capability: environment-overlays
+      mode: required
+environment_overlays:
+  - environment: production
+    configuration:
+      APP_ENV:
+        kind: literal
+        value: production
+    scaling:
+      min_instances: 2
+      max_instances: 6
+deployment_targets:
+  - contract: deployment-target
+    contract_version: 1
+    id: local-compose
+    kind: docker-compose
+    environment: local
+    stage: local
+    required_capabilities:
+      - identity
+      - secrets
+      - networking
+      - storage
+      - databases
+      - telemetry
+      - deployment
+      - rollback
+    extensions:
+      project_name: representative-service
+  - contract: deployment-target
+    contract_version: 1
+    id: production-nixos
+    kind: nixos-systemd-oci
+    environment: production
+    stage: nixos-host
+    required_capabilities:
+      - identity
+      - secrets
+      - networking
+      - storage
+      - databases
+      - telemetry
+      - backup
+      - deployment
+      - rollback
+      - incident_access
+    extensions:
+      unit_name: representative-service
+      host: representative-host
+  - contract: deployment-target
+    contract_version: 1
+    id: production-kubernetes
+    kind: kubernetes
+    environment: production
+    stage: kubernetes
+    required_capabilities:
+      - identity
+      - secrets
+      - networking
+      - storage
+      - databases
+      - telemetry
+      - backup
+      - deployment
+      - rollback
+      - incident_access
+    extensions:
+      namespace: representative-service
+      overlays:
+        - kind: kustomize
+          path: deploy/overlays/production
+      packaging:
+        kind: none

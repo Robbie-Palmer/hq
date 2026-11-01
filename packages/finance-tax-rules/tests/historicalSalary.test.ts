@@ -1,6 +1,77 @@
 import { describe, expect, it } from "vitest";
 import { calculateHistoricalSalary } from "../src/historicalSalary";
 
+type PensionMethod = "salary-sacrifice" | "net-pay" | "relief-at-source";
+
+function distribute(total: number, earnings: readonly number[]): number[] {
+  const earningsTotal = earnings.reduce((sum, amount) => sum + amount, 0);
+  const amounts = earnings.map((amount) =>
+    Math.floor((total * amount) / earningsTotal),
+  );
+  let remainder = total - amounts.reduce((sum, amount) => sum + amount, 0);
+  for (let index = 0; remainder > 0; index += 1) {
+    const period = index % amounts.length;
+    amounts[period] = (amounts[period] ?? 0) + 1;
+    remainder -= 1;
+  }
+  return amounts;
+}
+
+function methodCalculation(
+  method: PensionMethod,
+  fixture: {
+    effectiveDate: string;
+    taxYear: string;
+    jurisdiction: "england-and-northern-ireland" | "scotland";
+    payPeriod: "monthly" | "weekly";
+    earningsPence: number[];
+  },
+) {
+  const contractualGrossPayPence = fixture.earningsPence.reduce(
+    (sum, amount) => sum + amount,
+    0,
+  );
+  const employeeGrossContributionPence = Math.min(
+    120_000,
+    contractualGrossPayPence,
+  );
+  const salarySacrificePence =
+    method === "salary-sacrifice" ? employeeGrossContributionPence : 0;
+  const sacrificeByPeriod = distribute(
+    salarySacrificePence,
+    fixture.earningsPence,
+  );
+  return calculateHistoricalSalary({
+    ...request,
+    effectiveDate: fixture.effectiveDate,
+    taxYear: fixture.taxYear,
+    jurisdiction: fixture.jurisdiction,
+    contractualGrossPayPence,
+    nationalInsurancePeriods: {
+      payPeriod: fixture.payPeriod,
+      postSacrificeEarningsPence: fixture.earningsPence.map(
+        (amount, index) => amount - (sacrificeByPeriod[index] ?? 0),
+      ),
+    },
+    pension: {
+      method,
+      employeeGrossContributionPence,
+      employeeCashDeductionPence:
+        method === "salary-sacrifice"
+          ? 0
+          : method === "relief-at-source"
+            ? Math.round(employeeGrossContributionPence * 0.8)
+            : employeeGrossContributionPence,
+      salarySacrificePence,
+      employerContributionPence: 0,
+      providerTaxReliefPence:
+        method === "relief-at-source"
+          ? Math.round(employeeGrossContributionPence * 0.2)
+          : 0,
+    },
+  });
+}
+
 const request = {
   effectiveDate: "2025-06-30",
   taxYear: "2025-26",
@@ -37,13 +108,18 @@ describe("historical salary calculation", () => {
       contractualGrossPayPence: 6_000_000,
       grossCashPayPence: 5_400_000,
       taxablePayPence: 4_143_000,
+      nationalInsuranceEarningsPence: 5_400_000,
       incomeTaxPence: 903_200,
       employeeNationalInsurancePence: 309_000,
       employeePensionContributionPence: 600_000,
       salarySacrificePence: 600_000,
       memberPensionDeductionPence: 0,
       employerPensionContributionPence: 0,
+      employerNationalInsuranceSavingPence: 0,
+      employerNationalInsuranceSavingContributionPence: 0,
+      totalEmployerPensionContributionPence: 0,
       providerTaxReliefPence: 0,
+      furtherPensionTaxReliefPence: 0,
       otherDeductionsPence: 0,
       takeHomePayPence: 4_187_800,
     });
@@ -90,6 +166,185 @@ describe("historical salary calculation", () => {
         takeHomePayPence: 4_175_800,
       },
     );
+  });
+
+  it("records provider relief and further relief that may need a claim", () => {
+    const result = calculateHistoricalSalary({
+      ...request,
+      pension: {
+        method: "relief-at-source",
+        employeeGrossContributionPence: 600_000,
+        employeeCashDeductionPence: 480_000,
+        salarySacrificePence: 0,
+        employerContributionPence: 0,
+        providerTaxReliefPence: 120_000,
+      },
+    });
+
+    expect(result.available && result.components).toMatchObject({
+      providerTaxReliefPence: 120_000,
+      furtherPensionTaxReliefPence: 120_000,
+    });
+  });
+
+  it("keeps entered employer NI savings separate from contractual contributions", () => {
+    const result = calculateHistoricalSalary({
+      ...request,
+      pension: {
+        method: "salary-sacrifice",
+        employeeGrossContributionPence: 600_000,
+        employeeCashDeductionPence: 0,
+        salarySacrificePence: 600_000,
+        employerContributionPence: 300_000,
+        providerTaxReliefPence: 0,
+        employerNationalInsuranceSavingPence: 90_000,
+        employerNationalInsuranceSavingContributionPence: 45_000,
+      },
+    });
+
+    expect(result.available && result.components).toMatchObject({
+      employerPensionContributionPence: 300_000,
+      employerNationalInsuranceSavingPence: 90_000,
+      employerNationalInsuranceSavingContributionPence: 45_000,
+      totalEmployerPensionContributionPence: 345_000,
+    });
+  });
+
+  const pensionMethodBoundaryFixtures = [
+    {
+      name: "Income Tax personal allowance",
+      effectiveDate: "2025-06-30",
+      taxYear: "2025-26",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 104_750),
+    },
+    {
+      name: "monthly NI primary threshold",
+      effectiveDate: "2025-06-30",
+      taxYear: "2025-26",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 104_800),
+    },
+    {
+      name: "monthly NI upper earnings limit and higher-rate threshold",
+      effectiveDate: "2025-06-30",
+      taxYear: "2025-26",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 418_900),
+    },
+    {
+      name: "Scottish higher bands",
+      effectiveDate: "2025-06-30",
+      taxYear: "2025-26",
+      jurisdiction: "scotland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 500_000),
+    },
+    {
+      name: "one-month bonus",
+      effectiveDate: "2025-06-30",
+      taxYear: "2025-26",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: [2_700_000, ...Array.from({ length: 11 }, () => 300_000)],
+    },
+    {
+      name: "NI rate before the January 2024 change",
+      effectiveDate: "2023-12-31",
+      taxYear: "2023-24",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 300_000),
+    },
+    {
+      name: "NI rate after the January 2024 change",
+      effectiveDate: "2024-01-31",
+      taxYear: "2023-24",
+      jurisdiction: "england-and-northern-ireland" as const,
+      payPeriod: "monthly" as const,
+      earningsPence: Array.from({ length: 12 }, () => 300_000),
+    },
+  ];
+
+  it.each(pensionMethodBoundaryFixtures)(
+    "compares all pension methods at $name",
+    (fixture) => {
+      const salarySacrifice = methodCalculation("salary-sacrifice", fixture);
+      const netPay = methodCalculation("net-pay", fixture);
+      const reliefAtSource = methodCalculation("relief-at-source", fixture);
+
+      expect(salarySacrifice.available).toBe(true);
+      expect(netPay.available).toBe(true);
+      expect(reliefAtSource.available).toBe(true);
+      if (!(salarySacrifice.available && netPay.available && reliefAtSource.available)) {
+        return;
+      }
+      expect(salarySacrifice.components.grossCashPayPence).toBe(
+        netPay.components.grossCashPayPence - 120_000,
+      );
+      expect(salarySacrifice.components.taxablePayPence).toBe(
+        netPay.components.taxablePayPence,
+      );
+      expect(salarySacrifice.components.employeeNationalInsurancePence).toBeLessThanOrEqual(
+        netPay.components.employeeNationalInsurancePence,
+      );
+      expect(reliefAtSource.components.employeeNationalInsurancePence).toBe(
+        netPay.components.employeeNationalInsurancePence,
+      );
+      expect(reliefAtSource.components.providerTaxReliefPence).toBe(24_000);
+    },
+  );
+
+  it("applies NI thresholds to a bonus in its actual pay period", () => {
+    const concentratedBonus = calculateHistoricalSalary({
+      ...request,
+      contractualGrossPayPence: 6_000_000,
+      nationalInsurancePeriods: {
+        payPeriod: "monthly",
+        postSacrificeEarningsPence: [
+          2_700_000,
+          ...Array.from({ length: 11 }, () => 300_000),
+        ],
+      },
+      pension: null,
+    });
+    const smoothedBonus = calculateHistoricalSalary({
+      ...request,
+      contractualGrossPayPence: 6_000_000,
+      nationalInsurancePeriods: {
+        payPeriod: "monthly",
+        postSacrificeEarningsPence: Array.from(
+          { length: 12 },
+          () => 500_000,
+        ),
+      },
+      pension: null,
+    });
+
+    expect(
+      concentratedBonus.available &&
+        concentratedBonus.components.employeeNationalInsurancePence,
+    ).toBeLessThan(
+      smoothedBonus.available
+        ? smoothedBonus.components.employeeNationalInsurancePence
+        : 0,
+    );
+  });
+
+  it("rejects NI earnings with the wrong number of pay periods", () => {
+    expect(() =>
+      calculateHistoricalSalary({
+        ...request,
+        pension: null,
+        nationalInsurancePeriods: {
+          payPeriod: "monthly",
+          postSacrificeEarningsPence: [2_000_000, 2_000_000, 2_000_000],
+        },
+      }),
+    ).toThrow("Expected 12 monthly earnings periods");
   });
 
   it("extends the Scottish basic band for relief-at-source contributions", () => {
@@ -221,7 +476,7 @@ describe("historical salary calculation", () => {
     expect(result.available).toBe(true);
     if (!result.available) return;
     expect(result.lineage).toMatchObject({
-      calculationVersion: "historical-salary-v1",
+      calculationVersion: "historical-salary-v2",
       engineVersion: "3.0.1",
       ruleDatasetVersion: "2026.10.4",
       taxYear: "2025-26",

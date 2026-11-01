@@ -204,8 +204,9 @@ describe("project page", () => {
   });
 
   it("shows the overview directly when there are no additional sections", async () => {
-    (getProject as Mock).mockReturnValue({ ...fixture, adrs: [] });
-    render(await ProjectPage({ params: Promise.resolve({ slug: "homelab" }) }));
+    const slug = "project-without-sections";
+    (getProject as Mock).mockReturnValue({ ...fixture, slug, adrs: [] });
+    render(await ProjectPage({ params: Promise.resolve({ slug }) }));
     expect(screen.getByText(/# Home Lab\s+Hello/)).toBeInTheDocument();
     expect(screen.queryByTestId("overview")).not.toBeInTheDocument();
   });

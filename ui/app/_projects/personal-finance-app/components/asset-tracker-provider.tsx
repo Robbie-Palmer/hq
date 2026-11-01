@@ -19,6 +19,7 @@ import {
 import { pricePaidArchive } from "@/app/_projects/personal-finance-app/content/propertyComparables";
 import { housePriceIndexArchive } from "@/app/_projects/personal-finance-app/content/propertyIndexHistory";
 import {
+  type AcceptHmrcImportInput,
   type AccountDetailView,
   type AccountId,
   type AccountSummaryView,
@@ -76,6 +77,8 @@ import {
   getPortfolioFinancialIndependence,
   getPortfolioPositionSummary,
   getTotalByAssetType,
+  type HmrcEmploymentLabel,
+  type HmrcEmploymentObservation,
   type Household,
   type HouseholdScope,
   type HousingPlanningPosition,
@@ -168,6 +171,8 @@ interface AssetTrackerContextValue {
   ): AdoptedForecastReconciliation;
   incomeHistory: IncomeRecord[];
   salaryHistory: SalaryHistoryRecord[];
+  hmrcEmploymentObservations: HmrcEmploymentObservation[];
+  hmrcEmploymentLabels: HmrcEmploymentLabel[];
   currentSalaryHistory: SalaryHistoryRecord[];
   jobMoveScenarios: JobMoveScenario[];
   compareJobMoveScenario(
@@ -222,6 +227,7 @@ interface AssetTrackerContextValue {
   importAccountHistory(input: ImportAccountHistoryInput): Promise<void>;
   importIncomeHistory(input: ImportIncomeHistoryInput): Promise<void>;
   importSalaryHistory(input: ImportSalaryHistoryInput): Promise<void>;
+  acceptHmrcImport(input: AcceptHmrcImportInput): Promise<void>;
   saveSalaryRecord(input: SaveSalaryRecordInput): Promise<void>;
   deleteSalaryRecord(input: DeleteSalaryRecordInput): Promise<void>;
   saveTaxSetup(input: SaveTaxSetupInput): Promise<void>;
@@ -634,6 +640,8 @@ function useAssetTrackerViews(data: AssetTrackerData) {
         reconcileAdoptedDecisionForecast(forecast, repository),
       incomeHistory: repository.incomeHistory,
       salaryHistory: repository.salaryHistory,
+      hmrcEmploymentObservations: repository.hmrcEmploymentObservations,
+      hmrcEmploymentLabels: repository.hmrcEmploymentLabels,
       currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
       jobMoveScenarios: repository.jobMoveScenarios,
       compareJobMoveScenario: jobMoveComparison(
@@ -735,6 +743,7 @@ export function AssetTrackerProvider({
         mutate((api) => api.importIncomeHistory(input)),
       importSalaryHistory: (input) =>
         mutate((api) => api.importSalaryHistory(input)),
+      acceptHmrcImport: (input) => mutate((api) => api.acceptHmrcImport(input)),
       saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
       deleteSalaryRecord: (input) =>
         mutate((api) => api.deleteSalaryRecord(input)),

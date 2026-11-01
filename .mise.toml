@@ -58,6 +58,9 @@ config_roots = [
     "homelab",
     "cpp",
     "cpp/autonomic-satellite-swarm",
+    "workers/personal-finance-api",
+    "packages/personal-finance-contracts",
+    "packages/personal-finance-data",
 ]
 
 [settings]

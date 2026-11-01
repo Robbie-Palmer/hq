@@ -133,6 +133,7 @@ const WaitEventSchema = TelemetryBaseSchema.extend({
 const InterventionEventSchema = TelemetryBaseSchema.extend({
   eventType: z.literal("intervention"),
   interventionId: IdentifierSchema,
+  attentionRequestId: z.uuid().optional(),
   outcome: z.enum(["requested", "resolved", "declined"]),
   reason: ReasonSchema,
 }).strict();
@@ -397,6 +398,10 @@ function addEventAttributes(
       return;
     case "intervention":
       attributes["agent_coordinator.intervention.id"] = event.interventionId;
+      if (event.attentionRequestId) {
+        attributes["agent_coordinator.intervention.attention_request_id"] =
+          event.attentionRequestId;
+      }
       attributes["agent_coordinator.intervention.outcome"] = event.outcome;
       attributes["agent_coordinator.intervention.reason"] = event.reason;
   }
@@ -523,6 +528,11 @@ function specificEventFields(
         interventionId: stringAttribute(
           attributes,
           "agent_coordinator.intervention.id",
+        ),
+        ...optionalStringField(
+          attributes,
+          "agent_coordinator.intervention.attention_request_id",
+          "attentionRequestId",
         ),
         outcome: stringAttribute(
           attributes,

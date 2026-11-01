@@ -1,0 +1,219 @@
+contract: deployment-promotion-evidence
+contract_version: 1
+maturity_contract_version: 1
+project:
+  id: ledger-service
+  catalog_id: project:ledger-service
+  owner: personal-engineering-platform
+workload:
+  id: ledger-api
+  runtime_family: container
+  ports:
+    - name: http
+      port: 8080
+      protocol: http
+  health:
+    liveness: /health/live
+    readiness: /health/ready
+  dependencies: [production-database]
+release:
+  id: release-2026-10-30-1
+  artifact:
+    kind: oci-image
+    repository: ghcr.io/example/ledger-api
+    digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    signature:
+      kind: sigstore-bundle
+      signer: https://github.com/example/ledger/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/release-2026-10-30-1.sigstore.json
+  previous_artifact_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+invariants:
+  public_urls:
+    - https://ledger.example.test
+    - https://ledger.example.test/health
+  data:
+    logical_id: database:ledger-service/production
+    engine: postgresql-17
+    schema: ledger-2026-10-30-1
+    backup_evidence: evidence/database-restore-2026-10-29.json
+  observability:
+    service_namespace: personal-engineering-platform
+    service_name: ledger-api
+    telemetry_contract_version: 1
+targets:
+  - stage: serverless
+    project:
+      id: ledger-service
+      catalog_id: project:ledger-service
+      owner: personal-engineering-platform
+    workload:
+      id: ledger-api
+      runtime_family: container
+      ports:
+        - name: http
+          port: 8080
+          protocol: http
+      health:
+        liveness: /health/live
+        readiness: /health/ready
+      dependencies: [production-database]
+    adapter:
+      family: serverless
+      kind: managed-container-runtime
+    artifact_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    signature_verification:
+      subject_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      signer: https://github.com/example/ledger/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/release-2026-10-30-1.sigstore.json
+      result: passed
+    public_urls:
+      - https://ledger.example.test
+      - https://ledger.example.test/health
+    data:
+      logical_id: database:ledger-service/production
+      engine: postgresql-17
+      schema: ledger-2026-10-30-1
+      backup_evidence: evidence/database-restore-2026-10-29.json
+    observability:
+      service_namespace: personal-engineering-platform
+      service_name: ledger-api
+      telemetry_contract_version: 1
+    verification:
+      - kind: signature
+        evidence: The adapter verified the Sigstore bundle against the OCI digest before deployment.
+        result: passed
+      - kind: route
+        evidence: Both invariant URLs returned the release ID after the route switched.
+        result: passed
+      - kind: data
+        evidence: The release read the invariant logical database at the declared schema version.
+        result: passed
+      - kind: telemetry
+        evidence: A trace retained the invariant service namespace and service name.
+        result: passed
+      - kind: rollback
+        evidence: The adapter restored the previous digest while retaining URLs and data bindings.
+        result: passed
+    rollback:
+      mechanism: managed-revision-switch
+      previous_artifact_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      evidence: The previous immutable revision passed the route, data, and telemetry checks.
+      result: passed
+
+  - stage: nixos-host
+    project:
+      id: ledger-service
+      catalog_id: project:ledger-service
+      owner: personal-engineering-platform
+    workload:
+      id: ledger-api
+      runtime_family: container
+      ports:
+        - name: http
+          port: 8080
+          protocol: http
+      health:
+        liveness: /health/live
+        readiness: /health/ready
+      dependencies: [production-database]
+    adapter:
+      family: nixos
+      kind: nixos-systemd-oci
+    artifact_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    signature_verification:
+      subject_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      signer: https://github.com/example/ledger/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/release-2026-10-30-1.sigstore.json
+      result: passed
+    public_urls:
+      - https://ledger.example.test
+      - https://ledger.example.test/health
+    data:
+      logical_id: database:ledger-service/production
+      engine: postgresql-17
+      schema: ledger-2026-10-30-1
+      backup_evidence: evidence/database-restore-2026-10-29.json
+    observability:
+      service_namespace: personal-engineering-platform
+      service_name: ledger-api
+      telemetry_contract_version: 1
+    verification:
+      - kind: signature
+        evidence: The NixOS activation verified the Sigstore bundle against the OCI digest.
+        result: passed
+      - kind: route
+        evidence: The stable reverse-proxy routes returned the release ID after activation.
+        result: passed
+      - kind: data
+        evidence: The systemd service used the invariant logical database and declared schema version.
+        result: passed
+      - kind: telemetry
+        evidence: A trace retained the invariant service namespace and service name.
+        result: passed
+      - kind: rollback
+        evidence: The previous NixOS generation and OCI digest retained URLs and data bindings.
+        result: passed
+    rollback:
+      mechanism: nixos-generation-reactivation
+      previous_artifact_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      evidence: The previous generation passed the route, data, and telemetry checks.
+      result: passed
+
+  - stage: kubernetes
+    project:
+      id: ledger-service
+      catalog_id: project:ledger-service
+      owner: personal-engineering-platform
+    workload:
+      id: ledger-api
+      runtime_family: container
+      ports:
+        - name: http
+          port: 8080
+          protocol: http
+      health:
+        liveness: /health/live
+        readiness: /health/ready
+      dependencies: [production-database]
+    adapter:
+      family: kubernetes
+      kind: kubernetes-deployment
+    artifact_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+    signature_verification:
+      subject_digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      signer: https://github.com/example/ledger/.github/workflows/release.yml@refs/heads/main
+      bundle_ref: evidence/release-2026-10-30-1.sigstore.json
+      result: passed
+    public_urls:
+      - https://ledger.example.test
+      - https://ledger.example.test/health
+    data:
+      logical_id: database:ledger-service/production
+      engine: postgresql-17
+      schema: ledger-2026-10-30-1
+      backup_evidence: evidence/database-restore-2026-10-29.json
+    observability:
+      service_namespace: personal-engineering-platform
+      service_name: ledger-api
+      telemetry_contract_version: 1
+    verification:
+      - kind: signature
+        evidence: Admission and rollout checks verified the Sigstore bundle against the OCI digest.
+        result: passed
+      - kind: route
+        evidence: The stable Gateway routes returned the release ID after rollout.
+        result: passed
+      - kind: data
+        evidence: The Deployment used the invariant logical database and declared schema version.
+        result: passed
+      - kind: telemetry
+        evidence: A trace retained the invariant service namespace and service name.
+        result: passed
+      - kind: rollback
+        evidence: The previous resource revision and OCI digest retained URLs and data bindings.
+        result: passed
+    rollback:
+      mechanism: deployment-revision-rollback
+      previous_artifact_digest: sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      evidence: The previous Deployment revision passed the route, data, and telemetry checks.
+      result: passed

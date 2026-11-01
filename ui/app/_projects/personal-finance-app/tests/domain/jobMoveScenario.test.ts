@@ -238,8 +238,52 @@ describe("job-move scenarios", () => {
       annualEmployeePensionContribution: 3_000,
       annualEmployerPensionContribution: 0,
       annualProviderPensionTaxRelief: 600,
+      annualFurtherPensionTaxRelief: 600,
       calculation: { kind: "tax-derived" },
     });
+  });
+
+  it("keeps employer NI sharing separate from the contractual pension", () => {
+    const result = calculateJobMoveCompensation({
+      ...employedScenario(),
+      roleStartDate: "2026-10-01",
+      jurisdiction: "England",
+      annualEmployerNationalInsuranceSaving: 900,
+      annualEmployerNationalInsuranceSavingContribution: 450,
+      annualTakeHomeOverride: undefined,
+    });
+
+    expect(result).toMatchObject({
+      annualContractualEmployerPensionContribution: 7_800,
+      annualEmployerPensionContribution: 8_250,
+      annualEmployerNationalInsuranceSaving: 900,
+      annualEmployerNationalInsuranceSavingContribution: 450,
+    });
+  });
+
+  it("applies employee NI to the period containing a bonus", () => {
+    const scenario = {
+      ...employedScenario(),
+      roleStartDate: "2026-10-01",
+      jurisdiction: "England",
+      baseGrossPay: 36_000,
+      variableGrossPay: 24_000,
+      employeePensionRate: 0,
+      employerPensionRate: 0,
+      annualTakeHomeOverride: undefined,
+    };
+    const singlePayment = calculateJobMoveCompensation({
+      ...scenario,
+      variablePayPensionTreatment: "singlePayment",
+    });
+    const spreadEvenly = calculateJobMoveCompensation({
+      ...scenario,
+      variablePayPensionTreatment: "spreadEvenly",
+    });
+
+    expect(singlePayment.annualTakeHomePay).toBeGreaterThan(
+      spreadEvenly.annualTakeHomePay,
+    );
   });
 
   it("refuses to apply a rate when the scheme basis is unknown", () => {

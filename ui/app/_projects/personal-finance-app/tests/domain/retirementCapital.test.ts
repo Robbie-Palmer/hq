@@ -200,6 +200,18 @@ describe("projectRetirementCapital", () => {
     });
   });
 
+  it("grows nominal spending from the configured annual rate", () => {
+    const result = projectRetirementCapital(
+      scenario([account({ id: "isa", name: "ISA", balance: 100_000 })], {
+        endDate: "2036-01-01",
+        annualSpendingGrowthRate: 0.1,
+      }),
+    );
+
+    expect(result.points[0]?.spendingRequired).toBe(1_000);
+    expect(result.points.at(-1)?.spendingRequired).toBe(1_100);
+  });
+
   it("uses the explicit taxable-to-ISA-to-pension order and itemises deductions", () => {
     const result = projectRetirementCapital(
       scenario(
