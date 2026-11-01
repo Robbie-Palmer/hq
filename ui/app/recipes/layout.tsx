@@ -62,6 +62,24 @@ export const viewport: Viewport = {
   themeColor: "#c8693c",
 };
 
+function RecipeFooter() {
+  return (
+    <footer className="border-t border-[var(--line)] mt-auto">
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex flex-col items-center gap-4">
+          <PageSourceLinks
+            className="rt-mono text-[var(--ink-3)]"
+            linkClassName="hover:text-[var(--ink)]"
+          />
+          <p className="rt-mono text-[var(--ink-3)]">
+            © {new Date().getFullYear()} {siteConfig.author.name}
+          </p>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
 function RecipeHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--paper)]/95 backdrop-blur supports-[backdrop-filter]:bg-[var(--paper)]/75">
@@ -90,7 +108,6 @@ export default function RecipesLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const currentYear = new Date().getFullYear();
   const fontVars = `${caveat.variable} ${kalam.variable} ${jetBrainsMono.variable}`;
 
   return (
@@ -121,19 +138,7 @@ export default function RecipesLayout({
               </EquipmentReadinessProvider>
             </DietProvider>
 
-            <footer className="border-t border-[var(--line)] mt-auto">
-              <div className="container mx-auto px-4 py-8">
-                <div className="flex flex-col items-center gap-4">
-                  <PageSourceLinks
-                    className="rt-mono text-[var(--ink-3)]"
-                    linkClassName="hover:text-[var(--ink)]"
-                  />
-                  <p className="rt-mono text-[var(--ink-3)]">
-                    © {currentYear} {siteConfig.author.name}
-                  </p>
-                </div>
-              </div>
-            </footer>
+            <RecipeFooter />
           </div>
 
           {/* Outside the isolated .recipe-surface stacking context so it paints
