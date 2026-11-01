@@ -126,6 +126,9 @@ export default {
         databaseResultRows: databaseMetrics.resultRowCount,
         databaseResultBytesEstimated: databaseMetrics.resultBytesEstimated,
         throughSequence: result.throughSequence,
+        sourceUpperWatermark: result.sourceUpperWatermark,
+        checkpointLag:
+          result.sourceUpperWatermark - result.throughSequence,
         workerVersion: env.WORKER_VERSION?.id ?? "local",
       });
     } catch (error) {

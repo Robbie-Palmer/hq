@@ -245,7 +245,7 @@ locals {
           prd = {
             name             = "Production"
             personal_configs = false
-            configs          = ["prd", "prd_work_graph", "prd_work_graph_backup", "prd_work_graph_infra"]
+            configs          = ["prd", "prd_work_graph", "prd_work_graph_analytics", "prd_work_graph_backup", "prd_work_graph_infra"]
           }
         }
       }
@@ -258,6 +258,10 @@ locals {
           }
           backup = {
             name               = "production-work-graph-backup"
+            protected_branches = true
+          }
+          analytics = {
+            name               = "production-work-graph-analytics"
             protected_branches = true
           }
           infrastructure = {

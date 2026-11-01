@@ -33,6 +33,11 @@ output "r2_private_analytics_bucket_name" {
   value       = cloudflare_r2_bucket.private_analytics.name
 }
 
+output "r2_private_analytics_models_bucket_name" {
+  description = "Dedicated private bucket for Work Graph dbt and Parquet publications"
+  value       = cloudflare_r2_bucket.private_analytics_models.name
+}
+
 output "worker_name" {
   description = "Work Graph Worker service name"
   value       = cloudflare_workers_script.work_graph.name

@@ -44,3 +44,11 @@ raw manifests into a private working directory, stage them, reserve a new versio
 run dbt, and publish the generated version directory only after every test
 succeeds. Upload permissions for derived models should remain separate from
 raw-extractor and report-reader permissions.
+
+The production operator runs hourly at minute 37, after the raw extractor at
+minute 23. It rebuilds from every complete raw manifest, runs all dbt tests,
+publishes Parquet objects to the separate private model bucket, and writes the
+model manifest last. A failed dbt command cannot publish a manifest. The run
+also executes a private report after removing `DATABASE_URL` from its process.
+See the report runbook for measured limits, credential setup, retry, correction,
+rollback, and retention rules.

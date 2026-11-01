@@ -1,0 +1,38 @@
+name: Work Graph analytics
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: work-graph-analytics
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || vars.WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production-work-graph-analytics
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: $/.github/actions/setup-mise
+      - name: Verify private bucket access
+        run: mise //data-pipelines/work-graph-analytics:access:check
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_AUDIT_API_TOKEN: ${{ secrets.CLOUDFLARE_R2_AUDIT_API_TOKEN }}
+      - name: Build, verify, and publish one model version
+        run: mise //data-pipelines/work-graph-analytics:operate
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RAW_R2_ACCESS_KEY_ID: ${{ secrets.RAW_R2_ACCESS_KEY_ID }}
+          RAW_R2_SECRET_ACCESS_KEY: ${{ secrets.RAW_R2_SECRET_ACCESS_KEY }}
+          MODEL_R2_ACCESS_KEY_ID: ${{ secrets.MODEL_R2_ACCESS_KEY_ID }}
+          MODEL_R2_SECRET_ACCESS_KEY: ${{ secrets.MODEL_R2_SECRET_ACCESS_KEY }}

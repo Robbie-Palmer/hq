@@ -22,6 +22,7 @@ try {
     {
       token: process.env.CLOUDFLARE_DIAGNOSTICS_API_TOKEN ?? "",
       accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+      analyticsBucketName: "work-graph-private-analytics",
       hyperdriveId: process.env.WORK_GRAPH_HYPERDRIVE_ID ?? "",
     },
     start,

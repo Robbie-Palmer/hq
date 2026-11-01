@@ -208,6 +208,7 @@ describe("Given a scheduled analytics export", () => {
       manifestKey: "work-state/v1/manifests/1-2.json",
       objectBytes: 512,
       scopeRows: 1,
+      sourceUpperWatermark: 3,
       status: "exported",
       throughSequence: 2,
     });
@@ -226,6 +227,7 @@ describe("Given a scheduled analytics export", () => {
     expect(log).toHaveBeenCalledWith(
       expect.objectContaining({
         eventRows: 2,
+        checkpointLag: 1,
         scopeRows: 1,
         throughSequence: 2,
       }),

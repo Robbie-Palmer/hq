@@ -193,6 +193,7 @@ describe("Work Graph analytics export", () => {
       scopeRows: 0,
       objectBytes: 0,
       manifestKey: null,
+      sourceUpperWatermark: 5,
       throughSequence: 0,
     });
     expect(store.writes).toEqual([]);

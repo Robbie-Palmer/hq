@@ -65,6 +65,10 @@ class ReportProvenance(StrictModel):
     source_coverage: ReportSourceCoverage = Field(serialization_alias="sourceCoverage")
     scope_snapshot: ReportScopeSnapshot = Field(serialization_alias="scopeSnapshot")
     freshness: ReportFreshness
+    verified_model_bytes: int = Field(serialization_alias="verifiedModelBytes", ge=1)
+    report_input_bytes_upper_bound: int = Field(
+        serialization_alias="reportInputBytesUpperBound", ge=1
+    )
 
 
 class ReportMetric(StrictModel):
@@ -298,9 +302,7 @@ def _scope_snapshot(
 
 
 REPORT_QUERY = (
-    resources.files("work_graph_analytics")
-    .joinpath("queries/operational_report.sql")
-    .read_text()
+    resources.files("work_graph_analytics").joinpath("queries/operational_report.sql").read_text()
 )
 
 
@@ -406,6 +408,11 @@ def operational_report(
             freshness=ReportFreshness(
                 latest_event_at=_isoformat(latest_event[0]),
                 scope_captured_at=scope_snapshot.captured_at,
+            ),
+            verified_model_bytes=sum(descriptor.size for descriptor in manifest.models),
+            report_input_bytes_upper_bound=sum(
+                paths[filename][1].size
+                for filename in ("fct_wait_episodes.parquet", EVENTS_MODEL, SCOPES_MODEL)
             ),
         ),
         inference_limits=INFERENCE_LIMITS,
