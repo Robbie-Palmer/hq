@@ -1,3 +1,47 @@
+[tasks.install]
+description = "Install Wedding Planner data dependencies"
+run = "pnpm install --frozen-lockfile --filter wedding-planner-data..."
+
+[tasks.typecheck]
+description = "Typecheck Wedding Planner data contracts"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test Wedding Planner data contracts"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test Wedding Planner data contracts with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."test:integration"]
+description = "Test Wedding Planner persistence against disposable PostgreSQL"
+depends = ["install"]
+run = "bash scripts/test-integration.sh"
+
+[tasks."test:integration:coverage"]
+description = "Cover Wedding Planner persistence against disposable PostgreSQL"
+depends = ["install"]
+run = "pnpm test:integration:coverage"
+
+[tasks."db:generate"]
+description = "Generate Wedding Planner PostgreSQL migrations"
+depends = ["install"]
+run = "pnpm db:generate"
+
+[tasks."db:check"]
+description = "Validate Wedding Planner migration names, history, and schema snapshot"
+depends = ["install"]
+run = "pnpm db:check"
+
+[tasks."db:migrate"]
+description = "Apply committed Wedding Planner migrations to DATABASE_URL"
+depends = ["install"]
+run = "pnpm db:migrate"
+
 [tasks.check]
-description = "Validate the generated Wedding Planner relational data boundary structural boundary"
-run = "test -f generated-component.yaml"
+description = "Check Wedding Planner relational persistence"
+depends = ["typecheck", "test", "test:integration", "db:check"]

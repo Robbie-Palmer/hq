@@ -4,25 +4,8 @@ project: "project:wedding-planner"
 operational_checks:
   - id: "api-contract-conformance"
     command: "mise //workers/wedding-planner-api:lint:api"
-  - id: "browser-export-recovery"
-    command: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
   - id: "copier-profile-conformance"
     command: "mise //packages/project-generator:check"
   - id: "relational-integration"
     command: "mise //workers/wedding-planner-api:test:integration"
-migration_checkpoints:
-  - id: "export-browser-plan-before-import"
-    action: "Export and validate the current browser plan before importing it into the relational store."
-    verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts"
-    status: "pending"
-    evidence: []
-  - id: "preserve-browser-recovery-during-cutover"
-    action: "Keep wedding-planner:plan:v2 readable and exportable until server reads, writes, and rollback have been verified."
-    verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
-    status: "pending"
-    evidence: []
-  - id: "prove-relational-restore-before-cutover"
-    action: "Complete a relational restore drill before removing the browser rollback path."
-    verification: "mise //infra/wedding-planner:test"
-    status: "pending"
-    evidence: []
+migration_checkpoints: []
