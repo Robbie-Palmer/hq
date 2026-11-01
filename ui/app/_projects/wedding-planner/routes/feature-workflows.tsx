@@ -75,6 +75,10 @@ function RouteMain({ children }: Readonly<{ children: ReactNode }>) {
   );
 }
 
+function errorMessage(cause: unknown, fallback: string): string {
+  return cause instanceof Error ? cause.message : fallback;
+}
+
 function ExportContentsTable({ state }: Readonly<{ state: WeddingPlanDraft }>) {
   return (
     <WorkflowDataTable caption="Data included in the current backup">
@@ -181,9 +185,7 @@ export function SeatingWorkflow({
       const result = await plan.application.calculateTables(plan.state);
       if (calculationRevision.current === revision) setAllocation(result);
     } catch (cause) {
-      setCalculationError(
-        cause instanceof Error ? cause.message : "Could not calculate tables",
-      );
+      setCalculationError(errorMessage(cause, "Could not calculate tables"));
     } finally {
       setBusy(false);
     }
