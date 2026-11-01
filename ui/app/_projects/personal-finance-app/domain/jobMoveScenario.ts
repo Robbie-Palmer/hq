@@ -95,6 +95,11 @@ const JobMoveScenarioBaseSchema = z.object({
     .optional(),
   annualEmployeePensionOverride: z.number().nonnegative().optional(),
   annualEmployerPensionOverride: z.number().nonnegative().optional(),
+  annualEmployerNationalInsuranceSaving: z.number().nonnegative().optional(),
+  annualEmployerNationalInsuranceSavingContribution: z
+    .number()
+    .nonnegative()
+    .optional(),
   /** Annual take-home pay supplied when reviewed tax rules cannot calculate it. */
   annualTakeHomeOverride: z.number().nonnegative().optional(),
   /** Optional annual spending used only for this hypothetical path. */
@@ -110,10 +115,39 @@ const JobMoveScenarioBaseSchema = z.object({
     .min(1, "Choose at least one current-role cash flow to replace"),
 });
 
+type JobMoveScenarioBase = z.infer<typeof JobMoveScenarioBaseSchema>;
+
+function validateEmployerNationalInsurance(
+  scenario: JobMoveScenarioBase,
+  context: z.RefinementCtx,
+) {
+  const saving = scenario.annualEmployerNationalInsuranceSaving ?? 0;
+  const shared =
+    scenario.annualEmployerNationalInsuranceSavingContribution ?? 0;
+  if (shared > saving) {
+    context.addIssue({
+      code: "custom",
+      path: ["annualEmployerNationalInsuranceSavingContribution"],
+      message:
+        "The employer NI saving added to the pension cannot exceed the stated saving",
+    });
+  }
+  if (saving > 0 && scenario.employeePensionMethod !== "salarySacrifice") {
+    context.addIssue({
+      code: "custom",
+      path: ["annualEmployerNationalInsuranceSaving"],
+      message: "Employer NI savings only apply to salary sacrifice",
+    });
+  }
+}
+
 function validateJobMoveScenario(
   scenario: z.infer<typeof JobMoveScenarioBaseSchema>,
   context: z.RefinementCtx,
 ) {
+  validateEmployerNationalInsurance(scenario, context);
+  const sharedEmployerNationalInsuranceSaving =
+    scenario.annualEmployerNationalInsuranceSavingContribution ?? 0;
   if (
     scenario.currentRole != null &&
     scenario.currentRole.activeTo !== scenario.transitionDate
@@ -163,6 +197,7 @@ function validateJobMoveScenario(
     (scenario.employeePensionRate + scenario.employerPensionRate > 0 ||
       (scenario.annualEmployeePensionOverride ?? 0) > 0 ||
       (scenario.annualEmployerPensionOverride ?? 0) > 0 ||
+      sharedEmployerNationalInsuranceSaving > 0 ||
       (scenario.employerPensionPolicy != null &&
         scenario.employerPensionPolicy.kind !== "none")) &&
     scenario.pensionAccountId == null
@@ -208,8 +243,12 @@ export type JobMoveScenarioIdInput = z.infer<
 export type JobMoveCompensation = {
   annualTakeHomePay: number;
   annualEmployeePensionContribution: number;
+  annualContractualEmployerPensionContribution: number;
   annualEmployerPensionContribution: number;
+  annualEmployerNationalInsuranceSaving: number;
+  annualEmployerNationalInsuranceSavingContribution: number;
   annualProviderPensionTaxRelief: number;
+  annualFurtherPensionTaxRelief: number;
   calculation:
     | {
         kind: "tax-derived";
@@ -229,8 +268,12 @@ export type JobMoveScenarioComparison = {
     baselineAnnualPensionContribution: number | null;
     scenarioAnnualTakeHomePay: number;
     scenarioAnnualEmployeePensionContribution: number;
+    scenarioAnnualContractualEmployerPensionContribution: number;
     scenarioAnnualEmployerPensionContribution: number;
+    scenarioAnnualEmployerNationalInsuranceSaving: number;
+    scenarioAnnualEmployerNationalInsuranceSavingContribution: number;
     scenarioAnnualProviderPensionTaxRelief: number;
+    scenarioAnnualFurtherPensionTaxRelief: number;
     currency: Currency;
   };
   calculation: JobMoveCompensation["calculation"];
@@ -317,13 +360,19 @@ function taxJurisdiction(value: string) {
 function reviewedTaxResult(
   scenario: JobMoveScenario,
   annualEmployeePensionContribution: number,
-  annualEmployerPensionContribution: number,
+  salarySacrificeByPeriodPence: number[],
+  annualContractualEmployerPensionContribution: number,
   annualEmployeePensionCashDeduction: number,
   annualProviderPensionTaxRelief: number,
 ): { result: HistoricalSalaryResult | null; reasons: string[] } {
   const reasons: string[] = [];
   if (scenario.currency !== "GBP") {
     reasons.push("Reviewed salary tax calculations currently require GBP.");
+  }
+  if (scenario.payFrequency === "irregular") {
+    reasons.push(
+      "Reviewed National Insurance needs a regular earnings period.",
+    );
   }
   const jurisdiction = taxJurisdiction(scenario.jurisdiction);
   if (jurisdiction == null) {
@@ -337,7 +386,11 @@ function reviewedTaxResult(
   const effectiveDate = scenario.roleStartDate ?? scenario.transitionDate;
   const grossPay = scenario.baseGrossPay + scenario.variableGrossPay;
   const hasPension =
-    annualEmployeePensionContribution + annualEmployerPensionContribution > 0;
+    annualEmployeePensionContribution +
+      annualContractualEmployerPensionContribution +
+      (scenario.annualEmployerNationalInsuranceSaving ?? 0) +
+      (scenario.annualEmployerNationalInsuranceSavingContribution ?? 0) >
+    0;
   const employeePensionPence = Math.round(
     annualEmployeePensionContribution * 100,
   );
@@ -350,6 +403,10 @@ function reviewedTaxResult(
     otherDeductionsPence: 0,
     nationalInsuranceCategory: "A",
     isCompanyDirector: false,
+    nationalInsurancePeriods: jobMoveNationalInsurancePeriods(
+      scenario,
+      salarySacrificeByPeriodPence,
+    ),
     pension: hasPension
       ? {
           method: employeeTaxTreatment[scenario.employeePensionMethod],
@@ -362,10 +419,17 @@ function reviewedTaxResult(
               ? employeePensionPence
               : 0,
           employerContributionPence: Math.round(
-            annualEmployerPensionContribution * 100,
+            annualContractualEmployerPensionContribution * 100,
           ),
           providerTaxReliefPence: Math.round(
             annualProviderPensionTaxRelief * 100,
+          ),
+          employerNationalInsuranceSavingPence: Math.round(
+            (scenario.annualEmployerNationalInsuranceSaving ?? 0) * 100,
+          ),
+          employerNationalInsuranceSavingContributionPence: Math.round(
+            (scenario.annualEmployerNationalInsuranceSavingContribution ?? 0) *
+              100,
           ),
         }
       : null,
@@ -402,6 +466,54 @@ const pensionPayPeriod = {
   annual: "annual",
   irregular: "annual",
 } as const;
+
+const nationalInsurancePeriodCount = {
+  weekly: 52,
+  fortnightly: 26,
+  fourWeekly: 13,
+  monthly: 12,
+  quarterly: 4,
+  annual: 1,
+  irregular: null,
+} as const;
+
+function distributedAmounts(total: number, periods: number): number[] {
+  const base = Math.floor(total / periods);
+  const remainder = total - base * periods;
+  return Array.from(
+    { length: periods },
+    (_, index) => base + (index < remainder ? 1 : 0),
+  );
+}
+
+function jobMoveNationalInsurancePeriods(
+  scenario: JobMoveScenario,
+  salarySacrificeByPeriodPence: number[],
+) {
+  const periods = nationalInsurancePeriodCount[scenario.payFrequency];
+  if (periods == null) return undefined;
+  const variablePay = Math.round(scenario.variableGrossPay * 100);
+  const basePay =
+    scenario.variablePayPensionTreatment === "singlePayment"
+      ? distributedAmounts(Math.round(scenario.baseGrossPay * 100), periods)
+      : distributedAmounts(
+          Math.round((scenario.baseGrossPay + scenario.variableGrossPay) * 100),
+          periods,
+        );
+  if (scenario.variablePayPensionTreatment === "singlePayment") {
+    basePay[0] = (basePay[0] ?? 0) + variablePay;
+  }
+  const sacrifice =
+    scenario.employeePensionMethod === "salarySacrifice"
+      ? salarySacrificeByPeriodPence
+      : basePay.map(() => 0);
+  return {
+    payPeriod: pensionPayPeriod[scenario.payFrequency],
+    postSacrificeEarningsPence: basePay.map((amount, index) =>
+      Math.max(0, amount - (sacrifice[index] ?? 0)),
+    ),
+  };
+}
 
 function jobMoveEmployeeContribution(
   scenario: JobMoveScenario,
@@ -507,23 +619,35 @@ export function calculateJobMoveCompensation(
     return {
       annualTakeHomePay: 0,
       annualEmployeePensionContribution: 0,
+      annualContractualEmployerPensionContribution: 0,
       annualEmployerPensionContribution: 0,
+      annualEmployerNationalInsuranceSaving: 0,
+      annualEmployerNationalInsuranceSavingContribution: 0,
       annualProviderPensionTaxRelief: 0,
+      annualFurtherPensionTaxRelief: 0,
       calculation: { kind: "not-applicable" },
     };
   }
   const pension = calculateJobMovePension(scenario);
   const annualEmployeePensionContribution =
     pension.employeeGrossContributionPence / 100;
-  const annualEmployerPensionContribution =
+  const annualContractualEmployerPensionContribution =
     pension.employerContributionPence / 100;
+  const annualEmployerNationalInsuranceSaving =
+    scenario.annualEmployerNationalInsuranceSaving ?? 0;
+  const annualEmployerNationalInsuranceSavingContribution =
+    scenario.annualEmployerNationalInsuranceSavingContribution ?? 0;
+  const annualEmployerPensionContribution =
+    annualContractualEmployerPensionContribution +
+    annualEmployerNationalInsuranceSavingContribution;
   const annualEmployeePensionCashDeduction =
     pension.employeeCashDeductionPence / 100;
   const annualProviderPensionTaxRelief = pension.providerTaxReliefPence / 100;
   const { result, reasons } = reviewedTaxResult(
     scenario,
     annualEmployeePensionContribution,
-    annualEmployerPensionContribution,
+    pension.salarySacrificeByPeriodPence,
+    annualContractualEmployerPensionContribution,
     annualEmployeePensionCashDeduction,
     annualProviderPensionTaxRelief,
   );
@@ -532,10 +656,19 @@ export function calculateJobMoveCompensation(
       annualTakeHomePay: result.components.takeHomePayPence / 100,
       annualEmployeePensionContribution:
         result.components.employeePensionContributionPence / 100,
-      annualEmployerPensionContribution:
+      annualContractualEmployerPensionContribution:
         result.components.employerPensionContributionPence / 100,
+      annualEmployerPensionContribution:
+        result.components.totalEmployerPensionContributionPence / 100,
+      annualEmployerNationalInsuranceSaving:
+        result.components.employerNationalInsuranceSavingPence / 100,
+      annualEmployerNationalInsuranceSavingContribution:
+        result.components.employerNationalInsuranceSavingContributionPence /
+        100,
       annualProviderPensionTaxRelief:
         result.components.providerTaxReliefPence / 100,
+      annualFurtherPensionTaxRelief:
+        result.components.furtherPensionTaxReliefPence / 100,
       calculation: {
         kind: "tax-derived",
         calculationVersion: result.lineage.calculationVersion,
@@ -552,8 +685,12 @@ export function calculateJobMoveCompensation(
   return {
     annualTakeHomePay: scenario.annualTakeHomeOverride,
     annualEmployeePensionContribution,
+    annualContractualEmployerPensionContribution,
     annualEmployerPensionContribution,
+    annualEmployerNationalInsuranceSaving,
+    annualEmployerNationalInsuranceSavingContribution,
     annualProviderPensionTaxRelief,
+    annualFurtherPensionTaxRelief: 0,
     calculation: { kind: "manual-override", reasons },
   };
 }
@@ -1128,13 +1265,20 @@ function comparisonCompensation(
         replaced?.annualEmployeePensionContribution ?? 0,
         next.annualEmployeePensionContribution,
       ),
+      scenarioAnnualContractualEmployerPensionContribution:
+        next.annualContractualEmployerPensionContribution,
       scenarioAnnualEmployerPensionContribution: replace(
         baselineEmployerPension,
         replaced?.annualEmployerPensionContribution ?? 0,
         next.annualEmployerPensionContribution,
       ),
+      scenarioAnnualEmployerNationalInsuranceSaving:
+        next.annualEmployerNationalInsuranceSaving,
+      scenarioAnnualEmployerNationalInsuranceSavingContribution:
+        next.annualEmployerNationalInsuranceSavingContribution,
       scenarioAnnualProviderPensionTaxRelief:
         next.annualProviderPensionTaxRelief,
+      scenarioAnnualFurtherPensionTaxRelief: next.annualFurtherPensionTaxRelief,
       currency: input.repository.settings.baseCurrency,
     },
   };

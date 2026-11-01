@@ -1,0 +1,3 @@
+[tasks.check]
+description = "Validate the generated Personal Finance API structural boundary"
+run = "test -f generated-component.yaml"

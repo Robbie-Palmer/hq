@@ -1,6 +1,7 @@
 #include "satellite_swarm/controller.hpp"
 #include "test_doubles.hpp"
 
+#include <array>
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 

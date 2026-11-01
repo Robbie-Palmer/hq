@@ -8,14 +8,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "ExperiencePage",
-    "maximums": {
-      "lines": 85
-    },
-    "path": "app/(site)/experience/page.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "Home",
     "maximums": {
       "lines": 160

@@ -21,6 +21,11 @@ import {
   futureCashFlowStageAccountId,
   type PlanningCase,
 } from "./futureCashFlow";
+import {
+  type HmrcEmploymentLabel,
+  type HmrcEmploymentObservation,
+  validateHmrcObservationHistory,
+} from "./hmrcStaticImport";
 import { validateHouseholdOwnership } from "./household";
 import type { IncomeRecord } from "./incomeRecord";
 import type { JobMoveScenario } from "./jobMoveScenario";
@@ -46,6 +51,8 @@ export interface AssetTrackerRepository {
   capitalFlows: CapitalFlow[];
   incomeHistory: IncomeRecord[];
   salaryHistory: SalaryHistoryRecord[];
+  hmrcEmploymentObservations: HmrcEmploymentObservation[];
+  hmrcEmploymentLabels: HmrcEmploymentLabel[];
   jobMoveScenarios: JobMoveScenario[];
   transfers: Transfer[];
   recurringFlows: RecurringFlow[];
@@ -886,10 +893,31 @@ function validateReferences(
   }
 }
 
+function validateHmrcHouseholdMembers(data: AssetTrackerData): void {
+  const householdMemberIds = new Set(
+    data.household.members.map((member) => member.id),
+  );
+  for (const record of [
+    ...(data.hmrcEmploymentObservations ?? []),
+    ...(data.hmrcEmploymentLabels ?? []),
+  ]) {
+    if (!householdMemberIds.has(record.memberId)) {
+      throw new AssetTrackerDataError(
+        `HMRC employment fact references unknown household member "${record.memberId}"`,
+      );
+    }
+  }
+}
+
 export function buildRepository(
   data: AssetTrackerData,
 ): AssetTrackerRepository {
   validateHouseholdOwnership(data);
+  validateHmrcHouseholdMembers(data);
+  validateHmrcObservationHistory(
+    data.hmrcEmploymentObservations ?? [],
+    data.hmrcEmploymentLabels ?? [],
+  );
   const accounts = indexAccounts(data.accounts);
   validateReferences(data, accounts);
   const snapshots = [...data.snapshots].sort((a, b) =>
@@ -908,6 +936,8 @@ export function buildRepository(
     salaryHistory: [...data.salaryHistory].sort((a, b) =>
       compareAcceptedAt(a.acceptedAt, b.acceptedAt),
     ),
+    hmrcEmploymentObservations: [...(data.hmrcEmploymentObservations ?? [])],
+    hmrcEmploymentLabels: [...(data.hmrcEmploymentLabels ?? [])],
     jobMoveScenarios: [...(data.jobMoveScenarios ?? [])].sort((a, b) =>
       a.name.localeCompare(b.name),
     ),

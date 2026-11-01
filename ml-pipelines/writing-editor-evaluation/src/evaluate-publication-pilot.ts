@@ -21,6 +21,7 @@ import {
   ensureOutputDirectory,
   readContainedText,
   readJson,
+  resolveContainedDirectory,
   resolveContainedFile,
   writeJson,
 } from "./files";
@@ -917,10 +918,25 @@ export function runPublicationPilotCli(
       "usage: evaluate-publication-pilot --preregistration <file> --evidence <file> --evidence-root <directory> --repository <directory> --output <file> --report <file>",
     );
   }
+  const preregistrationFile = resolveContainedFile(
+    workingDirectory,
+    values.preregistration,
+    "publication pilot preregistration",
+  );
+  const evidenceRoot = resolveContainedDirectory(
+    workingDirectory,
+    values["evidence-root"],
+    "publication pilot evidence root",
+  );
+  const evidenceFile = resolveContainedFile(
+    evidenceRoot,
+    path.resolve(workingDirectory, values.evidence),
+    "publication pilot evidence",
+  );
   const result = evaluatePublicationPilot({
-    preregistrationFile: values.preregistration,
-    evidenceFile: values.evidence,
-    evidenceRoot: values["evidence-root"],
+    preregistrationFile,
+    evidenceFile,
+    evidenceRoot,
     repositoryRoot: values.repository,
   });
   const outputFile = resolveOutputFile(workingDirectory, values.output, "JSON report");

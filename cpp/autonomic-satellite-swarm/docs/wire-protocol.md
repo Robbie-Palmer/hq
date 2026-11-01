@@ -1,5 +1,9 @@
 # Wire protocol
 
+The controller and reference firmware use the mission and telemetry frames documented here. A
+separate host-tested [protocol evolution contract](protocol-evolution.md) defines bounded journal,
+capability, and durable-state versioning. It is not connected to either firmware transport.
+
 ## Mission identity
 
 A mission key has three fields:

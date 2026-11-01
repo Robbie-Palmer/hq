@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "corpusVersion": "1.0.0",
+  "partitions": [
+    "train",
+    "development"
+  ],
+  "reference": {
+    "usableImportRate": 1,
+    "ontologyCoverage": 0.7272727272727273,
+    "fieldMetrics": {
+      "title": { "precision": 1, "recall": 1 },
+      "description": { "precision": 1, "recall": 1 },
+      "cuisine": { "precision": 1, "recall": 1 },
+      "servings": { "precision": 1, "recall": 1 },
+      "prepTime": { "precision": 1, "recall": 1 },
+      "cookTime": { "precision": 1, "recall": 1 },
+      "ingredientName": { "precision": 1, "recall": 1 },
+      "ingredientQuantity": { "precision": 1, "recall": 1 },
+      "ingredientUnit": { "precision": 1, "recall": 1 },
+      "instructionText": { "precision": 1, "recall": 1 }
+    },
+    "failureCounts": {
+      "extraction-missed-recipe": 0,
+      "extraction-unexpected-recipe": 0,
+      "normalization-failed": 0,
+      "scalar-field-mismatch": 0,
+      "ingredient-name-mismatch": 0,
+      "quantity-mismatch": 0,
+      "unit-mismatch": 0,
+      "step-content-mismatch": 0,
+      "step-segmentation-mismatch": 0,
+      "ontology-unmatched": 3
+    }
+  },
+  "budgets": {
+    "usableImportRateDrop": 0,
+    "ontologyCoverageDrop": 0,
+    "fieldPrecisionDrop": 0,
+    "fieldRecallDrop": 0,
+    "failureCountIncrease": 0
+  }
+}

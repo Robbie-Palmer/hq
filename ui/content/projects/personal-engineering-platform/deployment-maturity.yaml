@@ -1,0 +1,666 @@
+contract: deployment-maturity
+contract_version: 1
+decision: personal-engineering-platform:047-deployment-maturity-contract
+invariants:
+  project_identity:
+    - project.id
+    - project.catalog_id
+    - project.owner
+  workload:
+    - workload.id
+    - workload.runtime_family
+    - workload.ports
+    - workload.health
+    - workload.dependencies
+    - workload.telemetry.service_namespace
+    - workload.telemetry.service_name
+  release:
+    - release.id
+    - release.artifact.repository
+    - release.artifact.digest
+    - release.artifact.signature.signer
+target_variant_fields:
+  - deployment.stage
+  - deployment.adapter
+  - deployment.provider
+  - deployment.resource_names
+  - deployment.scaling
+  - deployment.network_binding
+  - deployment.secret_binding
+  - deployment.storage_binding
+  - deployment.database_binding
+  - deployment.rollback_mechanism
+  - deployment.incident_access
+stages:
+  - id: serverless
+    sequence: 1
+    name: Serverless
+    supported_workload_shapes:
+      - static-site
+      - request-driven-service
+      - scheduled-job
+      - event-consumer
+    ownership:
+      application: project
+      runtime: provider
+      control_plane: provider
+      data: shared
+      incident_response: shared
+    entry_criteria:
+      - id: provider-limits-fit
+        requirement: The workload fits the provider's runtime, request, protocol, and execution limits.
+        evidence: contract-check
+      - id: external-state
+        requirement: Durable state uses a managed service or object store outside the compute instance.
+        evidence: contract-check
+      - id: redeploy-recovery
+        requirement: A signed artifact and automated deployment can recreate the workload.
+        evidence: runtime-test
+    exit_triggers:
+      - id: runtime-limit
+        requirement: A required runtime, protocol, background process, or execution duration exceeds provider limits.
+        evidence: runtime-test
+      - id: control-requirement
+        requirement: Incident recovery needs host, network, or scheduling control that the provider does not expose.
+        evidence: recovery-exercise
+      - id: cost-crossover
+        requirement: Measured consumption cost exceeds an operated target for the same workload and recovery objective.
+        evidence: cost-record
+    cost:
+      model: consumption
+      idle: zero
+      assumptions:
+        - Compute cost follows requests, execution time, storage, and network transfer.
+        - Managed data and telemetry can retain a non-zero baseline when compute is idle.
+      review_triggers:
+        - Review after a material traffic, execution-time, storage, or egress change.
+        - Compare measured monthly cost before leaving the stage.
+    recovery:
+      availability_claim: not-claimed
+      failure_domains: [provider-service]
+      recovery_time_assumption: Recovery depends on provider service restoration or redeployment of the signed artifact.
+      data_loss_assumption: Data loss follows the external data service's proved backup and recovery behavior.
+      proof: []
+    capabilities:
+      identity:
+        mode: delegated
+        owner: provider
+        requirement: Bind workload identity without storing long-lived provider credentials in the artifact.
+      secrets:
+        mode: delegated
+        owner: provider
+        requirement: Resolve secret references at deployment or runtime and keep values outside source and artifacts.
+      networking:
+        mode: delegated
+        owner: provider
+        requirement: Route the stable public URL to the current release and enforce declared private egress or service bindings.
+      storage:
+        mode: unsupported
+        owner: project
+        requirement: Reject workloads that require durable instance-local or attached POSIX storage.
+      databases:
+        mode: delegated
+        owner: provider
+        requirement: Use an external managed database with stable logical identity and tested credentials.
+      telemetry:
+        mode: required
+        owner: project
+        requirement: Preserve the workload's OpenTelemetry service identity and export path.
+      backup:
+        mode: delegated
+        owner: shared
+        requirement: Record the external data service's backup owner, retention, restore procedure, and latest exercise.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify the signed artifact, deploy immutably, and retain deployment evidence.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Restore the previous immutable artifact and compatible configuration without changing the public URL.
+      incident_access:
+        mode: delegated
+        owner: provider
+        requirement: Provide deployment logs, runtime logs, metrics, and provider status without host access.
+    adapter:
+      family: serverless
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access
+
+  - id: managed-application
+    sequence: 2
+    name: Managed application runtime
+    supported_workload_shapes:
+      - request-driven-service
+      - background-worker
+      - scheduled-job
+      - event-consumer
+    ownership:
+      application: project
+      runtime: provider
+      control_plane: provider
+      data: shared
+      incident_response: shared
+    entry_criteria:
+      - id: portable-artifact
+        requirement: The workload has a signed OCI artifact, explicit process, ports, health checks, and resource bounds.
+        evidence: contract-check
+      - id: managed-dependencies
+        requirement: Stateful dependencies have managed bindings and do not depend on instance identity.
+        evidence: contract-check
+      - id: rollback-test
+        requirement: The target adapter has restored the previous artifact in a test environment.
+        evidence: runtime-test
+    exit_triggers:
+      - id: host-control
+        requirement: The workload needs kernel, filesystem, private-network, or service-manager control outside the runtime contract.
+        evidence: runtime-test
+      - id: scheduling-control
+        requirement: Placement, topology, or workload isolation requirements exceed the managed scheduler.
+        evidence: contract-check
+      - id: cost-crossover
+        requirement: Measured steady-state cost exceeds an operated host or cluster for the same recovery objective.
+        evidence: cost-record
+    cost:
+      model: subscription
+      idle: variable
+      assumptions:
+        - Cost includes reserved runtime capacity, managed build or deploy features, storage, and network transfer.
+        - Scale-to-zero behavior is target-specific and must be measured rather than assumed.
+      review_triggers:
+        - Review after sustained utilization makes reserved capacity cheaper than consumption billing.
+        - Review when required managed add-ons materially change the baseline.
+    recovery:
+      availability_claim: not-claimed
+      failure_domains: [managed-runtime]
+      recovery_time_assumption: Recovery uses provider rescheduling or redeployment of the signed artifact.
+      data_loss_assumption: Data loss follows the external data service's proved backup and recovery behavior.
+      proof: []
+    capabilities:
+      identity:
+        mode: delegated
+        owner: provider
+        requirement: Bind a target service identity to the invariant workload identity.
+      secrets:
+        mode: delegated
+        owner: provider
+        requirement: Inject referenced secrets at runtime without adding them to the image or deployment record.
+      networking:
+        mode: delegated
+        owner: provider
+        requirement: Preserve the public URL and declare private service and egress connections.
+      storage:
+        mode: delegated
+        owner: provider
+        requirement: Use managed volumes only when the target documents lifecycle, backup, and replacement behavior.
+      databases:
+        mode: delegated
+        owner: provider
+        requirement: Bind the invariant logical database through target-owned connection configuration.
+      telemetry:
+        mode: required
+        owner: project
+        requirement: Preserve OpenTelemetry identity and verify traces, metrics, and logs after deployment.
+      backup:
+        mode: delegated
+        owner: shared
+        requirement: Record data and volume backup ownership, retention, restore procedure, and latest exercise.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify and deploy the immutable OCI digest with health-gated promotion evidence.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Restore the previous digest and configuration through the managed release mechanism.
+      incident_access:
+        mode: delegated
+        owner: provider
+        requirement: Provide deploy events, logs, metrics, and a supported runtime diagnostic path.
+    adapter:
+      family: managed-application
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.storage_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access
+
+  - id: nixos-host
+    sequence: 3
+    name: Self-managed NixOS host
+    supported_workload_shapes:
+      - request-driven-service
+      - background-worker
+      - scheduled-job
+      - event-consumer
+      - stateful-service
+    ownership:
+      application: project
+      runtime: platform
+      control_plane: platform
+      data: shared
+      incident_response: platform
+    entry_criteria:
+      - id: host-requirement
+        requirement: A measured runtime, network, filesystem, or cost need justifies operating a host.
+        evidence: cost-record
+      - id: rebuildable-host
+        requirement: NixOS configuration, workload artifact, data bindings, and secret references can rebuild the host.
+        evidence: contract-check
+      - id: recovery-exercise
+        requirement: A replacement-host exercise restores routing, data access, telemetry, and the signed artifact.
+        evidence: recovery-exercise
+    exit_triggers:
+      - id: isolation-pressure
+        requirement: Independent workloads need scheduling, resource isolation, or release coordination beyond systemd units.
+        evidence: runtime-test
+      - id: recovery-pressure
+        requirement: Host replacement time or maintenance windows exceed the accepted recovery assumption.
+        evidence: recovery-exercise
+      - id: capacity-pressure
+        requirement: Resource contention cannot be resolved with measured host resizing or workload limits.
+        evidence: runtime-test
+    cost:
+      model: host
+      idle: fixed
+      assumptions:
+        - Cost includes the host, attached storage, backups, network transfer, monitoring, and operator time.
+        - Spare capacity has value only when measured workloads can use it without breaking isolation.
+      review_triggers:
+        - Review after host resizing, storage growth, or a material increase in maintenance work.
+        - Compare recovery exercises as well as monthly spend before changing stages.
+    recovery:
+      availability_claim: single-instance
+      failure_domains: [host]
+      recovery_time_assumption: Recovery requires provisioning or repairing one host, restoring bindings, and redeploying the signed artifact.
+      data_loss_assumption: Data loss is bounded only by the latest tested external or volume backup.
+      proof: []
+    capabilities:
+      identity:
+        mode: required
+        owner: platform
+        requirement: Map the invariant workload identity to a dedicated system user and scoped machine credentials.
+      secrets:
+        mode: required
+        owner: platform
+        requirement: Materialize secret references at activation or runtime with restricted filesystem permissions.
+      networking:
+        mode: required
+        owner: platform
+        requirement: Preserve public routing and declare firewall, private-network, DNS, and certificate state.
+      storage:
+        mode: required
+        owner: platform
+        requirement: Declare volume lifecycle, mount ownership, capacity alerts, replacement, backup, and restore.
+      databases:
+        mode: required
+        owner: shared
+        requirement: Bind an external database or declare a host-local database with explicit backup and recovery ownership.
+      telemetry:
+        mode: required
+        owner: platform
+        requirement: Preserve OpenTelemetry identity and collect host, service, and deployment signals off-host.
+      backup:
+        mode: required
+        owner: platform
+        requirement: Schedule backups and retain a dated restore exercise for every durable host resource.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify the OCI signature and activate a pinned digest through a declarative systemd unit.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Re-activate the previous digest and compatible NixOS generation without changing routing or data identity.
+      incident_access:
+        mode: required
+        owner: platform
+        requirement: Provide audited private shell access, an out-of-band recovery path, and off-host logs.
+    adapter:
+      family: nixos
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.storage_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access
+
+  - id: single-node-k3s
+    sequence: 4
+    name: Single-node K3s
+    supported_workload_shapes:
+      - request-driven-service
+      - background-worker
+      - scheduled-job
+      - event-consumer
+      - stateful-service
+    ownership:
+      application: project
+      runtime: platform
+      control_plane: platform
+      data: shared
+      incident_response: platform
+    entry_criteria:
+      - id: orchestration-need
+        requirement: Multiple workloads need Kubernetes APIs, isolation, or coordinated lifecycle on one operated host.
+        evidence: contract-check
+      - id: rendered-resources
+        requirement: The portable workload contract renders pinned, policy-checked Kubernetes resources.
+        evidence: contract-check
+      - id: node-recovery
+        requirement: A clean node rebuild restores the control plane, workloads, routing, secrets, telemetry, and data bindings.
+        evidence: recovery-exercise
+    exit_triggers:
+      - id: node-capacity
+        requirement: Measured workload demand or isolation cannot fit one node with safe headroom.
+        evidence: runtime-test
+      - id: maintenance-window
+        requirement: One-node maintenance or recovery time exceeds the accepted interruption window.
+        evidence: recovery-exercise
+      - id: failure-domain
+        requirement: A proved requirement needs workloads distributed across independent nodes or failure domains.
+        evidence: contract-check
+    cost:
+      model: host
+      idle: fixed
+      assumptions:
+        - Cost includes one node, storage, backups, network transfer, monitoring, upgrades, and operator time.
+        - Kubernetes control-plane overhead consumes part of the node and must be included in capacity checks.
+      review_triggers:
+        - Review after control-plane upgrades, sustained resource pressure, or increased interruption cost.
+        - Compare a simpler NixOS host when Kubernetes APIs do not earn their operating cost.
+    recovery:
+      availability_claim: single-instance
+      failure_domains: [node]
+      recovery_time_assumption: Recovery rebuilds one K3s node, restores cluster and data state, and reconciles workloads.
+      data_loss_assumption: Data loss is bounded only by the latest tested external, volume, and cluster-state backups.
+      proof: []
+    capabilities:
+      identity:
+        mode: required
+        owner: platform
+        requirement: Bind invariant workload identity to service accounts and scoped external credentials.
+      secrets:
+        mode: required
+        owner: platform
+        requirement: Reconcile external secret references without committing values to Kubernetes resources.
+      networking:
+        mode: required
+        owner: platform
+        requirement: Preserve public routing and declare ingress, service, network policy, DNS, and certificate state.
+      storage:
+        mode: required
+        owner: platform
+        requirement: Declare storage classes, volume lifecycle, node affinity, capacity alerts, backup, and restore.
+      databases:
+        mode: required
+        owner: shared
+        requirement: Bind an external database or declare an in-cluster database with tested single-node recovery.
+      telemetry:
+        mode: required
+        owner: platform
+        requirement: Preserve OpenTelemetry identity and export workload, node, and control-plane signals off-node.
+      backup:
+        mode: required
+        owner: platform
+        requirement: Back up cluster state and every durable volume, then record a full-node restore exercise.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify the signed digest, render policy-checked resources, and record rollout evidence.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Restore the previous resource revision and artifact digest with compatible data migrations.
+      incident_access:
+        mode: required
+        owner: platform
+        requirement: Provide audited cluster and node access plus off-node logs and recovery credentials.
+    adapter:
+      family: k3s
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.storage_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access
+
+  - id: multi-node-k3s
+    sequence: 5
+    name: Multi-node K3s
+    supported_workload_shapes:
+      - request-driven-service
+      - background-worker
+      - scheduled-job
+      - event-consumer
+      - stateful-service
+    ownership:
+      application: project
+      runtime: platform
+      control_plane: platform
+      data: shared
+      incident_response: platform
+    entry_criteria:
+      - id: multi-node-need
+        requirement: Capacity, isolation, or interruption evidence requires more than one schedulable node.
+        evidence: runtime-test
+      - id: topology-contract
+        requirement: Workloads declare replicas, disruption behavior, placement, and storage topology.
+        evidence: contract-check
+      - id: node-loss-test
+        requirement: A node-loss exercise verifies rescheduling, routing, telemetry, data safety, and rollback.
+        evidence: recovery-exercise
+    exit_triggers:
+      - id: control-plane-limit
+        requirement: Control-plane scale, policy, tenancy, or upgrade requirements exceed the maintained K3s design.
+        evidence: runtime-test
+      - id: ecosystem-requirement
+        requirement: A required operator, conformance target, or managed service does not support the selected K3s distribution.
+        evidence: provider-documentation
+      - id: operations-cost
+        requirement: Measured K3s maintenance costs more than a conformant managed or full Kubernetes target.
+        evidence: cost-record
+    cost:
+      model: cluster
+      idle: fixed
+      assumptions:
+        - Cost includes every server and control-plane node, storage replication, backups, network transfer, monitoring, upgrades, and operator time.
+        - Spare nodes and replicas add cost before they prove an availability outcome.
+      review_triggers:
+        - Review after node-count, storage, control-plane, or on-call workload changes.
+        - Compare managed control-plane cost with measured maintenance time.
+    recovery:
+      availability_claim: not-claimed
+      failure_domains: [control-plane, worker-nodes]
+      recovery_time_assumption: Recovery depends on the tested control-plane quorum, node replacement, workload rescheduling, and data topology.
+      data_loss_assumption: Data loss follows the weakest tested external database, persistent volume, or cluster-state recovery path.
+      proof: []
+    capabilities:
+      identity:
+        mode: required
+        owner: platform
+        requirement: Bind invariant workload identity to service accounts, nodes, and scoped external credentials.
+      secrets:
+        mode: required
+        owner: platform
+        requirement: Reconcile external secret references with encryption, rotation, and namespace isolation.
+      networking:
+        mode: required
+        owner: platform
+        requirement: Preserve public routing and declare ingress, service, network policy, DNS, certificates, and node connectivity.
+      storage:
+        mode: required
+        owner: platform
+        requirement: Declare storage topology, replication behavior, node loss, capacity alerts, backup, and restore.
+      databases:
+        mode: required
+        owner: shared
+        requirement: Bind external databases or prove in-cluster database topology, backup, failover, and restore behavior.
+      telemetry:
+        mode: required
+        owner: platform
+        requirement: Preserve OpenTelemetry identity and export workload, node, network, storage, and control-plane signals.
+      backup:
+        mode: required
+        owner: platform
+        requirement: Back up control-plane state and durable data, then exercise node and cluster restoration.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify the signed digest, enforce placement and disruption policy, and retain rollout evidence.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Restore the previous resource revision and digest without violating topology or data compatibility.
+      incident_access:
+        mode: required
+        owner: platform
+        requirement: Provide audited cluster and node access, off-cluster telemetry, and quorum recovery credentials.
+    adapter:
+      family: k3s
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.storage_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access
+
+  - id: kubernetes
+    sequence: 6
+    name: Kubernetes
+    supported_workload_shapes:
+      - request-driven-service
+      - background-worker
+      - scheduled-job
+      - event-consumer
+      - stateful-service
+    ownership:
+      application: project
+      runtime: platform
+      control_plane: shared
+      data: shared
+      incident_response: shared
+    entry_criteria:
+      - id: conformance-need
+        requirement: A proved scale, tenancy, policy, ecosystem, or managed-control-plane need requires conformant Kubernetes.
+        evidence: contract-check
+      - id: operated-capabilities
+        requirement: Identity, secrets, network, storage, telemetry, backup, deployment, rollback, and incident access have named owners.
+        evidence: contract-check
+      - id: disaster-recovery
+        requirement: A cluster recovery exercise restores routing, workloads, data bindings, telemetry, verification evidence, and rollback.
+        evidence: recovery-exercise
+    exit_triggers:
+      - id: complexity-cost
+        requirement: Measured cluster and operator cost exceeds the value of the requirements that selected Kubernetes.
+        evidence: cost-record
+      - id: capability-regression
+        requirement: A required capability lacks an owner, current evidence, or a tested recovery path.
+        evidence: contract-check
+      - id: simpler-target
+        requirement: A lower stage now meets the workload, recovery, and cost requirements with less operational work.
+        evidence: contract-check
+    cost:
+      model: cluster
+      idle: fixed
+      assumptions:
+        - Cost includes the control plane, nodes, storage, load balancing, backups, network transfer, telemetry, upgrades, and operator time.
+        - Managed control planes remove selected tasks but do not remove workload, data, policy, or incident ownership.
+      review_triggers:
+        - Review after topology, node pool, storage, control-plane pricing, or on-call workload changes.
+        - Re-test whether a lower stage meets the current requirements at each major platform review.
+    recovery:
+      availability_claim: not-claimed
+      failure_domains: [control-plane, node-pools, data-services]
+      recovery_time_assumption: Recovery depends on the proved control-plane, node-pool, routing, workload, and data-service procedures.
+      data_loss_assumption: Data loss follows the weakest tested database, persistent volume, object store, or control-plane recovery path.
+      proof: []
+    capabilities:
+      identity:
+        mode: required
+        owner: shared
+        requirement: Bind invariant workload identity through service accounts, workload identity, node identity, and scoped external access.
+      secrets:
+        mode: required
+        owner: shared
+        requirement: Reconcile external secret references with encryption, rotation, audit, and tenancy controls.
+      networking:
+        mode: required
+        owner: shared
+        requirement: Preserve public routing and declare gateway, service, policy, DNS, certificate, egress, and failure-domain behavior.
+      storage:
+        mode: required
+        owner: shared
+        requirement: Declare classes, topology, replication, expansion, replacement, backup, restore, and ownership for every volume.
+      databases:
+        mode: required
+        owner: shared
+        requirement: Bind external databases or prove operator ownership, topology, failover, backup, restore, and upgrade behavior.
+      telemetry:
+        mode: required
+        owner: shared
+        requirement: Preserve OpenTelemetry identity and export workload, cluster, network, storage, policy, and control-plane signals.
+      backup:
+        mode: required
+        owner: shared
+        requirement: Back up cluster and durable data state with retention, off-cluster copies, and dated restoration evidence.
+      deployment:
+        mode: required
+        owner: platform
+        requirement: Verify the signed digest, enforce admission and rollout policy, and retain target verification evidence.
+      rollback:
+        mode: required
+        owner: platform
+        requirement: Restore compatible resources and the previous digest through a tested release mechanism.
+      incident_access:
+        mode: required
+        owner: shared
+        requirement: Provide audited control-plane, workload, node, and provider access with off-cluster recovery credentials.
+    adapter:
+      family: kubernetes
+      changes:
+        - deployment.stage
+        - deployment.adapter
+        - deployment.provider
+        - deployment.resource_names
+        - deployment.scaling
+        - deployment.network_binding
+        - deployment.secret_binding
+        - deployment.storage_binding
+        - deployment.database_binding
+        - deployment.rollback_mechanism
+        - deployment.incident_access

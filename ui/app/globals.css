@@ -876,3 +876,16 @@ html.dark .mermaid-diagram .node.pink .nodeLabel {
   animation: none;
   mix-blend-mode: normal;
 }
+@media print {
+  body:has([data-resume-document]) {
+    background: #fff;
+  }
+
+  body:has([data-resume-document]) [data-site-chrome] {
+    display: none;
+  }
+}
+
+body:has([data-resume-document]) {
+  overflow-x: clip;
+}

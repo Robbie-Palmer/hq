@@ -9,6 +9,84 @@ The public API is exported from `src/index.ts`. See
 See `docs/execution-telemetry.md` for the private event contract, access rules,
 retention policy, and public Work Graph projection.
 
+## Vulnerability correlation
+
+`queryGithubVulnerability` reads the current repository identity, one Dependabot
+alert, open Renovate pull requests, changed files, mergeability, check runs, and
+commit statuses through the shared `GithubClient`. The returned snapshot keeps
+the alert number, package, manifest, vulnerable ranges, severity, fix version,
+and state. It drops response fields that the decision does not need.
+
+`decideVulnerabilityCorrelation` matches a Renovate proposal only when its bot
+identity, base repository ID, package-table entry, and changed manifest all
+match the alert. It returns `use`, `repair`, `replace`, or `decline` with the
+evidence used for that choice. The incident ID combines GitHub's immutable
+repository ID with the Dependabot alert number, so webhook redelivery and
+controller restarts address the same incident.
+
+The decision record contains no authentication values, pull-request body, file
+patch, or webhook content. The incident-ledger integration can validate and
+write this record without retaining provider credentials or request text.
+
+## Vulnerability incident ledger
+
+`VulnerabilityIncidentLedger` creates one Work Graph item for the immutable
+repository ID and Dependabot alert number. Admission writes the policy revision,
+controller thread, initial decision, and any selected Renovate pull request.
+Later typed events link the worker thread, agent and Renovate pull requests,
+accepted commit, deployment target, validation, recovery, and attention request.
+Each mutation ID derives from the incident and event identity, so webhook
+redelivery and controller restart replay the same write.
+
+GitHub pull-request, workflow, and deployment facts come from Work Graph's
+existing evidence ingestion. `recordGithubObservation` accepts a fact only when
+the current projection matches the repository, linked pull request, evidence
+identity, state, and exact commit. The ledger has no ready-work polling method.
+
+Call `authorizeUnattendedMerge` before an automatic merge. It links the
+implementation pull request and returns a receipt only after Work Graph stores
+the policy and accepted head commit. A Work Graph error throws
+`UnattendedMergeBlockedError`, so callers cannot treat a thread-only decision as
+merge authority.
+
+## Vulnerability admission
+
+`VulnerabilityControllerPolicySchema` validates the Vector controller's
+checked-in webhook policy. `decideVulnerabilityAdmission` accepts only a narrow
+routing record plus a fresh Dependabot alert fetched from GitHub. Webhook
+signature, replay, age, and request filtering stay in T3 Code.
+
+The controller authorization module verifies the checked-in Cedar bundle
+digest, validates every policy against its schema, and denies requests that
+produce Cedar diagnostics. Its actions name concrete GitHub, T3, Work Graph,
+and deployment operations. Provider credentials and provider-side rules remain
+separate enforcement layers, so a Cedar permit alone never guarantees that an
+operation can run.
+
+## Vulnerability evaluation
+
+`createVulnerabilityEvaluationRecord` reduces an incident's typed ledger events
+and private execution telemetry into one evaluation record. The record includes
+the proposal choice, launch suppression, checks, review, merge, deployment,
+validation, alert closure, recovery, attention outcomes, terminal result,
+elapsed time, model request counts, and metered cost. Its terminal results keep
+`no-safe-fix`, `execution-failure`, and `missing-authority` separate.
+
+The evaluator reads private telemetry but does not copy prompts, credentials,
+quota observations, account or route identifiers, free text, or unrelated
+source content into the record. Its strict schema also rejects extra fields.
+Event and incident identities deduplicate retries, and conflicting uses of one
+identity fail instead of changing the totals.
+
+`aggregateVulnerabilityEvaluationRecords` reports unnecessary launches, failed
+rollouts, successful recoveries, human interventions, elapsed time, model use,
+and cost across incidents. `reviewVulnerabilityPolicyRevisions` compares the
+first-release policy with each later revision. It recommends holding expansion
+when the evidence is missing, a rollout remains unrecovered, a duplicate worker
+was launched, execution failed, authority was absent, or the remediation rate
+fell. Otherwise it returns the concrete safety evidence behind an expansion
+recommendation.
+
 ## Work Graph integration
 
 `WorkGraphCoordinator` accepts the repository's `WorkGraphClient` through a

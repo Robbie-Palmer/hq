@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install shared object storage dependencies"
+run = "pnpm install --frozen-lockfile --filter object-storage..."
+
+[tasks.typecheck]
+description = "Typecheck shared object storage contracts"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test shared object storage contracts"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test shared object storage contracts with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check shared object storage contracts"
+depends = ["typecheck", "test"]

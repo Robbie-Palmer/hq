@@ -499,6 +499,12 @@ export const zLeaseResponse = z.object({
     lease: zLease
 });
 
+export const zReleaseResponse = zLeaseWithWorkItem.and(z.object({
+    unblockedWorkItemIds: z.array(z.string().min(1).max(200)).max(10000).register(z.globalRegistry, {
+        description: 'Open work items whose derived stage changed from blocked to ready because of this release.'
+    })
+}));
+
 export const zWorkItemDecomposition = z.object({
     parent: zWorkItem,
     children: z.array(z.object({
@@ -1359,7 +1365,7 @@ export const zCreateWorkItemReleasePath = z.object({
 /**
  * Completed work released and lease ended
  */
-export const zCreateWorkItemReleaseResponse = zLeaseWithWorkItem;
+export const zCreateWorkItemReleaseResponse = zReleaseResponse;
 
 export const zPutWorkItemSchedulingScopeBody = z.object({
     schedulingInitiativeId: z.string().min(1).max(200).nullable(),
