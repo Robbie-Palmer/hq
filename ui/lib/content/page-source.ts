@@ -14,15 +14,19 @@ export interface PageSource {
 
 type RepositoryPath = `ui/${string}`;
 
+function siteSource<Path extends string>(path: Path): `ui/app/(site)/${Path}` {
+  return `ui/app/(site)/${path}`;
+}
+
 // Collection indexes are composed in their route modules instead of a single
 // content document, so each index names that module as its source target.
 const generatedIndexSources = {
-  "/": "ui/app/(site)/page.tsx",
-  "/blog": "ui/app/(site)/blog/page.tsx",
-  "/ideas": "ui/app/(site)/ideas/page.tsx",
-  "/initiatives": "ui/app/(site)/initiatives/page.tsx",
-  "/product-decisions": "ui/app/(site)/product-decisions/page.tsx",
-  "/projects": "ui/app/(site)/projects/page.tsx",
+  "/": siteSource("page.tsx"),
+  "/blog": siteSource("blog/page.tsx"),
+  "/ideas": siteSource("ideas/page.tsx"),
+  "/initiatives": siteSource("initiatives/page.tsx"),
+  "/product-decisions": siteSource("product-decisions/page.tsx"),
+  "/projects": siteSource("projects/page.tsx"),
 } as const satisfies Record<string, RepositoryPath>;
 
 const authoredPageSources = {
@@ -45,7 +49,7 @@ const markdownTwinPaths = new Set(["/recipes", "/satellite-swarm"]);
 
 const runtimeFallbacks = [
   ["/recipes", "ui/app/recipes"],
-  ["/resume", "ui/app/(site)/resume"],
+  ["/resume", siteSource("resume")],
 ] as const satisfies ReadonlyArray<readonly [string, RepositoryPath]>;
 
 function normalizePathname(pathname: string | null): string {
