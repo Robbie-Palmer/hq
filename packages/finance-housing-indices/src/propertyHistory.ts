@@ -7,6 +7,7 @@ import {
 } from "./schema";
 import {
   type HousingValue,
+  HousingCurrencySchema,
   HousingValueSchema,
   HousingValueSourceSchema,
   HousingValueUncertaintySchema,
@@ -27,7 +28,7 @@ export const RecordedPropertyValuationSchema = z
     id: z.string().min(1),
     date: z.iso.date(),
     value: z.number().positive(),
-    currency: z.literal("GBP"),
+    currency: HousingCurrencySchema,
     kind: PropertyValuationKindSchema,
     source: HousingValueSourceSchema,
     dataStatus: z.enum(["final", "provisional", "revised"]),
@@ -200,7 +201,7 @@ export type IndexedPropertyValueEstimate = {
   date: string;
   period: string;
   value: number;
-  currency: "GBP";
+  currency: HousingValue["currency"];
   targetIndexLevel: number;
   provisional: boolean;
   revisionStatus?: "revised";

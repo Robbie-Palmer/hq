@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
+  HOUSING_CURRENCY,
   type HousingValue,
   HousingValueSchema,
   indicativeRange,
@@ -22,7 +23,7 @@ const revisedFallbackEstimate = value({
   id: "revised-fallback",
   kind: "index-estimate",
   amount: 320_000,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2024-01-31",
   source: {
     kind: "official-index",
@@ -59,7 +60,7 @@ function pointValue(
 ): HousingValue {
   return value({
     ...overrides,
-    currency: "GBP",
+    currency: HOUSING_CURRENCY,
     dataStatus: "final",
     uncertainty: {
       kind: "point",

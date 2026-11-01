@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   estimatePropertyValueHistory,
+  HOUSING_CURRENCY,
   type HousePriceIndexRelease,
   type PropertyHistoryError,
   PROPERTY_INDEX_FORMULA,
@@ -49,7 +50,7 @@ const recordedValuations = [
     id: "purchase",
     date: "2024-01-15",
     value: 200_000,
-    currency: "GBP" as const,
+    currency: HOUSING_CURRENCY,
     kind: "purchase-price" as const,
     source: {
       kind: "transaction-record" as const,
@@ -73,7 +74,7 @@ const recordedValuations = [
     id: "survey",
     date: "2024-03-20",
     value: 230_000,
-    currency: "GBP" as const,
+    currency: HOUSING_CURRENCY,
     kind: "formal-valuation" as const,
     source: {
       kind: "professional-valuation" as const,
@@ -132,7 +133,7 @@ describe("indexed property history", () => {
         date: "2024-02-01",
         period: "2024-02",
         value: 240_000,
-        currency: "GBP",
+        currency: HOUSING_CURRENCY,
         targetIndexLevel: 120,
         provisional: false,
       },
@@ -141,7 +142,7 @@ describe("indexed property history", () => {
         date: "2024-03-01",
         period: "2024-03",
         value: 180_000,
-        currency: "GBP",
+        currency: HOUSING_CURRENCY,
         targetIndexLevel: 90,
         provisional: true,
       },

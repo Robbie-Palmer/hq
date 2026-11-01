@@ -1,4 +1,13 @@
+import { CurrencyCodeSchema } from "iso-codes";
 import { z } from "zod";
+
+const HOUSING_CURRENCY_CODE = "GBP" as const;
+export const HousingCurrencySchema = z
+  .literal(HOUSING_CURRENCY_CODE)
+  .and(CurrencyCodeSchema);
+export const HOUSING_CURRENCY = HousingCurrencySchema.parse(
+  HOUSING_CURRENCY_CODE,
+);
 
 export const HousingValueKindSchema = z.enum([
   "recorded-purchase",
@@ -75,7 +84,7 @@ export const HousingValueSchema = z
     id: z.string().min(1),
     kind: HousingValueKindSchema,
     amount: z.number().positive(),
-    currency: z.literal("GBP"),
+    currency: HousingCurrencySchema,
     asOf: z.iso.date(),
     source: HousingValueSourceSchema,
     dataStatus: z.enum(["final", "provisional", "revised"]),

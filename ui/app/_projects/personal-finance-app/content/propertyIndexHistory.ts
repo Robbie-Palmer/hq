@@ -1,4 +1,7 @@
-import type { HousePriceIndexArchive } from "finance-housing-indices";
+import {
+  HOUSING_CURRENCY,
+  type HousePriceIndexArchive,
+} from "finance-housing-indices/browser";
 import type { PropertyIndexHistoryDefinition } from "@/app/_projects/personal-finance-app/domain/propertyIndexHistory";
 
 export const DEMO_UK_HPI_VERSION = "2026-07:654a541934ba";
@@ -64,7 +67,7 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
           id: "home-purchase-2023-03",
           date: "2023-03-01",
           value: 285_000,
-          currency: "GBP",
+          currency: HOUSING_CURRENCY,
           kind: "purchase-price",
           source: {
             kind: "transaction-record",
@@ -90,7 +93,7 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
           id: "home-formal-valuation-2024-12",
           date: "2024-12-01",
           value: 298_000,
-          currency: "GBP",
+          currency: HOUSING_CURRENCY,
           kind: "formal-valuation",
           source: {
             kind: "professional-valuation",

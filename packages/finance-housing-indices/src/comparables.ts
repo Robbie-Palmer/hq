@@ -10,7 +10,11 @@ import {
   PricePaidTenureSchema,
   type PricePaidTransaction,
 } from "./pricePaidSchema";
-import { type HousingValue, HousingValueSchema } from "./valueConfidence";
+import {
+  HOUSING_CURRENCY,
+  type HousingValue,
+  HousingValueSchema,
+} from "./valueConfidence";
 
 export const UkNationSchema = z.enum([
   "england",
@@ -180,7 +184,7 @@ function comparableSale(
     id: `completed-sale:${transaction.transactionId}`,
     kind: "completed-sale",
     amount: transaction.price,
-    currency: "GBP",
+    currency: HOUSING_CURRENCY,
     asOf: transaction.completionDate,
     source: {
       kind: "official-completed-sale",

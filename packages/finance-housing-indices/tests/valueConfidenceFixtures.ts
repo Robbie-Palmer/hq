@@ -1,4 +1,5 @@
 import {
+  HOUSING_CURRENCY,
   type HousingValue,
   HousingValueSchema,
   indicativeRange,
@@ -21,7 +22,7 @@ export const staleIndexEstimate = value({
   id: "fixture-stale-index",
   kind: "index-estimate",
   amount: 320_000,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2024-01-31",
   source: {
     kind: "official-index",
@@ -60,7 +61,7 @@ export const manualOverrideValue = value({
   id: "fixture-manual-override",
   kind: "manual-override",
   amount: 335_000,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2026-10-01",
   source: {
     kind: "manual-entry",
@@ -82,7 +83,7 @@ export const askingPriceValue = value({
   id: "fixture-asking-price",
   kind: "asking-price",
   amount: 350_000,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2026-10-15",
   source: {
     kind: "property-listing",
@@ -104,7 +105,7 @@ export const completedSaleValue = value({
   id: "fixture-completed-sale",
   kind: "completed-sale",
   amount: 327_500,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2026-09-12",
   source: {
     kind: "official-completed-sale",
@@ -129,7 +130,7 @@ export const forecastValue = value({
   id: "fixture-forecast",
   kind: "forecast",
   amount: 372_000,
-  currency: "GBP",
+  currency: HOUSING_CURRENCY,
   asOf: "2031-10-30",
   source: {
     kind: "scenario-model",

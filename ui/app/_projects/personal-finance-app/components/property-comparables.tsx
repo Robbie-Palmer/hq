@@ -1,5 +1,6 @@
 "use client";
 
+import { HOUSING_CURRENCY } from "finance-housing-indices/browser";
 import type { ReactNode } from "react";
 import type {
   PropertyComparableView,
@@ -286,7 +287,7 @@ function ComparableSaleRow({
   return (
     <tr className="border-t">
       <td className="whitespace-nowrap px-3 py-3 font-medium">
-        {formatAccountCurrency(sale.price, "GBP")}
+        {formatAccountCurrency(sale.price, HOUSING_CURRENCY)}
       </td>
       <td className="whitespace-nowrap px-3 py-3">
         {formatDate(sale.completionDate)}

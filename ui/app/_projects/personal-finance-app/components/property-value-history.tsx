@@ -1,5 +1,6 @@
 "use client";
 
+import { HOUSING_CURRENCY } from "finance-housing-indices/browser";
 import {
   CartesianGrid,
   Line,
@@ -119,7 +120,9 @@ function PropertyHistoryLineChart({
           />
           <ChartTooltip
             content={<ChartTooltipContent />}
-            formatter={(value) => formatAccountCurrency(value as number, "GBP")}
+            formatter={(value) =>
+              formatAccountCurrency(value as number, HOUSING_CURRENCY)
+            }
           />
           <Line
             type="monotone"
@@ -165,12 +168,12 @@ function AccessiblePropertyHistory({
               <td>
                 {point.estimate == null
                   ? "Unavailable"
-                  : formatAccountCurrency(point.estimate, "GBP")}
+                  : formatAccountCurrency(point.estimate, HOUSING_CURRENCY)}
               </td>
               <td>
                 {point.recorded == null
                   ? "No recorded valuation"
-                  : formatAccountCurrency(point.recorded, "GBP")}
+                  : formatAccountCurrency(point.recorded, HOUSING_CURRENCY)}
               </td>
             </tr>
           ))}

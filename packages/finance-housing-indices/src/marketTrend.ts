@@ -9,7 +9,11 @@ import {
   HousePriceIndexReleaseSchema,
   type HousePropertyType,
 } from "./schema";
-import { type HousingValue, HousingValueSchema } from "./valueConfidence";
+import {
+  HOUSING_CURRENCY,
+  type HousingValue,
+  HousingValueSchema,
+} from "./valueConfidence";
 
 export const HousePriceMarketTrendQuerySchema = z.object({
   nation: z.literal("northern-ireland"),
@@ -134,7 +138,7 @@ function marketTrendHousingValue(
     id: `regional-index-statistic:${latest.geographyCode}:${latest.propertyType}:${latest.period}`,
     kind: "regional-index-statistic",
     amount: latest.averagePrice,
-    currency: "GBP",
+    currency: HOUSING_CURRENCY,
     asOf: periodEndDate(latest.period),
     source: {
       kind: "official-index",

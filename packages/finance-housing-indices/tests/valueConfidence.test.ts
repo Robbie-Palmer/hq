@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  HOUSING_CURRENCY,
+  HousingCurrencySchema,
   HousingValueSchema,
   housingValueAgeDays,
   isHousingValueStale,
@@ -17,6 +19,13 @@ import {
 } from "./valueConfidenceFixtures";
 
 describe("housing value confidence", () => {
+  it("uses the ISO-validated housing currency", () => {
+    expect(HousingCurrencySchema.parse(HOUSING_CURRENCY)).toBe(
+      HOUSING_CURRENCY,
+    );
+    expect(HousingCurrencySchema.safeParse("USD").success).toBe(false);
+  });
+
   it("keeps each evidence kind distinct", () => {
     expect(confidenceFixtures.map(({ kind }) => kind)).toEqual([
       "index-estimate",
