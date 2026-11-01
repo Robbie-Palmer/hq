@@ -1,0 +1,61 @@
+---
+title: "PDR 001: Prove the editor in the repository before generalizing"
+date: "2026-09-04"
+status: "Proposed"
+---
+
+## Context
+
+The product thesis covers research sessions, plans, decision records, and
+drafts produced by several models. A general editor would require early guesses
+about author preferences, evaluation, model routing, privacy, and integration
+with writing tools.
+
+The Personal Knowledge Graph already supplies real drafts, revision history,
+deterministic prose rules, published artifacts, and an active review loop. It
+can show whether the editor improves work the author intended to publish before
+the project takes on a general product boundary.
+
+## Proposed decision
+
+Use content in this repository as the first product scope. Add capabilities in
+evidence-gated layers:
+
+1. Define versioned records for findings, suggestions, grouped proposals, and
+   editorial decisions.
+2. Build a reproducible evaluation set from repository drafts and published
+   revisions.
+3. Run deterministic checks through the shared record contract.
+4. Evaluate lightweight models only for failure classes that the deterministic
+   rules miss.
+5. Add passage rewrites after local suggestions are reliable.
+6. Capture accept, reject, and change decisions during ordinary use.
+
+Do not extract a general editor until the repository-specific system improves
+published pages, preserves facts and voice, and reduces manual rewriting. A
+new model or rewrite path remains review-only until its declared evidence gate
+passes.
+
+## Consequences
+
+The first release may use repository conventions and existing revision
+history. That shortens the path to real evidence and keeps a failed experiment
+from becoming a public product contract.
+
+The implementation may accumulate assumptions that a later general product
+must remove. Generalization is delayed on purpose. Passing internal technical
+checks is not enough to accept this proposal; the publication pilot must show a
+better outcome for authors and readers.
+
+## Evaluation
+
+Accept this proposal only when the preregistered repository publication pilot
+has complete evidence. The edited artifacts must preserve facts, intent,
+terminology, and voice, reduce manual review work, and earn reader preference
+without hiding regressions in an aggregate score.
+
+## Migration note
+
+This PDR replaces the product-only record formerly stored as ADR 005. It keeps
+the original date, Proposed status, rollout sequence, and evidence gate. The
+migration changes the record type, not the decision.

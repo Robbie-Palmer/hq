@@ -3,6 +3,9 @@ title: "ADR 007: Playwright-assisted Grammarly handoff"
 date: "2026-09-06"
 status: "Proposed"
 tech_stack: ["Playwright"]
+implements_product_decisions:
+  - "agent-first-writing:000-author-controlled-editing-and-publication"
+  - "agent-first-writing:002-private-editorial-evidence"
 ---
 
 # Context
@@ -26,11 +29,11 @@ requires supported interfaces and forbids circumventing access controls. The
 project must verify that Grammarly permits the proposed personal automation
 under its current terms before relying on either tool.
 
-Corpus retention in this proposal depends on accepting
+[PDR 000](/projects/agent-first-writing/pdrs/000-author-controlled-editing-and-publication)
+requires the author to review the returned change before publication. [PDR 002](/projects/agent-first-writing/pdrs/002-private-editorial-evidence)
+defines transfer and corpus retention. Corpus capture also depends on the
+accepted private DVC boundary in
 [ADR 004](/projects/agent-first-writing/adrs/004-dvc-writing-evaluation-pipeline).
-The handoff prototype may run with transfer data discarded at session end, but
-do not enable corpus opt-in until that pipeline and its retention controls
-exist.
 
 # Decision
 
@@ -49,12 +52,9 @@ The evaluation set may record the before-and-after text and the author's final
 decision. It must not claim suggestion-level provenance that Grammarly does not
 expose.
 
-Discard clipboard transfer data when the session ends. Add a before-and-after
-pair to the private evaluation set only when the author opts in for that
-document. Store opted-in pairs only in the private DVC corpus from ADR 004, and
-limit access to the author and the evaluation jobs that need it. Do not train on
-or republish the pair. When the author removes its corpus manifest entry, remove
-the tracked object and purge any unreferenced remote cache within 30 days.
+Enforce PDR 002 at the integration boundary. Keep clipboard transfer data
+session-local. Send selected before-and-after pairs only to the private DVC
+corpus from ADR 004, and use its manifest removal and cache-purge path.
 
 Do not use Browserbase for the first version. Reconsider it only if remote
 human-in-the-loop sessions solve a demonstrated problem and the privacy, session
