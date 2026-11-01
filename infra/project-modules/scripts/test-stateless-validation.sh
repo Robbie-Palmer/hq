@@ -14,7 +14,7 @@ trap 'rm -rf "$test_root"' EXIT
 legacy_data_dir="$test_root/legacy-data"
 current_data_dir="$test_root/current-data"
 state_file="$test_root/terraform.tfstate"
-plan_file="$test_root/migration.tfplan"
+plan_file="$test_root/cleanup.tfplan"
 
 TF_DATA_DIR="$legacy_data_dir" terraform -chdir=tests/stateless-validation/legacy init \
   -backend=false -input=false > /dev/null
@@ -48,9 +48,9 @@ TF_DATA_DIR="$current_data_dir" terraform -chdir=tests/stateless-validation/curr
 
 if ! TF_DATA_DIR="$current_data_dir" terraform -chdir=tests/stateless-validation/current \
   show -json "$plan_file" \
-  | jq -e '.resource_changes[] | select(.address == "module.project.terraform_data.profile_guard") | .change.actions == ["forget"]' \
+  | jq -e '.resource_changes[] | select(.address == "module.project.terraform_data.profile_guard") | .change.actions == ["delete"]' \
     > /dev/null; then
-  echo "The migration plan must forget the legacy validation guard without destroying it." >&2
+  echo "The cleanup plan must delete the legacy state-only validation guard." >&2
   exit 1
 fi
 
@@ -59,7 +59,7 @@ TF_DATA_DIR="$current_data_dir" terraform -chdir=tests/stateless-validation/curr
 post_cleanup_addresses="$(TF_DATA_DIR="$current_data_dir" terraform \
   -chdir=tests/stateless-validation/current state list -state="$state_file")"
 if [[ -n "$post_cleanup_addresses" ]]; then
-  printf 'Migrated cleanup left managed state addresses:\n%s\n' "$post_cleanup_addresses" >&2
+  printf 'Cleanup left managed state addresses:\n%s\n' "$post_cleanup_addresses" >&2
   exit 1
 fi
 

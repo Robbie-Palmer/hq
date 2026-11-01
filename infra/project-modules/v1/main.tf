@@ -66,14 +66,6 @@ locals {
   )
 }
 
-removed {
-  from = terraform_data.profile_guard
-
-  lifecycle {
-    destroy = false
-  }
-}
-
 module "terraform_state" {
   for_each = local.profile_valid && var.deletion_protection && local.selected.terraform_state && local.supplied.terraform_state ? { selected = var.terraform_state } : {}
   source   = "./modules/terraform-state"

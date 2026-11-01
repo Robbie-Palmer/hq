@@ -71,14 +71,6 @@ module "neon" {
   }
 }
 
-removed {
-  from = module.preview.terraform_data.profile_guard
-
-  lifecycle {
-    destroy = false
-  }
-}
-
 moved {
   from = module.preview.module.disposable[0].cloudflare_pages_project.project
   to   = module.cloudflare[0].cloudflare_pages_project.project
