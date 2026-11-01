@@ -67,6 +67,7 @@ export function RecipeNavigationProvider({
  */
 export function RecipePageLink({
   href,
+  children,
   ...props
 }: Readonly<RecipePageLinkProps>) {
   const router = useContext(RecipeNavigationContext);
@@ -88,10 +89,16 @@ export function RecipePageLink({
           event.preventDefault();
           router.push(`/recipes/saved?slug=${encodeURIComponent(slug)}`);
         }}
-      />
+      >
+        {children}
+      </a>
     );
   }
-  return <Link href={href} {...props} />;
+  return (
+    <Link href={href} {...props}>
+      {children}
+    </Link>
+  );
 }
 
 export function navigateToRecipePage(
