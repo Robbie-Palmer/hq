@@ -50,7 +50,9 @@ const runtimeFallbacks = [
 
 function normalizePathname(pathname: string | null): string {
   if (!pathname || pathname === "/") return "/";
-  return pathname.replace(/\/+$/, "");
+  let end = pathname.length;
+  while (end > 0 && pathname.codePointAt(end - 1) === 47) end -= 1;
+  return pathname.slice(0, end);
 }
 
 function repositoryUrl(path: RepositoryPath, view: "blob" | "tree"): string {

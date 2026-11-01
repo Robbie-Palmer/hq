@@ -51,7 +51,7 @@ describe("resolvePageSource", () => {
     "/projects/personal-site",
     "/projects/recipe-site/adrs/000-github-public-repo",
   ])("keeps renamed routes on their generated alias twin", (pathname) => {
-    expect(resolvePageSource(`${pathname}/`)).toEqual({
+    expect(resolvePageSource(`${pathname}///`)).toEqual({
       kind: "canonical-markdown",
       url: `${siteConfig.url}${pathname}.md`,
     });
