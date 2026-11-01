@@ -1,6 +1,8 @@
 import { sql, type SQL } from "drizzle-orm";
 import type { WorkStage } from "work-graph-domain";
 
+type DatabaseTimestamp = Date | string | null;
+
 export interface WorkItemPageQueryInput {
   readonly cursor?: string;
   readonly limit: number;
@@ -9,10 +11,10 @@ export interface WorkItemPageQueryInput {
 }
 
 export interface WorkItemPageRow extends Record<string, unknown> {
-  readonly currentLeaseAcquiredAt: Date | string | null;
-  readonly currentLeaseEndedAt: Date | string | null;
+  readonly currentLeaseAcquiredAt: DatabaseTimestamp;
+  readonly currentLeaseEndedAt: DatabaseTimestamp;
   readonly currentLeaseEpoch: number | null;
-  readonly currentLeaseExpiresAt: Date | string | null;
+  readonly currentLeaseExpiresAt: DatabaseTimestamp;
   readonly currentLeaseId: string | null;
   readonly currentLeaseOutcome: string | null;
   readonly currentLeaseWorkerId: string | null;
