@@ -2,7 +2,6 @@ import { ExternalLink, FileText, Github, Globe, Rss } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { IdeaBadges } from "@/components/ideas/idea-badges";
-import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { PlatformSummary } from "@/components/projects/platform-summary";
 import { ProjectContent } from "@/components/projects/project-content";
 import {
@@ -225,10 +224,6 @@ export default async function ProjectPage({ params }: Readonly<PageProps>) {
         </div>
 
         <Separator className="my-8" />
-
-        {project.platformManifest && (
-          <PlatformManifest manifest={project.platformManifest} />
-        )}
 
         <ProjectContent project={project} />
 

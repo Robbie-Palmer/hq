@@ -5,6 +5,7 @@ import { ADRList } from "@/components/projects/adr-list";
 import { DesignEmbed } from "@/components/projects/design-embed";
 import { EmbeddedPitchDeckContent } from "@/components/projects/pitch-deck/embedded-pitch-deck-content";
 import { LazyProjectPitchDeck } from "@/components/projects/pitch-deck/lazy-project-pitch-deck";
+import { PlatformManifest } from "@/components/projects/platform-manifest";
 import { ProductDecisionList } from "@/components/projects/product-decision-list";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { ProjectTabsSkeleton } from "@/components/projects/project-tabs-skeleton";
@@ -20,7 +21,15 @@ export function ProjectContent({
   const overview = (
     <Markdown source={project.content} components={projectComponents} />
   );
-  if (!project.pitch && project.adrs.length === 0 && decisions.length === 0)
+  const platform = project.platformManifest ? (
+    <PlatformManifest manifest={project.platformManifest} />
+  ) : undefined;
+  if (
+    !project.pitch &&
+    !platform &&
+    project.adrs.length === 0 &&
+    decisions.length === 0
+  )
     return overview;
   return (
     <Suspense fallback={<ProjectTabsSkeleton />}>
@@ -30,6 +39,7 @@ export function ProjectContent({
         pdrCount={decisions.length}
         pdrs={<ProductDecisionList decisions={decisions} />}
         overview={overview}
+        platform={platform}
         pitch={
           project.pitch ? (
             <LazyProjectPitchDeck

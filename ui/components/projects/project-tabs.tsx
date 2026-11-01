@@ -8,6 +8,7 @@ interface ProjectTabsProps {
   projectSlug: string;
   pitch?: React.ReactNode;
   overview: React.ReactNode;
+  platform?: React.ReactNode;
   adrs: React.ReactNode;
   adrCount: number;
   pdrs?: React.ReactNode;
@@ -24,6 +25,7 @@ interface ProjectTab {
 function projectTabs({
   pitch,
   overview,
+  platform,
   adrs,
   adrCount,
   pdrs,
@@ -34,6 +36,8 @@ function projectTabs({
   ];
   if (pitch)
     tabs.unshift({ value: "pitch", label: "Pitch deck", content: pitch });
+  if (platform)
+    tabs.push({ value: "platform", label: "Platform", content: platform });
   if (adrCount > 0)
     tabs.push({
       value: "adrs",
