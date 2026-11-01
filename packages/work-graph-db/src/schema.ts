@@ -17,6 +17,7 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  COMPLETION_POLICY_ASSIGNMENT_SOURCES,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
   EVIDENCE_CORRELATION_KINDS,
@@ -81,6 +82,11 @@ export const deliveryEvidenceStateEnum = pgEnum(
 export const evidenceCorrelationKindEnum = pgEnum(
   "evidence_correlation_kind",
   EVIDENCE_CORRELATION_KINDS,
+);
+
+export const completionPolicyAssignmentSourceEnum = pgEnum(
+  "completion_policy_assignment_source",
+  COMPLETION_POLICY_ASSIGNMENT_SOURCES,
 );
 
 export const knowledgeScopeKindEnum = pgEnum(
@@ -546,6 +552,9 @@ export const workItemCompletionPolicy = pgTable(
       .references(() => workItem.id, { onDelete: "restrict" }),
     policyId: text().notNull(),
     policyRevision: integer().notNull(),
+    assignmentSource: completionPolicyAssignmentSourceEnum()
+      .notNull()
+      .default("explicit"),
     assignedAt: timestamp({ withTimezone: true }).notNull(),
   },
   (table) => [

@@ -2738,12 +2738,13 @@ export class WorkGraphRepository {
       }
       await transaction
         .insert(workItemCompletionPolicy)
-        .values({ ...input, assignedAt })
+        .values({ ...input, assignmentSource: "explicit", assignedAt })
         .onConflictDoUpdate({
           target: workItemCompletionPolicy.workItemId,
           set: {
             policyId: input.policyId,
             policyRevision: input.policyRevision,
+            assignmentSource: "explicit",
             assignedAt,
           },
         });
@@ -2812,6 +2813,10 @@ export class WorkGraphRepository {
       .for("update");
     if (!lockedItem) throw workItemNotFound(input.workItemId);
 
+    if (lockedItem.lifecycle !== "open") {
+      return this.replayTerminalCompletionEvaluation(transaction, input.id);
+    }
+
     await this.assignRepositoryCompletionPolicyDefault(
       transaction,
       input.workItemId,
@@ -2823,9 +2828,6 @@ export class WorkGraphRepository {
       input.workItemId,
     );
     if (!policy) return null;
-    if (lockedItem.lifecycle !== "open") {
-      return this.replayTerminalCompletionEvaluation(transaction, input.id);
-    }
 
     const evaluation = await this.evaluateCompletionCandidateInTransaction(
       transaction,
@@ -2856,11 +2858,11 @@ export class WorkGraphRepository {
     assignedAt: string,
   ): Promise<void> {
     const [existing] = await transaction
-      .select({ workItemId: workItemCompletionPolicy.workItemId })
+      .select({ assignmentSource: workItemCompletionPolicy.assignmentSource })
       .from(workItemCompletionPolicy)
       .where(eq(workItemCompletionPolicy.workItemId, workItemId))
       .limit(1);
-    if (existing) return;
+    if (existing?.assignmentSource === "explicit") return;
 
     const repositories = await transaction
       .selectDistinct({ repository: workItemPullRequest.repository })
@@ -2872,7 +2874,14 @@ export class WorkGraphRepository {
         ),
       )
       .orderBy(workItemPullRequest.repository);
-    if (repositories.length === 0) return;
+    if (repositories.length === 0) {
+      await this.removeRepositoryCompletionPolicyDefault(
+        transaction,
+        workItemId,
+        existing?.assignmentSource,
+      );
+      return;
+    }
 
     const defaults = await Promise.all(
       repositories.map(async ({ repository }) => {
@@ -2900,6 +2909,11 @@ export class WorkGraphRepository {
           candidate.policyRevision !== selected.policyRevision,
       )
     ) {
+      await this.removeRepositoryCompletionPolicyDefault(
+        transaction,
+        workItemId,
+        existing?.assignmentSource,
+      );
       return;
     }
 
@@ -2916,9 +2930,32 @@ export class WorkGraphRepository {
         workItemId,
         policyId: selected.policyId,
         policyRevision: selected.policyRevision,
+        assignmentSource: "repository_default",
         assignedAt: assignedAtDate,
       })
-      .onConflictDoNothing();
+      .onConflictDoUpdate({
+        target: workItemCompletionPolicy.workItemId,
+        set: {
+          policyId: selected.policyId,
+          policyRevision: selected.policyRevision,
+          assignmentSource: "repository_default",
+          assignedAt: assignedAtDate,
+        },
+      });
+  }
+
+  private async removeRepositoryCompletionPolicyDefault(
+    transaction: DbTransaction,
+    workItemId: string,
+    assignmentSource: "explicit" | "repository_default" | undefined,
+  ): Promise<void> {
+    if (assignmentSource !== "repository_default") return;
+    await transaction
+      .delete(workItemCompletionCandidate)
+      .where(eq(workItemCompletionCandidate.workItemId, workItemId));
+    await transaction
+      .delete(workItemCompletionPolicy)
+      .where(eq(workItemCompletionPolicy.workItemId, workItemId));
   }
 
   private async automaticReleasePolicy(

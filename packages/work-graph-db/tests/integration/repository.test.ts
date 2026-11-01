@@ -238,8 +238,17 @@ beforeAll(async () => {
     where pg_type.typname = 'architecture_decision_role'
     order by enumsortorder
   `);
+  const completionPolicyAssignmentSourceValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'completion_policy_assignment_source'
+    order by enumsortorder
+  `);
 
-  expect(migrationCount?.count).toBe(19);
+  expect(migrationCount?.count).toBe(20);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -296,6 +305,9 @@ beforeAll(async () => {
   expect(
     architectureDecisionRoleValues.map(({ enumlabel }) => enumlabel),
   ).toEqual(["governing", "background"]);
+  expect(
+    completionPolicyAssignmentSourceValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["explicit", "repository_default"]);
 });
 
 describe("transactional decomposition", () => {
@@ -1153,31 +1165,6 @@ describe("GitHub delivery consumption", () => {
       id: "multi-repository-work",
       title: "Ship across repositories",
     });
-    for (const [repositoryName, number] of [
-      ["example/first", 1],
-      ["example/second", 2],
-    ] as const) {
-      await repository.refreshPullRequest({
-        repository: repositoryName,
-        number,
-        url: `https://github.com/${repositoryName}/pull/${number}`,
-        headSha: commitSha(String(number)),
-        acceptedHeadSha: commitSha(String(number)),
-        mergeCommitSha: commitSha(String(number + 2)),
-        state: "merged",
-        draft: false,
-        mergeability: "unknown",
-        reviewDecision: "approved",
-        checkSummary: "success",
-        observedAt: "2026-10-01T10:00:00.000Z",
-      });
-      await repository.putWorkItemPullRequest({
-        workItemId: "multi-repository-work",
-        repository: repositoryName,
-        number,
-        role: "implementation",
-      });
-    }
     for (const [policyId, repositoryName] of [
       ["first-policy", "example/first"],
       ["second-policy", "example/second"],
@@ -1200,13 +1187,73 @@ describe("GitHub delivery consumption", () => {
       });
     }
 
-    await expect(
-      repository.evaluateCompletionCandidateAndReleaseIfConfigured({
-        id: recordId(906),
+    const linkImplementation = async (
+      repositoryName: string,
+      number: number,
+    ): Promise<void> => {
+      await repository.refreshPullRequest({
+        repository: repositoryName,
+        number,
+        url: `https://github.com/${repositoryName}/pull/${number}`,
+        headSha: commitSha(String(number)),
+        acceptedHeadSha: commitSha(String(number)),
+        mergeCommitSha: commitSha(String(number + 2)),
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-10-01T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
         workItemId: "multi-repository-work",
-        evaluatedAt: "2026-10-01T11:00:00.000Z",
-      }),
+        repository: repositoryName,
+        number,
+        role: "implementation",
+      });
+    };
+
+    await linkImplementation("example/first", 1);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
+    ).resolves.toMatchObject({
+      candidate: false,
+      policyId: "first-policy",
+      policyRevision: 1,
+    });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "repository_default" },
+    ]);
+
+    await linkImplementation("example/second", 2);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
     ).resolves.toBeNull();
+    await expect(
+      db
+        .select()
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([]);
 
     await repository.assignCompletionPolicy({
       workItemId: "multi-repository-work",
@@ -1224,6 +1271,23 @@ describe("GitHub delivery consumption", () => {
       automaticReleaseOutcome: "completion_requirements_not_met",
       evaluation: { policyId: "first-policy", policyRevision: 1 },
     });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "explicit" },
+    ]);
   });
 
   it("keeps an active worker lease fenced during automatic evaluation and concurrent release", async () => {
