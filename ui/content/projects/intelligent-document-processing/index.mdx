@@ -50,6 +50,64 @@ I built a Python evaluation pipeline and used DVC to version the data and result
 
 I integrated the selected approach into Terminal's production services. A gate guard can submit a photo through the existing workflow, the document-processing service extracts the required fields, and the application cross-references them with other data sources used for gate verification.
 
+# Document flow
+
+This conceptual view follows a bill of lading through the production workflow.
+It marks the Terminal-owned system boundary and the external people, records,
+and source systems that cross it. It does not describe private service
+topology, vendors, interfaces, security controls, or scale.
+
+<Mermaid
+  chart={`flowchart TB
+subgraph External["External actors, records, and systems"]
+Document["Carrier or shipper<br/>Bill of lading"]
+Guard["Gate guard<br/>Human review"]
+Operations["Operational source systems<br/>Gate and asset records"]
+end
+
+subgraph Terminal["Terminal-owned systems"]
+Intake["Document intake<br/>Existing gate workflow"]
+Classification["Classification<br/>Recognise the document type"]
+Extraction["Extraction<br/>Read and structure required fields"]
+Validation["Validation<br/>Apply field and ontology checks"]
+Integration["Integration<br/>Cross-reference extracted fields"]
+Result["Gate verification result"]
+Correction["Human correction capture"]
+
+Intake -->|"Document image"| Classification
+Classification -->|"Classified document"| Extraction
+Extraction -->|"Structured values"| Validation
+Validation -->|"Validated values"| Integration
+Integration -->|"Comparison outcome"| Result
+Correction -->|"Corrected values"| Validation
+end
+
+Document -->|"Freight record"| Guard
+Guard -->|"Photograph and submit"| Intake
+Operations -->|"Expected shipment data"| Integration
+Result -->|"Present for review"| Guard
+Guard -->|"Correct fields"| Correction
+
+classDef external stroke-dasharray:5 5
+class Document,Guard,Operations external
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[34rem]"
+/>
+
+The same flow in text is:
+
+1. A carrier or shipper supplies a bill of lading. A gate guard photographs it
+   and submits the image through Terminal's existing gate workflow.
+2. Terminal's document-processing service classifies the document, identifies
+   the required fields, extracts their values, and validates them against the
+   field definitions and domain ontology.
+3. The integration compares the validated values with expected shipment data
+   from external operational source systems, including gate and asset records,
+   and returns a gate verification result.
+4. The guard reviews the result. Confirmed data completes the check. A
+   correction returns to validation before the system compares the values
+   again.
+
 # Result
 
 The production workflow turns a photographed, sometimes damaged bill of lading into structured data that Terminal's gate services can verify. My work covered research, domain modelling, ontology design, data collection, annotation operations, evaluation, solution selection, ML engineering, and production integration.
