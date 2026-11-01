@@ -212,6 +212,22 @@ describe("CommandPalette", () => {
     expect(initiativesItem).not.toHaveTextContent("Current");
   });
 
+  it("navigates to the technologies index", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPaletteProvider>
+        <CommandPaletteTrigger />
+      </CommandPaletteProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Search" })[0];
+    if (!trigger) throw new Error("Expected a command-palette trigger");
+    await user.click(trigger);
+    await user.click(screen.getByText("Technologies"));
+
+    expect(pushMock).toHaveBeenCalledWith("/technologies");
+  });
+
   it("searches ideas and navigates to the selected idea", async () => {
     const user = userEvent.setup();
     render(
@@ -282,6 +298,28 @@ describe("CommandPalette", () => {
     await user.click(screen.getByText("Personalized Medicine"));
 
     expect(pushMock).toHaveBeenCalledWith("/initiatives/personalized-medicine");
+  });
+
+  it("searches technologies by name and navigates to the selected technology", async () => {
+    const user = userEvent.setup();
+    render(
+      <CommandPaletteProvider
+        technologies={[{ slug: "react", name: "React", hasIcon: false }]}
+      >
+        <CommandPaletteTrigger />
+      </CommandPaletteProvider>,
+    );
+
+    const trigger = screen.getAllByRole("button", { name: "Search" })[0];
+    if (!trigger) throw new Error("Expected a command-palette trigger");
+    await user.click(trigger);
+    await user.type(
+      screen.getByPlaceholderText("Search or type a command..."),
+      "react",
+    );
+    await user.click(screen.getByText("React"));
+
+    expect(pushMock).toHaveBeenCalledWith("/technologies/react");
   });
 
   it("searches blog posts by name and navigates to the selected post", async () => {

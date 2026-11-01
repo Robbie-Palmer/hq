@@ -22,13 +22,13 @@ interface RankedTechnology {
   description?: string;
 }
 
-interface SearchableTechnologyGridProps {
+interface TechnologyGridProps {
   technologies: RankedTechnology[];
 }
 
 export function SearchableTechnologyGrid({
   technologies,
-}: Readonly<SearchableTechnologyGridProps>) {
+}: Readonly<TechnologyGridProps>) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [excludedTypes, setExcludedTypes] = useState<string[]>([]);
