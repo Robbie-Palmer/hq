@@ -43,6 +43,68 @@ which proposed using Deep Learning for this task.
 * **Geospatial Processing**: Used `Shapely` and `GeoPandas` to handle the geometry of tissue regions and tile management at a massive scale.
 * **MLOps**: Established best practices for reproducibility using DVC (Data Version Control) to track experiments, data lineage, and model versions.
 
+# How it worked
+
+This reconstruction combines the surviving project description with the workflow in the cited paper. It describes the
+research data flow, not the architecture of the later Sonrai Diagnostics product.
+
+<Mermaid
+  chart={`flowchart TB
+subgraph inputs["External research inputs"]
+Slides["H&E whole-slide images"]
+Labels["Patient-level MSI or MSS labels<br/>from reference testing"]
+end
+
+subgraph pipeline["Historical Sonrai research pipeline"]
+Split["Patient-level partitioning<br/>before deriving validation tiles"]
+Preprocess["Whole-slide preprocessing<br/>identify tissue and divide it into tiles"]
+Spatial["Spatial feature records<br/>tile coordinates and tissue-region geometry<br/>with Shapely and GeoPandas"]
+Predict["Weakly supervised prediction<br/>combine tile evidence into a slide-level<br/>MSI or MSS prediction"]
+Validate["Leakage-aware validation<br/>compare held-out patient predictions<br/>with reference labels"]
+Tracking["DVC records<br/>data lineage, experiments, and model versions"]
+Split --> Preprocess
+Preprocess --> Spatial
+Spatial -->|"Located tissue tiles"| Predict
+Predict --> Validate
+Tracking -.-> Preprocess
+Tracking -.-> Predict
+Tracking -.-> Validate
+end
+
+subgraph outputs["Research outputs"]
+Evidence["Feasibility evidence<br/>predictions and realistic performance estimates"]
+Development["Proof of concept supporting<br/>further funded development"]
+Evidence --> Development
+end
+
+subgraph boundary["Reconstruction boundary"]
+Limits["Unknown: exact tiling, model topology,<br/>pooling, thresholds, and deployment design"]
+end
+
+Slides --> Split
+Labels --> Split
+Labels -->|"Weak supervision"| Predict
+Labels -->|"Reference truth"| Validate
+Validate --> Evidence
+Limits -.-> Preprocess
+Limits -.-> Predict
+`}
+/>
+
+1. Research cohorts supplied H\&E whole-slide images and patient-level MSI or MSS results from reference testing. The
+   work treated those genomic results as slide labels; it did not assume that each tile had its own known label.
+2. Patients were partitioned before tiles entered validation. The pipeline then identified tissue, divided each slide
+   into tiles, and represented tile locations and tissue-region geometry with `Shapely` and `GeoPandas`. Keeping every
+   patient's derived tiles in one partition prevented tile leakage from inflating the reported performance.
+3. The weakly supervised model combined evidence from the tiles into a slide-level MSI or MSS prediction. Held-out
+   patient predictions were compared with the reference labels, while DVC recorded data lineage, experiments, and
+   model versions.
+4. The research outputs were slide-level predictions and leakage-aware performance estimates. Together they supported
+   the feasibility result and the case for further funded development.
+5. The available record does not identify the exact tiling parameters, tissue detector, model topology, MIL pooling
+   rule, decision thresholds, or deployment design. The diagram therefore stops at research outputs and does not
+   reconstruct the later diagnostic product.
+
 # Outcomes
 
 * **Identified Critical Flaws**: During reproduction, I discovered foundational mistakes in the original paper's methodology concerning data leakage across slide tiles. Fixing this led to more realistic and robust performance estimates.
