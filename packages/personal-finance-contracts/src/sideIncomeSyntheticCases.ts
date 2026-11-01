@@ -4,6 +4,7 @@ import {
   SIDE_INCOME_CURRENCY,
   SIDE_INCOME_JURISDICTION,
   SideIncomeCaseSchema,
+  type FinancialFact,
   type SideIncomeCase,
   type SourceLineage,
 } from "./sideIncome";
@@ -24,6 +25,22 @@ const money = (minorUnits: number) => ({
   currency: SIDE_INCOME_CURRENCY,
   jurisdiction: SIDE_INCOME_JURISDICTION,
 });
+
+const scenarioOwner = (ownerKind: string): FinancialFact["owner"] => {
+  if (ownerKind === "person") {
+    return { kind: "person", personId: "person:owner" };
+  }
+  if (ownerKind === "household") {
+    return { kind: "household", householdId: "household:synthetic" };
+  }
+  if (ownerKind === "tax-authority") {
+    return {
+      kind: "tax-authority",
+      jurisdiction: SIDE_INCOME_JURISDICTION,
+    };
+  }
+  return { kind: "business", businessId: "business:software-company" };
+};
 
 const baseCase = (id: string) => ({
   contractVersion: SIDE_INCOME_CONTRACT_VERSION,
@@ -480,17 +497,7 @@ export const multipleIncomeStreamsCase: SideIncomeCase =
         id,
         kind,
         amount: money(Number(minorUnits)),
-        owner:
-          ownerKind === "person"
-            ? { kind: "person", personId: "person:owner" }
-            : ownerKind === "household"
-              ? { kind: "household", householdId: "household:synthetic" }
-              : ownerKind === "tax-authority"
-                ? {
-                    kind: "tax-authority",
-                    jurisdiction: SIDE_INCOME_JURISDICTION,
-                  }
-                : { kind: "business", businessId: "business:software-company" },
+        owner: scenarioOwner(String(ownerKind)),
         activityId: null,
         businessId: "business:software-company",
         occurredOn: "2026-10-31",

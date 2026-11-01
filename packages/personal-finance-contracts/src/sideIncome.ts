@@ -40,7 +40,7 @@ export const OwnershipBasisPointsSchema = z
 
 export const MoneySchema = z
   .object({
-    minorUnits: z.number().int().safe(),
+    minorUnits: z.int(),
     currency: CurrencyCodeSchema,
     jurisdiction: CountryCodeSchema,
   })

@@ -17,7 +17,9 @@ const sortedUniqueCodeArray = (pattern: RegExp, label: string) =>
     .array(z.string().regex(pattern))
     .min(1)
     .superRefine((codes, context) => {
-      const expected = [...new Set(codes)].sort();
+      const expected = [...new Set(codes)].sort((left, right) =>
+        left.localeCompare(right),
+      );
       if (
         expected.length !== codes.length ||
         expected.some((code, index) => code !== codes[index])

@@ -108,6 +108,13 @@ describe("side-income fact contract", () => {
         jurisdiction: "GB",
       }).success,
     ).toBe(false);
+    expect(
+      MoneySchema.safeParse({
+        minorUnits: Number.MAX_SAFE_INTEGER + 1,
+        currency: "GBP",
+        jurisdiction: "GB",
+      }).success,
+    ).toBe(false);
   });
 
   it("requires a unit for assignment rates and forbids one on totals", () => {

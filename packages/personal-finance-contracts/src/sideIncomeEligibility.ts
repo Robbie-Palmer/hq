@@ -302,8 +302,7 @@ const evaluateSoleTraderRules = (
     );
   }
 
-  output.push(evaluateVat(input));
-  output.push(evaluateMtd(input, evaluatedOn));
+  output.push(evaluateVat(input), evaluateMtd(input, evaluatedOn));
   return output;
 };
 
