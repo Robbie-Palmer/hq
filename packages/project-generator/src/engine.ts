@@ -328,6 +328,13 @@ async function pathExists(filePath: string): Promise<boolean> {
 interface CopierReceipt {
   readonly _src_path?: unknown;
   readonly _commit?: unknown;
+  readonly blueprint?: unknown;
+}
+
+interface PreservedFile {
+  readonly contents: Buffer;
+  readonly mode: number;
+  readonly path: string;
 }
 
 async function readReceipt(receiptPath: string): Promise<CopierReceipt> {
@@ -350,6 +357,81 @@ function isImmutableRevision(recorded: unknown): recorded is string {
   return typeof recorded === "string" && /^[0-9a-f]{40}$/.test(recorded);
 }
 
+function blueprintComponents(value: unknown): Map<string, Record<string, unknown>> {
+  if (value === null || typeof value !== "object") return new Map();
+  const components = (value as { components?: unknown }).components;
+  if (!Array.isArray(components)) return new Map();
+  return new Map(
+    components.flatMap((component) => {
+      if (
+        component === null ||
+        typeof component !== "object" ||
+        typeof (component as { id?: unknown }).id !== "string"
+      )
+        return [];
+      const record = component as Record<string, unknown>;
+      return [[record.id as string, record]] as const;
+    }),
+  );
+}
+
+function ownershipHandoffPaths(
+  receipt: CopierReceipt,
+  plan: ProjectPlan,
+): string[] {
+  const recorded = blueprintComponents(receipt.blueprint);
+  const targetBlueprint = plan.answers.blueprint;
+  const target = blueprintComponents(targetBlueprint);
+  return [...target].flatMap(([id, component]) => {
+    const previous = recorded.get(id);
+    const componentPath = component.path;
+    if (
+      previous?.template_ownership !== "structure-only" ||
+      component.template_ownership !== "project" ||
+      typeof componentPath !== "string" ||
+      !plan.owned_paths.includes(componentPath)
+    )
+      return [];
+    return [path.posix.join(componentPath, "mise.toml")];
+  });
+}
+
+async function preserveOwnershipHandoffs(
+  worktreeRoot: string,
+  receipt: CopierReceipt,
+  plan: ProjectPlan,
+): Promise<PreservedFile[]> {
+  const preserved: PreservedFile[] = [];
+  for (const relativePath of ownershipHandoffPaths(receipt, plan)) {
+    const absolutePath = path.join(worktreeRoot, relativePath);
+    let details: Awaited<ReturnType<typeof lstat>>;
+    try {
+      details = await lstat(absolutePath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    if (!details.isFile() || details.isSymbolicLink()) continue;
+    preserved.push({
+      contents: await readFile(absolutePath),
+      mode: details.mode,
+      path: relativePath,
+    });
+  }
+  return preserved;
+}
+
+async function restoreOwnershipHandoffs(
+  worktreeRoot: string,
+  preserved: readonly PreservedFile[],
+): Promise<void> {
+  for (const file of preserved) {
+    const absolutePath = path.join(worktreeRoot, file.path);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, file.contents, { mode: file.mode });
+  }
+}
+
 async function runCopier(
   worktreeRoot: string,
   temporaryRoot: string,
@@ -359,6 +441,7 @@ async function runCopier(
 ): Promise<void> {
   const relativeAnswersPath = answersPath(plan.project_id);
   const receiptPath = path.join(worktreeRoot, relativeAnswersPath);
+  let preservedHandoffs: PreservedFile[] = [];
   if (operation === "update") {
     const receipt = await readReceipt(receiptPath);
     if (!sourceMatches(receipt._src_path, template.source)) {
@@ -371,6 +454,11 @@ async function runCopier(
         "Cannot update project: recorded template revision is not an immutable full Git SHA",
       );
     }
+    preservedHandoffs = await preserveOwnershipHandoffs(
+      worktreeRoot,
+      receipt,
+      plan,
+    );
   }
   const dataFile = path.join(temporaryRoot, "answers.yaml");
   await writeFile(dataFile, stringify(plan.answers), { mode: 0o600 });
@@ -407,6 +495,7 @@ async function runCopier(
       worktreeRoot,
     ], copierOptions);
   }
+  await restoreOwnershipHandoffs(worktreeRoot, preservedHandoffs);
   const receipt = await readReceipt(receiptPath);
   if (!sourceMatches(receipt._src_path, template.source)) {
     throw new Error(
