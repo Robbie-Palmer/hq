@@ -31,6 +31,7 @@ import {
   type ListWorkItemDependenciesInput,
   type ListWorkItemLeasesInput,
   type ListWorkItemNotesInput,
+  type ListWorkItemPageInput,
   type ListWorkItemsInput,
   type PriorityMoveInput,
   type ProjectCriticalPathInput,
@@ -2263,6 +2264,9 @@ export interface WorkGraphApiRepository {
   listWorkItems(
     input?: ListWorkItemsInput,
   ): Promise<readonly WorkItemReadModel[]>;
+  listWorkItemPage(
+    input: ListWorkItemPageInput,
+  ): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
   listWorkItemDeliveryEvidence(
     input: ListWorkItemDeliveryEvidenceInput,
@@ -2778,24 +2782,18 @@ export const createWorkGraphApp = (
 
   app.openapi(listWorkItemsRoute, async (context) => {
     const query = context.req.valid("query");
-    const items = await repository.listWorkItems(selectionScopeFrom(query));
-    const cursorIndex =
-      query.cursor === undefined
-        ? -1
-        : items.findIndex((item) => item.id === query.cursor);
-    const remainingItems =
-      query.cursor !== undefined && cursorIndex === -1
-        ? []
-        : items.slice(cursorIndex + 1);
-    const matchingItems = remainingItems.filter(
-      (item) => query.stage === undefined || item.stage === query.stage,
-    );
-    const page = matchingItems.slice(0, query.limit);
+    const items = await repository.listWorkItemPage({
+      ...selectionScopeFrom(query),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      limit: query.limit + 1,
+      ...(query.stage === undefined ? {} : { stage: query.stage }),
+    });
+    const page = items.slice(0, query.limit);
     return context.json(
       {
         items: page.map(serializeWorkItem),
         nextCursor:
-          page.length < matchingItems.length
+          items.length > query.limit
             ? (page.at(-1)?.id ?? null)
             : null,
       },

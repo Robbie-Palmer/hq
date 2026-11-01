@@ -182,7 +182,7 @@ describe("Given the Work Graph MCP protocol", () => {
 describe("Given the existing REST projections", () => {
   it("returns the same queue page and critical-path fixture through MCP", async () => {
     const repository = {
-      listWorkItems: vi.fn(async () => [readyItem]),
+      listWorkItemPage: vi.fn(async () => [readyItem]),
       projectCriticalPath: vi.fn(async () => criticalPathProjection),
     } as unknown as WorkGraphApiRepository;
     const app = createWorkGraphApp(repository);
@@ -212,8 +212,10 @@ describe("Given the existing REST projections", () => {
     expect(queue.isError).not.toBe(true);
     expect(queue.structuredContent).toEqual(restQueue);
     expect(criticalPath.structuredContent).toEqual(restCriticalPath);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeProjectIds: ["project"],
+      limit: 51,
+      stage: "ready",
     });
     expect(repository.projectCriticalPath).toHaveBeenCalledWith({
       includeProjectIds: ["project"],

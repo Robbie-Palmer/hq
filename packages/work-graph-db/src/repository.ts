@@ -71,6 +71,10 @@ import {
   type GraphCycleRow,
 } from "./queries/graph-cycle";
 import {
+  workItemPageQuery,
+  type WorkItemPageRow,
+} from "./queries/work-item-page";
+import {
   attentionRequest,
   attentionResolution,
   completionCandidateEvaluation,
@@ -235,6 +239,12 @@ export interface ClaimWorkItemInput extends WorkItemSelectionScope {
 }
 
 export type ListWorkItemsInput = WorkItemSelectionScope;
+
+export interface ListWorkItemPageInput extends WorkItemSelectionScope {
+  readonly cursor?: string;
+  readonly limit: number;
+  readonly stage?: WorkStage;
+}
 
 export interface ProjectCriticalPathInput
   extends Omit<WorkItemSelectionScope, "parentId"> {
@@ -431,6 +441,31 @@ export interface WorkItemReadModel extends WorkItem {
   readonly currentLease: StoredLease | null;
   readonly priority: WorkItemPriorityProjection;
 }
+
+const storedLeaseFromPageRow = (row: WorkItemPageRow): StoredLease | null => {
+  if (row.currentLeaseId === null) return null;
+  if (
+    row.currentLeaseWorkerId === null ||
+    row.currentLeaseEpoch === null ||
+    row.currentLeaseAcquiredAt === null ||
+    row.currentLeaseExpiresAt === null
+  ) {
+    throw new Error(`Current lease projection for ${row.id} is incomplete.`);
+  }
+  return {
+    id: row.currentLeaseId,
+    workItemId: row.id,
+    workerId: row.currentLeaseWorkerId,
+    epoch: row.currentLeaseEpoch,
+    acquiredAt: new Date(row.currentLeaseAcquiredAt),
+    expiresAt: new Date(row.currentLeaseExpiresAt),
+    endedAt:
+      row.currentLeaseEndedAt === null
+        ? null
+        : new Date(row.currentLeaseEndedAt),
+    outcome: row.currentLeaseOutcome as StoredLease["outcome"],
+  };
+};
 
 interface PriorityLineageRow extends Record<string, unknown> {
   readonly candidateId: string;
@@ -1841,6 +1876,68 @@ export class WorkGraphRepository {
         isolationLevel: "repeatable read",
         accessMode: "read only",
       },
+    );
+  }
+
+  async listWorkItemPage(
+    input: ListWorkItemPageInput,
+  ): Promise<readonly WorkItemReadModel[]> {
+    if (!Number.isSafeInteger(input.limit) || input.limit <= 0) {
+      throw new Error("A work-item page limit must be a positive integer.");
+    }
+    if (input.cursor !== undefined) {
+      requireIdentifier(input.cursor, "invalid_work_item_id");
+    }
+    if (input.parentId !== undefined) {
+      requireIdentifier(input.parentId, "invalid_parent_id");
+    }
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
+    }
+
+    return this.db.transaction(
+      async (transaction) => {
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_scheduling_scope",
+        );
+        // PostgreSQL overestimates the recursive graph CTE on a fresh or small
+        // table and can spend more time compiling JIT code than executing the
+        // bounded read. Keep the setting transaction-local for pooled clients.
+        await transaction.execute(sql`set local jit = off`);
+        const rows = await transaction.execute<WorkItemPageRow>(
+          workItemPageQuery({
+            ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
+            limit: input.limit,
+            selectionWhere: workItemSelectionWhere(input),
+            ...(input.stage === undefined ? {} : { stage: input.stage }),
+          }),
+        );
+        return rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          lifecycle: row.lifecycle,
+          parentId: row.parentId,
+          rank: row.rank,
+          priorityRank: row.priorityRank,
+          schedulingInitiativeId: row.schedulingInitiativeId,
+          schedulingProjectId: row.schedulingProjectId,
+          expedited: row.expedited,
+          expediteReason: row.expediteReason,
+          stage: row.stage,
+          currentLease: storedLeaseFromPageRow(row),
+          priority: {
+            initiativeRank: row.initiativeRank,
+            projectRank: row.projectRank,
+            ticketRank: row.ticketRank,
+            expedited: row.priorityExpedited,
+            effectiveExpedited: row.effectiveExpedited,
+            donatedFromWorkItemId: row.donatedFromWorkItemId,
+          },
+        }));
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
     );
   }
 
