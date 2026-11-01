@@ -283,6 +283,8 @@ jobs:
     needs: detect
     if: needs.detect.result == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      project_preview_links: ${{ steps.preview-links.outputs.links }}
     environment:
       name: preview-site-ui
     permissions:
@@ -308,6 +310,10 @@ jobs:
 
       - name: Install dependencies
         run: mise run //:install
+
+      - name: Resolve project preview links
+        id: preview-links
+        run: mise run //:preview:links
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -355,6 +361,7 @@ jobs:
           PREVIEW_SITE_URL: https://pr-${{ github.event.pull_request.number }}.${{ vars.CLOUDFLARE_PAGES_HOST }}
           PREVIEW_WORKER_NAME: recipe-api-pr-${{ github.event.pull_request.number }}
           PREVIEW_BRANCH: preview-pr-${{ github.event.pull_request.number }}
+          PROJECT_PREVIEW_LINKS: ${{ needs.frontend.outputs.project_preview_links }}
           BACKEND_REQUESTED: ${{ needs.detect.outputs.backend }}
           BACKEND_RESULT: ${{ needs.backend.result }}
         with:
@@ -363,6 +370,7 @@ jobs:
             const endMarker = '<!-- preview-environment:end -->';
             const requested = process.env.BACKEND_REQUESTED === 'true';
             const ok = process.env.BACKEND_RESULT === 'success';
+            const projectLinks = JSON.parse(process.env.PROJECT_PREVIEW_LINKS);
 
             let backendLines;
             if (requested && ok) {
@@ -389,7 +397,9 @@ jobs:
               '',
               `**Personal site:** ${process.env.PREVIEW_SITE_URL}`,
               `**Recipes:** ${process.env.PREVIEW_SITE_URL}/recipes`,
-              `**AssetTracker:** ${process.env.PREVIEW_SITE_URL}/assettracker`,
+              ...projectLinks.map(({ name, path }) =>
+                `**${name}:** ${process.env.PREVIEW_SITE_URL}${path}`,
+              ),
               `**Satellite swarm:** ${process.env.PREVIEW_SITE_URL}/satellite-swarm`,
               ...backendLines,
               endMarker,
