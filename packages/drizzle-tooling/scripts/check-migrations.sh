@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bash ../../scripts/check-drizzle-migration-names.sh drizzle
+migration_dir=${1:-drizzle}
+repository_root=$(git rev-parse --show-toplevel)
+
+bash "$repository_root/scripts/check-drizzle-migration-names.sh" "$migration_dir"
 pnpm exec drizzle-kit check
 
-before=$(git status --porcelain --untracked-files=all -- drizzle)
+before=$(git status --porcelain --untracked-files=all -- "$migration_dir")
 pnpm exec drizzle-kit generate --name add_uncommitted_schema_change
-after=$(git status --porcelain --untracked-files=all -- drizzle)
+after=$(git status --porcelain --untracked-files=all -- "$migration_dir")
 
 if [[ "$before" != "$after" ]]; then
   echo "Schema changes are missing a committed Drizzle migration." >&2
