@@ -43,7 +43,7 @@ export function ManifestSection({
   return (
     <details className="overflow-hidden rounded-lg border" aria-label={title}>
       <summary className="cursor-pointer p-4 marker:text-muted-foreground sm:p-5">
-        <span className="text-lg font-semibold">{title}</span>{" "}
+        <h2 className="inline text-lg font-semibold">{title}</h2>{" "}
         <Badge variant="secondary">{count}</Badge>
         <span className="mt-1 block text-sm font-normal text-muted-foreground">
           {description}
