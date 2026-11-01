@@ -16,6 +16,9 @@ describe("technology icons", () => {
     ["Quix Streams", "quixstreams", "custom:quixstreams"],
     ["Strimzi", "strimzi", "custom:strimzi"],
     ["dbt", "dbt", "custom:dbt"],
+    ["Filen", undefined, "custom:filen"],
+    ["Proton Pass", undefined, "custom:protonpass"],
+    ["Proton Mail", undefined, "custom:protonmail"],
   ])("resolves the %s logo", (name, iconSlug, expected) => {
     expect(getTechIconKey(name, iconSlug)).toBe(expected);
   });
@@ -35,4 +38,14 @@ describe("technology icons", () => {
     expect(markup).toContain("brightness-0");
     expect(markup).toContain("dark:invert");
   });
+
+  it.each(["Proton Pass", "Proton Mail"])(
+    "preserves the full-color %s logo",
+    (name) => {
+      const markup = renderToStaticMarkup(TechIcon({ name }));
+
+      expect(markup).not.toContain("brightness-0");
+      expect(markup).not.toContain("dark:invert");
+    },
+  );
 });

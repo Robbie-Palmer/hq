@@ -209,9 +209,12 @@ const customIcons = new Set([
   "quixstreams",
   "strimzi",
   "dbt",
+  "filen",
+  "protonmail",
+  "protonpass",
 ]);
 
-const fullColorCustomIcons = new Set(["t3code"]);
+const fullColorCustomIcons = new Set(["protonmail", "protonpass", "t3code"]);
 
 // Map technology names to their slugs for edge cases
 const techSlugOverrides: Record<string, string> = {
