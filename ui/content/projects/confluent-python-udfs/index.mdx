@@ -27,39 +27,46 @@ without needing to learn Java or manage complex microservices.
 
 Inspired by Apache Flink's architecture, I developed a bridge to unite these two worlds:
 
-* **JNI Bridge**: Used the Java Native Interface (JNI) to allow the JVM-based ksqlDB and Connect workers to communicate directly with a sidecar Python process. This avoided the limitations of running Python *inside* the JVM.
+* **PemJa Bridge**: Used [PemJa](https://github.com/alibaba/pemja) to invoke an embedded CPython interpreter from the JVM through JNI. This retained native CPython support without relying on a Python implementation written for the JVM.
+* **Wheel Packaging**: Loaded user-provided Python code from a packaged wheel.
 * **Meta-programming**: Built a Python library that used meta-programming to dynamically generate the required Kotlin bindings. This meant users could write pure Python functions, and the library would automatically handle the complex glue code needed to interface with the Java backend.
 * **Rich Ecosystem Support**: Because it used a real C-based Python interpreter, the solution supported the full breadth of the Python ecosystem, including all major ML libraries.
 
 # Historical runtime design
 
-This component view reconstructs the 2022 design from the surviving project
-account and the related research in [Uniting the Machine Learning and Data
-Streaming Ecosystems, part 2](/blog/2023-04-04-uniting-machine-learning-data-streaming-2).
-It describes the prototype, not later Confluent products.
+This component view reconstructs the 2022 design from the project account, its
+use of [PemJa](https://github.com/alibaba/pemja), and the related research in
+[Uniting the Machine Learning and Data Streaming Ecosystems, part
+2](/blog/2023-04-04-uniting-machine-learning-data-streaming-2). It describes
+the prototype, not later Confluent products.
 
 <Mermaid
   chart={`flowchart LR
 Kafka["Kafka record stream<br/>external"]
 
-subgraph JVM["Confluent Platform worker · JVM · historical"]
+subgraph Worker["Confluent Platform worker process · historical"]
+subgraph JVM["JVM"]
 Host["ksqlDB UDF or<br/>Kafka Connect execution"]
 Bindings["Generated Kotlin bindings"]
-Native["Native bridge<br/>JNI boundary"]
+PemJa["PemJa bridge<br/>JNI boundary"]
 Host --> Bindings
-Bindings <--> Native
+Bindings <--> PemJa
 end
 
-subgraph Python["Python execution boundary · historical"]
-Adapter["Record adapter<br/>encoding not preserved"]
+subgraph Python["Embedded CPython runtime"]
+Wheel["Packaged wheel<br/>user-provided code · external"]
+Loader["Wheel and UDF loader"]
 Function["User-authored<br/>Python UDF"]
-Environment["Dependency isolation<br/>Python environment +<br/>native C extensions"]
-Adapter <--> Function
+Environment["Python dependency environment<br/>isolation scope not preserved<br/>packages + native C extensions"]
+Wheel --> Loader
+Loader --> Function
 Environment --> Function
 end
 
+PemJa <-->|"UDF arguments + result<br/>exact conversion not preserved"| Function
+end
+
 Kafka <-->|"records"| Host
-Native <-->|"record exchange<br/>protocol not preserved"| Adapter
 `}
   className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
 />
@@ -68,23 +75,23 @@ Native <-->|"record exchange<br/>protocol not preserved"| Adapter
 
 1. A Kafka record entered ksqlDB or Kafka Connect, both running in a Confluent
    Platform JVM worker.
-2. Generated Kotlin bindings connected the host invocation to a native bridge
-   at the JNI boundary.
-3. The bridge exchanged the record or UDF arguments with an adapter in the
-   sidecar CPython runtime.
-4. The adapter called the user-authored Python function. Its Python environment
-   supplied ML packages and their native C extensions outside the JVM.
+2. Generated Kotlin bindings connected the host invocation to PemJa at the JNI
+   boundary.
+3. PemJa invoked the user-authored function in an embedded CPython interpreter
+   within the worker process.
+4. The runtime loaded the user code from a packaged wheel. Its Python
+   environment supplied ML packages and their native C extensions.
 5. The function result crossed the same boundaries in reverse and returned to
    ksqlDB or Kafka Connect for continued stream processing.
 
-The Python process and its environment separated Python dependencies from the
-JVM, but the surviving material does not establish that this was a security
-sandbox. It also does not preserve the record encoding, the transport between
-the native bridge and sidecar, row or batch behavior, worker lifecycle and
-recovery, or whether isolation applied per function, worker, or deployment.
+The packaged wheel separated delivery of user code from the JVM application,
+but it did not make the embedded interpreter a process or security sandbox. The
+surviving material does not preserve the wheel installation and dependency
+resolution steps, interpreter lifetime, Java-to-Python object conversion, row
+or batch behavior, worker recovery, or the scope of each Python environment.
 Those details are labelled as unknown instead of being inferred from Flink or
 other later implementations. Proprietary implementation details are not
-reconstructed beyond the public project account.
+reconstructed beyond the project account.
 
 # Impact
 
