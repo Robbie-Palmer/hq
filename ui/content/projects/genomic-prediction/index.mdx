@@ -45,8 +45,8 @@ which proposed using Deep Learning for this task.
 
 # How it worked
 
-This reconstruction combines the surviving project description with the workflow in the cited paper. It describes the
-research data flow, not the architecture of the later Sonrai Diagnostics product.
+This reconstruction uses the surviving project description and the workflow in the cited paper. It ends at the research
+outputs and does not describe the later Sonrai Diagnostics product.
 
 <Mermaid
   chart={`flowchart TB
@@ -77,17 +77,11 @@ Development["Proof of concept supporting<br/>further funded development"]
 Evidence --> Development
 end
 
-subgraph boundary["Reconstruction boundary"]
-Limits["Unknown: exact tiling, model topology,<br/>pooling, thresholds, and deployment design"]
-end
-
 Slides --> Split
 Labels --> Split
 Labels -->|"Weak supervision"| Predict
 Labels -->|"Reference truth"| Validate
 Validate --> Evidence
-Limits -.-> Preprocess
-Limits -.-> Predict
 `}
 />
 
@@ -101,9 +95,6 @@ Limits -.-> Predict
    model versions.
 4. The research outputs were slide-level predictions and leakage-aware performance estimates. Together they supported
    the feasibility result and the case for further funded development.
-5. The available record does not identify the exact tiling parameters, tissue detector, model topology, MIL pooling
-   rule, decision thresholds, or deployment design. The diagram therefore stops at research outputs and does not
-   reconstruct the later diagnostic product.
 
 # Outcomes
 
