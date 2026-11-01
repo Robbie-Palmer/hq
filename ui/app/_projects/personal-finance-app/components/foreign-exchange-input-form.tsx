@@ -42,7 +42,9 @@ const selectClassName =
   "border-input h-9 w-full rounded-md border bg-transparent px-3 text-sm shadow-xs focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 function requiredText(form: FormData, name: string): string {
-  return String(form.get(name) ?? "").trim();
+  const value = form.get(name);
+  if (typeof value !== "string") throw new TypeError(`${name} is required`);
+  return value.trim();
 }
 
 function requiredNumber(form: FormData, name: string): number {

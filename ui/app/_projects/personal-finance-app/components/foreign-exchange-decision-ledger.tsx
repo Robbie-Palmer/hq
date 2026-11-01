@@ -19,6 +19,12 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
+function requiredText(form: FormData, name: string): string {
+  const value = form.get(name);
+  if (typeof value !== "string") throw new TypeError(`${name} is required`);
+  return value.trim();
+}
+
 function ReconciliationInput({
   id,
   label,
@@ -104,11 +110,11 @@ function ReconciliationForm({
     const form = new FormData(event.currentTarget);
     try {
       const actual = {
-        completedAt: new Date(String(form.get("completedAt"))).toISOString(),
-        sourceAmount: Number(form.get("sourceAmount")),
-        targetAmount: Number(form.get("targetAmount")),
-        sourceFees: Number(form.get("sourceFees")),
-        note: String(form.get("note") ?? "").trim(),
+        completedAt: new Date(requiredText(form, "completedAt")).toISOString(),
+        sourceAmount: Number(requiredText(form, "sourceAmount")),
+        targetAmount: Number(requiredText(form, "targetAmount")),
+        sourceFees: Number(requiredText(form, "sourceFees")),
+        note: requiredText(form, "note"),
       };
       if (onReconcile(actual)) setError(null);
     } catch (cause) {
