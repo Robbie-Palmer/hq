@@ -101,6 +101,20 @@ describe("SpellcheckEditor", () => {
     );
   });
 
+  it("renders HTML-like instructions as text and respects reduced motion", () => {
+    const source = '<script>alert("hot")</script> & add @salt{1%tsp}.';
+    const { container } = render(<ControlledEditor initial={source} />);
+
+    const textarea = screen.getByRole("textbox", { name: "Recipe text" });
+    const backdrop = container.querySelector(
+      "[data-cooklang-highlight-backdrop]",
+    );
+    expect(textarea).toHaveValue(source);
+    expect(textarea).toHaveClass("motion-reduce:transition-none");
+    expect(backdrop).toHaveTextContent(source);
+    expect(backdrop?.querySelector("script")).toBeNull();
+  });
+
   it("preserves focus and selection when highlighting rerenders", () => {
     const source = "Mix @tomato{2} in #pan{}.";
     const { rerender } = render(<ControlledEditor initial={source} />);
