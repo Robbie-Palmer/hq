@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DecisionRecordLedger } from "./decision-record-ledger";
 import { DecisionScenarioComparison } from "./decision-scenario-comparison";
 import { ForecastAssumptionManager } from "./forecast-assumption-manager";
+import { ForeignExchangeDecisionWorkspace } from "./foreign-exchange-decision-workspace";
 import { FutureCashFlowManager } from "./future-cash-flow-manager";
 import { ItemisedScenarioPlanner } from "./itemised-scenario-planner";
 import { JobMoveScenarioPlanner } from "./job-move-scenario-planner";
@@ -13,9 +14,13 @@ export function DecisionsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get("tab");
-  const currentTab = ["compare", "scenarios", "inputs", "recorded"].includes(
-    requestedTab ?? "",
-  )
+  const currentTab = [
+    "compare",
+    "currency",
+    "scenarios",
+    "inputs",
+    "recorded",
+  ].includes(requestedTab ?? "")
     ? (requestedTab ?? "jobs")
     : "jobs";
 
@@ -38,6 +43,7 @@ export function DecisionsRoute() {
     >
       <TabsList className="w-full justify-start overflow-x-auto sm:w-auto">
         <TabsTrigger value="compare">Compare</TabsTrigger>
+        <TabsTrigger value="currency">Currency</TabsTrigger>
         <TabsTrigger value="jobs">Job moves</TabsTrigger>
         <TabsTrigger value="scenarios">Scenarios</TabsTrigger>
         <TabsTrigger value="inputs">Forecast inputs</TabsTrigger>
@@ -45,6 +51,9 @@ export function DecisionsRoute() {
       </TabsList>
       <TabsContent value="compare" className="mt-0">
         <DecisionScenarioComparison />
+      </TabsContent>
+      <TabsContent value="currency" className="mt-0">
+        <ForeignExchangeDecisionWorkspace />
       </TabsContent>
       <TabsContent value="jobs" className="mt-0">
         <JobMoveScenarioPlanner />
