@@ -61,8 +61,9 @@ I built a pipeline to treat both emails and physical photos as "documents":
 ## Historical data flow
 
 This view reconstructs the implemented flow from the surviving project record.
-Every stage inside the Bestomer boundary is historical. AWS Textract and the
-models reached through OpenRouter were external services.
+The processing and storage stages inside the Bestomer boundary are historical.
+The final node records the intended product use. AWS Textract and the models
+reached through OpenRouter were external services.
 
 <Mermaid
   chart={`flowchart TB
@@ -77,7 +78,7 @@ Classify["PyTorch visual classifier<br/>classify document type<br/>and select ex
 Extract["Transactional extraction<br/>receive key-value pairs<br/>and tables"]
 Resolve["Semantic extraction<br/>and entity resolution"]
 Graph["Commercial Knowledge Graph<br/>structured entities<br/>and relations"]
-Use["Downstream product use<br/>commercial history and<br/>interest context"]
+Use["Intended downstream product use<br/>commercial history and<br/>interest context"]
 end
 
 Textract["AWS Textract · external"]
@@ -93,12 +94,12 @@ Extract -->|"structured fields"| Resolve
 Resolve -->|"document context and prompts"| Models
 Models -->|"entities and resolution candidates"| Resolve
 Resolve -->|"resolved entities and relations"| Graph
-Graph -->|"commercial history and interests"| Use
+Graph -->|"intended commercial history and interest context"| Use
 
 classDef external stroke-dasharray:5 5
 class Textract,Models external
 `}
-  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[42rem]"
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
 />
 
 On narrow screens, scroll the diagram horizontally or use this equivalent text:
