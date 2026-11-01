@@ -250,7 +250,7 @@ export function validateFindings(
 
 
 export function dataPrompt(diff: string, context: string, guidelines: string): string {
-  return `<DATA kind=repository-guidelines>\n${guidelines}\n</DATA>
+  return `<DATA kind=effective-review-rules>\n${guidelines}\n</DATA>
 <DATA kind=pull-request-diff>\n${diff}\n</DATA>
 <DATA kind=current-file-context>\n${context}\n</DATA>`;
 }

@@ -3,6 +3,8 @@ title: "ADR 004: DVC writing evaluation pipeline"
 date: "2026-09-06"
 status: "Accepted"
 tech_stack: ["DVC"]
+implements_product_decisions:
+  - "agent-first-writing:002-private-editorial-evidence"
 ---
 
 # Context
@@ -10,9 +12,12 @@ tech_stack: ["DVC"]
 The editor needs a repeatable way to compare rules and models against real
 editorial work. The source material includes raw agent output, draft revisions,
 Vale findings, captured Grammarly suggestions, accepted, rejected, and changed
-edits, and published text. Git can identify the source revisions, but it should
-not store private notes, large model outputs, or every generated comparison
-artifact.
+edits, and published text.
+
+[PDR 002](/projects/agent-first-writing/pdrs/002-private-editorial-evidence)
+keeps unpublished writing, generated passages, and editorial decisions inside
+a private evaluation boundary. Git can identify source revisions, but it
+cannot store that private evidence or every generated comparison artifact.
 
 An experiment must bind the corpus, producer version, parameters, outputs, and
 metrics to one Git commit. Re-running a scoring change should reuse existing
@@ -32,8 +37,7 @@ the private R2 remote.
 
 Commit `dvc.yaml`, `dvc.lock`, `params.yaml`, schemas, stage code, and compact
 metrics to Git. DVC will track the corpus, producer output, matched edits, and
-larger reports. Do not commit raw private writing or generated passages to the
-public repository.
+larger reports in the private remote required by PDR 002.
 
 Run each DVC stage through a checked-in shell script or direct command. Hash the
 script, source, lockfile, parameters, and data inputs that determine its output.

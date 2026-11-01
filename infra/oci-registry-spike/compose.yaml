@@ -1,0 +1,45 @@
+name: oci-registry-spike
+
+services:
+  localstack:
+    image: ${LOCALSTACK_IMAGE:?Set LOCALSTACK_IMAGE through versions.env}
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      DEBUG: "0"
+      SERVICES: s3
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4566/_localstack/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - localstack-data:/var/lib/localstack
+
+  zot:
+    image: ${ZOT_RUNTIME_IMAGE:?Set ZOT_RUNTIME_IMAGE through versions.env}
+    command: ["serve", "/etc/zot/config.json"]
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "127.0.0.1:${ZOT_PORT:-5101}:5000"
+
+  distribution:
+    image: ${DISTRIBUTION_RUNTIME_IMAGE:?Set DISTRIBUTION_RUNTIME_IMAGE through versions.env}
+    command: ["serve", "/etc/distribution/config.yml"]
+    depends_on:
+      localstack:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+    ports:
+      - "127.0.0.1:${DISTRIBUTION_PORT:-5102}:5000"
+      - "127.0.0.1:${DISTRIBUTION_DEBUG_PORT:-5103}:5001"
+
+volumes:
+  localstack-data:
+

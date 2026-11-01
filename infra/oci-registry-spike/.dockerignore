@@ -1,0 +1,10 @@
+**
+!config/
+!config/*.json
+!config/*.yml
+!runtime/
+!runtime/zot/
+!runtime/zot/.keep
+!.state/
+!.state/auth/
+!.state/auth/htpasswd

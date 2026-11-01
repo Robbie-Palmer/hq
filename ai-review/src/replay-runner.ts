@@ -243,13 +243,17 @@ async function preparedReview(
     diff: snapshot.input.reviewedDiff,
     fullDiff: snapshot.input.fullDiff,
     context: snapshot.input.boundedFileContext,
-    guidelines: snapshot.input.repositoryGuidelines,
+    repositoryGuidelines: snapshot.input.repositoryGuidelines,
+    guidelines:
+      snapshot.input.effectiveReviewRules ??
+      snapshot.input.repositoryGuidelines,
     threads: snapshot.input.reviewThreads,
     paths: snapshot.decision.paths,
     omitted: snapshot.decision.omittedPaths,
     hunks: snapshot.decision.reviewedHunks,
     coverage: snapshot.decision.coverage,
     coverageManifest: snapshot.decision.coverageManifest,
+    rulePreview: snapshot.decision.rulePreview,
     changeProfile: snapshot.decision.changeProfile,
     priorOpenFindings: snapshot.input.priorOpenFindings,
     replayFindings: snapshot.input.affectedOpenFindings,

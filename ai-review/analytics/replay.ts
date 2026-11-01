@@ -192,7 +192,60 @@ function executionRequirements(values: { "max-cost-usd"?: string; models?: strin
   return { capUsd, models, executor: values.executor };
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
+interface ReplayExecutionState {
+  execution: Execution;
+  spentUsd: number;
+  overBudget: boolean;
+}
+
+function executeFrozenPullRequest(
+  manifest: Manifest,
+  frozen: FrozenPullRequest,
+  capUsd: number,
+  spentUsd: number,
+  overBudget: boolean,
+  models: string[],
+  executor: string,
+): ReplayExecutionState {
+  const budgetRemainingUsd = round6(capUsd - spentUsd);
+  const execution: Execution = {
+    pullRequestNumber: frozen.pullRequestNumber,
+    headSha: frozen.headSha,
+    promptVersion: frozen.promptVersion,
+    status: "executed",
+    costUsd: 0,
+    budgetRemainingUsd,
+    result: null,
+    error: null,
+  };
+  if (budgetRemainingUsd <= 0 || overBudget) {
+    execution.status = "skipped-budget-exhausted";
+    return { execution, spentUsd, overBudget };
+  }
+  const outcome = runExecutor(executor, {
+    repository: manifest.repository,
+    manifestId: manifest.manifestId,
+    pullRequestNumber: frozen.pullRequestNumber,
+    headSha: frozen.headSha,
+    promptVersion: frozen.promptVersion,
+    models,
+    budgetRemainingUsd,
+  });
+  if (!outcome.ok) {
+    execution.status = "executor-failed";
+    execution.error = outcome.error;
+    return { execution, spentUsd, overBudget };
+  }
+  const nextSpentUsd = round6(spentUsd + outcome.costUsd);
+  execution.costUsd = outcome.costUsd;
+  execution.result = outcome.result;
+  return {
+    execution,
+    spentUsd: nextSpentUsd,
+    overBudget: nextSpentUsd > capUsd,
+  };
+}
+
 function executeReplay(
   manifest: Manifest,
   capUsd: number,
@@ -203,39 +256,18 @@ function executeReplay(
   let spentUsd = 0;
   let overBudget = false;
   for (const frozen of manifest.pullRequests) {
-    const budgetRemainingUsd = round6(capUsd - spentUsd);
-    const execution: Execution = {
-      pullRequestNumber: frozen.pullRequestNumber,
-      headSha: frozen.headSha,
-      promptVersion: frozen.promptVersion,
-      status: "executed",
-      costUsd: 0,
-      budgetRemainingUsd,
-      result: null,
-      error: null,
-    };
-    if (budgetRemainingUsd <= 0 || overBudget) {
-      execution.status = "skipped-budget-exhausted";
-    } else {
-      const outcome = runExecutor(executor, {
-        repository: manifest.repository,
-        manifestId: manifest.manifestId,
-        pullRequestNumber: frozen.pullRequestNumber,
-        headSha: frozen.headSha,
-        promptVersion: frozen.promptVersion,
-        models,
-        budgetRemainingUsd,
-      });
-      if (!outcome.ok) {
-        execution.status = "executor-failed";
-        execution.error = outcome.error;
-      } else {
-        spentUsd = round6(spentUsd + outcome.costUsd);
-        if (spentUsd > capUsd) overBudget = true;
-        execution.costUsd = outcome.costUsd;
-        execution.result = outcome.result;
-      }
-    }
+    const state = executeFrozenPullRequest(
+      manifest,
+      frozen,
+      capUsd,
+      spentUsd,
+      overBudget,
+      models,
+      executor,
+    );
+    const { execution } = state;
+    spentUsd = state.spentUsd;
+    overBudget = state.overBudget;
     executions.push(execution);
     if (execution.status === "executor-failed") break;
   }

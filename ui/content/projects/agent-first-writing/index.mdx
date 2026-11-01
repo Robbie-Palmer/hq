@@ -2,7 +2,7 @@
 title: "Agent-first Writing Editor"
 description: "A layered writing system that turns dense agent output into prose people can absorb without erasing the author's voice"
 date: "2026-09-04"
-updated: "2026-10-25"
+updated: "2026-11-01"
 status: "in_progress"
 platform_layers:
   - layer: "governance"
@@ -118,6 +118,9 @@ The editor should support three levels of control:
 The user should be able to move between them. A deterministic punctuation fix
 does not need the same ceremony as restructuring an argument.
 
+[PDR 000](/projects/agent-first-writing/pdrs/000-author-controlled-editing-and-publication)
+records this author-control boundary.
+
 ## Editorial data flow
 
 The implemented path runs repository text through Vale, GECToR, and a narrow
@@ -173,6 +176,10 @@ work into published work:
 * Grammarly suggestions where they can be captured legitimately;
 * accepted and rejected edits; and
 * the final published artifact.
+
+[PDR 002](/projects/agent-first-writing/pdrs/002-private-editorial-evidence)
+keeps unpublished writing and the attached editorial decisions inside the
+private evaluation boundary.
 
 This can test whether an edit improves clarity while preserving facts, intent,
 terminology, and voice. Acceptance rate supplies evidence. A system that
@@ -235,6 +242,10 @@ general editor:
 7. Capture accept and reject decisions so the evaluation set grows through use.
 8. Extract the repository-specific implementation into a general product only
    after it improves real published pages.
+
+[PDR 001](/projects/agent-first-writing/pdrs/001-repository-first-evidence-gated-release)
+keeps this rollout Proposed until the publication pilot supplies the required
+evidence.
 
 The repository reviewer now accepts one byte-bounded passage rewrite and
 decomposes it into ordered ADR 003 suggestions under a grouped proposal. Before

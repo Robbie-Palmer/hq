@@ -19,22 +19,14 @@ export const seatingExportKinds = ["venue", "caterer", "floor_plan"] as const;
 export const SeatingExportKindSchema = z.enum(seatingExportKinds);
 export type SeatingExportKind = z.infer<typeof SeatingExportKindSchema>;
 
-function removeRetiredReadinessChecks(value: unknown): unknown {
-  if (!Array.isArray(value)) return value;
-  return value.filter((check) => check !== "checklist" && check !== "finances");
-}
-
 export const readinessMilestoneSchema = z.object({
   id: z.string().trim().min(1),
   name: z.string().trim().min(1),
   due_on: z.iso.date().nullable().default(null),
-  check_ids: z.preprocess(
-    removeRetiredReadinessChecks,
-    z
-      .array(ReadinessCheckIdSchema)
-      .default([...readinessCheckIds])
-      .transform((checks) => [...new Set(checks)]),
-  ),
+  check_ids: z
+    .array(ReadinessCheckIdSchema)
+    .default([...readinessCheckIds])
+    .transform((checks) => [...new Set(checks)]),
   required_guest_fields: z
     .array(z.string().trim().min(1))
     .default([])
