@@ -28,6 +28,62 @@ I conducted a part-time pilot to assess the feasibility of automated health scor
 * **Feature Engineering**: Used **Python** and **PyPika** to programmatically build complex SQL queries, extracted behavioral features (e.g., "active users trend", "feature adoption rate") from raw event logs.
 * **Correlation Analysis**: Modeled relationships between these usage features and historical NRR/churn events.
 
+# Historical pilot flow
+
+The solid path shows what the pilot did. The dashed path shows the intended decision support, which the available
+evidence could not justify.
+
+<Mermaid
+  chart={`flowchart LR
+subgraph data["Existing private customer data"]
+Usage["Usage logs"] --> Warehouse[("Google BigQuery")]
+Billing["Billing records"] --> Warehouse
+CRM["CRM records"] --> Warehouse
+end
+
+subgraph pilot["Historical pilot analysis"]
+Warehouse -->|"Python and PyPika queries"| Features["Account features<br/>Active-user trend and<br/>feature-adoption rate"]
+Warehouse -->|"Historical NRR and churn labels"| Analysis["Correlation analysis"]
+Features --> Analysis
+end
+
+Analysis -->|"Weak signal and sparse data"| Stop["Pilot decision<br/>Do not build the forecasting platform<br/>Improve data collection first"]
+Analysis -.->|"Intended, not achieved"| Forecast["Reliable account-health forecast"]
+Forecast -.->|"Would have informed"| Review["AE and SA account review<br/>Intervene, retain, or expand"]
+
+classDef intended stroke-dasharray:5 5
+class Forecast,Review intended
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
+/>
+
+## Reading the flow
+
+1. Existing usage logs, billing records, and CRM records supplied private customer signals through the BigQuery
+   warehouse.
+2. The pilot used Python and PyPika queries to derive account-level features. The surviving summary names active-user
+   trend and feature-adoption rate as examples.
+3. Correlation analysis compared those features with historical NRR and churn labels. Sparse data and weak usage
+   signals prevented a reliable account-health forecast.
+4. A reliable forecast would have helped AEs and SAs decide where to intervene, protect retention, or explore an
+   expansion. That dashed route was the aim, not an operational system. The evidence instead supported the solid route:
+   stop the platform build and improve data collection first.
+
+## Ownership, decision authority, and disclosure
+
+Existing company systems supplied the source data and BigQuery warehouse. The pilot owned the exploratory feature and
+correlation work. AEs and SAs would have retained authority over account actions; the proposed score would have informed
+their decisions, not automated an action. The surviving material does not name source-system owners, access controls,
+or data retention rules, so this view does not infer them. It exposes no customer records, identifiers, field names, or
+values.
+
+## Reconstruction limits
+
+This repository preserves a project summary, not the working analysis. It contains no source schemas, queries,
+notebooks, model definition, thresholds, sample sizes, validation split, or accuracy and calibration results. No
+evidence shows that a forecast service or account-team interface reached production. The diagram stays at the labelled
+data-flow level and marks the forecast and account-review path as intended rather than implemented.
+
 # Outcome
 
 The project was ultimately concluded after the pilot phase:
