@@ -15,21 +15,53 @@ if [[ ! -r ${identity_file} ]]; then
   exit 1
 fi
 
-docker run --rm \
-  --network host \
-  -e "NIX_CONFIG=experimental-features = nix-command flakes" \
-  -e "NIX_SSHOPTS=-i /run/vector-development-identity -o UserKnownHostsFile=/run/vector-development-known-hosts -o StrictHostKeyChecking=accept-new" \
-  -v personal-site-nix-store:/nix \
-  -v "${homelab_dir}:/workspace" \
-  -v "${identity_file}:/run/vector-development-identity:ro" \
-  -v "${VECTOR_DEVELOPMENT_KNOWN_HOSTS_FILE}:/run/vector-development-known-hosts" \
-  -w /workspace \
-  "${nix_image}" \
-  nix run .#nixosConfigurations.vector-development.config.system.build.nixos-rebuild -- \
+ssh_options=(
+  "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}"
+  -i "${identity_file}"
+)
+
+rebuild_on_vector() {
+  local remote_dir
+
+  remote_dir=$(ssh "${ssh_options[@]}" "${target}" 'mktemp -d /tmp/vector-development-rebuild.XXXXXX')
+  if [[ ! ${remote_dir} =~ ^/tmp/vector-development-rebuild\.[A-Za-z0-9]+$ ]]; then
+    echo "unexpected remote rebuild directory: ${remote_dir}" >&2
+    exit 1
+  fi
+
+  cleanup_remote_dir() {
+    ssh "${ssh_options[@]}" "${target}" "rm -rf -- '${remote_dir}'"
+  }
+  trap cleanup_remote_dir EXIT
+
+  COPYFILE_DISABLE=1 tar --no-xattrs -C "${homelab_dir}" -cf - . |
+    ssh "${ssh_options[@]}" "${target}" "tar -C '${remote_dir}' -xf -"
+  ssh "${ssh_options[@]}" "${target}" \
+    "nixos-rebuild switch --flake '${remote_dir}#vector-development'"
+  cleanup_remote_dir
+  trap - EXIT
+}
+
+if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+  docker run --rm \
+    --network host \
+    -e "NIX_CONFIG=experimental-features = nix-command flakes" \
+    -e "NIX_SSHOPTS=-i /run/vector-development-identity -o UserKnownHostsFile=/run/vector-development-known-hosts -o StrictHostKeyChecking=accept-new" \
+    -v personal-site-nix-store:/nix \
+    -v "${homelab_dir}:/workspace" \
+    -v "${identity_file}:/run/vector-development-identity:ro" \
+    -v "${VECTOR_DEVELOPMENT_KNOWN_HOSTS_FILE}:/run/vector-development-known-hosts" \
+    -w /workspace \
+    "${nix_image}" \
+    nix run .#nixosConfigurations.vector-development.config.system.build.nixos-rebuild -- \
     switch \
     --flake .#vector-development \
     --build-host "${target}" \
     --target-host "${target}"
+else
+  echo "Docker is unavailable; rebuilding directly on ${target}"
+  rebuild_on_vector
+fi
 
 if [[ ${VECTOR_DEVELOPMENT_SKIP_HEALTH:-0} != 1 ]]; then
   "${script_dir}/vector-development-health.sh"
