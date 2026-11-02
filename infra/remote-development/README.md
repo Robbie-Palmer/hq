@@ -133,7 +133,9 @@ Before the second apply:
 
 1. Run `mise run //homelab:remote-backup` and require a successful fresh
    encrypted snapshot.
-2. Pause the `remote-development-host` Healthchecks.io check.
+2. Run `mise run //homelab:remote-healthchecks-pause` to pause the
+   `remote-development-host` Healthchecks.io check through its Doppler-managed
+   API credential.
 3. Confirm that no T3 Code work remains active on the remote host.
 
 The suspended configuration keeps the encrypted 100 GiB volume, R2 backups,
@@ -155,7 +157,9 @@ After Terraform creates the server and attaches the existing volume:
    K3s deployment, backup credential, observability credential, and health
    tasks from the commissioning sections above. The installation guard accepts
    the retained LUKS volume and refuses to format it.
-4. Disable bootstrap mode, clear its CIDRs, and apply the firewall change.
+4. Run `mise run //homelab:remote-healthchecks-resume` after the host health
+   task succeeds.
+5. Disable bootstrap mode, clear its CIDRs, and apply the firewall change.
 
 The root disk and K3s datastore are rebuilt. T3 Code userdata, repositories,
 worktrees, and agent state return from the retained encrypted volume. The R2

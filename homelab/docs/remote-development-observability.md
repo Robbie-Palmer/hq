@@ -56,9 +56,11 @@ mise run //homelab:remote-health
 ```
 
 The reconciliation task is idempotent. It upserts the check by slug, attaches
-the named Slack integration, and stores the returned ping URL without printing
-it. Run all three tasks again after replacing the host. The credential task
-sends the first heartbeat so the check can leave its new state.
+the named Slack integration, makes an intentional pause sticky, and stores the
+returned ping URL without printing it. Before deleting the remote host, run
+`mise run //homelab:remote-healthchecks-pause`. Run the three commissioning
+tasks again after replacing the host, then run
+`mise run //homelab:remote-healthchecks-resume` after its health check succeeds.
 
 Netdata also checks `remote-development-agent-coordinator.service` and the
 coordinator's last reconciliation timestamp when the NixOS configuration

@@ -1125,7 +1125,7 @@ if [[ "$url" == */channels/ ]]; then
   printf '%s' '{"channels":[{"id":"slack-id","name":"remote-development-alerts","kind":"slack"}]}' >"$output"
 elif [[ "$url" == */checks/ ]]; then
   cp -- "\${payload#@}" "$CAPTURE_DIRECTORY/check-payload.json"
-  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
+  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"manual_resume":true,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
 else
   exit 2
 fi
@@ -1161,6 +1161,7 @@ fi
       desc: "External reachability check for the remote-development host",
       timeout: 60,
       grace: 120,
+      manual_resume: true,
       methods: "POST",
       channels: "slack-id",
       unique: ["slug"],
@@ -1169,6 +1170,106 @@ fi
       readFileSync(join(captureDirectory, "stored-ping-url"), "utf8"),
       "https://hc-ping.com/test-check",
     );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Healthchecks state task pauses and resumes the declared check", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "healthchecks-state-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const stateFile = join(temporaryDirectory, "state");
+  const actionsFile = join(temporaryDirectory, "actions");
+
+  try {
+    mkdirSync(binaryDirectory);
+    writeFileSync(stateFile, "up");
+    const dopplerPath = join(binaryDirectory, "doppler");
+    writeFileSync(
+      dopplerPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = secrets ] && [ "$2" = get ] && [ "$3" = HEALTHCHECKS_API_KEY ]; then
+  printf 'test-api-key'
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(dopplerPath, 0o755);
+
+    const curlPath = join(binaryDirectory, "curl");
+    writeFileSync(
+      curlPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=
+method=GET
+url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      output=$2
+      shift 2
+      ;;
+    --request)
+      method=$2
+      shift 2
+      ;;
+    --connect-timeout|--max-time|--header|--data)
+      shift 2
+      ;;
+    --fail|--silent|--show-error)
+      shift
+      ;;
+    http*)
+      url=$1
+      shift
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+status=$(cat "$STATE_FILE")
+if [ "$method" = POST ] && [[ "$url" == */pause ]]; then
+  status=paused
+  printf 'pause\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [ "$method" = POST ] && [[ "$url" == */resume ]]; then
+  status=new
+  printf 'resume\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [[ "$url" == */checks/ ]]; then
+  printf '{"checks":[{"uuid":"803f680d-e89b-492b-82ef-2be7b774a92d","slug":"remote-development-host","status":"%s"}]}' "$status" >"$output"
+elif [[ "$url" == */checks/803f680d-e89b-492b-82ef-2be7b774a92d ]]; then
+  printf '{"slug":"remote-development-host","status":"%s"}' "$status" >"$output"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(curlPath, 0o755);
+
+    const script = fileURLToPath(
+      new URL(
+        "../scripts/set-remote-development-healthchecks-state.sh",
+        import.meta.url,
+      ),
+    );
+    const environment = {
+      ...process.env,
+      ACTIONS_FILE: actionsFile,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      STATE_FILE: stateFile,
+    };
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+
+    assert.equal(readFileSync(stateFile, "utf8"), "new");
+    assert.equal(readFileSync(actionsFile, "utf8"), "pause\nresume\n");
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
