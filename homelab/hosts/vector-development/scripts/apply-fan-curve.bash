@@ -142,6 +142,10 @@ case ${action} in
     fi
     printf 'silent\n' >"${msi_ec}/fan_mode"
     ;;
+  *)
+    echo "unreachable fan-curve action: ${action}" >&2
+    exit 2
+    ;;
 esac
 
 expected_cpu_temperatures=${quiet_cpu_temperatures}
