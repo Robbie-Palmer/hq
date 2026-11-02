@@ -100,6 +100,14 @@ The database client disables Postgres.js array-type discovery. Drizzle handles
 the schema's built-in array columns, so each new Worker request avoids the
 otherwise automatic `pg_catalog` query and its 300-plus returned rows.
 
+Queue pages compute ordering, stage, scope, cursor, attention, and lease state
+inside PostgreSQL and return only the requested page plus one lookahead row.
+The read transaction uses `SET LOCAL jit = off`. PostgreSQL can otherwise
+compile the recursive projection after overestimating its cost, even when the
+bounded query runs in a few milliseconds. The setting ends with the
+transaction and does not change a pooled Hyperdrive session. Rollback requires
+only reverting the queue reader; there is no schema or database-role change.
+
 ### Scheduled analytics export
 
 The Worker runs a scheduled export at minute 23 every six hours. Each run reads

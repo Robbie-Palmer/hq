@@ -154,6 +154,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   addKnowledgeScopeRelationship: vi.fn(async () => undefined),
   removeKnowledgeScopeRelationship: vi.fn(async () => undefined),
   listWorkItems: vi.fn(async () => []),
+  listWorkItemPage: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
   resolveWorkItemContext: vi.fn(async () => []),
   listWorkItemDeliveryEvidence: vi.fn(async () => []),
@@ -756,7 +757,7 @@ describe("Given knowledge-scope mirrors", () => {
 describe("Given work items with derived readiness", () => {
   it("keeps repository priority order instead of sorting by ID", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems).mockResolvedValue([
+    vi.mocked(repository.listWorkItemPage).mockResolvedValue([
       item("z-high", "ready"),
       item("a-low", "ready"),
     ]);
@@ -779,10 +780,12 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeInitiativeIds: ["initiative"],
       includeProjectIds: ["project"],
       parentId: "parent",
+      stage: "ready",
+      limit: 51,
     });
   });
 
@@ -795,24 +798,23 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeProjectIds: ["project-a", "project-b"],
       excludeInitiativeIds: ["initiative-b"],
       includeParentTitles: ["Ship Work Graph"],
       excludeParentTitles: ["Build API"],
+      limit: 51,
     });
   });
 
   it("lists a stage with a cursor that survives readiness changes", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems)
+    vi.mocked(repository.listWorkItemPage)
       .mockResolvedValueOnce([
-        item("blocked", "blocked"),
         item("a-ready", "ready"),
         item("b-ready", "ready"),
       ])
       .mockResolvedValueOnce([
-        item("a-ready", "in_progress", "open", lease("a-ready")),
         item("b-ready", "ready"),
       ]);
     const app = createWorkGraphApp(repository);
@@ -2417,7 +2419,7 @@ describe("Given a transient database failure", () => {
         new Error(databaseMessage),
         { code },
       );
-      vi.mocked(repository.listWorkItems).mockRejectedValue(
+      vi.mocked(repository.listWorkItemPage).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
       const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);

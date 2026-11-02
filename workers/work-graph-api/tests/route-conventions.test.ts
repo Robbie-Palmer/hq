@@ -19,6 +19,7 @@ const app = createWorkGraphApp({
   addKnowledgeScopeRelationship: unavailable,
   removeKnowledgeScopeRelationship: unavailable,
   listWorkItems: unavailable,
+  listWorkItemPage: unavailable,
   getWorkItem: unavailable,
   resolveWorkItemContext: unavailable,
   listWorkItemDeliveryEvidence: unavailable,
