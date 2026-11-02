@@ -1601,6 +1601,41 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   );
 });
 
+test("the Vector workspace image provides the required glibc version", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/t3-code/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const imageCheck = readFileSync(
+    new URL("../scripts/check-t3-image.sh", import.meta.url),
+    "utf8",
+  );
+  const packagePins = readFileSync(
+    new URL("../images/t3-code/bindep.txt", import.meta.url),
+    "utf8",
+  );
+  const renovateConfig = readFileSync(
+    new URL("../../renovate.json", import.meta.url),
+    "utf8",
+  );
+  const nodeBaseImages = dockerfile.match(/^FROM node:[^\n]+$/gm) ?? [];
+
+  assert.equal(nodeBaseImages.length, 3);
+  for (const image of nodeBaseImages) {
+    assert.match(
+      image,
+      /^FROM node:\d+\.\d+\.\d+-trixie-slim@sha256:[a-f0-9]{64}(?: AS [a-z-]+)?$/,
+    );
+  }
+  assert.match(
+    imageCheck,
+    /dpkg --compare-versions "\$\{glibc_version#glibc \}" ge 2\.39/,
+  );
+  assert.doesNotMatch(packagePins, /deb12|bookworm/i);
+  assert.doesNotMatch(renovateConfig, /bookworm/i);
+  assert.match(renovateConfig, /suite=trixie(?:-updates|-security)?/);
+});
+
 test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
   const resources = parseResources(overlays.vector);
   const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
