@@ -6,6 +6,10 @@ the MSI Vector GP68HX described by
 It installs NixOS 26.05, GNOME, Brave, T3 Code, Tailscale, and an independent
 single-node K3s development plane.
 
+[ADR 028](../../ui/content/projects/homelab/adrs/028-guarded-msi-ec-fan-control.mdx)
+records why this host uses the out-of-tree `msi-ec` module and a guarded EC
+write for its idle fan curve.
+
 ## Storage layout
 
 The internal drive is a 1 TB WD PC SN560 NVMe SSD. Linux reports 953.9 GiB.
