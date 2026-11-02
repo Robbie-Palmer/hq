@@ -2901,6 +2901,22 @@ test("the Vector tailnet scripts avoid local DNS collisions", () => {
   assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
 });
 
+test("the Vector rebuild excludes local credentials from its flake input", () => {
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    rebuild,
+    /git -C "\$\{homelab_dir\}" ls-files -z --cached -- \./,
+  );
+  assert.match(rebuild, /\[\[ -e \$\{staging_dir\}\/\.kube \]\]/);
+  assert.match(rebuild, /-v "\$\{staging_dir\}:\/workspace"/);
+  assert.match(rebuild, /tar --no-xattrs -C "\$\{staging_dir\}"/);
+  assert.doesNotMatch(rebuild, /-v "\$\{homelab_dir\}:\/workspace"/);
+});
+
 test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
   const hostConfig = readFileSync(
     new URL("../hosts/vector-development/default.nix", import.meta.url),
@@ -2944,6 +2960,71 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
   assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
   assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
+});
+
+test("the Vector applies a guarded zero-RPM idle fan curve", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const fanCurve = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/apply-fan-curve.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const health = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
+  const thermalMonitor = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/thermal-monitor.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("vector-development-fan-curve"));
+  assert.ok(hostConfig.includes("powerManagement.resumeCommands"));
+  assert.match(
+    hostConfig,
+    /ExecStop = ".*vector-development-fan-curve restore"/,
+  );
+  assert.ok(
+    hostConfig.includes(
+      'requires = [ "vector-development-fan-curve.service" ]',
+    ),
+  );
+  assert.ok(fanCurve.includes('firmware} != "15M1IMS1.109"'));
+  assert.ok(
+    fanCurve.includes(
+      'factory_cpu_temperatures="50 57 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes(
+      'quiet_cpu_temperatures="60 62 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes('expected_cpu_speeds="0 40 50 60 75 89 103"'),
+  );
+  assert.ok(fanCurve.includes("modprobe ec_sys write_support=1"));
+  assert.ok(fanCurve.includes("count=3 conv=notrunc"));
+  assert.ok(fanCurve.includes("printf 'advanced\\n'"));
+  assert.ok(fanCurve.includes("printf 'silent\\n'"));
+  assert.ok(
+    thermalMonitor.includes(
+      "cpu_thresholds_celsius=(50 60 62 64 70 76 82 100)",
+    ),
+  );
+  assert.ok(thermalMonitor.includes("log_event fan_state"));
+  assert.ok(thermalMonitor.includes("log_event fan_percent"));
+  assert.ok(thermalMonitor.includes("history_retention_samples"));
+  assert.ok(health.includes("vector-development-fan-curve check"));
+  assert.ok(health.includes("history.jsonl"));
 });
 
 test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", () => {
