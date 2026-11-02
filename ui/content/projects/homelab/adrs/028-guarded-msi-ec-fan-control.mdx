@@ -134,6 +134,9 @@ its factory high-temperature curve instead of replacing it.
 
 Revisit this decision if mainline Linux gains a writable automatic-curve
 interface for this hardware, the laptop moves out of a shared room, or retained
-history shows sustained high temperatures, throttling, or unstable fan
-cycling. Remove the custom curve rather than weakening its hardware and
-firmware guards to support a different MSI model.
+history shows sustained high temperatures or unstable fan cycling. Also revisit
+it if the kernel's [Intel thermal throttle
+counters](https://docs.kernel.org/admin-guide/thermal/intel_thermal_throttle.html)
+increase during a representative sustained workload. Remove the custom curve
+rather than weakening its hardware and firmware guards to support a different
+MSI model.
