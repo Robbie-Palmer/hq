@@ -2901,6 +2901,22 @@ test("the Vector tailnet scripts avoid local DNS collisions", () => {
   assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
 });
 
+test("the Vector rebuild excludes local credentials from its flake input", () => {
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    rebuild,
+    /git -C "\$\{homelab_dir\}" ls-files -z --cached -- \./,
+  );
+  assert.match(rebuild, /\[\[ -e \$\{staging_dir\}\/\.kube \]\]/);
+  assert.match(rebuild, /-v "\$\{staging_dir\}:\/workspace"/);
+  assert.match(rebuild, /tar --no-xattrs -C "\$\{staging_dir\}"/);
+  assert.doesNotMatch(rebuild, /-v "\$\{homelab_dir\}:\/workspace"/);
+});
+
 test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
   const hostConfig = readFileSync(
     new URL("../hosts/vector-development/default.nix", import.meta.url),
