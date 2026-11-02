@@ -80,6 +80,7 @@ import {
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
   type PullRequestSnapshot,
+  type RepositoryCompletionPolicyDefaultRevision,
   type ResolvedWorkItemContext,
   type WorkItem,
   type WorkItemArchitectureDecision,
@@ -452,7 +453,12 @@ const completionCandidateSchema = z
 const completionPolicyRevisionSchema = z
   .object({
     policyId: identifierSchema,
-    revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    revision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
     requiredCiNames: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
     productionEnvironments: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
     automaticRelease: z.boolean(),
@@ -463,6 +469,47 @@ const completionPolicyRevisionPathSchema = z.object({
   policyId: identifierSchema,
   revision: z.coerce.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
 });
+const repositoryCompletionPolicyDefaultRevisionSchema = z
+  .object({
+    repository: z
+      .string()
+      .max(MAX_IDENTIFIER_LENGTH)
+      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    enabled: z.boolean(),
+    createdAt: timestampSchema,
+  })
+  .openapi("RepositoryCompletionPolicyDefaultRevision");
+const repositoryCompletionPolicyDefaultRevisionPathSchema = z.object({
+  owner: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+$/u),
+  repository: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+$/u),
+  revision: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_INT32)
+    .openapi({ format: "int32" }),
+});
+const putRepositoryCompletionPolicyDefaultRevisionBodySchema =
+  repositoryCompletionPolicyDefaultRevisionSchema
+    .omit({
+      repository: true,
+      revision: true,
+    })
+    .extend({ enabled: z.boolean().default(true) });
 const putCompletionPolicyRevisionBodySchema = completionPolicyRevisionSchema.omit({
   policyId: true,
   revision: true,
@@ -1507,6 +1554,39 @@ const putCompletionPolicyRevisionRoute = createRoute({
   },
 });
 
+const putRepositoryCompletionPolicyDefaultRevisionRoute = createRoute({
+  method: "put",
+  path: "/api/github/repositories/{owner}/{repository}/completion-policy-defaults/{revision}",
+  operationId: "putRepositoryCompletionPolicyDefaultRevision",
+  summary: "Create an immutable repository completion-policy default",
+  description:
+    "Stores one versioned owner selection for unassigned work linked to implementation pull requests in the repository. A later disabled revision pauses automatic default assignment.",
+  tags: ["completion-policies", "pull-requests"],
+  security: accessSecurity,
+  request: {
+    params: repositoryCompletionPolicyDefaultRevisionPathSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: putRepositoryCompletionPolicyDefaultRevisionBodySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Repository completion-policy default created or matched",
+      content: {
+        "application/json": {
+          schema: repositoryCompletionPolicyDefaultRevisionSchema,
+        },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
 const putWorkItemCompletionPolicyRoute = createRoute({
   method: "put",
   path: "/api/work-items/{workItemId}/completion-policy",
@@ -2273,6 +2353,9 @@ export interface WorkGraphApiRepository {
   putCompletionPolicyRevision(
     input: CompletionPolicyRevision,
   ): Promise<CompletionPolicyRevision>;
+  putRepositoryCompletionPolicyDefaultRevision(
+    input: RepositoryCompletionPolicyDefaultRevision,
+  ): Promise<RepositoryCompletionPolicyDefaultRevision>;
   assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void>;
   evaluateCompletionCandidateIfConfigured(
     input: EvaluateCompletionCandidateInput,
@@ -3008,6 +3091,24 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(
+    putRepositoryCompletionPolicyDefaultRevisionRoute,
+    async (context) => {
+      const {
+        owner,
+        repository: repositoryName,
+        revision,
+      } = context.req.valid("param");
+      const stored =
+        await repository.putRepositoryCompletionPolicyDefaultRevision({
+          repository: `${owner}/${repositoryName}`,
+          revision,
+          ...context.req.valid("json"),
+        });
+      return context.json(stored, 200);
+    },
+  );
+
   app.openapi(putWorkItemCompletionPolicyRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const assignment = { workItemId, ...context.req.valid("json") };
@@ -3104,15 +3205,14 @@ export const createWorkGraphApp = (
 
   app.openapi(putWorkItemPullRequestRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
-    return context.json(
-      await repository.putWorkItemPullRequest(
-        { workItemId, ...context.req.valid("json") },
-        idempotencyOptions(
-          context.req.valid("header")["idempotency-key"],
-        ),
+    const request = { workItemId, ...context.req.valid("json") };
+    const linked = await repository.putWorkItemPullRequest(
+      request,
+      idempotencyOptions(
+        context.req.valid("header")["idempotency-key"],
       ),
-      200,
     );
+    return context.json(linked, 200);
   });
 
   app.openapi(createWorkItemRoute, async (context) => {

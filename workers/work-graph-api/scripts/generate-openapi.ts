@@ -26,6 +26,7 @@ const repository: WorkGraphApiRepository = {
   listWorkItemDeliveryEvidence: unavailable,
   getCompletionCandidate: unavailable,
   putCompletionPolicyRevision: unavailable,
+  putRepositoryCompletionPolicyDefaultRevision: unavailable,
   assignCompletionPolicy: unavailable,
   evaluateCompletionCandidateIfConfigured: unavailable,
   evaluateCompletionCandidateAndReleaseIfConfigured: unavailable,
