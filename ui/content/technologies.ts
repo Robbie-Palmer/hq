@@ -1533,6 +1533,14 @@ Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-mi
     type: "platform",
   },
   {
+    name: "msi-ec",
+    added: "2026-11-02",
+    description:
+      "Linux embedded-controller driver exposing supported MSI laptop controls and telemetry",
+    website: "https://github.com/BeardOverflow/msi-ec",
+    type: "tool",
+  },
+  {
     name: "Hetzner Cloud",
     added: "2026-09-04",
     description:
