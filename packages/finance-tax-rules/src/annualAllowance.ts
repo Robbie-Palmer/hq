@@ -391,7 +391,7 @@ function carryForwardYears(
   priorYears: CarryForwardYear[] | null,
 ): StageResult<CarryForwardUsage[]> {
   const start = taxYearStart(currentTaxYear);
-  if (start == null || priorYears == null || priorYears.length !== 3) {
+  if (start == null || priorYears?.length !== 3) {
     return {
       ok: false,
       issues: [{
