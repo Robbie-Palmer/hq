@@ -204,6 +204,34 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "fixture-cloudflare-account-id",
     "computedVisibility": "unmasked"
   },
+  "CLOUDFLARE_R2_AUDIT_API_TOKEN": {
+    "computed": "fixture-r2-audit-token",
+    "computedVisibility": "masked"
+  },
+  "MODEL_R2_ACCESS_KEY_ID": {
+    "computed": "fixture-model-access",
+    "computedVisibility": "masked"
+  },
+  "MODEL_R2_SECRET_ACCESS_KEY": {
+    "computed": "fixture-model-secret",
+    "computedVisibility": "masked"
+  },
+  "RAW_R2_ACCESS_KEY_ID": {
+    "computed": "fixture-raw-access",
+    "computedVisibility": "masked"
+  },
+  "RAW_R2_SECRET_ACCESS_KEY": {
+    "computed": "fixture-raw-secret",
+    "computedVisibility": "masked"
+  },
+  "R2_REGION": {
+    "computed": "auto",
+    "computedVisibility": "unmasked"
+  },
+  "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED": {
+    "computed": "false",
+    "computedVisibility": "unmasked"
+  },
   "CLOUDFLARE_TOKEN_PROVISIONER_TOKEN": {
     "computed": "fixture-cloudflare-token",
     "computedVisibility": "masked"
@@ -261,6 +289,32 @@ for github_environment in \
     exit 1
   fi
 done
+
+: > "$work_dir/github-calls"
+SYNC_TEST_DIRECTORY="$work_dir" \
+  PATH="$mock_bin:$PATH" \
+  bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+    production-work-graph-analytics
+
+for name in \
+  CLOUDFLARE_R2_AUDIT_API_TOKEN \
+  MODEL_R2_ACCESS_KEY_ID \
+  MODEL_R2_SECRET_ACCESS_KEY \
+  RAW_R2_ACCESS_KEY_ID \
+  RAW_R2_SECRET_ACCESS_KEY; do
+  grep -Fxq -- \
+    "secret set $name production-work-graph-analytics" \
+    "$work_dir/github-calls"
+done
+grep -Fxq -- \
+  "variable set CLOUDFLARE_ACCOUNT_ID production-work-graph-analytics" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "variable set R2_REGION production-work-graph-analytics" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
+  "variable set WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED production-work-graph-analytics" \
+  "$work_dir/github-calls"
 
 : > "$work_dir/github-calls"
 SYNC_TEST_DIRECTORY="$work_dir" \

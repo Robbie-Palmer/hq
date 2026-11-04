@@ -92,6 +92,7 @@ export interface AnalyticsExportResult {
   readonly manifestKey: string | null;
   readonly objectBytes: number;
   readonly scopeRows: number;
+  readonly sourceUpperWatermark: number;
   readonly status: "exported" | "no_events" | "resumed";
   readonly throughSequence: number;
 }
@@ -450,6 +451,7 @@ export async function exportAnalyticsBatch(
       manifestKey: null,
       objectBytes: 0,
       scopeRows: 0,
+      sourceUpperWatermark: batch.sourceUpperWatermark,
       status: "no_events",
       throughSequence: checkpoint.throughSequence,
     };
@@ -480,6 +482,7 @@ export async function exportAnalyticsBatch(
       manifestKey,
       objectBytes: manifest.eventObject.bytes + manifest.scopeObject.bytes,
       scopeRows: manifest.scopeObject.rows,
+      sourceUpperWatermark: manifest.sourceUpperWatermark,
       status: "resumed",
       throughSequence,
     };
@@ -533,6 +536,7 @@ export async function exportAnalyticsBatch(
     manifestKey,
     objectBytes: eventBytes + scopeBytes,
     scopeRows: scopes.length,
+    sourceUpperWatermark: batch.sourceUpperWatermark,
     status: "exported",
     throughSequence,
   };

@@ -4,6 +4,7 @@ import { URL } from "node:url";
 /** Account-scoped incident queries, using a dedicated diagnostic token. */
 export interface DiagnosticConfig {
   accountId: string;
+  analyticsBucketName: string;
   hyperdriveId: string;
   token: string;
 }
@@ -34,11 +35,88 @@ type Pool = {
   max: { currentPoolSize: number; maxPoolSize: number; waitingClients: number };
   dimensions: { coloCode: string };
 };
+type R2Operation = {
+  sum: { requests: number };
+  dimensions: { actionStatus: string; actionType: string };
+};
+type R2Storage = {
+  max: {
+    metadataSize: number;
+    objectCount: number;
+    payloadSize: number;
+    uploadCount: number;
+  };
+  dimensions: { datetime: string };
+};
 
 export const poolQuery = readFileSync(
   new URL("../queries/hyperdrive-pools.graphql", import.meta.url),
   "utf8",
 );
+
+function analyticsSource(event: Event): Record<string, unknown> {
+  const source =
+    typeof event.source === "string"
+      ? (JSON.parse(event.source) as Record<string, unknown>)
+      : event.source;
+  const status = source.status;
+  const outcome = source.outcome;
+  if (
+    status !== "exported" &&
+    status !== "no_events" &&
+    status !== "resumed" &&
+    outcome !== "error"
+  ) {
+    throw new Error("Unexpected Work Graph analytics event");
+  }
+  const numericKeys = [
+    "durationMilliseconds",
+    "databaseReads",
+    "databaseResultRows",
+    "databaseResultBytesEstimated",
+  ] as const;
+  if (
+    numericKeys.some(
+      (key) =>
+        typeof source[key] !== "number" ||
+        !Number.isFinite(source[key]) ||
+        source[key] < 0,
+    )
+  ) {
+    throw new Error("Unexpected Work Graph analytics event");
+  }
+  return source;
+}
+
+function projectAnalyticsRun(event: Event): Record<string, unknown> {
+  const source = analyticsSource(event);
+  const outcome = source.outcome;
+  const projected: Record<string, unknown> = {
+    timestamp: event.timestamp,
+    outcome: outcome === "error" ? "error" : "success",
+    durationMilliseconds: source.durationMilliseconds,
+    databaseReads: source.databaseReads,
+    databaseResultRows: source.databaseResultRows,
+    databaseResultBytesEstimated: source.databaseResultBytesEstimated,
+    workerVersion: source.workerVersion,
+  };
+  if (outcome === "error") {
+    projected.reason = source.reason;
+    return projected;
+  }
+  for (const key of [
+    "status",
+    "eventRows",
+    "scopeRows",
+    "bytes",
+    "throughSequence",
+    "sourceUpperWatermark",
+    "checkpointLag",
+  ]) {
+    if (source[key] !== undefined) projected[key] = source[key];
+  }
+  return projected;
+}
 
 export async function diagnose(
   config: DiagnosticConfig,
@@ -48,6 +126,7 @@ export async function diagnose(
 ) {
   if (
     !config.token ||
+    !config.analyticsBucketName ||
     ![config.accountId, config.hyperdriveId].every((id) =>
       /^[0-9a-f]{32}$/.test(id),
     )
@@ -145,11 +224,20 @@ export async function diagnose(
       operation: "eq",
     },
   ]);
+  const analyticsEvents = await logs("work-graph-production-analytics-runs", [
+    {
+      key: "route",
+      value: "worker.scheduled.analytics",
+      type: "string",
+      operation: "eq",
+    },
+  ]);
   const metrics = await post("/graphql", {
     query: poolQuery,
     variables: {
       accountTag: config.accountId,
       configId: config.hyperdriveId,
+      bucketName: config.analyticsBucketName,
       start: start.toISOString(),
       end: end.toISOString(),
     },
@@ -160,6 +248,8 @@ export async function diagnose(
         accounts: {
           hyperdrivePoolSizesAdaptiveGroups: Pool[];
           hyperdriveQueriesAdaptiveGroups: { count: number }[];
+          r2OperationsAdaptiveGroups: R2Operation[];
+          r2StorageAdaptiveGroups: R2Storage[];
         }[];
       };
     }
@@ -168,10 +258,14 @@ export async function diagnose(
     throw new Error("Expected one account in the Hyperdrive metrics response");
   const pools = accounts[0].hyperdrivePoolSizesAdaptiveGroups;
   const queryRows = accounts[0].hyperdriveQueriesAdaptiveGroups;
+  const r2Operations = accounts[0].r2OperationsAdaptiveGroups;
+  const r2Storage = accounts[0].r2StorageAdaptiveGroups;
   const validCount = (value: number) => Number.isFinite(value) && value >= 0;
   if (
     !Array.isArray(pools) ||
     !Array.isArray(queryRows) ||
+    !Array.isArray(r2Operations) ||
+    !Array.isArray(r2Storage) ||
     pools.some(
       (row) =>
         ![
@@ -181,11 +275,49 @@ export async function diagnose(
           row.avg.waitingClients,
         ].every(validCount),
     ) ||
-    queryRows.some((row) => !validCount(row.count))
+    queryRows.some((row) => !validCount(row.count)) ||
+    r2Operations.some(
+      (row) =>
+        !validCount(row.sum.requests) ||
+        typeof row.dimensions.actionType !== "string" ||
+        typeof row.dimensions.actionStatus !== "string",
+    ) ||
+    r2Storage.some(
+      (row) =>
+        ![
+          row.max.metadataSize,
+          row.max.objectCount,
+          row.max.payloadSize,
+          row.max.uploadCount,
+        ].every(validCount) || typeof row.dimensions.datetime !== "string",
+    )
   ) {
     throw new Error("Unexpected Hyperdrive metrics response");
   }
   const queryErrors = queryRows.reduce((sum, row) => sum + row.count, 0);
+  const analyticsRuns = analyticsEvents.map(projectAnalyticsRun);
+  const successfulAnalyticsRuns = analyticsRuns.filter(
+    ({ outcome }) => outcome === "success",
+  );
+  const latestAnalyticsTimestamp = Math.max(
+    ...successfulAnalyticsRuns
+      .map(({ timestamp }) => timestamp)
+      .filter((timestamp): timestamp is number => typeof timestamp === "number"),
+    0,
+  );
+  const analyticsFreshnessMilliseconds =
+    latestAnalyticsTimestamp === 0 ? null : end.getTime() - latestAnalyticsTimestamp;
+  const analyticsLimitBreached = successfulAnalyticsRuns.some(
+    (run) =>
+      (typeof run.durationMilliseconds === "number" &&
+        run.durationMilliseconds > 30_000) ||
+      (typeof run.databaseReads === "number" && run.databaseReads > 10) ||
+      (typeof run.databaseResultBytesEstimated === "number" &&
+        run.databaseResultBytesEstimated > 2 * 1024 * 1024) ||
+      (typeof run.eventRows === "number" && run.eventRows > 1_000) ||
+      (typeof run.bytes === "number" && run.bytes > 1024 * 1024) ||
+      (typeof run.checkpointLag === "number" && run.checkpointLag > 2_000),
+  );
   // Project fixed application fields. Native URLs, headers, stacks, SQL, and
   // historical raw exception messages must not reach terminal or CI output.
   const errors = records.map((event) => {
@@ -282,14 +414,25 @@ export async function diagnose(
     truncated:
       invocations.length === 2000 ||
       records.length === 2000 ||
-      usageEvents.length === 2000,
+      usageEvents.length === 2000 ||
+      analyticsEvents.length === 2000,
     errors,
     usageByRoute,
+    analyticsRuns,
+    failedPublications: analyticsRuns.filter(({ outcome }) => outcome === "error").length,
+    analyticsFreshnessMilliseconds,
+    analyticsLimitBreached,
     hyperdrivePools: pools,
     hyperdriveQueryErrors: queryErrors,
+    r2Operations,
+    r2Storage: r2Storage[0] ?? null,
     unhealthy:
       invocations.length > 0 ||
       records.length > 0 ||
+      analyticsRuns.some(({ outcome }) => outcome === "error") ||
+      analyticsLimitBreached ||
+      (analyticsFreshnessMilliseconds !== null &&
+        analyticsFreshnessMilliseconds > 2 * 60 * 60 * 1_000) ||
       queryErrors > 0 ||
       pools.some(
         (row) =>
