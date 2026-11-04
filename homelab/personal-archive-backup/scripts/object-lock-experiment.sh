@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-bucket=robbie-personal-archive
+bucket=robbie-personal-archive-object-lock-lab-20261104
 s3_endpoint=s3.eu-central-003.backblazeb2.com
 prefix_root=object-lock-experiments
 archive_id=robbie-vector-gp68hx-13vh-home-migration
@@ -83,6 +83,8 @@ data_key_id=
 data_application_key=
 data_key_name=
 default_enabled=false
+bucket_created=false
+delete_empty_bucket_on_exit=false
 
 run_bootstrap() {
   B2_APPLICATION_KEY_ID="${bootstrap_key_id}" \
@@ -152,6 +154,14 @@ cleanup_secrets() {
     echo "failed to revoke the temporary policy key" >&2
     exit_code=1
   fi
+  if [[ "${delete_empty_bucket_on_exit}" = true && "${bucket_created}" = true ]]; then
+    if run_admin bucket delete "${bucket}" >/dev/null; then
+      bucket_created=false
+    else
+      echo "failed to remove the empty experiment bucket" >&2
+      exit_code=1
+    fi
+  fi
   if ! revoke_key "${maintenance_key_id}" run_bootstrap; then
     echo "failed to revoke the temporary maintenance key" >&2
     exit_code=1
@@ -187,6 +197,20 @@ assert_no_default_retention() {
     .fileLockConfiguration.value.defaultRetention.period == null
   ' "${work_directory}/bucket.json" >/dev/null ||
     fail "the bucket already has default retention; refusing to overwrite it"
+}
+
+assert_bucket_absent() {
+  run_bootstrap bucket list --json >"${work_directory}/buckets.json"
+  jq -e --arg bucket "${bucket}" 'all(.[]; .bucketName != $bucket)' \
+    "${work_directory}/buckets.json" >/dev/null ||
+    fail "the disposable experiment bucket already exists; refusing to reuse it"
+}
+
+assert_bucket_removed() {
+  run_bootstrap bucket list --json >"${work_directory}/buckets-after-delete.json"
+  jq -e --arg bucket "${bucket}" 'all(.[]; .bucketName != $bucket)' \
+    "${work_directory}/buckets-after-delete.json" >/dev/null ||
+    fail "the disposable experiment bucket still exists"
 }
 
 create_key() {
@@ -225,7 +249,7 @@ verify_key_boundary() {
 create_maintenance_key() {
   maintenance_key_name=$1
   local maintenance_key capabilities
-  capabilities=listKeys,writeKeys,deleteKeys,listBuckets,writeBuckets,readBucketRetentions,writeBucketRetentions,readBucketEncryption
+  capabilities=listKeys,writeKeys,deleteKeys,listBuckets,writeBuckets,deleteBuckets,readBucketRetentions,writeBucketRetentions,readBucketEncryption,writeBucketEncryption
   maintenance_key=$(create_key run_bootstrap --duration 7200 \
     "${maintenance_key_name}" "${capabilities}")
   IFS=$'\t' read -r maintenance_key_id maintenance_application_key <<<"${maintenance_key}"
@@ -256,9 +280,13 @@ case "${command_name}" in
     policy_key_name="${key_base}-policy"
     data_key_name="${key_base}-data"
 
-    read_bucket run_bootstrap
-    assert_no_default_retention
+    assert_bucket_absent
     create_maintenance_key "${key_base}-maintenance"
+    run_admin bucket create --file-lock-enabled "${bucket}" allPrivate >/dev/null
+    bucket_created=true
+    delete_empty_bucket_on_exit=true
+    read_bucket
+    assert_no_default_retention
 
     policy_key=$(create_key run_admin \
       --duration 7200 "${policy_key_name}" \
@@ -298,6 +326,7 @@ case "${command_name}" in
     export RESTIC_REPOSITORY="s3:https://${s3_endpoint}/${bucket}/${prefix}"
     export RESTIC_PASSWORD_FILE="${work_directory}/restic-password"
     export RESTIC_CACHE_DIR="${work_directory}/cache"
+    delete_empty_bucket_on_exit=false
     "${restic_bin}" init >"${work_directory}/restic-init.log" 2>&1
     "${restic_bin}" backup --host object-lock-experiment \
       --tag object-lock-experiment "${work_directory}/source" \
@@ -364,11 +393,12 @@ case "${command_name}" in
     expected_cleanup=$(date -u -d "@$((retain_until_ms / 1000 + 300))" +%Y-%m-%dT%H:%M:%SZ)
     jq --null-input \
       --arg prefix "${prefix}" \
+      --arg bucket "${bucket}" \
       --arg retainUntil "${retain_until}" \
       --arg expectedCleanupAt "${expected_cleanup}" \
       --argjson retainedBytes "${retained_bytes}" \
       --argjson retainedObjects "${retained_objects}" \
-      '{schemaVersion: 1, prefix: $prefix, retainUntil: $retainUntil,
+      '{schemaVersion: 1, bucket: $bucket, prefix: $prefix, retainUntil: $retainUntil,
         expectedCleanupAt: $expectedCleanupAt, retainedBytes: $retainedBytes,
         retainedByteDays: $retainedBytes,
         retainedObjects: $retainedObjects, retentionMode: "governance",
@@ -429,12 +459,15 @@ case "${command_name}" in
     assert_key_revoked "${data_key_name}" || fail "the temporary cleanup key still exists"
     data_key_id=
     data_application_key=
+    run_admin bucket delete "${bucket}" >/dev/null || fail "failed to remove the empty experiment bucket"
+    assert_bucket_removed
     revoke_key "${maintenance_key_id}" run_bootstrap || fail "failed to revoke the temporary maintenance key"
     assert_key_revoked "${maintenance_key_name}" run_bootstrap || fail "the temporary maintenance key still exists"
     maintenance_key_id=
     maintenance_application_key=
-    jq --null-input --arg prefix "${prefix}" \
-      '{schemaVersion: 1, prefix: $prefix, repositoryRemoved: true,
+    jq --null-input --arg bucket "${bucket}" --arg prefix "${prefix}" \
+      '{schemaVersion: 1, bucket: $bucket, prefix: $prefix,
+        repositoryRemoved: true, bucketRemoved: true,
         cleanupKeyRevoked: true, maintenanceKeyRevoked: true,
         defaultPolicyStillAbsent: true}'
     ;;

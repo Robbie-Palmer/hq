@@ -46,8 +46,8 @@ function createFixture(): Fixture {
   mkdirSync(runtimeDirectory);
   writeFileSync(calls, "");
   writeFileSync(keys, "");
-  writeFileSync(bucketState, "none\n");
-  writeFileSync(prefixState, "present\n");
+  writeFileSync(bucketState, "missing\n");
+  writeFileSync(prefixState, "empty\n");
   writeFileSync(adminKeyId, "admin-id\n", { mode: 0o600 });
   writeFileSync(adminKey, "admin-secret\n", { mode: 0o600 });
   writeFileSync(
@@ -70,14 +70,32 @@ set -euo pipefail
 printf '%q ' "$@" >>"$FAKE_CALLS"
 printf '\n' >>"$FAKE_CALLS"
 case "$1 $2" in
+  "bucket list")
+    if [[ "$(<"$FAKE_BUCKET_STATE")" = missing ]]; then
+      printf '[]\n'
+    else
+      printf '[{"bucketName":"robbie-personal-archive-object-lock-lab-20261104"}]\n'
+    fi
+    ;;
   "bucket get")
     mode=$(<"$FAKE_BUCKET_STATE")
+    [[ "$mode" != missing ]] || exit 3
     if [[ "$mode" = none ]]; then
       retention='{"mode":null,"period":null}'
     else
       retention='{"mode":"governance","period":{"duration":1,"unit":"days"}}'
     fi
-    printf '{"bucketName":"robbie-personal-archive","bucketType":"allPrivate","fileLockConfiguration":{"isClientAuthorizedToRead":true,"value":{"isFileLockEnabled":true,"defaultRetention":%s}}}\n' "$retention"
+    printf '{"bucketName":"robbie-personal-archive-object-lock-lab-20261104","bucketType":"allPrivate","fileLockConfiguration":{"isClientAuthorizedToRead":true,"value":{"isFileLockEnabled":true,"defaultRetention":%s}}}\n' "$retention"
+    ;;
+  "bucket create")
+    [[ "$(<"$FAKE_BUCKET_STATE")" = missing ]]
+    [[ " $* " = *" --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104 allPrivate "* ]]
+    printf 'none\n' >"$FAKE_BUCKET_STATE"
+    printf 'bucket-id\n'
+    ;;
+  "bucket delete")
+    [[ "$(<"$FAKE_PREFIX_STATE")" = empty ]]
+    printf 'missing\n' >"$FAKE_BUCKET_STATE"
     ;;
   "bucket update")
     if [[ " $* " = *" --default-retention-mode governance "* ]]; then
@@ -145,7 +163,7 @@ set -euo pipefail
 printf 'restic %q ' "$@" >>"$FAKE_CALLS"
 printf '\n' >>"$FAKE_CALLS"
 case "$1" in
-  init) : ;;
+  init) printf 'present\n' >"$FAKE_PREFIX_STATE" ;;
   backup) [[ "\${FAKE_BACKUP_FAILURE:-0}" = 0 ]] || exit 42 ;;
   forget) echo 'object is protected by retention' >&2; exit 1 ;;
   *) exit 92 ;;
@@ -219,6 +237,10 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
       evidence.prefix,
       /^object-lock-experiments\/\d{8}T\d{6}Z-[a-f0-9]{12}\/restic$/,
     );
+    assert.equal(
+      evidence.bucket,
+      "robbie-personal-archive-object-lock-lab-20261104",
+    );
     assert.equal(evidence.defaultPolicyTeardown, true);
     assert.equal(evidence.directDeleteRejected, true);
     assert.equal(evidence.resticPruneRejected, true);
@@ -232,11 +254,16 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     assert.ok(enableIndex >= 0);
     assert.ok(disableIndex > enableIndex);
     assert.ok(deleteIndex > disableIndex);
-    assert.ok(calls.indexOf("bucket get") < calls.indexOf("-maintenance"));
+    assert.ok(calls.indexOf("bucket list --json") < calls.indexOf("-maintenance"));
     assert.match(
       calls,
-      /key create --duration 7200 object-lock-[^ ]+-maintenance listKeys\\,writeKeys\\,deleteKeys\\,listBuckets\\,writeBuckets\\,readBucketRetentions\\,writeBucketRetentions\\,readBucketEncryption/,
+      /key create --duration 7200 object-lock-[^ ]+-maintenance listKeys\\,writeKeys\\,deleteKeys\\,listBuckets\\,writeBuckets\\,deleteBuckets\\,readBucketRetentions\\,writeBucketRetentions\\,readBucketEncryption\\,writeBucketEncryption/,
     );
+    assert.match(
+      calls,
+      /bucket create --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104 allPrivate/,
+    );
+    assert.doesNotMatch(calls, /bucket delete/);
     assert.match(calls, /--default-retention-period 1\\ day/);
     assert.match(calls, /--name-prefix object-lock-experiments\//);
     assert.doesNotMatch(calls, /bypassGovernance/);
@@ -247,15 +274,15 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
   }
 });
 
-test("refuses to overwrite an existing bucket default", () => {
+test("refuses to reuse an existing experiment bucket", () => {
   const fixture = createFixture();
   writeFileSync(fixture.bucketState, "governance\n");
   try {
     const result = run(fixture, ["start", "--idle-proof", fixture.idleProof]);
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /already has default retention/);
+    assert.match(result.stderr, /experiment bucket already exists/);
     const calls = readFileSync(fixture.calls, "utf8");
-    assert.doesNotMatch(calls, /key create|bucket update/);
+    assert.doesNotMatch(calls, /key create|bucket create|bucket update/);
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -276,6 +303,7 @@ test("tears down the bucket default and revokes keys after upload failure", () =
     assert.match(calls, /--default-retention-mode none/);
     assert.match(calls, /key delete/);
     assert.equal(readFileSync(fixture.keys, "utf8"), "");
+    assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "none");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -294,6 +322,8 @@ test("rejects a temporary key that gains governance bypass", () => {
     const calls = readFileSync(fixture.calls, "utf8");
     assert.doesNotMatch(calls, /bucket update/);
     assert.match(calls, /key delete/);
+    assert.match(calls, /bucket delete/);
+    assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -322,6 +352,8 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
   const fixture = createFixture();
   const prefix =
     "object-lock-experiments/20261101T120000Z-0123456789ab/restic";
+  writeFileSync(fixture.bucketState, "none\n");
+  writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
   try {
     const result = run(
       fixture,
@@ -338,8 +370,10 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
     const evidence = JSON.parse(result.stdout);
     assert.deepEqual(evidence, {
       schemaVersion: 1,
+      bucket: "robbie-personal-archive-object-lock-lab-20261104",
       prefix,
       repositoryRemoved: true,
+      bucketRemoved: true,
       cleanupKeyRevoked: true,
       maintenanceKeyRevoked: true,
       defaultPolicyStillAbsent: true,
@@ -348,11 +382,18 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
     assert.match(calls, new RegExp(`--name-prefix ${prefix}/`));
     assert.match(
       calls,
-      new RegExp(`b2://robbie-personal-archive/${prefix}/`),
+      new RegExp(
+        `b2://robbie-personal-archive-object-lock-lab-20261104/${prefix}/`,
+      ),
     );
     assert.match(calls, /rm --recursive --versions --fail-fast --no-progress/);
     assert.doesNotMatch(calls, /bypassGovernance/);
     assert.match(calls, /key delete/);
+    assert.match(
+      calls,
+      /bucket delete robbie-personal-archive-object-lock-lab-20261104/,
+    );
+    assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
     assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
