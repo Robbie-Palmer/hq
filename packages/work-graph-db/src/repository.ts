@@ -2788,7 +2788,7 @@ export class WorkGraphRepository {
         );
       const recoveries: DeliveryRecoveryRecord[] = [];
       for (const request of requests) {
-        const recovery = await this.recordDeliveryActionRequestResult(
+        const recovery = await this.recordDeliveryActionRequestResult( // NOSONAR: Event sequence writes in one transaction must remain serial.
           transaction,
           observation,
           request,

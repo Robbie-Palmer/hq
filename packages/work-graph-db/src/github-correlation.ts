@@ -180,12 +180,12 @@ export async function correlateWaitingDeliveries(
     );
   for (const item of waiting) {
     if (!item.observation) continue;
-    const disposition = await appendCorrelatedEvidence(
+    const disposition = await appendCorrelatedEvidence( // NOSONAR: Nested savepoints share one transaction and must run serially.
       transaction,
       item.observation,
       recordEvidence,
       recordDeliveryAction,
-    ); // NOSONAR: Nested savepoints share one transaction and must run serially.
+    );
     await transaction // NOSONAR: Persist each disposition after its evidence transaction completes.
       .update(githubDeliveryProcessing)
       .set({ disposition, updatedAt: new Date() })
