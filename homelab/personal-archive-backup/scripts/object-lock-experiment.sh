@@ -330,7 +330,7 @@ case "${command_name}" in
     run_policy bucket get "${bucket}" >"${work_directory}/bucket.json"
     assert_no_default_retention
     run_policy bucket update --default-retention-mode governance \
-      --default-retention-period "1 day" "${bucket}" >/dev/null
+      --default-retention-period "1 days" "${bucket}" >/dev/null
     default_enabled=true
 
     run_policy bucket get "${bucket}" >"${work_directory}/bucket-enabled.json"

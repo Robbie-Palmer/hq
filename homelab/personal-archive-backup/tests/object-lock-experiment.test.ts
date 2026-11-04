@@ -281,7 +281,7 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
       /bucket update --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104/,
     );
     assert.doesNotMatch(calls, /bucket delete/);
-    assert.match(calls, /--default-retention-period 1\\ day/);
+    assert.match(calls, /--default-retention-period 1\\ days/);
     assert.match(calls, /--name-prefix object-lock-experiments\//);
     assert.doesNotMatch(calls, /bypassGovernance/);
     assert.match(calls, /key delete/);
