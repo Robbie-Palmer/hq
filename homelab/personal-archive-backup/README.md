@@ -176,8 +176,10 @@ creates the bucket. It then checks the private bucket, Object Lock capability,
 and empty default-retention setting. It installs its teardown trap before
 enabling a one-day governance default. After the upload, it verifies every
 object under the disposable prefix, removes the default, and proves both direct
-deletion and restic prune fail without governance bypass. Its JSON output is
-safe to use as the non-secret evidence record. `retainedBytes` and
+version deletion fails without governance bypass. Restic prune may still
+return success by adding delete markers; the script proves that every locked
+upload version remains retained afterward. Its JSON output is safe to use as
+the non-secret evidence record. `retainedBytes` and
 `retainedByteDays` quantify the experiment's one-day storage behavior. Object
 Lock has no separate fee, but those bytes remain subject to normal B2 storage
 charges until the reported retention time expires.

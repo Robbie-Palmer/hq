@@ -177,7 +177,7 @@ printf '\n' >>"$FAKE_CALLS"
 case "$1" in
   init) printf 'present\n' >"$FAKE_PREFIX_STATE" ;;
   backup) [[ "\${FAKE_BACKUP_FAILURE:-0}" = 0 ]] || exit 42 ;;
-  forget) echo 'object is protected by retention' >&2; exit 1 ;;
+  forget) : ;;
   *) exit 92 ;;
 esac
 `,
@@ -257,7 +257,8 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     );
     assert.equal(evidence.defaultPolicyTeardown, true);
     assert.equal(evidence.directDeleteRejected, true);
-    assert.equal(evidence.resticPruneRejected, true);
+    assert.equal(evidence.resticPruneSucceeded, true);
+    assert.equal(evidence.retainedVersionsSurvivedPrune, true);
     assert.equal(evidence.maintenanceKeyRevoked, true);
     assert.equal(evidence.retainedObjects, 1);
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "none");

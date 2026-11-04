@@ -423,13 +423,24 @@ case "${command_name}" in
     grep -Eqi 'retention|governance|locked|access denied|not allowed|forbidden' \
       "${work_directory}/delete.log" || fail "pre-expiry deletion failed for an unexpected reason"
 
-    if "${restic_bin}" forget --tag object-lock-experiment --keep-last 0 \
+    "${restic_bin}" forget --tag object-lock-experiment --keep-last 0 \
       --unsafe-allow-remove-all --prune \
-      >"${work_directory}/prune.log" 2>&1; then
-      fail "pre-expiry restic prune unexpectedly succeeded"
-    fi
-    grep -Eqi 'retention|governance|locked|access denied|not allowed|forbidden' \
-      "${work_directory}/prune.log" || fail "restic prune failed for an unexpected reason"
+      >"${work_directory}/prune.log" 2>&1 ||
+      fail "pre-expiry restic prune unexpectedly failed"
+    run_data ls --recursive --versions --json \
+      "b2://${bucket}/${prefix}/" >"${work_directory}/objects-after-prune.json"
+    jq -e --slurpfile before "${work_directory}/retention.json" '
+      [.[] | select(.action == "upload") | {
+        fileId,
+        mode: (.fileRetention.value.mode // .fileRetention.mode),
+        retainUntilTimestamp: (.fileRetention.value.retainUntilTimestamp //
+          .fileRetention.retainUntilTimestamp)
+      }] as $after |
+      all($before[0][]; .fileId as $id |
+        any($after[]; .fileId == $id and .mode == "governance" and
+          (.retainUntilTimestamp | type == "number")))
+    ' "${work_directory}/objects-after-prune.json" >/dev/null ||
+      fail "restic prune removed a governance-retained upload version"
 
     revoke_key "${data_key_id}" || fail "failed to revoke the temporary data key"
     assert_key_revoked "${data_key_name}" || fail "the temporary data key still exists"
@@ -459,7 +470,8 @@ case "${command_name}" in
         retainedByteDays: $retainedBytes,
         retainedObjects: $retainedObjects, retentionMode: "governance",
         defaultPolicyTeardown: true, directDeleteRejected: true,
-        resticPruneRejected: true, temporaryKeysRevoked: true,
+        resticPruneSucceeded: true, retainedVersionsSurvivedPrune: true,
+        temporaryKeysRevoked: true,
         maintenanceKeyRevoked: true}'
     ;;
 
