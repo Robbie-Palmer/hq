@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 3
 
 project:
   id: "work-graph"
@@ -67,6 +67,56 @@ requirements:
   - "data-classification"
   - "object-lifecycle-policy"
   - "scoped-storage-credentials"
+
+capabilities:
+  delivery_evidence:
+    contract: "project-delivery-evidence"
+    contract_version: 1
+    repository: "Robbie-Palmer/hq"
+    targets:
+      - id: "api"
+        subjects:
+          - "component:work-graph/work-graph-api"
+          - "component:work-graph/work-graph-db"
+          - "component:work-graph/work-graph-domain"
+        source_paths:
+          - path: ".github/workflows/work-graph-api-cd.yml"
+            mode: "exclusive"
+          - path: ".github/workflows/work-graph-api-ci.yml"
+            mode: "exclusive"
+        github:
+          required_ci_names: ["Work Graph API CI"]
+          production_environments: ["production-work-graph"]
+      - id: "infrastructure"
+        subjects:
+          - "component:work-graph/work-graph"
+        source_paths:
+          - path: ".github/workflows/work-graph-infra.yml"
+            mode: "exclusive"
+          - path: ".github/workflows/work-graph-infra-ci.yml"
+            mode: "exclusive"
+        github:
+          required_ci_names: ["Work Graph Infrastructure CI"]
+          production_environments: ["production-work-graph-infra"]
+      - id: "observer"
+        subjects:
+          - "component:work-graph/work-graph-db"
+          - "component:work-graph/work-graph-domain"
+          - "component:work-graph/work-graph-observer"
+        source_paths:
+          - path: ".github/workflows/work-graph-observer-ci.yml"
+            mode: "exclusive"
+        github:
+          required_ci_names: ["Work Graph Observer CI"]
+          production_environments: ["production-work-graph"]
+      - id: "site-ui"
+        shared_host: "site-ui"
+        source_paths:
+          - path: "ui/content/projects/work-graph"
+            mode: "shared"
+        github:
+          required_ci_names: ["UI CI"]
+          production_environments: ["production-site-ui"]
 
 reconciliation:
   mode: "tracking"

@@ -92,6 +92,7 @@ export function projectPlanFromBlueprint(input: {
   const catalogTargets = [
     systemCatalogRecord,
     ...blueprint.catalog.components,
+    ...(blueprint.catalog.delivery_targets ?? []),
   ].map((record) => jsonRecord(record, "resolved catalog record"));
   const componentKinds = new Map(
     contracts.layout.component_kinds.map((kind) => [kind.id, kind]),

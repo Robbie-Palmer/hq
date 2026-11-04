@@ -3,9 +3,32 @@ import {
   diffProjectReconciliation,
 } from "../src/reconciliation.js";
 import type {
+  ResolvedDeliveryTarget,
   ResolvedProfilePolicy,
   ResolvedSelection,
 } from "../src/profile.js";
+
+function deliveryTarget(
+  id: string,
+  environment = "production",
+): ResolvedDeliveryTarget {
+  return {
+    id: `delivery-target:sample/${id}`,
+    project_id: "project:sample",
+    subjects: ["component:sample/api"],
+    source_paths: [
+      {
+        path: "workers/api",
+        mode: "exclusive",
+        subjects: ["component:sample/api"],
+      },
+    ],
+    github: {
+      required_ci_names: ["API CI"],
+      production_environments: [environment],
+    },
+  };
+}
 
 function policy(
   id: string,
@@ -155,5 +178,38 @@ describe("project reconciliation semantic diff", () => {
     expect(result.defaultChanges).toContainEqual(
       expect.objectContaining({ kind: "replaced", slot: "runtime" }),
     );
+  });
+
+  it("requires review when delivery evidence bindings change", () => {
+    const previous = deliveryTarget("api");
+    const current = deliveryTarget("api", "production-api");
+    const added = deliveryTarget("site-ui");
+    const result = diffProjectReconciliation({
+      previousPolicies: [],
+      currentPolicies: [],
+      previousDefaults: [],
+      currentDefaults: [],
+      previousSelections: [],
+      currentSelections: [],
+      previousDeliveryTargets: [previous],
+      currentDeliveryTargets: [current, added],
+    });
+
+    expect(result.deliveryTargetChanges).toEqual([
+      {
+        kind: "replaced",
+        disposition: "manual_decision",
+        id: "delivery-target:sample/api",
+        previous,
+        current,
+      },
+      {
+        kind: "added",
+        disposition: "manual_decision",
+        id: "delivery-target:sample/site-ui",
+        previous: undefined,
+        current: added,
+      },
+    ]);
   });
 });

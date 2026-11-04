@@ -28,6 +28,7 @@ import {
   type ProjectProfile,
   type ProjectProfileContracts,
   type ResolvedFulfillmentCheckpoint,
+  type ResolvedDeliveryTarget,
   type ResolvedProfilePolicy,
   type ResolvedProjectBlueprint,
   type ResolvedSelection,
@@ -50,6 +51,39 @@ const recordedBlueprintFields = {
   project: z.looseObject({ id: z.string().min(1) }),
   selections: z.array(recordedSelectionSchema),
 };
+
+const recordedDeliverySourcePathSchema = z
+  .object({
+    path: z.string().min(1),
+    mode: z.enum(["exclusive", "shared"]),
+    subjects: z.array(z.string().min(1)),
+  })
+  .strict();
+
+const recordedDeliveryTargetSchema = z
+  .object({
+    id: z.string().min(1),
+    project_id: z.string().min(1),
+    subjects: z.array(z.string().min(1)),
+    shared_host_id: z.string().min(1).optional(),
+    source_paths: z.array(recordedDeliverySourcePathSchema).min(1),
+    github: z
+      .object({
+        required_ci_names: z.array(z.string().min(1)).min(1),
+        production_environments: z.array(z.string().min(1)).min(1),
+      })
+      .strict(),
+  })
+  .strict();
+
+const recordedDeliveryEvidenceSchema = z
+  .object({
+    contract: z.literal("resolved-project-delivery-evidence"),
+    contract_version: z.literal(1),
+    repository: z.string().min(1),
+    targets: z.array(recordedDeliveryTargetSchema).min(1),
+  })
+  .strict();
 
 const recordedFulfillmentCheckpointSchema = z
   .object({
@@ -123,6 +157,15 @@ const recordedBlueprintSchema = z.discriminatedUnion("schema_version", [
     fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
     rollout: recordedRolloutSchema,
   }),
+  z.looseObject({
+    ...recordedBlueprintFields,
+    schema_version: z.literal(4),
+    profile_schema_version: z.literal(3),
+    workloads: z.array(z.unknown()).optional(),
+    delivery_evidence: recordedDeliveryEvidenceSchema,
+    fulfillment_checkpoints: z.array(recordedFulfillmentCheckpointSchema),
+    rollout: recordedRolloutSchema,
+  }),
 ]);
 
 const receiptSchema = z.looseObject({
@@ -162,11 +205,20 @@ export interface LocalOverrideReview {
   readonly status: "added" | "removed" | "changed" | "preserved";
 }
 
+export interface DeliveryTargetChange {
+  readonly kind: SemanticChangeKind;
+  readonly disposition: "manual_decision";
+  readonly id: string;
+  readonly previous?: ResolvedDeliveryTarget;
+  readonly current?: ResolvedDeliveryTarget;
+}
+
 export interface ReconciliationAction {
   readonly kind:
     | "policy_change"
     | "default_change"
     | "local_override"
+    | "delivery_target"
     | "fulfillment_checkpoint"
     | "operational_check"
     | "migration_checkpoint"
@@ -191,6 +243,7 @@ export interface ReconciliationPlanResult {
   readonly policyChanges: readonly PolicyChange[];
   readonly defaultChanges: readonly DefaultSelectionChange[];
   readonly localOverrides: readonly LocalOverrideReview[];
+  readonly deliveryTargetChanges: readonly DeliveryTargetChange[];
   readonly actions: {
     readonly automaticEdits: readonly ReconciliationAction[];
     readonly migrations: readonly ReconciliationAction[];
@@ -230,6 +283,7 @@ export interface ReconciliationSemanticDiff {
   readonly policyChanges: readonly PolicyChange[];
   readonly defaultChanges: readonly DefaultSelectionChange[];
   readonly localOverrides: readonly LocalOverrideReview[];
+  readonly deliveryTargetChanges: readonly DeliveryTargetChange[];
 }
 
 interface RecordedReceipt {
@@ -469,6 +523,37 @@ function localOverrideReviews(
   });
 }
 
+function deliveryTargetChanges(
+  previous: readonly ResolvedDeliveryTarget[],
+  current: readonly ResolvedDeliveryTarget[],
+): DeliveryTargetChange[] {
+  const ids = new Set([
+    ...previous.map(({ id }) => id),
+    ...current.map(({ id }) => id),
+  ]);
+  return [...ids].toSorted(compareStrings).flatMap((id) => {
+    const oldTarget = previous.find((target) => target.id === id);
+    const newTarget = current.find((target) => target.id === id);
+    if (oldTarget && newTarget && isDeepStrictEqual(oldTarget, newTarget)) {
+      return [];
+    }
+    return [
+      {
+        kind:
+          oldTarget === undefined
+            ? ("added" as const)
+            : newTarget === undefined
+              ? ("removed" as const)
+              : ("replaced" as const),
+        disposition: "manual_decision" as const,
+        id,
+        previous: oldTarget,
+        current: newTarget,
+      },
+    ];
+  });
+}
+
 export function diffProjectReconciliation(input: {
   readonly previousPolicies: readonly ResolvedProfilePolicy[];
   readonly currentPolicies: readonly ResolvedProfilePolicy[];
@@ -476,6 +561,8 @@ export function diffProjectReconciliation(input: {
   readonly currentDefaults: readonly ResolvedSelection[];
   readonly previousSelections: readonly ResolvedSelection[];
   readonly currentSelections: readonly ResolvedSelection[];
+  readonly previousDeliveryTargets?: readonly ResolvedDeliveryTarget[];
+  readonly currentDeliveryTargets?: readonly ResolvedDeliveryTarget[];
 }): ReconciliationSemanticDiff {
   return {
     policyChanges: policyChanges(
@@ -489,6 +576,10 @@ export function diffProjectReconciliation(input: {
     localOverrides: localOverrideReviews(
       input.previousSelections,
       input.currentSelections,
+    ),
+    deliveryTargetChanges: deliveryTargetChanges(
+      input.previousDeliveryTargets ?? [],
+      input.currentDeliveryTargets ?? [],
     ),
   };
 }
@@ -521,6 +612,16 @@ function overrideSummary(review: LocalOverrideReview): string {
     return `Preserve local override '${review.slot}' from decision '${review.current?.decision}'.`;
   }
   return `Review ${review.status} local override '${review.slot}' from decision '${review.current?.decision}'.`;
+}
+
+function deliveryTargetSummary(change: DeliveryTargetChange): string {
+  if (change.kind === "added") {
+    return `Review new delivery evidence target '${change.id}'.`;
+  }
+  if (change.kind === "removed") {
+    return `Review removal of delivery evidence target '${change.id}'.`;
+  }
+  return `Review changed delivery evidence target '${change.id}'.`;
 }
 
 function appendPendingFulfillmentActions(
@@ -559,6 +660,7 @@ function buildActions(input: {
   readonly policies: readonly PolicyChange[];
   readonly defaults: readonly DefaultSelectionChange[];
   readonly overrides: readonly LocalOverrideReview[];
+  readonly deliveryTargets: readonly DeliveryTargetChange[];
   readonly checkpoints: readonly ResolvedFulfillmentCheckpoint[];
   readonly rollout: ResolvedProjectBlueprint["rollout"];
   readonly recordedTemplateRevision: string;
@@ -582,6 +684,12 @@ function buildActions(input: {
     manualDecisions.push({
       kind: "local_override",
       summary: overrideSummary(review),
+    });
+  }
+  for (const change of input.deliveryTargets) {
+    manualDecisions.push({
+      kind: "delivery_target",
+      summary: deliveryTargetSummary(change),
     });
   }
   appendPendingFulfillmentActions(input.checkpoints, manualDecisions);
@@ -698,10 +806,16 @@ export async function planProjectReconciliation(
     currentDefaults: newDefaults,
     previousSelections: recorded.blueprint.selections,
     currentSelections: input.blueprint.selections,
+    previousDeliveryTargets:
+      recorded.blueprint.schema_version === 4
+        ? recorded.blueprint.delivery_evidence.targets
+        : [],
+    currentDeliveryTargets: input.blueprint.delivery_evidence?.targets ?? [],
   });
   const policies = semanticDiff.policyChanges;
   const defaults = semanticDiff.defaultChanges;
   const overrides = semanticDiff.localOverrides;
+  const deliveryTargets = semanticDiff.deliveryTargetChanges;
   const reconciliationPolicy = input.profile.reconciliation;
   const deferral =
     reconciliationPolicy.mode === "tracking" &&
@@ -743,6 +857,7 @@ export async function planProjectReconciliation(
     policies,
     defaults,
     overrides,
+    deliveryTargets,
     checkpoints: input.blueprint.fulfillment_checkpoints,
     rollout: input.blueprint.rollout,
     recordedTemplateRevision: recorded.commit,
@@ -766,6 +881,7 @@ export async function planProjectReconciliation(
     policyChanges: policies,
     defaultChanges: defaults,
     localOverrides: overrides,
+    deliveryTargetChanges: deliveryTargets,
     actions,
     ...(blockedReason ? { blockedReason } : {}),
     ...(deferral
