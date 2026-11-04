@@ -1,0 +1,75 @@
+---
+title: "PDR 000: Start with advisory matching for ready Work Graph tasks"
+date: "2026-09-04"
+status: "Accepted"
+decision_date: "2026-09-04"
+---
+
+## Context
+
+Work Graph records which tasks are ready, how they rank, what blocks them, and
+what evidence can prove completion. It does not know which person or agent has
+the capability, authority, budget, and current capacity to do a task well.
+
+Agent capacity changes as subscription limits reset, API budgets move, and
+different models become available. Treating that capacity as a reason to launch
+work can fill a human review queue with weak output. Putting provider and model
+details in Work Graph would also tie a durable plan to short-lived execution
+choices.
+
+The first Agent Coordinator workflow needed to test whether matching could move
+ready work forward without taking ownership of the plan or automating choices
+that still required human judgment.
+
+## Decision
+
+Start with advisory matching of ready Work Graph tasks.
+
+The coordinator will read ready work and owner policy, compare task constraints
+with an actor's declared capabilities and observed outcomes, and propose a task,
+actor, and bounded context package before anyone claims the lease. The owner
+will see the proposed match for the first workflow.
+
+Work Graph remains authoritative for priority, dependencies, readiness, leases,
+attention, and completion evidence. The coordinator may claim and renew a lease
+for the selected actor, but it may not change the plan, resolve an attention
+request, or declare completion without the evidence required by Work Graph.
+
+Automate matching only inside owner-defined limits for task class, authority,
+access, budget, and concurrency. If no eligible actor can produce a useful
+outcome, leave the capacity idle. Prepaid capacity may break a tie between
+otherwise suitable workers, but token use is not a product outcome.
+
+People using their own agents retain control of those agents and their
+credentials. A later contributor workflow may offer bounded work to a
+contributor-owned agent, but the coordinator will not collect or intermediate
+the contributor's subscription credentials.
+
+## Consequences
+
+The first workflow keeps a person in the routing loop, so it cannot allocate
+capacity continuously. It can still test the matching inputs, context package,
+lease handoff, and evidence record before those choices gain unattended
+authority.
+
+Provider names, subscription allowances, and model prices stay out of the
+durable work plan. The coordinator needs a separate current view of actors and
+capacity, and it must learn from completed, abandoned, and reassigned work
+instead of trusting model labels.
+
+Some paid capacity will expire unused. That is preferable to assigning work
+whose outcome lacks value or still needs open-ended human review.
+
+## Evaluation
+
+The workflow succeeds when ready work spends less time waiting, matched actors
+finish the tasks they receive, and a session handoff preserves useful progress.
+It fails when it keeps cheap agents busy on low-value work, prizes subscription
+use over project outcomes, or transfers the real evaluation burden to a human.
+
+## Migration note
+
+This record preserves the first-release policy published in the original
+project narrative on 2026-09-04 and the product constraints later mixed into
+ADR 000. The migration changes the record type, not the decision, date, or
+status.
