@@ -3,11 +3,18 @@ title: "ADR 012: Cloudflare Workflows for Recipe Ingestion"
 date: "2026-07-08"
 status: "Accepted"
 tech_stack: ["Cloudflare Workflows", "Cloudflare Workers", "Neon", "Cloudflare R2", "OpenRouter"]
+implements_product_decisions:
+  - "recipe-site:004-review-imported-recipes-before-publication"
 ---
 
 # Summary
 
 Use **Cloudflare Workflows** to orchestrate the production photo-to-recipe ingestion pipeline.
+
+[PDR 004](/projects/recipe-site/pdrs/004-review-imported-recipes-before-publication)
+requires every import to remain a draft until a person reviews and accepts it.
+This ADR defines the durable processing and evidence path that implements that
+policy.
 
 The existing `recipe-api` Worker remains the authenticated product API: it owns sessions,
 authorization, quotas, job creation, status reads, and publishing accepted drafts. A separate

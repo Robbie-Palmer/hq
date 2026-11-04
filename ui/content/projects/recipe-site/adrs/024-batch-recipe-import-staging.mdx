@@ -3,11 +3,19 @@ title: "ADR 024: Batch Recipe Import Staging"
 date: "2026-08-08"
 status: "Proposed"
 tech_stack: ["Cloudflare Workflows", "Neon", "Cloudflare R2", "React", "TanStack Query"]
+implements_product_decisions:
+  - "recipe-site:004-review-imported-recipes-before-publication"
+  - "recipe-site:007-durable-item-level-collection-migration"
 ---
 
 # Summary
 
 Add a persistent batch-import and review layer over the existing one-recipe ingestion jobs.
+
+[PDR 004](/projects/recipe-site/pdrs/004-review-imported-recipes-before-publication)
+requires explicit review before any import becomes canonical. [PDR 007](/projects/recipe-site/pdrs/007-durable-item-level-collection-migration)
+proposes the durable item-level collection workflow. This ADR defines their
+batch, job, draft, provenance, and undo architecture.
 
 A `recipe_import_batch` groups independently executable `recipe_import_job` records in source
 order. Each successful job creates an immutable generated artifact and a mutable import draft.
