@@ -1,3 +1,4 @@
+import type { HousingValue } from "finance-housing-indices/browser";
 import {
   type Account,
   type AccountId,
@@ -66,6 +67,7 @@ export interface AssetTrackerRepository {
   decisionRecords: FinancialDecisionRecord[];
   propertyComparableSearches: PropertyComparableSearchDefinition[];
   propertyIndexHistories: PropertyIndexHistoryDefinition[];
+  selectedPropertyValues: Map<AccountId, HousingValue>;
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
@@ -967,6 +969,7 @@ export function buildRepository(
     decisionRecords: data.decisionRecords ?? [],
     propertyComparableSearches: data.propertyComparableSearches ?? [],
     propertyIndexHistories: data.propertyIndexHistories ?? [],
+    selectedPropertyValues: new Map(),
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),

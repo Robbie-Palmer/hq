@@ -3,7 +3,14 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/app/_projects/personal-finance-app/components/asset-tracker-provider";
 import { MortgageInvestmentComparison } from "@/app/_projects/personal-finance-app/components/mortgage-investment-comparison";
-import type { AccountDetailView } from "@/app/_projects/personal-finance-app/domain";
+import {
+  housePriceIndexArchive,
+  propertyIndexHistories,
+} from "@/app/_projects/personal-finance-app/content/propertyIndexHistory";
+import {
+  type AccountDetailView,
+  buildPropertyValueHistoryViews,
+} from "@/app/_projects/personal-finance-app/domain";
 
 vi.mock(
   "@/app/_projects/personal-finance-app/components/asset-tracker-provider",
@@ -36,6 +43,10 @@ function account(overrides: Partial<AccountDetailView>): AccountDetailView {
 }
 
 function mockTracker(accountDetails: AccountDetailView[] = []): void {
+  const propertyValue = buildPropertyValueHistoryViews(
+    propertyIndexHistories,
+    housePriceIndexArchive,
+  )[0]?.selectedValue;
   mockUseAssetTracker.mockReturnValue({
     accountDetails,
     baseCurrency: "GBP",
@@ -44,8 +55,11 @@ function mockTracker(accountDetails: AccountDetailView[] = []): void {
       totalNetWorth: 500_000,
       withdrawalCapital: 100_000,
       homeValue: 300_000,
+      homeValueRange: { lower: 280_000, upper: 320_000 },
       mortgageBalance: 100_000,
       homeEquity: 200_000,
+      homeEquityRange: { lower: 180_000, upper: 220_000 },
+      valuationBasis: propertyValue == null ? [] : [propertyValue],
       annualNonHousingExpenditure: 24_000,
       annualInvestableIncome: 54_000,
       annualMortgageExpenditureRemoved: 12_000,
@@ -111,6 +125,17 @@ describe("MortgageInvestmentComparison", () => {
 
     expect(
       screen.getByRole("table", { name: "Mortgage strategy summary" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Property value used in this comparison"),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByText("Property value used in this comparison"),
+    );
+    expect(
+      screen.getByText(
+        /future property growth remain separate, editable assumptions/,
+      ),
     ).toBeVisible();
     expect(screen.getByLabelText("Capital available now")).not.toBeVisible();
     expect(

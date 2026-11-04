@@ -185,4 +185,32 @@ describe("compareHousingStrategy", () => {
     expect(result.withdrawalCapital).toBe(375_000);
     expect(result.annualExpenditure).toBe(35_000);
   });
+
+  it("shows how valuation uncertainty changes equity without changing future sale assumptions", () => {
+    const uncertainPosition = {
+      ...position,
+      homeValueRange: { lower: 370_000, upper: 430_000 },
+      homeEquityRange: { lower: 170_000, upper: 230_000 },
+    };
+    const stay = compareHousingStrategy(uncertainPosition, assumptions({}));
+    const sale = compareHousingStrategy(
+      uncertainPosition,
+      assumptions({
+        kind: "sell-and-rent",
+        salePrice: 410_000,
+        mortgageSettlement: 200_000,
+        annualOwnershipCost: 0,
+      }),
+    );
+
+    expect(stay.valuationSensitivity).toEqual({
+      homeEquity: { lower: 170_000, upper: 230_000 },
+      totalNetWorth: { lower: 470_000, upper: 530_000 },
+    });
+    expect(sale.valuationSensitivity.totalNetWorth).toEqual({
+      lower: 510_000,
+      upper: 510_000,
+    });
+    expect(sale.salePrice).toBe(410_000);
+  });
 });

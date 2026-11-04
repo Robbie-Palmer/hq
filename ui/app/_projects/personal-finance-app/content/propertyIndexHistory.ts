@@ -61,6 +61,7 @@ export const propertyIndexHistories: PropertyIndexHistoryDefinition[] = [
   {
     accountId: "home",
     datasetVersion: DEMO_UK_HPI_VERSION,
+    valueSelection: { mode: "automatic-index" },
     input: {
       recordedValuations: [
         {

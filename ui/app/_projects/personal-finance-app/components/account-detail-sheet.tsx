@@ -15,6 +15,7 @@ import {
   type PropertyComparableView,
   type PropertyValueHistoryView,
   realRate,
+  type SetPropertyValueSelectionInput,
   transferAmountFrom,
   transferAmountTo,
 } from "@/app/_projects/personal-finance-app/domain";
@@ -65,10 +66,12 @@ function PropertyEvidence({
   accountId,
   comparableViews,
   valueHistories,
+  onSelectionChange,
 }: Readonly<{
   accountId: string;
   comparableViews: PropertyComparableView[];
   valueHistories: PropertyValueHistoryView[];
+  onSelectionChange: (input: SetPropertyValueSelectionInput) => Promise<void>;
 }>) {
   const valueHistory = valueHistories.find(
     (history) => history.accountId === accountId,
@@ -78,7 +81,12 @@ function PropertyEvidence({
   );
   return (
     <>
-      {valueHistory && <PropertyValueHistory view={valueHistory} />}
+      {valueHistory && (
+        <PropertyValueHistory
+          onSelectionChange={onSelectionChange}
+          view={valueHistory}
+        />
+      )}
       {comparables && <PropertyComparables view={comparables} />}
     </>
   );
@@ -97,6 +105,7 @@ export function AccountDetailSheet({
     netWorthData,
     propertyComparableViews = [],
     propertyValueHistories = [],
+    setPropertyValueSelection,
   } = useAssetTracker();
 
   const account =
@@ -135,6 +144,7 @@ export function AccountDetailSheet({
             accountId={account.id}
             comparableViews={propertyComparableViews}
             valueHistories={propertyValueHistories}
+            onSelectionChange={setPropertyValueSelection}
           />
           {equity && <EquityCard account={account} equity={equity} />}
           {account.isOpen && (

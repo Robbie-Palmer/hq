@@ -119,6 +119,7 @@ import {
   type SetExpectedReturnInput,
   type SetMortgageTermsInput,
   type SetPlanningChecklistItemStatusInput,
+  type SetPropertyValueSelectionInput,
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
@@ -127,6 +128,7 @@ import {
   type Transfer,
   type UpdateCashFlowDecisionInput,
   type ValuationIssue,
+  withSelectedPropertyValues,
 } from "@/app/_projects/personal-finance-app/domain";
 import {
   buildBaseCurrencyFlowSankeyData,
@@ -264,6 +266,9 @@ interface AssetTrackerContextValue {
   setExpectedReturn(input: SetExpectedReturnInput): Promise<void>;
   setAccountLiquidity(input: SetAccountLiquidityInput): Promise<void>;
   setMortgageTerms(input: SetMortgageTermsInput): Promise<void>;
+  setPropertyValueSelection(
+    input: SetPropertyValueSelectionInput,
+  ): Promise<void>;
   setInflation(rate: number): Promise<void>;
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
@@ -554,7 +559,12 @@ function jobMoveComparison(
 
 function useAssetTrackerViews(data: AssetTrackerData) {
   return useMemo(() => {
-    const repository = buildRepository(scopeAssetTrackerData(data));
+    const baseRepository = buildRepository(scopeAssetTrackerData(data));
+    const propertyEvidence = propertyEvidenceViews(baseRepository);
+    const repository = withSelectedPropertyValues(
+      baseRepository,
+      propertyEvidence.propertyValueHistories,
+    );
     const taxEstimate = getHouseholdTaxEstimate(data);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
@@ -679,7 +689,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
-      ...propertyEvidenceViews(repository),
+      ...propertyEvidence,
       household: data.household,
       householdAccounts: data.accounts.map(({ id, name, provider }) => ({
         id,
@@ -792,6 +802,8 @@ export function AssetTrackerProvider({
       setAccountLiquidity: (input) =>
         mutate((api) => api.setAccountLiquidity(input)),
       setMortgageTerms: (input) => mutate((api) => api.setMortgageTerms(input)),
+      setPropertyValueSelection: (input) =>
+        mutate((api) => api.setPropertyValueSelection(input)),
       setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
       setBaseCurrency: (currency) =>
         mutate((api) => api.setBaseCurrency({ currency })),

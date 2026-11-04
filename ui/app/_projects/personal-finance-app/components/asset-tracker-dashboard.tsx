@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AccountBalanceChart } from "./account-balance-chart";
 import { AssetAllocationChart } from "./asset-allocation-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 function staleObservationMessage(
   count: number,
@@ -33,6 +34,7 @@ export function AssetTrackerDashboard() {
     baseCurrency,
     valuationDate,
     valuationIssues,
+    propertyValueHistories = [],
   } = useAssetTracker();
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
   const missingPrices = valuationIssues.filter(
@@ -185,6 +187,23 @@ export function AssetTrackerDashboard() {
           )}
         </div>
       </div>
+      {propertyValueHistories.length > 0 && (
+        <details className="rounded-lg border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Property values included in net worth
+          </summary>
+          <div className="mt-3 grid gap-3 lg:grid-cols-2">
+            {propertyValueHistories.map((view) => (
+              <div className="space-y-2" key={view.accountId}>
+                <HousingValueDisclosure value={view.selectedValue} compact />
+                <p className="text-xs text-muted-foreground">
+                  {view.selectionExplanation}
+                </p>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       <div className="grid gap-8 lg:grid-cols-2">
         <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />
         <AccountBalanceChart accounts={accountDetails} />

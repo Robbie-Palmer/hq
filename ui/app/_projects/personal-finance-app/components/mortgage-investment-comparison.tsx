@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 import {
   MortgageInvestmentAssumptionControls,
   type MortgageInvestmentAssumptionField,
@@ -79,6 +80,34 @@ export function MortgageInvestmentComparison() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-4 sm:px-6">
+        {(position?.valuationBasis?.length ?? 0) > 0 && (
+          <details className="rounded-md border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              Property value used in this comparison
+            </summary>
+            <div className="mt-3 grid gap-2">
+              {position?.valuationBasis?.map((value) => (
+                <HousingValueDisclosure key={value.id} value={value} compact />
+              ))}
+              <p className="text-xs text-muted-foreground">
+                At the valuation range, projected overpay net worth is{" "}
+                {money(
+                  currentModel.valuationSensitivity.lower.overpay.netWorth,
+                )}{" "}
+                to{" "}
+                {money(
+                  currentModel.valuationSensitivity.upper.overpay.netWorth,
+                )}
+                . Projected invest net worth is{" "}
+                {money(currentModel.valuationSensitivity.lower.invest.netWorth)}{" "}
+                to{" "}
+                {money(currentModel.valuationSensitivity.upper.invest.netWorth)}
+                . Investment return and future property growth remain separate,
+                editable assumptions.
+              </p>
+            </div>
+          </details>
+        )}
         <MortgageInvestmentHighlights
           comparison={currentModel.comparison}
           horizonLabel={horizonLabel}

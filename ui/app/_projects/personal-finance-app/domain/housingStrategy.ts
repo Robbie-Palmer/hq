@@ -4,10 +4,16 @@ import {
   format,
   parseISO,
 } from "date-fns";
+import type { HousingValue } from "finance-housing-indices/browser";
 import { isLiability } from "./account";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
 import type { PortfolioFinancialIndependence } from "./portfolioReconciliation";
 import { latestValuedBalances } from "./portfolioValuation";
+
+export type HousingValueRange = {
+  lower: number;
+  upper: number;
+};
 
 export type HousingStrategyKind =
   | "stay"
@@ -20,8 +26,11 @@ export type HousingPlanningPosition = {
   totalNetWorth: number;
   withdrawalCapital: number;
   homeValue: number;
+  homeValueRange?: HousingValueRange;
   mortgageBalance: number;
   homeEquity: number;
+  homeEquityRange?: HousingValueRange;
+  valuationBasis?: HousingValue[];
   annualNonHousingExpenditure: number;
   annualInvestableIncome: number;
   /** Mortgage interest and fees removed from the long-term spending basis. */
@@ -65,6 +74,10 @@ export type HousingStrategyOutcome = HousingStrategyAssumptions & {
   projectedFiDate: string | null;
   yearsToFi: number | null;
   timeline: HousingStrategyTimelinePhase[];
+  valuationSensitivity: {
+    homeEquity: HousingValueRange;
+    totalNetWorth: HousingValueRange;
+  };
 };
 
 const LABELS: Record<HousingStrategyKind, string> = {
@@ -175,6 +188,10 @@ export function compareHousingStrategy(
   position: HousingPlanningPosition,
   assumptions: HousingStrategyAssumptions,
 ): HousingStrategyOutcome {
+  const homeValueRange = position.homeValueRange ?? {
+    lower: position.homeValue,
+    upper: position.homeValue,
+  };
   const saleNet =
     assumptions.salePrice -
     assumptions.mortgageSettlement -
@@ -249,6 +266,39 @@ export function compareHousingStrategy(
     annualSavings,
     annualReturn: position.expectedRealReturn,
   });
+  const totalNetWorthAt = (homeValue: number) => {
+    const positionNetWorth =
+      position.totalNetWorth + homeValue - position.homeValue;
+    if (assumptions.kind === "stay") return positionNetWorth;
+    if (assumptions.kind === "equity-release") {
+      return (
+        positionNetWorth -
+        assumptions.transactionCosts -
+        assumptions.taxesAndFees
+      );
+    }
+    return (
+      positionNetWorth +
+      assumptions.salePrice -
+      homeValue +
+      position.mortgageBalance -
+      assumptions.mortgageSettlement -
+      assumptions.transactionCosts -
+      assumptions.taxesAndFees
+    );
+  };
+  const retainedEquityAt = (homeValue: number) => {
+    if (assumptions.kind === "stay") {
+      return Math.max(homeValue - position.mortgageBalance, 0);
+    }
+    if (assumptions.kind === "equity-release") {
+      return Math.max(
+        homeValue - position.mortgageBalance - assumptions.equityReleaseAdvance,
+        0,
+      );
+    }
+    return retainedEquity;
+  };
 
   return {
     ...assumptions,
@@ -264,6 +314,16 @@ export function compareHousingStrategy(
     projectedFiDate: projection.date,
     yearsToFi: projection.years,
     timeline: timelineFor(position, assumptions),
+    valuationSensitivity: {
+      homeEquity: {
+        lower: retainedEquityAt(homeValueRange.lower),
+        upper: retainedEquityAt(homeValueRange.upper),
+      },
+      totalNetWorth: {
+        lower: totalNetWorthAt(homeValueRange.lower),
+        upper: totalNetWorthAt(homeValueRange.upper),
+      },
+    },
   };
 }
 
@@ -288,6 +348,61 @@ function addAccountToHousingPosition(
     : Math.max(balance, 0);
 }
 
+function selectedPropertyRange(
+  repository: AssetTrackerRepository,
+  accountId: string,
+  balance: number,
+): HousingValueRange {
+  const selected = repository.selectedPropertyValues.get(accountId);
+  if (selected?.uncertainty.kind !== "indicative-range") {
+    return { lower: balance, upper: balance };
+  }
+  const scale = balance / selected.amount;
+  return {
+    lower: selected.uncertainty.lower * scale,
+    upper: selected.uncertainty.upper * scale,
+  };
+}
+
+function housingPositionTotals(
+  repository: AssetTrackerRepository,
+  balances: ReadonlyMap<string, number>,
+) {
+  const totals = {
+    homeValue: 0,
+    homeValueLower: 0,
+    homeValueUpper: 0,
+    mortgageBalance: 0,
+    withdrawalCapital: 0,
+  };
+  for (const account of repository.accounts.values()) {
+    if (account.closedAt != null) continue;
+    const balance = balances.get(account.id) ?? 0;
+    addAccountToHousingPosition(totals, account.assetType, balance);
+    if (account.assetType !== "property") continue;
+    const range = selectedPropertyRange(repository, account.id, balance);
+    totals.homeValueLower += range.lower;
+    totals.homeValueUpper += range.upper;
+  }
+  return totals;
+}
+
+function mortgageExpenditureRemoved(
+  financialIndependence: PortfolioFinancialIndependence,
+): number {
+  if (
+    financialIndependence.annualExpenditureAfterMortgage == null ||
+    financialIndependence.representativeAnnualExpenditure == null
+  ) {
+    return 0;
+  }
+  return Math.max(
+    financialIndependence.representativeAnnualExpenditure -
+      financialIndependence.annualExpenditureAfterMortgage,
+    0,
+  );
+}
+
 export function getHousingPlanningPosition(
   repository: AssetTrackerRepository,
   financialIndependence: PortfolioFinancialIndependence,
@@ -296,16 +411,7 @@ export function getHousingPlanningPosition(
   const balances = latestValuedBalances(repository);
   if (balances == null) return null;
 
-  const totals = {
-    homeValue: 0,
-    mortgageBalance: 0,
-    withdrawalCapital: 0,
-  };
-  for (const account of repository.accounts.values()) {
-    if (account.closedAt != null) continue;
-    const balance = balances.get(account.id) ?? 0;
-    addAccountToHousingPosition(totals, account.assetType, balance);
-  }
+  const totals = housingPositionTotals(repository, balances);
   if (totals.homeValue <= 0) return null;
 
   const annualNonHousingExpenditure =
@@ -313,15 +419,9 @@ export function getHousingPlanningPosition(
     financialIndependence.representativeAnnualExpenditure ??
     0;
   const annualSavings = financialIndependence.representativeAnnualSavings ?? 0;
-  const annualMortgageExpenditureRemoved =
-    financialIndependence.annualExpenditureAfterMortgage != null &&
-    financialIndependence.representativeAnnualExpenditure != null
-      ? Math.max(
-          financialIndependence.representativeAnnualExpenditure -
-            financialIndependence.annualExpenditureAfterMortgage,
-          0,
-        )
-      : 0;
+  const annualMortgageExpenditureRemoved = mortgageExpenditureRemoved(
+    financialIndependence,
+  );
   const totalNetWorth = financialIndependence.runway.total.balance;
 
   return {
@@ -329,8 +429,17 @@ export function getHousingPlanningPosition(
     totalNetWorth,
     withdrawalCapital: totals.withdrawalCapital,
     homeValue: totals.homeValue,
+    homeValueRange: {
+      lower: totals.homeValueLower,
+      upper: totals.homeValueUpper,
+    },
     mortgageBalance: totals.mortgageBalance,
     homeEquity: totals.homeValue - totals.mortgageBalance,
+    homeEquityRange: {
+      lower: totals.homeValueLower - totals.mortgageBalance,
+      upper: totals.homeValueUpper - totals.mortgageBalance,
+    },
+    valuationBasis: [...repository.selectedPropertyValues.values()],
     annualNonHousingExpenditure,
     annualInvestableIncome:
       annualNonHousingExpenditure +

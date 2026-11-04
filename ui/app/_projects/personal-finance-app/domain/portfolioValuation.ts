@@ -1,3 +1,4 @@
+import type { HousingValue } from "finance-housing-indices/browser";
 import type { Account } from "./account";
 import { DEFAULT_VALUATION_MAX_AGE_DAYS } from "./assetTrackerData";
 import type { AssetTrackerRepository } from "./assetTrackerRepository";
@@ -22,6 +23,7 @@ export type AccountValuation = {
   nativeCurrency: Currency | null;
   issues: ValuationIssue[];
   inputObservationIds: string[];
+  housingValue?: HousingValue;
 };
 
 function latestSnapshot(
@@ -38,6 +40,41 @@ function latestSnapshot(
   );
 }
 
+type LegacyValuationInput = {
+  amount: number;
+  currency: Currency;
+  housingValue?: HousingValue;
+  inputObservationIds: string[];
+};
+
+function legacyValuationInput(
+  repository: AssetTrackerRepository,
+  account: Account,
+  date: string,
+): LegacyValuationInput | null {
+  const housingValue = repository.selectedPropertyValues.get(account.id);
+  if (
+    account.assetType === "property" &&
+    housingValue != null &&
+    housingValue.asOf <= date
+  ) {
+    return {
+      amount: housingValue.amount,
+      currency: housingValue.currency,
+      housingValue,
+      inputObservationIds: [housingValue.id],
+    };
+  }
+  const snapshot = latestSnapshot(repository.snapshots, account.id, date);
+  return snapshot == null
+    ? null
+    : {
+        amount: snapshot.balance,
+        currency: account.currency,
+        inputObservationIds: [],
+      };
+}
+
 function valueLegacyBalance(
   repository: AssetTrackerRepository,
   account: Account,
@@ -46,8 +83,8 @@ function valueLegacyBalance(
 ): AccountValuation {
   const baseCurrency =
     repository.settings.baseCurrency ?? DEFAULT_BASE_CURRENCY;
-  const snapshot = latestSnapshot(repository.snapshots, account.id, date);
-  if (snapshot == null) {
+  const input = legacyValuationInput(repository, account, date);
+  if (input == null) {
     return {
       accountId: account.id,
       date,
@@ -60,8 +97,8 @@ function valueLegacyBalance(
     };
   }
   const converted = convertCurrency({
-    amount: snapshot.balance,
-    fromCurrency: account.currency,
+    amount: input.amount,
+    fromCurrency: input.currency,
     toCurrency: baseCurrency,
     date,
     observations: repository.exchangeRateObservations,
@@ -75,10 +112,11 @@ function valueLegacyBalance(
       date,
       baseCurrency,
       value: null,
-      nativeValue: snapshot.balance,
-      nativeCurrency: account.currency,
+      nativeValue: input.amount,
+      nativeCurrency: input.currency,
       issues: [{ ...converted.issue, accountId: account.id }],
-      inputObservationIds: [],
+      inputObservationIds: input.inputObservationIds,
+      housingValue: input.housingValue,
     };
   }
   return {
@@ -86,11 +124,14 @@ function valueLegacyBalance(
     date,
     baseCurrency,
     value: converted.amount,
-    nativeValue: snapshot.balance,
-    nativeCurrency: account.currency,
+    nativeValue: input.amount,
+    nativeCurrency: input.currency,
     issues: [],
-    inputObservationIds:
-      converted.observationId == null ? [] : [converted.observationId],
+    inputObservationIds: [
+      ...input.inputObservationIds,
+      ...(converted.observationId == null ? [] : [converted.observationId]),
+    ],
+    housingValue: input.housingValue,
   };
 }
 
@@ -363,6 +404,9 @@ export function valuationDates(repository: AssetTrackerRepository): string[] {
       ...repository.priceObservations.map((observation) => observation.validAt),
       ...repository.exchangeRateObservations.map(
         (observation) => observation.validAt,
+      ),
+      ...[...repository.selectedPropertyValues.values()].map(
+        (value) => value.asOf,
       ),
     ]),
   ].sort((a, b) => a.localeCompare(b));

@@ -1,3 +1,4 @@
+import type { HousingValue } from "finance-housing-indices/browser";
 import {
   type Account,
   type AccountAccessPolicy,
@@ -116,6 +117,7 @@ export type NetWorthAccountConversion = {
     currency?: Currency;
     observedAt?: string;
   }>;
+  housingValue?: HousingValue;
 };
 
 export type NetWorthConversionDetail = {
