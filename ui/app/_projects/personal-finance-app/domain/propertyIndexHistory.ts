@@ -109,14 +109,12 @@ function recordedInputHousingValue(
       `Recorded property valuation ${valuationId} is unavailable`,
     );
   }
+  let kind: HousingValue["kind"] = "manual-override";
+  if (valuation.kind === "purchase-price") kind = "recorded-purchase";
+  if (valuation.kind === "formal-valuation") kind = "recorded-valuation";
   return HousingValueSchema.parse({
     id: valuation.id,
-    kind:
-      valuation.kind === "purchase-price"
-        ? "recorded-purchase"
-        : valuation.kind === "formal-valuation"
-          ? "recorded-valuation"
-          : "manual-override",
+    kind,
     amount: valuation.value,
     currency: valuation.currency,
     asOf: valuation.date,

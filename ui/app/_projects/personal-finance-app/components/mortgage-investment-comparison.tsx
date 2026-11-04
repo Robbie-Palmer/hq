@@ -18,12 +18,47 @@ import {
   type MortgageInvestmentAssumptions,
 } from "./mortgage-investment-assumptions";
 import { MortgageInvestmentDetails } from "./mortgage-investment-details";
-import { buildMortgageInvestmentModel } from "./mortgage-investment-model";
+import {
+  buildMortgageInvestmentModel,
+  type MortgageInvestmentModel,
+} from "./mortgage-investment-model";
 import {
   MortgageInvestmentHighlights,
   MortgageInvestmentSummary,
 } from "./mortgage-investment-results";
 import { MortgageInvestmentSensitivityTable } from "./mortgage-investment-sensitivity";
+
+function MortgageValuationBasis({
+  model,
+}: Readonly<{ model: MortgageInvestmentModel }>) {
+  const { baseCurrency, housingPlanningPosition } = useAssetTracker();
+  const values = housingPlanningPosition?.valuationBasis ?? [];
+  if (values.length === 0) return null;
+  const money = (value: number) =>
+    formatCurrency(Math.round(value), baseCurrency);
+  return (
+    <details className="rounded-md border p-3">
+      <summary className="cursor-pointer text-sm font-medium">
+        Property value used in this comparison
+      </summary>
+      <div className="mt-3 grid gap-2">
+        {values.map((value) => (
+          <HousingValueDisclosure key={value.id} value={value} compact />
+        ))}
+        <p className="text-xs text-muted-foreground">
+          At the valuation range, projected overpay net worth is{" "}
+          {money(model.valuationSensitivity.lower.overpay.netWorth)} to{" "}
+          {money(model.valuationSensitivity.upper.overpay.netWorth)}. Projected
+          invest net worth is{" "}
+          {money(model.valuationSensitivity.lower.invest.netWorth)} to{" "}
+          {money(model.valuationSensitivity.upper.invest.netWorth)}. Investment
+          return and future property growth remain separate, editable
+          assumptions.
+        </p>
+      </div>
+    </details>
+  );
+}
 
 export function MortgageInvestmentComparison() {
   const {
@@ -53,7 +88,6 @@ export function MortgageInvestmentComparison() {
       }),
     [editedAssumptions, mortgage, position, property],
   );
-
   if (model == null || model.input.initialMortgageRate <= 0) return null;
   const currentModel = model;
 
@@ -80,34 +114,7 @@ export function MortgageInvestmentComparison() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5 px-4 sm:px-6">
-        {(position?.valuationBasis?.length ?? 0) > 0 && (
-          <details className="rounded-md border p-3">
-            <summary className="cursor-pointer text-sm font-medium">
-              Property value used in this comparison
-            </summary>
-            <div className="mt-3 grid gap-2">
-              {position?.valuationBasis?.map((value) => (
-                <HousingValueDisclosure key={value.id} value={value} compact />
-              ))}
-              <p className="text-xs text-muted-foreground">
-                At the valuation range, projected overpay net worth is{" "}
-                {money(
-                  currentModel.valuationSensitivity.lower.overpay.netWorth,
-                )}{" "}
-                to{" "}
-                {money(
-                  currentModel.valuationSensitivity.upper.overpay.netWorth,
-                )}
-                . Projected invest net worth is{" "}
-                {money(currentModel.valuationSensitivity.lower.invest.netWorth)}{" "}
-                to{" "}
-                {money(currentModel.valuationSensitivity.upper.invest.netWorth)}
-                . Investment return and future property growth remain separate,
-                editable assumptions.
-              </p>
-            </div>
-          </details>
-        )}
+        <MortgageValuationBasis model={currentModel} />
         <MortgageInvestmentHighlights
           comparison={currentModel.comparison}
           horizonLabel={horizonLabel}

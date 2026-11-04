@@ -107,7 +107,6 @@ export function AccountDetailSheet({
     propertyValueHistories = [],
     setPropertyValueSelection,
   } = useAssetTracker();
-
   const account =
     accountDetails.find((detail) => detail.id === accountId) ?? null;
   if (!account) return null;

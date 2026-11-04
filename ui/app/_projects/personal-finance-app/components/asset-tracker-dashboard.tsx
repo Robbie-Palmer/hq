@@ -23,6 +23,28 @@ function staleObservationMessage(
   return `${count} ${noun} ${verb} missing or stale. `;
 }
 
+function PropertyValuesInNetWorth() {
+  const { propertyValueHistories = [] } = useAssetTracker();
+  if (propertyValueHistories.length === 0) return null;
+  return (
+    <details className="rounded-lg border p-4">
+      <summary className="cursor-pointer text-sm font-medium">
+        Property values included in net worth
+      </summary>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {propertyValueHistories.map((view) => (
+          <div className="space-y-2" key={view.accountId}>
+            <HousingValueDisclosure value={view.selectedValue} compact />
+            <p className="text-xs text-muted-foreground">
+              {view.selectionExplanation}
+            </p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
+}
+
 export function AssetTrackerDashboard() {
   const {
     accountDetails,
@@ -34,7 +56,6 @@ export function AssetTrackerDashboard() {
     baseCurrency,
     valuationDate,
     valuationIssues,
-    propertyValueHistories = [],
   } = useAssetTracker();
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
   const missingPrices = valuationIssues.filter(
@@ -51,7 +72,6 @@ export function AssetTrackerDashboard() {
     "holding price",
     "holding prices",
   );
-
   if (accountDetails.length === 0) {
     return (
       <div className="space-y-8">
@@ -187,23 +207,7 @@ export function AssetTrackerDashboard() {
           )}
         </div>
       </div>
-      {propertyValueHistories.length > 0 && (
-        <details className="rounded-lg border p-4">
-          <summary className="cursor-pointer text-sm font-medium">
-            Property values included in net worth
-          </summary>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            {propertyValueHistories.map((view) => (
-              <div className="space-y-2" key={view.accountId}>
-                <HousingValueDisclosure value={view.selectedValue} compact />
-                <p className="text-xs text-muted-foreground">
-                  {view.selectionExplanation}
-                </p>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
+      <PropertyValuesInNetWorth />
       <div className="grid gap-8 lg:grid-cols-2">
         <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />
         <AccountBalanceChart accounts={accountDetails} />
