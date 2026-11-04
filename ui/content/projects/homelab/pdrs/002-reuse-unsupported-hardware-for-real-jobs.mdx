@@ -1,0 +1,55 @@
+---
+title: "PDR 002: Reuse unsupported hardware for real jobs"
+date: "2026-08-02"
+status: "Accepted"
+decision_date: "2026-08-02"
+---
+
+## Context
+
+The lab began with several working devices that their vendors no longer
+supported well: a 2011 printer, a Pascal-generation GPU, and older phones.
+Replacing them would spend money and discard useful hardware when software was
+the immediate constraint.
+
+Reuse still needed a purpose. Running an old device merely because it could
+boot would add power, space, and maintenance without improving the lab.
+
+## Decision
+
+Give unsupported hardware a second life when it can perform a real current job
+with maintained open software. Prefer adapting software over buying a
+replacement when the existing device remains capable and safe.
+
+The printer will remain available through a network print server. The desktop
+GPU may run batch computer-vision work under a pinned operating-system and
+driver configuration. Old phones remain candidates for work that needs real
+mobile hardware.
+
+Do not treat reuse as a reason to invent workloads. Each device must solve an
+identified problem, and the lab may retire it when the job disappears or the
+maintenance cost overtakes the benefit.
+
+## Consequences
+
+The policy can avoid purchases and electronic waste while retaining hardware
+whose distinctive capability still matters. It also accepts support work that
+a new device might avoid, including old drivers, network bridges, and battery
+care.
+
+The policy was later too permissive for the noisy, idle Asus desktop. PDR 000
+replaced it with a stricter rule that also accounts for placement, noise,
+power, cabling, and an observed capacity need.
+
+## Evaluation
+
+Reuse succeeds when the device performs a named job that would otherwise need
+another purchase. Revisit the choice when a device lacks a workload, depends
+on unsafe software, or costs more to house and maintain than to replace.
+
+## Migration note
+
+This record preserves the hardware-reuse policy in the original project
+narrative and the product rationale mixed into the printer and GPU ADRs. It
+keeps the original date and Accepted status. PDR 000 records the later policy
+change rather than rewriting this history.

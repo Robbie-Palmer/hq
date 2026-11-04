@@ -1,0 +1,48 @@
+---
+title: "PDR 005: Run persistent agent work from personal devices"
+date: "2026-08-02"
+status: "Accepted"
+decision_date: "2026-08-02"
+---
+
+## Context
+
+Coding agents are most useful when repositories, credentials, tools, browser
+state, and prior sessions are already available. A laptop that sleeps when
+closed cannot host work started from a phone. Provider-specific remote
+environments also repeat setup and divide work across separate interfaces.
+
+Several model providers and subscriptions are useful because their strengths,
+allowances, and availability differ. That diversity should not require a new
+workflow for each harness.
+
+## Decision
+
+Run coding agents on prepared, persistent development hosts and control them
+from personal devices through one mobile-friendly interface. Preserve the
+repository, worktree, tools, credentials, session state, and review workflow on
+the host so remote interaction does not rebuild the environment for every job.
+
+Support several coding harnesses and provider accounts behind that interface.
+Keep their allowances and authentication separate, while presenting thread
+state, attention, diffs, commits, pushes, and pull requests in one workflow.
+
+## Consequences
+
+Agent work can continue from a phone or laptop without moving the development
+environment onto that device. The persistent host becomes a security and
+availability boundary because it holds powerful credentials and mutable work.
+Provider diversity also adds authentication and update work.
+
+## Evaluation
+
+The workflow succeeds when a personal device can resume an existing thread,
+start work with any configured harness, inspect its change, and hand it off as
+a pull request without rebuilding the repository environment.
+
+## Migration note
+
+This record extracts the persistent, multi-provider agent workflow from the
+original narrative and ADRs 002 through 004. Those ADRs retain the individual
+harness and orchestration choices. Later local and cloud workstation ADRs
+retain their host architecture.

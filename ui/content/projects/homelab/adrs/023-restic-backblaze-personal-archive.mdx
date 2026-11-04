@@ -3,27 +3,23 @@ title: "ADR 023: Restic and Backblaze B2 for the offsite non-photo archive"
 date: "2026-10-18"
 status: "Proposed"
 tech_stack: ["restic", "Backblaze B2"]
+implements_product_decisions:
+  - "homelab:004-automate-recoverable-personal-data-copies"
+  - "homelab:011-keep-an-independent-offsite-personal-archive"
 ---
 
 # Context
 
-Non-photo documents and other personal artifacts exist on a Linux laptop and
-on an external hard drive in the same home as the Mac mini. Much of the
-external-drive archive has no independent copy, so theft, fire, electrical
-damage, disk failure, ransomware, or an accidental deletion could destroy it.
-The laptop is also due to be wiped and rebuilt as a homelab build machine, so
-its remaining user data needs a final verified offload rather than an
-always-online backup schedule.
+[PDR 011](/projects/homelab/pdrs/011-keep-an-independent-offsite-personal-archive)
+defines the non-photo, non-code scope, independent failure domain, one-time
+laptop migration, and recovery gate under the broader backup policy in PDR
+004\. This ADR chooses the encryption, storage provider, retention control,
+credentials, infrastructure ownership, and command-line recovery design.
 
-Photos and code do not share this gap. Ente is the source of truth for photos,
-stores them across three cloud providers, and exports them to the external hard
-drive. GitHub and the machines that clone its repositories provide the working
-copies of code. This decision excludes both categories.
-
-A cloud drive answers synchronization and everyday access. It does not prove
-that an older independent copy can be restored after the working library is
-damaged. The lab needs a separate, encrypted, versioned, offsite backup with a
-routine that can be run and checked from the command line.
+The source laptop will be rebuilt as a lab machine. Much of the external-drive
+archive still has no independent copy. The architecture therefore needs a
+verified one-time migration path and a later recurring path for the remaining
+archive without treating ordinary cloud synchronization as backup evidence.
 
 # Decision
 

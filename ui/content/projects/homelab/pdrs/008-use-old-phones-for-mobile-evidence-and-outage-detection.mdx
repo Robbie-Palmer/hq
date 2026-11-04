@@ -1,0 +1,50 @@
+---
+title: "PDR 008: Use old phones for mobile evidence and outage detection"
+date: "2026-08-22"
+status: "Proposed"
+---
+
+## Context
+
+Three working phones no longer have a daily job. They are poor replacements
+for existing servers, but they have real mobile browsers, touch input,
+batteries, and mobile radios that the servers lack.
+
+Web changes currently rely on desktop browsers and emulators. Lab monitoring
+also shares fate with home power, broadband, and DNS, so it may be unable to
+report a total outage.
+
+## Proposed decision
+
+Use the old phones where their physical capabilities produce evidence the
+servers cannot. Make them a small device pool for repeatable pull-request checks
+on old and current Android browsers and iOS 15 Safari. Return screenshots,
+device metadata, and a clear result to the agent that requested the check.
+
+After the device-lab workflow works, use one Android phone on mobile data as an
+outside observer for DNS, power, and broadband failures. Keep its network path
+and alert credential independent from the home systems it checks.
+
+Do not turn the phones into general servers or broad tailnet members. Keep
+their stock operating systems because their real browser versions are the
+point, and retire a device when its battery becomes unsafe.
+
+## Consequences
+
+The lab gains evidence from real mobile hardware and an observer outside its
+main failure domain. It also gains USB state, signing, stale operating systems,
+battery care, and a narrow but real access-control boundary.
+
+## Evaluation
+
+Accept the device-lab part when an agent can run a protected-preview smoke test
+and collect reproducible evidence from both Android devices and the iPhone.
+Accept the watchdog part only after deliberate resolver and home-network
+failures produce an alert over mobile data.
+
+## Migration note
+
+This PDR extracts the proposed supported workflows and success conditions from
+ADR 012. ADR 012 retains the USB, browser automation, stock operating-system,
+power, and tailnet architecture. The migration does not claim that either
+pilot has passed.

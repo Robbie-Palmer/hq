@@ -3,21 +3,17 @@ title: "ADR 005: Ente for photo backup"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["Ente"]
+implements_product_decisions:
+  - "homelab:004-automate-recoverable-personal-data-copies"
 ---
 
 # Context
 
-My photo library lives in the cloud with Ente, an end-to-end encrypted photo
-provider. Ente already replicates the library across three cloud providers
-and it doubles as the sync mechanism between my devices. What it doesn't
-provide is a copy I own: if the service ever goes down or stops being a
-workable option, years of family photos live only behind someone else's
-decisions.
-
-I want a regular, automated sync from Ente down to a local 10TB HDD connected
-to the Mac mini, an offline backup I own. Manual syncing has already proven
-itself painful, so this must be a monitored, repeatable pipeline, not a
-script I have to remember to run.
+[PDR 004](/projects/homelab/pdrs/004-automate-recoverable-personal-data-copies)
+requires an automatic, inspectable copy outside the source system and a proved
+recovery path. The photo library lives in Ente, which already replicates it
+across three cloud providers and synchronizes the owner's devices. The Mac
+mini owns the connected 10 TB backup drive.
 
 # Decision
 

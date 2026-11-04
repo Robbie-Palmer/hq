@@ -1,0 +1,53 @@
+---
+title: "PDR 011: Keep an independent off-site personal archive"
+date: "2026-10-18"
+status: "Proposed"
+---
+
+## Context
+
+Non-photo personal files existed on a laptop and an external drive in the same
+home. Fire, theft, disk failure, ransomware, or an accidental deletion could
+remove the source and its nearby copy together. The laptop also needed a final
+verified offload before becoming a lab build machine.
+
+Photos and source code already had independent copies through Ente and GitHub.
+Putting them into another archive would add cost without closing the identified
+gap.
+
+## Proposed decision
+
+Keep an encrypted, versioned copy of non-photo, non-code personal files outside
+the home and independent from the everyday working library. Preserve a local
+second copy after recovery from the off-site archive has been proved.
+
+Treat the laptop as a one-time migration source rather than promising a
+recurring schedule that it will no longer need. Add the larger external-drive
+archive only after the pilot proves credential separation, failure handling,
+retention behavior, stored cost, and recovery without the source host or its
+normal secret store.
+
+Keep destructive and retention-changing authority separate from routine backup
+credentials. Independent recovery material must survive loss of the source
+machine, the home, and the operational secret service.
+
+## Consequences
+
+The archive gains a separate failure domain and a tested recovery path. The lab
+must protect another recovery secret, pay for stored and retained versions,
+and avoid mistaking synchronization or provider-side retention for a restore
+test.
+
+## Evaluation
+
+Accept the proposal only after full and incremental backups, a controlled
+failure, random-file and representative-directory restores, checksum
+comparison, an independent-credential recovery drill, a verified local second
+copy, and a cost estimate based on stored bytes.
+
+## Migration note
+
+This PDR extracts the archive scope, independence policy, and acceptance gate
+from ADR 023. It keeps the original date and Proposed status. ADR 023 retains
+the restic, Backblaze B2, Object Lock, credential, Terraform, and operational
+design.

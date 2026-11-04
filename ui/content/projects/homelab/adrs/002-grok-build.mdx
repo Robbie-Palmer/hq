@@ -3,16 +3,17 @@ title: "ADR 002: Grok Build"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["Grok Build"]
+implements_product_decisions:
+  - "homelab:005-run-persistent-agent-work-from-personal-devices"
 ---
 
 # Context
 
-The hub hosts multiple coding agents so I have independent usage allowances
-and model diversity ([Claude Code](/projects/homelab/adrs/002-claude-code)
-and [Codex](/projects/homelab/adrs/003-codex) are already accepted). Grok's
-models are a meaningful third model family, and Grok Build is xAI's terminal
-coding agent: a full-screen TUI with a plan mode, parallel subagents, skills,
-plugins, hooks, MCP servers, and a headless `-p` mode for scripts.
+[PDR 005](/projects/homelab/pdrs/005-run-persistent-agent-work-from-personal-devices)
+requires several coding harnesses and provider accounts behind one persistent
+remote workflow. Grok's models add a third provider family. Grok Build is
+xAI's terminal coding agent, with an interactive TUI and a headless `-p` mode
+that can fit the existing orchestration layer.
 
 For the hub, what matters is:
 

@@ -3,25 +3,24 @@ title: "ADR 021: Cloud remote-development plane"
 date: "2026-09-04"
 status: "Proposed"
 tech_stack: ["Hetzner Cloud", "Terraform", "NixOS", "K3s", "Tailscale", "Doppler", "t3-code"]
+implements_product_decisions:
+  - "homelab:003-keep-home-lab-services-private"
+  - "homelab:005-run-persistent-agent-work-from-personal-devices"
+  - "homelab:010-keep-agent-work-available-during-home-outages"
 ---
 
 # Context
 
-[ADR 004](/projects/homelab/adrs/004-t3-code) puts t3-code and the coding
-harnesses on the Mac mini. That gives every agent a prepared, persistent
-environment and makes it reachable from a phone over Tailscale. It also makes
-home power and broadband part of the development environment's availability.
+[PDR 010](/projects/homelab/pdrs/010-keep-agent-work-available-during-home-outages)
+proposes a prepared off-site copy of the private, persistent agent workflow
+from PDRs 003 and 005. A home power cut proved that the Mac mini, router,
+broadband, and household power form one availability boundary. Highly
+available Kubernetes and live session synchronization are outside the product
+decision.
 
-A home power cut proved the boundary. The Mac mini and router went offline at
-the same time, while the available 5G connection was good enough to operate a
-light web interface but not good enough to turn a laptop into a productive
-local coding environment. The coding-agent subscriptions were available, but
-there was no reachable machine on which their harnesses could run.
-
-The goal is continuity. Highly available Kubernetes is outside this decision.
-A remote environment must remain usable when the whole house is unreachable,
-be reproducible from the repository, retain prepared repositories and agent
-sessions, and preserve the bring-your-own-subscription model from ADR 004.
+The architecture must remain usable when the whole house is unreachable, be
+reproducible from the repository, retain prepared repositories and agent
+sessions, and preserve separate provider subscriptions from ADR 004.
 
 The repository already separates declarative ownership:
 

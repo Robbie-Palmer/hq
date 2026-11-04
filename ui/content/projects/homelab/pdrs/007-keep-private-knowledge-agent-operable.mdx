@@ -1,0 +1,53 @@
+---
+title: "PDR 007: Keep private knowledge agent-operable"
+date: "2026-08-15"
+status: "Proposed"
+---
+
+## Context
+
+Personal notes may include free-form writing, structured records, and private
+diary material. Earlier tools made the owner maintain their ontology or kept
+the useful source inside a hosted application. Neither approach fits a corpus
+that should remain useful across tools and agent sessions.
+
+The existing coding agents can already search, edit, connect, summarize, and
+critique files. A separate AI subscription or chat interface would divide that
+workflow.
+
+## Proposed decision
+
+Keep the private knowledge corpus in durable, readable files that both the
+owner and existing agents can operate. Notes may use links, tags, and typed
+metadata, but capture must not require a complete ontology or recurring manual
+gardening.
+
+Provide a comfortable Android, macOS, and Linux editing path. Keep the system
+single-user and private, with no public publishing from the live corpus. An
+agent may reorganize or enrich notes only through reviewable, reversible
+changes. Publication remains a separate copy-and-review workflow.
+
+Extensions may add views or commands, but they cannot become the only
+representation of knowledge. Prefer built-in behavior and small needs-driven
+extensions over maintaining another product inside the notes application.
+
+## Consequences
+
+The corpus can outlive either the human editor or agent index. Agents gain a
+large privacy and deletion boundary, while offline edits and concurrent agent
+changes may still conflict. File ownership and reversibility take priority
+over collaboration and a polished hosted experience.
+
+## Evaluation
+
+Accept the proposal only when normal mobile capture is comfortable, agents can
+answer corpus-wide questions and make reversible multi-note changes, a restore
+succeeds, and useful structure improves retrieval without creating a manual
+gardening habit.
+
+## Migration note
+
+This PDR extracts the workflow, ownership, privacy, and extension policies from
+ADR 011. It keeps the original date and Proposed status. ADR 011 retains the
+pilot architecture using Basic Memory, SilverBullet, Markdown, Git, Tailscale,
+and the existing backup and monitoring services.
