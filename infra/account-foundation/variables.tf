@@ -171,7 +171,6 @@ variable "additional_roots" {
           name             = string
           personal_configs = bool
           configs          = set(string)
-          new_configs      = optional(set(string), [])
         }))
       })
       github = object({

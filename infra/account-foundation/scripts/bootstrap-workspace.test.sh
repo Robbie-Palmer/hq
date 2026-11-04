@@ -250,6 +250,7 @@ FIXTURE
 cat > "$mock_bin/doppler" <<'MOCK_DOPPLER'
 #!/usr/bin/env bash
 set -euo pipefail
+printf '%s\n' "$*" >> "$SYNC_TEST_DIRECTORY/doppler-calls"
 cat "$SYNC_TEST_DIRECTORY/account-foundation-secrets.json"
 MOCK_DOPPLER
 chmod +x "$mock_bin/doppler"
@@ -272,6 +273,7 @@ MOCK_GH
 chmod +x "$mock_bin/gh"
 
 : > "$work_dir/github-calls"
+: > "$work_dir/doppler-calls"
 SYNC_TEST_DIRECTORY="$work_dir" \
   PATH="$mock_bin:$PATH" \
   bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
@@ -295,6 +297,10 @@ SYNC_TEST_DIRECTORY="$work_dir" \
   PATH="$mock_bin:$PATH" \
   bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
     production-work-graph-analytics
+
+grep -Fxq -- \
+  "secrets --project work-graph --config analytics --json" \
+  "$work_dir/doppler-calls"
 
 for name in \
   CLOUDFLARE_R2_AUDIT_API_TOKEN \

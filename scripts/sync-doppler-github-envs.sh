@@ -374,7 +374,7 @@ sync_requested_env production-infra-bootstrap-plan prd_bootstrap_plan
 sync_requested_env production-remote-development-infra homelab/prd_remote_development_infra
 sync_requested_env production-remote-development-infra-plan homelab/prd_remote_development_infra
 sync_requested_env production-work-graph work-graph/prd_work_graph
-sync_requested_env production-work-graph-analytics work-graph/prd_work_graph_analytics
+sync_requested_env production-work-graph-analytics work-graph/analytics
 sync_requested_env production-work-graph-backup work-graph/prd_work_graph_backup
 sync_requested_env production-work-graph-infra work-graph/prd_work_graph_infra
 sync_requested_env production-database-backup prd_database_backup

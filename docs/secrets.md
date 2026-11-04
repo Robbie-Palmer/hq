@@ -61,7 +61,7 @@ Configs are split by environment and runtime/control boundary:
 | `homelab/prd_remote_development_backup` | R2 credentials and restic password for the remote operator workspace | None |
 | `prd_ci_repo` | Repo-wide sensitive CI like AI review and DVC | `production-ci` |
 | `work-graph/prd_work_graph` | Work Graph runtime and deployment config | `production-work-graph` |
-| `work-graph/prd_work_graph_analytics` | Work Graph private analytics operator credentials | `production-work-graph-analytics` |
+| `work-graph/analytics` | Work Graph private analytics operator credentials | `production-work-graph-analytics` |
 | `work-graph/prd_work_graph_infra` | Work Graph Terraform/provider credentials | `production-work-graph-infra` |
 | `work-graph/prd_work_graph_backup` | Work Graph encrypted Neon-to-R2 backup credentials | `production-work-graph-backup` |
 | `ai-review/stg` | Isolated live-QA deployment of the stateful AI reviewer | None |
@@ -233,7 +233,7 @@ rules. Doppler remains the source for the values synchronized into them.
 | `production-remote-development-infra-plan` | `homelab/prd_remote_development_infra` | Remote-development Terraform PR plans |
 | `production-database-backup` | `prd_database_backup` | Scheduled encrypted Neon backup |
 | `production-work-graph` | `work-graph/prd_work_graph` | Work Graph API deployment and migration |
-| `production-work-graph-analytics` | `work-graph/prd_work_graph_analytics` | Scheduled private analytics publication |
+| `production-work-graph-analytics` | `work-graph/analytics` | Scheduled private analytics publication |
 | `production-work-graph-infra` | `work-graph/prd_work_graph_infra` | Work Graph Terraform CI/CD |
 | `production-work-graph-backup` | `work-graph/prd_work_graph_backup` | Scheduled encrypted Work Graph Neon backup |
 | `production-ci` | `prd_ci_repo` | AI review and ML pipeline CI |
@@ -403,7 +403,7 @@ credentials, or the Work Graph Terraform token. The age recipient may be the
 same only if the corresponding recovery-key custody is intentionally shared;
 the private identity still stays outside Doppler and GitHub.
 
-`work-graph/prd_work_graph_analytics` should own:
+`work-graph/analytics` should own:
 
 - `CLOUDFLARE_ACCOUNT_ID` (unmasked)
 - `CLOUDFLARE_R2_AUDIT_API_TOKEN`
