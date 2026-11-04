@@ -11,8 +11,7 @@
     "./household-tax": "./src/householdTax.ts",
     "./termination-payment": "./src/terminationPayment.ts",
     "./gov-uk-monitor": "./src/govUkMonitor.ts",
-    "./validation": "./src/validationApi.ts",
-    "./providers/taxscope-validation": "./src/providers/taxScopeValidation.ts"
+    "./validation": "./src/validationApi.ts"
   },
   "scripts": {
     "build": "tsx scripts/build.ts",
