@@ -251,6 +251,7 @@ locals {
             name             = "Production Analytics"
             personal_configs = false
             configs          = []
+            imported         = false
           }
         }
       }
@@ -456,7 +457,7 @@ locals {
         slug             = environment_slug
         name             = environment.name
         personal_configs = environment.personal_configs
-        imported         = root.imported && var.enable_existing_imports
+        imported         = try(environment.imported, root.imported) && var.enable_existing_imports
       }
     }
   ]...)
