@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./dataset": "./src/data.ts",
+    "./annual-allowance": "./src/annualAllowance.ts",
+    "./annual-allowance-fixtures": "./src/annualAllowanceFixtures.ts",
     "./historical-salary": "./src/historicalSalaryApi.ts",
     "./workplace-pension": "./src/workplacePension.ts",
     "./household-tax": "./src/householdTax.ts",
