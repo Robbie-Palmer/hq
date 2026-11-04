@@ -1,0 +1,117 @@
+---
+title: "PDR 000: Publish typed financial and business subjects in the connected graph"
+date: "2026-10-31"
+status: "Accepted"
+decision_date: "2026-10-31"
+informed_by_adrs:
+  - "personal-knowledge-graph:033-content-graph-indexes"
+---
+
+## Context
+
+The graph can publish an abstract idea, a technology, a project, a blog post,
+and a job role. A role already connects one period of employment to the
+technologies used there, the projects completed there, and the blog posts
+written there. Those links make the role part of the public account of the
+work rather than an isolated resume entry.
+
+There is no equally precise home for researched financial and business
+subjects such as IR35, umbrella companies, dividends, Capital Gains Tax, and
+the 60% tax trap. They are not all ideas or laws. A generic reference page
+would classify the document rather than the subject and could also be mistaken
+for a link to a third-party source.
+
+These subjects have different meanings and constraints. IR35 is a regulatory
+regime. An umbrella company is an organisation type. A dividend is a company
+distribution. Capital Gains Tax is a tax. The 60% tax trap is an effect caused
+by tax rules. Flattening those distinctions into tags or an open-ended `kind`
+field would make the graph harder to query and easier to fill with ambiguous
+records.
+
+## Decision
+
+Publish financial and business subjects as first-class, typed entities in the
+existing connected knowledge graph. Do not add a `Reference` entity or treat
+these subjects as a separate public graph.
+
+The initial vocabulary will support the concrete classes needed by published
+content:
+
+| Subject                  | Class             |
+| ------------------------ | ----------------- |
+| IR35                     | Regulatory regime |
+| Umbrella company         | Organisation type |
+| Dividend                 | Distribution type |
+| Capital Gains Tax        | Tax               |
+| Personal Allowance taper | Tax rule          |
+| 60% tax trap             | Tax effect        |
+
+Law and work arrangement will also be distinct classes when content needs
+them. A law represents an enacted legal instrument. It does not become a
+catch-all for a regime, tax, company form, or observed tax effect.
+
+Each subject will have a canonical page whose route and presentation identify
+its class. The site may group these pages under a plain navigation label such
+as "Finance and business", but that label will not replace their types in the
+graph.
+
+The new entities must join the relations that already explain work. A job role
+will keep its existing technology, project, and blog connections and may also
+record its work arrangement, the organisation form through which the work was
+performed, and any regime that governed the engagement. Projects may record
+which financial or business subjects they model. Blog posts may explain or
+discuss them. The result should support a traversal such as:
+
+```text
+Role -> project -> models -> Capital Gains Tax
+Role -> governed by -> IR35
+Role -> engaged via -> Umbrella company
+Role -> blog post -> explains -> Dividend
+```
+
+Authoritative third-party pages remain sources for claims. They do not define
+the class of the local page.
+
+Private financial facts remain outside the public content graph. A personal
+finance application may later classify an employment, payment, or disposal
+against the same public domain entity. That reuse must not publish the private
+record or turn the public subject into an instance of one person's finances.
+
+## Consequences
+
+Readers can move between professional history, projects, writing, and the
+financial or business rules that affected the work. The graph preserves the
+existing role as a junction instead of placing finance content in an isolated
+section.
+
+Authors must choose a real class and relationship when adding a subject. That
+cost is intentional. If a proposed subject does not fit the vocabulary, its
+addition requires a small ontology decision rather than a generic fallback.
+
+Some subjects vary by jurisdiction and effective date. Their pages must make
+that scope visible and keep dated rule facts separate from the stable identity
+of the subject. The site will need maintenance checks for stale effective
+rules and their authority sources.
+
+## Alternatives considered
+
+### Add a generic reference page
+
+This would make new pages cheap to add. It was rejected because `Reference`
+describes an editorial use. It does not identify the entity or distinguish a
+tax from an organisation type or regulatory regime.
+
+### Extend ideas with a kind field
+
+This would reuse the current idea routes and relations. It was rejected
+because ideas represent abstract concepts. A discriminating string would
+also leave one broad schema responsible for unrelated legal, financial, and
+commercial entities.
+
+### Publish a separate finance graph
+
+This would create a clear storage boundary. It was rejected for public
+knowledge because employment roles, projects, technologies, and writing
+already form one connected account. A second graph would require joins to
+recover relationships the site already knows. Private personal data still
+keeps its own access and storage boundary.
