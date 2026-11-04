@@ -272,6 +272,57 @@ export const zWorkItemCompletionPolicy = z.object({
     assignedAt: z.iso.datetime().max(30)
 });
 
+export const zDeliveryActionRequest = z.object({
+    id: z.uuid().max(36),
+    workItemId: z.string().min(1).max(200),
+    kind: z.enum(['merge', 'deployment']),
+    provider: z.enum(['github']),
+    evidenceKind: z.enum(['pull_request', 'deployment']),
+    evidenceExternalId: z.string().min(1).max(10000),
+    repository: z.string().max(200).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$\/u/),
+    commitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    initiatingSessionId: z.string().min(1).max(200).nullable(),
+    unavailableSessionFallback: z.enum(['request_owner_attention', 'launch_replacement']),
+    requestedAt: z.iso.datetime().max(30)
+});
+
+export const zDeliveryRecovery = z.object({
+    id: z.uuid().max(36),
+    workItemId: z.string().min(1).max(200),
+    actionRequestId: z.uuid().max(36),
+    actionResultId: z.uuid().max(36),
+    initiatingSessionId: z.string().min(1).max(200).nullable(),
+    unavailableSessionFallback: z.enum(['request_owner_attention', 'launch_replacement']),
+    attentionRequestId: z.uuid().max(36),
+    createdAt: z.iso.datetime().max(30),
+    resolvedAt: z.iso.datetime().max(30).nullable(),
+    evidence: z.object({
+        provider: z.string().min(1).max(200),
+        externalId: z.string().min(1).max(10000),
+        repository: z.string().max(200).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$\/u/),
+        commitSha: z.string().max(40).regex(/^[0-9a-f]{40}$/),
+        kind: z.enum(['pull_request', 'deployment']),
+        state: z.enum(['failure', 'cancelled']),
+        sourceUrl: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/),
+        observedAt: z.iso.datetime().max(30)
+    })
+});
+
+export const zDeliveryRecoveryList = z.object({
+    items: z.array(zDeliveryRecovery).max(100),
+    nextCursor: z.uuid().max(36).nullable()
+});
+
+export const zDeliveryRecoveryDelivery = z.object({
+    id: z.uuid().max(36),
+    recoveryId: z.uuid().max(36),
+    kind: z.enum(['push', 'replacement_launch']),
+    targetSessionId: z.string().min(1).max(200).nullable(),
+    reservedAt: z.iso.datetime().max(30)
+});
+
 export const zPullRequestSnapshot = z.object({
     repository: z.string().min(1).max(200),
     number: z.int().gte(1).lte(2147483647),
@@ -421,6 +472,10 @@ export const zWorkItemEvent = z.object({
         'attention.resolved',
         'dependency.added',
         'dependency.removed',
+        'delivery_action.requested',
+        'delivery_action.result_recorded',
+        'delivery_recovery.recorded',
+        'delivery_recovery.delivery_reserved',
         'context.put',
         'lease.claimed',
         'lease.ended',
@@ -467,7 +522,8 @@ export const zAttentionResolution = z.object({
 export const zAttentionRequest = z.object({
     id: z.uuid().max(36),
     workItemId: z.string().min(1).max(200),
-    requestingLeaseId: z.uuid().max(36),
+    requestingLeaseId: z.uuid().max(36).nullable(),
+    deliveryRecoveryId: z.uuid().max(36).nullable(),
     kind: z.string().min(1).max(100),
     question: z.string().min(1).max(10000),
     note: z.string().min(1).max(10000).nullable(),
@@ -633,6 +689,42 @@ export const zGetCriticalPathQuery = z.object({
  * Critical-path targets, included nodes and edges, blocking paths, and claimable parallel branches
  */
 export const zGetCriticalPathResponse = zCriticalPathProjection;
+
+export const zCreateDeliveryActionRequestBody = zDeliveryActionRequest;
+
+/**
+ * Delivery action request created or matched
+ */
+export const zCreateDeliveryActionRequestResponse = zDeliveryActionRequest;
+
+export const zListDeliveryRecoveriesQuery = z.object({
+    initiatingSessionId: z.string().min(1).max(200).optional(),
+    workItemId: z.string().min(1).max(200).optional(),
+    includeResolved: z.enum(['true']).optional(),
+    limit: z.int().gte(1).lte(100).optional().default(50),
+    cursor: z.uuid().max(36).optional()
+});
+
+/**
+ * Delivery recoveries in stable recovery-ID order
+ */
+export const zListDeliveryRecoveriesResponse = zDeliveryRecoveryList;
+
+export const zReserveDeliveryRecoveryBody = z.object({
+    id: z.uuid().max(36),
+    kind: z.enum(['push', 'replacement_launch']),
+    targetSessionId: z.string().min(1).max(200).nullable(),
+    reservedAt: z.iso.datetime().max(30)
+});
+
+export const zReserveDeliveryRecoveryPath = z.object({
+    recoveryId: z.uuid().max(36)
+});
+
+/**
+ * Existing matching reservation returned
+ */
+export const zReserveDeliveryRecoveryResponse = zDeliveryRecoveryDelivery;
 
 export const zDeleteDependencyBody = z.object({
     dependentWorkItemId: z.string().min(1).max(200),
@@ -1154,6 +1246,10 @@ export const zListWorkItemEventsQuery = z.object({
         'attention.resolved',
         'dependency.added',
         'dependency.removed',
+        'delivery_action.requested',
+        'delivery_action.result_recorded',
+        'delivery_recovery.recorded',
+        'delivery_recovery.delivery_reserved',
         'context.put',
         'lease.claimed',
         'lease.ended',

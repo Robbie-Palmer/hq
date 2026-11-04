@@ -23,6 +23,8 @@ import {
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
   normalizeAndValidateContextRecords,
+  normalizeDeliveryActionRequest,
+  normalizeDeliveryRecoveryDelivery,
   normalizeKnowledgeScopeArchiveReason,
   normalizeCompletionPolicyRevision,
   normalizeRepositoryCompletionPolicyDefaultRevision,
@@ -46,6 +48,9 @@ import {
   type CurrentDeliveryEvidence,
   type DeliveryEvidenceKind,
   type DeliveryEvidenceObservation,
+  type DeliveryActionRequest,
+  type DeliveryRecoveryDelivery,
+  type DeliveryRecoveryRecord,
   type ExternalDelivery,
   type KnowledgeScope,
   type KnowledgeScopeInput,
@@ -84,7 +89,11 @@ import {
   completionCandidateEvaluation,
   completionPolicyRevision,
   currentDeliveryEvidence,
+  deliveryActionRequest,
+  deliveryActionResult,
   deliveryEvidenceObservation,
+  deliveryRecovery,
+  deliveryRecoveryDelivery,
   event,
   externalDelivery,
   graphMutationLock,
@@ -112,29 +121,39 @@ const EVENT_SEQUENCE_LOCK_ID = "event-sequence";
 const PRIORITY_RANK_GAP = 1_024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const pullRequestLinkEvaluationId = (
-  workItemId: string,
-  repository: string,
-  number: number,
-  evaluatedAt: string,
-): string => {
-  const bytes = createHash("sha256")
-    .update("pull-request-link-completion-candidate\0")
-    .update(workItemId)
-    .update("\0")
-    .update(repository)
-    .update("\0")
-    .update(number.toString())
-    .update("\0")
-    .update(evaluatedAt)
-    .digest()
-    .subarray(0, 16);
+type ActionableDeliveryObservation =
+  typeof deliveryEvidenceObservation.$inferSelect & {
+    kind: "pull_request" | "deployment";
+    state: "success" | "failure" | "cancelled";
+  };
+const isActionableDeliveryObservation = (
+  observation: typeof deliveryEvidenceObservation.$inferSelect,
+): observation is ActionableDeliveryObservation =>
+  observation.kind !== "ci" && observation.state !== "pending";
+const deterministicUuid = (namespace: string, ...parts: readonly string[]): string => {
+  const hash = createHash("sha256").update(namespace);
+  for (const part of parts) hash.update("\0").update(part);
+  const bytes = hash.digest().subarray(0, 16);
   bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
   bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
   const hex = [...bytes]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
+const pullRequestLinkEvaluationId = (
+  workItemId: string,
+  repository: string,
+  number: number,
+  evaluatedAt: string,
+): string => {
+  return deterministicUuid(
+    "pull-request-link-completion-candidate",
+    workItemId,
+    repository,
+    number.toString(),
+    evaluatedAt,
+  );
 };
 const parentKnowledgeScope = alias(
   knowledgeScope,
@@ -151,6 +170,10 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "attention.resolved",
   "dependency.added",
   "dependency.removed",
+  "delivery_action.requested",
+  "delivery_action.result_recorded",
+  "delivery_recovery.recorded",
+  "delivery_recovery.delivery_reserved",
   "context.put",
   "knowledge_scope.put",
   "knowledge_scope.archived",
@@ -190,6 +213,8 @@ export type StoredAttentionResolution =
 export type StoredCompletionCandidateEvaluation = CompletionCandidateEvaluation & {
   readonly id: string;
 };
+export type StoredDeliveryActionRequest = typeof deliveryActionRequest.$inferSelect;
+export type StoredDeliveryRecoveryDelivery = DeliveryRecoveryDelivery;
 export type StoredWorkItemDeliveryEvidence = DeliveryEvidenceObservation & {
   readonly current: boolean;
   readonly projectedAt: string | null;
@@ -231,6 +256,19 @@ export interface ListWorkItemDeliveryEvidenceInput {
   readonly currentOnly?: boolean;
   readonly cursor?: string;
   readonly limit?: number;
+}
+
+export interface ListDeliveryRecoveriesInput {
+  readonly initiatingSessionId?: string;
+  readonly workItemId?: string;
+  readonly unresolvedOnly?: boolean;
+  readonly cursor?: string;
+  readonly limit?: number;
+}
+
+export interface ReserveDeliveryRecoveryResult {
+  readonly delivery: StoredDeliveryRecoveryDelivery;
+  readonly created: boolean;
 }
 
 export interface GitHubReconciliationTarget {
@@ -857,6 +895,8 @@ const requireUuid = (
   code:
     | "invalid_attention_request_id"
     | "invalid_attention_resolution_id"
+    | "invalid_delivery_action"
+    | "invalid_evidence_observation"
     | "invalid_note_id",
   message: string,
 ): void => {
@@ -871,6 +911,7 @@ const requireText = (
     | "invalid_attention_kind"
     | "invalid_attention_question"
     | "invalid_attention_resolution"
+    | "invalid_delivery_action"
     | "invalid_note_content",
   message: string,
 ): void => {
@@ -2648,6 +2689,414 @@ export class WorkGraphRepository {
     }));
   }
 
+  async putDeliveryActionRequest(
+    input: DeliveryActionRequest,
+  ): Promise<DeliveryActionRequest> {
+    const normalized = normalizeDeliveryActionRequest(input);
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const [created] = await transaction
+        .insert(deliveryActionRequest)
+        .values({
+          ...normalized,
+          requestedAt: new Date(normalized.requestedAt),
+        })
+        .onConflictDoNothing()
+        .returning();
+      const [stored] = await transaction
+        .select()
+        .from(deliveryActionRequest)
+        .where(eq(deliveryActionRequest.id, normalized.id))
+        .limit(1);
+      if (!stored) {
+        throw new WorkGraphError(
+          "duplicate_delivery_action",
+          `GitHub evidence ${normalized.evidenceExternalId} is already bound to another delivery action.`,
+        );
+      }
+      if (stored.evidenceKind === "ci") {
+        throw new Error(`Delivery action ${stored.id} has invalid CI evidence.`);
+      }
+      const result: DeliveryActionRequest = {
+        ...stored,
+        provider: "github",
+        evidenceKind: stored.evidenceKind,
+        requestedAt: stored.requestedAt.toISOString(),
+      };
+      if (JSON.stringify(result) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "duplicate_delivery_action",
+          `Delivery action request ${normalized.id} is immutable.`,
+        );
+      }
+      if (created) {
+        await this.appendEvent(transaction, {
+          type: "delivery_action.requested",
+          workItemId: normalized.workItemId,
+          occurredAt: stored.requestedAt,
+          data: {
+            requestId: normalized.id,
+            kind: normalized.kind,
+            provider: normalized.provider,
+            evidenceKind: normalized.evidenceKind,
+            evidenceExternalId: normalized.evidenceExternalId,
+            repository: normalized.repository,
+            commitSha: normalized.commitSha,
+            policyId: normalized.policyId,
+            policyRevision: normalized.policyRevision,
+            initiatingSessionId: normalized.initiatingSessionId,
+            unavailableSessionFallback:
+              normalized.unavailableSessionFallback,
+          },
+        });
+      }
+      return result;
+    });
+  }
+
+  async recordDeliveryActionObservation(
+    evidenceObservationId: string,
+  ): Promise<readonly DeliveryRecoveryRecord[]> {
+    requireUuid(
+      evidenceObservationId,
+      "invalid_evidence_observation",
+      "An evidence observation ID must be a UUID.",
+    );
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const [observation] = await transaction
+        .select()
+        .from(deliveryEvidenceObservation)
+        .where(eq(deliveryEvidenceObservation.id, evidenceObservationId))
+        .limit(1);
+      if (!observation) return [];
+      if (!isActionableDeliveryObservation(observation)) return [];
+      const requests = await transaction
+        .select()
+        .from(deliveryActionRequest)
+        .where(
+          and(
+            eq(deliveryActionRequest.provider, observation.provider),
+            eq(deliveryActionRequest.evidenceKind, observation.kind),
+            eq(
+              deliveryActionRequest.evidenceExternalId,
+              observation.externalId,
+            ),
+            eq(deliveryActionRequest.repository, observation.repository),
+            eq(deliveryActionRequest.commitSha, observation.commitSha),
+          ),
+        );
+      const recoveries: DeliveryRecoveryRecord[] = [];
+      for (const request of requests) {
+        const recovery = await this.recordDeliveryActionRequestResult(
+          transaction,
+          observation,
+          request,
+        );
+        if (recovery) recoveries.push(recovery);
+      }
+      return recoveries;
+    });
+  }
+
+  private async recordDeliveryActionRequestResult(
+    transaction: DbTransaction,
+    observation: ActionableDeliveryObservation,
+    request: typeof deliveryActionRequest.$inferSelect,
+  ): Promise<DeliveryRecoveryRecord | null> {
+    const resultId = deterministicUuid(
+      "delivery-action-result",
+      request.id,
+      observation.id,
+    );
+    const [createdResult] = await transaction
+      .insert(deliveryActionResult)
+      .values({
+        id: resultId,
+        requestId: request.id,
+        evidenceObservationId: observation.id,
+        state: observation.state,
+        recordedAt: observation.ingestedAt,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!createdResult) return null;
+    await this.appendEvent(transaction, {
+      type: "delivery_action.result_recorded",
+      workItemId: request.workItemId,
+      occurredAt: observation.ingestedAt,
+      data: {
+        requestId: request.id,
+        resultId,
+        evidenceObservationId: observation.id,
+        state: observation.state,
+        sourceUrl: observation.sourceUrl,
+      },
+    });
+    if (observation.state === "success") return null;
+
+    const recoveryId = deterministicUuid(
+      "delivery-recovery",
+      request.id,
+      resultId,
+    );
+    const attentionRequestId = deterministicUuid(
+      "delivery-recovery-attention",
+      recoveryId,
+    );
+    const [createdRecovery] = await transaction
+      .insert(deliveryRecovery)
+      .values({
+        id: recoveryId,
+        workItemId: request.workItemId,
+        actionRequestId: request.id,
+        actionResultId: resultId,
+        initiatingSessionId: request.initiatingSessionId,
+        unavailableSessionFallback: request.unavailableSessionFallback,
+        attentionRequestId,
+        createdAt: observation.ingestedAt,
+      })
+      .onConflictDoNothing()
+      .returning();
+    if (!createdRecovery) return null;
+    const [createdAttention] = await transaction
+      .insert(attentionRequest)
+      .values({
+        id: attentionRequestId,
+        workItemId: request.workItemId,
+        requestingLeaseId: null,
+        deliveryRecoveryId: recoveryId,
+        kind: "delivery_action_failure",
+        question: `${request.kind} action ${request.id} ${observation.state}; recover from ${observation.sourceUrl}`,
+        note: request.initiatingSessionId
+          ? `Route recovery to initiating session ${request.initiatingSessionId}.`
+          : `No initiating session was recorded; apply ${request.unavailableSessionFallback}.`,
+        blocking: true,
+        createdAt: observation.ingestedAt,
+      })
+      .returning();
+    if (!createdAttention) {
+      throw new Error("Delivery recovery attention insert returned no row.");
+    }
+    const evidence = {
+      provider: observation.provider,
+      externalId: observation.externalId,
+      repository: observation.repository,
+      commitSha: observation.commitSha,
+      kind: observation.kind,
+      state: observation.state,
+      sourceUrl: observation.sourceUrl,
+      observedAt: observation.providerObservedAt.toISOString(),
+    } as const;
+    await this.appendEvent(transaction, {
+      type: "delivery_recovery.recorded",
+      workItemId: request.workItemId,
+      occurredAt: observation.ingestedAt,
+      data: {
+        recoveryId,
+        requestId: request.id,
+        resultId,
+        attentionRequestId,
+        initiatingSessionId: request.initiatingSessionId,
+        unavailableSessionFallback: request.unavailableSessionFallback,
+        evidence,
+      },
+    });
+    return {
+      ...createdRecovery,
+      createdAt: createdRecovery.createdAt.toISOString(),
+      resolvedAt: null,
+      evidence,
+    };
+  }
+
+  async listDeliveryRecoveries(
+    input: ListDeliveryRecoveriesInput = {},
+  ): Promise<readonly DeliveryRecoveryRecord[]> {
+    if (input.initiatingSessionId !== undefined) {
+      requireText(
+        input.initiatingSessionId,
+        "invalid_delivery_action",
+        "An initiating session ID cannot be empty.",
+      );
+    }
+    if (input.workItemId !== undefined) {
+      requireIdentifier(input.workItemId, "invalid_work_item_id");
+    }
+    if (input.cursor !== undefined) {
+      requireUuid(
+        input.cursor,
+        "invalid_delivery_action",
+        "A delivery recovery cursor must be a UUID.",
+      );
+    }
+    if (
+      input.limit !== undefined &&
+      (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 101)
+    ) {
+      throw new WorkGraphError(
+        "invalid_delivery_action",
+        "A delivery recovery repository limit must be between 1 and 101.",
+      );
+    }
+    const query = this.db
+      .select({ recovery: deliveryRecovery, observation: deliveryEvidenceObservation })
+      .from(deliveryRecovery)
+      .innerJoin(
+        deliveryActionResult,
+        eq(deliveryActionResult.id, deliveryRecovery.actionResultId),
+      )
+      .innerJoin(
+        deliveryEvidenceObservation,
+        eq(
+          deliveryEvidenceObservation.id,
+          deliveryActionResult.evidenceObservationId,
+        ),
+      )
+      .where(
+        and(
+          input.initiatingSessionId === undefined
+            ? undefined
+            : eq(
+                deliveryRecovery.initiatingSessionId,
+                input.initiatingSessionId,
+              ),
+          input.workItemId === undefined
+            ? undefined
+            : eq(deliveryRecovery.workItemId, input.workItemId),
+          input.unresolvedOnly === false
+            ? undefined
+            : isNull(deliveryRecovery.resolvedAt),
+          input.cursor === undefined
+            ? undefined
+            : gt(deliveryRecovery.id, input.cursor),
+        ),
+      )
+      .orderBy(deliveryRecovery.id);
+    const rows =
+      input.limit === undefined ? await query : await query.limit(input.limit);
+    return rows.map(({ recovery, observation }) => {
+      if (
+        (observation.kind !== "pull_request" &&
+          observation.kind !== "deployment") ||
+        (observation.state !== "failure" && observation.state !== "cancelled")
+      ) {
+        throw new Error(`Recovery ${recovery.id} has invalid evidence.`);
+      }
+      return {
+        ...recovery,
+        createdAt: recovery.createdAt.toISOString(),
+        resolvedAt: recovery.resolvedAt?.toISOString() ?? null,
+        evidence: {
+          provider: observation.provider,
+          externalId: observation.externalId,
+          repository: observation.repository,
+          commitSha: observation.commitSha,
+          kind: observation.kind,
+          state: observation.state,
+          sourceUrl: observation.sourceUrl,
+          observedAt: observation.providerObservedAt.toISOString(),
+        },
+      };
+    });
+  }
+
+  async reserveDeliveryRecovery(
+    input: DeliveryRecoveryDelivery,
+  ): Promise<ReserveDeliveryRecoveryResult> {
+    const normalized = normalizeDeliveryRecoveryDelivery(input);
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      const [recovery] = await transaction
+        .select()
+        .from(deliveryRecovery)
+        .where(eq(deliveryRecovery.id, normalized.recoveryId))
+        .for("update");
+      if (!recovery) {
+        throw new WorkGraphError(
+          "delivery_recovery_not_found",
+          `Delivery recovery ${normalized.recoveryId} does not exist.`,
+        );
+      }
+      if (recovery.resolvedAt !== null) {
+        throw new WorkGraphError(
+          "delivery_recovery_not_found",
+          `Delivery recovery ${normalized.recoveryId} is already resolved.`,
+        );
+      }
+      this.validateDeliveryRecoveryRoute(normalized, recovery);
+      const [created] = await transaction
+        .insert(deliveryRecoveryDelivery)
+        .values({
+          ...normalized,
+          reservedAt: new Date(normalized.reservedAt),
+        })
+        .onConflictDoNothing()
+        .returning();
+      const [stored] = await transaction
+        .select()
+        .from(deliveryRecoveryDelivery)
+        .where(
+          and(
+            eq(deliveryRecoveryDelivery.recoveryId, normalized.recoveryId),
+            eq(deliveryRecoveryDelivery.kind, normalized.kind),
+          ),
+        )
+        .limit(1);
+      if (!stored) {
+        throw new Error("Delivery recovery reservation returned no row.");
+      }
+      const delivery = {
+        ...stored,
+        reservedAt: stored.reservedAt.toISOString(),
+      };
+      if (JSON.stringify(delivery) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "duplicate_delivery_recovery_delivery",
+          `Recovery ${normalized.recoveryId} already reserved a different ${normalized.kind} delivery.`,
+        );
+      }
+      if (created) {
+        await this.appendEvent(transaction, {
+          type: "delivery_recovery.delivery_reserved",
+          workItemId: recovery.workItemId,
+          occurredAt: stored.reservedAt,
+          data: {
+            recoveryId: recovery.id,
+            deliveryId: stored.id,
+            kind: stored.kind,
+            targetSessionId: stored.targetSessionId,
+          },
+        });
+      }
+      return { delivery, created: created !== undefined };
+    });
+  }
+
+  private validateDeliveryRecoveryRoute(
+    delivery: DeliveryRecoveryDelivery,
+    recovery: typeof deliveryRecovery.$inferSelect,
+  ): void {
+    if (
+      delivery.kind === "push" &&
+      delivery.targetSessionId !== recovery.initiatingSessionId
+    ) {
+      throw new WorkGraphError(
+        "invalid_delivery_recovery_delivery",
+        "Push recovery must target the recorded initiating session.",
+      );
+    }
+    if (
+      delivery.kind === "replacement_launch" &&
+      recovery.unavailableSessionFallback !== "launch_replacement"
+    ) {
+      throw new WorkGraphError(
+        "invalid_delivery_recovery_delivery",
+        "Owner policy does not permit a replacement launch.",
+      );
+    }
+  }
+
   async listGitHubReconciliationTargets(
     limit = 100,
   ): Promise<readonly GitHubReconciliationTarget[]> {
@@ -4382,6 +4831,7 @@ export class WorkGraphRepository {
           .select({
             id: attentionRequest.id,
             workItemId: attentionRequest.workItemId,
+            deliveryRecoveryId: attentionRequest.deliveryRecoveryId,
           })
           .from(attentionRequest)
           .where(eq(attentionRequest.id, input.attentionRequestId))
@@ -4398,6 +4848,17 @@ export class WorkGraphRepository {
           .returning();
         if (!created) {
           throw new Error("Attention resolution creation returned no row.");
+        }
+        if (lockedRequest.deliveryRecoveryId !== null) {
+          await transaction
+            .update(deliveryRecovery)
+            .set({ resolvedAt: created.createdAt })
+            .where(
+              and(
+                eq(deliveryRecovery.id, lockedRequest.deliveryRecoveryId),
+                isNull(deliveryRecovery.resolvedAt),
+              ),
+            );
         }
         await this.appendEvent(transaction, {
           type: "attention.resolved",

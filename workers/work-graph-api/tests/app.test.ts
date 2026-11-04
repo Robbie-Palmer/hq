@@ -161,6 +161,12 @@ const buildRepository = (): WorkGraphApiRepository => ({
   getCompletionCandidate: vi.fn(async () => null),
   putCompletionPolicyRevision: vi.fn(async (input) => input),
   putRepositoryCompletionPolicyDefaultRevision: vi.fn(async (input) => input),
+  putDeliveryActionRequest: vi.fn(async (input) => input),
+  listDeliveryRecoveries: vi.fn(async () => []),
+  reserveDeliveryRecovery: vi.fn(async (input) => ({
+    delivery: input,
+    created: true,
+  })),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
   evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
@@ -223,6 +229,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
       id: input.id,
       workItemId: input.workItemId,
       requestingLeaseId: input.leaseId,
+      deliveryRecoveryId: null,
       kind: input.kind,
       question: input.question,
       note: input.note ?? null,
@@ -1144,6 +1151,102 @@ describe("Given work items with derived readiness", () => {
     });
   });
 
+  it("records delivery actions and lets the initiating session pull and reserve recovery", async () => {
+    const repository = buildRepository();
+    const actionRequest = {
+      id: "00000000-0000-4000-8000-000000000009",
+      workItemId: "ticket",
+      kind: "deployment" as const,
+      provider: "github" as const,
+      evidenceKind: "deployment" as const,
+      evidenceExternalId: "example/site/deployments/20",
+      repository: "example/site",
+      commitSha: "b".repeat(40),
+      policyId: "site-production",
+      policyRevision: 2,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention" as const,
+      requestedAt: "2026-11-04T20:00:00.000Z",
+    };
+    const recovery = {
+      id: "00000000-0000-4000-8000-000000000010",
+      workItemId: "ticket",
+      actionRequestId: actionRequest.id,
+      actionResultId: "00000000-0000-4000-8000-000000000011",
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention" as const,
+      attentionRequestId,
+      createdAt: "2026-11-04T20:05:00.000Z",
+      resolvedAt: null,
+      evidence: {
+        provider: "github",
+        externalId: actionRequest.evidenceExternalId,
+        repository: actionRequest.repository,
+        commitSha: actionRequest.commitSha,
+        kind: "deployment" as const,
+        state: "failure" as const,
+        sourceUrl:
+          "https://api.github.com/repos/example/site/deployments/20/statuses/21",
+        observedAt: "2026-11-04T20:04:00.000Z",
+      },
+    };
+    vi.mocked(repository.listDeliveryRecoveries).mockResolvedValue([recovery]);
+    const app = createWorkGraphApp(repository);
+
+    const created = await app.request("/api/delivery-action-requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(actionRequest),
+    });
+    const listed = await app.request(
+      "/api/delivery-recoveries?initiatingSessionId=session%3Ainitiator&limit=1",
+    );
+    const listedAtMaximumPageSize = await app.request(
+      "/api/delivery-recoveries?initiatingSessionId=session%3Ainitiator&limit=100",
+    );
+    const reserved = await app.request(
+      `/api/delivery-recoveries/${recovery.id}/deliveries`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000012",
+          kind: "push",
+          targetSessionId: "session:initiator",
+          reservedAt: "2026-11-04T20:06:00.000Z",
+        }),
+      },
+    );
+
+    expect(created.status).toBe(201);
+    expect(repository.putDeliveryActionRequest).toHaveBeenCalledWith(
+      actionRequest,
+    );
+    expect(await responseJson(listed)).toEqual({
+      items: [recovery],
+      nextCursor: null,
+    });
+    expect(repository.listDeliveryRecoveries).toHaveBeenCalledWith({
+      initiatingSessionId: "session:initiator",
+      unresolvedOnly: true,
+      limit: 2,
+    });
+    expect(listedAtMaximumPageSize.status).toBe(200);
+    expect(repository.listDeliveryRecoveries).toHaveBeenLastCalledWith({
+      initiatingSessionId: "session:initiator",
+      unresolvedOnly: true,
+      limit: 101,
+    });
+    expect(reserved.status).toBe(201);
+    expect(repository.reserveDeliveryRecovery).toHaveBeenCalledWith({
+      id: "00000000-0000-4000-8000-000000000012",
+      recoveryId: recovery.id,
+      kind: "push",
+      targetSessionId: "session:initiator",
+      reservedAt: "2026-11-04T20:06:00.000Z",
+    });
+  });
+
   it("refreshes and links pull requests outside claim operations", async () => {
     const repository = buildRepository();
     const snapshot = {
@@ -1420,6 +1523,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: attentionRequestId,
       workItemId: "ready",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
       kind: "decision",
       question: "Which contract is canonical?",
       note: null,
@@ -1431,6 +1535,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: attentionResolutionId,
       workItemId: "resolved",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
       kind: "review",
       question: "Is the wording clear?",
       note: null,
@@ -1447,6 +1552,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: secondAttentionRequestId,
       workItemId: "other",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
       kind: "input",
       question: "Which option applies?",
       note: null,
@@ -1669,6 +1775,7 @@ describe("Given a worker recording progress and requesting attention", () => {
         id: attentionRequestId,
         workItemId: "ready",
         requestingLeaseId: leaseId,
+        deliveryRecoveryId: null,
         kind: "decision",
         question: "Which contract is canonical?",
         note: "Compare both options.",

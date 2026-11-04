@@ -247,15 +247,35 @@ beforeAll(async () => {
     where pg_type.typname = 'completion_policy_assignment_source'
     order by enumsortorder
   `);
+  const deliveryActionKindValues = await db.execute<{ enumlabel: string }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'delivery_action_kind'
+    order by enumsortorder
+  `);
+  const deliveryRecoveryFallbackValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'delivery_recovery_fallback'
+    order by enumsortorder
+  `);
 
-  expect(migrationCount?.count).toBe(20);
+  expect(migrationCount?.count).toBe(22);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
     "completion_candidate_evaluations",
     "completion_policy_revisions",
     "current_delivery_evidence",
+    "delivery_action_requests",
+    "delivery_action_results",
     "delivery_evidence_observations",
+    "delivery_recoveries",
+    "delivery_recovery_deliveries",
     "events",
     "external_deliveries",
     "github_delivery_processing",
@@ -308,6 +328,13 @@ beforeAll(async () => {
   expect(
     completionPolicyAssignmentSourceValues.map(({ enumlabel }) => enumlabel),
   ).toEqual(["explicit", "repository_default"]);
+  expect(deliveryActionKindValues.map(({ enumlabel }) => enumlabel)).toEqual([
+    "merge",
+    "deployment",
+  ]);
+  expect(
+    deliveryRecoveryFallbackValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["request_owner_attention", "launch_replacement"]);
 });
 
 describe("transactional decomposition", () => {
@@ -893,6 +920,16 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.attentionResolution);
     await transaction.delete(schema.attentionRequest);
+    await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} disable trigger delivery_recovery_deliveries_immutable`);
+    await transaction.delete(schema.deliveryRecoveryDelivery);
+    await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} enable trigger delivery_recovery_deliveries_immutable`);
+    await transaction.delete(schema.deliveryRecovery);
+    await transaction.execute(sql`alter table ${schema.deliveryActionResult} disable trigger delivery_action_results_immutable`);
+    await transaction.delete(schema.deliveryActionResult);
+    await transaction.execute(sql`alter table ${schema.deliveryActionResult} enable trigger delivery_action_results_immutable`);
+    await transaction.execute(sql`alter table ${schema.deliveryActionRequest} disable trigger delivery_action_requests_immutable`);
+    await transaction.delete(schema.deliveryActionRequest);
+    await transaction.execute(sql`alter table ${schema.deliveryActionRequest} enable trigger delivery_action_requests_immutable`);
     await transaction.delete(schema.note);
     await transaction.execute(
       sql`alter table ${schema.note} enable trigger notes_immutable`,
@@ -994,6 +1031,207 @@ describe("GitHub delivery consumption", () => {
     expect(await repository.getWorkItem("dependent")).toMatchObject({ lifecycle: "open", stage: "blocked" });
     expect((await repository.listEvents()).filter((item) => item.type !== "pull_request.refreshed"))
       .toEqual(before.filter((item) => item.type !== "pull_request.refreshed"));
+  });
+
+  it("turns failed requested deployment evidence into one session-bound recovery", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(880),
+      workItemId: "github-work",
+      kind: "deployment",
+      provider: "github",
+      evidenceKind: "deployment",
+      evidenceExternalId: `${githubRepository}/deployments/20`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "github-production",
+      policyRevision: 1,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+    await consumer.consume(githubDelivery());
+    const failed = githubDelivery("deployment_status", 3);
+    Object.assign(failed.payload.deployment_status as object, {
+      state: "failure",
+    });
+
+    await expect(consumer.consume(failed)).resolves.toBe("processed");
+    await expect(consumer.consume(failed)).resolves.toBe("processed");
+
+    const recoveries = await repository.listDeliveryRecoveries({
+      initiatingSessionId: "session:initiator",
+    });
+    expect(recoveries).toEqual([
+      expect.objectContaining({
+        workItemId: "github-work",
+        initiatingSessionId: "session:initiator",
+        evidence: expect.objectContaining({
+          externalId: `${githubRepository}/deployments/20`,
+          state: "failure",
+        }),
+      }),
+    ]);
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      stage: "needs_attention",
+    });
+    expect(await repository.listAttentionRequests({ workItemId: "github-work" }))
+      .toEqual([
+        expect.objectContaining({
+          id: recoveries[0]?.attentionRequestId,
+          requestingLeaseId: null,
+          deliveryRecoveryId: recoveries[0]?.id,
+          kind: "delivery_action_failure",
+          blocking: true,
+        }),
+      ]);
+    expect(await db.select().from(schema.deliveryActionResult)).toHaveLength(1);
+    expect(await db.select().from(schema.deliveryRecovery)).toHaveLength(1);
+    expect(
+      (
+        await rejectedDatabaseError(
+          db
+            .update(schema.deliveryActionRequest)
+            .set({ commitSha: commitSha("c") })
+            .where(eq(schema.deliveryActionRequest.id, recordId(880))),
+        )
+      )?.code,
+    ).toBe("55000");
+
+    const [recovery] = recoveries;
+    if (!recovery) throw new Error("Expected a delivery recovery.");
+    const delivery = {
+      id: recordId(881),
+      recoveryId: recovery.id,
+      kind: "push" as const,
+      targetSessionId: "session:initiator",
+      reservedAt: "2026-10-01T12:05:00.000Z",
+    };
+    await expect(repository.reserveDeliveryRecovery(delivery)).resolves.toMatchObject({
+      created: true,
+    });
+    await expect(repository.reserveDeliveryRecovery(delivery)).resolves.toMatchObject({
+      created: false,
+    });
+
+    await repository.resolveAttentionRequest({
+      id: recordId(882),
+      attentionRequestId: recovery.attentionRequestId,
+      resolution: "Initiating session recovered the deployment.",
+    });
+    await expect(
+      repository.listDeliveryRecoveries({
+        initiatingSessionId: "session:initiator",
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      repository.listDeliveryRecoveries({
+        initiatingSessionId: "session:initiator",
+        unresolvedOnly: false,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ resolvedAt: expect.any(String) }),
+    ]);
+  });
+
+  it("reserves at most one owner-authorized replacement launch", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "replacement-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(883),
+      workItemId: "github-work",
+      kind: "deployment",
+      provider: "github",
+      evidenceKind: "deployment",
+      evidenceExternalId: `${githubRepository}/deployments/20`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "replacement-production",
+      policyRevision: 1,
+      initiatingSessionId: null,
+      unavailableSessionFallback: "launch_replacement",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+    await consumer.consume(githubDelivery());
+    const failed = githubDelivery("deployment_status", 3);
+    Object.assign(failed.payload.deployment_status as object, {
+      state: "failure",
+    });
+    await consumer.consume(failed);
+    const [recovery] = await repository.listDeliveryRecoveries({
+      workItemId: "github-work",
+    });
+    if (!recovery) throw new Error("Expected a delivery recovery.");
+    const launch = {
+      id: recordId(884),
+      recoveryId: recovery.id,
+      kind: "replacement_launch" as const,
+      targetSessionId: null,
+      reservedAt: "2026-10-01T12:06:00.000Z",
+    };
+
+    await expect(repository.reserveDeliveryRecovery(launch)).resolves.toMatchObject({
+      created: true,
+    });
+    await expect(
+      repository.reserveDeliveryRecovery({ ...launch, id: recordId(885) }),
+    ).rejects.toMatchObject({
+      code: "duplicate_delivery_recovery_delivery",
+    });
+  });
+
+  it("records a successful requested merge without recovery work", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "merge-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(886),
+      workItemId: "github-work",
+      kind: "merge",
+      provider: "github",
+      evidenceKind: "pull_request",
+      evidenceExternalId: `${githubRepository}/pull/7`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "merge-production",
+      policyRevision: 1,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+
+    await expect(consumer.consume(githubDelivery())).resolves.toBe("processed");
+
+    await expect(
+      repository.listDeliveryRecoveries({ workItemId: "github-work" }),
+    ).resolves.toEqual([]);
+    await expect(db.select().from(schema.deliveryActionResult)).resolves.toEqual([
+      expect.objectContaining({ state: "success" }),
+    ]);
+    await expect(
+      repository.listAttentionRequests({ workItemId: "github-work" }),
+    ).resolves.toEqual([]);
   });
 
   it("reevaluates configured completion candidacy after correlated deliveries and replay", async () => {

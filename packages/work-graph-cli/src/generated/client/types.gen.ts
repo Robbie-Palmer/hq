@@ -209,6 +209,57 @@ export type WorkItemCompletionPolicy = {
     assignedAt: string;
 };
 
+export type DeliveryActionRequest = {
+    id: string;
+    workItemId: string;
+    kind: 'merge' | 'deployment';
+    provider: 'github';
+    evidenceKind: 'pull_request' | 'deployment';
+    evidenceExternalId: string;
+    repository: string;
+    commitSha: string;
+    policyId: string;
+    policyRevision: number;
+    initiatingSessionId: string | null;
+    unavailableSessionFallback: 'request_owner_attention' | 'launch_replacement';
+    requestedAt: string;
+};
+
+export type DeliveryRecoveryList = {
+    items: Array<DeliveryRecovery>;
+    nextCursor: string | null;
+};
+
+export type DeliveryRecovery = {
+    id: string;
+    workItemId: string;
+    actionRequestId: string;
+    actionResultId: string;
+    initiatingSessionId: string | null;
+    unavailableSessionFallback: 'request_owner_attention' | 'launch_replacement';
+    attentionRequestId: string;
+    createdAt: string;
+    resolvedAt: string | null;
+    evidence: {
+        provider: string;
+        externalId: string;
+        repository: string;
+        commitSha: string;
+        kind: 'pull_request' | 'deployment';
+        state: 'failure' | 'cancelled';
+        sourceUrl: string;
+        observedAt: string;
+    };
+};
+
+export type DeliveryRecoveryDelivery = {
+    id: string;
+    recoveryId: string;
+    kind: 'push' | 'replacement_launch';
+    targetSessionId: string | null;
+    reservedAt: string;
+};
+
 export type ResolvedWorkItemContextList = {
     items: Array<ResolvedWorkItemContext>;
 };
@@ -322,7 +373,7 @@ export type WorkItemEventList = {
 
 export type WorkItemEvent = {
     sequence: number;
-    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
+    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
     workItemId: string | null;
     data: {
         [key: string]: unknown;
@@ -359,7 +410,8 @@ export type AttentionResolution = {
 export type AttentionRequest = {
     id: string;
     workItemId: string;
-    requestingLeaseId: string;
+    requestingLeaseId: string | null;
+    deliveryRecoveryId: string | null;
     kind: string;
     question: string;
     note: string | null;
@@ -751,6 +803,182 @@ export type GetCriticalPathResponses = {
 };
 
 export type GetCriticalPathResponse = GetCriticalPathResponses[keyof GetCriticalPathResponses];
+
+export type CreateDeliveryActionRequestData = {
+    body: DeliveryActionRequest;
+    path?: never;
+    query?: never;
+    url: '/api/delivery-action-requests';
+};
+
+export type CreateDeliveryActionRequestErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type CreateDeliveryActionRequestError = CreateDeliveryActionRequestErrors[keyof CreateDeliveryActionRequestErrors];
+
+export type CreateDeliveryActionRequestResponses = {
+    /**
+     * Delivery action request created or matched
+     */
+    201: DeliveryActionRequest;
+};
+
+export type CreateDeliveryActionRequestResponse = CreateDeliveryActionRequestResponses[keyof CreateDeliveryActionRequestResponses];
+
+export type ListDeliveryRecoveriesData = {
+    body?: never;
+    path?: never;
+    query?: {
+        initiatingSessionId?: string;
+        workItemId?: string;
+        includeResolved?: 'true';
+        limit?: number;
+        cursor?: string;
+    };
+    url: '/api/delivery-recoveries';
+};
+
+export type ListDeliveryRecoveriesErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type ListDeliveryRecoveriesError = ListDeliveryRecoveriesErrors[keyof ListDeliveryRecoveriesErrors];
+
+export type ListDeliveryRecoveriesResponses = {
+    /**
+     * Delivery recoveries in stable recovery-ID order
+     */
+    200: DeliveryRecoveryList;
+};
+
+export type ListDeliveryRecoveriesResponse = ListDeliveryRecoveriesResponses[keyof ListDeliveryRecoveriesResponses];
+
+export type ReserveDeliveryRecoveryData = {
+    body: {
+        id: string;
+        kind: 'push' | 'replacement_launch';
+        targetSessionId: string | null;
+        reservedAt: string;
+    };
+    path: {
+        recoveryId: string;
+    };
+    query?: never;
+    url: '/api/delivery-recoveries/{recoveryId}/deliveries';
+};
+
+export type ReserveDeliveryRecoveryErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type ReserveDeliveryRecoveryError = ReserveDeliveryRecoveryErrors[keyof ReserveDeliveryRecoveryErrors];
+
+export type ReserveDeliveryRecoveryResponses = {
+    /**
+     * Existing matching reservation returned
+     */
+    200: DeliveryRecoveryDelivery;
+    /**
+     * Recovery delivery reserved
+     */
+    201: DeliveryRecoveryDelivery;
+};
+
+export type ReserveDeliveryRecoveryResponse = ReserveDeliveryRecoveryResponses[keyof ReserveDeliveryRecoveryResponses];
 
 export type DeleteDependencyData = {
     body: {
@@ -2471,7 +2699,7 @@ export type ListWorkItemEventsData = {
         workItemId: string;
     };
     query?: {
-        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
+        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
         lifecycle?: 'released' | 'cancelled';
         limit?: number;
         afterSequence?: number;

@@ -24,6 +24,7 @@ import {
   type IdempotentMutationOptions,
   type KnowledgeScopeRelationshipCursor,
   type ListAttentionRequestsInput,
+  type ListDeliveryRecoveriesInput,
   type ListWorkItemDeliveryEvidenceInput,
   type ListEventsInput,
   type ListKnowledgeScopeRelationshipsInput,
@@ -45,6 +46,7 @@ import {
   type StoredLease,
   type StoredNote,
   type StoredCompletionCandidateEvaluation,
+  type StoredDeliveryRecoveryDelivery,
   type StoredWorkItemDeliveryEvidence,
   type TerminateClaimedWorkItemInput,
   type TerminateClaimedWorkItemResult,
@@ -56,6 +58,9 @@ import {
 import {
   ARCHITECTURE_DECISION_ROLES,
   COMPLETION_CANDIDATE_REASONS,
+  DELIVERY_ACTION_KINDS,
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
+  DELIVERY_RECOVERY_FALLBACKS,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
   EVIDENCE_CORRELATION_KINDS,
@@ -76,6 +81,9 @@ import {
   WorkGraphError,
   type CriticalPathProjection,
   type CompletionPolicyRevision,
+  type DeliveryActionRequest,
+  type DeliveryRecoveryDelivery,
+  type DeliveryRecoveryRecord,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
@@ -133,6 +141,10 @@ const WORK_ITEM_EVENT_TYPES = [
   "attention.resolved",
   "dependency.added",
   "dependency.removed",
+  "delivery_action.requested",
+  "delivery_action.result_recorded",
+  "delivery_recovery.recorded",
+  "delivery_recovery.delivery_reserved",
   "context.put",
   "lease.claimed",
   "lease.ended",
@@ -526,6 +538,73 @@ const workItemCompletionPolicySchema = z
 const putWorkItemCompletionPolicyBodySchema = workItemCompletionPolicySchema.omit({
   workItemId: true,
 });
+const deliveryActionRequestSchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    kind: z.enum(DELIVERY_ACTION_KINDS),
+    provider: z.literal("github"),
+    evidenceKind: z.enum(["pull_request", "deployment"]),
+    evidenceExternalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    repository: z
+      .string()
+      .max(MAX_IDENTIFIER_LENGTH)
+      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    commitSha: commitShaSchema,
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    initiatingSessionId: z.union([identifierSchema, z.null()]),
+    unavailableSessionFallback: z.enum(DELIVERY_RECOVERY_FALLBACKS),
+    requestedAt: timestampSchema,
+  })
+  .openapi("DeliveryActionRequest");
+const deliveryRecoveryEvidenceSchema = z.object({
+  provider: z.string().trim().min(1).max(MAX_IDENTIFIER_LENGTH),
+  externalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+  repository: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+  commitSha: commitShaSchema,
+  kind: z.enum(["pull_request", "deployment"]),
+  state: z.enum(["failure", "cancelled"]),
+  sourceUrl: contextUrlSchema,
+  observedAt: timestampSchema,
+});
+const deliveryRecoverySchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    actionRequestId: z.uuid().max(36),
+    actionResultId: z.uuid().max(36),
+    initiatingSessionId: z.union([identifierSchema, z.null()]),
+    unavailableSessionFallback: z.enum(DELIVERY_RECOVERY_FALLBACKS),
+    attentionRequestId: z.uuid().max(36),
+    createdAt: timestampSchema,
+    resolvedAt: z.union([timestampSchema, z.null()]),
+    evidence: deliveryRecoveryEvidenceSchema,
+  })
+  .openapi("DeliveryRecovery");
+const deliveryRecoveryListSchema = z
+  .object({
+    items: z.array(deliveryRecoverySchema).max(100),
+    nextCursor: z.union([z.uuid().max(36), z.null()]),
+  })
+  .openapi("DeliveryRecoveryList");
+const deliveryRecoveryDeliverySchema = z
+  .object({
+    id: z.uuid().max(36),
+    recoveryId: z.uuid().max(36),
+    kind: z.enum(DELIVERY_RECOVERY_DELIVERY_KINDS),
+    targetSessionId: z.union([identifierSchema, z.null()]),
+    reservedAt: timestampSchema,
+  })
+  .openapi("DeliveryRecoveryDelivery");
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -690,7 +769,8 @@ const attentionRequestSchema = z
   .object({
     id: z.uuid().max(36),
     workItemId: identifierSchema,
-    requestingLeaseId: leaseIdSchema,
+    requestingLeaseId: z.union([leaseIdSchema, z.null()]),
+    deliveryRecoveryId: z.union([z.uuid().max(36), z.null()]),
     kind: z.string().min(1).max(100),
     question: z.string().min(1).max(MAX_TITLE_LENGTH),
     note: z.union([
@@ -938,6 +1018,25 @@ const listWorkItemEvidenceQuerySchema = z.object({
     .openapi({ format: "int32" }),
   cursor: z.uuid().max(36).optional(),
 });
+const listDeliveryRecoveriesQuerySchema = z.object({
+  initiatingSessionId: identifierSchema.optional(),
+  workItemId: identifierSchema.optional(),
+  includeResolved: z.enum(["true"]).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_LIST_LIMIT)
+    .openapi({ format: "int32" }),
+  cursor: z.uuid().max(36).optional(),
+});
+const deliveryRecoveryParamsSchema = z.object({
+  recoveryId: z.uuid().max(36),
+});
+const reserveDeliveryRecoveryBodySchema = deliveryRecoveryDeliverySchema
+  .omit({ recoveryId: true })
+  .strict();
 const knowledgeScopeParamsSchema = z.object({
   knowledgeScopeId: identifierSchema,
 });
@@ -1603,6 +1702,84 @@ const putWorkItemCompletionPolicyRoute = createRoute({
   },
   responses: {
     200: { description: "Policy assigned", content: { "application/json": { schema: workItemCompletionPolicySchema } } },
+    ...standardErrors,
+  },
+});
+
+const createDeliveryActionRequestRoute = createRoute({
+  method: "post",
+  path: "/api/delivery-action-requests",
+  operationId: "createDeliveryActionRequest",
+  summary: "Record a policy-controlled delivery action request",
+  description:
+    "Binds one merge or deployment request to a work item, immutable policy revision, exact GitHub evidence identity, and initiating session when one exists.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: deliveryActionRequestSchema } },
+    },
+  },
+  responses: {
+    201: {
+      description: "Delivery action request created or matched",
+      content: { "application/json": { schema: deliveryActionRequestSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const listDeliveryRecoveriesRoute = createRoute({
+  method: "get",
+  path: "/api/delivery-recoveries",
+  operationId: "listDeliveryRecoveries",
+  summary: "Pull unresolved delivery recovery work",
+  description:
+    "Returns sanitized failed delivery evidence. Initiating sessions use their stable session ID to pull recovery on their next Work Graph interaction.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: { query: listDeliveryRecoveriesQuerySchema },
+  responses: {
+    200: {
+      description: "Delivery recoveries in stable recovery-ID order",
+      content: { "application/json": { schema: deliveryRecoveryListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const reserveDeliveryRecoveryRoute = createRoute({
+  method: "post",
+  path: "/api/delivery-recoveries/{recoveryId}/deliveries",
+  operationId: "reserveDeliveryRecovery",
+  summary: "Reserve one deduplicated recovery delivery",
+  description:
+    "Reserves a push to the recorded initiating session or one owner-authorized replacement launch before the coordinator performs the external action.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: {
+    params: deliveryRecoveryParamsSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: reserveDeliveryRecoveryBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Existing matching reservation returned",
+      content: {
+        "application/json": { schema: deliveryRecoveryDeliverySchema },
+      },
+    },
+    201: {
+      description: "Recovery delivery reserved",
+      content: {
+        "application/json": { schema: deliveryRecoveryDeliverySchema },
+      },
+    },
     ...standardErrors,
   },
 });
@@ -2360,6 +2537,18 @@ export interface WorkGraphApiRepository {
   putRepositoryCompletionPolicyDefaultRevision(
     input: RepositoryCompletionPolicyDefaultRevision,
   ): Promise<RepositoryCompletionPolicyDefaultRevision>;
+  putDeliveryActionRequest(
+    input: DeliveryActionRequest,
+  ): Promise<DeliveryActionRequest>;
+  listDeliveryRecoveries(
+    input?: ListDeliveryRecoveriesInput,
+  ): Promise<readonly DeliveryRecoveryRecord[]>;
+  reserveDeliveryRecovery(
+    input: DeliveryRecoveryDelivery,
+  ): Promise<{
+    readonly delivery: StoredDeliveryRecoveryDelivery;
+    readonly created: boolean;
+  }>;
   assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void>;
   evaluateCompletionCandidateIfConfigured(
     input: EvaluateCompletionCandidateInput,
@@ -3122,6 +3311,48 @@ export const createWorkGraphApp = (
       evaluatedAt: assignment.assignedAt,
     });
     return context.json(assignment, 200);
+  });
+
+  app.openapi(createDeliveryActionRequestRoute, async (context) => {
+    return context.json(
+      await repository.putDeliveryActionRequest(context.req.valid("json")),
+      201,
+    );
+  });
+
+  app.openapi(listDeliveryRecoveriesRoute, async (context) => {
+    const {
+      cursor,
+      includeResolved,
+      initiatingSessionId,
+      limit,
+      workItemId,
+    } = context.req.valid("query");
+    const recoveries = await repository.listDeliveryRecoveries({
+      ...(initiatingSessionId === undefined ? {} : { initiatingSessionId }),
+      ...(workItemId === undefined ? {} : { workItemId }),
+      unresolvedOnly: includeResolved !== "true",
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: limit + 1,
+    });
+    const page = recoveries.slice(0, limit);
+    return context.json(
+      {
+        items: page,
+        nextCursor:
+          recoveries.length > limit ? (page.at(-1)?.id ?? null) : null,
+      },
+      200,
+    );
+  });
+
+  app.openapi(reserveDeliveryRecoveryRoute, async (context) => {
+    const { recoveryId } = context.req.valid("param");
+    const result = await repository.reserveDeliveryRecovery({
+      ...context.req.valid("json"),
+      recoveryId,
+    });
+    return context.json(result.delivery, result.created ? 201 : 200);
   });
 
   app.openapi(listWorkItemContextsRoute, async (context) => {

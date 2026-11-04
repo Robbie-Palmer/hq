@@ -18,6 +18,10 @@
   ],
   "tags": [
     {
+      "name": "delivery-actions",
+      "description": "Policy-bound merge and deployment requests, results, and recovery routing."
+    },
+    {
       "name": "completion-policies",
       "description": "Owner policy for evidence-backed completion candidacy."
     },
@@ -1334,6 +1338,318 @@
           "assignedAt"
         ]
       },
+      "DeliveryActionRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "merge",
+              "deployment"
+            ]
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "github"
+            ]
+          },
+          "evidenceKind": {
+            "type": "string",
+            "enum": [
+              "pull_request",
+              "deployment"
+            ]
+          },
+          "evidenceExternalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10000
+          },
+          "repository": {
+            "type": "string",
+            "maxLength": 200,
+            "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/u"
+          },
+          "commitSha": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[0-9a-f]{40}$"
+          },
+          "policyId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "policyRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 2147483647,
+            "format": "int32"
+          },
+          "initiatingSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailableSessionFallback": {
+            "type": "string",
+            "enum": [
+              "request_owner_attention",
+              "launch_replacement"
+            ]
+          },
+          "requestedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "workItemId",
+          "kind",
+          "provider",
+          "evidenceKind",
+          "evidenceExternalId",
+          "repository",
+          "commitSha",
+          "policyId",
+          "policyRevision",
+          "initiatingSessionId",
+          "unavailableSessionFallback",
+          "requestedAt"
+        ]
+      },
+      "DeliveryRecoveryList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliveryRecovery"
+            },
+            "maxItems": 100
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "nextCursor"
+        ]
+      },
+      "DeliveryRecovery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "workItemId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "actionRequestId": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "actionResultId": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "initiatingSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unavailableSessionFallback": {
+            "type": "string",
+            "enum": [
+              "request_owner_attention",
+              "launch_replacement"
+            ]
+          },
+          "attentionRequestId": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "createdAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          },
+          "resolvedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 30,
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "type": "object",
+            "properties": {
+              "provider": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "externalId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 10000
+              },
+              "repository": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/u"
+              },
+              "commitSha": {
+                "type": "string",
+                "maxLength": 40,
+                "pattern": "^[0-9a-f]{40}$"
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "pull_request",
+                  "deployment"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "failure",
+                  "cancelled"
+                ]
+              },
+              "sourceUrl": {
+                "type": "string",
+                "maxLength": 2048,
+                "format": "uri",
+                "pattern": "^[hH][tT][tT][pP][sS]?:\\/\\/(?![^/?#]*@)"
+              },
+              "observedAt": {
+                "type": "string",
+                "maxLength": 30,
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "provider",
+              "externalId",
+              "repository",
+              "commitSha",
+              "kind",
+              "state",
+              "sourceUrl",
+              "observedAt"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "workItemId",
+          "actionRequestId",
+          "actionResultId",
+          "initiatingSessionId",
+          "unavailableSessionFallback",
+          "attentionRequestId",
+          "createdAt",
+          "resolvedAt",
+          "evidence"
+        ]
+      },
+      "DeliveryRecoveryDelivery": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "recoveryId": {
+            "type": "string",
+            "maxLength": 36,
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "push",
+              "replacement_launch"
+            ]
+          },
+          "targetSessionId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reservedAt": {
+            "type": "string",
+            "maxLength": 30,
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "recoveryId",
+          "kind",
+          "targetSessionId",
+          "reservedAt"
+        ]
+      },
       "ResolvedWorkItemContextList": {
         "type": "object",
         "properties": {
@@ -1993,6 +2309,10 @@
               "attention.resolved",
               "dependency.added",
               "dependency.removed",
+              "delivery_action.requested",
+              "delivery_action.result_recorded",
+              "delivery_recovery.recorded",
+              "delivery_recovery.delivery_reserved",
               "context.put",
               "lease.claimed",
               "lease.ended",
@@ -2195,9 +2515,28 @@
             "maxLength": 200
           },
           "requestingLeaseId": {
-            "type": "string",
-            "maxLength": 36,
-            "format": "uuid"
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "deliveryRecoveryId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "kind": {
             "type": "string",
@@ -2234,6 +2573,7 @@
           "id",
           "workItemId",
           "requestingLeaseId",
+          "deliveryRecoveryId",
           "kind",
           "question",
           "note",
@@ -3340,6 +3680,519 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/CriticalPathProjection"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/delivery-action-requests": {
+      "post": {
+        "operationId": "createDeliveryActionRequest",
+        "summary": "Record a policy-controlled delivery action request",
+        "description": "Binds one merge or deployment request to a work item, immutable policy revision, exact GitHub evidence identity, and initiating session when one exists.",
+        "tags": [
+          "delivery-actions"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryActionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Delivery action request created or matched",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryActionRequest"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/delivery-recoveries": {
+      "get": {
+        "operationId": "listDeliveryRecoveries",
+        "summary": "Pull unresolved delivery recovery work",
+        "description": "Returns sanitized failed delivery evidence. Initiating sessions use their stable session ID to pull recovery on their next Work Graph interaction.",
+        "tags": [
+          "delivery-actions"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "initiatingSessionId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "required": false,
+            "name": "workItemId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ]
+            },
+            "required": false,
+            "name": "includeResolved",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "format": "int32"
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": false,
+            "name": "cursor",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Delivery recoveries in stable recovery-ID order",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryRecoveryList"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Cloudflare Access authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Cloudflare Access denied the request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Resource not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request conflicts with current Work Graph state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request validation failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Unexpected server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database request can be retried after a transient failure",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds until the request may be retried",
+                "schema": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]*$",
+                  "maxLength": 10
+                }
+              },
+              "X-Request-Id": {
+                "description": "Request correlation identifier",
+                "schema": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/delivery-recoveries/{recoveryId}/deliveries": {
+      "post": {
+        "operationId": "reserveDeliveryRecovery",
+        "summary": "Reserve one deduplicated recovery delivery",
+        "description": "Reserves a push to the recorded initiating session or one owner-authorized replacement launch before the coordinator performs the external action.",
+        "tags": [
+          "delivery-actions"
+        ],
+        "security": [
+          {
+            "cloudflareAccessClientId": [],
+            "cloudflareAccessClientSecret": []
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 36,
+              "format": "uuid"
+            },
+            "required": true,
+            "name": "recoveryId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "maxLength": 36,
+                    "format": "uuid"
+                  },
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "push",
+                      "replacement_launch"
+                    ]
+                  },
+                  "targetSessionId": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "reservedAt": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "format": "date-time"
+                  }
+                },
+                "required": [
+                  "id",
+                  "kind",
+                  "targetSessionId",
+                  "reservedAt"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Existing matching reservation returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryRecoveryDelivery"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Recovery delivery reserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryRecoveryDelivery"
                 }
               }
             }
@@ -8441,6 +9294,10 @@
                 "attention.resolved",
                 "dependency.added",
                 "dependency.removed",
+                "delivery_action.requested",
+                "delivery_action.result_recorded",
+                "delivery_recovery.recorded",
+                "delivery_recovery.delivery_reserved",
                 "context.put",
                 "lease.claimed",
                 "lease.ended",

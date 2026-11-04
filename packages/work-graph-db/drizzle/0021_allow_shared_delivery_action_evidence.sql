@@ -1,0 +1,2 @@
+DROP INDEX "delivery_action_requests_evidence_identity_uidx";--> statement-breakpoint
+CREATE UNIQUE INDEX "delivery_action_requests_evidence_identity_uidx" ON "delivery_action_requests" USING btree ("work_item_id","provider","evidence_kind","evidence_external_id");

@@ -122,6 +122,35 @@ export const COMPLETION_POLICY_ASSIGNMENT_SOURCES = [
 export type CompletionPolicyAssignmentSource =
   (typeof COMPLETION_POLICY_ASSIGNMENT_SOURCES)[number];
 
+export const DELIVERY_ACTION_KINDS = ["merge", "deployment"] as const;
+
+export type DeliveryActionKind = (typeof DELIVERY_ACTION_KINDS)[number];
+
+export const DELIVERY_ACTION_RESULT_STATES = [
+  "success",
+  "failure",
+  "cancelled",
+] as const;
+
+export type DeliveryActionResultState =
+  (typeof DELIVERY_ACTION_RESULT_STATES)[number];
+
+export const DELIVERY_RECOVERY_FALLBACKS = [
+  "request_owner_attention",
+  "launch_replacement",
+] as const;
+
+export type DeliveryRecoveryFallback =
+  (typeof DELIVERY_RECOVERY_FALLBACKS)[number];
+
+export const DELIVERY_RECOVERY_DELIVERY_KINDS = [
+  "push",
+  "replacement_launch",
+] as const;
+
+export type DeliveryRecoveryDeliveryKind =
+  (typeof DELIVERY_RECOVERY_DELIVERY_KINDS)[number];
+
 export const WORK_ITEM_CONTEXT_KINDS = [
   "brief",
   "acceptance_criteria",

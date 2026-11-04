@@ -18,8 +18,12 @@ import {
 import {
   ARCHITECTURE_DECISION_ROLES,
   COMPLETION_POLICY_ASSIGNMENT_SOURCES,
+  DELIVERY_ACTION_KINDS,
+  DELIVERY_ACTION_RESULT_STATES,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
+  DELIVERY_RECOVERY_FALLBACKS,
   EVIDENCE_CORRELATION_KINDS,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
@@ -87,6 +91,26 @@ export const evidenceCorrelationKindEnum = pgEnum(
 export const completionPolicyAssignmentSourceEnum = pgEnum(
   "completion_policy_assignment_source",
   COMPLETION_POLICY_ASSIGNMENT_SOURCES,
+);
+
+export const deliveryActionKindEnum = pgEnum(
+  "delivery_action_kind",
+  DELIVERY_ACTION_KINDS,
+);
+
+export const deliveryActionResultStateEnum = pgEnum(
+  "delivery_action_result_state",
+  DELIVERY_ACTION_RESULT_STATES,
+);
+
+export const deliveryRecoveryFallbackEnum = pgEnum(
+  "delivery_recovery_fallback",
+  DELIVERY_RECOVERY_FALLBACKS,
+);
+
+export const deliveryRecoveryDeliveryKindEnum = pgEnum(
+  "delivery_recovery_delivery_kind",
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
 );
 
 export const knowledgeScopeKindEnum = pgEnum(
@@ -627,6 +651,139 @@ export const workItemCompletionCandidate = pgTable(
   ],
 );
 
+export const deliveryActionRequest = pgTable(
+  "delivery_action_requests",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    kind: deliveryActionKindEnum().notNull(),
+    provider: text().notNull(),
+    evidenceKind: deliveryEvidenceKindEnum().notNull(),
+    evidenceExternalId: text().notNull(),
+    repository: text().notNull(),
+    commitSha: text().notNull(),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    initiatingSessionId: text(),
+    unavailableSessionFallback: deliveryRecoveryFallbackEnum().notNull(),
+    requestedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "delivery_action_requests_policy_revision_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("delivery_action_requests_evidence_identity_uidx").on(
+      table.workItemId,
+      table.provider,
+      table.evidenceKind,
+      table.evidenceExternalId,
+    ),
+    index("delivery_action_requests_work_item_id_idx").on(table.workItemId),
+    check(
+      "delivery_action_requests_provider_check",
+      sql`${table.provider} = 'github'`,
+    ),
+    check(
+      "delivery_action_requests_kind_evidence_check",
+      sql`(${table.kind} = 'merge' and ${table.evidenceKind} = 'pull_request') or (${table.kind} = 'deployment' and ${table.evidenceKind} = 'deployment')`,
+    ),
+    check(
+      "delivery_action_requests_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "delivery_action_requests_commit_sha_check",
+      sql`${table.commitSha} ~ '^[0-9a-f]{40}$'`,
+    ),
+  ],
+);
+
+export const deliveryActionResult = pgTable(
+  "delivery_action_results",
+  {
+    id: uuid().primaryKey(),
+    requestId: uuid()
+      .notNull()
+      .references(() => deliveryActionRequest.id, { onDelete: "restrict" }),
+    evidenceObservationId: uuid()
+      .notNull()
+      .references(() => deliveryEvidenceObservation.id, {
+        onDelete: "restrict",
+      }),
+    state: deliveryActionResultStateEnum().notNull(),
+    recordedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("delivery_action_results_request_observation_uidx").on(
+      table.requestId,
+      table.evidenceObservationId,
+    ),
+    index("delivery_action_results_request_id_idx").on(table.requestId),
+  ],
+);
+
+export const deliveryRecovery = pgTable(
+  "delivery_recoveries",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    actionRequestId: uuid()
+      .notNull()
+      .references(() => deliveryActionRequest.id, { onDelete: "restrict" }),
+    actionResultId: uuid()
+      .notNull()
+      .references(() => deliveryActionResult.id, { onDelete: "restrict" }),
+    initiatingSessionId: text(),
+    unavailableSessionFallback: deliveryRecoveryFallbackEnum().notNull(),
+    attentionRequestId: uuid().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    resolvedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("delivery_recoveries_action_result_id_uidx").on(
+      table.actionResultId,
+    ),
+    uniqueIndex("delivery_recoveries_attention_request_id_uidx").on(
+      table.attentionRequestId,
+    ),
+    index("delivery_recoveries_session_unresolved_idx")
+      .on(table.initiatingSessionId, table.createdAt)
+      .where(sql`${table.resolvedAt} is null`),
+  ],
+);
+
+export const deliveryRecoveryDelivery = pgTable(
+  "delivery_recovery_deliveries",
+  {
+    id: uuid().primaryKey(),
+    recoveryId: uuid()
+      .notNull()
+      .references(() => deliveryRecovery.id, { onDelete: "restrict" }),
+    kind: deliveryRecoveryDeliveryKindEnum().notNull(),
+    targetSessionId: text(),
+    reservedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("delivery_recovery_deliveries_route_uidx").on(
+      table.recoveryId,
+      table.kind,
+    ),
+    check(
+      "delivery_recovery_deliveries_target_check",
+      sql`(${table.kind} = 'push' and ${table.targetSessionId} is not null and btrim(${table.targetSessionId}) <> '') or (${table.kind} = 'replacement_launch' and ${table.targetSessionId} is null)`,
+    ),
+  ],
+);
+
 export const graphMutationLock = pgTable("graph_mutation_locks", {
   id: text().primaryKey(),
 });
@@ -868,7 +1025,10 @@ export const attentionRequest = pgTable(
     workItemId: text()
       .notNull()
       .references(() => workItem.id, { onDelete: "restrict" }),
-    requestingLeaseId: uuid().notNull(),
+    requestingLeaseId: uuid(),
+    deliveryRecoveryId: uuid().references(() => deliveryRecovery.id, {
+      onDelete: "restrict",
+    }),
     kind: text().notNull(),
     question: text().notNull(),
     note: text(),
@@ -884,6 +1044,13 @@ export const attentionRequest = pgTable(
     index("attention_requests_work_item_id_created_at_idx").on(
       table.workItemId,
       table.createdAt,
+    ),
+    uniqueIndex("attention_requests_delivery_recovery_id_uidx")
+      .on(table.deliveryRecoveryId)
+      .where(sql`${table.deliveryRecoveryId} is not null`),
+    check(
+      "attention_requests_source_check",
+      sql`(${table.requestingLeaseId} is not null) <> (${table.deliveryRecoveryId} is not null)`,
     ),
     check(
       "attention_requests_kind_not_blank_check",

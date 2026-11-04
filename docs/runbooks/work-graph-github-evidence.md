@@ -10,7 +10,8 @@ Reconciliation uses a GitHub App JWT only to obtain a short-lived installation
 token. Repository and installation allowlists apply to both webhook and
 reconciliation traffic. Reconciled facts use deterministic delivery IDs and
 the normal database consumer, so rerunning the operation neither duplicates
-evidence nor replaces a newer projection with an older provider observation.
+evidence, recovery work, nor replacement-launch reservations. It also cannot
+replace a newer projection with an older provider observation.
 
 ## Verify normal processing
 
@@ -29,6 +30,31 @@ evidence nor replaces a newer projection with an older provider observation.
 The deployment state `waiting` is a valid pending observation. It must be
 accepted and later superseded by the provider's terminal status rather than
 sent to the DLQ as an invalid observation.
+
+## Recover a requested delivery action
+
+The delivery executor records each merge or deployment request before it acts.
+The request names the Work Graph item, immutable owner-policy revision, exact
+GitHub evidence identity, commit, and initiating agent session when one exists.
+GitHub evidence that is not tied to a recorded action remains ordinary evidence.
+
+A failed or cancelled requested action creates one recovery record and one
+blocking attention request. Work Graph stores only the normalized evidence
+identity, state, source URL, and provider timestamp. It does not copy webhook
+payloads or job logs into the recovery record.
+
+The initiating session pulls unresolved records from
+`GET /api/delivery-recoveries?initiatingSessionId=<session>`. A coordinator with
+inbound session delivery can reserve one push through
+`POST /api/delivery-recoveries/<recovery>/deliveries`. The reservation must
+target the initiating session recorded on the action request. If that session
+cannot resume, the stored policy fallback permits either owner attention or one
+replacement-launch reservation. Repeated webhook delivery and reconciliation
+reuse the same result, recovery, attention, and delivery reservations.
+
+Resolve the linked attention request only after recovery succeeds or the owner
+records another disposition. Resolution removes the record from the unresolved
+session pull without deleting its action, result, evidence, or routing history.
 
 ## Redeliver a missed webhook
 
