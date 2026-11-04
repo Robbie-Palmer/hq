@@ -21,28 +21,125 @@ ideas:
 role: "bestomer"
 ---
 
-# Vision
+## Vision
 
-At Bestomer, we aimed to facilitate better commercial transactions by building a comprehensive Knowledge Graph of a user's commercial history and interests. The richest sources of this data were their email history (invoices, receipts, marketing offers) and physical receipts from daily life. The goal was to automatically "slurp" up this unstructured history and transform it into structured nodes in a graph.
+At Bestomer, we aimed to facilitate better commercial transactions by building
+a comprehensive Knowledge Graph of a user's commercial history and interests.
+The richest sources of this data were their email history (invoices, receipts,
+marketing offers) and physical receipts from daily life. The goal was to
+automatically "slurp" up this unstructured history and transform it into
+structured nodes in a graph.
 
-# Problem Statement
+## Problem Statement
 
-* **Unstructured Chaos**: Emails are a mess of HTML, CSS, and images. Standard text extraction often fails to capture the *visual* context (e.g., distinguishing a "Total" line in an invoice from a marketing banner).
-* **Physical Complexity**: Photos of receipts taken with camera phones introduce new challenges. Variable lighting, angles, rotation, and background noise.
+* **Unstructured Chaos**: Emails are a mess of HTML, CSS, and images. Standard
+  text extraction often fails to capture the *visual* context (e.g.,
+  distinguishing a "Total" line in an invoice from a marketing banner).
+* **Physical Complexity**: Photos of receipts taken with camera phones introduce
+  new challenges. Variable lighting, angles, rotation, and background noise.
 * **Scale**: Manually encoding commercial history is impossible given the volume of data.
-* **Variety**: We needed to distinguish between a digital receipt, a physical receipt photo, a newsletter, and a shipping notification, each requiring different extraction logic.
+* **Variety**: We needed to distinguish between a digital receipt, a physical
+  receipt photo, a newsletter, and a shipping notification, each requiring
+  different extraction logic.
 
-# Methodology
+## Methodology
 
 I built a pipeline to treat both emails and physical photos as "documents":
 
-* **Visual Rendering**: For emails, we rendered raw HTML into images to preserve spatial layout. For receipts, we processed camera images directly.
-* **Visual Classification**: Trained a PyTorch model to classify the document type (Email vs. Receipt vs. Spam) based on its visual appearance and text content.
-* **Intelligent Document Processing (IDP)**: For transactional documents, we utilized **AWS Textract** to extract key-value pairs and tables despite layout variations.
-* **LLM Enrichment**: Leveraged **OpenRouter** to access diverse LLMs for semantic extraction and entity resolution (e.g., mapping "Starbucks" on a receipt to the same node as a Starbucks email offer), populating the Knowledge Graph.
+* **Visual Rendering**: For emails, we rendered raw HTML into images to preserve
+  spatial layout. For receipts, we processed camera images directly.
+* **Email Classification**: Used the third-party Waveline product to classify
+  emails and select the relevant extraction path.
+* **Image Classification**: Trained PyTorch models to classify receipt and other
+  document images.
+* **Intelligent Document Processing (IDP)**: For transactional documents, we
+  utilized **AWS Textract** to extract key-value pairs and tables despite layout
+  variations.
+* **LLM Enrichment**: Leveraged **OpenRouter** to access diverse LLMs for semantic
+  extraction and entity resolution (e.g., mapping "Starbucks" on a receipt to
+  the same node as a Starbucks email offer), populating the Knowledge Graph.
 
-# Impact
+## Historical data flow
 
-* **Automated Knowledge Base**: Successfully turned a messy stream of emails and photos into a structured database of commercial intent and history.
+The processing and storage stages inside the Bestomer boundary are historical.
+The final node records the intended product use. Waveline, AWS Textract and the
+models reached through OpenRouter were external services.
+
+<Mermaid
+  chart={`flowchart TB
+subgraph Sources["Private source records · user-provided"]
+Email["Email history<br/>HTML, invoices, receipts,<br/>offers and notifications"]
+Photos["Physical receipt photos<br/>camera images"]
+end
+
+subgraph Bestomer["Historical Bestomer pipeline · owned"]
+EmailIngest["Email ingestion<br/>render HTML to images"]
+ImageIngest["Image ingestion<br/>accept receipt and document images"]
+ImageClassify["PyTorch image models<br/>classify document images<br/>and select extraction path"]
+Extract["Transactional extraction<br/>receive key-value pairs<br/>and tables"]
+Resolve["Semantic extraction<br/>and entity resolution"]
+Graph["Commercial Knowledge Graph<br/>structured entities<br/>and relations"]
+Use["Intended downstream product use<br/>commercial history and<br/>interest context"]
+end
+
+Waveline["Waveline · external<br/>email classification"]
+Textract["AWS Textract · external"]
+Models["OpenRouter models · external"]
+
+Email -->|"commercial email"| EmailIngest
+EmailIngest -->|"email document"| Waveline
+Waveline -->|"transactional email document"| Textract
+Photos -->|"receipt or document image"| ImageIngest
+ImageIngest -->|"document image"| ImageClassify
+ImageClassify -->|"transactional document image"| Textract
+Textract -->|"key-value pairs and tables"| Extract
+Waveline -->|"classified email context"| Resolve
+ImageClassify -->|"classified image context"| Resolve
+Extract -->|"structured fields"| Resolve
+Resolve -->|"document context and prompts"| Models
+Models -->|"entities and resolution candidates"| Resolve
+Resolve -->|"resolved entities and relations"| Graph
+Graph -->|"intended commercial history and interest context"| Use
+
+classDef external stroke-dasharray:5 5
+class Waveline,Textract,Models external
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
+/>
+
+On narrow screens, scroll the diagram horizontally or use this equivalent text:
+
+1. The pipeline accepted private email history and camera photos of physical
+   receipts.
+2. It sent emails to the third-party Waveline product for classification. It
+   used owned PyTorch image models to classify receipt and document images and
+   select an extraction path.
+3. For transactional emails and images, the pipeline sent the document to the
+   external AWS Textract service and received key-value pairs and tables.
+4. The owned enrichment stage combined Waveline's email classifications,
+   PyTorch image classifications and extracted transactional fields. It used
+   models reached through the external OpenRouter service for semantic
+   extraction and entity resolution.
+5. The pipeline wrote resolved entities and relations to the Commercial
+   Knowledge Graph. Product experiences could then use that graph as context
+   about a user's commercial history and interests.
+
+### Ownership, evidence and limits
+
+Bestomer owned ingestion, the PyTorch image models, transactional extraction,
+semantic enrichment, entity resolution and the Commercial Knowledge Graph.
+Waveline classified emails, AWS Textract returned key-value pairs and tables,
+and models reached through OpenRouter supported semantic extraction and entity
+resolution.
+
+The public diagram stays at the system-flow level. It omits private records,
+identifiers, credentials, prompts, graph contents and proprietary schema
+details.
+
+## Impact
+
+* **Automated Knowledge Base**: Successfully turned a messy stream of emails and
+  photos into a structured database of commercial intent and history.
 * **Unified Pipeline**: Created a single ingestion engine capable of handling both digital and physical commercial artifacts.
-* **High Precision**: The visual-first approach significantly outperformed text-only classifiers for distinguishing complex document types.
+* **High Precision**: The visual-first approach significantly outperformed
+  text-only classifiers for distinguishing complex document types.
