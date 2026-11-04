@@ -1777,10 +1777,9 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
       import.meta.url,
     ),
     "utf8",
-  ).replace(/\n$/, "");
+  );
   assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
   assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
-  assert.equal(expectedPrompt.endsWith("\n"), false);
   for (const fileName of [
     "controller.cedarschema.json",
     "controller-admission.cedar",
