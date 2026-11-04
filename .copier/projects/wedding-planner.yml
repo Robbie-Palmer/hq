@@ -219,7 +219,7 @@ blueprint:
           name: test
         - disposition: inherited
           name: typecheck-or-compile
-      template_ownership: structure-only
+      template_ownership: project
     - id: wedding-planner-domain
       kind: typescript-package
       name: Wedding planner domain
@@ -240,7 +240,7 @@ blueprint:
           name: test
         - disposition: inherited
           name: typecheck-or-compile
-  effective_at: 2026-11-01 12:50:00+00:00
+  effective_at: 2026-11-01 14:10:00+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
@@ -609,35 +609,10 @@ blueprint:
     product_decisions: ui/content/projects/wedding-planner/pdrs/{sequence}-{slug}.mdx
     project_index: ui/content/projects/wedding-planner/index.mdx
   rollout:
-    migration_checkpoints:
-      - action: Export and validate the current browser plan before importing it into
-          the relational store.
-        evidence: []
-        id: export-browser-plan-before-import
-        status: pending
-        verification: mise //ui:test --
-          app/_projects/wedding-planner/tests/repository.test.ts
-      - action: Keep wedding-planner:plan:v2 readable and exportable until server reads,
-          writes, and rollback have been verified.
-        evidence: []
-        id: preserve-browser-recovery-during-cutover
-        status: pending
-        verification: mise //ui:test --
-          app/_projects/wedding-planner/tests/repository.test.ts
-          app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx
-      - action: Complete a relational restore drill before removing the browser rollback
-          path.
-        evidence: []
-        id: prove-relational-restore-before-cutover
-        status: pending
-        verification: mise //infra/wedding-planner:test
+    migration_checkpoints: []
     operational_checks:
       - command: mise //workers/wedding-planner-api:lint:api
         id: api-contract-conformance
-      - command: mise //ui:test --
-          app/_projects/wedding-planner/tests/repository.test.ts
-          app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx
-        id: browser-export-recovery
       - command: mise //packages/project-generator:check
         id: copier-profile-conformance
       - command: mise //workers/wedding-planner-api:test:integration

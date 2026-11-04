@@ -151,6 +151,7 @@ jobs:
             packages/work-graph-db/coverage/lcov.info
             packages/work-graph-domain/coverage/lcov.info
             packages/writing-editor-domain/coverage/lcov.info
+            packages/wedding-planner-data/coverage/lcov.info
             packages/wedding-planner-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
             ml-pipelines/financial-document-idp-evaluation/coverage.xml

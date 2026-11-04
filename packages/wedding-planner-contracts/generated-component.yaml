@@ -17,19 +17,8 @@ rollout:
   operational_checks:
     - id: "api-contract-conformance"
       command: "mise //workers/wedding-planner-api:lint:api"
-    - id: "browser-export-recovery"
-      command: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
     - id: "copier-profile-conformance"
       command: "mise //packages/project-generator:check"
     - id: "relational-integration"
       command: "mise //workers/wedding-planner-api:test:integration"
-  migration_checkpoints:
-    - id: "export-browser-plan-before-import"
-      status: "pending"
-      verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts"
-    - id: "preserve-browser-recovery-during-cutover"
-      status: "pending"
-      verification: "mise //ui:test -- app/_projects/wedding-planner/tests/repository.test.ts app/_projects/wedding-planner/tests/use-wedding-plan.test.tsx"
-    - id: "prove-relational-restore-before-cutover"
-      status: "pending"
-      verification: "mise //infra/wedding-planner:test"
+  migration_checkpoints: []

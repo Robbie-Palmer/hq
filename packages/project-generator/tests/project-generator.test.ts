@@ -625,6 +625,73 @@ describe("Copier engine", () => {
     ).toBe("export const productOwned = true;\n");
   });
 
+  it("preserves mise configuration when project ownership replaces a structural boundary", async () => {
+    const repository = await createGitRepositoryFixture();
+    const template = await createTemplate({
+      profile: true,
+      extraFile: {
+        path: '{% yield component from blueprint.components | selectattr("template_ownership", "equalto", "structure-only") | list %}{{ component.path }}{% endyield %}/mise.toml.jinja',
+        source: '[tasks.check]\nrun = "test -f generated.txt"\n',
+      },
+    });
+    const source = templateSource(template.source);
+    const component = {
+      id: "alpha",
+      kind: "typescript-package",
+      name: "Alpha",
+      path: "packages/alpha",
+      template_ownership: "structure-only",
+    };
+    const initialPlan = projectPlanSchema.parse({
+      ...makePlan(template.revision),
+      answers: {
+        project_id: "alpha",
+        blueprint: {
+          project: { id: "alpha", name: "Alpha" },
+          components: [component],
+        },
+      },
+    });
+    await executeProjectPlan({
+      repository,
+      mode: "create",
+      plan: initialPlan,
+      template: source,
+    });
+    await commit(repository, "Create structural Alpha boundary");
+    const projectMise = '[tasks.check]\nrun = "pnpm test"\n';
+    await write(repository, "packages/alpha/mise.toml", projectMise);
+    await commit(repository, "Add project-owned Alpha tasks");
+
+    const projectPlan = projectPlanSchema.parse({
+      ...initialPlan,
+      answers: {
+        project_id: "alpha",
+        blueprint: {
+          project: { id: "alpha", name: "Alpha" },
+          components: [{ ...component, template_ownership: "project" }],
+        },
+      },
+    });
+    await executeProjectPlan({
+      repository,
+      mode: "update",
+      plan: projectPlan,
+      template: source,
+    });
+
+    await expect(
+      readFile(path.join(repository, "packages/alpha/mise.toml"), "utf8"),
+    ).resolves.toBe(projectMise);
+    const receipt = parse(
+      await readFile(
+        path.join(repository, ".copier/projects/alpha.yml"),
+        "utf8",
+      ),
+    ) as { blueprint: { components: { template_ownership: string }[] } };
+    expect(receipt.blueprint.components[0]?.template_ownership).toBe("project");
+  });
+
   it("rejects unresolved update conflicts without changing the checkout", async () => {
     const repository = await createGitRepositoryFixture();
     const template = await createTemplate();
