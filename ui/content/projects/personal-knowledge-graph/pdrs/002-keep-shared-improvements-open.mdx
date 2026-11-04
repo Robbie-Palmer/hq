@@ -1,0 +1,59 @@
+---
+title: "PDR 002: Keep shared improvements open"
+date: "2026-01-11"
+status: "Accepted"
+decision_date: "2026-01-11"
+---
+
+## Context
+
+The public repository originally had no license. Readers could inspect it, but
+they had no clear right to contribute, fork it, or build on it. A permissive
+license would allow a hosted proprietary fork to use the work without sharing
+its changes. Refusing contributions would avoid ownership questions but would
+conflict with the decision to build in public.
+
+External contributions also needed clear terms. The project needed one
+licensing policy that covered the original code and accepted contributions.
+
+## Decision
+
+License the public project under AGPL-3.0. Modifications offered over a network
+must make their corresponding source available under the same terms.
+
+Require contributors to grant a Contributor License Agreement before their
+changes merge so the same licensing policy can cover the combined work. The
+agreement gives the project owner broader rights than the public license does.
+It does not decide a future product model. Dual licensing, open core, or a
+closed edition would require a separate public product decision before any
+such change.
+
+## Consequences
+
+People may inspect, run, modify, and contribute to the project under explicit
+terms. Hosted derivatives cannot keep their modifications closed merely
+because users access them over a network.
+
+AGPL and the contributor agreement may deter corporate contributors. The
+agreement also adds a step to a contributor's first pull request. More
+importantly, its broader grant creates an imbalance between the owner and
+contributors. The published policy and decision history need to make that
+imbalance visible rather than presenting a future proprietary edition as an
+already accepted outcome.
+
+## Evaluation
+
+Every merged contribution must have a recorded agreement. Revisit the policy
+before seeking outside contributions, or if the license prevents a dependency
+or collaboration that matters more than the network-copyleft guarantee. Any
+business model that needs different licensing requires a new PDR and cannot
+rely on this record as prior approval.
+
+## Migration note
+
+This record extracts the licensing and contributor policy from ADR 037 without
+changing its 2026-01-11 date or status. The original ADR cited relicensing and
+open-core optionality. This migration records that legal capability as a
+consequence of the agreement, not as an approved product direction. ADR 037
+now retains the technical choice to enforce the contributor agreement in pull
+requests.
