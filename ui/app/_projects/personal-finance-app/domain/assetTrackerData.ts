@@ -31,6 +31,7 @@ import { PropertyComparableSearchDefinitionSchema } from "./propertyComparables"
 import { PropertyIndexHistoryDefinitionSchema } from "./propertyIndexHistory";
 import { RecurringFlowSchema } from "./recurringFlow";
 import { SalaryHistoryRecordSchema } from "./salaryHistory";
+import { HouseholdSoleTraderScenarioSchema } from "./soleTraderScenario";
 import { SpendingBaselineSchema } from "./spendingBaseline";
 import { TaxPositionDataSchema } from "./taxPosition";
 import { TransferSchema } from "./transfer";
@@ -121,6 +122,7 @@ export const AssetTrackerDataSchema = z
     household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
     ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
     taxPosition: TaxPositionDataSchema.optional(),
+    soleTraderScenarios: z.array(HouseholdSoleTraderScenarioSchema).optional(),
     settings: AssetTrackerSettingsSchema.default({
       expectedAnnualInflation: DEFAULT_EXPECTED_INFLATION,
       withdrawalRate: DEFAULT_WITHDRAWAL_RATE,

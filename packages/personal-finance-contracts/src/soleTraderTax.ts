@@ -2,9 +2,9 @@ import {
   calculateHouseholdTaxPosition,
   type HouseholdTaxContribution,
   type HouseholdTaxIncome,
+  type HouseholdTaxPerson,
   type HouseholdTaxRequest,
-  type Jurisdiction,
-} from "finance-tax-rules";
+} from "finance-tax-rules/household-tax";
 import type { FinancialFact, SideIncomeCase } from "./sideIncome";
 import {
   type StandardStudentLoanPlan,
@@ -23,7 +23,7 @@ export type SoleTraderTaxRequest = {
   sideIncomeCase: SideIncomeCase;
   personId: string;
   taxYear: string;
-  incomeTaxJurisdiction: Jurisdiction;
+  incomeTaxJurisdiction: HouseholdTaxPerson["jurisdiction"];
   taxableProfitPence: number;
   reliefAtSourcePensionFactIds: string[];
   incomeTaxDeductedAtSourcePence: number;

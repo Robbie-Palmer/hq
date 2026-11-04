@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { SoleTraderScenarios } from "./sole-trader-scenarios";
 import {
   AnnualAllowanceUsageChart,
   TaxBandConsumptionChart,
@@ -619,6 +620,7 @@ export function TaxPositionRoute() {
         estimateLabel={scopedEstimateLabel}
         totalPence={scopedTotalPence}
       />
+      <SoleTraderScenarios />
       <div className="space-y-6">
         {visiblePeople.map((person) => (
           <PersonTaxCard

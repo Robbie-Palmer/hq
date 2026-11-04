@@ -1,4 +1,3 @@
-import { jurisdictionSchema } from "finance-tax-rules";
 import { z } from "zod";
 import {
   IsoDateSchema,
@@ -34,6 +33,11 @@ export const SOLE_TRADER_SCENARIO_VERSION = 1 as const;
 export const SOLE_TRADER_CALCULATION_VERSION = "1" as const;
 
 const PenceSchema = z.number().int().nonnegative();
+const IncomeTaxJurisdictionSchema = z.enum([
+  "england-and-northern-ireland",
+  "scotland",
+  "wales",
+]);
 const FactAmountSchema = z
   .object({ factId: z.string().min(1), amountPence: PenceSchema })
   .strict();
@@ -57,7 +61,7 @@ export const SoleTraderScenarioInputSchema = z
     evaluatedOn: IsoDateSchema,
     taxYear: TaxYearSchema,
     personId: z.string().trim().min(1),
-    incomeTaxJurisdiction: jurisdictionSchema,
+    incomeTaxJurisdiction: IncomeTaxJurisdictionSchema,
     deductionMethod: z.enum([
       "most-beneficial",
       "actual-expenses",

@@ -1386,6 +1386,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      personal-finance-contracts:
+        specifier: workspace:*
+        version: link:../packages/personal-finance-contracts
       planning-case-domain:
         specifier: workspace:*
         version: link:../packages/planning-case-domain

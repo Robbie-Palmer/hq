@@ -30,6 +30,7 @@ import { valueAccountAtDate } from "@/app/_projects/personal-finance-app/domain/
 import { buildPropertyComparableViews } from "@/app/_projects/personal-finance-app/domain/propertyComparables";
 import { buildPropertyValueHistoryViews } from "@/app/_projects/personal-finance-app/domain/propertyIndexHistory";
 import { currentSalaryHistory } from "@/app/_projects/personal-finance-app/domain/salaryHistory";
+import { evaluateHouseholdSoleTraderScenario } from "@/app/_projects/personal-finance-app/domain/soleTraderScenario";
 import { getHouseholdTaxEstimate } from "@/app/_projects/personal-finance-app/domain/taxPosition";
 import {
   buildBaseCurrencyFlowSankeyData,
@@ -37,6 +38,27 @@ import {
 } from "@/app/_projects/personal-finance-app/lib";
 
 describe("Asset Tracker demo-data adapter", () => {
+  it("seeds member-owned sole-trader cases across allowance and VAT boundaries", () => {
+    const data = getDemoAssetTrackerData();
+    const cases = (data.soleTraderScenarios ?? []).map(
+      evaluateHouseholdSoleTraderScenario,
+    );
+
+    expect(cases.map(({ memberId, name }) => ({ memberId, name }))).toEqual([
+      { memberId: "alex", name: "Freelance design" },
+      { memberId: "sam", name: "Occasional projects" },
+      { memberId: "alex", name: "VAT-threshold growth" },
+    ]);
+    expect(cases[0]?.result.reserve.firstDeadlineReserveGapPence).toBe(346_800);
+    expect(cases[1]?.result.profit.deductionMethod).toBe("trading-allowance");
+    expect(cases[1]?.result.obligations.selfAssessmentRegistration.status).toBe(
+      "not-required",
+    );
+    expect(cases[2]?.result.obligations.vatRegistration.status).toBe(
+      "required",
+    );
+  });
+
   it("includes a prospective role that changes the forecast", () => {
     const repository = buildRepository(getDemoAssetTrackerData());
     const scenario = repository.jobMoveScenarios.find(
