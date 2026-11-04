@@ -50,10 +50,10 @@ export type TaxScopeValidationRequest = z.infer<
 >;
 
 const taxScopeResponseSchema = z.object({
-  tax_paid: z.number().finite().nonnegative(),
-  ni_paid: z.number().finite().nonnegative(),
-  pension_contribution: z.number().finite().nonnegative(),
-  take_home: z.number().finite().nonnegative(),
+  tax_paid: z.number().nonnegative(),
+  ni_paid: z.number().nonnegative(),
+  pension_contribution: z.number().nonnegative(),
+  take_home: z.number().nonnegative(),
   pension_scheme: z.literal("none"),
   hmrc_region: z.string().trim().min(1),
   hmrc_payroll_frequency: z.literal("annual"),
@@ -326,14 +326,15 @@ export class TaxScopeValidationAdapter {
       return { received: true, response };
     } catch (error) {
       const timedOut = controller.signal.aborted;
+      let message = "TaxScope request failed.";
+      if (error instanceof Error) message = error.message;
+      if (timedOut) {
+        message = `TaxScope did not respond within ${this.#options.timeoutMs}ms.`;
+      }
       return {
         received: false,
         kind: timedOut ? "timeout" : "network",
-        message: timedOut
-          ? `TaxScope did not respond within ${this.#options.timeoutMs}ms.`
-          : error instanceof Error
-            ? error.message
-            : "TaxScope request failed.",
+        message,
       };
     } finally {
       clearTimeout(timeout);
