@@ -1,0 +1,88 @@
+---
+title: "ADR 006: Adopt TaxScope for UK salary calculations"
+date: "2026-11-04"
+status: "Rejected"
+---
+
+## Context
+
+Asset Tracker needs reproducible UK salary estimates. [ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance)
+requires saved calculations to retain their rule and input lineage, while
+[ADR 002](/projects/personal-finance-app/adrs/002-private-data-lifecycle-and-telemetry)
+keeps financial content out of general telemetry. [ADR 005](/projects/personal-finance-app/adrs/005-adapt-savingtool-for-annual-salary-estimates)
+already selects a local annual-estimate engine backed by reviewed official rule data and synthetic
+fixtures.
+
+TaxScope was evaluated as either a production calculator or an independent check on that local
+engine. Its [API documentation](https://taxscope.uk/api-docs/) describes a free public endpoint with
+a limit of 60 requests per minute per IP. The same documentation says that the API is not for
+production traffic, has no service-level agreement or uptime guarantee, and may make breaking
+changes without notice. A request selects a tax-year start year, but a response does not identify
+an API, calculation-engine, or immutable rule version. On 4 November 2026, the live
+[rate inventory](https://taxscope.uk/api/tax-rates/) contained only the 2024, 2025, and 2026 start
+years.
+
+The PAYE request cannot supply a pay date, period number, prior taxable pay, prior tax, or National
+Insurance category. Pension contributions use one percentage without an explicit contribution
+basis or fixed amount. Those inputs cannot reproduce payroll periods or distinguish the pension
+semantics already represented by the local validation corpus.
+
+TaxScope's [privacy policy](https://taxscope.uk/privacy/) says that each API call records calculator
+inputs, including income, tax year, tax code, and pension choices. Usage events also contain IP and
+client metadata. The service retains those rows for 90 days and web-server logs for 30 days. That
+handling does not meet the project's boundary for household financial data.
+
+Synthetic checks on 1 November 2026 exposed material coverage gaps. TaxScope could not represent
+the corpus cases for salary sacrifice, net pay, relief at source, or the National Insurance change
+inside 2023/24. Its annual Personal Allowance taper case differed by 60 pence of National Insurance,
+and its Scottish case differed by 48 pence. Monthly and weekly results lacked prior-period state and
+described their precision as approximate. Small differences are acceptable for planning, but the
+missing inputs and rule lineage prevent the service from explaining or replaying them.
+
+## Decision
+
+Reject TaxScope as a production salary calculator and as an automated validation dependency. Do not
+send real or synthetic salary data to it from the application, CI, or a scheduled job. Do not keep a
+TaxScope adapter in the codebase without a concrete consumer.
+
+Continue to use the checked-in `finance-tax-rules` data and the local engine selected by ADR 005.
+They remain available without a remote service and retain the versions needed to reproduce saved
+estimates. A provider outage or disagreement must not substitute another rule set into a result.
+
+Reconsider TaxScope only if it offers an authenticated contract with an uptime commitment,
+breaking-change notice, immutable calculation and rule versions, a no-retention option, and inputs
+that preserve pension basis and payroll state. A new evaluation must rerun the synthetic corpus.
+
+## Alternatives
+
+### Use TaxScope only as a synthetic canary
+
+A scheduled comparison could detect a disagreement with the local engine. There is no planned
+consumer for that signal, and TaxScope does not return enough version information to show whether a
+difference came from its rules, its deployment, or local code. An unused adapter would add tests and
+maintenance without improving a user-facing calculation.
+
+### Use The Finance Toolkit API
+
+The Finance Toolkit advertises a salary API through its
+[developer page](https://www.thefinancetoolkit.co.uk/developers). Its site
+[terms](https://www.thefinancetoolkit.co.uk/terms-of-service) prohibit automated and commercial use
+without written consent, while its API listing provides no provider-specific terms. The available
+response also lacks immutable calculation and rule lineage. It does not resolve the reasons for
+rejecting TaxScope.
+
+### Call TaxScope only with real salary data from a backend
+
+Moving the request to a backend would protect credentials and avoid a browser dependency. It would
+not change TaxScope's retention, availability, input, or versioning limits. The missing backend is
+not the reason for this rejection.
+
+## Consequences
+
+The application has no remote UK salary API dependency and does not disclose salary inputs to these
+providers. Historical estimates keep the local lineage required by ADR 000.
+
+The project loses an independent live comparison. Provider changes will not produce an automatic
+alert, so a future evaluation must probe the service again and compare it with the current synthetic
+corpus. This is preferable to maintaining integration code before the project has a use for its
+output.
