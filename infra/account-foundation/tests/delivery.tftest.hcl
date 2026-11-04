@@ -24,6 +24,35 @@ variables {
   enable_existing_imports = false
 }
 
+run "work_graph_analytics_delivery_boundary" {
+  command = plan
+
+  assert {
+    condition = (
+      doppler_environment.managed["work-graph/analytics"].slug == "analytics" &&
+      doppler_environment.managed["work-graph/analytics"].name == "Production Analytics" &&
+      !doppler_environment.managed["work-graph/analytics"].personal_configs
+    )
+    error_message = "Work Graph analytics must use a dedicated non-personal Doppler environment."
+  }
+
+  assert {
+    condition = length([
+      for config in values(doppler_config.managed) : config
+      if config.project == "work-graph" && config.environment == "analytics"
+    ]) == 0
+    error_message = "Work Graph analytics must use the environment root config without paid config inheritance."
+  }
+
+  assert {
+    condition = (
+      github_repository_environment.managed["hq/production-work-graph-analytics"].environment == "production-work-graph-analytics" &&
+      github_repository_environment.managed["hq/production-work-graph-analytics"].deployment_branch_policy[0].protected_branches
+    )
+    error_message = "Work Graph analytics must publish through its protected GitHub environment."
+  }
+}
+
 run "cloudflare_access_delivery_boundaries" {
   command = plan
 

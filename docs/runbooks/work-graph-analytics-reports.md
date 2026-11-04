@@ -121,14 +121,14 @@ permission. It verifies that both the managed `r2.dev` URL and every custom
 domain are disabled; it has no object or configuration write permission.
 
 Store the pipeline values with `CLOUDFLARE_ACCOUNT_ID` and unmasked `R2_REGION`
-set to `auto` in Doppler config `work-graph/prd_work_graph_analytics`, then sync
+set to `auto` in Doppler config `work-graph/analytics`, then sync
 only that config to GitHub
 environment `production-work-graph-analytics`. Do not add these keys to the API
 runtime config. Check anonymous denial without printing an account ID or object
 body:
 
 ```bash
-doppler run --project work-graph --config prd_work_graph_analytics -- \
+doppler run --project work-graph --config analytics -- \
   mise //data-pipelines/work-graph-analytics:access:check
 ```
 

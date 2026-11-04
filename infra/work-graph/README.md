@@ -208,7 +208,7 @@ refer to them directly.
 
 Create a raw-bucket read-only token for the dbt pipeline, a model-bucket
 read/write token for publication, and a model-bucket read-only token for
-reports. Store them only in `work-graph/prd_work_graph_analytics`. Do not put
+reports. Store them only in `work-graph/analytics`. Do not put
 them in `work-graph/prd_work_graph`, because the exporter uses the Worker
 binding and does not need S3 credentials. The infrastructure token cannot
 create these tokens. It intentionally lacks API token management permission.
