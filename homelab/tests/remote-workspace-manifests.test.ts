@@ -2918,8 +2918,12 @@ test("the Vector controller webhook reconciler is fixed to the pilot boundary", 
   assert.ok(reconciler.includes('content_type: "json"'));
   assert.ok(reconciler.includes('insecure_ssl: "0"'));
   assert.ok(reconciler.includes('export GH_TOKEN="$github_token"'));
-  assert.ok(reconciler.includes('webhook_secret=$(<"$webhook_secret_file")'));
   assert.ok(reconciler.includes('github_token=$(<"$github_token_file")'));
+  assert.ok(
+    reconciler.includes('--rawfile webhook_secret "$webhook_secret_file"'),
+  );
+  assert.doesNotMatch(reconciler, /mapfile/);
+  assert.doesNotMatch(reconciler, /--arg webhook_(?:secret|url)/);
   assert.doesNotMatch(reconciler, /echo[^\n]*(webhook_secret|github_token)/);
 });
 
