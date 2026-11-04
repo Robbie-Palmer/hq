@@ -68,6 +68,7 @@ export type WorkGraphErrorCode =
   | "invalid_external_delivery"
   | "invalid_evidence_observation"
   | "invalid_completion_policy"
+  | "invalid_completion_policy_default"
   | "invalid_completion_candidate"
   | "invalid_work_item_title"
   | "lease_not_current"

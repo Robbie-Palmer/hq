@@ -154,11 +154,13 @@ const buildRepository = (): WorkGraphApiRepository => ({
   addKnowledgeScopeRelationship: vi.fn(async () => undefined),
   removeKnowledgeScopeRelationship: vi.fn(async () => undefined),
   listWorkItems: vi.fn(async () => []),
+  listWorkItemPage: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
   resolveWorkItemContext: vi.fn(async () => []),
   listWorkItemDeliveryEvidence: vi.fn(async () => []),
   getCompletionCandidate: vi.fn(async () => null),
   putCompletionPolicyRevision: vi.fn(async (input) => input),
+  putRepositoryCompletionPolicyDefaultRevision: vi.fn(async (input) => input),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
   evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
@@ -755,7 +757,7 @@ describe("Given knowledge-scope mirrors", () => {
 describe("Given work items with derived readiness", () => {
   it("keeps repository priority order instead of sorting by ID", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems).mockResolvedValue([
+    vi.mocked(repository.listWorkItemPage).mockResolvedValue([
       item("z-high", "ready"),
       item("a-low", "ready"),
     ]);
@@ -778,10 +780,12 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeInitiativeIds: ["initiative"],
       includeProjectIds: ["project"],
       parentId: "parent",
+      stage: "ready",
+      limit: 51,
     });
   });
 
@@ -794,24 +798,23 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeProjectIds: ["project-a", "project-b"],
       excludeInitiativeIds: ["initiative-b"],
       includeParentTitles: ["Ship Work Graph"],
       excludeParentTitles: ["Build API"],
+      limit: 51,
     });
   });
 
   it("lists a stage with a cursor that survives readiness changes", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems)
+    vi.mocked(repository.listWorkItemPage)
       .mockResolvedValueOnce([
-        item("blocked", "blocked"),
         item("a-ready", "ready"),
         item("b-ready", "ready"),
       ])
       .mockResolvedValueOnce([
-        item("a-ready", "in_progress", "open", lease("a-ready")),
         item("b-ready", "ready"),
       ]);
     const app = createWorkGraphApp(repository);
@@ -1107,6 +1110,38 @@ describe("Given work items with derived readiness", () => {
     expect(repository.evaluateCompletionCandidateAndReleaseIfConfigured).toHaveBeenCalledWith(
       expect.objectContaining({ workItemId: "ticket" }),
     );
+  });
+
+  it("creates immutable repository completion-policy defaults", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+
+    const response = await app.request(
+      "/api/github/repositories/Robbie-Palmer/hq/completion-policy-defaults/2",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          policyId: "hq-production",
+          policyRevision: 3,
+          enabled: true,
+          createdAt,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision,
+    ).toHaveBeenCalledWith({
+      repository: "Robbie-Palmer/hq",
+      revision: 2,
+      policyId: "hq-production",
+      policyRevision: 3,
+      enabled: true,
+      createdAt,
+    });
   });
 
   it("refreshes and links pull requests outside claim operations", async () => {
@@ -2384,7 +2419,7 @@ describe("Given a transient database failure", () => {
         new Error(databaseMessage),
         { code },
       );
-      vi.mocked(repository.listWorkItems).mockRejectedValue(
+      vi.mocked(repository.listWorkItemPage).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
       const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);

@@ -85,6 +85,16 @@ let
     ];
     text = builtins.readFile ./scripts/apply-quiet-profile.bash;
   };
+  fanCurveScript = pkgs.writeShellApplication {
+    name = "vector-development-fan-curve";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      kmod
+      util-linux
+    ];
+    text = builtins.readFile ./scripts/apply-fan-curve.bash;
+  };
   thermalMonitor = pkgs.writeShellApplication {
     name = "vector-development-thermal-monitor";
     runtimeInputs = with pkgs; [
@@ -381,6 +391,7 @@ in
       curl
       e2fsprogs
       ethtool
+      fanCurveScript
       git
       gh
       htop
@@ -424,6 +435,10 @@ in
       ];
     }
   ];
+
+  powerManagement.resumeCommands = ''
+    ${fanCurveScript}/bin/vector-development-fan-curve apply
+  '';
 
   system.activationScripts.vectorDevelopmentRefreshGnomePower =
     lib.stringAfter
@@ -513,9 +528,24 @@ in
     };
   };
 
+  systemd.services.vector-development-fan-curve = {
+    description = "Apply the Vector zero-RPM idle fan curve";
+    after = [ "vector-development-quiet-profile.service" ];
+    requires = [ "vector-development-quiet-profile.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${fanCurveScript}/bin/vector-development-fan-curve apply";
+      ExecStop = "${fanCurveScript}/bin/vector-development-fan-curve restore";
+      RemainAfterExit = true;
+      TimeoutSec = "15s";
+      Type = "oneshot";
+    };
+  };
+
   systemd.services.vector-development-thermal-monitor = {
     description = "Record fan, temperature, and busy-process evidence";
-    after = [ "vector-development-quiet-profile.service" ];
+    after = [ "vector-development-fan-curve.service" ];
+    requires = [ "vector-development-fan-curve.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       CapabilityBoundingSet = "";

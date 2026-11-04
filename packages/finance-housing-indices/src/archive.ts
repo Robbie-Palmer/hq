@@ -61,6 +61,63 @@ function observationAt(
   return observation;
 }
 
+function releaseChronologyKey(release: HousePriceIndexRelease): string {
+  return `${release.source.publishedAt}:${release.source.retrievedAt}:${release.versionId}`;
+}
+
+function observationKey(observation: HousePriceIndexObservation): string {
+  return `${observation.period}:${observation.geographyCode}:${observation.propertyType}`;
+}
+
+function sourcedValuesChanged(
+  previous: HousePriceIndexObservation,
+  observation: HousePriceIndexObservation,
+): boolean {
+  return (
+    previous.index !== observation.index ||
+    previous.averagePrice !== observation.averagePrice ||
+    previous.salesVolume !== observation.salesVolume
+  );
+}
+
+function markRevisedObservations(
+  archive: HousePriceIndexArchive,
+  candidate: HousePriceIndexRelease,
+): HousePriceIndexRelease {
+  const candidateChronologyKey = releaseChronologyKey(candidate);
+  const previousObservations = new Map<string, HousePriceIndexObservation>();
+  const priorReleases = archive.releases
+    .filter(
+      (release) => releaseChronologyKey(release) < candidateChronologyKey,
+    )
+    .toSorted((left, right) =>
+      releaseChronologyKey(right).localeCompare(releaseChronologyKey(left)),
+    );
+
+  for (const release of priorReleases) {
+    for (const observation of release.observations) {
+      const key = observationKey(observation);
+      if (!previousObservations.has(key)) {
+        previousObservations.set(key, observation);
+      }
+    }
+  }
+
+  return HousePriceIndexReleaseSchema.parse({
+    ...candidate,
+    observations: candidate.observations.map((observation) => {
+      const previous = previousObservations.get(observationKey(observation));
+      const revised =
+        observation.revisionStatus === "revised" ||
+        previous?.revisionStatus === "revised" ||
+        (previous != null && sourcedValuesChanged(previous, observation));
+      return revised
+        ? { ...observation, revisionStatus: "revised" }
+        : observation;
+    }),
+  });
+}
+
 export function compareHousePriceIndices(
   release: HousePriceIndexRelease,
   query: HousePriceIndexQuery,
@@ -90,19 +147,18 @@ export function ingestHousePriceIndexRelease(
   candidate: HousePriceIndexRelease,
 ): HousePriceIndexArchive {
   const current = HousePriceIndexArchiveSchema.parse(archive);
-  const release = HousePriceIndexReleaseSchema.parse(candidate);
+  const parsedCandidate = HousePriceIndexReleaseSchema.parse(candidate);
   if (
     current.releases.some(
-      ({ source }) => source.checksum === release.source.checksum,
+      ({ source }) => source.checksum === parsedCandidate.source.checksum,
     )
   ) {
     return current;
   }
+  const release = markRevisedObservations(current, parsedCandidate);
   return HousePriceIndexArchiveSchema.parse({
     releases: [...current.releases, release].toSorted((left, right) =>
-      `${left.source.publishedAt}:${left.versionId}`.localeCompare(
-        `${right.source.publishedAt}:${right.versionId}`,
-      ),
+      releaseChronologyKey(left).localeCompare(releaseChronologyKey(right)),
     ),
   });
 }

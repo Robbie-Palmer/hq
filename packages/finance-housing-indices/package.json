@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "iso-codes": "workspace:*",
     "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },

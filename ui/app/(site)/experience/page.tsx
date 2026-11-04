@@ -2,7 +2,6 @@ import { Briefcase, FileText, Layers, Rss } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ExperienceCard } from "@/components/experience/experience-card";
-import { SearchableTechnologyGrid } from "@/components/experience/searchable-technology-grid";
 import { Button } from "@/components/ui/button";
 import {
   type Experience,
@@ -14,10 +13,6 @@ import { siteConfig } from "@/lib/config/site-config";
 import { loadDomainRepository } from "@/lib/domain";
 import { getRoleBlogs } from "@/lib/domain/blog/blogQueries";
 import { getRoleProjects } from "@/lib/domain/project/projectQueries";
-import {
-  getAllTechnologyBadges,
-  rankTechnologiesByConnections,
-} from "@/lib/domain/technology";
 
 const pageDescription =
   "Professional experience and career history of Robbie Palmer, a Principal Software Engineer and Engineering Manager specializing in machine learning, computer vision, and data engineering.";
@@ -47,10 +42,6 @@ export const metadata: Metadata = {
           url: "/experience/feed.xml",
           title: `${siteConfig.name} — Experience`,
         },
-        {
-          url: "/technologies/feed.xml",
-          title: `${siteConfig.name} — Technologies`,
-        },
       ],
     },
   },
@@ -65,10 +56,15 @@ function ExperiencePageHeader() {
           Professional experience and career history
         </p>
       </div>
-      <div className="flex shrink-0 gap-2">
+      <div className="flex shrink-0 flex-wrap gap-2">
         <Button asChild variant="default" size="sm">
           <Link href="/resume">
             <FileText className="h-4 w-4" /> Résumé
+          </Link>
+        </Button>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/technologies">
+            <Layers className="size-4" /> Technologies
           </Link>
         </Button>
         <Button asChild variant="outline" size="sm">
@@ -119,41 +115,14 @@ function RolesSection({
   );
 }
 
-function TechnologiesSection({
-  technologies,
-}: Readonly<{
-  technologies: ReturnType<typeof rankTechnologiesByConnections>;
-}>) {
-  return (
-    <section id="technologies" className="mb-16 scroll-mt-24">
-      <div className="mb-8 flex items-center justify-between gap-4">
-        <h2 className="text-3xl font-semibold flex items-center gap-2">
-          <Layers className="w-7 h-7 text-primary" /> Technologies
-        </h2>
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <a href="/technologies/feed.xml" target="_blank" rel="noreferrer">
-            <Rss className="h-4 w-4" /> Subscribe
-          </a>
-        </Button>
-      </div>
-      <SearchableTechnologyGrid technologies={technologies} />
-    </section>
-  );
-}
-
 export default function ExperiencePage() {
   const experiences = getAllExperience();
   const repository = loadDomainRepository();
-  const technologies = rankTechnologiesByConnections(
-    repository,
-    getAllTechnologyBadges(repository),
-  );
 
   return (
     <div className="container mx-auto px-4 py-12 max-w-6xl">
       <ExperiencePageHeader />
       <RolesSection experiences={experiences} repository={repository} />
-      <TechnologiesSection technologies={technologies} />
     </div>
   );
 }

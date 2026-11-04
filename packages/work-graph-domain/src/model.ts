@@ -151,6 +151,15 @@ export interface CompletionPolicyRevision {
   readonly createdAt: string;
 }
 
+export interface RepositoryCompletionPolicyDefaultRevision {
+  readonly repository: string;
+  readonly revision: number;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly enabled: boolean;
+  readonly createdAt: string;
+}
+
 export interface CompletionCandidateEvaluation {
   readonly workItemId: string;
   readonly policyId: string;

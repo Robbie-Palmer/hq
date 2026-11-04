@@ -3,11 +3,12 @@ data "cloudflare_zone" "domain" {
 }
 
 locals {
-  api_origin                       = "https://${var.work_graph_hostname}"
-  credential_handoff_revision      = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
-  hyperdrive_connection_limit      = 60
-  hyperdrive_name                  = "work-graph-db"
-  r2_private_analytics_bucket_name = "work-graph-private-analytics"
+  api_origin                              = "https://${var.work_graph_hostname}"
+  credential_handoff_revision             = filesha256("${path.module}/scripts/provision-sensitive-resources.sh")
+  hyperdrive_connection_limit             = 60
+  hyperdrive_name                         = "work-graph-db"
+  r2_private_analytics_bucket_name        = "work-graph-private-analytics"
+  r2_private_analytics_models_bucket_name = "work-graph-private-analytics-models"
 }
 
 # The public observer has one webhook route and no service binding to the
@@ -41,6 +42,19 @@ resource "cloudflare_r2_bucket" "database_backups" {
 resource "cloudflare_r2_bucket" "private_analytics" {
   account_id = var.cloudflare_account_id
   name       = local.r2_private_analytics_bucket_name
+  location   = "ENAM"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+# dbt publications live in a second bucket so the transformer can read raw
+# captures without receiving write access to the extraction history. Report
+# readers receive a separate read-only credential for this bucket.
+resource "cloudflare_r2_bucket" "private_analytics_models" {
+  account_id = var.cloudflare_account_id
+  name       = local.r2_private_analytics_models_bucket_name
   location   = "ENAM"
 
   lifecycle {

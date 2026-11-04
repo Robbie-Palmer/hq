@@ -294,6 +294,7 @@ bash -n \
   hosts/vector-development/scripts/create-data-layout.bash \
   hosts/vector-development/scripts/apply-project-quotas.bash \
   hosts/vector-development/scripts/configure-tailscale-serve.bash \
+  hosts/vector-development/scripts/apply-fan-curve.bash \
   hosts/vector-development/scripts/apply-quiet-profile.bash \
   hosts/vector-development/scripts/thermal-monitor.bash \
   hosts/vector-development/scripts/vector-remote-unlock.bash \
@@ -402,6 +403,14 @@ run = "bash scripts/install-remote-development-observability-credentials.sh"
 description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
 run = "bash scripts/reconcile-remote-development-healthchecks.sh"
 
+[tasks.remote-healthchecks-pause]
+description = "Pause the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh pause"
+
+[tasks.remote-healthchecks-resume]
+description = "Resume the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh resume"
+
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
 depends = ["//:install"]
@@ -449,7 +458,7 @@ docker build \
   --build-context agent-auth-mcp=../packages/agent-auth-mcp \
   --build-context work-graph-cli=../packages/work-graph-cli \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21 \
   images/t3-code
 '''
 
@@ -463,7 +472,7 @@ run = "bash scripts/build-and-check-t3-image.sh"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"

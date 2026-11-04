@@ -27,9 +27,81 @@ without needing to learn Java or manage complex microservices.
 
 Inspired by Apache Flink's architecture, I developed a bridge to unite these two worlds:
 
-* **JNI Bridge**: Used the Java Native Interface (JNI) to allow the JVM-based ksqlDB and Connect workers to communicate directly with a sidecar Python process. This avoided the limitations of running Python *inside* the JVM.
-* **Meta-programming**: Built a Python library that used meta-programming to dynamically generate the required Kotlin bindings. This meant users could write pure Python functions, and the library would automatically handle the complex glue code needed to interface with the Java backend.
+* **Wheel Contract**: Required user-provided Python code to be packaged as a wheel that complied with the UDF interface.
+* **Generated Bindings**: Used the wheel's interface to generate Kotlin bindings that mapped JVM calls to the Python entry points.
+* **PemJa Bridge**: Used [PemJa](https://github.com/alibaba/pemja) to invoke an embedded CPython interpreter from the JVM through JNI. This retained native CPython support without relying on a Python implementation written for the JVM.
+* **Bundled Runtime**: Bundled a Python runtime for deployment alongside ksqlDB.
 * **Rich Ecosystem Support**: Because it used a real C-based Python interpreter, the solution supported the full breadth of the Python ecosystem, including all major ML libraries.
+
+# Architecture
+
+The system separated build-time binding generation from runtime record
+exchange. The build used the wheel's UDF interface to map Kotlin calls to Python
+entry points. The deployment packaged the wheel and generated bindings with a
+Python runtime alongside ksqlDB.
+
+## Build and deployment
+
+<Mermaid
+  chart={`flowchart LR
+Wheel["Interface-compliant wheel<br/>user code + Python entry points"]
+Generator["Binding generator<br/>reads the UDF interface"]
+Bindings["Generated Kotlin bindings<br/>Python entry-point mapping"]
+Runtime["Bundled Python runtime"]
+Deployment["ksqlDB deployment<br/>wheel + bindings + Python runtime"]
+
+Wheel -->|"interface contract"| Generator
+Generator -->|"generates mapping"| Bindings
+Bindings -->|"package with wheel"| Deployment
+Runtime -->|"deploy alongside ksqlDB"| Deployment
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[48rem]"
+/>
+
+## Runtime record exchange
+
+<Mermaid
+  chart={`flowchart LR
+Kafka["Kafka records"]
+
+subgraph Worker["ksqlDB worker"]
+subgraph JVM["JVM"]
+Host["ksqlDB UDF or<br/>Kafka Connect execution"]
+Bindings["Generated Kotlin bindings<br/>Python entry-point mapping"]
+PemJa["PemJa bridge<br/>JNI boundary"]
+Host <--> Bindings
+Bindings <--> PemJa
+end
+
+subgraph Python["Bundled CPython runtime"]
+EntryPoint["Wheel loader<br/>mapped Python entry point(s)"]
+Dependencies["Python packages<br/>native C extensions"]
+Dependencies --> EntryPoint
+end
+
+PemJa <-->|"UDF arguments + result"| EntryPoint
+end
+
+Kafka <-->|"records"| Host
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[54rem]"
+/>
+
+## Architecture in text
+
+1. The user packaged Python code and its entry points in a wheel that complied
+   with the UDF interface.
+2. A build-time generator read that interface and emitted Kotlin bindings that
+   mapped JVM calls to the Python entry points.
+3. The deployment packaged the wheel and generated bindings with a Python
+   runtime alongside ksqlDB.
+4. A Kafka record entered ksqlDB or Kafka Connect in the JVM worker. The host
+   called the generated binding for the mapped Python entry point.
+5. PemJa crossed the JNI boundary and invoked that entry point in the embedded
+   CPython interpreter. The wheel loader supplied the user code, while the
+   bundled environment supplied Python packages and native C extensions.
+6. The function result crossed the same boundaries in reverse and returned to
+   ksqlDB or Kafka Connect for continued stream processing.
 
 # Impact
 

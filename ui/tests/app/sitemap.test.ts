@@ -77,6 +77,12 @@ describe("sitemap", () => {
     expect(ideaUrls).toHaveLength(44);
   });
 
+  it("includes the technologies index", () => {
+    expect(sitemap().map((entry) => entry.url)).toContain(
+      "https://robbiepalmer.me/technologies",
+    );
+  });
+
   it("excludes legacy ADR aliases", () => {
     expect(sitemap().map((entry) => entry.url)).not.toContain(
       "https://robbiepalmer.me/projects/recipe-site/adrs/000-github-public-repo",

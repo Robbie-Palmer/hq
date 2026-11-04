@@ -32,3 +32,4 @@ export * from "./comparables";
 export * from "./marketTrend";
 export * from "./pricePaid";
 export * from "./pricePaidSchema";
+export * from "./valueConfidence";

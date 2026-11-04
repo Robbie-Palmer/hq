@@ -1125,7 +1125,7 @@ if [[ "$url" == */channels/ ]]; then
   printf '%s' '{"channels":[{"id":"slack-id","name":"remote-development-alerts","kind":"slack"}]}' >"$output"
 elif [[ "$url" == */checks/ ]]; then
   cp -- "\${payload#@}" "$CAPTURE_DIRECTORY/check-payload.json"
-  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
+  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"manual_resume":true,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
 else
   exit 2
 fi
@@ -1161,6 +1161,7 @@ fi
       desc: "External reachability check for the remote-development host",
       timeout: 60,
       grace: 120,
+      manual_resume: true,
       methods: "POST",
       channels: "slack-id",
       unique: ["slug"],
@@ -1169,6 +1170,106 @@ fi
       readFileSync(join(captureDirectory, "stored-ping-url"), "utf8"),
       "https://hc-ping.com/test-check",
     );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Healthchecks state task pauses and resumes the declared check", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "healthchecks-state-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const stateFile = join(temporaryDirectory, "state");
+  const actionsFile = join(temporaryDirectory, "actions");
+
+  try {
+    mkdirSync(binaryDirectory);
+    writeFileSync(stateFile, "up");
+    const dopplerPath = join(binaryDirectory, "doppler");
+    writeFileSync(
+      dopplerPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = secrets ] && [ "$2" = get ] && [ "$3" = HEALTHCHECKS_API_KEY ]; then
+  printf 'test-api-key'
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(dopplerPath, 0o755);
+
+    const curlPath = join(binaryDirectory, "curl");
+    writeFileSync(
+      curlPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=
+method=GET
+url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      output=$2
+      shift 2
+      ;;
+    --request)
+      method=$2
+      shift 2
+      ;;
+    --connect-timeout|--max-time|--header|--data)
+      shift 2
+      ;;
+    --fail|--silent|--show-error)
+      shift
+      ;;
+    http*)
+      url=$1
+      shift
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+status=$(cat "$STATE_FILE")
+if [ "$method" = POST ] && [[ "$url" == */pause ]]; then
+  status=paused
+  printf 'pause\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [ "$method" = POST ] && [[ "$url" == */resume ]]; then
+  status=new
+  printf 'resume\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [[ "$url" == */checks/ ]]; then
+  printf '{"checks":[{"uuid":"803f680d-e89b-492b-82ef-2be7b774a92d","slug":"remote-development-host","status":"%s"}]}' "$status" >"$output"
+elif [[ "$url" == */checks/803f680d-e89b-492b-82ef-2be7b774a92d ]]; then
+  printf '{"slug":"remote-development-host","status":"%s"}' "$status" >"$output"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(curlPath, 0o755);
+
+    const script = fileURLToPath(
+      new URL(
+        "../scripts/set-remote-development-healthchecks-state.sh",
+        import.meta.url,
+      ),
+    );
+    const environment = {
+      ...process.env,
+      ACTIONS_FILE: actionsFile,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      STATE_FILE: stateFile,
+    };
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+
+    assert.equal(readFileSync(stateFile, "utf8"), "new");
+    assert.equal(readFileSync(actionsFile, "utf8"), "pause\nresume\n");
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -1599,6 +1700,41 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     valueAt(devicePlugin, ["spec", "template", "spec", "runtimeClassName"]),
     "nvidia",
   );
+});
+
+test("the Vector workspace image provides the required glibc version", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/t3-code/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const imageCheck = readFileSync(
+    new URL("../scripts/check-t3-image.sh", import.meta.url),
+    "utf8",
+  );
+  const packagePins = readFileSync(
+    new URL("../images/t3-code/bindep.txt", import.meta.url),
+    "utf8",
+  );
+  const renovateConfig = readFileSync(
+    new URL("../../renovate.json", import.meta.url),
+    "utf8",
+  );
+  const nodeBaseImages = dockerfile.match(/^FROM node:[^\n]+$/gm) ?? [];
+
+  assert.equal(nodeBaseImages.length, 3);
+  for (const image of nodeBaseImages) {
+    assert.match(
+      image,
+      /^FROM node:\d+\.\d+\.\d+-trixie-slim@sha256:[a-f0-9]{64}(?: AS [a-z-]+)?$/,
+    );
+  }
+  assert.match(
+    imageCheck,
+    /dpkg --compare-versions "\$\{glibc_version#glibc \}" ge 2\.39/,
+  );
+  assert.doesNotMatch(packagePins, /deb12|bookworm/i);
+  assert.doesNotMatch(renovateConfig, /bookworm/i);
+  assert.match(renovateConfig, /suite=trixie(?:-updates|-security)?/);
 });
 
 test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
@@ -2866,6 +3002,22 @@ test("the Vector tailnet scripts avoid local DNS collisions", () => {
   assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
 });
 
+test("the Vector rebuild excludes local credentials from its flake input", () => {
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    rebuild,
+    /git -C "\$\{homelab_dir\}" ls-files -z --cached -- \./,
+  );
+  assert.match(rebuild, /\[\[ -e \$\{staging_dir\}\/\.kube \]\]/);
+  assert.match(rebuild, /-v "\$\{staging_dir\}:\/workspace"/);
+  assert.match(rebuild, /tar --no-xattrs -C "\$\{staging_dir\}"/);
+  assert.doesNotMatch(rebuild, /-v "\$\{homelab_dir\}:\/workspace"/);
+});
+
 test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
   const hostConfig = readFileSync(
     new URL("../hosts/vector-development/default.nix", import.meta.url),
@@ -2909,6 +3061,71 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
   assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
   assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
+});
+
+test("the Vector applies a guarded zero-RPM idle fan curve", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const fanCurve = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/apply-fan-curve.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const health = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
+  const thermalMonitor = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/thermal-monitor.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("vector-development-fan-curve"));
+  assert.ok(hostConfig.includes("powerManagement.resumeCommands"));
+  assert.match(
+    hostConfig,
+    /ExecStop = ".*vector-development-fan-curve restore"/,
+  );
+  assert.ok(
+    hostConfig.includes(
+      'requires = [ "vector-development-fan-curve.service" ]',
+    ),
+  );
+  assert.ok(fanCurve.includes('firmware} != "15M1IMS1.109"'));
+  assert.ok(
+    fanCurve.includes(
+      'factory_cpu_temperatures="50 57 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes(
+      'quiet_cpu_temperatures="60 62 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes('expected_cpu_speeds="0 40 50 60 75 89 103"'),
+  );
+  assert.ok(fanCurve.includes("modprobe ec_sys write_support=1"));
+  assert.ok(fanCurve.includes("count=3 conv=notrunc"));
+  assert.ok(fanCurve.includes("printf 'advanced\\n'"));
+  assert.ok(fanCurve.includes("printf 'silent\\n'"));
+  assert.ok(
+    thermalMonitor.includes(
+      "cpu_thresholds_celsius=(50 60 62 64 70 76 82 100)",
+    ),
+  );
+  assert.ok(thermalMonitor.includes("log_event fan_state"));
+  assert.ok(thermalMonitor.includes("log_event fan_percent"));
+  assert.ok(thermalMonitor.includes("history_retention_samples"));
+  assert.ok(health.includes("vector-development-fan-curve check"));
+  assert.ok(health.includes("history.jsonl"));
 });
 
 test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", () => {

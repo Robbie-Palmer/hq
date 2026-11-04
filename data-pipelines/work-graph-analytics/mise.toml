@@ -45,6 +45,19 @@ description = "Run a manifest-verified Work Graph report from a private cache or
 depends = ["sync"]
 run = "uv run --locked work-graph-analytics report"
 
+[tasks.operate]
+description = "Build and publish one bounded Work Graph analytics model version"
+depends = ["sync"]
+run = "uv run --locked work-graph-analytics operate"
+
+[tasks."access:check"]
+description = "Verify that the analytics buckets have no public access path"
+run = "bash scripts/check-private-access.sh"
+
+[tasks."access:test"]
+description = "Test private analytics bucket access verification"
+run = "bash scripts/check-private-access.test.sh"
+
 [tasks.check]
 description = "Run all Work Graph analytics checks"
-depends = ["lint", "test", "dbt:parse", "fixtures:build"]
+depends = ["lint", "test", "dbt:parse", "fixtures:build", "access:test"]

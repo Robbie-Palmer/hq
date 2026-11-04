@@ -118,8 +118,11 @@ def metric(report: object, project: str, cause: str) -> object:
     )
 
 
-def test_reports_reference_metrics_scope_and_provenance(tmp_path: Path) -> None:
+def test_reports_reference_metrics_scope_and_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     version = published_version(tmp_path)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://blocked.invalid/work_graph")
     report = operational_report(str(version), start=PERIOD_START, end=PERIOD_END)
 
     access = metric(report, "project-new", "attention:access")

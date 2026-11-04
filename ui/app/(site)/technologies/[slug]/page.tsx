@@ -224,7 +224,7 @@ export default async function TechnologyPage({ params }: Readonly<PageProps>) {
     <div className="max-w-4xl">
       <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap mb-8">
         <Link
-          href="/experience#technologies"
+          href="/technologies"
           className="hover:underline underline-offset-4"
         >
           Technologies

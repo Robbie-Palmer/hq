@@ -173,7 +173,7 @@ function addPlatformNodes(
       id: `platform-layer:${layer.slug}`,
       name: layer.title,
       type: "platform-layer",
-      href: `/projects/${manifest.project}#layer-${layer.slug}`,
+      href: `/projects/${manifest.project}?tab=platform#layer-${layer.slug}`,
       connections: 0,
     });
   }
@@ -188,7 +188,7 @@ function addPlatformNodes(
       id: `platform-policy:${selection.id}`,
       name: selection.value,
       type: "platform-policy",
-      href: `/projects/${manifest.project}#slot-${selection.slot}`,
+      href: `/projects/${manifest.project}?tab=platform#slot-${selection.slot}`,
       connections: 0,
     });
   }

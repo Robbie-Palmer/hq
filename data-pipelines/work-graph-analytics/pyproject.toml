@@ -5,6 +5,7 @@ description = "Manifest-verified dbt and DuckDB lakehouse models for Work Graph"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
+    "boto3>=1.40.0,<2",
     "dbt-duckdb>=1.9.0,<2",
     "duckdb>=1.4.0,<2",
     "fire>=0.7.0,<0.8",

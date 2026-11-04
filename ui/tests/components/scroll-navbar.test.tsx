@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ScrollNavbar } from "@/components/scroll-navbar";
 
@@ -26,6 +27,31 @@ describe("ScrollNavbar", () => {
     expect(screen.getByText("Experience")).toHaveClass(
       "hidden",
       "min-[420px]:inline",
+    );
+  });
+
+  it("groups secondary destinations under More", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const user = userEvent.setup();
+    render(<ScrollNavbar />);
+
+    expect(screen.queryByRole("link", { name: "Ideas" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /More/ }));
+
+    expect(screen.getByRole("link", { name: /Ideas/ })).toHaveAttribute(
+      "href",
+      "/ideas",
+    );
+    expect(screen.getByRole("link", { name: /Technologies/ })).toHaveAttribute(
+      "href",
+      "/technologies",
     );
   });
 });

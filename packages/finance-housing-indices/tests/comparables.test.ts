@@ -61,6 +61,21 @@ describe("completed-sale comparables", () => {
         townCity: "CARDIFF",
         precision: "full-postcode",
       },
+      housingValue: {
+        kind: "completed-sale",
+        asOf: "2026-08-05",
+        amount: 340_000,
+        source: {
+          kind: "official-completed-sale",
+          name: "HM Land Registry Price Paid Data",
+          date: "2026-10-04",
+          dateKind: "retrieved",
+          geography: {
+            name: "CF10 2BB, CARDIFF",
+            precision: "full-postcode",
+          },
+        },
+      },
     });
     expect(result.evidence).toMatchObject({
       provider: "HM Land Registry",
@@ -70,6 +85,25 @@ describe("completed-sale comparables", () => {
     });
     expect(result.evidence.registrationLag).toContain("two weeks to two months");
     expect(result.evidence.recentDataWarning).toContain("incomplete");
+  });
+
+  it("marks changed completed-sale records as revised", () => {
+    const changedRelease = {
+      ...release,
+      transactions: release.transactions.map((transaction) =>
+        transaction.transactionId === "tx-2"
+          ? { ...transaction, recordStatus: "changed" as const }
+          : transaction,
+      ),
+    };
+    const result = findComparableSales(changedRelease, query);
+
+    expect(result.status).toBe("ready");
+    if (result.status !== "ready") throw new Error("Expected comparables");
+    expect(result.sales[0]?.housingValue).toMatchObject({
+      dataStatus: "revised",
+      revisionNote: expect.stringContaining("marked this completed-sale record as changed"),
+    });
   });
 
   it("returns an empty result without widening the search", () => {

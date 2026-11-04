@@ -3,6 +3,7 @@ import { diagnose, formatDiagnosticOutput } from "../src/diagnostics";
 
 const config = {
   accountId: "a".repeat(32),
+  analyticsBucketName: "work-graph-private-analytics",
   hyperdriveId: "b".repeat(32),
   token: "SECRET",
 };
@@ -12,6 +13,7 @@ function responses({
   invocations = [],
   records = [],
   usage = [],
+  analytics = [],
   waiting = 0,
   peakWaiting = waiting,
   poolSize = waiting > 0 ? 12 : 2,
@@ -20,6 +22,7 @@ function responses({
   invocations?: unknown[];
   records?: unknown[];
   usage?: unknown[];
+  analytics?: unknown[];
   waiting?: number;
   peakWaiting?: number;
   poolSize?: number;
@@ -29,6 +32,7 @@ function responses({
     { result: { events: { events: invocations } } },
     { result: { events: { events: records } } },
     { result: { events: { events: usage } } },
+    { result: { events: { events: analytics } } },
     {
       data: {
         viewer: {
@@ -50,6 +54,26 @@ function responses({
                 },
               ],
               hyperdriveQueriesAdaptiveGroups: [{ count: queryErrors }],
+              r2OperationsAdaptiveGroups: [
+                {
+                  sum: { requests: 4 },
+                  dimensions: {
+                    actionType: "PutObject",
+                    actionStatus: "success",
+                  },
+                },
+              ],
+              r2StorageAdaptiveGroups: [
+                {
+                  max: {
+                    objectCount: 3,
+                    uploadCount: 0,
+                    payloadSize: 1_024,
+                    metadataSize: 128,
+                  },
+                  dimensions: { datetime: "2026-09-30T00:15:00Z" },
+                },
+              ],
             },
           ],
         },
@@ -118,9 +142,10 @@ describe("production diagnostics", () => {
         ]),
       },
     });
-    expect(requests[3]?.body.variables).toEqual({
+    expect(requests[4]?.body.variables).toEqual({
       accountTag: config.accountId,
       configId: config.hyperdriveId,
+      bucketName: config.analyticsBucketName,
       start: start.toISOString(),
       end: end.toISOString(),
     });
@@ -162,6 +187,56 @@ describe("production diagnostics", () => {
       expect(JSON.stringify(result)).not.toContain("SECRET");
     },
   );
+
+  it("projects scheduled analytics and R2 metrics without object data", async () => {
+    const analytics = [
+      {
+        timestamp: 100,
+        source: {
+          route: "worker.scheduled.analytics",
+          status: "exported",
+          eventRows: 1_000,
+          scopeRows: 790,
+          bytes: 100_000,
+          durationMilliseconds: 500,
+          databaseReads: 3,
+          databaseResultRows: 2_000,
+          databaseResultBytesEstimated: 250_000,
+          throughSequence: 1_000,
+          sourceUpperWatermark: 1_250,
+          checkpointLag: 250,
+          workerVersion: "v1",
+          objectKey: "SECRET",
+        },
+      },
+      {
+        timestamp: 200,
+        source: {
+          route: "worker.scheduled.analytics",
+          outcome: "error",
+          reason: "checkpoint_conflict",
+          durationMilliseconds: 50,
+          databaseReads: 3,
+          databaseResultRows: 2_000,
+          databaseResultBytesEstimated: 250_000,
+          workerVersion: "v1",
+          error: "SECRET",
+        },
+      },
+    ];
+    const result = await diagnose(
+      config,
+      start,
+      end,
+      sender(responses({ analytics })),
+    );
+
+    expect(result.analyticsRuns).toHaveLength(2);
+    expect(result.failedPublications).toBe(1);
+    expect(result.r2Operations[0]?.sum.requests).toBe(4);
+    expect(result.r2Storage?.max.payloadSize).toBe(1_024);
+    expect(JSON.stringify(result.analyticsRuns)).not.toContain("SECRET");
+  });
 
   it.each([
     { invocations: [{}] },
@@ -326,7 +401,7 @@ describe("production diagnostics", () => {
       ),
     ).rejects.toThrow("Unexpected Cloudflare events");
     const emptyAccounts = responses();
-    emptyAccounts[3] = { data: { viewer: { accounts: [] } } };
+    emptyAccounts[4] = { data: { viewer: { accounts: [] } } };
     await expect(
       diagnose(config, start, end, sender(emptyAccounts)),
     ).rejects.toThrow("Expected one account");
@@ -334,6 +409,7 @@ describe("production diagnostics", () => {
 
   it.each([
     { ...config, token: "" },
+    { ...config, analyticsBucketName: "" },
     { ...config, accountId: "bad" },
     { ...config, hyperdriveId: "bad" },
   ])("rejects missing credentials or invalid IDs", async (input) => {

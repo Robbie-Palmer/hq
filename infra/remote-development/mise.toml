@@ -43,8 +43,24 @@ tflint --format compact
 description = "Validate remote-development Terraform without its backend"
 run = """
 #!/usr/bin/env bash
-bash scripts/doppler-terraform-env.sh terraform init -backend=false > /dev/null || { echo "Terraform init failed" >&2; exit 1; }
-bash scripts/doppler-terraform-env.sh terraform validate
+set -euo pipefail
+validate_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/remote-development-terraform-validate.XXXXXX")"
+trap 'rm -rf "$validate_data_dir"' EXIT
+export TF_DATA_DIR="$validate_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform validate
+"""
+
+[tasks.test]
+description = "Test active and suspended remote-development resource layouts"
+run = """
+#!/usr/bin/env bash
+set -euo pipefail
+test_data_dir="$(mktemp -d "${TMPDIR:-/tmp}/remote-development-terraform-test.XXXXXX")"
+trap 'rm -rf "$test_data_dir"' EXIT
+export TF_DATA_DIR="$test_data_dir"
+terraform init -backend=false -input=false > /dev/null
+terraform test
 """
 
 [tasks.plan]
@@ -60,4 +76,4 @@ run = "bash scripts/doppler-terraform-env.sh terraform apply .planfile"
 
 [tasks.check]
 description = "Run all remote-development Terraform checks"
-depends = ["//infra/remote-development:format:check", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/remote-development:plan"]
+depends = ["//infra/remote-development:format:check", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/remote-development:test", "//infra/remote-development:plan"]
