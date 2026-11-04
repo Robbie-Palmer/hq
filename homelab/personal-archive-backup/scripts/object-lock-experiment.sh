@@ -11,7 +11,7 @@ restic_bin=${RESTIC_BIN:-restic}
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  object-lock-experiment.sh start --idle-proof FILE [--reuse-existing-prefix PREFIX]
+  object-lock-experiment.sh start --idle-proof FILE [--reuse-existing-prefix PREFIX ...]
   object-lock-experiment.sh cleanup --prefix PREFIX --retain-until TIMESTAMP [--keep-bucket]
 
 Both commands read a bootstrap B2 credential from the private files
@@ -236,13 +236,16 @@ assert_bucket_removed() {
 }
 
 assert_reusable_bucket_contents() {
-  local existing_prefix=$1
+  local approved_prefixes_file="${work_directory}/approved-prefixes.json"
+  printf '%s/\n' "$@" | jq -R -s 'split("\n") | map(select(length > 0))' \
+    >"${approved_prefixes_file}"
   run_bootstrap ls --recursive --versions --json \
     "b2://${bucket}/" >"${work_directory}/existing-objects.json"
-  jq -e --arg prefix "${existing_prefix}/" '
-    length > 0 and all(.[]; .fileName | startswith($prefix))
+  jq -e --slurpfile prefixes "${approved_prefixes_file}" '
+    length > 0 and all(.[]; .fileName as $name |
+      any($prefixes[0][]; . as $prefix | $name | startswith($prefix)))
   ' "${work_directory}/existing-objects.json" >/dev/null ||
-    fail "the experiment bucket contains an object outside the approved existing prefix"
+    fail "the experiment bucket contains an object outside the approved existing prefixes"
 }
 
 create_key() {
@@ -294,19 +297,19 @@ shift || true
 case "${command_name}" in
   start)
     idle_proof=
-    reuse_existing_prefix=
+    reuse_existing_prefixes=()
     while [[ "$#" -gt 0 ]]; do
       case "$1" in
         --idle-proof) [[ "$#" -ge 2 ]] || usage; idle_proof=$2; shift 2 ;;
-        --reuse-existing-prefix) [[ "$#" -ge 2 ]] || usage; reuse_existing_prefix=$2; shift 2 ;;
+        --reuse-existing-prefix) [[ "$#" -ge 2 ]] || usage; reuse_existing_prefixes+=("$2"); shift 2 ;;
         *) usage ;;
       esac
     done
     [[ -n "${idle_proof}" ]] || usage
     validate_idle_proof "${idle_proof}"
-    if [[ -n "${reuse_existing_prefix}" ]]; then
+    for reuse_existing_prefix in "${reuse_existing_prefixes[@]}"; do
       validate_prefix "${reuse_existing_prefix}"
-    fi
+    done
     command -v "${restic_bin}" >/dev/null 2>&1 || fail "${restic_bin} is required"
 
     timestamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -317,10 +320,10 @@ case "${command_name}" in
     policy_key_name="${key_base}-policy"
     data_key_name="${key_base}-data"
 
-    if [[ -n "${reuse_existing_prefix}" ]]; then
+    if (( ${#reuse_existing_prefixes[@]} > 0 )); then
       read_bucket run_bootstrap
       assert_no_default_retention
-      assert_reusable_bucket_contents "${reuse_existing_prefix}"
+      assert_reusable_bucket_contents "${reuse_existing_prefixes[@]}"
       create_maintenance_key "${key_base}-maintenance"
     else
       assert_bucket_absent
@@ -420,7 +423,8 @@ case "${command_name}" in
     grep -Eqi 'retention|governance|locked|access denied|not allowed|forbidden' \
       "${work_directory}/delete.log" || fail "pre-expiry deletion failed for an unexpected reason"
 
-    if "${restic_bin}" forget --tag object-lock-experiment --keep-last 0 --prune \
+    if "${restic_bin}" forget --tag object-lock-experiment --keep-last 0 \
+      --unsafe-allow-remove-all --prune \
       >"${work_directory}/prune.log" 2>&1; then
       fail "pre-expiry restic prune unexpectedly succeeded"
     fi

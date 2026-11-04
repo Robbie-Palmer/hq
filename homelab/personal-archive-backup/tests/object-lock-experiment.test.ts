@@ -284,6 +284,7 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     );
     assert.doesNotMatch(calls, /bucket delete/);
     assert.match(calls, /--default-retention-period 1\\ days/);
+    assert.match(calls, /--unsafe-allow-remove-all/);
     assert.match(calls, /--name-prefix object-lock-experiments\//);
     assert.doesNotMatch(calls, /bypassGovernance/);
     assert.match(calls, /key delete/);
@@ -311,6 +312,8 @@ test("reuses only an approved existing experiment prefix", () => {
   const fixture = createFixture();
   const existingPrefix =
     "object-lock-experiments/20261104T193152Z-fb8cec2353a6/restic";
+  const secondExistingPrefix =
+    "object-lock-experiments/20261104T193719Z-42e14dfa0e9b/restic";
   writeFileSync(fixture.bucketState, "none\n");
   writeFileSync(fixture.lockState, "enabled\n");
   writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
@@ -323,6 +326,8 @@ test("reuses only an approved existing experiment prefix", () => {
         fixture.idleProof,
         "--reuse-existing-prefix",
         existingPrefix,
+        "--reuse-existing-prefix",
+        secondExistingPrefix,
       ],
       { FAKE_FILE_NAME: `${existingPrefix}/config` },
     );
@@ -332,6 +337,10 @@ test("reuses only an approved existing experiment prefix", () => {
     assert.doesNotMatch(
       calls,
       new RegExp(`--name-prefix ${existingPrefix}/`),
+    );
+    assert.doesNotMatch(
+      calls,
+      new RegExp(`--name-prefix ${secondExistingPrefix}/`),
     );
     assert.match(calls, /--default-retention-mode governance/);
   } finally {
