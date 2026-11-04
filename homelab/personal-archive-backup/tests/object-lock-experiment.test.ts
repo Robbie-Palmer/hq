@@ -22,6 +22,7 @@ const experimentScript = join(
 interface Fixture {
   directory: string;
   calls: string;
+  keys: string;
   environment: NodeJS.ProcessEnv;
   idleProof: string;
   bucketState: string;
@@ -102,6 +103,9 @@ case "$1 $2" in
     if [[ "\${FAKE_ADD_BYPASS:-0}" = 1 && "$name" = *-policy ]]; then
       capabilities="$capabilities,bypassGovernance"
     fi
+    if [[ "\${FAKE_MAINTENANCE_BYPASS:-0}" = 1 && "$name" = *-maintenance ]]; then
+      capabilities="$capabilities,bypassGovernance"
+    fi
     printf 'id-%s %s %s - - %s %s\n' "$name" "$name" "$bucket" "$prefix" "$capabilities" >>"$FAKE_KEYS"
     printf 'id-%s secret-%s\n' "$name" "$name"
     ;;
@@ -155,6 +159,7 @@ esac
   return {
     directory,
     calls,
+    keys,
     idleProof,
     bucketState,
     environment: {
@@ -217,6 +222,7 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     assert.equal(evidence.defaultPolicyTeardown, true);
     assert.equal(evidence.directDeleteRejected, true);
     assert.equal(evidence.resticPruneRejected, true);
+    assert.equal(evidence.maintenanceKeyRevoked, true);
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "none");
 
     const calls = readFileSync(fixture.calls, "utf8");
@@ -226,10 +232,16 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     assert.ok(enableIndex >= 0);
     assert.ok(disableIndex > enableIndex);
     assert.ok(deleteIndex > disableIndex);
+    assert.ok(calls.indexOf("bucket get") < calls.indexOf("-maintenance"));
+    assert.match(
+      calls,
+      /key create --duration 7200 object-lock-[^ ]+-maintenance listKeys\\,writeKeys\\,deleteKeys\\,listBuckets\\,writeBuckets\\,readBucketRetentions\\,writeBucketRetentions\\,readBucketEncryption/,
+    );
     assert.match(calls, /--default-retention-period 1\\ day/);
     assert.match(calls, /--name-prefix object-lock-experiments\//);
     assert.doesNotMatch(calls, /bypassGovernance/);
     assert.match(calls, /key delete/);
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -263,6 +275,7 @@ test("tears down the bucket default and revokes keys after upload failure", () =
     assert.match(calls, /--default-retention-mode governance/);
     assert.match(calls, /--default-retention-mode none/);
     assert.match(calls, /key delete/);
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -281,6 +294,25 @@ test("rejects a temporary key that gains governance bypass", () => {
     const calls = readFileSync(fixture.calls, "utf8");
     assert.doesNotMatch(calls, /bucket update/);
     assert.match(calls, /key delete/);
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("revokes a maintenance key that gains governance bypass", () => {
+  const fixture = createFixture();
+  try {
+    const result = run(
+      fixture,
+      ["start", "--idle-proof", fixture.idleProof],
+      { FAKE_MAINTENANCE_BYPASS: "1" },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /bypassGovernance authority/);
+    const calls = readFileSync(fixture.calls, "utf8");
+    assert.doesNotMatch(calls, /-policy|bucket update/);
+    assert.match(calls, /key delete id-object-lock-[^ ]+-maintenance/);
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
@@ -309,6 +341,7 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
       prefix,
       repositoryRemoved: true,
       cleanupKeyRevoked: true,
+      maintenanceKeyRevoked: true,
       defaultPolicyStillAbsent: true,
     });
     const calls = readFileSync(fixture.calls, "utf8");
@@ -320,6 +353,7 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
     assert.match(calls, /rm --recursive --versions --fail-fast --no-progress/);
     assert.doesNotMatch(calls, /bypassGovernance/);
     assert.match(calls, /key delete/);
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }

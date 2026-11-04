@@ -144,9 +144,9 @@ Do not record credentials or full source paths here.
 
 Run this experiment only against a unique prefix under
 `object-lock-experiments/`. It never accepts a prefix in the production
-`restic/` namespace. The command creates temporary policy and data keys, and
-revokes both before it exits. The data key is restricted to the disposable
-prefix and deliberately omits `bypassGovernance`.
+`restic/` namespace. The command creates temporary maintenance, policy, and
+data keys, and revokes all three before it exits. The data key is restricted
+to the disposable prefix and deliberately omits `bypassGovernance`.
 
 First, run the idle check on the archive source host and keep its JSON output
 in a temporary file. The proof expires after 15 minutes:
@@ -157,8 +157,10 @@ mise run //homelab:personal-archive-object-lock-idle-check \
   >"${idle_proof}"
 ```
 
-Provide the Backblaze administrative key ID and secret through private files,
-not command-line arguments or environment values. Then start the experiment:
+Provide the Backblaze bootstrap key ID and secret through private files, not
+command-line arguments or environment values. The script uses that credential
+only for read-only preflight plus creation and final revocation of the
+short-lived maintenance key. Then start the experiment:
 
 ```bash
 B2_ADMIN_KEY_ID_FILE=/private/path/key-id \
@@ -188,6 +190,6 @@ B2_ADMIN_APPLICATION_KEY_FILE=/private/path/application-key \
 ```
 
 The cleanup command refuses to run before expiry or while any bucket default
-retention exists. It creates a fresh prefix-only key without governance bypass,
-deletes every version in the disposable repository, proves the prefix is
-empty, and revokes the key.
+retention exists. It creates fresh short-lived maintenance and prefix-only
+keys without governance bypass, deletes every version in the disposable
+repository, proves the prefix is empty, and revokes both keys.

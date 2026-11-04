@@ -14,8 +14,10 @@ Usage:
   object-lock-experiment.sh start --idle-proof FILE
   object-lock-experiment.sh cleanup --prefix PREFIX --retain-until TIMESTAMP
 
-Both commands read the temporary administrative B2 credential from the files
+Both commands read a bootstrap B2 credential from the private files
 named by B2_ADMIN_KEY_ID_FILE and B2_ADMIN_APPLICATION_KEY_FILE.
+The bootstrap credential is used only for read-only preflight plus creation and
+revocation of a short-lived maintenance key.
 EOF
   exit 2
 }
@@ -67,10 +69,13 @@ runtime_directory=${XDG_RUNTIME_DIR:-/dev/shm}
 work_directory=$(mktemp -d "${runtime_directory}/personal-archive-object-lock.XXXXXX")
 chmod 0700 "${work_directory}"
 export B2_ACCOUNT_INFO="${work_directory}/b2-account.sqlite"
-admin_key_id=$(<"${B2_ADMIN_KEY_ID_FILE}")
-admin_application_key=$(<"${B2_ADMIN_APPLICATION_KEY_FILE}")
-[[ -n "${admin_key_id}" && -n "${admin_application_key}" ]] || fail "the administrative B2 credential is empty"
+bootstrap_key_id=$(<"${B2_ADMIN_KEY_ID_FILE}")
+bootstrap_application_key=$(<"${B2_ADMIN_APPLICATION_KEY_FILE}")
+[[ -n "${bootstrap_key_id}" && -n "${bootstrap_application_key}" ]] || fail "the bootstrap B2 credential is empty"
 
+maintenance_key_id=
+maintenance_application_key=
+maintenance_key_name=
 policy_key_id=
 policy_application_key=
 policy_key_name=
@@ -79,9 +84,15 @@ data_application_key=
 data_key_name=
 default_enabled=false
 
+run_bootstrap() {
+  B2_APPLICATION_KEY_ID="${bootstrap_key_id}" \
+    B2_APPLICATION_KEY="${bootstrap_application_key}" \
+    "${b2_bin}" "$@"
+}
+
 run_admin() {
-  B2_APPLICATION_KEY_ID="${admin_key_id}" \
-    B2_APPLICATION_KEY="${admin_application_key}" \
+  B2_APPLICATION_KEY_ID="${maintenance_key_id}" \
+    B2_APPLICATION_KEY="${maintenance_application_key}" \
     "${b2_bin}" "$@"
 }
 
@@ -99,12 +110,14 @@ run_data() {
 
 revoke_key() {
   local key_id=$1
-  [[ -z "${key_id}" ]] || run_admin key delete "${key_id}" >/dev/null
+  local runner=${2:-run_admin}
+  [[ -z "${key_id}" ]] || "${runner}" key delete "${key_id}" >/dev/null
 }
 
 assert_key_revoked() {
   local key_name=$1
-  run_admin key list -l >"${work_directory}/keys-after-revoke.txt"
+  local runner=${2:-run_admin}
+  "${runner}" key list -l >"${work_directory}/keys-after-revoke.txt"
   ! awk -v name="${key_name}" '$2 == name { found = 1 } END { exit !found }' \
     "${work_directory}/keys-after-revoke.txt"
 }
@@ -139,10 +152,15 @@ cleanup_secrets() {
     echo "failed to revoke the temporary policy key" >&2
     exit_code=1
   fi
+  if ! revoke_key "${maintenance_key_id}" run_bootstrap; then
+    echo "failed to revoke the temporary maintenance key" >&2
+    exit_code=1
+  fi
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY RESTIC_PASSWORD_FILE \
     RESTIC_REPOSITORY RESTIC_CACHE_DIR
-  admin_key_id=
-  admin_application_key=
+  bootstrap_key_id=
+  bootstrap_application_key=
+  maintenance_application_key=
   policy_application_key=
   data_application_key=
   rm -rf -- "${work_directory}"
@@ -153,7 +171,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 read_bucket() {
-  run_admin bucket get "${bucket}" >"${work_directory}/bucket.json"
+  local runner=${1:-run_admin}
+  "${runner}" bucket get "${bucket}" >"${work_directory}/bucket.json"
   jq -e --arg bucket "${bucket}" '
     .bucketName == $bucket and .bucketType == "allPrivate" and
     .fileLockConfiguration.isClientAuthorizedToRead == true and
@@ -171,8 +190,10 @@ assert_no_default_retention() {
 }
 
 create_key() {
+  local runner=$1
+  shift
   local response key_id key_secret extra
-  response=$(run_admin key create "$@")
+  response=$("${runner}" key create "$@")
   read -r key_id key_secret extra <<<"${response}"
   [[ -n "${key_id}" && -n "${key_secret}" && -z "${extra:-}" ]] ||
     fail "Backblaze returned an unexpected application-key response"
@@ -181,7 +202,8 @@ create_key() {
 
 verify_key_boundary() {
   local key_name=$1 required_capabilities=$2 expected_prefix=$3
-  run_admin key list -l >"${work_directory}/keys.txt"
+  local runner=${4:-run_admin}
+  "${runner}" key list -l >"${work_directory}/keys.txt"
   local line
   line=$(awk -v name="${key_name}" '$2 == name { print; exit }' "${work_directory}/keys.txt")
   [[ -n "${line}" ]] || fail "the temporary application key was not listed"
@@ -198,6 +220,16 @@ verify_key_boundary() {
   if [[ -n "${expected_prefix}" ]]; then
     [[ "${line}" == *"'${expected_prefix}/'"* ]] || fail "the temporary data key prefix does not match"
   fi
+}
+
+create_maintenance_key() {
+  maintenance_key_name=$1
+  local maintenance_key capabilities
+  capabilities=listKeys,writeKeys,deleteKeys,listBuckets,writeBuckets,readBucketRetentions,writeBucketRetentions,readBucketEncryption
+  maintenance_key=$(create_key run_bootstrap --duration 7200 \
+    "${maintenance_key_name}" "${capabilities}")
+  IFS=$'\t' read -r maintenance_key_id maintenance_application_key <<<"${maintenance_key}"
+  verify_key_boundary "${maintenance_key_name}" "${capabilities}" "" run_bootstrap
 }
 
 command_name=${1:-}
@@ -224,17 +256,18 @@ case "${command_name}" in
     policy_key_name="${key_base}-policy"
     data_key_name="${key_base}-data"
 
-    read_bucket
+    read_bucket run_bootstrap
     assert_no_default_retention
+    create_maintenance_key "${key_base}-maintenance"
 
-    policy_key=$(create_key \
+    policy_key=$(create_key run_admin \
       --duration 7200 "${policy_key_name}" \
       listBuckets,writeBuckets,readBucketRetentions,writeBucketRetentions,readBucketEncryption)
     IFS=$'\t' read -r policy_key_id policy_application_key <<<"${policy_key}"
     verify_key_boundary "${policy_key_name}" \
       listBuckets,writeBuckets,readBucketRetentions,writeBucketRetentions,readBucketEncryption ""
 
-    data_key=$(create_key \
+    data_key=$(create_key run_admin \
       --bucket "${bucket}" --name-prefix "${prefix}/" --duration 14400 \
       "${data_key_name}" \
       listBuckets,listFiles,readFiles,writeFiles,deleteFiles,readFileRetentions)
@@ -321,6 +354,10 @@ case "${command_name}" in
     assert_key_revoked "${policy_key_name}" || fail "the temporary policy key still exists"
     policy_key_id=
     policy_application_key=
+    revoke_key "${maintenance_key_id}" run_bootstrap || fail "failed to revoke the temporary maintenance key"
+    assert_key_revoked "${maintenance_key_name}" run_bootstrap || fail "the temporary maintenance key still exists"
+    maintenance_key_id=
+    maintenance_application_key=
     unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
 
     retain_until=$(date -u -d "@$((retain_until_ms / 1000))" +%Y-%m-%dT%H:%M:%SZ)
@@ -336,7 +373,8 @@ case "${command_name}" in
         retainedByteDays: $retainedBytes,
         retainedObjects: $retainedObjects, retentionMode: "governance",
         defaultPolicyTeardown: true, directDeleteRejected: true,
-        resticPruneRejected: true, temporaryKeysRevoked: true}'
+        resticPruneRejected: true, temporaryKeysRevoked: true,
+        maintenanceKeyRevoked: true}'
     ;;
 
   cleanup)
@@ -355,13 +393,14 @@ case "${command_name}" in
       fail "the retain-until timestamp is invalid"
     (( $(date +%s) >= retain_until_epoch )) || fail "retention has not expired"
 
-    read_bucket
+    read_bucket run_bootstrap
     assert_no_default_retention
     timestamp=$(date -u +%Y%m%dT%H%M%SZ)
     nonce=$(od -An -N6 -tx1 /dev/urandom | tr -d ' \n')
+    create_maintenance_key "object-lock-${timestamp}-${nonce}-maintenance"
     cleanup_key_name="object-lock-${timestamp}-${nonce}-cleanup"
     data_key_name=${cleanup_key_name}
-    data_key=$(create_key \
+    data_key=$(create_key run_admin \
       --bucket "${bucket}" --name-prefix "${prefix}/" --duration 3600 \
       "${cleanup_key_name}" listBuckets,listFiles,readFiles,deleteFiles,readFileRetentions)
     IFS=$'\t' read -r data_key_id data_application_key <<<"${data_key}"
@@ -390,9 +429,14 @@ case "${command_name}" in
     assert_key_revoked "${data_key_name}" || fail "the temporary cleanup key still exists"
     data_key_id=
     data_application_key=
+    revoke_key "${maintenance_key_id}" run_bootstrap || fail "failed to revoke the temporary maintenance key"
+    assert_key_revoked "${maintenance_key_name}" run_bootstrap || fail "the temporary maintenance key still exists"
+    maintenance_key_id=
+    maintenance_application_key=
     jq --null-input --arg prefix "${prefix}" \
       '{schemaVersion: 1, prefix: $prefix, repositoryRemoved: true,
-        cleanupKeyRevoked: true, defaultPolicyStillAbsent: true}'
+        cleanupKeyRevoked: true, maintenanceKeyRevoked: true,
+        defaultPolicyStillAbsent: true}'
     ;;
 
   *) usage ;;
