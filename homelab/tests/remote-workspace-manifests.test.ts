@@ -2924,7 +2924,17 @@ test("the Vector controller webhook reconciler is fixed to the pilot boundary", 
   );
   assert.doesNotMatch(reconciler, /mapfile/);
   assert.doesNotMatch(reconciler, /--arg webhook_(?:secret|url)/);
-  assert.doesNotMatch(reconciler, /echo[^\n]*(webhook_secret|github_token)/);
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*(?:echo|printf|cat)\s+[^\n]*(webhook_secret|github_token)/m,
+  );
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*set\s+(?:-[A-Za-z]*x\b|-o\s+xtrace\b)/m,
+  );
+  assert.ok(
+    reconciler.includes('active="${CONTROLLER_WEBHOOK_ACTIVE:-false}"'),
+  );
 });
 
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
