@@ -193,6 +193,20 @@ describe("portfolio valuation", () => {
     ]);
   });
 
+  it("never uses an executable quote to restate historical worth", () => {
+    const data = mixedCurrencyData();
+    const reference = data.exchangeRateObservations?.[0];
+    if (reference == null) throw new Error("Missing exchange-rate fixture");
+    reference.rateClass = "executable";
+
+    const valuation = valuePortfolioAtDate(buildRepository(data), "2025-01-10");
+
+    expect(valuation.total).toBeNull();
+    expect(valuation.issues).toMatchObject([
+      { kind: "missing_exchange_rate", accountId: "broker-usd" },
+    ]);
+  });
+
   it("does not include an account after its closing date", () => {
     const data = mixedCurrencyData();
     const brokerage = data.accounts.find(

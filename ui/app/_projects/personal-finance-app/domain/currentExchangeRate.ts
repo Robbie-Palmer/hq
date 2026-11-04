@@ -88,6 +88,7 @@ export type CurrentExchangeRateRefreshResult = {
   values: CurrentExchangeRateValue[];
   observations: ExchangeRateObservation[];
   failures: CurrentExchangeRateFailure[];
+  unsupportedPairs: ExchangeRatePair[];
 };
 
 export type RefreshCurrentExchangeRatesInput = {
@@ -99,6 +100,7 @@ export type RefreshCurrentExchangeRatesInput = {
   staleAfterMs?: number;
   timeoutMs?: number;
   force?: boolean;
+  rateClass: "reference" | "executable";
 };
 
 const DEFAULT_CACHE_MS = 60 * 60 * 1_000;
@@ -109,20 +111,33 @@ function pairKey(pair: ExchangeRatePair): string {
   return `${pair.fromCurrency}\0${pair.toCurrency}`;
 }
 
-function normalizePairs(
-  pairs: readonly ExchangeRatePair[],
-): ExchangeRatePair[] {
+function normalizePairs(pairs: readonly ExchangeRatePair[]): {
+  supported: ExchangeRatePair[];
+  unsupported: ExchangeRatePair[];
+} {
   const normalized = new Map<string, ExchangeRatePair>();
+  const unsupported = new Map<string, ExchangeRatePair>();
   for (const pair of pairs) {
-    const fromCurrency = CurrencySchema.parse(pair.fromCurrency);
-    const toCurrency = CurrencySchema.parse(pair.toCurrency);
-    if (fromCurrency === toCurrency) {
-      throw new TypeError("Current exchange-rate currencies must differ");
+    const fromCurrency = CurrencySchema.safeParse(pair.fromCurrency);
+    const toCurrency = CurrencySchema.safeParse(pair.toCurrency);
+    if (
+      !fromCurrency.success ||
+      !toCurrency.success ||
+      fromCurrency.data === toCurrency.data
+    ) {
+      unsupported.set(pairKey(pair), pair);
+      continue;
     }
-    const normalizedPair = { fromCurrency, toCurrency };
+    const normalizedPair = {
+      fromCurrency: fromCurrency.data,
+      toCurrency: toCurrency.data,
+    };
     normalized.set(pairKey(normalizedPair), normalizedPair);
   }
-  return [...normalized.values()];
+  return {
+    supported: [...normalized.values()],
+    unsupported: [...unsupported.values()],
+  };
 }
 
 function elapsedMilliseconds(earlier: string, later: string): number {
@@ -131,16 +146,49 @@ function elapsedMilliseconds(earlier: string, later: string): number {
 
 function latestByPair(
   observations: readonly ExchangeRateObservation[],
+  rateClass: "reference" | "executable",
 ): Map<string, ExchangeRateObservation> {
   const latest = new Map<string, ExchangeRateObservation>();
-  for (const observation of effectiveObservations(observations).toSorted(
-    (left, right) =>
-      left.acceptedAt.localeCompare(right.acceptedAt) ||
-      left.id.localeCompare(right.id),
-  )) {
+  const effective = effectiveObservations(observations)
+    .filter(
+      (observation) => (observation.rateClass ?? "reference") === rateClass,
+    )
+    .toSorted(
+      (left, right) =>
+        quoteTime(left).localeCompare(quoteTime(right)) ||
+        left.acceptedAt.localeCompare(right.acceptedAt) ||
+        left.id.localeCompare(right.id),
+    );
+  for (const observation of effective) {
     latest.set(pairKey(observation), observation);
   }
   return latest;
+}
+
+function quoteIdentity(input: {
+  fromCurrency: string;
+  toCurrency: string;
+  rateClass?: "reference" | "executable";
+  quotedAt?: string;
+  source: { id: string };
+}): string {
+  return [
+    input.source.id,
+    pairKey(input),
+    input.rateClass ?? "reference",
+    input.quotedAt ?? "",
+  ].join("\0");
+}
+
+function acceptedByQuoteIdentity(
+  observations: readonly ExchangeRateObservation[],
+): Map<string, ExchangeRateObservation> {
+  return new Map(
+    effectiveObservations(observations).map((observation) => [
+      quoteIdentity(observation),
+      observation,
+    ]),
+  );
 }
 
 function quoteTime(observation: ExchangeRateObservation): string {
@@ -200,6 +248,7 @@ function observationFromQuote(input: {
   quote: CurrentExchangeRateProviderQuote;
   retrievedAt: string;
   sequence: number;
+  previous?: ExchangeRateObservation;
 }): ExchangeRateObservation {
   const quote = input.quote;
   const idTime = input.retrievedAt.replaceAll(/\D/g, "");
@@ -225,7 +274,25 @@ function observationFromQuote(input: {
     spread: quote.spread,
     providerFee: quote.providerFee,
     deliveredAmount: quote.deliveredAmount,
+    ...(input.previous == null ? {} : { correctsId: input.previous.id }),
   };
+}
+
+function sameQuote(
+  previous: ExchangeRateObservation,
+  quote: CurrentExchangeRateProviderQuote,
+): boolean {
+  return (
+    previous.rate === quote.rate &&
+    previous.sourceReference === quote.sourceReference &&
+    previous.bid === quote.bid &&
+    previous.ask === quote.ask &&
+    previous.spread === quote.spread &&
+    JSON.stringify(previous.providerFee) ===
+      JSON.stringify(quote.providerFee) &&
+    JSON.stringify(previous.deliveredAmount) ===
+      JSON.stringify(quote.deliveredAmount)
+  );
 }
 
 function takeCachedValues(input: {
@@ -299,23 +366,49 @@ function acceptProviderQuotes(input: {
   quotes: CurrentExchangeRateProviderQuote[];
   retrievedAt: string;
   staleAfterMs: number;
+  rateClass: "reference" | "executable";
   pending: Map<string, ExchangeRatePair>;
   values: Map<string, CurrentExchangeRateValue>;
   observations: ExchangeRateObservation[];
+  previousByIdentity: Map<string, ExchangeRateObservation>;
 }): ExchangeRatePair[] {
   const requestedKeys = new Set(input.requested.map(pairKey));
   const returned = new Set<string>();
   for (const [sequence, quote] of input.quotes.entries()) {
     const key = pairKey(quote);
-    if (!requestedKeys.has(key) || returned.has(key)) continue;
+    if (
+      !requestedKeys.has(key) ||
+      returned.has(key) ||
+      quote.rateClass !== input.rateClass
+    ) {
+      continue;
+    }
     returned.add(key);
+    const identity = quoteIdentity({
+      ...quote,
+      source: { id: input.provider.id },
+      quotedAt: quote.quoteTime,
+    });
+    const previous = input.previousByIdentity.get(identity);
+    if (previous != null && sameQuote(previous, quote)) {
+      const age = elapsedMilliseconds(quote.quoteTime, input.retrievedAt);
+      input.values.set(key, {
+        observation: previous,
+        freshness: age >= 0 && age <= input.staleAfterMs ? "fresh" : "stale",
+        fallback: input.providerIndex > 0,
+      });
+      input.pending.delete(key);
+      continue;
+    }
     const observation = observationFromQuote({
       provider: input.provider,
       quote,
       retrievedAt: input.retrievedAt,
       sequence,
+      previous,
     });
     input.observations.push(observation);
+    input.previousByIdentity.set(identity, observation);
     const age = elapsedMilliseconds(quote.quoteTime, input.retrievedAt);
     input.values.set(key, {
       observation,
@@ -351,9 +444,15 @@ export async function refreshCurrentExchangeRates(
   const staleAfterMs = input.staleAfterMs ?? DEFAULT_STALE_MS;
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const pairs = normalizePairs(input.pairs);
-  const previous = latestByPair(input.existingObservations ?? []);
+  const previous = latestByPair(
+    input.existingObservations ?? [],
+    input.rateClass,
+  );
+  const previousByIdentity = acceptedByQuoteIdentity(
+    input.existingObservations ?? [],
+  );
   const values = new Map<string, CurrentExchangeRateValue>();
-  const pending = new Map(pairs.map((pair) => [pairKey(pair), pair]));
+  const pending = new Map(pairs.supported.map((pair) => [pairKey(pair), pair]));
   const observations: ExchangeRateObservation[] = [];
   const failures: CurrentExchangeRateFailure[] = [];
 
@@ -388,9 +487,11 @@ export async function refreshCurrentExchangeRates(
       quotes: response.quotes,
       retrievedAt,
       staleAfterMs,
+      rateClass: input.rateClass,
       pending,
       values,
       observations,
+      previousByIdentity,
     });
     if (missing.length > 0) {
       failures.push({
@@ -405,12 +506,13 @@ export async function refreshCurrentExchangeRates(
   retainLastKnownAsStale(pending, previous, values);
 
   return {
-    values: pairs.flatMap((pair) => {
+    values: pairs.supported.flatMap((pair) => {
       const value = values.get(pairKey(pair));
       return value == null ? [] : [value];
     }),
     observations,
     failures,
+    unsupportedPairs: pairs.unsupported,
   };
 }
 
