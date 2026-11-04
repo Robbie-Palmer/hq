@@ -71,7 +71,9 @@ describe("ECB historical reference-rate ingestion", () => {
         acceptedAt: retrievedAt,
         retrievedAt,
         source: expect.objectContaining({ id: "ecb:reference" }),
-        sourceReference: expect.stringMatching(/body=[a-f0-9]{64}$/u),
+        sourceReference: expect.stringMatching(
+          /^ecb:EXR\?date=2026-10-02&pair=GBP%2FUSD&evidence=/u,
+        ),
         derivation: expect.objectContaining({ method: "triangulated" }),
       }),
     ]);
@@ -358,6 +360,95 @@ describe("ECB current reference-rate provider", () => {
           rateClass: "reference",
           source: expect.objectContaining({ id: "ecb:reference" }),
         }),
+      }),
+    ]);
+  });
+
+  it("reuses the same observation when only the lookback response changes", async () => {
+    const firstProvider = createEcbCurrentRateProvider({
+      lookbackDays: 10,
+      fetch: async () =>
+        csvResponse(
+          ecbCsv([
+            { currency: "GBP", date: "2026-10-01", rate: "0.79" },
+            { currency: "USD", date: "2026-10-01", rate: "1.19" },
+            { currency: "GBP", date: "2026-10-02", rate: "0.8" },
+            { currency: "USD", date: "2026-10-02", rate: "1.2" },
+          ]),
+        ),
+    });
+    const first = await refreshCurrentExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      providers: [firstProvider],
+      retrievedAt,
+      rateClass: "reference",
+    });
+
+    const secondProvider = createEcbCurrentRateProvider({
+      lookbackDays: 3,
+      fetch: async () =>
+        csvResponse(
+          ecbCsv([
+            { currency: "GBP", date: "2026-10-01", rate: "0.78" },
+            { currency: "USD", date: "2026-10-01", rate: "1.18" },
+            { currency: "GBP", date: "2026-10-02", rate: "0.8" },
+            { currency: "USD", date: "2026-10-02", rate: "1.2" },
+          ]),
+        ),
+    });
+    const unchanged = await refreshCurrentExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      providers: [secondProvider],
+      existingObservations: first.observations,
+      retrievedAt: "2026-10-04T13:00:00Z",
+      force: true,
+      rateClass: "reference",
+    });
+
+    expect(unchanged.observations).toEqual([]);
+    expect(unchanged.values[0]?.observation.id).toBe(first.observations[0]?.id);
+  });
+
+  it("records changed ECB evidence even when the derived rate is unchanged", async () => {
+    const original = await refreshCurrentExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      providers: [
+        createEcbCurrentRateProvider({
+          fetch: async () =>
+            csvResponse(
+              ecbCsv([
+                { currency: "GBP", date: "2026-10-02", rate: "0.8" },
+                { currency: "USD", date: "2026-10-02", rate: "1.2" },
+              ]),
+            ),
+        }),
+      ],
+      retrievedAt,
+      rateClass: "reference",
+    });
+    const revised = await refreshCurrentExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      providers: [
+        createEcbCurrentRateProvider({
+          fetch: async () =>
+            csvResponse(
+              ecbCsv([
+                { currency: "GBP", date: "2026-10-02", rate: "0.4" },
+                { currency: "USD", date: "2026-10-02", rate: "0.6" },
+              ]),
+            ),
+        }),
+      ],
+      existingObservations: original.observations,
+      retrievedAt: "2026-10-04T13:00:00Z",
+      force: true,
+      rateClass: "reference",
+    });
+
+    expect(revised.observations).toEqual([
+      expect.objectContaining({
+        rate: 1.5,
+        correctsId: original.observations[0]?.id,
       }),
     ]);
   });

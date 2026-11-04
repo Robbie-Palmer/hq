@@ -1,4 +1,3 @@
-import { sha256Hex } from "ts-base/crypto";
 import { parseCsv } from "ts-base/csv";
 import { z } from "zod";
 import { type Currency, CurrencySchema } from "./currency";
@@ -194,11 +193,32 @@ function pairRate(
   return triangulateExchangeRates(to, invertExchangeRate(from));
 }
 
+function sourceReference(input: {
+  fromCurrency: Currency;
+  toCurrency: Currency;
+  observedDate: string;
+  unitsPerEuro: ReadonlyMap<Currency, string>;
+}): string {
+  const currencies = [...new Set([input.fromCurrency, input.toCurrency])]
+    .filter((currency): currency is Currency => currency !== "EUR")
+    .toSorted((left, right) => left.localeCompare(right, "en"));
+  const evidence = currencies.map((currency) => {
+    const rate = input.unitsPerEuro.get(currency);
+    if (rate == null)
+      throw new TypeError(`ECB response has no ${currency} observation`);
+    return `D.${currency}.EUR.SP00.A@${input.observedDate}=${rate}`;
+  });
+  const params = new URLSearchParams({
+    date: input.observedDate,
+    pair: `${input.fromCurrency}/${input.toCurrency}`,
+    evidence: evidence.join(","),
+  });
+  return `ecb:EXR?${params.toString()}`;
+}
+
 function normalizeRates(input: {
   observations: readonly EcbCurrencyObservation[];
   pairs: ReadonlyArray<{ fromCurrency: Currency; toCurrency: Currency }>;
-  requestUrl: string;
-  bodyHash: string;
 }): EcbReferenceRate[] {
   const byDate = new Map<string, Map<Currency, string>>();
   for (const observation of input.observations) {
@@ -212,14 +232,17 @@ function normalizeRates(input: {
       input.pairs.flatMap((pair) => {
         const rateDecimal = pairRate(pair.fromCurrency, pair.toCurrency, rates);
         if (rateDecimal == null) return [];
-        const pairName = `${pair.fromCurrency}/${pair.toCurrency}`;
         return [
           {
             ...pair,
             rate: Number(rateDecimal),
             rateDecimal,
             observedDate: date,
-            sourceReference: `${input.requestUrl}#date=${date}&pair=${pairName}&body=${input.bodyHash}`,
+            sourceReference: sourceReference({
+              ...pair,
+              observedDate: date,
+              unitsPerEuro: rates,
+            }),
           },
         ];
       }),
@@ -304,13 +327,10 @@ export async function fetchEcbReferenceRates(
       { requestUrl: url, cause: error },
     );
   }
-  const bodyHash = await sha256Hex(raw);
   return {
     rates: normalizeRates({
       observations,
       pairs: pairs.supported,
-      requestUrl: url,
-      bodyHash,
     }),
     unsupportedPairs: pairs.unsupported,
     requestUrls: [url],
