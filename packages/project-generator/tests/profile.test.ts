@@ -316,7 +316,7 @@ describe("project profile contracts", () => {
   });
 
   it.each([
-    [{ schema_version: 3 }, /schema_version/],
+    [{ schema_version: 4 }, /schema_version/],
     [{ capabilities: { container: { base: "alpine" } } }, /not supported by project profile schema version 1/],
     [{ project: { id: "bad", name: "Bad", kind: "data-pipeline" } }, /compatible primary component/],
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],

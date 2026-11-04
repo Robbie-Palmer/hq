@@ -49,9 +49,16 @@ Project profile schema version 2 accepts checked workload definitions under
 `capabilities.workloads`. Resolution validates every non-local target against
 the deployment maturity contract before Copier receives blueprint version 3.
 The blueprint retains the signed artifact digest, project identity, workload
-intent, target extensions, and environment overlays. Profile version 1 remains
-valid and still resolves to blueprint version 2, so existing Copier receipts do
-not change until a project adopts workload definitions.
+intent, target extensions, and environment overlays.
+
+Profile schema version 3 adds `capabilities.delivery_evidence`. Its versioned
+contract binds stable component or workload identities to GitHub CI names and
+production environments. The compiler resolves current source paths from the
+profile and catalog, records shared-host membership, rejects conflicting
+exclusive ownership, and emits blueprint version 4. Copier publishes the
+resolved targets as catalog records. Profile version 1 remains valid and still
+resolves to blueprint version 2. Version 2 remains valid and resolves to
+blueprint version 3.
 
 Set `project.published: false` for an internal fixture. Copier still records
 its resolved blueprint and owns its declared component paths, but it does not

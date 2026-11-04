@@ -1,4 +1,4 @@
-schema_version: 1
+schema_version: 3
 
 project:
   id: "recipe-site"
@@ -112,6 +112,52 @@ requirements:
   - "scoped-storage-credentials"
   - "git-repository"
   - "external-blob-remote"
+
+capabilities:
+  delivery_evidence:
+    contract: "project-delivery-evidence"
+    contract_version: 1
+    repository: "Robbie-Palmer/hq"
+    targets:
+      - id: "api"
+        subjects:
+          - "component:recipe-site/recipe-api"
+          - "component:recipe-site/recipe-db"
+          - "component:recipe-site/recipe-domain"
+        source_paths:
+          - path: ".github/workflows/recipe-api-cd.yml"
+            mode: "exclusive"
+          - path: ".github/workflows/recipe-api-ci.yml"
+            mode: "exclusive"
+        github:
+          required_ci_names: ["Recipe API CI"]
+          production_environments: ["production-recipe-api"]
+      - id: "ingest"
+        subjects:
+          - "component:recipe-site/recipe-db"
+          - "component:recipe-site/recipe-domain"
+          - "component:recipe-site/recipe-ingest"
+          - "component:recipe-site/recipe-parsing"
+        source_paths:
+          - path: ".github/workflows/recipe-ingest-cd.yml"
+            mode: "exclusive"
+          - path: ".github/workflows/recipe-ingest-ci.yml"
+            mode: "exclusive"
+        github:
+          required_ci_names: ["Recipe Ingest CI"]
+          production_environments: ["production-recipe-ingest"]
+      - id: "site-ui"
+        subjects:
+          - "component:recipe-site/web"
+        shared_host: "site-ui"
+        source_paths:
+          - path: ".github/workflows/ui-cd.yml"
+            mode: "shared"
+          - path: ".github/workflows/ui-ci.yml"
+            mode: "shared"
+        github:
+          required_ci_names: ["UI CI"]
+          production_environments: ["production-site-ui"]
 
 reconciliation:
   mode: "tracking"
