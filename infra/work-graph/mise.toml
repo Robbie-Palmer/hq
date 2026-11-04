@@ -1,5 +1,6 @@
 [tools]
 doppler = { version = "3.76.6", github_attestations = false }
+ripgrep = "15.2.0"
 
 [tasks.init]
 description = "Initialize Work Graph Terraform"
