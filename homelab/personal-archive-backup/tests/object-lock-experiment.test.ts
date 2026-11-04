@@ -26,6 +26,7 @@ interface Fixture {
   environment: NodeJS.ProcessEnv;
   idleProof: string;
   bucketState: string;
+  lockState: string;
 }
 
 function createFixture(): Fixture {
@@ -35,6 +36,7 @@ function createFixture(): Fixture {
   const calls = join(directory, "calls.log");
   const keys = join(directory, "keys.log");
   const bucketState = join(directory, "bucket-state");
+  const lockState = join(directory, "lock-state");
   const prefixState = join(directory, "prefix-state");
   const idleProof = join(directory, "idle-proof.json");
   const adminKeyId = join(directory, "admin-key-id");
@@ -47,6 +49,7 @@ function createFixture(): Fixture {
   writeFileSync(calls, "");
   writeFileSync(keys, "");
   writeFileSync(bucketState, "missing\n");
+  writeFileSync(lockState, "disabled\n");
   writeFileSync(prefixState, "empty\n");
   writeFileSync(adminKeyId, "admin-id\n", { mode: 0o600 });
   writeFileSync(adminKey, "admin-secret\n", { mode: 0o600 });
@@ -80,7 +83,8 @@ case "$1 $2" in
   "bucket get")
     mode=$(<"$FAKE_BUCKET_STATE")
     [[ "$mode" != missing ]] || exit 3
-    object_lock=true
+    object_lock=false
+    if [[ "$(<"$FAKE_LOCK_STATE")" = enabled ]]; then object_lock=true; fi
     if [[ "\${FAKE_OBJECT_LOCK_DISABLED:-0}" = 1 ]]; then object_lock=false; fi
     if [[ "$mode" = none ]]; then
       retention='{"mode":null,"period":null}'
@@ -91,16 +95,21 @@ case "$1 $2" in
     ;;
   "bucket create")
     [[ "$(<"$FAKE_BUCKET_STATE")" = missing ]]
-    [[ " $* " = *" --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104 allPrivate "* ]]
+    [[ " $* " = *" robbie-personal-archive-object-lock-lab-20261104 allPrivate "* ]]
+    [[ " $* " != *" --file-lock-enabled "* ]]
     printf 'none\n' >"$FAKE_BUCKET_STATE"
+    printf 'disabled\n' >"$FAKE_LOCK_STATE"
     printf 'bucket-id\n'
     ;;
   "bucket delete")
     [[ "$(<"$FAKE_PREFIX_STATE")" = empty ]]
     printf 'missing\n' >"$FAKE_BUCKET_STATE"
+    printf 'disabled\n' >"$FAKE_LOCK_STATE"
     ;;
   "bucket update")
-    if [[ " $* " = *" --default-retention-mode governance "* ]]; then
+    if [[ " $* " = *" --file-lock-enabled "* ]]; then
+      printf 'enabled\n' >"$FAKE_LOCK_STATE"
+    elif [[ " $* " = *" --default-retention-mode governance "* ]]; then
       printf 'governance\n' >"$FAKE_BUCKET_STATE"
     elif [[ " $* " = *" --default-retention-mode none "* ]]; then
       printf 'none\n' >"$FAKE_BUCKET_STATE"
@@ -182,6 +191,7 @@ esac
     keys,
     idleProof,
     bucketState,
+    lockState,
     environment: {
       ...process.env,
       PATH: `${binDirectory}:${process.env.PATH}`,
@@ -193,6 +203,7 @@ esac
       FAKE_CALLS: calls,
       FAKE_KEYS: keys,
       FAKE_BUCKET_STATE: bucketState,
+      FAKE_LOCK_STATE: lockState,
       FAKE_PREFIX_STATE: prefixState,
     },
   };
@@ -263,7 +274,11 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     );
     assert.match(
       calls,
-      /bucket create --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104 allPrivate/,
+      /bucket create robbie-personal-archive-object-lock-lab-20261104 allPrivate/,
+    );
+    assert.match(
+      calls,
+      /bucket update --file-lock-enabled robbie-personal-archive-object-lock-lab-20261104/,
     );
     assert.doesNotMatch(calls, /bucket delete/);
     assert.match(calls, /--default-retention-period 1\\ day/);
@@ -302,7 +317,7 @@ test("removes a new bucket when Object Lock verification fails", () => {
     assert.match(result.stderr, /Object Lock-capable bucket could not be verified/);
     assert.match(result.stderr, /"objectLockEnabled": false/);
     const calls = readFileSync(fixture.calls, "utf8");
-    assert.doesNotMatch(calls, /bucket update/);
+    assert.doesNotMatch(calls, /--default-retention-mode/);
     assert.match(calls, /bucket delete/);
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
     assert.equal(readFileSync(fixture.keys, "utf8"), "");
@@ -343,7 +358,7 @@ test("rejects a temporary key that gains governance bypass", () => {
     assert.equal(result.status, 1);
     assert.match(result.stderr, /bypassGovernance authority/);
     const calls = readFileSync(fixture.calls, "utf8");
-    assert.doesNotMatch(calls, /bucket update/);
+    assert.doesNotMatch(calls, /--default-retention-mode/);
     assert.match(calls, /key delete/);
     assert.match(calls, /bucket delete/);
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
@@ -376,6 +391,7 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
   const prefix =
     "object-lock-experiments/20261101T120000Z-0123456789ab/restic";
   writeFileSync(fixture.bucketState, "none\n");
+  writeFileSync(fixture.lockState, "enabled\n");
   writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
   try {
     const result = run(

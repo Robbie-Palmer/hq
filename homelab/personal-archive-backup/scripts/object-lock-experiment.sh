@@ -198,6 +198,15 @@ read_bucket() {
   fi
 }
 
+read_new_unlocked_bucket() {
+  run_bootstrap bucket get "${bucket}" >"${work_directory}/bucket.json"
+  jq -e --arg bucket "${bucket}" '
+    .bucketName == $bucket and .bucketType == "allPrivate" and
+    ((.fileLockConfiguration.value.isFileLockEnabled // false) == false)
+  ' "${work_directory}/bucket.json" >/dev/null ||
+    fail "the new private experiment bucket could not be verified before enabling Object Lock"
+}
+
 assert_no_default_retention() {
   jq -e '
     .fileLockConfiguration.value.defaultRetention.mode == null and
@@ -289,9 +298,11 @@ case "${command_name}" in
 
     assert_bucket_absent
     create_maintenance_key "${key_base}-maintenance"
-    run_admin bucket create --file-lock-enabled "${bucket}" allPrivate >/dev/null
+    run_admin bucket create "${bucket}" allPrivate >/dev/null
     bucket_created=true
     delete_empty_bucket_on_exit=true
+    read_new_unlocked_bucket
+    run_admin bucket update --file-lock-enabled "${bucket}" >/dev/null
     read_bucket run_bootstrap
     assert_no_default_retention
 
