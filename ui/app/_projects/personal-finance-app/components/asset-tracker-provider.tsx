@@ -106,6 +106,8 @@ import {
   type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type ReplacementIncomeThreshold,
+  type ReplacementIncomeThresholdRequest,
   type RevisitAdoptedDecisionInput,
   reconcileAdoptedDecisionForecast,
   type SalaryHistoryRecord,
@@ -122,6 +124,7 @@ import {
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
+  solveReplacementIncomeThresholds,
   suggestedAnnualEmploymentIncomePence,
   type TaxPositionData,
   type Transfer,
@@ -179,6 +182,9 @@ interface AssetTrackerContextValue {
     scenario: string | JobMoveScenario,
     horizonMonths: number,
   ): JobMoveScenarioComparison;
+  solveReplacementIncomeThresholds(
+    input: ReplacementIncomeThresholdRequest,
+  ): ReplacementIncomeThreshold[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
@@ -552,6 +558,35 @@ function jobMoveComparison(
   };
 }
 
+function replacementIncomeThresholdSolver(
+  repository: ReturnType<typeof buildRepository>,
+  financialIndependence: PortfolioFinancialIndependence,
+  emergencyFundAnalysis: EmergencyFundAnalysis | null,
+  valuationDate: string,
+) {
+  return (request: ReplacementIncomeThresholdRequest) => {
+    const scenario = repository.jobMoveScenarios.find(
+      (candidate) => candidate.id === request.scenarioId,
+    );
+    if (scenario == null) throw new Error("Job-move scenario not found");
+    return solveReplacementIncomeThresholds({
+      repository,
+      scenario,
+      startDate: valuationDate,
+      roleStartDates: request.roleStartDates,
+      assumptionSets: request.assumptionSets,
+      goal: request.goal,
+      horizonMonths: request.horizonMonths,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      baselineCompensation: financialIndependence.currentCompensation,
+      emergencyFundAnalysis,
+      maximumAnnualIncome: request.maximumAnnualIncome,
+    });
+  };
+}
+
 function useAssetTrackerViews(data: AssetTrackerData) {
   return useMemo(() => {
     const repository = buildRepository(scopeAssetTrackerData(data));
@@ -645,6 +680,12 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
       jobMoveScenarios: repository.jobMoveScenarios,
       compareJobMoveScenario: jobMoveComparison(
+        repository,
+        financialIndependence,
+        emergencyFundAnalysis,
+        valuationDate,
+      ),
+      solveReplacementIncomeThresholds: replacementIncomeThresholdSolver(
         repository,
         financialIndependence,
         emergencyFundAnalysis,

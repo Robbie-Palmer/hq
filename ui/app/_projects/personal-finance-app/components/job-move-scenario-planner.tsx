@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
 import { JobMoveScenarioCharts } from "./job-move-scenario-charts";
+import { ReplacementIncomeThresholdPlanner } from "./replacement-income-threshold-planner";
 
 const HORIZONS = [1, 3, 5, 10, 15, 20] as const;
 
@@ -2203,10 +2204,18 @@ export function JobMoveScenarioPlanner() {
         </p>
       )}
       {controls.selected != null && (
-        <Comparison
-          key={`comparison:${controls.selected.id}`}
-          scenario={controls.selected}
-        />
+        <>
+          <Comparison
+            key={`comparison:${controls.selected.id}`}
+            scenario={controls.selected}
+          />
+          {controls.selected.employmentStatus === "employed" ? (
+            <ReplacementIncomeThresholdPlanner
+              key={`threshold:${controls.selected.id}`}
+              scenario={controls.selected}
+            />
+          ) : null}
+        </>
       )}
     </section>
   );

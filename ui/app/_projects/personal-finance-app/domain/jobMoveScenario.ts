@@ -1107,7 +1107,7 @@ function forecastMilestones(
   );
 }
 
-type CompareJobMoveScenarioInput = {
+export type CompareJobMoveScenarioInput = {
   repository: AssetTrackerRepository;
   scenario: JobMoveScenario;
   horizonMonths: number;
