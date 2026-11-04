@@ -19,6 +19,10 @@ export type MortgageInvestmentModel = {
   sensitivity: MortgageInvestmentSensitivity[];
   mortgageRates: number[];
   investmentReturns: number[];
+  valuationSensitivity: {
+    lower: MortgageInvestmentComparison;
+    upper: MortgageInvestmentComparison;
+  };
 };
 
 function defaultAssumptions(
@@ -127,6 +131,10 @@ export function buildMortgageInvestmentModel({
     input.investmentAnnualReturn,
     input.investmentAnnualReturn + input.investmentVolatility,
   ];
+  const propertyValueRange = position.propertyValueRanges?.[property.id] ?? {
+    lower: input.propertyValue,
+    upper: input.propertyValue,
+  };
   return {
     assumptions,
     input,
@@ -138,5 +146,15 @@ export function buildMortgageInvestmentModel({
     ),
     mortgageRates,
     investmentReturns,
+    valuationSensitivity: {
+      lower: compareMortgageOverpaymentWithInvestment({
+        ...input,
+        propertyValue: propertyValueRange.lower,
+      }),
+      upper: compareMortgageOverpaymentWithInvestment({
+        ...input,
+        propertyValue: propertyValueRange.upper,
+      }),
+    },
   };
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { HOUSING_CURRENCY } from "finance-housing-indices/browser";
+import { useState } from "react";
 import {
   CartesianGrid,
   Line,
@@ -9,7 +10,10 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import type { PropertyValueHistoryView } from "@/app/_projects/personal-finance-app/domain";
+import type {
+  PropertyValueHistoryView,
+  SetPropertyValueSelectionInput,
+} from "@/app/_projects/personal-finance-app/domain";
 import {
   formatAccountCurrency,
   formatAxisTick,
@@ -22,6 +26,198 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { HousingValueDisclosure } from "./housing-value-disclosure";
+
+type SavePropertyValue = (
+  anchorValuationId: string,
+  valueSelection: PropertyValueHistoryView["selection"],
+) => Promise<void>;
+
+function AutomaticEstimateToggle({
+  automatic,
+  disabled,
+  onChange,
+}: Readonly<{
+  automatic: boolean;
+  disabled: boolean;
+  onChange: (automatic: boolean) => void;
+}>) {
+  return (
+    <label className="flex items-center gap-2 text-xs">
+      <input
+        type="checkbox"
+        checked={automatic}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+      />
+      <span>Automatic estimate</span>
+    </label>
+  );
+}
+
+function RecordedValueSelect({
+  ariaLabel,
+  disabled,
+  label,
+  onChange,
+  value,
+  values,
+}: Readonly<{
+  ariaLabel: string;
+  disabled: boolean;
+  label: string;
+  onChange: (value: string) => void;
+  value: string;
+  values: PropertyValueHistoryView["recordedValues"];
+}>) {
+  return (
+    <label className="space-y-1 text-xs text-muted-foreground">
+      <span>{label}</span>
+      <select
+        aria-label={ariaLabel}
+        className="min-h-11 w-full rounded-md border bg-background px-3 text-foreground"
+        disabled={disabled}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {values.map((recordedValue) => (
+          <option key={recordedValue.id} value={recordedValue.id}>
+            {recordedValue.asOf} ·{" "}
+            {formatAccountCurrency(
+              recordedValue.amount,
+              recordedValue.currency,
+            )}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function PropertyValueControlFields({
+  error,
+  save,
+  saving,
+  view,
+}: Readonly<{
+  error: string | null;
+  save: SavePropertyValue;
+  saving: boolean;
+  view: PropertyValueHistoryView;
+}>) {
+  return (
+    <section
+      className="rounded-lg border p-3"
+      aria-label="Property value choice"
+    >
+      <PropertyValueControlHeader save={save} saving={saving} view={view} />
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <RecordedValueSelect
+          ariaLabel="Property estimate anchor"
+          disabled={saving}
+          label="Estimate anchor"
+          onChange={(value) => void save(value, view.selection)}
+          value={view.anchorValuationId}
+          values={view.recordedValues}
+        />
+        <RecordedValueSelect
+          ariaLabel="Recorded property value"
+          disabled={saving || view.selection.mode === "automatic-index"}
+          label="Recorded value when automatic estimates are off"
+          onChange={(valuationId) =>
+            void save(view.anchorValuationId, {
+              mode: "recorded-value",
+              valuationId,
+            })
+          }
+          value={
+            view.selection.mode === "recorded-value"
+              ? view.selection.valuationId
+              : view.anchorValuationId
+          }
+          values={view.recordedValues}
+        />
+      </div>
+      {error && <p className="mt-2 text-xs text-destructive">{error}</p>}
+    </section>
+  );
+}
+
+function PropertyValueControlHeader({
+  save,
+  saving,
+  view,
+}: Readonly<{
+  save: SavePropertyValue;
+  saving: boolean;
+  view: PropertyValueHistoryView;
+}>) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div>
+        <h3 className="text-sm font-medium">Value used in net worth</h3>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {view.selectionExplanation}
+        </p>
+      </div>
+      <AutomaticEstimateToggle
+        automatic={view.selection.mode === "automatic-index"}
+        disabled={saving}
+        onChange={(automatic) =>
+          void save(
+            view.anchorValuationId,
+            automatic
+              ? { mode: "automatic-index" }
+              : {
+                  mode: "recorded-value",
+                  valuationId: view.anchorValuationId,
+                },
+          )
+        }
+      />
+    </div>
+  );
+}
+
+function PropertyValueControls({
+  onSelectionChange,
+  view,
+}: Readonly<{
+  onSelectionChange: (input: SetPropertyValueSelectionInput) => Promise<void>;
+  view: PropertyValueHistoryView;
+}>) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  async function save(
+    anchorValuationId: string,
+    valueSelection: PropertyValueHistoryView["selection"],
+  ) {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSelectionChange({
+        accountId: view.accountId,
+        anchorValuationId,
+        valueSelection,
+      });
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "The property value choice could not be saved.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <PropertyValueControlFields
+      error={error}
+      save={save}
+      saving={saving}
+      view={view}
+    />
+  );
+}
 
 const chartConfig = {
   estimate: {
@@ -290,10 +486,23 @@ function ReadyPropertyValueHistory({
 }
 
 export function PropertyValueHistory({
+  onSelectionChange,
   view,
-}: Readonly<{ view: PropertyValueHistoryView }>) {
-  if (view.status === "unavailable") {
-    return <UnavailablePropertyValueHistory view={view} />;
-  }
-  return <ReadyPropertyValueHistory view={view} />;
+}: Readonly<{
+  onSelectionChange: (input: SetPropertyValueSelectionInput) => Promise<void>;
+  view: PropertyValueHistoryView;
+}>) {
+  return (
+    <div className="space-y-3">
+      <PropertyValueControls
+        onSelectionChange={onSelectionChange}
+        view={view}
+      />
+      {view.status === "unavailable" ? (
+        <UnavailablePropertyValueHistory view={view} />
+      ) : (
+        <ReadyPropertyValueHistory view={view} />
+      )}
+    </div>
+  );
 }

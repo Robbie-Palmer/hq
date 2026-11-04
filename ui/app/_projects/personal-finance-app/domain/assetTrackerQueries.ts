@@ -64,6 +64,7 @@ function needsExplicitValuation(repository: AssetTrackerRepository): boolean {
     repository.settings.baseCurrency ?? DEFAULT_BASE_CURRENCY;
   return (
     repository.holdingObservations.length > 0 ||
+    repository.selectedPropertyValues.size > 0 ||
     Array.from(repository.accounts.values()).some(
       (account) => account.currency !== baseCurrency,
     )
@@ -113,6 +114,7 @@ function netWorthConversionDetail(
             currency: issue.currency,
             observedAt: issue.observedAt,
           })),
+          housingValue: accountValuation.housingValue,
         };
       }),
   };
@@ -162,7 +164,11 @@ export function buildAccountReadModels(
       repository.transfers,
       repository.capitalFlows,
     );
-    if (valuationDate != null && accountsWithHoldings.has(account.id)) {
+    if (
+      valuationDate != null &&
+      (accountsWithHoldings.has(account.id) ||
+        repository.selectedPropertyValues.has(account.id))
+    ) {
       const valuation = valueAccountAtDate(repository, account, valuationDate);
       summary = {
         ...summary,
