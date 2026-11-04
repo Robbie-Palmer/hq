@@ -39,6 +39,7 @@ export * from "./propertyComparables";
 export * from "./propertyIndexHistory";
 export * from "./recurringFlow";
 export * from "./redundancyPackage";
+export * from "./replacementIncomeThreshold";
 export * from "./retirementCapital";
 export * from "./retirementIncome";
 export * from "./retirementProjectionRange";
