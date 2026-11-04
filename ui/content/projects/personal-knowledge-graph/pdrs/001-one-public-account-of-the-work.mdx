@@ -1,0 +1,53 @@
+---
+title: "PDR 001: Use one public, connected account of the work"
+date: "2025-10-18"
+status: "Accepted"
+decision_date: "2025-10-18"
+---
+
+## Context
+
+Professional experience, project work, research, writing, and the reasoning
+behind technical choices were scattered across GitHub, LinkedIn, Substack, and
+private notes. A conventional portfolio could collect links and screenshots,
+but it would still hide how ideas became decisions and delivered work.
+
+The public source repository already made the work inspectable. The site could
+use the same reviewed content to connect projects, decisions, technologies,
+roles, and writing instead of maintaining another summary by hand.
+
+## Decision
+
+Use the Personal Knowledge Graph as the primary public account of the work.
+Publish the project narratives, decision records, delivery evidence, research,
+and writing that help a reader understand what changed and why. Connect those
+records through explicit relationships rather than presenting them as
+unrelated portfolio cards.
+
+Keep the source public so readers can inspect the history and implementation.
+Publish only material approved for the public graph. Working notes and
+application data keep their own access boundaries.
+
+## Consequences
+
+Treat project documentation as a product artifact. A project page needs enough
+history and evidence for a reader to assess the work, and changes to that
+account go through the same review path as code.
+
+The graph takes more maintenance than a static portfolio. Relationships,
+lifecycle state, and claims can become stale. Public source also requires care
+to keep secrets, private notes, and application data outside the repository.
+
+## Evaluation
+
+The choice is working when a reader can start from a project, idea, decision,
+technology, role, or article and follow the relevant public history without
+reconstructing it from several external profiles.
+
+## Migration note
+
+This record preserves the public, unified-presence policy first recorded in
+ADR 000 and the original project narrative. Renaming Personal Site to Personal
+Knowledge Graph on 2026-09-14 made the connected-account framing explicit. It
+did not replace the underlying choice. Moving the policy into a PDR does not
+change it; ADR 000 retains the technical choice of GitHub hosting.

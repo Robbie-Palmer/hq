@@ -1,0 +1,51 @@
+---
+title: "PDR 002: Keep the code open while retaining relicensing authority"
+date: "2026-01-11"
+status: "Accepted"
+decision_date: "2026-01-11"
+---
+
+## Context
+
+The public repository originally had no license. Readers could inspect it, but
+they had no clear right to contribute, fork it, or build on it. A permissive
+license would allow a hosted proprietary fork to use the work without sharing
+its changes. Refusing contributions would avoid future ownership questions but
+would conflict with the decision to build in public.
+
+The project also needed room to change its licensing or offer a differently
+licensed edition later. Contributions without a rights agreement could make
+that change depend on every contributor.
+
+## Decision
+
+License the public project under AGPL-3.0. Modifications offered over a network
+must make their corresponding source available under the same terms.
+
+Require contributors to grant a Contributor License Agreement before their
+changes merge. The agreement keeps contributed code open under AGPL-3.0 while
+granting the project owner enough rights to relicense the combined work later.
+
+## Consequences
+
+People may inspect, run, modify, and contribute to the project under explicit
+terms. Hosted derivatives cannot keep their modifications closed merely
+because users access them over a network.
+
+AGPL and the contributor agreement may deter corporate contributors. The
+agreement also adds a step to a contributor's first pull request. Those costs
+are accepted to keep the public code open without giving up future licensing
+options.
+
+## Evaluation
+
+Every merged contribution must have a recorded agreement. Revisit the policy
+if the license prevents a dependency or collaboration that matters more than
+the network-copyleft guarantee, or if the project adopts a business model that
+needs a new licensing decision.
+
+## Migration note
+
+This record extracts the licensing and contributor policy from ADR 037 without
+changing its 2026-01-11 date, status, or rationale. ADR 037 now retains the
+technical choice to enforce the contributor agreement in pull requests.

@@ -1,23 +1,19 @@
 ---
-title: "ADR 038: Content Knowledge Graph Visualization"
+title: "ADR 038: Content Graph Explorer Rendering"
 date: "2026-02-07"
 status: "Accepted"
 tech_stack: ["cosmos.gl"]
+implements_product_decisions:
+  - "personal-knowledge-graph:003-explorable-content-graph"
 ---
 
 # Context
 
-The site's content is structured as a knowledge graph with \~150 nodes
-(projects, blog posts, ADRs, technologies, roles, tags) and hundreds of edges representing relationships like
-`USES_TECHNOLOGY`, `PART_OF_PROJECT`, `CREATED_AT_ROLE`, and `HAS_TAG`.
-This graph already powers backlinks, connected filters, and content discovery throughout the site.
-
-However, there is currently no way to visually see the graph itself. A visualization would:
-
-* Reveal the structure and interconnectedness of the content at a glance
-* Enable exploration by clicking through nodes to discover related content
-* Demonstrate the depth of the knowledge graph to visitors
-* Help identify clusters, central nodes, and isolated content during authoring
+[PDR 003](/projects/personal-knowledge-graph/pdrs/003-explorable-content-graph)
+requires an interactive view of the repository's real content graph. The graph
+has \~150 nodes and hundreds of typed edges. The renderer must handle filtering,
+search, selection, and canonical page links without maintaining another graph
+data source.
 
 The main libraries for interactive graph visualization in the browser are:
 
@@ -26,18 +22,15 @@ The main libraries for interactive graph visualization in the browser are:
 * **Sigma.js** (`@react-sigma/core`): WebGL-based, purpose-built for graph visualization. Uses `graphology` for the graph data model and provides React hooks for events, layout, and rendering.
 * **Cytoscape.js** (`react-cytoscapejs`): Mature graph library with many layout algorithms (hierarchical, circular, force). More complex API, better suited for analytical/research use cases.
 
-# Original decision
+# Original renderer decision
 
 Use **[Sigma.js](https://www.sigmajs.org)** with `@react-sigma/core` for an interactive knowledge graph visualization.
 
 This extracts the site's real `ContentGraph` data at build time, serializes it as `{nodes, edges}`,
 and renders it client-side using a **deterministic, seed-based layout**.
-The implementation:
+The renderer:
 
-* **Color-codes nodes by type**: projects (blue), blogs (orange), roles (purple), ADRs (grey), technologies (green), tags (yellow)
 * **Sizes nodes by connection count**: more-connected nodes appear larger
-* **Supports filtering**: toggle node types on/off to reduce visual density
-* **Links to content**: clicking a node opens its page and highlights connections
 * **Shows labels on zoom**: node names appear when zoomed in, avoiding clutter at overview level
 * **Stable Layout**: Uses a synchronous force-directed algorithm (ForceAtlas2) to calculate positions once, ensuring the graph looks identical on every load avoiding jerking on filtering/interactivity etc.
 * **Loads lazily**: uses `next/dynamic` with `ssr: false` since the WebGL API requires the browser
@@ -66,20 +59,27 @@ The implementation:
 * **Accessibility**: WebGL-based rendering is not accessible to screen readers.
 * **Mobile experience**: Interaction is optimized for mouse/trackpad (hover for details). Touch works for pan/zoom but lacks hover states.
 
-# Superseding decision
+# Renderer replacement
 
 The fixed Sigma layout made filtering predictable, but rebuilding the Graphology instance after every filter change discarded the previous layout. Synchronous ForceAtlas2 work also blocked the main thread, and rendered node radii could still overlap.
 
 Replace Sigma.js and Graphology with **[cosmos.gl](https://github.com/cosmosgl/graph)**. Keep every node at a stable numeric index and hide filtered nodes with absent positions. A deterministic radial layout keeps the graph inside its fitted viewport without rebuilding its identity. Each filter state gets a new deterministic layout based on its visible nodes, with a finite transition to the new positions. Dragging a node directly displaces nearby connected nodes with a depth-based falloff. Local collision handling pushes overlapping nodes aside without starting a global force simulation.
 
-The replacement adds:
+The replacement architecture adds:
 
 * A stable layout that remains inside the fitted viewport
 * Anchored drag propagation with local collision handling, while filter changes animate once to a newly centred layout
 * Node sizing based on global connection count
-* Search, neighbourhood highlighting, direct page links, and a reset control
 * A passive mobile homepage preview that does not capture scrolling
-* A full-screen explorer on every viewport, with pan, zoom, filters, search, and node details
-* Reduced-motion support, capped mobile pixel density, and an HTML graph index
+* A full-screen WebGL explorer on every viewport
+* Reduced-motion support and capped mobile pixel density
 
-The HTML index is always available rather than appearing only when WebGL fails. It provides keyboard and screen-reader access to the same filtered nodes and their destination pages.
+The repository relationships remain the source of truth. Search, filters,
+neighbourhood highlighting, page links, and the HTML index consume the same
+node identities instead of duplicating data inside the renderer.
+
+## Migration note
+
+The 2026-11-01 migration moved the graph-discovery promises into dated PDRs.
+This ADR keeps the original Sigma.js decision, the later cosmos.gl replacement,
+and the technical consequences that explain the current renderer.

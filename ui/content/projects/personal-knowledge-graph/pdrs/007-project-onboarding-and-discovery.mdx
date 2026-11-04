@@ -1,0 +1,68 @@
+---
+title: "PDR 007: Use project pitches for onboarding and discovery"
+date: "2026-08-30"
+status: "Proposed"
+---
+
+## Context
+
+Project pages contain product requirements, market research, implementation
+status, prototypes, and linked decisions. That depth helps an informed reader
+assess the work, but it is a poor first explanation for a potential user,
+collaborator, or funder.
+
+A short project pitch can explain the problem, audience, evidence, current
+result, and next opportunity before asking someone to read the full record. It
+can also make related projects easier to discover and compare.
+
+## Proposed decision
+
+Let suitable projects publish one optional pitch deck for onboarding and
+discovery. Use it to help a new reader understand the problem, intended user,
+proposed product, evidence, design, important technical choices, current result,
+and open question.
+
+Keep the detailed project narrative and decision records canonical. The pitch
+must link to the evidence behind its claims. Projects with a pitch may use it
+as the first tab; projects without one keep their overview. Do not create an
+empty deck to make project pages uniform.
+
+Treat the pitch as a reusable briefing artifact. It may support conversations
+with prospective users, collaborators, customers, or funders. Evidence from
+those conversations can lead to a later decision to productise the work, seek
+financing, or stop investing. Publishing a pitch makes none of those decisions
+by itself.
+
+Publish a complete linear transcript from the same source. The pitch must
+support keyboard and touch navigation, user-controlled movement, reduced
+motion, announced slide position, meaningful alternative text, and sufficient
+contrast. Presenter notes remain public HTML but stay out of the transcript.
+
+Version one supports the web pitch and transcript. It does not promise PDF,
+PPTX, or editable office-file export.
+
+## Consequences
+
+New readers get a shorter route into a complex project. Projects also gain an
+artifact that can test interest before a separate productisation or financing
+decision.
+
+The pitch can oversimplify or drift from the detailed record. Presentation
+layout adds editorial and accessibility review, and a polished pitch can make
+weak evidence look stronger than it is. Links to the underlying record remain
+part of the product promise.
+
+## Evaluation
+
+Accept this proposal only after one representative project shows that new
+readers can explain the problem, audience, current result, and next question
+after using the pitch. Track whether they continue into the detailed record or
+start a useful follow-up conversation. The transcript must contain every public
+slide, omit presenter notes, and work without presentation JavaScript.
+
+## Migration note
+
+This record extracts the onboarding, discovery, productisation, and financing
+proposal from ADR 057 without changing its 2026-08-30 date or Proposed status.
+ADR 057 retains the reveal.js, React, MDX, route, loading, and validation
+architecture for the proposed feature.

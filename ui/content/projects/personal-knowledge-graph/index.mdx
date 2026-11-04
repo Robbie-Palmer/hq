@@ -2,7 +2,7 @@
 title: "Personal Knowledge Graph"
 description: "The connected source of truth for my work and an incubator for ideas, projects, and products"
 date: "2025-11-02"
-updated: "2026-10-31"
+updated: "2026-11-01"
 aliases:
   - "personal-site"
 initiatives:
@@ -97,6 +97,10 @@ or product without losing the history that explains it. The products move
 into their own bounded contexts while their provenance and lessons remain
 connected here.
 
+[PDR 001](/projects/personal-knowledge-graph/pdrs/001-one-public-account-of-the-work)
+records the choice to use this connected public account instead of a conventional
+portfolio of unrelated summaries.
+
 # Problem Statement
 
 I want:
@@ -137,6 +141,8 @@ The blog serves multiple audiences with different needs:
 * Long-form writing with MDX supporting diagrams, code blocks, and interactive components
 * Multi-audience blog serving both technical and non-technical readers
 * SEO-optimized for discoverability
+* [Agent-friendly access](/projects/personal-knowledge-graph/pdrs/005-agent-friendly-publication)
+  to major pages through Markdown twins and `/llms.txt`
 
 ## Professional Presence
 
@@ -151,6 +157,8 @@ The blog serves multiple audiences with different needs:
 * Structured content that serves as both public documentation and a queryable database
 * Explicit provenance and authority boundaries for explainable recommendations
 * Incubation path from connected ideas to independent projects and products
+* A [product-led growth learning loop](/projects/personal-knowledge-graph/pdrs/004-product-led-growth-learning-loop)
+  for discovery, engagement, and incubated products
 
 # Building Philosophy
 
@@ -162,7 +170,8 @@ Each ADR references specific principles to explain why certain trade-offs were a
 * **Not a CMS with a GUI**: Content is code, managed via git. This is intentional. It keeps everything in one workflow and makes the site itself a demonstration of development practices
 * **Not a finished product**: It's a living platform that evolves with my needs. The backlog is always longer than the changelog
 * **Not a template for others to fork**: Though you're welcome to learn from it. The decisions here reflect my specific needs and preferences
-* **Not a walled garden**: Content is meant to be shared, referenced, and built upon
+* **Not a walled garden**: Content is meant to be shared, referenced, and built upon under the
+  [published licensing policy](/projects/personal-knowledge-graph/pdrs/002-open-code-and-relicensing-authority)
 
 # Future Direction
 
@@ -172,7 +181,13 @@ This graph is infrastructure for future work:
 * **Knowledge control plane**: Use structured decisions, lifecycle state, provenance, and project authority to recommend upgrades and other bounded work; later decisions may allow agents to execute approved migrations
 * **Personal Engineering Platform integration**: Link incubated projects to reusable engineering defaults without making generic platform decisions part of the Personal Knowledge Graph's own history
 * **Expanded project documentation**: More PRDs and ADRs as case studies in technical decision-making
-* **Enhanced data visualization**: Richer interactive content and visual communication
+* **Enhanced data visualization**: Extend the
+  [graph explorer](/projects/personal-knowledge-graph/pdrs/003-explorable-content-graph)
+  without losing its
+  [non-WebGL discovery path](/projects/personal-knowledge-graph/pdrs/006-accessible-graph-index)
+* **Project pitches**: Test
+  [onboarding and discovery](/projects/personal-knowledge-graph/pdrs/007-project-onboarding-and-discovery)
+  before separate productisation or financing decisions
 * **Self-maintaining knowledge**: Find missing, weak, and stale content; gather supporting evidence; propose changes; and publish accepted updates through the same review path as code
 
 # Knowledge maintenance plan
@@ -201,3 +216,6 @@ The self-maintenance loop should:
 Private knowledge follows the same general shape under different access rules.
 Notes that cannot be public can live in the Home Lab. Personal application data
 belongs in its owning database behind narrow user and agent authorization.
+
+[PDR 008](/projects/personal-knowledge-graph/pdrs/008-public-project-evidence-boundary)
+defines that publication and evidence boundary.

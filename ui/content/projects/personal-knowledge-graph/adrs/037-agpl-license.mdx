@@ -1,72 +1,59 @@
 ---
-title: "ADR 037: AGPL-3.0 License"
+title: "ADR 037: Contributor Agreement Enforcement"
 date: "2026-01-11"
 status: "Accepted"
 tech_stack: ["CLA Assistant"]
+implements_product_decisions:
+  - "personal-knowledge-graph:002-open-code-and-relicensing-authority"
 ---
 
 # Context
 
-This project had no license, which means no one has legal rights to contribute,
-fork, or build upon it. I need to choose a license that aligns with my goals:
+[PDR 002](/projects/personal-knowledge-graph/pdrs/002-open-code-and-relicensing-authority)
+licenses the project under AGPL-3.0 and requires a Contributor License
+Agreement before contributed code merges. Pull requests need a consistent way
+to record that agreement without making the maintainer compare signatures by
+hand.
 
-1. **Dependency freedom**: I want to freely adopt any dependency to further
-   the project's features. The strongest copyleft license covers most cases.
-
-2. **Build in public without strategic doubt**: AGPL's strong copyleft means
-   anyone who builds on this work must also open-source their modifications.
-   This removes the concern that sharing openly could enable a closed-source
-   competitor. Combined with my retained rights as author (see next point),
-   I can focus purely on building without second-guessing what should be public.
-
-3. **Preserve future flexibility**: As the sole author, I retain rights to my
-   code regardless of the public license. I can create a differently-licensed
-   fork at any time. A Contributor License Agreement (CLA) extends this
-   flexibility to contributions, enabling potential open-core models or
-   license changes without legal complications.
-
-4. **Aligned with agile principles**: Don't predict the future. Enable
-   optionality rather than hamstringing myself with premature decisions.
+The agreement text needs one canonical source. Enforcement must identify the
+GitHub contributor, block an unsigned change, and preserve an auditable result
+on the pull request.
 
 ## Alternatives Considered
 
-* **MIT/Apache**: Too permissive. Allows proprietary forks without contributing
-  back. Doesn't match my "build in public" philosophy.
-
-* **GPL**: Strong copyleft, but AGPL adds the network clause. Important for a
-  web project where someone could run a modified version without distributing.
-
-* **No license** (status quo): Blocks all contributions. Not viable if I want
-  community involvement.
+* **Manual review**: Requires no application access, but every first
+  contribution needs a maintainer to compare the contributor and agreement
+  records. That is easy to perform inconsistently.
+* **A custom GitHub Action**: Keeps the check in the repository but creates a
+  local identity, storage, and maintenance problem for a standard workflow.
+* **CLA Assistant**: Uses the GitHub identity and pull-request check, records
+  signatures, and can point at the canonical agreement text.
 
 # Decision
 
-Use **AGPL-3.0** with a **Contributor License Agreement**.
-
-The AGPL-3.0 ensures that any modifications, including those deployed over a
-network, must share source code. This matches my goal of building in public.
-
-The [CLA](https://gist.github.com/Robbie-Palmer/94798c38da1307cfc60ab98dc0984818) grants
-me relicensing rights over contributions, preserving future flexibility (open-core,
-license changes) while keeping all current code open under AGPL-3.0.
-
-CLA enforcement is handled by [cla-assistant](https://github.com/cla-assistant/cla-assistant),
-which prompts contributors to sign when they open a pull request.
+Use [CLA Assistant](https://github.com/cla-assistant/cla-assistant) to enforce
+the agreement required by PDR 002. Configure it to use the
+[canonical agreement](https://gist.github.com/Robbie-Palmer/94798c38da1307cfc60ab98dc0984818)
+and require its pull-request check before merge.
 
 # Consequences
 
 ### Pros
 
-* **Strongest copyleft**: Derivative works must remain open source, including
-  network deployments.
-* **Dependency compatibility**: Can incorporate most copyleft-licensed code.
-* **Clear open-source stance**: No ambiguity about the project's nature.
-* **Future optionality**: CLA preserves ability to relicense or create
-  proprietary versions without contributor coordination.
+* Contributors sign with the same identity they use for the pull request.
+* The merge check gives reviewers one visible enforcement result.
+* The agreement text stays outside the application code and can remain the
+  single source used by the service.
 
 ### Cons
 
-* **May deter some contributors**: AGPL has stigma in corporate environments.
-  Some companies prohibit employees from contributing to AGPL projects.
-* **CLA friction**: Contributors must sign before their first PR merges.
-  Minimal friction with cla-assistant, but still an extra step.
+* Enforcement depends on a third-party GitHub application.
+* Contributors must complete an extra step on their first pull request.
+* A service outage or identity mismatch can block an otherwise valid change and
+  require maintainer investigation.
+
+## Migration note
+
+The 2026-11-01 PDR migration moved the AGPL and contributor-rights policy into
+PDR 002. This ADR now records only the technical enforcement choice. Its
+original date and CLA Assistant adoption remain unchanged.

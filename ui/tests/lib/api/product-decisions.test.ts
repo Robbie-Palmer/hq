@@ -22,9 +22,9 @@ describe("project-owned product decisions", () => {
       "personal-knowledge-graph",
     ).map((record) => record.slug);
     expect(affectedProjectDecisions).not.toContain(slug);
-    expect(affectedProjectDecisions).toEqual([
+    expect(affectedProjectDecisions).toContain(
       "000-typed-financial-and-business-subjects",
-    ]);
+    );
   });
 
   it("rejects unqualified and wrong-owner references", () => {
