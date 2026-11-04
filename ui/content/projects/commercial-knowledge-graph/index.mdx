@@ -6,6 +6,7 @@ tech_stack:
   - "TypeScript"
   - "Python"
   - "PyTorch"
+  - "Waveline"
   - "AWS Textract"
   - "OpenRouter"
   - "DVC"
@@ -48,9 +49,10 @@ I built a pipeline to treat both emails and physical photos as "documents":
 
 * **Visual Rendering**: For emails, we rendered raw HTML into images to preserve
   spatial layout. For receipts, we processed camera images directly.
-* **Visual Classification**: Trained a PyTorch model to classify the document
-  type (Email vs. Receipt vs. Spam) based on its visual appearance and text
-  content.
+* **Email Classification**: Used the third-party Waveline product to classify
+  emails and select the relevant extraction path.
+* **Image Classification**: Trained PyTorch models to classify receipt and other
+  document images.
 * **Intelligent Document Processing (IDP)**: For transactional documents, we
   utilized **AWS Textract** to extract key-value pairs and tables despite layout
   variations.
@@ -60,10 +62,9 @@ I built a pipeline to treat both emails and physical photos as "documents":
 
 ## Historical data flow
 
-This view reconstructs the implemented flow from the surviving project record.
 The processing and storage stages inside the Bestomer boundary are historical.
-The final node records the intended product use. AWS Textract and the models
-reached through OpenRouter were external services.
+The final node records the intended product use. Waveline, AWS Textract and the
+models reached through OpenRouter were external services.
 
 <Mermaid
   chart={`flowchart TB
@@ -73,23 +74,28 @@ Photos["Physical receipt photos<br/>camera images"]
 end
 
 subgraph Bestomer["Historical Bestomer pipeline · owned"]
-Ingest["Document ingestion<br/>render email HTML to images<br/>or accept receipt images"]
-Classify["PyTorch visual classifier<br/>classify document type<br/>and select extraction path"]
+EmailIngest["Email ingestion<br/>render HTML to images"]
+ImageIngest["Image ingestion<br/>accept receipt and document images"]
+ImageClassify["PyTorch image models<br/>classify document images<br/>and select extraction path"]
 Extract["Transactional extraction<br/>receive key-value pairs<br/>and tables"]
 Resolve["Semantic extraction<br/>and entity resolution"]
 Graph["Commercial Knowledge Graph<br/>structured entities<br/>and relations"]
 Use["Intended downstream product use<br/>commercial history and<br/>interest context"]
 end
 
+Waveline["Waveline · external<br/>email classification"]
 Textract["AWS Textract · external"]
 Models["OpenRouter models · external"]
 
-Email -->|"raw HTML and visual content"| Ingest
-Photos -->|"receipt image"| Ingest
-Ingest -->|"normalised document image"| Classify
-Classify -->|"transactional document image"| Textract
+Email -->|"commercial email"| EmailIngest
+EmailIngest -->|"email document"| Waveline
+Waveline -->|"transactional email document"| Textract
+Photos -->|"receipt or document image"| ImageIngest
+ImageIngest -->|"document image"| ImageClassify
+ImageClassify -->|"transactional document image"| Textract
 Textract -->|"key-value pairs and tables"| Extract
-Classify -->|"classified document context"| Resolve
+Waveline -->|"classified email context"| Resolve
+ImageClassify -->|"classified image context"| Resolve
 Extract -->|"structured fields"| Resolve
 Resolve -->|"document context and prompts"| Models
 Models -->|"entities and resolution candidates"| Resolve
@@ -97,7 +103,7 @@ Resolve -->|"resolved entities and relations"| Graph
 Graph -->|"intended commercial history and interest context"| Use
 
 classDef external stroke-dasharray:5 5
-class Textract,Models external
+class Waveline,Textract,Models external
 `}
   className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
 />
@@ -105,37 +111,31 @@ class Textract,Models external
 On narrow screens, scroll the diagram horizontally or use this equivalent text:
 
 1. The pipeline accepted private email history and camera photos of physical
-   receipts. It rendered email HTML as images so layout remained available and
-   treated receipt photos as the same broad document type.
-2. An owned PyTorch classifier used visual appearance and text to identify the
-   document type and choose an extraction path.
-3. For transactional documents, the pipeline sent the document image to the
+   receipts.
+2. It sent emails to the third-party Waveline product for classification. It
+   used owned PyTorch image models to classify receipt and document images and
+   select an extraction path.
+3. For transactional emails and images, the pipeline sent the document to the
    external AWS Textract service and received key-value pairs and tables.
-4. The owned enrichment stage combined classified document context with those
-   extracted fields. It used models reached through the external OpenRouter
-   service for semantic extraction and entity resolution.
+4. The owned enrichment stage combined Waveline's email classifications,
+   PyTorch image classifications and extracted transactional fields. It used
+   models reached through the external OpenRouter service for semantic
+   extraction and entity resolution.
 5. The pipeline wrote resolved entities and relations to the Commercial
    Knowledge Graph. Product experiences could then use that graph as context
    about a user's commercial history and interests.
 
 ### Ownership, evidence and limits
 
-The owned boundary and sequence come from the project page first published in
-January 2026 about work dated May 2023. That record supports the two inputs,
-visual rendering, PyTorch classification, Textract extraction, OpenRouter
-enrichment, graph population, and the intended use of commercial history and
-interests. The technology list also names DVC, but the surviving record does not
-say where it sat in this flow, so the reconstruction leaves it out.
+Bestomer owned ingestion, the PyTorch image models, transactional extraction,
+semantic enrichment, entity resolution and the Commercial Knowledge Graph.
+Waveline classified emails, AWS Textract returned key-value pairs and tables,
+and models reached through OpenRouter supported semantic extraction and entity
+resolution.
 
-The record does not preserve service interfaces, the graph database or schema,
-the ontology, deployment topology, retention rules, provider privacy settings,
-or the exact downstream product screens. The diagram does not invent them. Its
-provider arrows show the processing described by the record, not a claim about
-the complete payload or data-minimisation controls.
-
-Emails and receipt photos contain private commercial records. This public view
-names their categories but includes no records, identifiers, credentials,
-prompts, graph contents, or proprietary schema details.
+The public diagram stays at the system-flow level. It omits private records,
+identifiers, credentials, prompts, graph contents and proprietary schema
+details.
 
 ## Impact
 
