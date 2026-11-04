@@ -183,12 +183,19 @@ trap 'exit 143' TERM
 read_bucket() {
   local runner=${1:-run_admin}
   "${runner}" bucket get "${bucket}" >"${work_directory}/bucket.json"
-  jq -e --arg bucket "${bucket}" '
+  if ! jq -e --arg bucket "${bucket}" '
     .bucketName == $bucket and .bucketType == "allPrivate" and
     .fileLockConfiguration.isClientAuthorizedToRead == true and
     .fileLockConfiguration.value.isFileLockEnabled == true
-  ' "${work_directory}/bucket.json" >/dev/null ||
+  ' "${work_directory}/bucket.json" >/dev/null; then
+    jq --arg bucket "${bucket}" '{
+      exactName: (.bucketName == $bucket),
+      private: (.bucketType == "allPrivate"),
+      retentionReadable: (.fileLockConfiguration.isClientAuthorizedToRead == true),
+      objectLockEnabled: (.fileLockConfiguration.value.isFileLockEnabled == true)
+    }' "${work_directory}/bucket.json" >&2
     fail "the exact private Object Lock-capable bucket could not be verified"
+  fi
 }
 
 assert_no_default_retention() {
@@ -285,7 +292,7 @@ case "${command_name}" in
     run_admin bucket create --file-lock-enabled "${bucket}" allPrivate >/dev/null
     bucket_created=true
     delete_empty_bucket_on_exit=true
-    read_bucket
+    read_bucket run_bootstrap
     assert_no_default_retention
 
     policy_key=$(create_key run_admin \

@@ -80,12 +80,14 @@ case "$1 $2" in
   "bucket get")
     mode=$(<"$FAKE_BUCKET_STATE")
     [[ "$mode" != missing ]] || exit 3
+    object_lock=true
+    if [[ "\${FAKE_OBJECT_LOCK_DISABLED:-0}" = 1 ]]; then object_lock=false; fi
     if [[ "$mode" = none ]]; then
       retention='{"mode":null,"period":null}'
     else
       retention='{"mode":"governance","period":{"duration":1,"unit":"days"}}'
     fi
-    printf '{"bucketName":"robbie-personal-archive-object-lock-lab-20261104","bucketType":"allPrivate","fileLockConfiguration":{"isClientAuthorizedToRead":true,"value":{"isFileLockEnabled":true,"defaultRetention":%s}}}\n' "$retention"
+    printf '{"bucketName":"robbie-personal-archive-object-lock-lab-20261104","bucketType":"allPrivate","fileLockConfiguration":{"isClientAuthorizedToRead":true,"value":{"isFileLockEnabled":%s,"defaultRetention":%s}}}\n' "$object_lock" "$retention"
     ;;
   "bucket create")
     [[ "$(<"$FAKE_BUCKET_STATE")" = missing ]]
@@ -283,6 +285,27 @@ test("refuses to reuse an existing experiment bucket", () => {
     assert.match(result.stderr, /experiment bucket already exists/);
     const calls = readFileSync(fixture.calls, "utf8");
     assert.doesNotMatch(calls, /key create|bucket create|bucket update/);
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("removes a new bucket when Object Lock verification fails", () => {
+  const fixture = createFixture();
+  try {
+    const result = run(
+      fixture,
+      ["start", "--idle-proof", fixture.idleProof],
+      { FAKE_OBJECT_LOCK_DISABLED: "1" },
+    );
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Object Lock-capable bucket could not be verified/);
+    assert.match(result.stderr, /"objectLockEnabled": false/);
+    const calls = readFileSync(fixture.calls, "utf8");
+    assert.doesNotMatch(calls, /bucket update/);
+    assert.match(calls, /bucket delete/);
+    assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });
   }
