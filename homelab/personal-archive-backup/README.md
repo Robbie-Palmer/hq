@@ -197,3 +197,10 @@ retention exists. It creates fresh short-lived maintenance and prefix-only
 keys without governance bypass, deletes every version in the disposable
 repository, proves the prefix is empty, deletes the experiment bucket, and
 revokes both keys.
+
+If a post-upload assertion leaves a retained disposable prefix, a retry may
+reuse the dedicated bucket only by passing that exact prefix with
+`--reuse-existing-prefix`. The command refuses the retry if any object falls
+outside that prefix. After expiry, clean the earlier prefix with
+`--keep-bucket`, then clean the successful prefix without that flag so the
+final command also deletes the empty experiment bucket.

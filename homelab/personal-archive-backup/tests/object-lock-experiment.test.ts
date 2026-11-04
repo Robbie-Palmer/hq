@@ -148,13 +148,14 @@ case "$1 $2" in
     if [[ "$(<"$FAKE_PREFIX_STATE")" = empty ]]; then
       printf '[]\n'
     else
+      file_name=\${FAKE_FILE_NAME:-disposable/config}
       if [[ "\${FAKE_EXPIRED:-0}" = 1 ]]; then
         retain_until=$(( $(date +%s) * 1000 - 1000 ))
       else
         retain_until=$(( $(date +%s) * 1000 + 86400000 ))
       fi
       upload_time=$(( retain_until - 86400000 ))
-      printf '[{"fileName":"disposable/config","fileId":"file-id","size":321,"uploadTimestamp":%s,"fileRetention":{"isClientAuthorizedToRead":true,"value":{"mode":"governance","retainUntilTimestamp":%s}}}]\n' "$upload_time" "$retain_until"
+      printf '[{"action":"upload","fileName":"%s","fileId":"file-id","size":321,"uploadTimestamp":%s,"fileRetention":{"isClientAuthorizedToRead":true,"value":{"mode":"governance","retainUntilTimestamp":%s}}},{"action":"hide","fileName":"%s","fileId":"hide-id","size":0,"uploadTimestamp":%s,"fileRetention":{"mode":null,"retainUntilTimestamp":null}}]\n' "$file_name" "$upload_time" "$retain_until" "$file_name" "$upload_time"
     fi
     ;;
   "rm --fail-fast")
@@ -258,6 +259,7 @@ test("uses an isolated prefix, removes the default, and revokes bounded keys", (
     assert.equal(evidence.directDeleteRejected, true);
     assert.equal(evidence.resticPruneRejected, true);
     assert.equal(evidence.maintenanceKeyRevoked, true);
+    assert.equal(evidence.retainedObjects, 1);
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "none");
 
     const calls = readFileSync(fixture.calls, "utf8");
@@ -298,6 +300,62 @@ test("refuses to reuse an existing experiment bucket", () => {
     const result = run(fixture, ["start", "--idle-proof", fixture.idleProof]);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /experiment bucket already exists/);
+    const calls = readFileSync(fixture.calls, "utf8");
+    assert.doesNotMatch(calls, /key create|bucket create|bucket update/);
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("reuses only an approved existing experiment prefix", () => {
+  const fixture = createFixture();
+  const existingPrefix =
+    "object-lock-experiments/20261104T193152Z-fb8cec2353a6/restic";
+  writeFileSync(fixture.bucketState, "none\n");
+  writeFileSync(fixture.lockState, "enabled\n");
+  writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
+  try {
+    const result = run(
+      fixture,
+      [
+        "start",
+        "--idle-proof",
+        fixture.idleProof,
+        "--reuse-existing-prefix",
+        existingPrefix,
+      ],
+      { FAKE_FILE_NAME: `${existingPrefix}/config` },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const calls = readFileSync(fixture.calls, "utf8");
+    assert.doesNotMatch(calls, /bucket create|--file-lock-enabled/);
+    assert.doesNotMatch(
+      calls,
+      new RegExp(`--name-prefix ${existingPrefix}/`),
+    );
+    assert.match(calls, /--default-retention-mode governance/);
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("rejects reuse when the experiment bucket has an unexpected object", () => {
+  const fixture = createFixture();
+  const existingPrefix =
+    "object-lock-experiments/20261104T193152Z-fb8cec2353a6/restic";
+  writeFileSync(fixture.bucketState, "none\n");
+  writeFileSync(fixture.lockState, "enabled\n");
+  writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
+  try {
+    const result = run(fixture, [
+      "start",
+      "--idle-proof",
+      fixture.idleProof,
+      "--reuse-existing-prefix",
+      existingPrefix,
+    ]);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /outside the approved existing prefix/);
     const calls = readFileSync(fixture.calls, "utf8");
     assert.doesNotMatch(calls, /key create|bucket create|bucket update/);
   } finally {
@@ -433,6 +491,39 @@ test("removes only an expired disposable prefix and revokes its cleanup key", ()
       /bucket delete robbie-personal-archive-object-lock-lab-20261104/,
     );
     assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "missing");
+    assert.equal(readFileSync(fixture.keys, "utf8"), "");
+  } finally {
+    rmSync(fixture.directory, { recursive: true, force: true });
+  }
+});
+
+test("can retain the dedicated bucket while cleaning an earlier prefix", () => {
+  const fixture = createFixture();
+  const prefix =
+    "object-lock-experiments/20261101T120000Z-0123456789ab/restic";
+  writeFileSync(fixture.bucketState, "none\n");
+  writeFileSync(fixture.lockState, "enabled\n");
+  writeFileSync(join(fixture.directory, "prefix-state"), "present\n");
+  try {
+    const result = run(
+      fixture,
+      [
+        "cleanup",
+        "--prefix",
+        prefix,
+        "--retain-until",
+        "2000-01-01T00:00:00Z",
+        "--keep-bucket",
+      ],
+      { FAKE_EXPIRED: "1" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const evidence = JSON.parse(result.stdout);
+    assert.equal(evidence.repositoryRemoved, true);
+    assert.equal(evidence.bucketRemoved, false);
+    const calls = readFileSync(fixture.calls, "utf8");
+    assert.doesNotMatch(calls, /bucket delete/);
+    assert.equal(readFileSync(fixture.bucketState, "utf8").trim(), "none");
     assert.equal(readFileSync(fixture.keys, "utf8"), "");
   } finally {
     rmSync(fixture.directory, { recursive: true, force: true });

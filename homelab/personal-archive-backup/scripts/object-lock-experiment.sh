@@ -11,8 +11,8 @@ restic_bin=${RESTIC_BIN:-restic}
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  object-lock-experiment.sh start --idle-proof FILE
-  object-lock-experiment.sh cleanup --prefix PREFIX --retain-until TIMESTAMP
+  object-lock-experiment.sh start --idle-proof FILE [--reuse-existing-prefix PREFIX]
+  object-lock-experiment.sh cleanup --prefix PREFIX --retain-until TIMESTAMP [--keep-bucket]
 
 Both commands read a bootstrap B2 credential from the private files
 named by B2_ADMIN_KEY_ID_FILE and B2_ADMIN_APPLICATION_KEY_FILE.
@@ -235,6 +235,16 @@ assert_bucket_removed() {
     fail "the disposable experiment bucket still exists"
 }
 
+assert_reusable_bucket_contents() {
+  local existing_prefix=$1
+  run_bootstrap ls --recursive --versions --json \
+    "b2://${bucket}/" >"${work_directory}/existing-objects.json"
+  jq -e --arg prefix "${existing_prefix}/" '
+    length > 0 and all(.[]; .fileName | startswith($prefix))
+  ' "${work_directory}/existing-objects.json" >/dev/null ||
+    fail "the experiment bucket contains an object outside the approved existing prefix"
+}
+
 create_key() {
   local runner=$1
   shift
@@ -284,14 +294,19 @@ shift || true
 case "${command_name}" in
   start)
     idle_proof=
+    reuse_existing_prefix=
     while [[ "$#" -gt 0 ]]; do
       case "$1" in
         --idle-proof) [[ "$#" -ge 2 ]] || usage; idle_proof=$2; shift 2 ;;
+        --reuse-existing-prefix) [[ "$#" -ge 2 ]] || usage; reuse_existing_prefix=$2; shift 2 ;;
         *) usage ;;
       esac
     done
     [[ -n "${idle_proof}" ]] || usage
     validate_idle_proof "${idle_proof}"
+    if [[ -n "${reuse_existing_prefix}" ]]; then
+      validate_prefix "${reuse_existing_prefix}"
+    fi
     command -v "${restic_bin}" >/dev/null 2>&1 || fail "${restic_bin} is required"
 
     timestamp=$(date -u +%Y%m%dT%H%M%SZ)
@@ -302,15 +317,22 @@ case "${command_name}" in
     policy_key_name="${key_base}-policy"
     data_key_name="${key_base}-data"
 
-    assert_bucket_absent
-    create_maintenance_key "${key_base}-maintenance"
-    run_admin bucket create "${bucket}" allPrivate >/dev/null
-    bucket_created=true
-    delete_empty_bucket_on_exit=true
-    read_new_unlocked_bucket
-    run_admin bucket update --file-lock-enabled "${bucket}" >/dev/null
-    read_bucket run_bootstrap
-    assert_no_default_retention
+    if [[ -n "${reuse_existing_prefix}" ]]; then
+      read_bucket run_bootstrap
+      assert_no_default_retention
+      assert_reusable_bucket_contents "${reuse_existing_prefix}"
+      create_maintenance_key "${key_base}-maintenance"
+    else
+      assert_bucket_absent
+      create_maintenance_key "${key_base}-maintenance"
+      run_admin bucket create "${bucket}" allPrivate >/dev/null
+      bucket_created=true
+      delete_empty_bucket_on_exit=true
+      read_new_unlocked_bucket
+      run_admin bucket update --file-lock-enabled "${bucket}" >/dev/null
+      read_bucket run_bootstrap
+      assert_no_default_retention
+    fi
 
     policy_key=$(create_key run_admin \
       --duration 7200 "${policy_key_name}" \
@@ -361,7 +383,7 @@ case "${command_name}" in
 
     run_data ls --recursive --versions --json \
       "b2://${bucket}/${prefix}/" >"${work_directory}/objects.json"
-    jq '[.[] | {
+    jq '[.[] | select(.action == "upload") | {
       fileName, fileId, size, uploadTimestamp,
       mode: (.fileRetention.value.mode // .fileRetention.mode),
       retainUntilTimestamp: (.fileRetention.value.retainUntilTimestamp // .fileRetention.retainUntilTimestamp)
@@ -370,7 +392,8 @@ case "${command_name}" in
       .mode == "governance" and
       (.uploadTimestamp | type == "number") and
       (.retainUntilTimestamp | type == "number") and
-      (.retainUntilTimestamp - .uploadTimestamp == 86400000)
+      ((.retainUntilTimestamp - .uploadTimestamp) >= 86399000) and
+      ((.retainUntilTimestamp - .uploadTimestamp) <= 86401000)
     )' "${work_directory}/retention.json" >/dev/null ||
       fail "an uploaded disposable object is missing one-day governance retention"
 
@@ -439,10 +462,12 @@ case "${command_name}" in
   cleanup)
     prefix=
     retain_until=
+    keep_bucket=false
     while [[ "$#" -gt 0 ]]; do
       case "$1" in
         --prefix) [[ "$#" -ge 2 ]] || usage; prefix=$2; shift 2 ;;
         --retain-until) [[ "$#" -ge 2 ]] || usage; retain_until=$2; shift 2 ;;
+        --keep-bucket) keep_bucket=true; shift ;;
         *) usage ;;
       esac
     done
@@ -488,15 +513,18 @@ case "${command_name}" in
     assert_key_revoked "${data_key_name}" || fail "the temporary cleanup key still exists"
     data_key_id=
     data_application_key=
-    run_admin bucket delete "${bucket}" >/dev/null || fail "failed to remove the empty experiment bucket"
-    assert_bucket_removed
+    if [[ "${keep_bucket}" = false ]]; then
+      run_admin bucket delete "${bucket}" >/dev/null || fail "failed to remove the empty experiment bucket"
+      assert_bucket_removed
+    fi
     revoke_key "${maintenance_key_id}" run_bootstrap || fail "failed to revoke the temporary maintenance key"
     assert_key_revoked "${maintenance_key_name}" run_bootstrap || fail "the temporary maintenance key still exists"
     maintenance_key_id=
     maintenance_application_key=
     jq --null-input --arg bucket "${bucket}" --arg prefix "${prefix}" \
+      --argjson bucketRemoved "$([[ "${keep_bucket}" = false ]] && echo true || echo false)" \
       '{schemaVersion: 1, bucket: $bucket, prefix: $prefix,
-        repositoryRemoved: true, bucketRemoved: true,
+        repositoryRemoved: true, bucketRemoved: $bucketRemoved,
         cleanupKeyRevoked: true, maintenanceKeyRevoked: true,
         defaultPolicyStillAbsent: true}'
     ;;
