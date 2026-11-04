@@ -16,6 +16,20 @@ export const technologies: TechnologyContent[] = [
     type: "library",
   },
   {
+    name: "XState",
+    added: "2026-11-04",
+    description: "State machines and actor orchestration for TypeScript apps",
+    website: "https://stately.ai/docs",
+    type: "library",
+  },
+  {
+    name: "Redux Toolkit",
+    added: "2026-11-04",
+    description: "Typed Redux state management with development checks",
+    website: "https://redux-toolkit.js.org",
+    type: "library",
+  },
+  {
     name: "Next.js",
     added: "2026-01-04",
     description: "Full-stack web development built on React",
