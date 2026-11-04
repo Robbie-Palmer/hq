@@ -1,0 +1,80 @@
+---
+title: "PDR 002: Make the applied algorithms explorable in a browser simulation"
+date: "2026-09-08"
+status: "Accepted"
+decision_date: "2026-09-12"
+evidence:
+  - title: "Initial browser-simulation architecture"
+    url: "https://github.com/Robbie-Palmer/hq/commit/52a4359b"
+  - title: "Accepted browser simulation and production audit"
+    url: "https://github.com/Robbie-Palmer/hq/commit/b4f3924e"
+---
+
+## Context
+
+[PDR 001](/projects/autonomic-satellite-swarm/pdrs/001-reproducible-evidence-bounded-revival)
+made the historical coordination experiment runnable without the original
+three-board bench. Host tests and terminal output could reproduce the result,
+but they did not let a reader see where each agent was, which messages changed
+its state, why one candidate won, or how a fault changed the outcome.
+
+The public project needed to expose those applied algorithms without replacing
+them with a scripted animation. A browser could make the experiment accessible
+without requiring hardware or a local toolchain, but an Earth view could also
+make weak models look physically authoritative. Visual polish could not become
+evidence of orbital, radio, propulsion, or flight validity.
+
+## Decision
+
+Move the public demonstration beyond bench reconstruction and terminal output
+into an interactive browser simulation. Let readers run named experiments and
+inspect the positions, messages, scores, health states, assignment decisions,
+and fault outcomes that explain each result.
+
+The simulation must execute the same C++ coordination, scoring, health, message,
+and codec implementations used by the host and reference firmware builds. The
+browser may control and render the experiment. It must not recreate an outcome
+in presentation code or substitute authored motion for simulated evidence.
+
+Use deterministic, versioned scenarios and traces so native and browser runs can
+compare the same inputs and outputs. Improve physical and operational realism
+through explicit models for orbit propagation, maneuvers, communication faults,
+routing, and resource limits. Each model must name its inputs, reference data,
+validation, and exclusions. The interface must keep those limits visible.
+
+Treat the browser as an experiment console and evidence viewer. More detailed
+native simulators may later produce comparable results, but they must not become
+hidden runtime dependencies or overwrite the canonical trace. No simulation
+result makes this project flight software.
+
+## Consequences
+
+A reader can observe the implemented algorithms rather than trusting a paper,
+terminal transcript, or separate visual reconstruction. The same public
+experience can grow from scripted scenarios into referenced orbital, maneuver,
+network, and resource models while keeping earlier runs reproducible.
+
+The project must maintain a browser build, replay contract, renderer, scenario
+provenance, native-to-browser parity, and clear labels for simulated evidence.
+More realistic models add assumptions and failure modes. They require stronger
+validation and must remain replaceable.
+
+## Evaluation
+
+The product direction succeeds when a reader can open the browser experiment
+without hardware, run a named scenario, and explain the selected agent and
+subsequent state changes from visible inputs and events. Native and browser
+runs must use the same applied algorithms and produce matching versioned
+evidence. Every displayed trajectory, maneuver, delivery fault, and resource
+cost must identify the model that produced it and the claim it cannot support.
+
+## Migration note
+
+This record extracts the product direction first proposed in the browser
+simulation architecture on 2026-09-08 and accepted after implementation and a
+production audit on 2026-09-12. It separates that reader-facing decision from
+ADR 013's choices of CesiumJS, C++ WebAssembly, a worker, and a versioned trace.
+Later simulation ADRs retain their technical choices for orbital motion,
+maneuvers, network behavior, experiment scheduling, routing, and HIL
+boundaries. This migration changes the record structure, not the simulation
+strategy or its evidence claims.
