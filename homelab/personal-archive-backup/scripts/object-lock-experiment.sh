@@ -185,14 +185,17 @@ read_bucket() {
   "${runner}" bucket get "${bucket}" >"${work_directory}/bucket.json"
   if ! jq -e --arg bucket "${bucket}" '
     .bucketName == $bucket and .bucketType == "allPrivate" and
-    .fileLockConfiguration.isClientAuthorizedToRead == true and
-    .fileLockConfiguration.value.isFileLockEnabled == true
+    (.isFileLockEnabled == true or
+      (.fileLockConfiguration.isClientAuthorizedToRead == true and
+       .fileLockConfiguration.value.isFileLockEnabled == true))
   ' "${work_directory}/bucket.json" >/dev/null; then
     jq --arg bucket "${bucket}" '{
       exactName: (.bucketName == $bucket),
       private: (.bucketType == "allPrivate"),
-      retentionReadable: (.fileLockConfiguration.isClientAuthorizedToRead == true),
-      objectLockEnabled: (.fileLockConfiguration.value.isFileLockEnabled == true)
+      retentionReadable: ((.isFileLockEnabled | type) == "boolean" or
+        .fileLockConfiguration.isClientAuthorizedToRead == true),
+      objectLockEnabled: (.isFileLockEnabled == true or
+        .fileLockConfiguration.value.isFileLockEnabled == true)
     }' "${work_directory}/bucket.json" >&2
     fail "the exact private Object Lock-capable bucket could not be verified"
   fi
@@ -202,15 +205,18 @@ read_new_unlocked_bucket() {
   run_bootstrap bucket get "${bucket}" >"${work_directory}/bucket.json"
   jq -e --arg bucket "${bucket}" '
     .bucketName == $bucket and .bucketType == "allPrivate" and
-    ((.fileLockConfiguration.value.isFileLockEnabled // false) == false)
+    ((.isFileLockEnabled //
+      .fileLockConfiguration.value.isFileLockEnabled // false) == false)
   ' "${work_directory}/bucket.json" >/dev/null ||
     fail "the new private experiment bucket could not be verified before enabling Object Lock"
 }
 
 assert_no_default_retention() {
   jq -e '
-    .fileLockConfiguration.value.defaultRetention.mode == null and
-    .fileLockConfiguration.value.defaultRetention.period == null
+    ((.defaultRetention.mode //
+      .fileLockConfiguration.value.defaultRetention.mode) == null) and
+    ((.defaultRetention.period //
+      .fileLockConfiguration.value.defaultRetention.period) == null)
   ' "${work_directory}/bucket.json" >/dev/null ||
     fail "the bucket already has default retention; refusing to overwrite it"
 }
@@ -329,9 +335,12 @@ case "${command_name}" in
 
     run_policy bucket get "${bucket}" >"${work_directory}/bucket-enabled.json"
     jq -e '
-      .fileLockConfiguration.value.defaultRetention.mode == "governance" and
-      .fileLockConfiguration.value.defaultRetention.period.duration == 1 and
-      .fileLockConfiguration.value.defaultRetention.period.unit == "days"
+      ((.defaultRetention.mode //
+        .fileLockConfiguration.value.defaultRetention.mode) == "governance") and
+      ((.defaultRetention.period.duration //
+        .fileLockConfiguration.value.defaultRetention.period.duration) == 1) and
+      ((.defaultRetention.period.unit //
+        .fileLockConfiguration.value.defaultRetention.period.unit) == "days")
     ' "${work_directory}/bucket-enabled.json" >/dev/null ||
       fail "the one-day governance default was not observed"
 
@@ -374,8 +383,10 @@ case "${command_name}" in
     default_enabled=false
     run_policy bucket get "${bucket}" >"${work_directory}/bucket-disabled.json"
     jq -e '
-      .fileLockConfiguration.value.defaultRetention.mode == null and
-      .fileLockConfiguration.value.defaultRetention.period == null
+      ((.defaultRetention.mode //
+        .fileLockConfiguration.value.defaultRetention.mode) == null) and
+      ((.defaultRetention.period //
+        .fileLockConfiguration.value.defaultRetention.period) == null)
     ' "${work_directory}/bucket-disabled.json" >/dev/null ||
       fail "bucket default retention teardown could not be proved"
 

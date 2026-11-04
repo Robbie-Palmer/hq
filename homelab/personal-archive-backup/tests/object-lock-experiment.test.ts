@@ -91,7 +91,7 @@ case "$1 $2" in
     else
       retention='{"mode":"governance","period":{"duration":1,"unit":"days"}}'
     fi
-    printf '{"bucketName":"robbie-personal-archive-object-lock-lab-20261104","bucketType":"allPrivate","fileLockConfiguration":{"isClientAuthorizedToRead":true,"value":{"isFileLockEnabled":%s,"defaultRetention":%s}}}\n' "$object_lock" "$retention"
+    printf '{"bucketName":"robbie-personal-archive-object-lock-lab-20261104","bucketType":"allPrivate","isFileLockEnabled":%s,"defaultRetention":%s}\n' "$object_lock" "$retention"
     ;;
   "bucket create")
     [[ "$(<"$FAKE_BUCKET_STATE")" = missing ]]
