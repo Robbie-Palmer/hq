@@ -17,6 +17,7 @@ import {
 } from "./replacement-income-threshold-planner-model";
 
 type Currency = Parameters<typeof formatCurrency>[1];
+const START_DATE_SLOTS = ["first", "second", "third"] as const;
 
 function calculationLabel(result: ReplacementIncomeThreshold): string {
   if (result.calculation?.kind === "tax-derived") {
@@ -156,7 +157,7 @@ function GoalFields({
   return (
     <>
       <label className="grid gap-1 text-sm" htmlFor="replacement-income-goal">
-        Goal
+        <span>Goal</span>
         <select
           className="h-9 rounded-md border border-input bg-background px-3"
           id="replacement-income-goal"
@@ -229,17 +230,17 @@ function TimingFields({
           }
         />
       </label>
-      {model.startDates.map((date, index) => (
+      {START_DATE_SLOTS.map((slot, index) => (
         <label
           className="grid gap-1 text-sm"
           htmlFor={`replacement-income-start-${index}`}
-          key={`start-${index}`}
+          key={slot}
         >
           Job start {index + 1}
           <Input
             id={`replacement-income-start-${index}`}
             type="date"
-            value={date}
+            value={model.startDates[index] ?? ""}
             onChange={(event) =>
               model.updateStartDate(index, event.target.value)
             }
