@@ -297,81 +297,105 @@ function PaymentSchedule({
   );
 }
 
-function ScenarioPanel({
+function ScenarioSummaryHeader({
   scenario,
 }: Readonly<{ scenario: HouseholdSoleTraderScenarioView }>) {
   const { household } = useAssetTracker();
   const member = household.members.find(({ id }) => id === scenario.memberId);
   const { result } = scenario;
   return (
+    <>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-xl font-semibold">{scenario.name}</h3>
+            <Badge variant="secondary">
+              {member?.displayName ?? scenario.memberId}
+            </Badge>
+            <Badge variant="outline">{result.taxYear.replace("-", "/")}</Badge>
+          </div>
+          <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+            {scenario.description}
+          </p>
+        </div>
+        <Badge variant={result.available ? "secondary" : "destructive"}>
+          {result.available ? "Calculated" : "Needs review"}
+        </Badge>
+      </div>
+
+      {result.issues.length > 0 && (
+        <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-destructive">
+          {result.issues.map((issue) => (
+            <li key={`${issue.code}-${issue.detail}`}>{issue.detail}</li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
+
+function ScenarioHeadlineMetrics({
+  scenario,
+}: Readonly<{ scenario: HouseholdSoleTraderScenarioView }>) {
+  const { result } = scenario;
+  return (
+    <>
+      <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <ScenarioMetric
+          label="Gross sales"
+          value={formatMinorCurrency(result.profit.grossRevenuePence)}
+        />
+        <ScenarioMetric
+          label="Taxable profit"
+          value={formatMinorCurrency(result.profit.taxableProfitPence)}
+        />
+        <ScenarioMetric
+          label="Extra tax and loans"
+          value={
+            result.household.incrementalTaxAndLoanPence == null
+              ? "Unavailable"
+              : formatMinorCurrency(result.household.incrementalTaxAndLoanPence)
+          }
+        />
+        <ScenarioMetric
+          label="Net household benefit"
+          value={
+            result.household.netBenefitPence == null
+              ? "Unavailable"
+              : formatMinorCurrency(result.household.netBenefitPence)
+          }
+        />
+      </dl>
+      <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
+        <span>Deduction: {sentenceCase(result.profit.deductionMethod)}</span>
+        <span>Ruleset: {result.rulesetVersion}</span>
+        <span>Calculation: v{result.calculationVersion}</span>
+      </div>
+    </>
+  );
+}
+
+function ScenarioSummary({
+  scenario,
+}: Readonly<{ scenario: HouseholdSoleTraderScenarioView }>) {
+  return (
+    <div className="rounded-xl border bg-muted/30 p-5 sm:p-6">
+      <ScenarioSummaryHeader scenario={scenario} />
+      <ScenarioHeadlineMetrics scenario={scenario} />
+    </div>
+  );
+}
+
+function ScenarioPanel({
+  scenario,
+}: Readonly<{ scenario: HouseholdSoleTraderScenarioView }>) {
+  return (
     <section
       aria-label={`${scenario.name} scenario details`}
       className="space-y-5"
       id="sole-trader-scenario-panel"
     >
-      <div className="rounded-xl border bg-muted/30 p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xl font-semibold">{scenario.name}</h3>
-              <Badge variant="secondary">
-                {member?.displayName ?? scenario.memberId}
-              </Badge>
-              <Badge variant="outline">
-                {result.taxYear.replace("-", "/")}
-              </Badge>
-            </div>
-            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              {scenario.description}
-            </p>
-          </div>
-          <Badge variant={result.available ? "secondary" : "destructive"}>
-            {result.available ? "Calculated" : "Needs review"}
-          </Badge>
-        </div>
-
-        {result.issues.length > 0 && (
-          <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-destructive">
-            {result.issues.map((issue) => (
-              <li key={`${issue.code}-${issue.detail}`}>{issue.detail}</li>
-            ))}
-          </ul>
-        )}
-
-        <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <ScenarioMetric
-            label="Gross sales"
-            value={formatMinorCurrency(result.profit.grossRevenuePence)}
-          />
-          <ScenarioMetric
-            label="Taxable profit"
-            value={formatMinorCurrency(result.profit.taxableProfitPence)}
-          />
-          <ScenarioMetric
-            label="Extra tax and loans"
-            value={
-              result.household.incrementalTaxAndLoanPence == null
-                ? "Unavailable"
-                : formatMinorCurrency(
-                    result.household.incrementalTaxAndLoanPence,
-                  )
-            }
-          />
-          <ScenarioMetric
-            label="Net household benefit"
-            value={
-              result.household.netBenefitPence == null
-                ? "Unavailable"
-                : formatMinorCurrency(result.household.netBenefitPence)
-            }
-          />
-        </dl>
-        <div className="mt-4 flex flex-wrap gap-x-6 gap-y-2 text-xs text-muted-foreground">
-          <span>Deduction: {sentenceCase(result.profit.deductionMethod)}</span>
-          <span>Ruleset: {result.rulesetVersion}</span>
-          <span>Calculation: v{result.calculationVersion}</span>
-        </div>
-      </div>
+      <ScenarioSummary scenario={scenario} />
 
       <ReservePosition scenario={scenario} />
 
