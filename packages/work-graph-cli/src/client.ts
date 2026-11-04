@@ -37,6 +37,7 @@ import {
   moveWorkItemPriority,
   putCompletionPolicyRevision,
   putKnowledgeScope,
+  putRepositoryCompletionPolicyDefaultRevision,
   putWorkItemCompletionPolicy,
   putWorkItemPullRequest,
   putWorkItemContext,
@@ -78,6 +79,7 @@ import type {
   MoveWorkItemPriorityData,
   PutCompletionPolicyRevisionData,
   PutKnowledgeScopeData,
+  PutRepositoryCompletionPolicyDefaultRevisionData,
   PutWorkItemCompletionPolicyData,
   PutWorkItemPullRequestData,
   PutWorkItemContextData,
@@ -677,6 +679,21 @@ export class WorkGraphClient {
         ...this.#options(),
         body,
         path: { policyId, revision },
+      }),
+    );
+  }
+
+  putRepositoryCompletionPolicyDefaultRevision(
+    owner: string,
+    repository: string,
+    revision: number,
+    body: PutRepositoryCompletionPolicyDefaultRevisionData["body"],
+  ) {
+    return this.#unwrap(
+      putRepositoryCompletionPolicyDefaultRevision({
+        ...this.#options(),
+        body,
+        path: { owner, repository, revision },
       }),
     );
   }

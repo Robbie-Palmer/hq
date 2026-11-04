@@ -11,7 +11,6 @@ export function Footer() {
           <FooterLinks
             githubUrl={siteConfig.author.github}
             linkedInUrl={siteConfig.author.linkedin}
-            sourceUrl={siteConfig.author.sourceRepo}
           />
 
           <p className="text-sm text-muted-foreground">

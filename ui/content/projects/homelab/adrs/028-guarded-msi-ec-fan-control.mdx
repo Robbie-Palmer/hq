@@ -1,0 +1,142 @@
+---
+title: "ADR 028: Guarded MSI embedded-controller fan control"
+date: "2026-11-02"
+status: "Accepted"
+tech_stack: ["msi-ec"]
+implements_product_decisions:
+  - "homelab:000-keep-active-home-lab-hardware-quiet-and-role-driven"
+---
+
+# Context
+
+[ADR 025](/projects/homelab/adrs/025-graphical-nixos-development-workstation)
+made the MSI Vector GP68HX 13VH the primary local development machine. Its
+living-room location makes idle noise a product constraint under
+[PDR 000](/projects/homelab/pdrs/000-keep-active-home-lab-hardware-quiet-and-role-driven).
+The factory CPU curve starts the fan at 50°C and can keep it running after a
+short temperature rise. Power-saving settings reduced heat but did not stop the
+recurring idle hum.
+
+Linux has no complete mainline control interface for this laptop. The in-tree
+`msi-wmi-platform` driver reports fan RPM through a read-only hardware-monitoring
+interface, but it does not expose the automatic fan curve. The upstream
+[`msi-ec`](https://github.com/BeardOverflow/msi-ec) project exposes named fan
+mode, shift mode, temperature, and fan-percentage controls. Its documentation
+also states that these controls are not all in the mainline kernel, that the
+driver does not identify laptops by DMI data, and that unsupported models may
+be damaged.
+
+`msi-ec` does not expose the advanced-mode temperature table through sysfs. A
+custom curve still requires writing known bytes to the embedded controller
+through `ec_sys`. This privileged access can modify controller state beyond the
+fan curve. A wrong register map, unsupported firmware, or unchecked table could
+change unrelated controller state or weaken thermal protection.
+
+# Decision
+
+Use a source-pinned `msi-ec` kernel module for the Vector's named controller
+operations and telemetry. Build it against the selected NixOS kernel and load
+it declaratively. Do not treat the module's successful load as proof that a
+write is safe.
+
+Apply one project-owned CPU curve through a short-lived, locked `ec_sys` write.
+Change the factory thresholds from `50 57 64 70 76 82 100` to
+`60 62 64 70 76 82 100`. Keep the factory CPU fan percentages
+`0 40 50 60 75 89 103`, every CPU threshold from 64°C upward, and the complete
+GPU curve unchanged. Select `advanced` fan mode and the `eco` shift mode, then
+leave the embedded controller to adjust fan speed. Do not run a userspace loop
+that continuously overrides the fan.
+
+The helper must fail before writing unless all of these facts match the tested
+machine:
+
+* DMI product `Vector GP68HX 13VH` and board `MS-15M1`;
+* EC firmware `15M1IMS1.109`;
+* the required `msi-ec` attributes and modes;
+* the complete expected CPU speed table and GPU temperature and speed tables;
+* a known factory, previous project, or current project CPU threshold table;
+  and
+* readable and writable EC debug interfaces with explicit `ec_sys` write
+  support.
+
+Serialize access with a system lock, write only the first three CPU threshold
+bytes, and read the complete table back before reporting success. Load
+`ec_sys` with write support only for the operation and unload it afterwards
+when the helper loaded it. Apply the curve at boot and after resume. Restore
+the factory CPU thresholds and `silent` fan mode when the service stops or a
+NixOS rollback removes it.
+
+Make the curve part of host health rather than an unverified startup side
+effect. The health check confirms the service, mode, and complete CPU table.
+The thermal monitor samples firmware temperature and requested fan percentage,
+CPU package temperature, fan RPM, NVMe temperature, GPU runtime state, and busy
+processes. It retains fourteen days of one-minute samples and logs crossings at
+the factory release point and every configured threshold.
+
+# Alternatives
+
+## Keep the factory curve and move the laptop
+
+This avoids out-of-tree code and raw EC writes. The laptop currently needs
+wired Ethernet beside the router for reliable remote wake and unlock, and its
+factory idle noise is intrusive in that shared room. A later network change may
+make relocation the simpler answer, but it does not solve the present
+constraint.
+
+## Use only the mainline MSI WMI driver
+
+`msi-wmi-platform` already provides the RPM evidence used by the thermal
+monitor. Its fan channels are read-only, so it cannot move the firmware's
+automatic thresholds. Prefer this option once a mainline, model-tested
+interface can set an automatic curve without raw EC access.
+
+## Use ISW or NBFC-Linux
+
+[ISW](https://github.com/YoyPa/isw) can write MSI fan profiles through
+`ec_sys`. [NBFC-Linux](https://github.com/nbfc-linux/nbfc-linux) can run a
+temperature-driven fan-control service from a model configuration. Both are
+useful when a supported profile exists and the operating system must own the
+whole curve.
+
+They do not remove this machine's central risk. Each still needs a correct EC
+mapping, and NBFC-Linux adds a daemon that actively controls fan speed. The
+project needs only two changed low-temperature thresholds while retaining the
+firmware's factory speeds and high-temperature response. A small fail-closed
+helper has less authority and makes the exact accepted bytes reviewable in the
+NixOS configuration.
+
+## Use MControlCenter
+
+[MControlCenter](https://github.com/dmitry-s93/MControlCenter) provides a
+graphical interface for `msi-ec` controls. It is useful for interactive tuning,
+but it keeps the same out-of-tree driver dependency and moves the chosen policy
+into application state. It would not provide the exact DMI, firmware, factory
+table, rollback, and health-check contract required for unattended NixOS
+rebuilds.
+
+# Consequences
+
+The Vector can remain silent through ordinary idle temperatures while the
+firmware still ramps from the factory 64°C point onward. Live acceptance
+showed zero fan RPM at 56°C, and the retained history now shows when the fan
+starts, stops, or crosses any decision threshold.
+
+This decision adds an out-of-tree kernel module and a raw EC write to the host
+maintenance boundary. Kernel upgrades must build the pinned module. A firmware
+update causes the helper to refuse all curve writes until the register map,
+factory tables, modes, monitoring, and rollback have been tested again.
+
+The guards reduce the chance of writing the wrong controller state, but they
+cannot prove the firmware's undocumented behavior. The local monitor provides
+diagnostic evidence rather than an independent thermal safety system. The
+firmware remains responsible for automatic control, and the project preserves
+its factory high-temperature curve instead of replacing it.
+
+Revisit this decision if mainline Linux gains a writable automatic-curve
+interface for this hardware, the laptop moves out of a shared room, or retained
+history shows sustained high temperatures or unstable fan cycling. Also revisit
+it if the kernel's [Intel thermal throttle
+counters](https://docs.kernel.org/admin-guide/thermal/intel_thermal_throttle.html)
+increase during a representative sustained workload. Remove the custom curve
+rather than weakening its hardware and firmware guards to support a different
+MSI model.

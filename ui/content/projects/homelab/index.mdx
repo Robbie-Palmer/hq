@@ -2,7 +2,7 @@
 title: "Home Lab"
 description: "A private home fleet that backs up personal data, runs coding agents, filters DNS, and gives each active machine a real job"
 date: "2026-08-02"
-updated: "2026-11-01"
+updated: "2026-11-02"
 status: "live"
 tech_stack:
   - "Ansible"
@@ -23,6 +23,7 @@ tech_stack:
   - "DVC"
   - "Netdata"
   - "NixOS"
+  - "msi-ec"
   - "K3s"
   - "Terraform"
   - "Hetzner Cloud"
@@ -532,6 +533,12 @@ single-node K3s development plane. Its 64 GB of RAM and RTX 4080 provide the
 primary local development and GPU capacity while complementing the lighter
 everyday Mac and continuity-focused Hetzner server. GNOME, Brave, the T3 Code
 client, and network printing keep the machine useful at its own screen.
+
+[ADR 028](/projects/homelab/adrs/028-guarded-msi-ec-fan-control) adopts a
+model- and firmware-guarded `msi-ec` integration for the Vector's living-room
+noise constraint. It changes only the low-temperature CPU fan thresholds,
+preserves the factory high-temperature response, and records the thermal and
+fan evidence needed to revisit the choice.
 
 ## Quiet NixOS service companion, proposed
 

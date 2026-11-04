@@ -4,17 +4,21 @@ This image packages the headless t3-code server and its supported coding-agent
 CLIs, mise, Doppler, and the native libraries required by headless browser
 tests. Every base image uses a tag and immutable digest. npm and mise install
 from committed lockfiles with artifact integrity data. The deployment uses the
-release tag `0.1.5-agent-tools-20`. Its leading version matches the bundled T3
+release tag `0.1.5-agent-tools-21`. Its leading version matches the bundled T3
 release, which lets Renovate update the image references in the same pull
 request. Increment the release suffix for image changes that do not update T3.
 After the first registry publish, replacing the tag in the manifests with its
 registry digest adds another immutability check.
 
-Runtime Debian packages and their exact Bookworm versions are declared in
+Runtime Debian packages and their exact Trixie versions are declared in
 `bindep.txt`. The image translates bindep's exact-version syntax directly to
 apt syntax, so the final image does not need a Python and bindep installation
 solely to resolve a Debian-only package list. Renovate uses its Debian
 datasource to propose grouped updates to these pins.
+
+Debian 13 supplies glibc 2.41. The image check requires glibc 2.39 or newer so
+repository tools with that minimum, including tsmetrics, run inside Vector
+workspaces.
 
 The process runs as UID/GID `2000:2000`. Kubernetes mounts the encrypted data
 volume at `/data`; t3 state and provider authentication live under

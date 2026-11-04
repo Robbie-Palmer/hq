@@ -66,6 +66,10 @@ config_roots = [
     "workers/personal-finance-api",
     "packages/personal-finance-contracts",
     "packages/personal-finance-data",
+    "infra/wedding-planner",
+    "workers/wedding-planner-api",
+    "packages/wedding-planner-contracts",
+    "packages/wedding-planner-data",
 ]
 
 [settings]

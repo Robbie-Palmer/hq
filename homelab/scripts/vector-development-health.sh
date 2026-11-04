@@ -28,14 +28,17 @@ systemctl is-active --quiet k3s.service
 systemctl is-active --quiet apparmor.service
 systemctl is-active --quiet vector-development-power-profile.service
 systemctl is-active --quiet vector-development-quiet-profile.service
+systemctl is-active --quiet vector-development-fan-curve.service
 systemctl is-active --quiet vector-development-thermal-monitor.service
 test -x /sbin/apparmor_parser
 test -r /etc/apparmor.d/tunables/global
 grep -Fx 't3-code-agent-browser (unconfined)' /sys/kernel/security/apparmor/profiles >/dev/null
 test "$(powerprofilesctl get)" = power-saver
-test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = silent
+test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = advanced
 test "$(cat /sys/devices/platform/msi-ec/shift_mode)" = eco
+vector-development-fan-curve check >/dev/null
 test -s /var/lib/vector-development-thermal-monitor/status.json
+test -s /var/lib/vector-development-thermal-monitor/history.jsonl
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader \
   | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
 test "$(cat /sys/module/nvidia_drm/parameters/modeset)" = Y

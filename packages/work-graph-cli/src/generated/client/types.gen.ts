@@ -193,6 +193,15 @@ export type CompletionPolicyRevision = {
     createdAt: string;
 };
 
+export type RepositoryCompletionPolicyDefaultRevision = {
+    repository: string;
+    revision: number;
+    policyId: string;
+    policyRevision: number;
+    enabled: boolean;
+    createdAt: string;
+};
+
 export type WorkItemCompletionPolicy = {
     workItemId: string;
     policyId: string;
@@ -866,6 +875,68 @@ export type CreateDependencyResponses = {
 };
 
 export type CreateDependencyResponse = CreateDependencyResponses[keyof CreateDependencyResponses];
+
+export type PutRepositoryCompletionPolicyDefaultRevisionData = {
+    body: {
+        policyId: string;
+        policyRevision: number;
+        enabled?: boolean;
+        createdAt: string;
+    };
+    path: {
+        owner: string;
+        repository: string;
+        revision: number;
+    };
+    query?: never;
+    url: '/api/github/repositories/{owner}/{repository}/completion-policy-defaults/{revision}';
+};
+
+export type PutRepositoryCompletionPolicyDefaultRevisionErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type PutRepositoryCompletionPolicyDefaultRevisionError = PutRepositoryCompletionPolicyDefaultRevisionErrors[keyof PutRepositoryCompletionPolicyDefaultRevisionErrors];
+
+export type PutRepositoryCompletionPolicyDefaultRevisionResponses = {
+    /**
+     * Repository completion-policy default created or matched
+     */
+    200: RepositoryCompletionPolicyDefaultRevision;
+};
+
+export type PutRepositoryCompletionPolicyDefaultRevisionResponse = PutRepositoryCompletionPolicyDefaultRevisionResponses[keyof PutRepositoryCompletionPolicyDefaultRevisionResponses];
 
 export type DeleteKnowledgeScopeRelationshipData = {
     body: {

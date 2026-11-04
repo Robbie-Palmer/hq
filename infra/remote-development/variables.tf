@@ -86,8 +86,19 @@ variable "enable_backups" {
   default     = false
 }
 
-variable "enable_delete_protection" {
-  description = "Protect the server and data volume against deletion or rebuild in the Hetzner API"
+variable "server_state" {
+  description = "Desired server lifecycle state: active, suspend-ready, or suspended"
+  type        = string
+  default     = "suspended"
+
+  validation {
+    condition     = contains(["active", "suspend-ready", "suspended"], var.server_state)
+    error_message = "server_state must be active, suspend-ready, or suspended."
+  }
+}
+
+variable "enable_volume_delete_protection" {
+  description = "Protect the persistent workspace volume against deletion in the Hetzner API"
   type        = bool
   default     = true
 }
