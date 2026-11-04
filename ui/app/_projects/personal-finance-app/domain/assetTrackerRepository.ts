@@ -658,7 +658,8 @@ function validateValuationReferences(
   assertValidCorrections(
     data.exchangeRateObservations ?? [],
     "Exchange-rate",
-    (record) => `${record.fromCurrency}\0${record.toCurrency}`,
+    (record) =>
+      `${record.fromCurrency}\0${record.toCurrency}\0${record.rateClass ?? "reference"}\0${record.source.id}`,
   );
 }
 

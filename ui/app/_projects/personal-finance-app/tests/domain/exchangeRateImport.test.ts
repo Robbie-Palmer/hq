@@ -113,6 +113,30 @@ describe("historical exchange-rate import", () => {
     expect(corrected.observations).toEqual([
       expect.objectContaining({ rate: 1.36, correctsId: original?.id }),
     ]);
+
+    const providerCorrection = await importHistoricalExchangeRates({
+      pairs: [{ fromCurrency: "GBP", toCurrency: "USD" }],
+      from: "2026-09-30",
+      to: "2026-09-30",
+      retrievedAt: "2026-10-05T08:00:00Z",
+      existingObservations: first.observations,
+      fetch: async () =>
+        jsonResponse([
+          rate({
+            providers: [
+              {
+                key: "ECB",
+                date: "2026-09-30",
+                rate: 1.348,
+                excluded: false,
+              },
+            ],
+          }),
+        ]),
+    });
+    expect(providerCorrection.observations).toEqual([
+      expect.objectContaining({ rate: 1.35, correctsId: original?.id }),
+    ]);
   });
 
   it("labels weekend and supplied holiday gaps without carrying rates forward", async () => {

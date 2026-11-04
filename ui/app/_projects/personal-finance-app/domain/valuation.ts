@@ -191,7 +191,8 @@ export function convertCurrency(input: {
     input.observations.filter(
       (observation) =>
         observation.fromCurrency === input.fromCurrency &&
-        observation.toCurrency === input.toCurrency,
+        observation.toCurrency === input.toCurrency &&
+        observation.rateClass !== "executable",
     ),
     input.date,
     input.asKnownAt,
@@ -200,7 +201,8 @@ export function convertCurrency(input: {
     input.observations.filter(
       (observation) =>
         observation.fromCurrency === input.toCurrency &&
-        observation.toCurrency === input.fromCurrency,
+        observation.toCurrency === input.fromCurrency &&
+        observation.rateClass !== "executable",
     ),
     input.date,
     input.asKnownAt,

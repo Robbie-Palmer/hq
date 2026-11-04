@@ -50,6 +50,7 @@ describe("current exchange-rate refresh", () => {
       providers: [provider("primary", fetchQuotes)],
       existingObservations: [cached],
       retrievedAt,
+      rateClass: "reference",
     });
 
     expect(fetchQuotes).not.toHaveBeenCalled();
@@ -79,6 +80,7 @@ describe("current exchange-rate refresh", () => {
       pairs: [pair],
       providers: [primary],
       retrievedAt,
+      rateClass: "executable",
     });
 
     expect(result.values).toHaveLength(1);
@@ -122,6 +124,7 @@ describe("current exchange-rate refresh", () => {
       pairs: [pair],
       providers: [primary, fallback],
       retrievedAt,
+      rateClass: "reference",
     });
 
     expect(result.failures).toEqual([
@@ -155,6 +158,7 @@ describe("current exchange-rate refresh", () => {
       pairs: [pair],
       providers: [malformed, fallback],
       retrievedAt,
+      rateClass: "reference",
     });
 
     expect(result.failures[0]).toMatchObject({
@@ -176,6 +180,7 @@ describe("current exchange-rate refresh", () => {
       existingObservations: [previous],
       retrievedAt,
       cacheForMs: 0,
+      rateClass: "reference",
     });
 
     expect(result.observations).toEqual([]);
@@ -210,6 +215,7 @@ describe("current exchange-rate refresh", () => {
       pairs: [pair, gbpEur],
       providers: [primary, provider("fallback", fallbackFetch)],
       retrievedAt,
+      rateClass: "reference",
     });
 
     expect(fallbackFetch.mock.calls[0]?.[0].pairs).toEqual([gbpEur]);
@@ -219,6 +225,94 @@ describe("current exchange-rate refresh", () => {
       pairs: [gbpEur],
     });
     expect(result.values.map((value) => value.fallback)).toEqual([false, true]);
+  });
+
+  it("does not reuse an executable quote as a reference-rate cache entry", async () => {
+    const executable = existingObservation({
+      rateClass: "executable",
+      validAt: "2026-10-02",
+      quotedAt: "2026-10-02T11:30:00Z",
+      acceptedAt: "2026-10-02T11:31:00Z",
+      retrievedAt: "2026-10-02T11:31:00Z",
+    });
+    const fetchQuotes = vi.fn(async () => [
+      {
+        ...pair,
+        rate: 1.33,
+        quoteTime: "2026-10-02T11:00:00Z",
+        rateClass: "reference" as const,
+      },
+    ]);
+
+    const result = await refreshCurrentExchangeRates({
+      pairs: [pair],
+      providers: [provider("reference", fetchQuotes)],
+      existingObservations: [executable],
+      retrievedAt,
+      rateClass: "reference",
+    });
+
+    expect(fetchQuotes).toHaveBeenCalledOnce();
+    expect(result.values[0]?.observation.rateClass).toBe("reference");
+  });
+
+  it("keeps unsupported pairs visible without contacting a provider", async () => {
+    const fetchQuotes = vi.fn();
+    const unsupported = { fromCurrency: "GBP", toCurrency: "JPY" };
+
+    const result = await refreshCurrentExchangeRates({
+      pairs: [unsupported],
+      providers: [provider("primary", fetchQuotes)],
+      retrievedAt,
+      rateClass: "reference",
+    });
+
+    expect(fetchQuotes).not.toHaveBeenCalled();
+    expect(result.values).toEqual([]);
+    expect(result.unsupportedPairs).toEqual([unsupported]);
+  });
+
+  it("is idempotent for the same quote and links a revised quote", async () => {
+    const quote = {
+      ...pair,
+      rate: 1.34,
+      quoteTime: "2026-10-02T11:59:30Z",
+      rateClass: "executable" as const,
+      sourceReference: "bank-quote-123",
+      providerFee: { amount: 3, currency: "GBP" as const },
+    };
+    const bank = provider("bank", async () => [quote]);
+    const first = await refreshCurrentExchangeRates({
+      pairs: [pair],
+      providers: [bank],
+      retrievedAt,
+      rateClass: "executable",
+    });
+    const original = first.observations[0];
+    expect(original).toBeDefined();
+
+    const unchanged = await refreshCurrentExchangeRates({
+      pairs: [pair],
+      providers: [bank],
+      existingObservations: first.observations,
+      retrievedAt: "2026-10-02T12:05:00Z",
+      force: true,
+      rateClass: "executable",
+    });
+    expect(unchanged.observations).toEqual([]);
+    expect(unchanged.values[0]?.observation.id).toBe(original?.id);
+
+    const revised = await refreshCurrentExchangeRates({
+      pairs: [pair],
+      providers: [provider("bank", async () => [{ ...quote, rate: 1.35 }])],
+      existingObservations: first.observations,
+      retrievedAt: "2026-10-02T12:10:00Z",
+      force: true,
+      rateClass: "executable",
+    });
+    expect(revised.observations).toEqual([
+      expect.objectContaining({ rate: 1.35, correctsId: original?.id }),
+    ]);
   });
 });
 
@@ -239,6 +333,7 @@ describe("Frankfurter current-rate provider", () => {
       pairs: [pair],
       providers: [frankfurter],
       retrievedAt,
+      rateClass: "reference",
     });
 
     expect(result.values[0]).toMatchObject({

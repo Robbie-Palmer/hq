@@ -386,7 +386,10 @@ function failureForResponse(
   };
 }
 
-function datesBetween(from: string, to: string): string[] {
+export function historicalExchangeRateDates(
+  from: string,
+  to: string,
+): string[] {
   const start = parseISO(z.iso.date().parse(from));
   const end = parseISO(z.iso.date().parse(to));
   if (start > end) {
@@ -397,7 +400,7 @@ function datesBetween(from: string, to: string): string[] {
   );
 }
 
-function requestWindows(
+export function historicalExchangeRateWindows(
   from: string,
   to: string,
 ): Array<{
@@ -524,6 +527,31 @@ function observationFromRow(input: {
   };
 }
 
+function providerObservationsFromRow(
+  row: z.infer<typeof FrankfurterRateSchema>,
+): ExchangeRateObservation["providerObservations"] {
+  return row.providers?.map((provider) => ({
+    provider: provider.key,
+    observedDate: provider.date,
+    rate: provider.rate,
+    excluded: provider.excluded ?? false,
+    carried: provider.date !== row.date,
+  }));
+}
+
+function sameFrankfurterObservation(
+  previous: ExchangeRateObservation,
+  row: z.infer<typeof FrankfurterRateSchema>,
+): boolean {
+  const sameRate =
+    previous.rateDecimal === row.rate.toString() || previous.rate === row.rate;
+  return (
+    sameRate &&
+    JSON.stringify(previous.providerObservations) ===
+      JSON.stringify(providerObservationsFromRow(row))
+  );
+}
+
 function normalizeRows(input: {
   rows: z.infer<typeof FrankfurterRatesSchema>;
   base: Currency;
@@ -550,8 +578,7 @@ function normalizeRows(input: {
       sourceId: "frankfurter:blend",
     });
     const previous = input.accepted.get(key);
-    const rateDecimal = row.rate.toString();
-    if (previous?.rateDecimal === rateDecimal || previous?.rate === row.rate) {
+    if (previous != null && sameFrankfurterObservation(previous, row)) {
       continue;
     }
     const observation = observationFromRow({
@@ -598,7 +625,7 @@ function missingRates(input: {
 export async function importHistoricalExchangeRates(
   input: HistoricalExchangeRateImport,
 ): Promise<ExchangeRateImportResult> {
-  const windows = requestWindows(input.from, input.to);
+  const windows = historicalExchangeRateWindows(input.from, input.to);
   const retrievedAt = z.iso.datetime({ offset: true }).parse(input.retrievedAt);
   const pairs = normalizePairs(input.pairs);
   const grouped = groupPairsByBase(pairs.supported);
@@ -644,7 +671,7 @@ export async function importHistoricalExchangeRates(
       });
       observations.push(...normalized.observations);
       const requestGaps = missingRates({
-        dates: datesBetween(window.from, window.to),
+        dates: historicalExchangeRateDates(window.from, window.to),
         base,
         quotes,
         returned: normalized.returned,
