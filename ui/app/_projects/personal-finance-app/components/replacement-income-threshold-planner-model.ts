@@ -78,8 +78,8 @@ export function useReplacementIncomeThresholdPlanner(
   const tracker = useAssetTracker();
   const initialDates = defaultStartDates(scenario);
   const annualSpending =
-    tracker.financialIndependence.representativeAnnualExpenditure ??
     scenario.annualSpendingOverride ??
+    tracker.financialIndependence.representativeAnnualExpenditure ??
     36_000;
   const [goalKind, setGoalKind] = useState<GoalKind>("avoid-cash-depletion");
   const [reserve, setReserve] = useState(12_000);

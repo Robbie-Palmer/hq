@@ -31,6 +31,7 @@ const scenario: JobMoveScenario = {
   employeePensionRate: 0.05,
   employeePensionMethod: "salarySacrifice",
   employerPensionRate: 0.05,
+  annualSpendingOverride: 48_000,
   destinationAccountId: "current",
   includedFutureCashFlowIds: [],
   replacedRecurringFlowIds: ["salary"],
@@ -196,6 +197,9 @@ describe("ReplacementIncomeThresholdPlanner", () => {
         roleStartDates: ["2026-03-01", "2026-07-01", "2026-09-01"],
         goal: { kind: "preserve-cash-reserve", amount: 15_000 },
         horizonMonths: 144,
+        assumptionSets: expect.arrayContaining([
+          expect.objectContaining({ id: "central", annualSpending: 48_000 }),
+        ]),
       }),
     );
     expect(screen.getByText("2026-27, rules 2026.10.4")).toBeVisible();

@@ -128,6 +128,9 @@ function validateStartDates(input: ReplacementIncomeThresholdInput): void {
   if (input.roleStartDates.length === 0) {
     throw new Error("Choose at least one prospective job start date");
   }
+  if (new Set(input.roleStartDates).size !== input.roleStartDates.length) {
+    throw new Error("Job start dates must be different");
+  }
   for (const startDate of input.roleStartDates) {
     if (!isIsoDate(startDate)) {
       throw new Error("Job start dates must use YYYY-MM-DD");
@@ -235,10 +238,16 @@ function repositoryForAssumption(
 function supportsGrossConversion(scenario: JobMoveScenario): boolean {
   try {
     return (
-      calculateJobMoveCompensation({
-        ...scenario,
-        annualTakeHomeOverride: undefined,
-      }).calculation.kind === "tax-derived"
+      calculateJobMoveCompensation(
+        candidateScenario({
+          scenario,
+          roleStartDate: scenario.roleStartDate ?? scenario.transitionDate,
+          annualSpending: scenario.annualSpendingOverride ?? 0,
+          candidateAnnualIncome:
+            scenario.baseGrossPay + scenario.variableGrossPay,
+          useGross: true,
+        }),
+      ).calculation.kind === "tax-derived"
     );
   } catch {
     return false;

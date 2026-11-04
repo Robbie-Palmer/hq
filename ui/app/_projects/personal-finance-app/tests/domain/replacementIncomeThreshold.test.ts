@@ -229,6 +229,9 @@ describe("replacement-income thresholds", () => {
         ...scenario(),
         jurisdiction: "England",
         annualTakeHomeOverride: undefined,
+        employeePensionRate: 0.05,
+        employeePensionBasis: "qualifyingEarnings",
+        variableGrossPay: 5_000,
       },
       startDate: "2026-01-01",
       roleStartDates: ["2026-03-01"],
@@ -254,6 +257,24 @@ describe("replacement-income thresholds", () => {
     expect(result?.grossAnnualSalary).toBeGreaterThan(
       result?.annualTakeHomeIncome ?? Number.POSITIVE_INFINITY,
     );
+  });
+
+  it("rejects duplicate prospective job start dates", () => {
+    expect(() =>
+      solveReplacementIncomeThresholds({
+        repository: buildRepository(data()),
+        scenario: scenario(),
+        startDate: "2026-01-01",
+        roleStartDates: ["2026-03-01", "2026-03-01"],
+        assumptionSets: [assumption],
+        goal: { kind: "avoid-cash-depletion" },
+        horizonMonths: 12,
+        annualCurrentExpenditure: 24_000,
+        financialIndependenceTarget: null,
+        baselineCompensation: null,
+        emergencyFundAnalysis: null,
+      }),
+    ).toThrow("Job start dates must be different");
   });
 
   it("returns an explanation when the tested range cannot meet the goal", () => {
