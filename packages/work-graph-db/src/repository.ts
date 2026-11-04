@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
 import {
   and,
+  desc,
   eq,
   gt,
   inArray,
@@ -23,6 +25,7 @@ import {
   normalizeAndValidateContextRecords,
   normalizeKnowledgeScopeArchiveReason,
   normalizeCompletionPolicyRevision,
+  normalizeRepositoryCompletionPolicyDefaultRevision,
   normalizeEvidenceObservation,
   normalizeExternalDelivery,
   normalizeWorkItemSelectionScope,
@@ -49,6 +52,7 @@ import {
   type KnowledgeScopeRelationship,
   type NewWorkItemInput,
   type PullRequestSnapshot,
+  type RepositoryCompletionPolicyDefaultRevision,
   type ResolvedWorkItemContext,
   type TerminalWorkItemState,
   type WorkGraph,
@@ -71,6 +75,10 @@ import {
   type GraphCycleRow,
 } from "./queries/graph-cycle";
 import {
+  workItemPageQuery,
+  type WorkItemPageRow,
+} from "./queries/work-item-page";
+import {
   attentionRequest,
   attentionResolution,
   completionCandidateEvaluation,
@@ -86,6 +94,7 @@ import {
   lease,
   note,
   pullRequest,
+  repositoryCompletionPolicyDefaultRevision,
   workItem,
   workItemArchitectureDecision,
   workItemContext,
@@ -103,6 +112,30 @@ const EVENT_SEQUENCE_LOCK_ID = "event-sequence";
 const PRIORITY_RANK_GAP = 1_024;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const pullRequestLinkEvaluationId = (
+  workItemId: string,
+  repository: string,
+  number: number,
+  evaluatedAt: string,
+): string => {
+  const bytes = createHash("sha256")
+    .update("pull-request-link-completion-candidate\0")
+    .update(workItemId)
+    .update("\0")
+    .update(repository)
+    .update("\0")
+    .update(number.toString())
+    .update("\0")
+    .update(evaluatedAt)
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x50;
+  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80;
+  const hex = [...bytes]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+};
 const parentKnowledgeScope = alias(
   knowledgeScope,
   "relationship_parent_knowledge_scope",
@@ -235,6 +268,12 @@ export interface ClaimWorkItemInput extends WorkItemSelectionScope {
 }
 
 export type ListWorkItemsInput = WorkItemSelectionScope;
+
+export interface ListWorkItemPageInput extends WorkItemSelectionScope {
+  readonly cursor?: string;
+  readonly limit: number;
+  readonly stage?: WorkStage;
+}
 
 export interface ProjectCriticalPathInput
   extends Omit<WorkItemSelectionScope, "parentId"> {
@@ -431,6 +470,31 @@ export interface WorkItemReadModel extends WorkItem {
   readonly currentLease: StoredLease | null;
   readonly priority: WorkItemPriorityProjection;
 }
+
+const storedLeaseFromPageRow = (row: WorkItemPageRow): StoredLease | null => {
+  if (row.currentLeaseId === null) return null;
+  if (
+    row.currentLeaseWorkerId === null ||
+    row.currentLeaseEpoch === null ||
+    row.currentLeaseAcquiredAt === null ||
+    row.currentLeaseExpiresAt === null
+  ) {
+    throw new Error(`Current lease projection for ${row.id} is incomplete.`);
+  }
+  return {
+    id: row.currentLeaseId,
+    workItemId: row.id,
+    workerId: row.currentLeaseWorkerId,
+    epoch: row.currentLeaseEpoch,
+    acquiredAt: new Date(row.currentLeaseAcquiredAt),
+    expiresAt: new Date(row.currentLeaseExpiresAt),
+    endedAt:
+      row.currentLeaseEndedAt === null
+        ? null
+        : new Date(row.currentLeaseEndedAt),
+    outcome: row.currentLeaseOutcome as StoredLease["outcome"],
+  };
+};
 
 interface PriorityLineageRow extends Record<string, unknown> {
   readonly candidateId: string;
@@ -1844,6 +1908,68 @@ export class WorkGraphRepository {
     );
   }
 
+  async listWorkItemPage(
+    input: ListWorkItemPageInput,
+  ): Promise<readonly WorkItemReadModel[]> {
+    if (!Number.isSafeInteger(input.limit) || input.limit <= 0) {
+      throw new Error("A work-item page limit must be a positive integer.");
+    }
+    if (input.cursor !== undefined) {
+      requireIdentifier(input.cursor, "invalid_work_item_id");
+    }
+    if (input.parentId !== undefined) {
+      requireIdentifier(input.parentId, "invalid_parent_id");
+    }
+    for (const { id } of selectionScopeIds(input)) {
+      requireKnowledgeScopeId(id);
+    }
+
+    return this.db.transaction(
+      async (transaction) => {
+        await this.requireSelectionScopes(
+          transaction,
+          input,
+          "invalid_scheduling_scope",
+        );
+        // PostgreSQL overestimates the recursive graph CTE on a fresh or small
+        // table and can spend more time compiling JIT code than executing the
+        // bounded read. Keep the setting transaction-local for pooled clients.
+        await transaction.execute(sql`set local jit = off`);
+        const rows = await transaction.execute<WorkItemPageRow>(
+          workItemPageQuery({
+            ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
+            limit: input.limit,
+            selectionWhere: workItemSelectionWhere(input),
+            ...(input.stage === undefined ? {} : { stage: input.stage }),
+          }),
+        );
+        return rows.map((row) => ({
+          id: row.id,
+          title: row.title,
+          lifecycle: row.lifecycle,
+          parentId: row.parentId,
+          rank: row.rank,
+          priorityRank: row.priorityRank,
+          schedulingInitiativeId: row.schedulingInitiativeId,
+          schedulingProjectId: row.schedulingProjectId,
+          expedited: row.expedited,
+          expediteReason: row.expediteReason,
+          stage: row.stage,
+          currentLease: storedLeaseFromPageRow(row),
+          priority: {
+            initiativeRank: row.initiativeRank,
+            projectRank: row.projectRank,
+            ticketRank: row.ticketRank,
+            expedited: row.priorityExpedited,
+            effectiveExpedited: row.effectiveExpedited,
+            donatedFromWorkItemId: row.donatedFromWorkItemId,
+          },
+        }));
+      },
+      { isolationLevel: "repeatable read", accessMode: "read only" },
+    );
+  }
+
   async getWorkItem(workItemId: string): Promise<WorkItemReadModel> {
     requireIdentifier(workItemId, "invalid_work_item_id");
     return this.db.transaction(
@@ -2267,17 +2393,20 @@ export class WorkGraphRepository {
         if (replayed) return normalized;
       }
 
-      await transaction
+      const linkedAt = new Date();
+      const [linked] = await transaction
         .insert(workItemPullRequest)
-        .values(normalized)
+        .values({ ...normalized, updatedAt: linkedAt })
         .onConflictDoUpdate({
           target: [
             workItemPullRequest.workItemId,
             workItemPullRequest.repository,
             workItemPullRequest.number,
           ],
-          set: { role: normalized.role },
-        });
+          set: { role: normalized.role, updatedAt: linkedAt },
+        })
+        .returning({ updatedAt: workItemPullRequest.updatedAt });
+      if (!linked) throw new Error("Pull request link upsert returned no row.");
       await this.appendEvent(transaction, {
         type: "pull_request.linked",
         workItemId: normalized.workItemId,
@@ -2291,6 +2420,20 @@ export class WorkGraphRepository {
         const scopedRepository = new WorkGraphRepository(transaction);
         await correlateWaitingDeliveries(transaction, snapshot, (observation) =>
           scopedRepository.recordEvidenceObservation(observation, { projectCurrent: false }),
+        );
+        const evaluatedAt = linked.updatedAt.toISOString();
+        await this.evaluateCompletionCandidateAndReleaseInTransaction(
+          transaction,
+          {
+            id: pullRequestLinkEvaluationId(
+              normalized.workItemId,
+              normalized.repository,
+              normalized.number,
+              evaluatedAt,
+            ),
+            workItemId: normalized.workItemId,
+            evaluatedAt,
+          },
         );
       }
       return normalized;
@@ -2616,6 +2759,64 @@ export class WorkGraphRepository {
     });
   }
 
+  async putRepositoryCompletionPolicyDefaultRevision(
+    input: RepositoryCompletionPolicyDefaultRevision,
+  ): Promise<RepositoryCompletionPolicyDefaultRevision> {
+    const normalized =
+      normalizeRepositoryCompletionPolicyDefaultRevision(input);
+    return this.db.transaction(async (transaction) => {
+      const [policy] = await transaction
+        .select({ policyId: completionPolicyRevision.policyId })
+        .from(completionPolicyRevision)
+        .where(
+          and(
+            eq(completionPolicyRevision.policyId, normalized.policyId),
+            eq(completionPolicyRevision.revision, normalized.policyRevision),
+          ),
+        )
+        .limit(1);
+      if (!policy) {
+        throw new WorkGraphError(
+          "invalid_completion_policy_default",
+          `Completion policy ${normalized.policyId} revision ${normalized.policyRevision} does not exist.`,
+        );
+      }
+      await transaction
+        .insert(repositoryCompletionPolicyDefaultRevision)
+        .values({ ...normalized, createdAt: new Date(normalized.createdAt) })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(repositoryCompletionPolicyDefaultRevision)
+        .where(
+          and(
+            eq(
+              repositoryCompletionPolicyDefaultRevision.repository,
+              normalized.repository,
+            ),
+            eq(
+              repositoryCompletionPolicyDefaultRevision.revision,
+              normalized.revision,
+            ),
+          ),
+        )
+        .limit(1);
+      if (!stored) {
+        throw new Error(
+          "Repository completion-policy default insert returned no row.",
+        );
+      }
+      const result = { ...stored, createdAt: stored.createdAt.toISOString() };
+      if (JSON.stringify(result) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "invalid_completion_policy_default",
+          `Repository completion-policy default ${normalized.repository} revision ${normalized.revision} is immutable.`,
+        );
+      }
+      return result;
+    });
+  }
+
   async assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void> {
     requireIdentifier(input.workItemId, "invalid_work_item_id");
     await this.db.transaction(async (transaction) => {
@@ -2634,12 +2835,13 @@ export class WorkGraphRepository {
       }
       await transaction
         .insert(workItemCompletionPolicy)
-        .values({ ...input, assignedAt })
+        .values({ ...input, assignmentSource: "explicit", assignedAt })
         .onConflictDoUpdate({
           target: workItemCompletionPolicy.workItemId,
           set: {
             policyId: input.policyId,
             policyRevision: input.policyRevision,
+            assignmentSource: "explicit",
             assignedAt,
           },
         });
@@ -2708,11 +2910,21 @@ export class WorkGraphRepository {
       .for("update");
     if (!lockedItem) throw workItemNotFound(input.workItemId);
 
-    const policy = await this.automaticReleasePolicy(transaction, input.workItemId);
-    if (!policy) return null;
     if (lockedItem.lifecycle !== "open") {
       return this.replayTerminalCompletionEvaluation(transaction, input.id);
     }
+
+    await this.assignRepositoryCompletionPolicyDefault(
+      transaction,
+      input.workItemId,
+      input.evaluatedAt,
+    );
+
+    const policy = await this.automaticReleasePolicy(
+      transaction,
+      input.workItemId,
+    );
+    if (!policy) return null;
 
     const evaluation = await this.evaluateCompletionCandidateInTransaction(
       transaction,
@@ -2735,6 +2947,112 @@ export class WorkGraphRepository {
       input.workItemId,
       evaluation,
     );
+  }
+
+  private async assignRepositoryCompletionPolicyDefault(
+    transaction: DbTransaction,
+    workItemId: string,
+    assignedAt: string,
+  ): Promise<void> {
+    const [existing] = await transaction
+      .select({ assignmentSource: workItemCompletionPolicy.assignmentSource })
+      .from(workItemCompletionPolicy)
+      .where(eq(workItemCompletionPolicy.workItemId, workItemId))
+      .limit(1);
+    if (existing?.assignmentSource === "explicit") return;
+
+    const repositories = await transaction
+      .selectDistinct({ repository: workItemPullRequest.repository })
+      .from(workItemPullRequest)
+      .where(
+        and(
+          eq(workItemPullRequest.workItemId, workItemId),
+          eq(workItemPullRequest.role, "implementation"),
+        ),
+      )
+      .orderBy(workItemPullRequest.repository);
+    if (repositories.length === 0) {
+      await this.removeRepositoryCompletionPolicyDefault(
+        transaction,
+        workItemId,
+        existing?.assignmentSource,
+      );
+      return;
+    }
+
+    const defaults = await Promise.all(
+      repositories.map(async ({ repository }) => {
+        const [current] = await transaction
+          .select()
+          .from(repositoryCompletionPolicyDefaultRevision)
+          .where(
+            eq(
+              repositoryCompletionPolicyDefaultRevision.repository,
+              repository,
+            ),
+          )
+          .orderBy(desc(repositoryCompletionPolicyDefaultRevision.revision))
+          .limit(1);
+        return current;
+      }),
+    );
+    const [selected] = defaults;
+    if (
+      !selected?.enabled ||
+      defaults.some(
+        (candidate) =>
+          !candidate?.enabled ||
+          candidate.policyId !== selected.policyId ||
+          candidate.policyRevision !== selected.policyRevision,
+      )
+    ) {
+      await this.removeRepositoryCompletionPolicyDefault(
+        transaction,
+        workItemId,
+        existing?.assignmentSource,
+      );
+      return;
+    }
+
+    const assignedAtDate = new Date(assignedAt);
+    if (!Number.isFinite(assignedAtDate.getTime())) {
+      throw new WorkGraphError(
+        "invalid_completion_policy_default",
+        "A repository completion-policy default assignment needs an ISO timestamp.",
+      );
+    }
+    await transaction
+      .insert(workItemCompletionPolicy)
+      .values({
+        workItemId,
+        policyId: selected.policyId,
+        policyRevision: selected.policyRevision,
+        assignmentSource: "repository_default",
+        assignedAt: assignedAtDate,
+      })
+      .onConflictDoUpdate({
+        target: workItemCompletionPolicy.workItemId,
+        set: {
+          policyId: selected.policyId,
+          policyRevision: selected.policyRevision,
+          assignmentSource: "repository_default",
+          assignedAt: assignedAtDate,
+        },
+      });
+  }
+
+  private async removeRepositoryCompletionPolicyDefault(
+    transaction: DbTransaction,
+    workItemId: string,
+    assignmentSource: "explicit" | "repository_default" | undefined,
+  ): Promise<void> {
+    if (assignmentSource !== "repository_default") return;
+    await transaction
+      .delete(workItemCompletionCandidate)
+      .where(eq(workItemCompletionCandidate.workItemId, workItemId));
+    await transaction
+      .delete(workItemCompletionPolicy)
+      .where(eq(workItemCompletionPolicy.workItemId, workItemId));
   }
 
   private async automaticReleasePolicy(

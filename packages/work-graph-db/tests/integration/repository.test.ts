@@ -238,8 +238,17 @@ beforeAll(async () => {
     where pg_type.typname = 'architecture_decision_role'
     order by enumsortorder
   `);
+  const completionPolicyAssignmentSourceValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'completion_policy_assignment_source'
+    order by enumsortorder
+  `);
 
-  expect(migrationCount?.count).toBe(18);
+  expect(migrationCount?.count).toBe(20);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -257,6 +266,7 @@ beforeAll(async () => {
     "leases",
     "notes",
     "pull_requests",
+    "repository_completion_policy_default_revisions",
     "work_item_architecture_decisions",
     "work_item_completion_candidates",
     "work_item_completion_policies",
@@ -295,6 +305,9 @@ beforeAll(async () => {
   expect(
     architectureDecisionRoleValues.map(({ enumlabel }) => enumlabel),
   ).toEqual(["governing", "background"]);
+  expect(
+    completionPolicyAssignmentSourceValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["explicit", "repository_default"]);
 });
 
 describe("transactional decomposition", () => {
@@ -891,6 +904,9 @@ beforeEach(async () => {
     await transaction.delete(schema.completionCandidateEvaluation);
     await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} enable trigger completion_candidate_evaluations_immutable`);
     await transaction.delete(schema.workItemCompletionPolicy);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} disable trigger repository_completion_policy_default_revisions_immutable`);
+    await transaction.delete(schema.repositoryCompletionPolicyDefaultRevision);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} enable trigger repository_completion_policy_default_revisions_immutable`);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} disable trigger completion_policy_revisions_immutable`);
     await transaction.delete(schema.completionPolicyRevision);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} enable trigger completion_policy_revisions_immutable`);
@@ -1057,6 +1073,221 @@ describe("GitHub delivery consumption", () => {
         expect.any(String),
       ]),
     });
+  });
+
+  it("applies an enabled repository default when a PR link recovers retained evidence", async () => {
+    await repository.createWorkItem({ id: "github-work", title: "Ship" });
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    const policyDefault = {
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    } as const;
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision(policyDefault),
+    ).resolves.toEqual(policyDefault);
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision({
+        ...policyDefault,
+        enabled: false,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_completion_policy_default" });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+    await repository.putWorkItemPullRequest({
+      workItemId: "github-work",
+      repository: githubRepository,
+      number: 7,
+      role: "implementation",
+    });
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "released",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toMatchObject({
+      candidate: true,
+      policyId: "github-default",
+      policyRevision: 1,
+    });
+  });
+
+  it("fails closed when the latest repository default is disabled", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 2,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: false,
+      createdAt: "2026-10-01T09:02:00.000Z",
+    });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "open",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toBeNull();
+  });
+
+  it("requires linked repositories to agree and preserves explicit assignments", async () => {
+    await repository.createWorkItem({
+      id: "multi-repository-work",
+      title: "Ship across repositories",
+    });
+    for (const [policyId, repositoryName] of [
+      ["first-policy", "example/first"],
+      ["second-policy", "example/second"],
+    ] as const) {
+      await repository.putCompletionPolicyRevision({
+        policyId,
+        revision: 1,
+        requiredCiNames: ["CI"],
+        productionEnvironments: ["production"],
+        automaticRelease: true,
+        createdAt: "2026-10-01T09:00:00.000Z",
+      });
+      await repository.putRepositoryCompletionPolicyDefaultRevision({
+        repository: repositoryName,
+        revision: 1,
+        policyId,
+        policyRevision: 1,
+        enabled: true,
+        createdAt: "2026-10-01T09:01:00.000Z",
+      });
+    }
+
+    const linkImplementation = async (
+      repositoryName: string,
+      number: number,
+    ): Promise<void> => {
+      await repository.refreshPullRequest({
+        repository: repositoryName,
+        number,
+        url: `https://github.com/${repositoryName}/pull/${number}`,
+        headSha: commitSha(String(number)),
+        acceptedHeadSha: commitSha(String(number)),
+        mergeCommitSha: commitSha(String(number + 2)),
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-10-01T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "multi-repository-work",
+        repository: repositoryName,
+        number,
+        role: "implementation",
+      });
+    };
+
+    await linkImplementation("example/first", 1);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
+    ).resolves.toMatchObject({
+      candidate: false,
+      policyId: "first-policy",
+      policyRevision: 1,
+    });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "repository_default" },
+    ]);
+
+    await linkImplementation("example/second", 2);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
+    ).resolves.toBeNull();
+    await expect(
+      db
+        .select()
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([]);
+
+    await repository.assignCompletionPolicy({
+      workItemId: "multi-repository-work",
+      policyId: "first-policy",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T11:01:00.000Z",
+    });
+    await expect(
+      repository.evaluateCompletionCandidateAndReleaseIfConfigured({
+        id: recordId(907),
+        workItemId: "multi-repository-work",
+        evaluatedAt: "2026-10-01T11:02:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      automaticReleaseOutcome: "completion_requirements_not_met",
+      evaluation: { policyId: "first-policy", policyRevision: 1 },
+    });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "explicit" },
+    ]);
   });
 
   it("keeps an active worker lease fenced during automatic evaluation and concurrent release", async () => {
@@ -3259,6 +3490,252 @@ describe("lease-backed claiming", () => {
       effectiveExpedited: true,
       donatedFromWorkItemId: "urgent-child",
     });
+  });
+
+  it("matches the full queue projection across stages, scopes, cursors, and point reads", async () => {
+    await repository.putKnowledgeScope({
+      id: "delivery",
+      kind: "initiative",
+      title: "Delivery",
+      canonicalUrl: "https://example.test/initiatives/delivery",
+      markdownUrl: "https://example.test/initiatives/delivery.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "delivery",
+      childKnowledgeScopeId: "work-graph",
+    });
+    await repository.createWorkItem({
+      id: "urgent",
+      title: "Urgent delivery",
+      schedulingInitiativeId: "delivery",
+      schedulingProjectId: "work-graph",
+      expedited: true,
+      expediteReason: "Restore delivery.",
+    });
+    await repository.createWorkItem({
+      id: "urgent-child",
+      title: "Urgent child",
+      parentId: "urgent",
+    });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    await repository.addDependency(dependency("urgent-child", "blocker"));
+    for (const id of ["routine", "active", "stale", "attention", "released", "cancelled"]) {
+      await repository.createWorkItem({ id, title: id });
+    }
+
+    const activeLease = await repository.claimWorkItem({
+      leaseId: recordId(801),
+      workerId: "active-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "active",
+    });
+    const staleLease = await repository.claimWorkItem({
+      leaseId: recordId(802),
+      workerId: "stale-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "stale",
+    });
+    const attentionLease = await repository.claimWorkItem({
+      leaseId: recordId(803),
+      workerId: "attention-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "attention",
+    });
+    const releasedLease = await repository.claimWorkItem({
+      leaseId: recordId(804),
+      workerId: "release-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "released",
+    });
+    const cancelledLease = await repository.claimWorkItem({
+      leaseId: recordId(805),
+      workerId: "cancel-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "cancelled",
+    });
+    if (
+      !activeLease ||
+      !staleLease ||
+      !attentionLease ||
+      !releasedLease ||
+      !cancelledLease
+    ) {
+      throw new Error("Expected projection fixture claims to succeed.");
+    }
+    await db
+      .update(schema.lease)
+      .set({
+        acquiredAt: new Date("2000-01-01T00:00:00Z"),
+        expiresAt: new Date("2000-01-01T00:01:00Z"),
+      })
+      .where(eq(schema.lease.id, staleLease.id));
+    await repository.createAttentionRequest({
+      id: recordId(806),
+      workItemId: "attention",
+      leaseId: attentionLease.id,
+      epoch: attentionLease.epoch,
+      kind: "decision",
+      question: "Which path should continue?",
+      blocking: true,
+    });
+    await repository.terminateClaimedWorkItem({
+      leaseId: releasedLease.id,
+      epoch: releasedLease.epoch,
+      workItemId: "released",
+      outcome: "released",
+      ...completionEvidence,
+    });
+    await repository.terminateClaimedWorkItem({
+      leaseId: cancelledLease.id,
+      epoch: cancelledLease.epoch,
+      workItemId: "cancelled",
+      outcome: "cancelled",
+    });
+
+    const fullProjection = await repository.listWorkItems();
+    await expect(
+      repository.listWorkItemPage({ limit: fullProjection.length + 1 }),
+    ).resolves.toEqual(fullProjection);
+
+    const scopedProjection = await repository.listWorkItems({
+      includeProjectIds: ["work-graph"],
+    });
+    await expect(
+      repository.listWorkItemPage({
+        includeProjectIds: ["work-graph"],
+        limit: 100,
+      }),
+    ).resolves.toEqual(scopedProjection);
+
+    for (const stage of [
+      "ready",
+      "blocked",
+      "in_progress",
+      "stale",
+      "needs_attention",
+      "released",
+      "cancelled",
+    ] as const) {
+      await expect(
+        repository.listWorkItemPage({ stage, limit: 100 }),
+      ).resolves.toEqual(fullProjection.filter((item) => item.stage === stage));
+    }
+
+    const cursorIndex = fullProjection.findIndex(({ id }) => id === "active");
+    expect(cursorIndex).toBeGreaterThanOrEqual(0);
+    const expectedAfterCursor = fullProjection
+      .slice(cursorIndex + 1)
+      .filter(({ stage }) => stage === "ready")
+      .slice(0, 3);
+    await expect(
+      repository.listWorkItemPage({
+        cursor: "active",
+        stage: "ready",
+        limit: 3,
+      }),
+    ).resolves.toEqual(expectedAfterCursor);
+    await expect(
+      repository.listWorkItemPage({ cursor: "missing", limit: 3 }),
+    ).resolves.toEqual([]);
+
+    for (const expected of fullProjection) {
+      await expect(repository.getWorkItem(expected.id)).resolves.toEqual(
+        expected,
+      );
+    }
+  });
+
+  it("bounds transferred queue rows and serves the expected twelve-agent workload", async () => {
+    const itemCount = 240;
+    await db.insert(schema.workItem).values(
+      Array.from({ length: itemCount }, (_, index) => ({
+        id: `queue-${index.toString().padStart(3, "0")}`,
+        title: `Queue item ${index}`,
+      })),
+    );
+    await db.insert(schema.workItemPriorityContext).values(
+      Array.from({ length: itemCount }, (_, index) => ({
+        workItemId: `queue-${index.toString().padStart(3, "0")}`,
+        rank: (index + 1) * 1_024,
+      })),
+    );
+    const beforeMetrics = createDatabaseQueryMetrics();
+    const afterMetrics = createDatabaseQueryMetrics();
+    const beforeDb = createDb(databaseURL, { metrics: beforeMetrics });
+    const afterDb = createDb(databaseURL, { metrics: afterMetrics });
+    try {
+      await beforeDb.execute(sql`select 1`);
+      await afterDb.execute(sql`select 1`);
+      Object.assign(beforeMetrics, createDatabaseQueryMetrics());
+      Object.assign(afterMetrics, createDatabaseQueryMetrics());
+      const beforeStartedAt = performance.now();
+      const before = await new WorkGraphRepository(beforeDb).listWorkItems();
+      const beforeDurationMs = performance.now() - beforeStartedAt;
+      const afterStartedAt = performance.now();
+      const after = await new WorkGraphRepository(afterDb).listWorkItemPage({
+        stage: "ready",
+        limit: 6,
+      });
+      const afterDurationMs = performance.now() - afterStartedAt;
+      expect(before).toHaveLength(itemCount);
+      expect(after).toHaveLength(6);
+      expect(after).toEqual(before.slice(0, 6));
+      expect(afterMetrics.queryCount).toBeLessThan(beforeMetrics.queryCount);
+      expect(afterMetrics.resultRowCount).toBe(6);
+      expect(afterMetrics.resultRowCount).toBeLessThan(
+        beforeMetrics.resultRowCount,
+      );
+      console.info(
+        "queue-read-characteristics",
+        JSON.stringify({
+          before: { ...beforeMetrics, durationMs: beforeDurationMs },
+          after: { ...afterMetrics, durationMs: afterDurationMs },
+        }),
+      );
+    } finally {
+      await closeDb(beforeDb);
+      await closeDb(afterDb);
+    }
+
+    const expectedAgentWorkload = 12;
+    const concurrentDb = createDb(databaseURL, {
+      maxConnections: expectedAgentWorkload,
+    });
+    try {
+      const concurrentRepository = new WorkGraphRepository(concurrentDb);
+      const concurrencyStartedAt = performance.now();
+      const results = await Promise.allSettled(
+        Array.from({ length: expectedAgentWorkload }, () =>
+          concurrentRepository.listWorkItemPage({
+            stage: "ready",
+            limit: 6,
+          }),
+        ),
+      );
+      expect(results.every(({ status }) => status === "fulfilled")).toBe(true);
+      expect(
+        results.every(
+          (result) => result.status === "fulfilled" && result.value.length === 6,
+        ),
+      ).toBe(true);
+      console.info(
+        "queue-read-concurrency",
+        JSON.stringify({
+          agents: expectedAgentWorkload,
+          durationMs: performance.now() - concurrencyStartedAt,
+          failures: results.filter(({ status }) => status === "rejected").length,
+        }),
+      );
+    } finally {
+      await closeDb(concurrentDb);
+    }
   });
 
   it("reclaims stale work with a higher epoch and expires the old lease", async () => {

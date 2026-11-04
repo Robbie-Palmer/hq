@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-image=ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20
+image=ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 mise_version="$(<"${script_dir}/../../.github/actions/setup-mise/mise-version.txt")"
 package_json="${script_dir}/../images/t3-code/package.json"
@@ -97,6 +97,8 @@ docker run --rm \
   -ec '
     test "$(id -u)" = 2000
     test "$(id -g)" = 2000
+    glibc_version="$(getconf GNU_LIBC_VERSION)"
+    dpkg --compare-versions "${glibc_version#glibc }" ge 2.39
     test -x /usr/local/lib/agent-auth-mcp/src/cli.mjs
     test -r /usr/local/lib/agent-auth-mcp/src/connections.mjs
     test -r /usr/local/lib/agent-auth-mcp/src/options.mjs

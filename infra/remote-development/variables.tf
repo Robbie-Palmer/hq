@@ -89,7 +89,7 @@ variable "enable_backups" {
 variable "server_state" {
   description = "Desired server lifecycle state: active, suspend-ready, or suspended"
   type        = string
-  default     = "suspend-ready"
+  default     = "suspended"
 
   validation {
     condition     = contains(["active", "suspend-ready", "suspended"], var.server_state)

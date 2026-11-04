@@ -6,6 +6,10 @@ the MSI Vector GP68HX described by
 It installs NixOS 26.05, GNOME, Brave, T3 Code, Tailscale, and an independent
 single-node K3s development plane.
 
+[ADR 028](../../ui/content/projects/homelab/adrs/028-guarded-msi-ec-fan-control.mdx)
+records why this host uses the out-of-tree `msi-ec` module and a guarded EC
+write for its idle fan curve.
+
 ## Storage layout
 
 The internal drive is a 1 TB WD PC SN560 NVMe SSD. Linux reports 953.9 GiB.
@@ -205,6 +209,21 @@ the lid on battery still suspends the laptop. On external power or while docked,
 closing the lid leaves the machine running. Host activation refreshes the active
 GNOME power daemon so a logged-in session cannot retain the old idle timeout
 after a rebuild.
+
+The MSI firmware starts the CPU fan at 60°C in advanced fan mode. The 50°C
+monitor point captures the observed lower edge of its release hysteresis.
+The guarded curve service changes only the first two CPU temperature
+thresholds and keeps the factory fan speeds and every threshold from 64°C
+upward. It reapplies the curve after resume. Stopping the service, including a
+rollback to a generation that does not contain it, restores the factory
+thresholds and silent fan mode. The helper refuses EC writes unless the laptop
+model, board, firmware, and complete factory fan data match the verified Vector
+values.
+
+The thermal monitor keeps fourteen days of one-minute samples in
+`/var/lib/vector-development-thermal-monitor/history.jsonl`. It also logs every
+configured CPU temperature threshold crossing, the 50°C release point, fan
+starts and stops, and changes to the EC fan percentage in the system journal.
 
 ## Remote power and encrypted boot
 

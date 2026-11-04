@@ -256,6 +256,15 @@ export const zCompletionPolicyRevision = z.object({
     createdAt: z.iso.datetime().max(30)
 });
 
+export const zRepositoryCompletionPolicyDefaultRevision = z.object({
+    repository: z.string().max(200).regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$\/u/),
+    revision: z.int().gte(1).lte(2147483647),
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    enabled: z.boolean(),
+    createdAt: z.iso.datetime().max(30)
+});
+
 export const zWorkItemCompletionPolicy = z.object({
     workItemId: z.string().min(1).max(200),
     policyId: z.string().min(1).max(200),
@@ -656,6 +665,24 @@ export const zCreateDependencyHeaders = z.object({
  * Dependency added or matching mutation replayed
  */
 export const zCreateDependencyResponse = zWorkItemDependency;
+
+export const zPutRepositoryCompletionPolicyDefaultRevisionBody = z.object({
+    policyId: z.string().min(1).max(200),
+    policyRevision: z.int().gte(1).lte(2147483647),
+    enabled: z.boolean().optional().default(true),
+    createdAt: z.iso.datetime().max(30)
+});
+
+export const zPutRepositoryCompletionPolicyDefaultRevisionPath = z.object({
+    owner: z.string().max(200).regex(/^[A-Za-z0-9_.-]+$\/u/),
+    repository: z.string().max(200).regex(/^[A-Za-z0-9_.-]+$\/u/),
+    revision: z.int().gte(1).lte(2147483647)
+});
+
+/**
+ * Repository completion-policy default created or matched
+ */
+export const zPutRepositoryCompletionPolicyDefaultRevisionResponse = zRepositoryCompletionPolicyDefaultRevision;
 
 export const zDeleteKnowledgeScopeRelationshipBody = z.object({
     parentKnowledgeScopeId: z.string().min(1).max(200),

@@ -7,6 +7,7 @@ import type {
   DeliveryEvidenceObservation,
   ExternalDelivery,
   PullRequestSnapshot,
+  RepositoryCompletionPolicyDefaultRevision,
 } from "./model";
 import {
   DELIVERY_EVIDENCE_KINDS,
@@ -213,6 +214,35 @@ export const normalizeCompletionPolicyRevision = (
     productionEnvironments,
     automaticRelease: policy.automaticRelease,
     createdAt: new Date(policy.createdAt).toISOString(),
+  };
+};
+
+export const normalizeRepositoryCompletionPolicyDefaultRevision = (
+  policyDefault: RepositoryCompletionPolicyDefaultRevision,
+): RepositoryCompletionPolicyDefaultRevision => {
+  const repository = policyDefault.repository.trim().toLowerCase();
+  if (
+    !REPOSITORY_PATTERN.test(repository) ||
+    !Number.isSafeInteger(policyDefault.revision) ||
+    policyDefault.revision <= 0 ||
+    !isNonBlankString(policyDefault.policyId) ||
+    !Number.isSafeInteger(policyDefault.policyRevision) ||
+    policyDefault.policyRevision <= 0 ||
+    typeof policyDefault.enabled !== "boolean" ||
+    !Number.isFinite(Date.parse(policyDefault.createdAt))
+  ) {
+    throw new WorkGraphError(
+      "invalid_completion_policy_default",
+      "A repository completion-policy default needs a repository, positive revisions, a policy ID, and an ISO timestamp.",
+    );
+  }
+  return {
+    repository,
+    revision: policyDefault.revision,
+    policyId: policyDefault.policyId.trim(),
+    policyRevision: policyDefault.policyRevision,
+    enabled: policyDefault.enabled,
+    createdAt: new Date(policyDefault.createdAt).toISOString(),
   };
 };
 

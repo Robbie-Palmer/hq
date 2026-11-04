@@ -114,6 +114,14 @@ export const COMPLETION_CANDIDATE_REASONS = [
 export type CompletionCandidateReason =
   (typeof COMPLETION_CANDIDATE_REASONS)[number];
 
+export const COMPLETION_POLICY_ASSIGNMENT_SOURCES = [
+  "explicit",
+  "repository_default",
+] as const;
+
+export type CompletionPolicyAssignmentSource =
+  (typeof COMPLETION_POLICY_ASSIGNMENT_SOURCES)[number];
+
 export const WORK_ITEM_CONTEXT_KINDS = [
   "brief",
   "acceptance_criteria",

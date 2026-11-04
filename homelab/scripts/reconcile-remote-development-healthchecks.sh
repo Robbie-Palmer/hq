@@ -80,6 +80,7 @@ jq \
     desc: "External reachability check for the remote-development host",
     timeout: 60,
     grace: 120,
+    manual_resume: true,
     methods: "POST",
     channels: $channel,
     unique: ["slug"]
@@ -105,6 +106,7 @@ jq \
     .slug == "remote-development-host"
     and .timeout == 60
     and .grace == 120
+    and .manual_resume == true
     and .methods == "POST"
     and (.channels | split(",") | index($channel) != null)
   ' \

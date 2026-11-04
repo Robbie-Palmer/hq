@@ -1,0 +1,2 @@
+CREATE TYPE "public"."completion_policy_assignment_source" AS ENUM('explicit', 'repository_default');--> statement-breakpoint
+ALTER TABLE "work_item_completion_policies" ADD COLUMN "assignment_source" "completion_policy_assignment_source" DEFAULT 'explicit' NOT NULL;
