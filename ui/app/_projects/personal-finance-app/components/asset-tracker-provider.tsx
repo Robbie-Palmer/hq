@@ -517,7 +517,12 @@ export function buildHouseholdAdoptedDecisionForecast(
     title?: string;
   },
 ) {
-  const repository = buildRepository(data);
+  const baseRepository = buildRepository(data);
+  const propertyEvidence = propertyEvidenceViews(baseRepository);
+  const repository = withSelectedPropertyValues(
+    baseRepository,
+    propertyEvidence.propertyValueHistories,
+  );
   const comparison = householdDecisionComparison(repository)(input);
   return buildAdoptDecisionForecastInput(repository, comparison, {
     title:

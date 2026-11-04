@@ -44,6 +44,17 @@ export const PropertyIndexHistoryDefinitionSchema = z
   .superRefine((definition, context) => {
     const selection = definition.valueSelection;
     if (
+      !definition.input.recordedValuations.some(
+        ({ id }) => id === definition.input.anchorValuationId,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "The anchor valuation must be recorded in the history",
+        path: ["input", "anchorValuationId"],
+      });
+    }
+    if (
       selection.mode === "recorded-value" &&
       !definition.input.recordedValuations.some(
         ({ id }) => id === selection.valuationId,

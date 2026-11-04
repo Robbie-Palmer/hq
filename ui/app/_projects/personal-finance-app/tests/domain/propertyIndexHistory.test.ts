@@ -9,6 +9,7 @@ import {
   buildRepository,
   getHousingPlanningPosition,
   getPortfolioFinancialIndependence,
+  PropertyIndexHistoryDefinitionSchema,
   valueAccountAtDate,
   withSelectedPropertyValues,
 } from "@/app/_projects/personal-finance-app/domain";
@@ -108,7 +109,7 @@ describe("property index history views", () => {
     });
   });
 
-  it("persists anchor and value choices and rejects unknown recorded values", () => {
+  it("persists valid choices and rejects unknown anchors and recorded values", () => {
     const data = getDemoAssetTrackerData();
     const updated = applySetPropertyValueSelection(data, {
       accountId: "home",
@@ -136,6 +137,22 @@ describe("property index history views", () => {
         },
       }),
     ).toThrow(/selected property valuation must be recorded/);
+    expect(() =>
+      applySetPropertyValueSelection(data, {
+        accountId: "home",
+        anchorValuationId: "missing",
+        valueSelection: { mode: "automatic-index" },
+      }),
+    ).toThrow(/anchor valuation must be recorded/);
+
+    const definition = propertyIndexHistories[0];
+    if (definition == null) throw new Error("Missing demo property history");
+    expect(
+      PropertyIndexHistoryDefinitionSchema.safeParse({
+        ...definition,
+        input: { ...definition.input, anchorValuationId: "missing" },
+      }).success,
+    ).toBe(false);
   });
 
   it("feeds the selected value and its provenance into portfolio valuation", () => {
@@ -174,6 +191,10 @@ describe("property index history views", () => {
       homeValueRange: {
         lower: 613_687.125,
         upper: 662_122.875,
+      },
+      propertyValueRanges: {
+        home: { lower: 298_687.125, upper: 347_122.875 },
+        "cardiff-property": { lower: 315_000, upper: 315_000 },
       },
       valuationBasis: [
         {

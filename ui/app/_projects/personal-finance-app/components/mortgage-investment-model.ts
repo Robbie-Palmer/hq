@@ -131,7 +131,7 @@ export function buildMortgageInvestmentModel({
     input.investmentAnnualReturn,
     input.investmentAnnualReturn + input.investmentVolatility,
   ];
-  const propertyValueRange = position.homeValueRange ?? {
+  const propertyValueRange = position.propertyValueRanges?.[property.id] ?? {
     lower: input.propertyValue,
     upper: input.propertyValue,
   };

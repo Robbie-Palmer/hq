@@ -27,6 +27,7 @@ export type HousingPlanningPosition = {
   withdrawalCapital: number;
   homeValue: number;
   homeValueRange?: HousingValueRange;
+  propertyValueRanges?: Record<string, HousingValueRange>;
   mortgageBalance: number;
   homeEquity: number;
   homeEquityRange?: HousingValueRange;
@@ -372,6 +373,7 @@ function housingPositionTotals(
     homeValue: 0,
     homeValueLower: 0,
     homeValueUpper: 0,
+    propertyValueRanges: {} as Record<string, HousingValueRange>,
     mortgageBalance: 0,
     withdrawalCapital: 0,
   };
@@ -381,6 +383,7 @@ function housingPositionTotals(
     addAccountToHousingPosition(totals, account.assetType, balance);
     if (account.assetType !== "property") continue;
     const range = selectedPropertyRange(repository, account.id, balance);
+    totals.propertyValueRanges[account.id] = range;
     totals.homeValueLower += range.lower;
     totals.homeValueUpper += range.upper;
   }
@@ -433,6 +436,7 @@ export function getHousingPlanningPosition(
       lower: totals.homeValueLower,
       upper: totals.homeValueUpper,
     },
+    propertyValueRanges: totals.propertyValueRanges,
     mortgageBalance: totals.mortgageBalance,
     homeEquity: totals.homeValue - totals.mortgageBalance,
     homeEquityRange: {
