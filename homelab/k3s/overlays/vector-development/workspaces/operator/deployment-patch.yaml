@@ -7,6 +7,9 @@ metadata:
     secrets.doppler.com/reload: "true"
 spec:
   template:
+    metadata:
+      annotations:
+        t3-code.homelab.dev/connect-mode: managed
     spec:
       runtimeClassName: nvidia
       nodeSelector:

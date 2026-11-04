@@ -174,12 +174,29 @@ Tunnel. T3 Connect supplies the public webhook URL and holds requests while
 Vector is offline.
 
 Create one persistent controller thread in the `hq` project and bind one
-enabled webhook task to it. Copy the task schedule from
+disabled webhook task to it. Copy the task schedule from
 `controller-policy.json`. Configure the GitHub webhook with JSON content and
 the same secret as the task's HMAC-SHA256 signature. Subscribe only to
 `dependabot_alert`. The task must retain its repository, action, severity, and
 alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
 limit.
+
+Reconcile the repository webhook with the checked-in task. Supply the T3
+Connect URL and both secrets through the environment and private files so they
+do not enter Git, Terraform state, command arguments, or logs:
+
+```bash
+CONTROLLER_WEBHOOK_URL="https://relay.t3.codes/v1/hooks/..." \
+CONTROLLER_WEBHOOK_SECRET_FILE=/private/path/hmac-secret \
+CONTROLLER_GITHUB_TOKEN_FILE=/private/path/github-token \
+CONTROLLER_WEBHOOK_ACTIVE=false \
+  mise run //homelab:vector-controller-webhook-configure
+```
+
+The commissioning command is idempotent for the exact T3 Connect URL. It
+creates the hook inactive, or reconciles that hook without modifying other
+repository hooks. Set `CONTROLLER_WEBHOOK_ACTIVE=true` only for the admission
+test and normal operation.
 
 The controller uses one Cedar decision point with separate policy modules for
 GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete

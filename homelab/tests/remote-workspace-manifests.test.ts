@@ -1777,9 +1777,10 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
       import.meta.url,
     ),
     "utf8",
-  );
+  ).replace(/\n$/, "");
   assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
   assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
+  assert.equal(expectedPrompt.endsWith("\n"), false);
   for (const fileName of [
     "controller.cedarschema.json",
     "controller-admission.cedar",
@@ -2900,6 +2901,26 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   }
   assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
   assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
+});
+
+test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
+  const reconciler = readFileSync(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(reconciler.includes('repository="Robbie-Palmer/hq"'));
+  assert.doesNotMatch(reconciler, /CONTROLLER_GITHUB_REPOSITORY/);
+  assert.ok(reconciler.includes('events: ["dependabot_alert"]'));
+  assert.ok(reconciler.includes('content_type: "json"'));
+  assert.ok(reconciler.includes('insecure_ssl: "0"'));
+  assert.ok(reconciler.includes('export GH_TOKEN="$github_token"'));
+  assert.ok(reconciler.includes('webhook_secret=$(<"$webhook_secret_file")'));
+  assert.ok(reconciler.includes('github_token=$(<"$github_token_file")'));
+  assert.doesNotMatch(reconciler, /echo[^\n]*(webhook_secret|github_token)/);
 });
 
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
