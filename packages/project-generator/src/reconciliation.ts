@@ -537,14 +537,12 @@ function deliveryTargetChanges(
     if (oldTarget && newTarget && isDeepStrictEqual(oldTarget, newTarget)) {
       return [];
     }
+    let kind: SemanticChangeKind = "replaced";
+    if (oldTarget === undefined) kind = "added";
+    if (newTarget === undefined) kind = "removed";
     return [
       {
-        kind:
-          oldTarget === undefined
-            ? ("added" as const)
-            : newTarget === undefined
-              ? ("removed" as const)
-              : ("replaced" as const),
+        kind,
         disposition: "manual_decision" as const,
         id,
         previous: oldTarget,

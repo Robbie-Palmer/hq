@@ -726,7 +726,7 @@ export function validateResolvedDeliveryEvidenceCatalog(
       rightIndex += 1
     ) {
       const right = targets[rightIndex];
-      if (!right || left.repository !== right.repository) continue;
+      if (left.repository !== right?.repository) continue;
       assertCompatibleDeliveryPaths(left.target, right.target);
     }
   }
@@ -1298,6 +1298,14 @@ function resolveSelections(
   };
 }
 
+function resolvedBlueprintSchemaVersion(
+  profileSchemaVersion: ProjectProfile["schema_version"],
+): ResolvedProjectBlueprint["schema_version"] {
+  if (profileSchemaVersion === 1) return 2;
+  if (profileSchemaVersion === 2) return 3;
+  return RESOLVED_BLUEPRINT_SCHEMA_VERSION;
+}
+
 export function resolveProjectProfile(
   profile: ProjectProfile,
   contracts: ProjectProfileContracts,
@@ -1360,12 +1368,7 @@ export function resolveProjectProfile(
   if (otelRuntime && !transport) throw new Error(`OpenTelemetry runtime '${otelRuntime}' has no current transport default`);
 
   return {
-    schema_version:
-      profile.schema_version === 1
-        ? 2
-        : profile.schema_version === 2
-          ? 3
-          : RESOLVED_BLUEPRINT_SCHEMA_VERSION,
+    schema_version: resolvedBlueprintSchemaVersion(profile.schema_version),
     profile_schema_version: profile.schema_version,
     effective_at: instant,
     project: {

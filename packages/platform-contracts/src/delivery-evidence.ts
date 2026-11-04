@@ -12,15 +12,15 @@ const subjectIdSchema = z
 
 const repositoryPathSchema = z.string().min(1).superRefine((value, context) => {
   const normalized = value.replaceAll("\\", "/");
-  const segments = normalized.split("/");
+  const segments = new Set(normalized.split("/"));
   if (
     value !== normalized ||
     path.posix.isAbsolute(value) ||
     normalized === "." ||
-    segments.includes("") ||
-    segments.includes(".") ||
-    segments.includes("..") ||
-    segments.includes(".git")
+    segments.has("") ||
+    segments.has(".") ||
+    segments.has("..") ||
+    segments.has(".git")
   ) {
     context.addIssue({
       code: "custom",
