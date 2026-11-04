@@ -401,35 +401,38 @@ async function preserveOwnershipHandoffs(
   receipt: CopierReceipt,
   plan: ProjectPlan,
 ): Promise<PreservedFile[]> {
-  const preserved: PreservedFile[] = [];
-  for (const relativePath of ownershipHandoffPaths(receipt, plan)) {
-    const absolutePath = path.join(worktreeRoot, relativePath);
-    let details: Awaited<ReturnType<typeof lstat>>;
-    try {
-      details = await lstat(absolutePath);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw error;
-    }
-    if (!details.isFile() || details.isSymbolicLink()) continue;
-    preserved.push({
-      contents: await readFile(absolutePath),
-      mode: details.mode,
-      path: relativePath,
-    });
-  }
-  return preserved;
+  const preserved = await Promise.all(
+    ownershipHandoffPaths(receipt, plan).map(async (relativePath) => {
+      const absolutePath = path.join(worktreeRoot, relativePath);
+      let details: Awaited<ReturnType<typeof lstat>>;
+      try {
+        details = await lstat(absolutePath);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+        throw error;
+      }
+      if (!details.isFile() || details.isSymbolicLink()) return undefined;
+      return {
+        contents: await readFile(absolutePath),
+        mode: details.mode,
+        path: relativePath,
+      };
+    }),
+  );
+  return preserved.filter((file) => file !== undefined);
 }
 
 async function restoreOwnershipHandoffs(
   worktreeRoot: string,
   preserved: readonly PreservedFile[],
 ): Promise<void> {
-  for (const file of preserved) {
-    const absolutePath = path.join(worktreeRoot, file.path);
-    await mkdir(path.dirname(absolutePath), { recursive: true });
-    await writeFile(absolutePath, file.contents, { mode: file.mode });
-  }
+  await Promise.all(
+    preserved.map(async (file) => {
+      const absolutePath = path.join(worktreeRoot, file.path);
+      await mkdir(path.dirname(absolutePath), { recursive: true });
+      await writeFile(absolutePath, file.contents, { mode: file.mode });
+    }),
+  );
 }
 
 async function runCopier(
