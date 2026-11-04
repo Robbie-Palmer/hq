@@ -1,0 +1,166 @@
+---
+title: "ADR 060: Model financial and business subjects as typed content graph nodes"
+date: "2026-10-31"
+status: "Accepted"
+implements_product_decisions:
+  - "personal-knowledge-graph:000-typed-financial-and-business-subjects"
+---
+
+## Context
+
+[PDR 000](/projects/personal-knowledge-graph/pdrs/000-typed-financial-and-business-subjects)
+requires financial and business subjects to have concrete types while
+remaining connected to roles, projects, blogs, and the rest of the public
+knowledge graph.
+
+The current `ContentGraph` already gives each node a discriminated `NodeType`
+and keeps typed forward and reverse indexes. A role uses technologies.
+Projects created during that role and blog posts written during it are
+available through reverse role indexes. Ideas have their own reference and
+related-idea edges. This design supports cross-content traversal without a
+graph database, but its current node union has no financial or business
+subject types.
+
+A generic subject node with a free-form `kind` would fit the existing loader
+with little code. It would also move the distinction between a tax, a regime,
+and an organisation into strings that each query must interpret. A physically
+separate domain graph would preserve those types but split existing role and
+project traversals across repositories.
+
+## Decision
+
+Extend the existing in-memory `ContentGraph` with a bounded financial and
+business domain. The public graph remains one graph. Source schemas, loaders,
+and query modules may keep the domain internally separate, but the graph
+builder will add its nodes and edges to the same forward and reverse indexes
+used by roles, projects, blogs, ideas, and technologies.
+
+### Use concrete node types and schemas
+
+Add concrete `NodeType` members as content requires them. The first supported
+set is:
+
+```typescript
+type FinancialAndBusinessNodeType =
+  | "law"
+  | "regulatory-regime"
+  | "tax"
+  | "tax-rule"
+  | "tax-effect"
+  | "organisation-type"
+  | "distribution-type"
+  | "taxable-event-type"
+  | "work-arrangement-type";
+```
+
+This alias groups the domain at compile time. It is not a runtime node type.
+There will be no `reference`, `subject`, or `financial-knowledge` node whose
+meaning depends on a tag.
+
+Each member has its own Zod source schema and branded slug type. A shared base
+may own mechanical page fields such as title, description, and body content.
+Domain fields and allowed targets remain on the concrete schema. Loaders must
+validate references before building graph indexes.
+
+### Add relationships with constrained endpoints
+
+Represent meaning in edge types rather than a universal `RELATED_TO` edge.
+The initial edge vocabulary will cover these relations:
+
+| Edge                   | Source                        | Target                     |
+| ---------------------- | ----------------------------- | -------------------------- |
+| `GROUNDED_IN`          | Regulatory regime or tax rule | Law                        |
+| `GOVERNS`              | Regulatory regime             | Work arrangement type      |
+| `IMPOSED_ON`           | Tax                           | Taxable event type         |
+| `CAUSES`               | Tax rule                      | Tax effect                 |
+| `DISTRIBUTED_BY`       | Distribution type             | Organisation type          |
+| `HAS_WORK_ARRANGEMENT` | Role                          | Work arrangement type      |
+| `ENGAGED_VIA`          | Role                          | Organisation type          |
+| `GOVERNED_BY`          | Role                          | Regulatory regime          |
+| `MODELS`               | Project                       | Financial or business node |
+| `EXPLAINS`             | Blog                          | Financial or business node |
+
+The builder will maintain reverse indexes for every added relation. Query
+functions will name the endpoint types they return. Code that handles the
+complete node union must use exhaustive matching so that adding a class
+produces a compile-time failure at projections that have not decided how to
+display or route it.
+
+### Extend roles without replacing their existing relations
+
+Financial and business relations are additional edges on `Role`. They do not
+replace `USES_TECHNOLOGY`, `CREATED_AT_ROLE`, or `WRITTEN_AT_ROLE`.
+
+Role source data may declare typed engagement records. An engagement record
+can identify a work arrangement and, when applicable, an organisation type
+and regulatory regime. It also carries an effective period when those facts
+do not cover the whole role. This prevents a single timeless edge from
+claiming that one arrangement governed every month of a role that changed
+terms.
+
+The graph builder projects each engagement into the typed role edges and keeps
+the source record available to queries that need its dates. A direct role edge
+is suitable only when its fact applies to the role's full recorded period.
+
+### Separate stable subjects from effective rule facts
+
+A canonical subject node keeps a stable identity across tax years and rule
+changes. Jurisdiction-specific facts use typed revision records owned by the
+relevant law, regime, tax, or tax rule. Each revision records its jurisdiction,
+inclusive effective start, exclusive effective end when known, and authority
+sources.
+
+Revisions are not generic content nodes and do not receive standalone pages by
+default. The canonical page can render current and historical revisions. This
+keeps `capital-gains-tax` stable while allowing its rates, thresholds, and
+allowances to change without rewriting history.
+
+Private applications may store the public node identity and the exact rule
+revision used by a calculation. They must not import private instance records
+into `ContentGraph`. The public graph owns published domain knowledge. The
+application datastore owns people, employments, payments, disposals, and
+calculation results.
+
+## Consequences
+
+The graph can traverse from a role to its technologies, projects, writing,
+work arrangement, organisation form, and governing regime without joining a
+second public graph. Projects and blogs gain typed links to the same canonical
+subjects.
+
+Every new class adds a schema, loader path, route or projection decision,
+validation, and graph indexes. Typed edges add more code than a property bag.
+That work makes unsupported relationships fail during validation or
+compilation instead of becoming ambiguous content.
+
+Effective engagement and rule records introduce intervals into a graph whose
+older edges are mostly timeless. Queries must state whether they need the
+current fact, the fact at a date, or every historical fact.
+
+The in-memory graph remains appropriate while all public content is loaded at
+build time. Revisit the storage choice if the domain requires runtime writes
+or queries that cannot be expressed without loading private application data.
+
+## Alternatives considered
+
+### Add one subject node with a discriminating property
+
+A strict enum would be safer than a free-form string, but all records would
+still share one widening schema and generic relation maps. Rejected because
+the compiler could not enforce class-specific fields and edge targets without
+recreating the concrete union inside every query.
+
+### Keep a separate financial domain graph
+
+This would give the domain its own node and edge unions. It was rejected as
+the public read model because `Role`, `Project`, and `Blog` would need
+cross-graph joins for ordinary navigation and visualization. Domain-specific
+source modules can still preserve a code boundary before the builder combines
+their validated records.
+
+### Store the public graph in a graph database
+
+A graph database would support runtime traversal and schema extensions. It
+would add a deployed datastore and build dependency without solving a current
+content-volume or query problem. Rejected while static generation and typed
+in-memory indexes satisfy the public site.
