@@ -68,6 +68,65 @@ projects use a lead maintainer or benevolent dictator. Participation remains
 voluntary, but authority, appeal, and ownership need to be explicit rather than
 smuggled in through repository permissions.
 
+## Proposed system context
+
+This view proposes a future connection between two existing projects. Work
+Graph exists, and Agent Coordinator is in progress. Their public-contributor
+relationship and the surrounding platform remain ideas.
+
+<Mermaid
+  chart={`flowchart TB
+Contributor["Contributor<br/>[Person]<br/>Chooses work and remains<br/>responsible for the result"]
+Maintainer["Maintainer<br/>[Person]<br/>Owns project direction<br/>and final authority"]
+Agent["Contributor-owned agent<br/>[External execution]<br/>Accounts, tokens, and steering<br/>stay with the contributor"]
+
+subgraph Model["Open Collective Development [Proposed coordination model]"]
+Coordinator["Agent Coordinator<br/>[Planned public-contribution role]<br/>Eligibility, matching,<br/>and bounded execution"]
+WorkGraph["Work Graph<br/>[Existing software system]<br/>Priorities, claims, leases,<br/>policy, and evidence"]
+end
+
+Delivery["Project delivery path<br/>[External system]<br/>Repository, checks, review,<br/>and deployment"]
+
+Contributor -->|"owns credentials and steers"| Agent
+Agent -->|"offers capacity and asks for work"| Coordinator
+Coordinator -->|"queries ready work and requests a claim"| WorkGraph
+WorkGraph -->|"returns a fenced claim, context,<br/>and evidence requirements"| Coordinator
+Coordinator -->|"hands back a bounded task"| Agent
+Agent -->|"submits a change"| Delivery
+Delivery -->|"reports checks, review, merge,<br/>and deployment evidence"| WorkGraph
+Maintainer -->|"sets priorities, claim rules,<br/>evidence rules, and delegated authority"| WorkGraph
+WorkGraph -->|"routes evidence and attention"| Maintainer
+Maintainer -->|"retains or delegates<br/>acceptance authority"| Delivery
+
+classDef person fill:#7c3aed,color:#fff,stroke:#6d28d9
+classDef external fill:#475569,color:#fff,stroke:#334155
+classDef existing fill:#2563eb,color:#fff,stroke:#1d4ed8
+classDef planned fill:#fff7ed,color:#9a3412,stroke:#ea580c,stroke-dasharray:5 5
+class Contributor,Maintainer person
+class Agent,Delivery external
+class WorkGraph existing
+class Coordinator planned
+`}
+  className="w-full justify-start overflow-x-auto [&>svg]:min-w-[42rem]"
+/>
+
+The same model in text:
+
+1. Maintainers publish priorities, claim rules, evidence requirements, and the
+   authority they are willing to delegate. They retain any authority they do
+   not delegate.
+2. Contributors choose to participate and steer agents they own. Their accounts,
+   tokens, and responsibility for the result do not transfer to the project.
+3. A planned public-contribution role for Agent Coordinator matches offered
+   capacity to eligible work and gives the contributor's agent a bounded task.
+4. Work Graph grants one renewable, fenced claim and returns the task's context
+   and evidence requirements. It remains the record of the plan, claim, policy,
+   and result.
+5. The contributor-owned agent submits its change through the project's normal
+   repository, review, check, and deployment path.
+6. Observed results return to Work Graph as evidence. Work Graph applies the
+   declared rules and routes decisions or missing authority to maintainers.
+
 # Why existing funding is not enough
 
 Sponsorship, Patreon, Kickstarter, and corporate support let people contribute
