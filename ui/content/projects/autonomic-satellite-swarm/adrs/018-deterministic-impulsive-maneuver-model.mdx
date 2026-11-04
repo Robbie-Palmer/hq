@@ -2,6 +2,8 @@
 title: "ADR 018: Deterministic Impulsive Maneuver Model"
 status: "Accepted"
 date: "2026-09-23"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:002-explorable-evidence-bounded-browser-simulation"
 ---
 
 # Context
@@ -14,6 +16,11 @@ in the True Equator, Mean Equinox frame, or TEME. The authors also warn that TEM
 published transform to official reference frames. The
 [CelesTrak SGP4 reference](https://celestrak.org/publications/AIAA/2006-6753/) remains authoritative
 for the unmodified TLE coast.
+
+[PDR 002](/projects/autonomic-satellite-swarm/pdrs/002-explorable-evidence-bounded-browser-simulation)
+requires applied algorithms and their evidence boundaries to remain visible in the browser. This
+ADR chooses how an assigned mission changes the simulated orbit without inventing motion in the
+renderer.
 
 The coordination protocol also separates selection from delivery. A leader can record an assignee
 even when that node never receives the assignment. Neither event proves that a physical maneuver

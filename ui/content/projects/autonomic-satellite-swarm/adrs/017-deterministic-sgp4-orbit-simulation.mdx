@@ -4,6 +4,8 @@ status: "Accepted"
 date: "2026-09-20"
 tech_stack: ["SGP4"]
 supersedes: "autonomic-satellite-swarm:012-qrptracker-embedded-orbit-propagation"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:002-explorable-evidence-bounded-browser-simulation"
 ---
 
 # Context
@@ -13,6 +15,10 @@ uses scripted positions to prove that the C++ scorer and Cesium receive the same
 The shipped trace exposes only four display positions between 0 and 120 milliseconds. Cesium redraws
 each node at those snapshots, but the path is not an orbit and the short controller run cannot show
 a satellite travelling around Earth at its natural rate.
+
+[PDR 002](/projects/autonomic-satellite-swarm/pdrs/002-explorable-evidence-bounded-browser-simulation)
+calls for progressively stronger simulation models with visible evidence limits. This ADR chooses
+the orbital model that replaces the browser's scripted motion.
 
 The demonstration does not need to run in real time. Quiet orbital periods can play at 10 or 100
 times their simulated rate. Negotiation and fault events can pause or play slowly enough for a

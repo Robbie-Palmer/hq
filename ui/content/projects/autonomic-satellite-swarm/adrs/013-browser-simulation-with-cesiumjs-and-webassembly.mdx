@@ -3,18 +3,18 @@ title: "ADR 013: Browser Simulation with CesiumJS and C++ WebAssembly"
 status: "Accepted"
 date: "2026-09-12"
 tech_stack: ["CesiumJS", "Emscripten", "WebAssembly"]
+implements_product_decisions:
+  - "autonomic-satellite-swarm:002-explorable-evidence-bounded-browser-simulation"
 ---
 
 # Context
 
-The host simulation proves the three-node negotiation path, but its terminal output does not show
-where the agents are, which messages changed their state, or why one candidate won. A reader must
-understand the paper and source code before the behavior makes sense.
-
-The portfolio needs an interactive Earth view that runs the coordination code rather than copying
-its decisions into TypeScript. [ADR 007](/projects/autonomic-satellite-swarm/adrs/007-portable-core-and-hardware-adapters)
-already keeps that code independent of Arduino and operating-system APIs. The Uno, ESP32, and host
-builds differ at their adapter boundaries, so a browser adapter fits the existing design.
+[PDR 002](/projects/autonomic-satellite-swarm/pdrs/002-explorable-evidence-bounded-browser-simulation)
+requires an interactive browser experiment that exposes the applied algorithms without replacing
+them with presentation code. This ADR chooses the browser architecture for that product direction.
+[ADR 007](/projects/autonomic-satellite-swarm/adrs/007-portable-core-and-hardware-adapters) already
+keeps the coordination code independent of Arduino and operating-system APIs. The Uno, ESP32, and
+host builds differ at their adapter boundaries, so a browser adapter fits the existing design.
 
 A globe alone does not make the simulation physically credible. The controller scores an
 adapter-supplied `SatelliteSnapshot`, and `HistoricalOrbitalScorer` remains a documented heuristic.

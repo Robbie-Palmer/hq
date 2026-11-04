@@ -2,15 +2,19 @@
 title: "ADR 004: Displacement-Effort Candidacy Score"
 status: "Accepted"
 date: "2016-07-01"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:000-bounded-bench-demonstration"
 ---
 
 # Context
 
 The temporary leader needs one comparable value from each candidate. The value should account for
 whether an agent can reach the target and how much of its available energy the maneuver would use.
-The prototype has coordinates and a few physical parameters, but no validated spacecraft model. It
-also has no orbit propagator: software that predicts a spacecraft's future position and velocity
-from its orbit and the passage of time.
+[PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration) permits a
+labelled stand-in but forbids treating it as spacecraft validation. The prototype has coordinates
+and a few physical parameters, but no validated spacecraft model. It also has no orbit propagator:
+software that predicts a spacecraft's future position and velocity from its orbit and the passage
+of time.
 
 Selecting the nearest agent ignores direction of travel and energy reserve. Existing astrodynamics
 approaches offer more physical detail, with different costs:

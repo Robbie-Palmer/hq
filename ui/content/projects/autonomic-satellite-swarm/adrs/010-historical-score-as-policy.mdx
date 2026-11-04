@@ -3,11 +3,15 @@ title: "ADR 010: Historical Orbital Score as a Replaceable Policy"
 status: "Accepted"
 date: "2026-09-04"
 supersedes: "autonomic-satellite-swarm:004-displacement-effort-score"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:001-reproducible-evidence-bounded-revival"
 ---
 
 # Context
 
-The paper's candidacy score combines a simplified energy estimate with time around an idealized
+[PDR 001](/projects/autonomic-satellite-swarm/pdrs/001-reproducible-evidence-bounded-revival)
+requires the revival to preserve historical behavior without overstating its evidence. The paper's
+candidacy score combines a simplified energy estimate with time around an idealized
 fixed-longitude orbit. It was suitable for explaining a proof of concept, but it is not validated
 guidance, navigation, control, or mission planning. Coupling it directly to the coordinator made the
 software appear more physically authoritative than the evidence justified.
