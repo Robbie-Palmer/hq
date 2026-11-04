@@ -246,8 +246,8 @@ export async function importEcbHistoricalExchangeRates(
 
   for (const window of historicalExchangeRateWindows(input.from, input.to)) {
     try {
-      // NOSONAR: historical windows stay sequential to respect provider quotas.
-      const result = await fetchEcbReferenceRates({
+      // Historical windows stay sequential to respect provider quotas.
+      const result = await /* NOSONAR */ fetchEcbReferenceRates({
         pairs: input.pairs,
         from: window.from,
         to: window.to,
