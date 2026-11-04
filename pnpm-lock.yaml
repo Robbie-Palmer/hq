@@ -872,6 +872,9 @@ importers:
 
   packages/personal-finance-contracts:
     dependencies:
+      finance-tax-rules:
+        specifier: workspace:*
+        version: link:../finance-tax-rules
       iso-codes:
         specifier: workspace:*
         version: link:../iso-codes
