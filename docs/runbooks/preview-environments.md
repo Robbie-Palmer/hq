@@ -119,10 +119,10 @@ doppler run --project personal-site --config dev_agent -- \
 Remote runtimes that already inject `dev_agent` can omit the `doppler run`
 prefix. Local agents must not inspect or print the values returned by Doppler.
 
-For browser QA in T3 Code, use the shared browser's existing Cloudflare account
-session. If Cloudflare redirects to sign-in, the user must complete that
-interactive login before the agent continues. Do not copy the service-token
-values into the browser.
+T3 Code's browser tools cannot currently receive Access headers or cookies. If
+the shared browser redirects to Cloudflare sign-in, stop browser QA. Do not copy
+service-token values into the browser or persist browser storage state. This
+access path requires support in the trusted T3 Code browser host.
 
 The narrowly scoped service-token identity does not expire: extending an expiry
 does not rotate its secret and creates an avoidable outage deadline. The

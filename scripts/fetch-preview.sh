@@ -14,6 +14,12 @@ client_secret="${CF_ACCESS_CLIENT_SECRET:-}"
 : "${client_id:?CF_ACCESS_CLIENT_ID is required}"
 : "${client_secret:?CF_ACCESS_CLIENT_SECRET is required}"
 
+if [[ ! "$pages_host" =~ ^[a-z0-9][a-z0-9.-]*[a-z0-9]$ ]] || \
+  [[ "$pages_host" != *.* ]] || [[ "$pages_host" == *..* ]]; then
+  echo "Refusing to send Access credentials: CLOUDFLARE_PAGES_HOST must be a lowercase hostname." >&2
+  exit 2
+fi
+
 curl_version=$(curl --version | awk 'NR == 1 { print $2 }')
 IFS=. read -r curl_major curl_minor _ <<<"$curl_version"
 if [[ ! "$curl_major" =~ ^[0-9]+$ ]] || [[ ! "$curl_minor" =~ ^[0-9]+$ ]] || \
