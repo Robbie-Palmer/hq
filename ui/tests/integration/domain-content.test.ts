@@ -4,6 +4,7 @@ import { buildCatalogDocument } from "@/lib/domain/catalog";
 import {
   type DomainRepository,
   getADRSlugsForProject,
+  getIdeasForBlog,
   getInitiativesForProject,
   getProjectForADR,
   getProjectsForInitiative,
@@ -36,7 +37,7 @@ describe("Domain Content Validation (Integration)", () => {
     expect(repo.adrs.size).toBeGreaterThan(0);
     expect(repo.roles.size).toBeGreaterThan(0);
     expect(repo.technologies.size).toBeGreaterThan(0);
-    expect(repo.ideas.size).toBe(46);
+    expect(repo.ideas.size).toBe(49);
     expect(repo.referentialIntegrityErrors).toEqual([]);
   });
 
@@ -131,6 +132,22 @@ describe("Domain Content Validation (Integration)", () => {
     ).toBeGreaterThan(0);
     expect(repo.graph.reverse.ideaReferencedBy.get("eventstorming")?.size).toBe(
       0,
+    );
+    expect(getIdeasForBlog(repo.graph, "2022-03-28-quasi-experiments")).toEqual(
+      new Set(["study-design", "randomization"]),
+    );
+    expect(
+      getIdeasForBlog(
+        repo.graph,
+        "2023-02-24-effective-ethical-data-science-study-design",
+      ),
+    ).toEqual(
+      new Set([
+        "ontology-engineering",
+        "study-design",
+        "randomization",
+        "sampling-bias",
+      ]),
     );
   });
 

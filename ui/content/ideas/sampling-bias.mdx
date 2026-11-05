@@ -1,0 +1,105 @@
+---
+title: "Sampling Bias"
+description: "Systematic error caused when the process that produces a sample distorts an estimate for its target population."
+source_url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10193086/"
+related_ideas:
+  - "study-design"
+  - "randomization"
+  - "feature-engineering"
+  - "data-provenance"
+---
+
+Sampling bias is systematic error caused by the process that produces the observed sample. It
+matters when inclusion, participation, retention, or exclusion is related to the quantity being
+estimated. The result can then differ from the answer for the target population even when the
+measurements and calculations within the sample are correct.
+
+The target population, sampling frame, recruited sample, and analysed sample are separate things.
+A sampling frame may omit eligible people. Some selected people may not participate. Some
+participants may leave before follow-up or lack data required by the analysis. Each step can change
+who contributes to the estimate.
+
+## Bias depends on the question
+
+A sample does not need to match its target population on every characteristic. The relevant issue
+is whether the selection process changes the estimate for the question being asked. An age
+imbalance matters for estimating a population mean when age predicts the outcome. It may not matter
+for another quantity that does not vary with age.
+
+[Lesko and colleagues](https://pmc.ncbi.nlm.nih.gov/articles/PMC10193086/) distinguish a sample
+that supports the same numerical estimate as its target population from one whose scientific
+interpretation can generalise despite different population characteristics. Calling either sample
+"representative" without naming the target and the intended inference hides that distinction.
+
+Common routes to sampling bias include:
+
+* undercoverage, when the sampling frame omits part of the target population;
+* convenience or self-selection, when availability or willingness affects inclusion;
+* non-response, when selected units do not provide the requested observations;
+* attrition, when remaining in follow-up depends on relevant characteristics or outcomes;
+* analytic exclusions, when missing values or eligibility rules change the analysed sample.
+
+These mechanisms can operate together. A probability sample can become biased through non-response
+or attrition. A non-probability sample may still yield an unbiased estimate. Connecting that
+estimate to the target population requires assumptions or external information about inclusion.
+
+## Bias is not sampling error
+
+Random sampling error is variation between samples produced by the same chance procedure. Under a
+valid probability design, estimates may land above or below the population value by chance while
+remaining unbiased across repeated samples. Increasing the sample size reduces this variation
+under common probability designs.
+
+Sampling bias shifts the expected estimate away from its target, although the direction may be
+unknown. Collecting more observations through the same biased inclusion process can make the
+result more precise without making it more accurate. The confidence interval can narrow around the
+wrong value.
+
+Weighting, stratification, standardisation, and model-based adjustment can reduce bias when the
+required variables are measured and the assumptions are credible. They cannot recover an omitted
+group whose relevant differences are unknown. In an open empirical study, [Sturgis and
+colleagues](https://pmc.ncbi.nlm.nih.gov/articles/PMC9638233/) found that routine demographic
+adjustment sometimes reduced discrepancies between convenience and representative samples and
+sometimes increased them. Adjustment needs a theory of the selection process, not a default list
+of covariates.
+
+## Sampling and assignment have different targets
+
+[Randomisation](/ideas/randomization) assigns treatments within the recruited study. It can protect
+a treatment comparison from confounding without making the participants representative of a wider
+population. Random sampling selects units from a population but does not assign their exposure.
+[Study design](/ideas/study-design) must say which inference each process supports.
+
+The causal-inference term "selection bias" is broader than sampling bias. It also covers bias
+introduced by conditioning on variables affected by an exposure and an outcome, even when the
+original recruitment process was sound. The terms overlap when selection into the observed or
+analysed sample causes the problem, but they are not synonyms in every use.
+
+The originating essay, ["Effective and Ethical Data Science Study
+Design"](/blog/2023-02-24-effective-ethical-data-science-study-design), stresses that data
+collection shapes the models trained on it. [Feature engineering](/ideas/feature-engineering) can
+change how a model represents the sample. It cannot supply evidence about people or cases that the
+selection process never observed. [Data provenance](/ideas/data-provenance) can at least record the
+frames, exclusions, response patterns, and weighting steps behind the result.
+
+## Questions it prompts
+
+* What is the target population, and which list or process can reach it?
+* How can inclusion, response, retention, or exclusion depend on the outcome or its predictors?
+* Does "representative" refer to population characteristics, a numerical estimate, or an
+  interpretation?
+* Which assumptions make weighting or adjustment valid, and can the available data test them?
+* Would collecting more data repeat the same selection process or change it?
+
+## Sources
+
+* Lesko, Catherine R., et al. ["Defining representativeness of study samples in medical and
+  population health research"](https://pmc.ncbi.nlm.nih.gov/articles/PMC10193086/). *BMJ
+  Medicine*, 2023.
+* Sturgis, Patrick, et al. ["How well do covariates perform when adjusting for sampling bias in
+  online COVID-19 research?"](https://pmc.ncbi.nlm.nih.gov/articles/PMC9638233/). *European Journal
+  of Epidemiology*, 2022.
+* Hernán, Miguel A., and James M. Robins. [*Causal Inference: What
+  If*](https://miguelhernan.org/whatifbook). Chapman & Hall/CRC, 2020, updated online edition.
+* Palmer, Robbie. ["Effective and Ethical Data Science Study
+  Design"](/blog/2023-02-24-effective-ethical-data-science-study-design). 2023. Originating essay.
