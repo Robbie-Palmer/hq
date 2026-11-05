@@ -274,6 +274,10 @@ run = "bash scripts/vector-development-agent-auth-health.sh"
 description = "Install Vector T3 GitHub and Doppler credentials after an idle guard"
 run = "bash scripts/install-vector-development-agent-credentials.sh"
 
+[tasks.vector-controller-webhook-configure]
+description = "Create or reconcile the severe-vulnerability controller GitHub webhook"
+run = "bash scripts/configure-severe-vulnerability-controller-webhook.sh"
+
 [tasks.vector-remote-boot-provision]
 description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
 run = "bash scripts/provision-vector-development-remote-boot.sh"
@@ -306,6 +310,7 @@ bash -n \
   scripts/vector-development-health.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
+  scripts/configure-severe-vulnerability-controller-webhook.sh \
   k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh \
   k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh \
   scripts/provision-vector-development-remote-boot.sh \

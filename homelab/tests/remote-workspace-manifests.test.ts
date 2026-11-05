@@ -2902,6 +2902,82 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
 });
 
+test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
+  const reconciler = readFileSync(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(reconciler.includes('repository="Robbie-Palmer/hq"'));
+  assert.doesNotMatch(reconciler, /CONTROLLER_GITHUB_REPOSITORY/);
+  assert.ok(reconciler.includes('events: ["dependabot_alert"]'));
+  assert.ok(reconciler.includes('content_type: "json"'));
+  assert.ok(reconciler.includes('insecure_ssl: "0"'));
+  assert.ok(reconciler.includes('export GH_TOKEN="$github_token"'));
+  assert.ok(reconciler.includes('github_token=$(<"$github_token_file")'));
+  assert.ok(
+    reconciler.includes('--rawfile webhook_secret "$webhook_secret_file"'),
+  );
+  assert.doesNotMatch(reconciler, /mapfile/);
+  assert.doesNotMatch(reconciler, /--arg webhook_(?:secret|url)/);
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*(?:echo|printf|cat)\s+[^\n]*(webhook_secret|github_token)/m,
+  );
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*set\s+(?:-[A-Za-z]*x\b|-o\s+xtrace\b)/m,
+  );
+  assert.ok(
+    reconciler.includes('active="${CONTROLLER_WEBHOOK_ACTIVE:-false}"'),
+  );
+});
+
+test("the Vector controller webhook rejects a terminal secret newline", () => {
+  const temporaryDirectory = mkdtempSync(
+    join(tmpdir(), "vector-controller-webhook-"),
+  );
+  const binDirectory = join(temporaryDirectory, "bin");
+  const secretPath = join(temporaryDirectory, "webhook-secret");
+  const tokenPath = join(temporaryDirectory, "github-token");
+  const reconciler = fileURLToPath(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+  );
+
+  try {
+    mkdirSync(binDirectory);
+    writeFileSync(secretPath, "test-secret\n");
+    writeFileSync(tokenPath, "test-token");
+    writeFileSync(join(binDirectory, "gh"), "#!/usr/bin/env bash\nexit 99\n");
+    chmodSync(join(binDirectory, "gh"), 0o755);
+
+    const result = spawnSync("bash", [reconciler], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+        CONTROLLER_WEBHOOK_URL: "https://relay.t3.codes/v1/hooks/test",
+        CONTROLLER_WEBHOOK_SECRET_FILE: secretPath,
+        CONTROLLER_GITHUB_TOKEN_FILE: tokenPath,
+      },
+    });
+
+    assert.equal(result.status, 2);
+    assert.match(
+      result.stderr,
+      /controller webhook secret file must not end with a newline/i,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-doppler-wrapper-"));
   const dopplerWrapper = fileURLToPath(

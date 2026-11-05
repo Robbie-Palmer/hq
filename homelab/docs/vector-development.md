@@ -174,12 +174,34 @@ Tunnel. T3 Connect supplies the public webhook URL and holds requests while
 Vector is offline.
 
 Create one persistent controller thread in the `hq` project and bind one
-enabled webhook task to it. Copy the task schedule from
+disabled webhook task to it. Copy the task schedule from
 `controller-policy.json`. Configure the GitHub webhook with JSON content and
 the same secret as the task's HMAC-SHA256 signature. Subscribe only to
 `dependabot_alert`. The task must retain its repository, action, severity, and
 alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
 limit.
+
+Reconcile the repository webhook with the checked-in task. Supply the T3
+Connect URL and both secrets through the environment and private files so they
+do not enter Git, Terraform state, command arguments, or logs:
+
+```bash
+CONTROLLER_WEBHOOK_URL="https://relay.t3.codes/v1/hooks/..." \
+CONTROLLER_WEBHOOK_SECRET_FILE=/private/path/hmac-secret \
+CONTROLLER_GITHUB_TOKEN_FILE=/private/path/github-token \
+CONTROLLER_WEBHOOK_ACTIVE=false \
+  mise run //homelab:vector-controller-webhook-configure
+```
+
+`CONTROLLER_GITHUB_TOKEN_FILE` must contain a separate, short-lived fine-grained
+token limited to `Robbie-Palmer/hq` with repository **Webhooks: Read and write**.
+Do not use the ordinary Vector agent token for this commissioning operation.
+The HMAC secret file must contain the exact secret without a terminal newline.
+
+The commissioning command is idempotent for the exact T3 Connect URL. It
+creates the hook inactive, or reconciles that hook without modifying other
+repository hooks. Keep the GitHub hook inactive while running the admission
+matrix directly against the T3 Connect URL.
 
 The controller uses one Cedar decision point with separate policy modules for
 GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete
@@ -190,13 +212,17 @@ Repository writes must use a controller-owned non-default ref. Cedar forbids
 direct default-branch writes, while the GitHub ruleset remains an independent
 provider-side control.
 
-Run the admission test before enabling unattended incident work. Send a signed
-candidate with a unique delivery ID, then repeat that request with the same ID.
-Also send an invalid signature, an out-of-policy repository, and a relay-held
-request older than 15 minutes. Inspect T3 Code's delivery records and the bound
-thread. The candidate must reach the controller once. The other requests must
-not start a controller turn or worker thread. Keep the task disabled if any
-case fails.
+Run the admission test before enabling unattended incident work. Enable the T3
+webhook task while leaving the GitHub hook inactive. Send a signed candidate
+with a unique delivery ID, then repeat that request with the same ID. Also send
+an invalid signature, a wrong repository, an out-of-policy severity, an
+out-of-policy action, and a relay-held request older than 15 minutes. Inspect
+T3 Code's delivery records and the bound thread. The candidate must reach the
+controller exactly once. The other requests must not start a controller turn
+or worker thread. If any case fails, disable the T3 task and leave the GitHub
+hook inactive. Only after every case passes, keep the task enabled and rerun
+the guarded commissioning command with `CONTROLLER_WEBHOOK_ACTIVE=true` to
+enable normal GitHub delivery.
 
 Deploy later host changes from another tailnet member:
 
