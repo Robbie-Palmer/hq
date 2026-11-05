@@ -362,16 +362,13 @@ const evaluatePullRequestEvidence = (
   if (pullRequestEvidence) evidenceIds.add(pullRequestEvidence.id);
   else reasons.add("missing_pull_request_evidence");
 
-  const requirements =
-    deliveryTargets === undefined
-      ? [
-          {
-            id: policy.policyId,
-            requiredCiNames: policy.requiredCiNames,
-            productionEnvironments: policy.productionEnvironments,
-          },
-        ]
-      : deliveryTargets;
+  const requirements = deliveryTargets ?? [
+    {
+      id: policy.policyId,
+      requiredCiNames: policy.requiredCiNames,
+      productionEnvironments: policy.productionEnvironments,
+    },
+  ];
   for (const target of requirements) {
     evaluateTargetEvidence(
       pullRequest,

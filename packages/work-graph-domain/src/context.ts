@@ -223,8 +223,7 @@ const hasInvalidPullRequestFields = (
     pullRequest.checkSummary,
   ) ||
   !Number.isFinite(Date.parse(pullRequest.observedAt)) ||
-  (pullRequest.deliveryMetadataSourceRevision !== undefined &&
-    pullRequest.deliveryMetadataSourceRevision.trim().length === 0);
+  pullRequest.deliveryMetadataSourceRevision?.trim().length === 0;
 
 const normalizePullRequests = (
   pullRequests: readonly PullRequestSnapshot[],
