@@ -7,6 +7,19 @@ household estimates.
 
 ## Coverage
 
+The generated coverage matrix is a versioned product contract, separate from the
+rule dataset version. `artifacts/coverage-matrix/2026.11.0.json` inventories
+salary history, job-move forecasts, household tax position, and side-income
+scenarios. Each claim states whether it is implemented, approximate, explicitly
+unavailable, or untracked. It also names the calculation kind, code, tests,
+official-rule sources, validation fixtures, and accepted Work Graph gaps.
+
+The same artifact records third-party engine and API decisions against the
+versioned salary corpus. Runtime fit, licence, version selection,
+reproducibility, historical depth, and failure behavior are recorded for every
+candidate. A package or provider's broad feature list is not treated as product
+coverage.
+
 | Area | Supported |
 | --- | --- |
 | Tax years | 2015/16 through 2026/27 |

@@ -8,6 +8,7 @@
     "./dataset": "./src/data.ts",
     "./annual-allowance": "./src/annualAllowance.ts",
     "./annual-allowance-fixtures": "./src/annualAllowanceFixtures.ts",
+    "./coverage": "./src/coverage.ts",
     "./historical-salary": "./src/historicalSalaryApi.ts",
     "./workplace-pension": "./src/workplacePension.ts",
     "./household-tax": "./src/householdTax.ts",

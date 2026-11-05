@@ -15,8 +15,8 @@
       "sha256": "905ad9ad0ccb95c9ca8aa0a4a465d71a0fa53f9c504e843f2c52b46208c28031"
     },
     {
-      "path": "artifacts/coverage-matrix/2026.10.4.json",
-      "sha256": "a7c818fb3316d1ee6fe1e34f59c9006bd7e5ce4ddc98bcfbe4bb53fc387bd272"
+      "path": "artifacts/coverage-matrix/2026.11.0.json",
+      "sha256": "e7a0e72dd1104e0cddf9d149dec557fa90b21580f9568104459c104635e001e4"
     },
     {
       "path": "artifacts/validation/2026.10.4.json",

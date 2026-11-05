@@ -8,6 +8,7 @@ import {
   validateDataset,
   validateReleaseLineage,
 } from "../src/build";
+import { coverageContract, validateCoverageContract } from "../src/coverage";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
 import {
@@ -37,6 +38,9 @@ describe("UK tax rule dataset", () => {
       '"legalStatus": "enacted"',
     );
     expect(first.has("artifacts/announced/2026.10.4.json")).toBe(false);
+    expect(first.get("artifacts/coverage-matrix/2026.11.0.json")).toContain(
+      '"coverageContractVersion": "2026.11.0"',
+    );
     expect(first.get("artifacts/manifest.json")).not.toContain(
       "artifacts/announced/2026.10.4.json",
     );
@@ -44,6 +48,49 @@ describe("UK tax rule dataset", () => {
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
+  });
+
+  it("publishes traceable coverage by user flow", () => {
+    const contract = validateCoverageContract(
+      packageRoot,
+      ruleDataset,
+      validationCorpus,
+    );
+
+    expect(contract.userFlows.map(({ id }) => id)).toEqual([
+      "salary-history",
+      "job-move-forecast",
+      "household-tax-position",
+      "side-income-scenarios",
+    ]);
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "payslip-reconciliation"),
+    ).toMatchObject({
+      status: "explicitly-unavailable",
+      calculationKinds: ["period-exact-payroll-calculation"],
+    });
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "annualised-national-insurance-fallback"),
+    ).toMatchObject({ status: "approximate" });
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "sole-trader-tax-and-obligations")
+        ?.evidence.workGraphTicketIds,
+    ).toEqual(["finance-side-income-02-sole-trader"]);
+    expect(coverageContract.providerEvaluations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: "TaxScope", decision: "rejected" }),
+        expect.objectContaining({
+          provider: "@saving-tool/hmrc-income-tax",
+          decision: "accepted",
+        }),
+      ]),
+    );
   });
 
   it("requires a superseded enacted artifact to remain available", () => {
