@@ -18,12 +18,25 @@ const githubResult = {
     { status: "COMPLETED", conclusion: "SUCCESS" },
     { state: "SUCCESS" },
   ],
-  files: [{ path: "workers/work-graph-api/src/index.ts" }],
 };
+const githubFilesResult = [
+  {
+    filename: "workers/work-graph-api/src/index.ts",
+    previous_filename: "workers/legacy-api/src/index.ts",
+  },
+];
+
+const githubRunner = (
+  pullRequest: unknown = githubResult,
+  files: unknown = githubFilesResult,
+) =>
+  vi.fn(async (args: readonly string[]) =>
+    JSON.stringify(args[0] === "pr" ? pullRequest : files),
+  );
 
 describe("GitHub pull-request inspection", () => {
   it("maps gh output into a Work Graph snapshot", async () => {
-    const runGitHub = vi.fn(async () => JSON.stringify(githubResult));
+    const runGitHub = githubRunner();
 
     await expect(
       inspectGitHubPullRequest(githubResult.url, {
@@ -43,31 +56,40 @@ describe("GitHub pull-request inspection", () => {
       reviewDecision: "changes_requested",
       checkSummary: "success",
       observedAt: "2026-09-20T15:00:00.000Z",
-      changedPaths: ["workers/work-graph-api/src/index.ts"],
+      changedPaths: [
+        "workers/legacy-api/src/index.ts",
+        "workers/work-graph-api/src/index.ts",
+      ],
     });
     expect(runGitHub).toHaveBeenCalledWith([
       "pr",
       "view",
       githubResult.url,
       "--json",
-      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup,files",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
+    ]);
+    expect(runGitHub).toHaveBeenCalledWith([
+      "api",
+      "--paginate",
+      "--slurp",
+      "repos/example/work-graph/pulls/42/files",
+      "--jq",
+      "[.[][] | {filename, previous_filename}]",
     ]);
   });
 
   it("maps merged PRs without a review decision or checks", async () => {
-    const runGitHub = vi.fn(async () =>
-      JSON.stringify({
-        ...githubResult,
-        state: "MERGED",
-        mergeCommit: {
-          oid: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
-        },
-        isDraft: false,
-        mergeable: "UNKNOWN",
-        reviewDecision: "",
-        statusCheckRollup: [],
-      }),
-    );
+    const runGitHub = githubRunner({
+      ...githubResult,
+      state: "MERGED",
+      mergeCommit: {
+        oid: "ABCDEF0123456789ABCDEF0123456789ABCDEF01",
+      },
+      isDraft: false,
+      mergeable: "UNKNOWN",
+      reviewDecision: "",
+      statusCheckRollup: [],
+    });
 
     await expect(
       inspectGitHubPullRequest(githubResult.url, { runGitHub }),
@@ -100,12 +122,10 @@ describe("GitHub pull-request inspection", () => {
   });
 
   it("rejects a non-canonical GitHub PR URL returned by gh", async () => {
-    const runGitHub = vi.fn(async () =>
-      JSON.stringify({
-        ...githubResult,
-        url: "https://example.test/Example/Work-Graph/pull/42",
-      }),
-    );
+    const runGitHub = githubRunner({
+      ...githubResult,
+      url: "https://example.test/Example/Work-Graph/pull/42",
+    });
 
     await expect(
       inspectGitHubPullRequest(githubResult.url, { runGitHub }),
@@ -113,6 +133,27 @@ describe("GitHub pull-request inspection", () => {
       expect.objectContaining<Partial<CliError>>({
         code: "INVALID_GITHUB_RESPONSE",
         message: "gh returned an invalid pull-request URL.",
+      }),
+    );
+  });
+
+  it.each([
+    ["not JSON", "gh returned malformed pull-request file data."],
+    [
+      JSON.stringify([{ filename: "" }]),
+      "gh returned incomplete pull-request file data.",
+    ],
+  ])("rejects invalid pull-request file output %#", async (output, message) => {
+    const runGitHub = vi.fn(async (args: readonly string[]) =>
+      args[0] === "pr" ? JSON.stringify(githubResult) : output,
+    );
+
+    await expect(
+      inspectGitHubPullRequest(githubResult.url, { runGitHub }),
+    ).rejects.toEqual(
+      expect.objectContaining<Partial<CliError>>({
+        code: "INVALID_GITHUB_RESPONSE",
+        message,
       }),
     );
   });

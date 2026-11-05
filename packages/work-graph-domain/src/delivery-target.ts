@@ -130,7 +130,9 @@ export const normalizeGeneratedDeliveryMetadata = (
       "target.requiredCiNames",
     );
     const productionEnvironments = uniqueSorted(
-      target.productionEnvironments,
+      target.productionEnvironments.map((environment) =>
+        environment.toLowerCase(),
+      ),
       "target.productionEnvironments",
     );
     if (requiredCiNames.length === 0 || productionEnvironments.length === 0) {

@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import {
   type DeliveryEvidenceObservation,
   getDirectChildren,
@@ -270,7 +270,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(24);
+  expect(migrationCount?.count).toBe(25);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -302,6 +302,7 @@ beforeAll(async () => {
     "work_item_dependencies",
     "work_item_hierarchy",
     "work_item_priority_contexts",
+    "work_item_pull_request_current_delivery_resolutions",
     "work_item_pull_request_delivery_resolutions",
     "work_item_pull_requests",
     "work_item_references",
@@ -929,6 +930,9 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.attentionResolution);
     await transaction.delete(schema.attentionRequest);
+    await transaction.delete(
+      schema.workItemPullRequestCurrentDeliveryResolution,
+    );
     await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} disable trigger work_item_pull_request_delivery_resolutions_immutable`);
     await transaction.delete(schema.workItemPullRequestDeliveryResolution);
     await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} enable trigger work_item_pull_request_delivery_resolutions_immutable`);
@@ -2495,6 +2499,213 @@ describe("delivery evidence persistence", () => {
         },
       ],
     });
+  });
+
+  it("does not resolve overrides against legacy pull requests without changed paths", async () => {
+    await repository.createWorkItem({
+      id: "legacy-delivery-paths",
+      title: "Keep legacy delivery links unchanged",
+    });
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 93,
+      url: "https://github.com/example/work-graph/pull/93",
+      headSha: commitSha("3"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: null,
+      checkSummary: "unknown",
+      observedAt: "2026-09-22T10:00:00.000Z",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "legacy-delivery-paths",
+      repository: "example/work-graph",
+      number: 93,
+      role: "implementation",
+    });
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "legacy-delivery-paths",
+      targetIds: ["delivery-target:work-graph/api"],
+      updatedAt: "2026-09-22T11:00:00.000Z",
+    });
+
+    await expect(
+      db
+        .select()
+        .from(schema.workItemPullRequestDeliveryResolution)
+        .where(
+          eq(
+            schema.workItemPullRequestDeliveryResolution.workItemId,
+            "legacy-delivery-paths",
+          ),
+        ),
+    ).resolves.toEqual([]);
+    await expect(
+      repository.listAttentionRequests({ workItemId: "legacy-delivery-paths" }),
+    ).resolves.toEqual([]);
+  });
+
+  it("makes a replayed successful delivery resolution current again", async () => {
+    await repository.putKnowledgeScope({
+      id: "replayed-delivery-project",
+      kind: "project",
+      title: "Replayed delivery project",
+      canonicalUrl: "https://example.test/projects/replayed-delivery",
+      markdownUrl: "https://example.test/projects/replayed-delivery.md",
+    });
+    await repository.createWorkItem({
+      id: "replayed-delivery-resolution",
+      title: "Replay a generated target resolution",
+      schedulingProjectId: "replayed-delivery-project",
+    });
+    const target = (id: string, path: string) => ({
+      id: `delivery-target:replayed-delivery-project/${id}`,
+      projectId: "project:replayed-delivery-project",
+      repository: "example/work-graph",
+      sourcePaths: [
+        {
+          path,
+          mode: "shared" as const,
+          subjects: [`component:replayed-delivery-project/${id}`],
+        },
+      ],
+      subjects: [`workload:replayed-delivery-project/${id}`],
+      sharedHostId: "shared-host:replayed-delivery",
+      requiredCiNames: [`${id} CI`],
+      productionEnvironments: [`production-${id}`],
+    });
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "replay-catalog-v0",
+        targets: [target("api", "packages"), target("observer", "packages")],
+      },
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 94,
+      url: "https://github.com/example/work-graph/pull/94",
+      headSha: commitSha("4"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["packages/api/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "replayed-delivery-resolution",
+      repository: "example/work-graph",
+      number: 94,
+      role: "implementation",
+    });
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "replay-catalog-v1",
+        targets: [
+          target("api", "packages/api"),
+          target("observer", "packages/observer"),
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    const apiTargetId = "delivery-target:replayed-delivery-project/api";
+    const observerTargetId =
+      "delivery-target:replayed-delivery-project/observer";
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [apiTargetId],
+      updatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const [apiResolution] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        and(
+          eq(
+            schema.workItemPullRequestDeliveryResolution.workItemId,
+            "replayed-delivery-resolution",
+          ),
+          eq(
+            schema.workItemPullRequestDeliveryResolution.overrideTargetIds,
+            [apiTargetId],
+          ),
+        ),
+      );
+    if (!apiResolution) throw new Error("Expected the API resolution.");
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [observerTargetId],
+      updatedAt: "2026-09-22T13:00:00.000Z",
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "replayed-delivery-resolution",
+        state: "unresolved",
+      }),
+    ).resolves.toHaveLength(1);
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [apiTargetId],
+      updatedAt: "2026-09-22T14:00:00.000Z",
+    });
+
+    await expect(
+      db
+        .select()
+        .from(schema.workItemPullRequestCurrentDeliveryResolution)
+        .where(
+          eq(
+            schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+            "replayed-delivery-resolution",
+          ),
+        ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        resolutionId: apiResolution.id,
+        selectedAt: expect.any(Date),
+      }),
+    ]);
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "replayed-delivery-resolution",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([]);
+
+    await repository.putCompletionPolicyRevision({
+      policyId: "replayed-delivery-policy",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "replayed-delivery-resolution",
+      policyId: "replayed-delivery-policy",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    const evaluation = await repository.evaluateCompletionCandidate({
+      id: recordId(794),
+      workItemId: "replayed-delivery-resolution",
+      evaluatedAt: "2026-09-22T15:00:00.000Z",
+    });
+    expect(evaluation.reasons).not.toContain(
+      "missing_delivery_target_resolution",
+    );
   });
 
   it("fails closed with blocking attention when generated metadata is unavailable", async () => {

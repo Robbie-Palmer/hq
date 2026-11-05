@@ -64,6 +64,22 @@ describe("resolveDeliveryTargets", () => {
     });
   });
 
+  it("normalizes production environments for evidence matching", () => {
+    const mixedCaseTarget = {
+      ...target("api", "work-graph", "workers/work-graph-api"),
+      productionEnvironments: ["Production-API"],
+    };
+
+    expect(
+      resolveDeliveryTargets({
+        metadata: metadata([mixedCaseTarget]),
+        repository: "Robbie-Palmer/hq",
+        ticketProjectId: "work-graph",
+        changedPaths: ["workers/work-graph-api/src/index.ts"],
+      }).targets[0]?.productionEnvironments,
+    ).toEqual(["production-api"]);
+  });
+
   it("returns every target for a shared source path", () => {
     const result = resolveDeliveryTargets({
       metadata: metadata([

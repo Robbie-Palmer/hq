@@ -476,6 +476,39 @@ export const workItemPullRequestDeliveryResolution = pgTable(
   ],
 );
 
+export const workItemPullRequestCurrentDeliveryResolution = pgTable(
+  "work_item_pull_request_current_delivery_resolutions",
+  {
+    workItemId: text().notNull(),
+    repository: text().notNull(),
+    number: integer().notNull(),
+    resolutionId: uuid()
+      .notNull()
+      .references(() => workItemPullRequestDeliveryResolution.id, {
+        onDelete: "restrict",
+      }),
+    selectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_pr_current_delivery_resolutions_pk",
+      columns: [table.workItemId, table.repository, table.number],
+    }),
+    foreignKey({
+      name: "work_item_pr_current_delivery_resolutions_link_fk",
+      columns: [table.workItemId, table.repository, table.number],
+      foreignColumns: [
+        workItemPullRequest.workItemId,
+        workItemPullRequest.repository,
+        workItemPullRequest.number,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("work_item_pr_current_delivery_resolution_id_uidx").on(
+      table.resolutionId,
+    ),
+  ],
+);
+
 export const externalDelivery = pgTable(
   "external_deliveries",
   {

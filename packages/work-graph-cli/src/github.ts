@@ -30,8 +30,42 @@ const githubPullRequestSchema = z.object({
       state: z.string().optional(),
     }),
   ),
-  files: z.array(z.object({ path: z.string().min(1) })),
 });
+
+const githubPullRequestFilesSchema = z.array(
+  z.object({
+    filename: z.string().min(1),
+    previous_filename: z.string().min(1).nullish(),
+  }),
+);
+
+const parseGitHubPullRequestFiles = (raw: string): readonly string[] => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (cause) {
+    throw new CliError(
+      "INVALID_GITHUB_RESPONSE",
+      "gh returned malformed pull-request file data.",
+      EXIT_CODES.transport,
+      { cause },
+    );
+  }
+  const result = githubPullRequestFilesSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new CliError(
+      "INVALID_GITHUB_RESPONSE",
+      "gh returned incomplete pull-request file data.",
+      EXIT_CODES.transport,
+      { details: z.flattenError(result.error) },
+    );
+  }
+  return result.data.flatMap((file) =>
+    file.previous_filename === undefined || file.previous_filename === null
+      ? [file.filename]
+      : [file.filename, file.previous_filename],
+  );
+};
 
 type GitHubPullRequest = z.infer<typeof githubPullRequestSchema>;
 
@@ -150,7 +184,7 @@ export const inspectGitHubPullRequest = async (
       "view",
       url,
       "--json",
-      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup,files",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
     ]);
   } catch (cause) {
     throw new CliError(
@@ -212,6 +246,25 @@ export const inspectGitHubPullRequest = async (
           CHANGES_REQUESTED: "changes_requested",
           REVIEW_REQUIRED: "review_required",
         } as const)[pullRequest.reviewDecision];
+  let rawFiles: string;
+  try {
+    rawFiles = await runGitHub([
+      "api",
+      "--paginate",
+      "--slurp",
+      `repos/${returnedIdentity.repository}/pulls/${returnedIdentity.number}/files`,
+      "--jq",
+      "[.[][] | {filename, previous_filename}]",
+    ]);
+  } catch (cause) {
+    throw new CliError(
+      "GITHUB_LOOKUP_FAILED",
+      "Could not inspect the pull request files with gh. Check that gh is installed and authenticated.",
+      EXIT_CODES.transport,
+      { cause },
+    );
+  }
+  const changedPaths = parseGitHubPullRequestFiles(rawFiles);
 
   return {
     repository: returnedIdentity.repository,
@@ -235,8 +288,8 @@ export const inspectGitHubPullRequest = async (
     reviewDecision,
     checkSummary: summarizeChecks(pullRequest.statusCheckRollup),
     observedAt: (dependencies.now ?? (() => new Date()))().toISOString(),
-    changedPaths: [
-      ...new Set(pullRequest.files.map(({ path }) => path)),
-    ].toSorted((left, right) => left.localeCompare(right)),
+    changedPaths: [...new Set(changedPaths)].toSorted((left, right) =>
+      left.localeCompare(right),
+    ),
   };
 };

@@ -119,6 +119,7 @@ import {
   workItemHierarchy,
   workItemPriorityContext,
   workItemPullRequest,
+  workItemPullRequestCurrentDeliveryResolution,
   workItemPullRequestDeliveryResolution,
   workItemReference,
 } from "./schema";
@@ -2776,10 +2777,18 @@ export class WorkGraphRepository {
           number: workItemPullRequest.number,
         })
         .from(workItemPullRequest)
+        .innerJoin(
+          pullRequest,
+          and(
+            eq(pullRequest.repository, workItemPullRequest.repository),
+            eq(pullRequest.number, workItemPullRequest.number),
+          ),
+        )
         .where(
           and(
             eq(workItemPullRequest.workItemId, input.workItemId),
             eq(workItemPullRequest.role, "implementation"),
+            isNotNull(pullRequest.changedPaths),
           ),
         );
       const resolutionAt = await readDatabaseClock(transaction);
@@ -2871,7 +2880,7 @@ export class WorkGraphRepository {
         overrideTargetIds,
       });
 
-    const [createdSnapshot] = await transaction
+    await transaction
       .insert(workItemPullRequestDeliveryResolution)
       .values({
         id: resolutionId,
@@ -2887,33 +2896,51 @@ export class WorkGraphRepository {
         failureCode,
         resolvedAt: timestamp,
       })
-      .onConflictDoNothing()
-      .returning({ id: workItemPullRequestDeliveryResolution.id });
-    if (!createdSnapshot) {
-      const [stored] = await transaction
-        .select()
-        .from(workItemPullRequestDeliveryResolution)
-        .where(eq(workItemPullRequestDeliveryResolution.id, resolutionId))
-        .limit(1);
-      if (!stored) throw new Error("Delivery-target resolution replay is missing.");
-      return {
-        ...stored,
-        resolvedAt: stored.resolvedAt.toISOString(),
-      };
-    }
-    if (failureCode !== null) {
+      .onConflictDoNothing();
+    const [stored] = await transaction
+      .select()
+      .from(workItemPullRequestDeliveryResolution)
+      .where(eq(workItemPullRequestDeliveryResolution.id, resolutionId))
+      .limit(1);
+    if (!stored) throw new Error("Delivery-target resolution replay is missing.");
+    const [selectedCurrent] = await transaction
+      .insert(workItemPullRequestCurrentDeliveryResolution)
+      .values({
+        workItemId,
+        repository,
+        number,
+        resolutionId,
+        selectedAt: timestamp,
+      })
+      .onConflictDoUpdate({
+        target: [
+          workItemPullRequestCurrentDeliveryResolution.workItemId,
+          workItemPullRequestCurrentDeliveryResolution.repository,
+          workItemPullRequestCurrentDeliveryResolution.number,
+        ],
+        set: { resolutionId, selectedAt: timestamp },
+        setWhere: lte(
+          workItemPullRequestCurrentDeliveryResolution.selectedAt,
+          timestamp,
+        ),
+      })
+      .returning({
+        resolutionId:
+          workItemPullRequestCurrentDeliveryResolution.resolutionId,
+      });
+    if (selectedCurrent && stored.failureCode !== null) {
       await this.recordDeliveryResolutionAttention(transaction, {
         workItemId,
         repository,
         number,
         resolutionId,
-        failureCode,
+        failureCode: stored.failureCode,
         observedMetadataSourceRevision:
           snapshot.deliveryMetadataSourceRevision ?? "unavailable",
-        metadataSourceRevision,
+        metadataSourceRevision: stored.metadataSourceRevision,
         timestamp,
       });
-    } else {
+    } else if (selectedCurrent) {
       await this.resolveDeliveryResolutionAttention(transaction, {
         workItemId,
         repository,
@@ -2930,26 +2957,16 @@ export class WorkGraphRepository {
         resolutionId,
         repository,
         number,
-        headSha: snapshot.headSha,
-        metadataSourceRevision,
-        targetIds: targets.map(({ id }) => id),
-        subjects,
-        failureCode,
+        headSha: stored.headSha,
+        metadataSourceRevision: stored.metadataSourceRevision,
+        targetIds: stored.targets.map(({ id }) => id),
+        subjects: stored.subjects,
+        failureCode: stored.failureCode,
       },
     });
     return {
-      id: resolutionId,
-      workItemId,
-      repository,
-      number,
-      headSha: snapshot.headSha,
-      metadataSourceRevision,
-      changedPaths,
-      targets,
-      subjects,
-      overrideTargetIds,
-      failureCode,
-      resolvedAt: timestamp.toISOString(),
+      ...stored,
+      resolvedAt: stored.resolvedAt.toISOString(),
     };
   }
 
@@ -4332,11 +4349,19 @@ export class WorkGraphRepository {
     }[];
     const resolvedPullRequests = new Set<string>();
     const resolutions = await transaction
-      .select()
-      .from(workItemPullRequestDeliveryResolution)
-      .where(eq(workItemPullRequestDeliveryResolution.workItemId, item.id))
-      .orderBy(desc(workItemPullRequestDeliveryResolution.resolvedAt));
-    for (const resolution of resolutions) {
+      .select({ resolution: workItemPullRequestDeliveryResolution })
+      .from(workItemPullRequestCurrentDeliveryResolution)
+      .innerJoin(
+        workItemPullRequestDeliveryResolution,
+        eq(
+          workItemPullRequestDeliveryResolution.id,
+          workItemPullRequestCurrentDeliveryResolution.resolutionId,
+        ),
+      )
+      .where(
+        eq(workItemPullRequestCurrentDeliveryResolution.workItemId, item.id),
+      );
+    for (const { resolution } of resolutions) {
       const identity = `${resolution.repository}\0${resolution.number}`;
       if (resolvedPullRequests.has(identity)) continue;
       resolvedPullRequests.add(identity);
