@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
-import type { PullRequestSnapshot } from "./generated/client/types.gen.js";
 import { CliError, EXIT_CODES, usageError } from "./errors.js";
+import type { PullRequestSnapshot } from "./generated/client/types.gen.js";
 import { withoutWorkGraphCredentials } from "./self-update.js";
 
 const execFileAsync = promisify(execFile);
@@ -30,6 +30,7 @@ const githubPullRequestSchema = z.object({
       state: z.string().optional(),
     }),
   ),
+  files: z.array(z.object({ path: z.string().min(1) })),
 });
 
 type GitHubPullRequest = z.infer<typeof githubPullRequestSchema>;
@@ -149,7 +150,7 @@ export const inspectGitHubPullRequest = async (
       "view",
       url,
       "--json",
-      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup,files",
     ]);
   } catch (cause) {
     throw new CliError(
@@ -234,5 +235,8 @@ export const inspectGitHubPullRequest = async (
     reviewDecision,
     checkSummary: summarizeChecks(pullRequest.statusCheckRollup),
     observedAt: (dependencies.now ?? (() => new Date()))().toISOString(),
+    changedPaths: [
+      ...new Set(pullRequest.files.map(({ path }) => path)),
+    ].toSorted((left, right) => left.localeCompare(right)),
   };
 };

@@ -1,11 +1,12 @@
 import { createHash } from "node:crypto";
 import { and, eq, inArray, or } from "drizzle-orm";
 import {
+  type GitHubDelivery,
+  type GitHubObservation,
   InvalidGitHubDelivery,
   normalizeGitHubDelivery,
-  WorkGraphError,
-  type GitHubDelivery,
   type PullRequestSnapshot,
+  WorkGraphError,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
 import {
@@ -21,6 +22,100 @@ import {
 } from "./schema";
 
 type Disposition = typeof githubDeliveryProcessing.$inferSelect.disposition;
+
+async function previousTerminalDisposition(
+  transaction: DbTransaction,
+  deliveryId: string,
+): Promise<Disposition | undefined> {
+  // Share the PR/link event lock so association and projection are atomic
+  // with explicit links and concurrent consumers, including redeliveries.
+  await transaction
+    .select()
+    .from(graphMutationLock)
+    .where(eq(graphMutationLock.id, "event-sequence"))
+    .for("update");
+  const [previous] = await transaction
+    .select()
+    .from(githubDeliveryProcessing)
+    .where(eq(githubDeliveryProcessing.deliveryId, deliveryId));
+  return previous?.disposition === "processed" ||
+    previous?.disposition === "ignored"
+    ? previous.disposition
+    : undefined;
+}
+
+async function processObservation(
+  transaction: DbTransaction,
+  delivery: GitHubDelivery,
+  ingestedAt: string,
+): Promise<{ disposition: Disposition; observation: GitHubObservation | null }> {
+  const scopedRepository = new WorkGraphRepository(transaction);
+  const recordEvidence = (
+    input: Parameters<WorkGraphRepository["recordEvidenceObservation"]>[0],
+  ) => scopedRepository.recordEvidenceObservation(input, { projectCurrent: false });
+  const recordDeliveryAction = async (observationId: string) => {
+    await scopedRepository.recordDeliveryActionObservation(observationId);
+  };
+  const raw = normalizeGitHubDelivery(delivery);
+  const observation =
+    raw === null
+      ? null
+      : { ...raw, evidence: { ...raw.evidence, ingestedAt } };
+  if (observation?.pullRequest) {
+    if (observation.deliveryMetadata !== undefined) {
+      await scopedRepository.putDeliveryMetadataRevision(
+        observation.deliveryMetadata,
+        observation.deliveryMetadataCreatedAt ?? ingestedAt,
+      );
+    }
+    await refreshObservedPullRequest(transaction, observation.pullRequest);
+  }
+  const disposition =
+    observation === null
+      ? "ignored"
+      : await appendCorrelatedEvidence(
+          transaction,
+          observation,
+          recordEvidence,
+          recordDeliveryAction,
+        );
+  if (observation?.pullRequest) {
+    await correlateWaitingDeliveries(
+      transaction,
+      observation.pullRequest,
+      recordEvidence,
+      recordDeliveryAction,
+    );
+  }
+  return { disposition, observation };
+}
+
+async function storeProcessingDisposition(
+  transaction: DbTransaction,
+  delivery: GitHubDelivery,
+  disposition: Disposition,
+  observation: GitHubObservation | null,
+): Promise<void> {
+  await transaction
+    .insert(githubDeliveryProcessing)
+    .values({
+      deliveryId: delivery.deliveryId,
+      repository: delivery.repository.toLowerCase(),
+      commitSha: observation?.evidence.commitSha ?? null,
+      disposition,
+      observation,
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: githubDeliveryProcessing.deliveryId,
+      set: {
+        disposition,
+        observation,
+        failureCode: null,
+        updatedAt: new Date(),
+      },
+    });
+}
 
 function evaluationId(deliveryId: string, workItemId: string): string {
   const bytes = createHash("sha256")
@@ -53,85 +148,22 @@ export class GitHubDeliveryConsumer {
     });
     try {
       const disposition = await this.db.transaction(async (transaction) => {
-        // Share the PR/link event lock so association and projection are atomic
-        // with explicit links and concurrent consumers, including redeliveries.
-        await transaction
-          .select()
-          .from(graphMutationLock)
-          .where(eq(graphMutationLock.id, "event-sequence"))
-          .for("update");
-        const [previous] = await transaction
-          .select()
-          .from(githubDeliveryProcessing)
-          .where(eq(githubDeliveryProcessing.deliveryId, delivery.deliveryId));
-        if (
-          previous?.disposition === "processed" ||
-          previous?.disposition === "ignored"
-        ) {
-          return previous.disposition;
-        }
-        const scopedRepository = new WorkGraphRepository(transaction);
-        const recordEvidence = (
-          input: Parameters<
-            WorkGraphRepository["recordEvidenceObservation"]
-          >[0],
-        ) =>
-          scopedRepository.recordEvidenceObservation(input, {
-            projectCurrent: false,
-          });
-        const recordDeliveryAction = async (observationId: string) => {
-          await scopedRepository.recordDeliveryActionObservation(observationId);
-        };
-        const raw = normalizeGitHubDelivery(delivery);
-        const observation =
-          raw === null
-            ? null
-            : {
-                ...raw,
-                evidence: { ...raw.evidence, ingestedAt: receipt.ingestedAt },
-              };
-        if (observation?.pullRequest) {
-          await refreshObservedPullRequest(
-            transaction,
-            observation.pullRequest,
-          );
-        }
-        const disposition =
-          observation === null
-            ? "ignored"
-            : await appendCorrelatedEvidence(
-                transaction,
-                observation,
-                recordEvidence,
-                recordDeliveryAction,
-              );
-        await transaction
-          .insert(githubDeliveryProcessing)
-          .values({
-            deliveryId: delivery.deliveryId,
-            repository: delivery.repository.toLowerCase(),
-            commitSha: observation?.evidence.commitSha ?? null,
-            disposition,
-            observation,
-            updatedAt: new Date(),
-          })
-          .onConflictDoUpdate({
-            target: githubDeliveryProcessing.deliveryId,
-            set: {
-              disposition,
-              observation,
-              failureCode: null,
-              updatedAt: new Date(),
-            },
-          });
-        if (observation?.pullRequest) {
-          await correlateWaitingDeliveries(
-            transaction,
-            observation.pullRequest,
-            recordEvidence,
-            recordDeliveryAction,
-          );
-        }
+        const previous = await previousTerminalDisposition(
+          transaction,
+          delivery.deliveryId,
+        );
+        if (previous !== undefined) return previous;
+        const { disposition, observation } = await processObservation(
+          transaction,
+          delivery,
+          receipt.ingestedAt,
+        );
+        await storeProcessingDisposition(
+          transaction,
+          delivery,
+          disposition,
+          observation,
+        );
         return disposition;
       });
       const [processing] = await this.db

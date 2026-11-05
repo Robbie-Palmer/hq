@@ -10,10 +10,10 @@ import type {
   RepositoryCompletionPolicyDefaultRevision,
 } from "./model";
 import {
+  type CompletionCandidateReason,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
   EVIDENCE_CORRELATION_KINDS,
-  type CompletionCandidateReason,
 } from "./vocabulary";
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/i;
@@ -246,11 +246,23 @@ export const normalizeRepositoryCompletionPolicyDefaultRevision = (
   };
 };
 
+export interface PullRequestDeliveryTargetRequirements {
+  readonly repository: string;
+  readonly number: number;
+  readonly headSha: string;
+  readonly targets: readonly {
+    readonly id: string;
+    readonly requiredCiNames: readonly string[];
+    readonly productionEnvironments: readonly string[];
+  }[];
+}
+
 export interface CompletionCandidateInput {
   readonly workItemId: string;
   readonly policy: CompletionPolicyRevision;
   readonly implementationPullRequests: readonly PullRequestSnapshot[];
   readonly evidence: readonly CurrentDeliveryEvidence[];
+  readonly deliveryTargetRequirements?: readonly PullRequestDeliveryTargetRequirements[];
   readonly hasUnfinishedChildren: boolean;
   readonly hasUnsatisfiedDependencies: boolean;
   readonly hasUnresolvedBlockingAttention: boolean;
@@ -277,10 +289,51 @@ interface PullRequestEvidenceEvaluation {
   readonly evidenceObservationIds: readonly string[];
 }
 
+const evaluateTargetEvidence = (
+  pullRequest: PullRequestSnapshot,
+  repository: string,
+  target: PullRequestDeliveryTargetRequirements["targets"][number],
+  evidence: readonly CurrentDeliveryEvidence[],
+  reasons: Set<CompletionCandidateReason>,
+  evidenceIds: Set<string>,
+): void => {
+  for (const requiredCiName of target.requiredCiNames) {
+    const ciEvidence = matchingSuccess(
+      evidence,
+      (item) =>
+        item.kind === "ci" &&
+        item.repository === repository &&
+        item.commitSha === pullRequest.acceptedHeadSha &&
+        item.name === requiredCiName &&
+        item.correlationKind === "pull_request_head" &&
+        item.pullRequestRepository === repository &&
+        item.pullRequestNumber === pullRequest.number,
+    );
+    if (ciEvidence) evidenceIds.add(ciEvidence.id);
+    else reasons.add("missing_required_ci");
+  }
+
+  const deploymentEvidence = matchingSuccess(
+    evidence,
+    (item) =>
+      item.kind === "deployment" &&
+      item.repository === repository &&
+      item.commitSha === pullRequest.mergeCommitSha &&
+      item.environment !== null &&
+      target.productionEnvironments.includes(item.environment) &&
+      item.correlationKind === "pull_request_merge" &&
+      item.pullRequestRepository === repository &&
+      item.pullRequestNumber === pullRequest.number,
+  );
+  if (deploymentEvidence) evidenceIds.add(deploymentEvidence.id);
+  else reasons.add("missing_production_deployment");
+};
+
 const evaluatePullRequestEvidence = (
   pullRequest: PullRequestSnapshot,
   policy: CompletionPolicyRevision,
   evidence: readonly CurrentDeliveryEvidence[],
+  deliveryTargets?: PullRequestDeliveryTargetRequirements["targets"],
 ): PullRequestEvidenceEvaluation => {
   const reasons = new Set<CompletionCandidateReason>();
   const evidenceIds = new Set<string>();
@@ -309,36 +362,26 @@ const evaluatePullRequestEvidence = (
   if (pullRequestEvidence) evidenceIds.add(pullRequestEvidence.id);
   else reasons.add("missing_pull_request_evidence");
 
-  for (const requiredCiName of policy.requiredCiNames) {
-    const ciEvidence = matchingSuccess(
+  const requirements =
+    deliveryTargets === undefined
+      ? [
+          {
+            id: policy.policyId,
+            requiredCiNames: policy.requiredCiNames,
+            productionEnvironments: policy.productionEnvironments,
+          },
+        ]
+      : deliveryTargets;
+  for (const target of requirements) {
+    evaluateTargetEvidence(
+      pullRequest,
+      repository,
+      target,
       evidence,
-      (item) =>
-        item.kind === "ci" &&
-        item.repository === repository &&
-        item.commitSha === pullRequest.acceptedHeadSha &&
-        item.name === requiredCiName &&
-        item.correlationKind === "pull_request_head" &&
-        item.pullRequestRepository === repository &&
-        item.pullRequestNumber === pullRequest.number,
+      reasons,
+      evidenceIds,
     );
-    if (ciEvidence) evidenceIds.add(ciEvidence.id);
-    else reasons.add("missing_required_ci");
   }
-
-  const deploymentEvidence = matchingSuccess(
-    evidence,
-    (item) =>
-      item.kind === "deployment" &&
-      item.repository === repository &&
-      item.commitSha === pullRequest.mergeCommitSha &&
-      item.environment !== null &&
-      policy.productionEnvironments.includes(item.environment) &&
-      item.correlationKind === "pull_request_merge" &&
-      item.pullRequestRepository === repository &&
-      item.pullRequestNumber === pullRequest.number,
-  );
-  if (deploymentEvidence) evidenceIds.add(deploymentEvidence.id);
-  else reasons.add("missing_production_deployment");
   return {
     reasons: [...reasons],
     evidenceObservationIds: [...evidenceIds],
@@ -356,10 +399,21 @@ export const evaluateCompletionCandidate = (
   }
 
   for (const pullRequest of input.implementationPullRequests) {
+    const deliveryTargets = input.deliveryTargetRequirements?.find(
+      (requirement) =>
+        requirement.repository.toLowerCase() ===
+          pullRequest.repository.toLowerCase() &&
+        requirement.number === pullRequest.number &&
+        requirement.headSha === pullRequest.headSha,
+    )?.targets;
+    if (pullRequest.changedPaths !== undefined && deliveryTargets === undefined) {
+      reasons.add("missing_delivery_target_resolution");
+    }
     const pullRequestEvaluation = evaluatePullRequestEvidence(
       pullRequest,
       policy,
       input.evidence,
+      deliveryTargets,
     );
     for (const reason of pullRequestEvaluation.reasons) reasons.add(reason);
     for (const id of pullRequestEvaluation.evidenceObservationIds) {

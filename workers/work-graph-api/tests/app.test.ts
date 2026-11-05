@@ -1,15 +1,15 @@
-import {
-  WorkGraphError,
-  type CriticalPathProjection,
-  type WorkItemLifecycle,
-  type WorkStage,
-} from "work-graph-domain";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DecomposeClaimedWorkItemInput,
   StoredLease,
   WorkItemReadModel,
 } from "work-graph-db";
-import { describe, expect, it, vi } from "vitest";
+import {
+  type CriticalPathProjection,
+  WorkGraphError,
+  type WorkItemLifecycle,
+  type WorkStage,
+} from "work-graph-domain";
 import {
   createWorkGraphApp,
   type WorkGraphApiRepository,
@@ -161,6 +161,8 @@ const buildRepository = (): WorkGraphApiRepository => ({
   getCompletionCandidate: vi.fn(async () => null),
   putCompletionPolicyRevision: vi.fn(async (input) => input),
   putRepositoryCompletionPolicyDefaultRevision: vi.fn(async (input) => input),
+  putDeliveryMetadataRevision: vi.fn(async (input) => input),
+  putDeliveryTargetOverride: vi.fn(async () => undefined),
   putDeliveryActionRequest: vi.fn(async (input) => input),
   listDeliveryRecoveries: vi.fn(async () => []),
   reserveDeliveryRecovery: vi.fn(async (input) => ({
@@ -230,6 +232,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
       workItemId: input.workItemId,
       requestingLeaseId: input.leaseId,
       deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: input.kind,
       question: input.question,
       note: input.note ?? null,
@@ -1151,6 +1154,64 @@ describe("Given work items with derived readiness", () => {
     });
   });
 
+  it("stores generated delivery metadata and explicit target subsets", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+    const target = {
+      id: "delivery-target:work-graph/api",
+      projectId: "project:work-graph",
+      repository: "Robbie-Palmer/hq",
+      sourcePaths: [
+        {
+          path: "workers/work-graph-api",
+          mode: "exclusive",
+          subjects: ["component:work-graph/work-graph-api"],
+        },
+      ],
+      subjects: ["component:work-graph/work-graph-api"],
+      sharedHostId: null,
+      requiredCiNames: ["Work Graph API CI"],
+      productionEnvironments: ["production-work-graph"],
+    } as const;
+
+    const metadata = await app.request(
+      "/api/github/repositories/Robbie-Palmer/hq/delivery-metadata-revisions/catalog-v1",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targets: [target], createdAt }),
+      },
+    );
+    const override = await app.request(
+      "/api/work-items/ticket/delivery-target-override",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          targetIds: [target.id],
+          updatedAt: createdAt,
+        }),
+      },
+    );
+
+    expect(metadata.status).toBe(200);
+    expect(repository.putDeliveryMetadataRevision).toHaveBeenCalledWith(
+      {
+        repository: "Robbie-Palmer/hq",
+        sourceRevision: "catalog-v1",
+        targets: [target],
+      },
+      createdAt,
+    );
+    expect(override.status).toBe(200);
+    expect(repository.putDeliveryTargetOverride).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      targetIds: [target.id],
+      updatedAt: createdAt,
+    });
+  });
+
   it("records delivery actions and lets the initiating session pull and reserve recovery", async () => {
     const repository = buildRepository();
     const actionRequest = {
@@ -1524,6 +1585,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       workItemId: "ready",
       requestingLeaseId: leaseId,
       deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "decision",
       question: "Which contract is canonical?",
       note: null,
@@ -1536,6 +1598,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       workItemId: "resolved",
       requestingLeaseId: leaseId,
       deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "review",
       question: "Is the wording clear?",
       note: null,
@@ -1553,6 +1616,7 @@ describe("Given a worker recording progress and requesting attention", () => {
       workItemId: "other",
       requestingLeaseId: leaseId,
       deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "input",
       question: "Which option applies?",
       note: null,
@@ -1776,6 +1840,7 @@ describe("Given a worker recording progress and requesting attention", () => {
         workItemId: "ready",
         requestingLeaseId: leaseId,
         deliveryRecoveryId: null,
+        deliveryResolutionId: null,
         kind: "decision",
         question: "Which contract is canonical?",
         note: "Compare both options.",

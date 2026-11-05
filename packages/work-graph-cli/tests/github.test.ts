@@ -18,6 +18,7 @@ const githubResult = {
     { status: "COMPLETED", conclusion: "SUCCESS" },
     { state: "SUCCESS" },
   ],
+  files: [{ path: "workers/work-graph-api/src/index.ts" }],
 };
 
 describe("GitHub pull-request inspection", () => {
@@ -42,13 +43,14 @@ describe("GitHub pull-request inspection", () => {
       reviewDecision: "changes_requested",
       checkSummary: "success",
       observedAt: "2026-09-20T15:00:00.000Z",
+      changedPaths: ["workers/work-graph-api/src/index.ts"],
     });
     expect(runGitHub).toHaveBeenCalledWith([
       "pr",
       "view",
       githubResult.url,
       "--json",
-      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup",
+      "number,url,headRefOid,mergeCommit,state,isDraft,mergeable,reviewDecision,statusCheckRollup,files",
     ]);
   });
 

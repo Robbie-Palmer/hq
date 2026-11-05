@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean,
   bigint,
+  boolean,
   check,
   foreignKey,
   index,
@@ -25,6 +25,8 @@ import {
   DELIVERY_RECOVERY_DELIVERY_KINDS,
   DELIVERY_RECOVERY_FALLBACKS,
   EVIDENCE_CORRELATION_KINDS,
+  type GeneratedDeliveryTarget,
+  type GitHubObservation,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
@@ -33,9 +35,9 @@ import {
   PULL_REQUEST_REVIEW_DECISIONS,
   PULL_REQUEST_ROLES,
   PULL_REQUEST_STATES,
+  type ResolvedDeliveryTargetSnapshot,
   WORK_ITEM_CONTEXT_KINDS,
   WORK_ITEM_LIFECYCLES,
-  type GitHubObservation,
 } from "work-graph-domain";
 
 export const workItemContextKindEnum = pgEnum(
@@ -314,6 +316,8 @@ export const pullRequest = pgTable(
     mergeability: pullRequestMergeabilityEnum().notNull(),
     reviewDecision: pullRequestReviewDecisionEnum(),
     checkSummary: pullRequestCheckSummaryEnum().notNull(),
+    changedPaths: text().array(),
+    deliveryMetadataSourceRevision: text(),
     observedAt: timestamp({ withTimezone: true }).notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
@@ -378,6 +382,96 @@ export const workItemPullRequest = pgTable(
     index("work_item_pull_requests_pull_request_idx").on(
       table.repository,
       table.number,
+    ),
+  ],
+);
+
+export const deliveryMetadataRevision = pgTable(
+  "delivery_metadata_revisions",
+  {
+    repository: text().notNull(),
+    sourceRevision: text().notNull(),
+    targets: jsonb().$type<readonly GeneratedDeliveryTarget[]>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "delivery_metadata_revisions_pk",
+      columns: [table.repository, table.sourceRevision],
+    }),
+    index("delivery_metadata_revisions_current_idx").on(
+      table.repository,
+      table.createdAt,
+    ),
+    check(
+      "delivery_metadata_revisions_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "delivery_metadata_revisions_source_revision_not_blank_check",
+      sql`btrim(${table.sourceRevision}) <> ''`,
+    ),
+    check(
+      "delivery_metadata_revisions_targets_not_empty_check",
+      sql`jsonb_array_length(${table.targets}) > 0`,
+    ),
+  ],
+);
+
+export const workItemDeliveryTargetOverride = pgTable(
+  "work_item_delivery_target_overrides",
+  {
+    workItemId: text()
+      .primaryKey()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    targetIds: text().array().notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "work_item_delivery_target_overrides_targets_not_empty_check",
+      sql`cardinality(${table.targetIds}) > 0`,
+    ),
+  ],
+);
+
+export const workItemPullRequestDeliveryResolution = pgTable(
+  "work_item_pull_request_delivery_resolutions",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text().notNull(),
+    repository: text().notNull(),
+    number: integer().notNull(),
+    headSha: text().notNull(),
+    metadataSourceRevision: text().notNull(),
+    changedPaths: text().array().notNull(),
+    targets: jsonb()
+      .$type<readonly ResolvedDeliveryTargetSnapshot[]>()
+      .notNull(),
+    subjects: text().array().notNull(),
+    overrideTargetIds: text().array().notNull(),
+    failureCode: text(),
+    resolvedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "work_item_pull_request_delivery_resolutions_link_fk",
+      columns: [table.workItemId, table.repository, table.number],
+      foreignColumns: [
+        workItemPullRequest.workItemId,
+        workItemPullRequest.repository,
+        workItemPullRequest.number,
+      ],
+    }).onDelete("restrict"),
+    index("work_item_pull_request_delivery_resolutions_current_idx").on(
+      table.workItemId,
+      table.repository,
+      table.number,
+      table.resolvedAt,
+    ),
+    check(
+      "work_item_pull_request_delivery_resolutions_failure_check",
+      sql`(${table.failureCode} is null and jsonb_array_length(${table.targets}) > 0) or (${table.failureCode} is not null and jsonb_array_length(${table.targets}) = 0)`,
     ),
   ],
 );
@@ -1029,6 +1123,10 @@ export const attentionRequest = pgTable(
     deliveryRecoveryId: uuid().references(() => deliveryRecovery.id, {
       onDelete: "restrict",
     }),
+    deliveryResolutionId: uuid().references(
+      () => workItemPullRequestDeliveryResolution.id,
+      { onDelete: "restrict" },
+    ),
     kind: text().notNull(),
     question: text().notNull(),
     note: text(),
@@ -1048,9 +1146,12 @@ export const attentionRequest = pgTable(
     uniqueIndex("attention_requests_delivery_recovery_id_uidx")
       .on(table.deliveryRecoveryId)
       .where(sql`${table.deliveryRecoveryId} is not null`),
+    uniqueIndex("attention_requests_delivery_resolution_id_uidx")
+      .on(table.deliveryResolutionId)
+      .where(sql`${table.deliveryResolutionId} is not null`),
     check(
       "attention_requests_source_check",
-      sql`(${table.requestingLeaseId} is not null) <> (${table.deliveryRecoveryId} is not null)`,
+      sql`num_nonnulls(${table.requestingLeaseId}, ${table.deliveryRecoveryId}, ${table.deliveryResolutionId}) = 1`,
     ),
     check(
       "attention_requests_kind_not_blank_check",

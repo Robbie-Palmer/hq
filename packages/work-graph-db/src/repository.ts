@@ -10,78 +10,82 @@ import {
   lt,
   lte,
   or,
-  sql,
   type SQL,
+  sql,
 } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
-  createKnowledgeScope,
-  createWorkGraph,
-  evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
-  getWorkItemSchedulingOwner,
-  getUnsatisfiedDependencies,
-  MAX_CRITICAL_PATH_BLOCKING_PATHS,
-  MAX_CRITICAL_PATH_NODES,
-  normalizeAndValidateContextRecords,
-  normalizeDeliveryActionRequest,
-  normalizeDeliveryRecoveryDelivery,
-  normalizeKnowledgeScopeArchiveReason,
-  normalizeCompletionPolicyRevision,
-  normalizeRepositoryCompletionPolicyDefaultRevision,
-  normalizeEvidenceObservation,
-  normalizeExternalDelivery,
-  normalizeWorkItemSelectionScope,
-  orderWorkItemsByPriority,
-  projectCriticalPath as projectDomainCriticalPath,
-  projectWorkItemPriorityFromCandidates,
-  projectWorkItemPriorities,
-  projectWorkItemStage,
-  projectWorkItemStageFromFacts,
-  resolveWorkItemContext as resolveDomainWorkItemContext,
-  validatePostReleaseNote,
-  validateKnowledgeScopeRelationships,
-  WorkGraphError,
-  type CriticalPathProjection,
   type CompletionCandidateEvaluation,
   type CompletionCandidateReason,
   type CompletionPolicyRevision,
+  type CriticalPathProjection,
   type CurrentDeliveryEvidence,
+  createKnowledgeScope,
+  createWorkGraph,
+  type DeliveryActionRequest,
   type DeliveryEvidenceKind,
   type DeliveryEvidenceObservation,
-  type DeliveryActionRequest,
   type DeliveryRecoveryDelivery,
   type DeliveryRecoveryRecord,
   type ExternalDelivery,
+  evaluateCompletionCandidate as evaluateDomainCompletionCandidate,
+  type GeneratedDeliveryMetadataRevision,
+  getUnsatisfiedDependencies,
+  getWorkItemSchedulingOwner,
   type KnowledgeScope,
   type KnowledgeScopeInput,
   type KnowledgeScopeRelationship,
+  MAX_CRITICAL_PATH_BLOCKING_PATHS,
+  MAX_CRITICAL_PATH_NODES,
   type NewWorkItemInput,
+  normalizeAndValidateContextRecords,
+  normalizeCompletionPolicyRevision,
+  normalizeDeliveryActionRequest,
+  normalizeDeliveryRecoveryDelivery,
+  normalizeEvidenceObservation,
+  normalizeExternalDelivery,
+  normalizeGeneratedDeliveryMetadata,
+  normalizeKnowledgeScopeArchiveReason,
+  normalizeRepositoryCompletionPolicyDefaultRevision,
+  normalizeWorkItemSelectionScope,
+  orderWorkItemsByPriority,
   type PullRequestSnapshot,
+  projectCriticalPath as projectDomainCriticalPath,
+  projectWorkItemPriorities,
+  projectWorkItemPriorityFromCandidates,
+  projectWorkItemStage,
+  projectWorkItemStageFromFacts,
   type RepositoryCompletionPolicyDefaultRevision,
+  type ResolvedDeliveryTargetSnapshot,
   type ResolvedWorkItemContext,
+  resolveDeliveryTargets,
+  resolveWorkItemContext as resolveDomainWorkItemContext,
   type TerminalWorkItemState,
+  validateKnowledgeScopeRelationships,
+  validatePostReleaseNote,
   type WorkGraph,
+  WorkGraphError,
   type WorkItem,
   type WorkItemArchitectureDecision,
   type WorkItemContext,
   type WorkItemDependency,
-  type WorkItemPriorityProjection,
   type WorkItemPriorityCandidate,
+  type WorkItemPriorityProjection,
   type WorkItemPullRequest,
-  type WorkStage,
   type WorkItemReference,
   type WorkItemSelectionScope,
+  type WorkStage,
 } from "work-graph-domain";
 import type { Db, DbTransaction } from "./connection";
 import { correlateWaitingDeliveries } from "./github-correlation";
 import { claimableWorkItemWhere } from "./queries/claimable-work-item";
 import {
-  graphCycleQuery,
   type GraphCycleRow,
+  graphCycleQuery,
 } from "./queries/graph-cycle";
 import {
-  workItemPageQuery,
   type WorkItemPageRow,
+  workItemPageQuery,
 } from "./queries/work-item-page";
 import {
   attentionRequest,
@@ -92,6 +96,7 @@ import {
   deliveryActionRequest,
   deliveryActionResult,
   deliveryEvidenceObservation,
+  deliveryMetadataRevision,
   deliveryRecovery,
   deliveryRecoveryDelivery,
   event,
@@ -106,13 +111,15 @@ import {
   repositoryCompletionPolicyDefaultRevision,
   workItem,
   workItemArchitectureDecision,
-  workItemContext,
   workItemCompletionCandidate,
   workItemCompletionPolicy,
+  workItemContext,
+  workItemDeliveryTargetOverride,
   workItemDependency,
   workItemHierarchy,
   workItemPriorityContext,
   workItemPullRequest,
+  workItemPullRequestDeliveryResolution,
   workItemReference,
 } from "./schema";
 
@@ -130,6 +137,57 @@ const isActionableDeliveryObservation = (
   observation: typeof deliveryEvidenceObservation.$inferSelect,
 ): observation is ActionableDeliveryObservation =>
   observation.kind !== "ci" && observation.state !== "pending";
+
+interface DeliveryTargetResolutionOutcome {
+  readonly targets: readonly ResolvedDeliveryTargetSnapshot[];
+  readonly subjects: readonly string[];
+  readonly changedPaths: readonly string[];
+  readonly failureCode: string | null;
+}
+
+const resolveDeliveryTargetOutcome = (input: {
+  readonly metadata: typeof deliveryMetadataRevision.$inferSelect | undefined;
+  readonly snapshot: PullRequestSnapshot;
+  readonly repository: string;
+  readonly schedulingProjectId: string | null;
+  readonly overrideTargetIds: readonly string[];
+}): DeliveryTargetResolutionOutcome => {
+  const changedPaths = input.snapshot.changedPaths ?? [];
+  try {
+    if (!input.metadata) {
+      throw new WorkGraphError(
+        "delivery_metadata_missing",
+        `No generated delivery metadata is available for ${input.repository}.`,
+      );
+    }
+    if (
+      input.snapshot.deliveryMetadataSourceRevision !== undefined &&
+      input.snapshot.deliveryMetadataSourceRevision !==
+        input.metadata.sourceRevision
+    ) {
+      throw new WorkGraphError(
+        "delivery_metadata_stale",
+        `Pull request metadata revision ${input.snapshot.deliveryMetadataSourceRevision} is not the current catalog revision ${input.metadata.sourceRevision}.`,
+      );
+    }
+    const resolution = resolveDeliveryTargets({
+      metadata: {
+        repository: input.metadata.repository,
+        sourceRevision: input.metadata.sourceRevision,
+        targets: input.metadata.targets,
+      },
+      repository: input.repository,
+      ticketProjectId: input.schedulingProjectId,
+      changedPaths,
+      overrideTargetIds: input.overrideTargetIds,
+    });
+    return { ...resolution, failureCode: null };
+  } catch (error) {
+    if (!(error instanceof WorkGraphError)) throw error;
+    return { targets: [], subjects: [], changedPaths, failureCode: error.code };
+  }
+};
+
 const deterministicUuid = (namespace: string, ...parts: readonly string[]): string => {
   const hash = createHash("sha256").update(namespace);
   for (const part of parts) hash.update("\0").update(part);
@@ -181,6 +239,7 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "knowledge_scope_relationship.added",
   "knowledge_scope_relationship.removed",
   "reference.put",
+  "pull_request.delivery_targets_resolved",
   "pull_request.linked",
   "pull_request.refreshed",
   "lease.claimed",
@@ -427,6 +486,27 @@ export interface CreateAttentionRequestInput {
 export interface CreateAttentionRequestResult {
   readonly attentionRequest: StoredAttentionRequest;
   readonly endedLease: StoredLease | null;
+}
+
+export interface PutDeliveryTargetOverrideInput {
+  readonly workItemId: string;
+  readonly targetIds: readonly string[];
+  readonly updatedAt: string;
+}
+
+export interface StoredDeliveryTargetResolution {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly repository: string;
+  readonly number: number;
+  readonly headSha: string;
+  readonly metadataSourceRevision: string;
+  readonly changedPaths: readonly string[];
+  readonly targets: readonly ResolvedDeliveryTargetSnapshot[];
+  readonly subjects: readonly string[];
+  readonly overrideTargetIds: readonly string[];
+  readonly failureCode: string | null;
+  readonly resolvedAt: string;
 }
 
 export interface ResolveAttentionRequestInput {
@@ -2338,62 +2418,118 @@ export class WorkGraphRepository {
       requireIdempotencyKey(options.idempotencyKey);
     }
 
-    return this.db.transaction(async (transaction) => {
-      await this.lockEventSequence(transaction);
-      if (options.idempotencyKey !== undefined) {
-        const replayed = await this.beginIdempotentMutation(
-          transaction,
-          options.idempotencyKey,
-          "refresh-pull-request",
-          JSON.stringify(normalized),
-        );
-        if (replayed) {
-          return this.requireStoredPullRequest(
-            transaction,
-            normalized.repository,
-            normalized.number,
-          );
-        }
-      }
+    return this.db.transaction((transaction) =>
+      this.refreshPullRequestInTransaction(transaction, normalized, options),
+    );
+  }
 
-      const refreshed = await transaction
-        .insert(pullRequest)
-        .values({
-          ...normalized,
-          observedAt: new Date(normalized.observedAt),
-        })
-        .onConflictDoUpdate({
-          target: [pullRequest.repository, pullRequest.number],
-          set: {
-            url: normalized.url,
-            headSha: normalized.headSha,
-            acceptedHeadSha: normalized.acceptedHeadSha,
-            mergeCommitSha: normalized.mergeCommitSha,
-            state: normalized.state,
-            draft: normalized.draft,
-            mergeability: normalized.mergeability,
-            reviewDecision: normalized.reviewDecision,
-            checkSummary: normalized.checkSummary,
-            observedAt: new Date(normalized.observedAt),
-          },
-          setWhere: lte(
-            pullRequest.observedAt,
-            new Date(normalized.observedAt),
-          ),
-        })
-        .returning({ repository: pullRequest.repository });
-      if (refreshed.length > 0) {
-        await this.appendEvent(transaction, {
-          type: "pull_request.refreshed",
-          data: { ...normalized },
-        });
-      }
-      return this.requireStoredPullRequest(
+  private async refreshPullRequestInTransaction(
+    transaction: DbTransaction,
+    normalized: PullRequestSnapshot,
+    options: IdempotentMutationOptions,
+  ): Promise<PullRequestSnapshot> {
+    await this.lockEventSequence(transaction);
+    if (options.idempotencyKey !== undefined) {
+      const replayed = await this.beginIdempotentMutation(
         transaction,
+        options.idempotencyKey,
+        "refresh-pull-request",
+        JSON.stringify(normalized),
+      );
+      if (replayed) {
+        return this.requireStoredPullRequest(
+          transaction,
+          normalized.repository,
+          normalized.number,
+        );
+      }
+    }
+    const refreshed = await this.upsertPullRequestSnapshot(
+      transaction,
+      normalized,
+    );
+    if (refreshed) {
+      await this.recordPullRequestRefresh(transaction, normalized);
+    }
+    return this.requireStoredPullRequest(
+      transaction,
+      normalized.repository,
+      normalized.number,
+    );
+  }
+
+  private async upsertPullRequestSnapshot(
+    transaction: DbTransaction,
+    normalized: PullRequestSnapshot,
+  ): Promise<boolean> {
+    const refreshed = await transaction
+      .insert(pullRequest)
+      .values({
+        ...normalized,
+        changedPaths:
+          normalized.changedPaths === undefined
+            ? null
+            : [...normalized.changedPaths],
+        observedAt: new Date(normalized.observedAt),
+      })
+      .onConflictDoUpdate({
+        target: [pullRequest.repository, pullRequest.number],
+        set: {
+          url: normalized.url,
+          headSha: normalized.headSha,
+          acceptedHeadSha: normalized.acceptedHeadSha,
+          mergeCommitSha: normalized.mergeCommitSha,
+          state: normalized.state,
+          draft: normalized.draft,
+          mergeability: normalized.mergeability,
+          reviewDecision: normalized.reviewDecision,
+          checkSummary: normalized.checkSummary,
+          ...(normalized.changedPaths === undefined
+            ? {}
+            : { changedPaths: [...normalized.changedPaths] }),
+          ...(normalized.deliveryMetadataSourceRevision === undefined
+            ? {}
+            : {
+                deliveryMetadataSourceRevision:
+                  normalized.deliveryMetadataSourceRevision,
+              }),
+          observedAt: new Date(normalized.observedAt),
+        },
+        setWhere: lte(pullRequest.observedAt, new Date(normalized.observedAt)),
+      })
+      .returning({ repository: pullRequest.repository });
+    return refreshed.length > 0;
+  }
+
+  private async recordPullRequestRefresh(
+    transaction: DbTransaction,
+    normalized: PullRequestSnapshot,
+  ): Promise<void> {
+    await this.appendEvent(transaction, {
+      type: "pull_request.refreshed",
+      data: { ...normalized },
+    });
+    if (normalized.changedPaths === undefined) return;
+    const resolutionAt = await readDatabaseClock(transaction);
+    const links = await transaction
+      .select({ workItemId: workItemPullRequest.workItemId })
+      .from(workItemPullRequest)
+      .where(
+        and(
+          eq(workItemPullRequest.repository, normalized.repository),
+          eq(workItemPullRequest.number, normalized.number),
+          eq(workItemPullRequest.role, "implementation"),
+        ),
+      );
+    for (const link of links) {
+      await this.reconcileDeliveryTargetsInTransaction(
+        transaction,
+        link.workItemId,
         normalized.repository,
         normalized.number,
+        resolutionAt.toISOString(),
       );
-    });
+    }
   }
 
   async putWorkItemPullRequest(
@@ -2458,6 +2594,15 @@ export class WorkGraphRepository {
         },
       });
       if (normalized.role === "implementation") {
+        if (snapshot.changedPaths !== undefined) {
+          await this.reconcileDeliveryTargetsInTransaction(
+            transaction,
+            normalized.workItemId,
+            normalized.repository,
+            normalized.number,
+            linked.updatedAt.toISOString(),
+          );
+        }
         const scopedRepository = new WorkGraphRepository(transaction);
         await correlateWaitingDeliveries(transaction, snapshot, (observation) =>
           scopedRepository.recordEvidenceObservation(observation, { projectCurrent: false }),
@@ -2479,6 +2624,446 @@ export class WorkGraphRepository {
       }
       return normalized;
     });
+  }
+
+  async putDeliveryMetadataRevision(
+    input: GeneratedDeliveryMetadataRevision,
+    createdAt = new Date().toISOString(),
+  ): Promise<GeneratedDeliveryMetadataRevision> {
+    const normalized = normalizeGeneratedDeliveryMetadata(input);
+    const timestamp = new Date(createdAt);
+    if (!Number.isFinite(timestamp.getTime())) {
+      throw new WorkGraphError(
+        "invalid_delivery_metadata",
+        "A delivery metadata revision needs an ISO creation timestamp.",
+      );
+    }
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      await transaction
+        .insert(deliveryMetadataRevision)
+        .values({ ...normalized, createdAt: timestamp })
+        .onConflictDoNothing();
+      const [stored] = await transaction
+        .select()
+        .from(deliveryMetadataRevision)
+        .where(
+          and(
+            eq(deliveryMetadataRevision.repository, normalized.repository),
+            eq(
+              deliveryMetadataRevision.sourceRevision,
+              normalized.sourceRevision,
+            ),
+          ),
+        )
+        .limit(1);
+      if (!stored) throw new Error("Delivery metadata upsert returned no row.");
+      const replayed = normalizeGeneratedDeliveryMetadata({
+        repository: stored.repository,
+        sourceRevision: stored.sourceRevision,
+        targets: stored.targets,
+      });
+      if (JSON.stringify(replayed) !== JSON.stringify(normalized)) {
+        throw new WorkGraphError(
+          "invalid_delivery_metadata",
+          `Delivery metadata revision ${normalized.sourceRevision} is immutable.`,
+        );
+      }
+      const [current] = await transaction
+        .select({ sourceRevision: deliveryMetadataRevision.sourceRevision })
+        .from(deliveryMetadataRevision)
+        .where(
+          eq(deliveryMetadataRevision.repository, normalized.repository),
+        )
+        .orderBy(
+          desc(deliveryMetadataRevision.createdAt),
+          desc(deliveryMetadataRevision.sourceRevision),
+        )
+        .limit(1);
+      if (current?.sourceRevision !== normalized.sourceRevision) return replayed;
+      const resolutionAt = await readDatabaseClock(transaction);
+      const links = await transaction
+        .select({
+          workItemId: workItemPullRequest.workItemId,
+          number: workItemPullRequest.number,
+        })
+        .from(workItemPullRequest)
+        .innerJoin(
+          pullRequest,
+          and(
+            eq(pullRequest.repository, workItemPullRequest.repository),
+            eq(pullRequest.number, workItemPullRequest.number),
+          ),
+        )
+        .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
+        .where(
+          and(
+            eq(workItemPullRequest.repository, normalized.repository),
+            eq(workItemPullRequest.role, "implementation"),
+            eq(workItem.lifecycle, "open"),
+            isNotNull(pullRequest.changedPaths),
+          ),
+        );
+      for (const link of links) {
+        await this.reconcileDeliveryTargetsInTransaction(
+          transaction,
+          link.workItemId,
+          normalized.repository,
+          link.number,
+          resolutionAt.toISOString(),
+        );
+      }
+      return replayed;
+    });
+  }
+
+  async putDeliveryTargetOverride(
+    input: PutDeliveryTargetOverrideInput,
+  ): Promise<void> {
+    requireIdentifier(input.workItemId, "invalid_work_item_id");
+    const targetIds = [...new Set(input.targetIds.map((id) => id.trim()))]
+      .filter((id) => id.length > 0)
+      .toSorted((left, right) => left.localeCompare(right));
+    if (targetIds.length === 0 || targetIds.length !== input.targetIds.length) {
+      throw new WorkGraphError(
+        "delivery_override_outside_policy",
+        "A delivery-target override needs unique target IDs.",
+      );
+    }
+    const updatedAt = new Date(input.updatedAt);
+    if (!Number.isFinite(updatedAt.getTime())) {
+      throw new WorkGraphError(
+        "delivery_override_outside_policy",
+        "A delivery-target override needs an ISO timestamp.",
+      );
+    }
+    await this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      await this.requireWorkItemExists(transaction, input.workItemId);
+      const previousResolutions = await transaction
+        .select({
+          targets: workItemPullRequestDeliveryResolution.targets,
+          failureCode: workItemPullRequestDeliveryResolution.failureCode,
+        })
+        .from(workItemPullRequestDeliveryResolution)
+        .where(
+          eq(workItemPullRequestDeliveryResolution.workItemId, input.workItemId),
+        );
+      const allowedTargetIds = new Set(
+        previousResolutions
+          .filter(({ failureCode }) => failureCode === null)
+          .flatMap(({ targets }) => targets.map(({ id }) => id)),
+      );
+      if (
+        allowedTargetIds.size > 0 &&
+        targetIds.some((targetId) => !allowedTargetIds.has(targetId))
+      ) {
+        throw new WorkGraphError(
+          "delivery_override_outside_policy",
+          "A delivery-target override may only narrow targets selected by project owner policy.",
+        );
+      }
+      await transaction
+        .insert(workItemDeliveryTargetOverride)
+        .values({ workItemId: input.workItemId, targetIds, updatedAt })
+        .onConflictDoUpdate({
+          target: workItemDeliveryTargetOverride.workItemId,
+          set: { targetIds, updatedAt },
+        });
+      const links = await transaction
+        .select({
+          repository: workItemPullRequest.repository,
+          number: workItemPullRequest.number,
+        })
+        .from(workItemPullRequest)
+        .where(
+          and(
+            eq(workItemPullRequest.workItemId, input.workItemId),
+            eq(workItemPullRequest.role, "implementation"),
+          ),
+        );
+      const resolutionAt = await readDatabaseClock(transaction);
+      for (const link of links) {
+        await this.reconcileDeliveryTargetsInTransaction(
+          transaction,
+          input.workItemId,
+          link.repository,
+          link.number,
+          resolutionAt.toISOString(),
+        );
+      }
+    });
+  }
+
+  async reconcileDeliveryTargetsForPullRequest(
+    workItemId: string,
+    repository: string,
+    number: number,
+    resolvedAt = new Date().toISOString(),
+  ): Promise<StoredDeliveryTargetResolution> {
+    requireIdentifier(workItemId, "invalid_work_item_id");
+    return this.db.transaction((transaction) =>
+      this.reconcileDeliveryTargetsInTransaction(
+        transaction,
+        workItemId,
+        repository.toLowerCase(),
+        number,
+        resolvedAt,
+      ),
+    );
+  }
+
+  private async reconcileDeliveryTargetsInTransaction(
+    transaction: DbTransaction,
+    workItemId: string,
+    repository: string,
+    number: number,
+    resolvedAt: string,
+  ): Promise<StoredDeliveryTargetResolution> {
+    const timestamp = new Date(resolvedAt);
+    if (!Number.isFinite(timestamp.getTime())) {
+      throw new WorkGraphError(
+        "invalid_delivery_metadata",
+        "A delivery-target resolution needs an ISO timestamp.",
+      );
+    }
+    const snapshot = await this.requireStoredPullRequest(
+      transaction,
+      repository,
+      number,
+    );
+    const graph = await this.loadSchedulingGraph(transaction);
+    const item = graph.workItems.find(({ id }) => id === workItemId);
+    if (!item) throw workItemNotFound(workItemId);
+    const owner = getWorkItemSchedulingOwner(graph, item);
+    const [metadata] = await transaction
+      .select()
+      .from(deliveryMetadataRevision)
+      .where(eq(deliveryMetadataRevision.repository, repository))
+      .orderBy(
+        desc(deliveryMetadataRevision.createdAt),
+        desc(deliveryMetadataRevision.sourceRevision),
+      )
+      .limit(1);
+    const [override] = await transaction
+      .select({ targetIds: workItemDeliveryTargetOverride.targetIds })
+      .from(workItemDeliveryTargetOverride)
+      .where(eq(workItemDeliveryTargetOverride.workItemId, workItemId))
+      .limit(1);
+    const metadataSourceRevision = metadata?.sourceRevision ?? "unavailable";
+    const overrideTargetIds = override?.targetIds ?? [];
+    const resolutionId = deterministicUuid(
+      "work-item-pull-request-delivery-resolution",
+      workItemId,
+      repository,
+      number.toString(),
+      snapshot.headSha,
+      metadataSourceRevision,
+      snapshot.deliveryMetadataSourceRevision ?? "",
+      JSON.stringify(overrideTargetIds),
+    );
+    const { targets, subjects, changedPaths, failureCode } =
+      resolveDeliveryTargetOutcome({
+        metadata,
+        snapshot,
+        repository,
+        schedulingProjectId: owner.schedulingProjectId,
+        overrideTargetIds,
+      });
+
+    const [createdSnapshot] = await transaction
+      .insert(workItemPullRequestDeliveryResolution)
+      .values({
+        id: resolutionId,
+        workItemId,
+        repository,
+        number,
+        headSha: snapshot.headSha,
+        metadataSourceRevision,
+        changedPaths: [...changedPaths],
+        targets,
+        subjects: [...subjects],
+        overrideTargetIds: [...overrideTargetIds],
+        failureCode,
+        resolvedAt: timestamp,
+      })
+      .onConflictDoNothing()
+      .returning({ id: workItemPullRequestDeliveryResolution.id });
+    if (!createdSnapshot) {
+      const [stored] = await transaction
+        .select()
+        .from(workItemPullRequestDeliveryResolution)
+        .where(eq(workItemPullRequestDeliveryResolution.id, resolutionId))
+        .limit(1);
+      if (!stored) throw new Error("Delivery-target resolution replay is missing.");
+      return {
+        ...stored,
+        resolvedAt: stored.resolvedAt.toISOString(),
+      };
+    }
+    if (failureCode !== null) {
+      await this.recordDeliveryResolutionAttention(transaction, {
+        workItemId,
+        repository,
+        number,
+        resolutionId,
+        failureCode,
+        observedMetadataSourceRevision:
+          snapshot.deliveryMetadataSourceRevision ?? "unavailable",
+        metadataSourceRevision,
+        timestamp,
+      });
+    } else {
+      await this.resolveDeliveryResolutionAttention(transaction, {
+        workItemId,
+        repository,
+        number,
+        resolutionId,
+        timestamp,
+      });
+    }
+    await this.appendEvent(transaction, {
+      type: "pull_request.delivery_targets_resolved",
+      workItemId,
+      occurredAt: timestamp,
+      data: {
+        resolutionId,
+        repository,
+        number,
+        headSha: snapshot.headSha,
+        metadataSourceRevision,
+        targetIds: targets.map(({ id }) => id),
+        subjects,
+        failureCode,
+      },
+    });
+    return {
+      id: resolutionId,
+      workItemId,
+      repository,
+      number,
+      headSha: snapshot.headSha,
+      metadataSourceRevision,
+      changedPaths,
+      targets,
+      subjects,
+      overrideTargetIds,
+      failureCode,
+      resolvedAt: timestamp.toISOString(),
+    };
+  }
+
+  private async recordDeliveryResolutionAttention(
+    transaction: DbTransaction,
+    input: {
+      readonly workItemId: string;
+      readonly repository: string;
+      readonly number: number;
+      readonly resolutionId: string;
+      readonly failureCode: string;
+      readonly observedMetadataSourceRevision: string;
+      readonly metadataSourceRevision: string;
+      readonly timestamp: Date;
+    },
+  ): Promise<void> {
+    const attentionId = deterministicUuid(
+      "delivery-resolution-attention",
+      input.resolutionId,
+    );
+    const [createdAttention] = await transaction
+      .insert(attentionRequest)
+      .values({
+        id: attentionId,
+        workItemId: input.workItemId,
+        requestingLeaseId: null,
+        deliveryRecoveryId: null,
+        deliveryResolutionId: input.resolutionId,
+        kind: "delivery_target_resolution",
+        question:
+          "Generated delivery metadata could not resolve every changed path to an owner-approved target.",
+        note: `Resolution failed closed with ${input.failureCode} for ${input.repository}#${input.number}; observed metadata revision ${input.observedMetadataSourceRevision}, current revision ${input.metadataSourceRevision}.`,
+        blocking: true,
+        createdAt: input.timestamp,
+      })
+      .onConflictDoNothing()
+      .returning({ id: attentionRequest.id });
+    if (!createdAttention) return;
+    await this.appendEvent(transaction, {
+      type: "attention.requested",
+      workItemId: input.workItemId,
+      occurredAt: input.timestamp,
+      data: {
+        attentionRequestId: createdAttention.id,
+        deliveryResolutionId: input.resolutionId,
+        kind: "delivery_target_resolution",
+        blocking: true,
+      },
+    });
+  }
+
+  private async resolveDeliveryResolutionAttention(
+    transaction: DbTransaction,
+    input: {
+      readonly workItemId: string;
+      readonly repository: string;
+      readonly number: number;
+      readonly resolutionId: string;
+      readonly timestamp: Date;
+    },
+  ): Promise<void> {
+    const unresolved = await transaction
+      .select({ id: attentionRequest.id })
+      .from(attentionRequest)
+      .innerJoin(
+        workItemPullRequestDeliveryResolution,
+        eq(
+          workItemPullRequestDeliveryResolution.id,
+          attentionRequest.deliveryResolutionId,
+        ),
+      )
+      .leftJoin(
+        attentionResolution,
+        eq(attentionResolution.attentionRequestId, attentionRequest.id),
+      )
+      .where(
+        and(
+          eq(attentionRequest.workItemId, input.workItemId),
+          eq(
+            workItemPullRequestDeliveryResolution.repository,
+            input.repository,
+          ),
+          eq(workItemPullRequestDeliveryResolution.number, input.number),
+          isNull(attentionResolution.id),
+        ),
+      );
+    for (const pending of unresolved) {
+      const resolutionId = deterministicUuid(
+        "delivery-resolution-attention-resolved",
+        pending.id,
+        input.resolutionId,
+      );
+      const [createdResolution] = await transaction
+        .insert(attentionResolution)
+        .values({
+          id: resolutionId,
+          attentionRequestId: pending.id,
+          resolution: `Resolved by delivery target snapshot ${input.resolutionId}.`,
+          createdAt: input.timestamp,
+        })
+        .onConflictDoNothing()
+        .returning({ id: attentionResolution.id });
+      if (!createdResolution) continue;
+      await this.appendEvent(transaction, {
+        type: "attention.resolved",
+        workItemId: input.workItemId,
+        occurredAt: input.timestamp,
+        data: {
+          attentionRequestId: pending.id,
+          attentionResolutionId: createdResolution.id,
+          deliveryResolutionId: input.resolutionId,
+        },
+      });
+    }
   }
 
   async recordExternalDelivery(input: ExternalDelivery): Promise<ExternalDelivery> {
@@ -3709,10 +4294,21 @@ export class WorkGraphRepository {
             eq(workItemPullRequest.role, "implementation"),
           ),
         )
-    ).map(({ pullRequest: stored }) => ({
-      ...stored,
-      observedAt: stored.observedAt.toISOString(),
-    }));
+    ).map(({ pullRequest: stored }) => {
+      const {
+        changedPaths,
+        deliveryMetadataSourceRevision,
+        ...snapshot
+      } = stored;
+      return {
+        ...snapshot,
+        observedAt: stored.observedAt.toISOString(),
+        ...(changedPaths === null ? {} : { changedPaths }),
+        ...(deliveryMetadataSourceRevision === null
+          ? {}
+          : { deliveryMetadataSourceRevision }),
+      };
+    });
     const implementationCommits = implementationPullRequests.flatMap(
       ({ repository, headSha, acceptedHeadSha, mergeCommitSha }) =>
         [headSha, acceptedHeadSha, mergeCommitSha]
@@ -3728,6 +4324,40 @@ export class WorkGraphRepository {
       for (const item of matchingEvidence) evidenceById.set(item.id, item);
     }
     const evidence = [...evidenceById.values()];
+    const deliveryTargetRequirements = [] as {
+      repository: string;
+      number: number;
+      headSha: string;
+      targets: readonly ResolvedDeliveryTargetSnapshot[];
+    }[];
+    const resolvedPullRequests = new Set<string>();
+    const resolutions = await transaction
+      .select()
+      .from(workItemPullRequestDeliveryResolution)
+      .where(eq(workItemPullRequestDeliveryResolution.workItemId, item.id))
+      .orderBy(desc(workItemPullRequestDeliveryResolution.resolvedAt));
+    for (const resolution of resolutions) {
+      const identity = `${resolution.repository}\0${resolution.number}`;
+      if (resolvedPullRequests.has(identity)) continue;
+      resolvedPullRequests.add(identity);
+      const linkedPullRequest = implementationPullRequests.find(
+        (candidate) =>
+          candidate.repository === resolution.repository &&
+          candidate.number === resolution.number,
+      );
+      if (
+        linkedPullRequest !== undefined &&
+        resolution.failureCode === null &&
+        resolution.headSha === linkedPullRequest.headSha
+      ) {
+        deliveryTargetRequirements.push({
+          repository: resolution.repository,
+          number: resolution.number,
+          headSha: resolution.headSha,
+          targets: resolution.targets,
+        });
+      }
+    }
     const [unfinishedChild] = await transaction
       .select({ id: workItem.id })
       .from(workItemHierarchy)
@@ -3762,6 +4392,7 @@ export class WorkGraphRepository {
       },
       implementationPullRequests,
       evidence,
+      deliveryTargetRequirements,
       hasUnfinishedChildren: unfinishedChild !== undefined,
       hasUnsatisfiedDependencies:
         getUnsatisfiedDependencies(graph, item.id).length > 0,
@@ -6718,14 +7349,28 @@ export class WorkGraphRepository {
           mergeability: pullRequest.mergeability,
           reviewDecision: pullRequest.reviewDecision,
           checkSummary: pullRequest.checkSummary,
+          changedPaths: pullRequest.changedPaths,
+          deliveryMetadataSourceRevision:
+            pullRequest.deliveryMetadataSourceRevision,
           observedAt: pullRequest.observedAt,
         })
         .from(pullRequest)
         .orderBy(pullRequest.repository, pullRequest.number)
-    ).map(({ observedAt, ...snapshot }) => ({
+    ).map(
+      ({
+        observedAt,
+        changedPaths,
+        deliveryMetadataSourceRevision,
+        ...snapshot
+      }) => ({
       ...snapshot,
       observedAt: observedAt.toISOString(),
-    }));
+      ...(changedPaths === null ? {} : { changedPaths }),
+      ...(deliveryMetadataSourceRevision === null
+        ? {}
+        : { deliveryMetadataSourceRevision }),
+      }),
+    );
     const workItemPullRequests = await transaction
       .select({
         workItemId: workItemPullRequest.workItemId,
@@ -6787,6 +7432,9 @@ export class WorkGraphRepository {
         mergeability: pullRequest.mergeability,
         reviewDecision: pullRequest.reviewDecision,
         checkSummary: pullRequest.checkSummary,
+        changedPaths: pullRequest.changedPaths,
+        deliveryMetadataSourceRevision:
+          pullRequest.deliveryMetadataSourceRevision,
         observedAt: pullRequest.observedAt,
       })
       .from(pullRequest)
@@ -6803,7 +7451,15 @@ export class WorkGraphRepository {
         `Pull request ${repository}#${number} does not exist.`,
       );
     }
-    return { ...stored, observedAt: stored.observedAt.toISOString() };
+    const { changedPaths, deliveryMetadataSourceRevision, ...snapshot } = stored;
+    return {
+      ...snapshot,
+      observedAt: stored.observedAt.toISOString(),
+      ...(changedPaths === null ? {} : { changedPaths }),
+      ...(deliveryMetadataSourceRevision === null
+        ? {}
+        : { deliveryMetadataSourceRevision }),
+    };
   }
 
   private async requireGraphWorkItem(

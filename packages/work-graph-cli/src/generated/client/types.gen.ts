@@ -175,7 +175,7 @@ export type CompletionCandidate = {
     policyId: string;
     policyRevision: number;
     candidate: boolean;
-    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'unfinished_children' | 'unsatisfied_dependencies' | 'unresolved_blocking_attention'>;
+    reasons: Array<'missing_implementation_pull_request' | 'pull_request_not_merged' | 'missing_accepted_head' | 'missing_merge_commit' | 'missing_pull_request_evidence' | 'missing_required_ci' | 'missing_production_deployment' | 'missing_delivery_target_resolution' | 'unfinished_children' | 'unsatisfied_dependencies' | 'unresolved_blocking_attention'>;
     evidenceObservationIds: Array<string>;
     evaluatedAt: string;
 };
@@ -207,6 +207,21 @@ export type WorkItemCompletionPolicy = {
     policyId: string;
     policyRevision: number;
     assignedAt: string;
+};
+
+export type GeneratedDeliveryTarget = {
+    id: string;
+    projectId: string;
+    repository: string;
+    sourcePaths: Array<{
+        path: string;
+        mode: 'exclusive' | 'shared';
+        subjects: Array<string>;
+    }>;
+    subjects: Array<string>;
+    sharedHostId: string | null;
+    requiredCiNames: Array<string>;
+    productionEnvironments: Array<string>;
 };
 
 export type DeliveryActionRequest = {
@@ -314,6 +329,8 @@ export type PullRequestSnapshot = {
     mergeability: 'mergeable' | 'conflicting' | 'unknown';
     reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
     checkSummary: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown';
+    changedPaths?: Array<string>;
+    deliveryMetadataSourceRevision?: string;
     observedAt: string;
 };
 
@@ -373,7 +390,7 @@ export type WorkItemEventList = {
 
 export type WorkItemEvent = {
     sequence: number;
-    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
+    type: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.delivery_targets_resolved' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
     workItemId: string | null;
     data: {
         [key: string]: unknown;
@@ -412,6 +429,7 @@ export type AttentionRequest = {
     workItemId: string;
     requestingLeaseId: string | null;
     deliveryRecoveryId: string | null;
+    deliveryResolutionId: string | null;
     kind: string;
     question: string;
     note: string | null;
@@ -1166,6 +1184,70 @@ export type PutRepositoryCompletionPolicyDefaultRevisionResponses = {
 
 export type PutRepositoryCompletionPolicyDefaultRevisionResponse = PutRepositoryCompletionPolicyDefaultRevisionResponses[keyof PutRepositoryCompletionPolicyDefaultRevisionResponses];
 
+export type PutDeliveryMetadataRevisionData = {
+    body: {
+        targets: Array<GeneratedDeliveryTarget>;
+        createdAt: string;
+    };
+    path: {
+        owner: string;
+        repository: string;
+        sourceRevision: string;
+    };
+    query?: never;
+    url: '/api/github/repositories/{owner}/{repository}/delivery-metadata-revisions/{sourceRevision}';
+};
+
+export type PutDeliveryMetadataRevisionErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type PutDeliveryMetadataRevisionError = PutDeliveryMetadataRevisionErrors[keyof PutDeliveryMetadataRevisionErrors];
+
+export type PutDeliveryMetadataRevisionResponses = {
+    /**
+     * Delivery metadata revision created or matched
+     */
+    200: {
+        repository: string;
+        sourceRevision: string;
+        targets: Array<GeneratedDeliveryTarget>;
+    };
+};
+
+export type PutDeliveryMetadataRevisionResponse = PutDeliveryMetadataRevisionResponses[keyof PutDeliveryMetadataRevisionResponses];
+
 export type DeleteKnowledgeScopeRelationshipData = {
     body: {
         parentKnowledgeScopeId: string;
@@ -1868,6 +1950,8 @@ export type RefreshPullRequestData = {
         mergeability: 'mergeable' | 'conflicting' | 'unknown';
         reviewDecision: 'approved' | 'changes_requested' | 'review_required' | null;
         checkSummary: 'success' | 'failure' | 'pending' | 'neutral' | 'unknown';
+        changedPaths?: Array<string>;
+        deliveryMetadataSourceRevision?: string;
         observedAt: string;
     };
     headers?: {
@@ -2580,6 +2664,68 @@ export type CreateWorkItemDecompositionResponses = {
 
 export type CreateWorkItemDecompositionResponse = CreateWorkItemDecompositionResponses[keyof CreateWorkItemDecompositionResponses];
 
+export type PutDeliveryTargetOverrideData = {
+    body: {
+        targetIds: Array<string>;
+        updatedAt: string;
+    };
+    path: {
+        workItemId: string;
+    };
+    query?: never;
+    url: '/api/work-items/{workItemId}/delivery-target-override';
+};
+
+export type PutDeliveryTargetOverrideErrors = {
+    /**
+     * Invalid request
+     */
+    400: Error;
+    /**
+     * Cloudflare Access authentication required
+     */
+    401: Error;
+    /**
+     * Cloudflare Access denied the request
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * Request conflicts with current Work Graph state
+     */
+    409: Error;
+    /**
+     * Request validation failed
+     */
+    422: Error;
+    /**
+     * Unexpected server error
+     */
+    500: Error;
+    /**
+     * Database request can be retried after a transient failure
+     */
+    503: Error;
+};
+
+export type PutDeliveryTargetOverrideError = PutDeliveryTargetOverrideErrors[keyof PutDeliveryTargetOverrideErrors];
+
+export type PutDeliveryTargetOverrideResponses = {
+    /**
+     * Delivery-target override stored
+     */
+    200: {
+        targetIds: Array<string>;
+        updatedAt: string;
+        workItemId: string;
+    };
+};
+
+export type PutDeliveryTargetOverrideResponse = PutDeliveryTargetOverrideResponses[keyof PutDeliveryTargetOverrideResponses];
+
 export type ListWorkItemDependenciesData = {
     body?: never;
     path: {
@@ -2699,7 +2845,7 @@ export type ListWorkItemEventsData = {
         workItemId: string;
     };
     query?: {
-        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
+        type?: 'attention.requested' | 'attention.resolved' | 'dependency.added' | 'dependency.removed' | 'delivery_action.requested' | 'delivery_action.result_recorded' | 'delivery_recovery.recorded' | 'delivery_recovery.delivery_reserved' | 'context.put' | 'lease.claimed' | 'lease.ended' | 'lease.renewed' | 'note.created' | 'pull_request.delivery_targets_resolved' | 'pull_request.linked' | 'reference.put' | 'work_item.created' | 'work_item.decomposed' | 'work_item.expedited' | 'work_item.priority_moved' | 'work_item.lifecycle_changed' | 'work_item.reparented' | 'work_item.scheduling_scope_changed' | 'work_item.unexpedited';
         lifecycle?: 'released' | 'cancelled';
         limit?: number;
         afterSequence?: number;

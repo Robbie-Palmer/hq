@@ -12,7 +12,8 @@ import type {
   GitHubDeliveryConsumer,
   GitHubReconciliationTarget,
 } from "work-graph-db";
-import type { GitHubDelivery } from "work-graph-domain";
+import type { GeneratedDeliveryMetadataRevision, GitHubDelivery } from "work-graph-domain";
+import { parse } from "yaml";
 
 const MAX_PAGES = 10;
 const REQUEST_TIMEOUT_MS = 15_000;
@@ -143,6 +144,9 @@ function pullRequestPayload(
   source: JsonRecord,
   repository: string,
   installationId: number,
+  changedPaths: readonly string[],
+  deliveryMetadata: GeneratedDeliveryMetadataRevision,
+  deliveryMetadataCreatedAt: string,
 ): JsonRecord {
   const head = record(source.head, "pull request head");
   const state = text(source.state, "pull request state");
@@ -161,9 +165,82 @@ function pullRequestPayload(
       mergeable: source.mergeable,
       html_url: text(source.html_url, "pull request URL"),
       updated_at: text(source.updated_at, "pull request update time"),
+      changed_paths: changedPaths,
+      delivery_metadata_source_revision: deliveryMetadata.sourceRevision,
     },
     repository: { full_name: repository },
+    work_graph_delivery_metadata: deliveryMetadata,
+    work_graph_delivery_metadata_created_at: deliveryMetadataCreatedAt,
   };
+}
+
+function deliveryMetadataFromPlatform(
+  source: string,
+  repository: string,
+  sourceRevision: string,
+): GeneratedDeliveryMetadataRevision {
+  const document = record(parse(source), "platform catalog");
+  const catalog = record(document.catalog, "platform catalog records");
+  const records = array(catalog.records, "platform catalog records");
+  const targets = records.flatMap((value) => {
+    const target = record(value, "delivery target");
+    if (target.kind !== "delivery-target") return [];
+    if (text(target.repository, "delivery target repository").toLowerCase() !== repository) {
+      return [];
+    }
+    const github = record(target.github, "delivery target GitHub bindings");
+    return [
+      {
+        id: text(target.id, "delivery target ID"),
+        projectId: text(target.project, "delivery target project"),
+        repository,
+        sourcePaths: array(
+          target.source_path_bindings,
+          "delivery target source paths",
+        ).map((bindingValue) => {
+          const binding = record(bindingValue, "delivery target source path");
+          const rawMode = text(binding.mode, "delivery target source path mode");
+          if (rawMode !== "exclusive" && rawMode !== "shared") {
+            throw new GitHubReconciliationError(
+              "Platform catalog has an invalid delivery target source-path mode.",
+            );
+          }
+          const mode: "exclusive" | "shared" = rawMode;
+          return {
+            path: text(binding.path, "delivery target source path"),
+            mode,
+            subjects: array(
+              binding.subjects,
+              "delivery target source-path subjects",
+            ).map((subject) => text(subject, "delivery target subject")),
+          };
+        }),
+        subjects: array(target.subjects, "delivery target subjects").map(
+          (subject) => text(subject, "delivery target subject"),
+        ),
+        sharedHostId:
+          target.shared_host_id === undefined
+            ? null
+            : text(target.shared_host_id, "delivery target shared host"),
+        requiredCiNames: array(
+          github.required_ci_names,
+          "delivery target CI names",
+        ).map((name) => text(name, "delivery target CI name")),
+        productionEnvironments: array(
+          github.production_environments,
+          "delivery target production environments",
+        ).map((environment) =>
+          text(environment, "delivery target production environment"),
+        ),
+      },
+    ];
+  });
+  if (targets.length === 0) {
+    throw new GitHubReconciliationError(
+      `Platform catalog has no delivery targets for ${repository}.`,
+    );
+  }
+  return { repository, sourceRevision, targets };
 }
 
 function workflowPayload(
@@ -301,6 +378,58 @@ export class GitHubReconciler {
       fetch: this.fetcher,
       timeoutMs: REQUEST_TIMEOUT_MS,
     });
+    const repositoryDetails = record(
+      await client.request("GET", `/repos/${encodedRepository}`),
+      "repository",
+    );
+    const defaultBranch = text(
+      repositoryDetails.default_branch,
+      "repository default branch",
+    );
+    const defaultBranchCommit = record(
+      await client.request(
+        "GET",
+        `/repos/${encodedRepository}/commits/${encodeURIComponent(defaultBranch)}`,
+      ),
+      "default branch commit",
+    );
+    const defaultBranchCommitDetails = record(
+      defaultBranchCommit.commit,
+      "default branch commit details",
+    );
+    const defaultBranchCommitter = record(
+      defaultBranchCommitDetails.committer,
+      "default branch committer",
+    );
+    const deliveryMetadataCreatedAt = text(
+      defaultBranchCommitter.date,
+      "default branch commit time",
+    );
+    const platformContent = record(
+      await client.request(
+        "GET",
+        `/repos/${encodedRepository}/contents/ui/content/projects/personal-engineering-platform/platform.yaml`,
+        { query: { ref: defaultBranch } },
+      ),
+      "platform catalog",
+    );
+    const encoding = text(platformContent.encoding, "platform catalog encoding");
+    if (encoding !== "base64") {
+      throw new GitHubReconciliationError(
+        "GitHub returned an unsupported platform catalog encoding.",
+      );
+    }
+    const deliveryMetadata = deliveryMetadataFromPlatform(
+      Buffer.from(
+        text(platformContent.content, "platform catalog content").replace(
+          /\s/gu,
+          "",
+        ),
+        "base64",
+      ).toString("utf8"),
+      repository,
+      text(platformContent.sha, "platform catalog revision"),
+    );
     const pullRequest = record(
       await client.request(
         "GET",
@@ -308,6 +437,23 @@ export class GitHubReconciler {
       ),
       "pull request",
     );
+    const changedFiles = await this.arrayPages(
+      client,
+      `/repos/${encodedRepository}/pulls/${target.number}/files`,
+    );
+    const changedPaths = [
+      ...new Set(
+        changedFiles.flatMap((value) => {
+          const file = record(value, "pull request file");
+          return [
+            text(file.filename, "pull request filename"),
+            ...(file.previous_filename === undefined
+              ? []
+              : [text(file.previous_filename, "pull request previous filename")]),
+          ];
+        }),
+      ),
+    ].toSorted((left, right) => left.localeCompare(right));
     const receivedAt = this.now().toISOString();
     const payloads: ReconciliationPayload[] = [
       {
@@ -316,6 +462,9 @@ export class GitHubReconciler {
           pullRequest,
           repository,
           installationId,
+          changedPaths,
+          deliveryMetadata,
+          deliveryMetadataCreatedAt,
         ),
       },
     ];

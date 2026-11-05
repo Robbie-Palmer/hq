@@ -1,13 +1,13 @@
 import {
-  evaluateCompletionCandidate,
-  normalizeRepositoryCompletionPolicyDefaultRevision,
-  normalizeEvidenceObservation,
-  projectCurrentDeliveryEvidence,
-  type WorkGraphError,
   type CompletionPolicyRevision,
   type CurrentDeliveryEvidence,
   type DeliveryEvidenceObservation,
+  evaluateCompletionCandidate,
+  normalizeEvidenceObservation,
+  normalizeRepositoryCompletionPolicyDefaultRevision,
   type PullRequestSnapshot,
+  projectCurrentDeliveryEvidence,
+  type WorkGraphError,
 } from "../src/index";
 
 const sha = (character: string): string => character.repeat(40);
@@ -259,6 +259,91 @@ describe("completion candidacy", () => {
       "missing_required_ci",
       "missing_production_deployment",
     ]);
+  });
+
+  it("requires CI and exact-merge deployment evidence for every resolved target", () => {
+    const pr = {
+      ...pullRequest(1, sha("a"), sha("b")),
+      changedPaths: ["packages/shared/index.ts"],
+    };
+    const pullRequestEvidence = evidenceFor(pr, 60)[0];
+    if (!pullRequestEvidence) throw new Error("Expected pull request evidence.");
+    const ci = (suffix: number, name: string): CurrentDeliveryEvidence => ({
+      ...observation(suffix, {
+        externalId: `ci-${name}`,
+        commitSha: sha("a"),
+        name,
+      }),
+      projectedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const deployment = (
+      suffix: number,
+      environment: string,
+    ): CurrentDeliveryEvidence => ({
+      ...observation(suffix, {
+        externalId: `deployment-${environment}`,
+        commitSha: sha("b"),
+        kind: "deployment",
+        name: null,
+        environment,
+        correlationKind: "pull_request_merge",
+      }),
+      projectedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const input = {
+      workItemId: "delivery",
+      policy,
+      implementationPullRequests: [pr],
+      deliveryTargetRequirements: [
+        {
+          repository: pr.repository,
+          number: pr.number,
+          headSha: pr.headSha,
+          targets: [
+            {
+              id: "delivery-target:project/api",
+              requiredCiNames: ["API CI"],
+              productionEnvironments: ["production-api"],
+            },
+            {
+              id: "delivery-target:project/observer",
+              requiredCiNames: ["Observer CI"],
+              productionEnvironments: ["production-observer"],
+            },
+          ],
+        },
+      ],
+      hasUnfinishedChildren: false,
+      hasUnsatisfiedDependencies: false,
+      hasUnresolvedBlockingAttention: false,
+      evaluatedAt: "2026-09-22T14:00:00.000Z",
+    } as const;
+    const partial = evaluateCompletionCandidate({
+      ...input,
+      evidence: [
+        pullRequestEvidence,
+        ci(61, "API CI"),
+        ci(62, "Observer CI"),
+        deployment(63, "production-api"),
+      ],
+    });
+    expect(partial).toMatchObject({
+      candidate: false,
+      reasons: ["missing_production_deployment"],
+    });
+
+    expect(
+      evaluateCompletionCandidate({
+        ...input,
+        evidence: [
+          pullRequestEvidence,
+          ci(61, "API CI"),
+          ci(62, "Observer CI"),
+          deployment(63, "production-api"),
+          deployment(64, "production-observer"),
+        ],
+      }),
+    ).toMatchObject({ candidate: true, reasons: [] });
   });
 
   it("keeps graph and attention blockers explicit", () => {

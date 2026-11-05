@@ -1,8 +1,5 @@
 import type {
   ArchitectureDecisionRole,
-  KnowledgeScopeKind,
-  KnowledgeScopeLifecycle,
-  PullRequestCheckSummary,
   CompletionCandidateReason,
   DeliveryActionKind,
   DeliveryActionResultState,
@@ -11,6 +8,9 @@ import type {
   DeliveryRecoveryDeliveryKind,
   DeliveryRecoveryFallback,
   EvidenceCorrelationKind,
+  KnowledgeScopeKind,
+  KnowledgeScopeLifecycle,
+  PullRequestCheckSummary,
   PullRequestMergeability,
   PullRequestReviewDecision,
   PullRequestRole,
@@ -111,6 +111,8 @@ export interface PullRequestSnapshot {
   readonly reviewDecision: PullRequestReviewDecision | null;
   readonly checkSummary: PullRequestCheckSummary;
   readonly observedAt: string;
+  readonly changedPaths?: string[];
+  readonly deliveryMetadataSourceRevision?: string;
 }
 
 export interface ExternalDelivery {

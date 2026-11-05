@@ -1,23 +1,29 @@
+import { eq, sql } from "drizzle-orm";
 import {
+  type DeliveryEvidenceObservation,
   getDirectChildren,
+  type GitHubDelivery,
+  normalizeGitHubDelivery,
   projectWorkItemStage,
   type WorkGraphError,
-  type DeliveryEvidenceObservation,
   type WorkItemDependency,
 } from "work-graph-domain";
-import { eq, sql } from "drizzle-orm";
-import { normalizeGitHubDelivery, type GitHubDelivery } from "work-graph-domain";
-import { githubDelivery, headSha, mergeSha, repository as githubRepository } from "../../../work-graph-domain/tests/fixtures/github";
+import {
+  githubDelivery,
+  headSha,
+  mergeSha,
+  repository as githubRepository,
+} from "../../../work-graph-domain/tests/fixtures/github";
 import {
   classifyRetryableDatabaseFailure,
   closeDb,
-  createDb,
   createDatabaseQueryMetrics,
+  createDb,
   estimateDatabaseResultRowBytes,
+  GitHubDeliveryConsumer,
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
-  GitHubDeliveryConsumer,
 } from "../../src/index";
 
 const databaseURL = process.env.DATABASE_URL;
@@ -264,7 +270,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(22);
+  expect(migrationCount?.count).toBe(24);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -274,6 +280,7 @@ beforeAll(async () => {
     "delivery_action_requests",
     "delivery_action_results",
     "delivery_evidence_observations",
+    "delivery_metadata_revisions",
     "delivery_recoveries",
     "delivery_recovery_deliveries",
     "events",
@@ -291,9 +298,11 @@ beforeAll(async () => {
     "work_item_completion_candidates",
     "work_item_completion_policies",
     "work_item_contexts",
+    "work_item_delivery_target_overrides",
     "work_item_dependencies",
     "work_item_hierarchy",
     "work_item_priority_contexts",
+    "work_item_pull_request_delivery_resolutions",
     "work_item_pull_requests",
     "work_item_references",
     "work_items",
@@ -920,6 +929,10 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.attentionResolution);
     await transaction.delete(schema.attentionRequest);
+    await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} disable trigger work_item_pull_request_delivery_resolutions_immutable`);
+    await transaction.delete(schema.workItemPullRequestDeliveryResolution);
+    await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} enable trigger work_item_pull_request_delivery_resolutions_immutable`);
+    await transaction.delete(schema.workItemDeliveryTargetOverride);
     await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} disable trigger delivery_recovery_deliveries_immutable`);
     await transaction.delete(schema.deliveryRecoveryDelivery);
     await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} enable trigger delivery_recovery_deliveries_immutable`);
@@ -960,6 +973,9 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemReference);
     await transaction.delete(schema.workItemPullRequest);
     await transaction.delete(schema.pullRequest);
+    await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} disable trigger delivery_metadata_revisions_immutable`);
+    await transaction.delete(schema.deliveryMetadataRevision);
+    await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} enable trigger delivery_metadata_revisions_immutable`);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
@@ -1005,6 +1021,57 @@ describe("GitHub delivery consumption", () => {
     await expect(repository.listGitHubReconciliationTargets(0)).rejects.toMatchObject({
       code: "invalid_scheduling_scope",
     });
+  });
+
+  it("imports reconciled catalog metadata and resolves changed paths idempotently", async () => {
+    await linkImplementation();
+    const delivery = githubDelivery();
+    Object.assign(delivery.payload.pull_request as object, {
+      changed_paths: ["workers/work-graph-api/src/index.ts"],
+    });
+    Object.assign(delivery.payload, {
+      work_graph_delivery_metadata_created_at: "2026-10-01T09:00:00.000Z",
+      work_graph_delivery_metadata: {
+        repository: githubRepository,
+        sourceRevision: "catalog-blob-sha",
+        targets: [
+          {
+            id: "delivery-target:work-graph/api",
+            projectId: "project:work-graph",
+            repository: githubRepository,
+            sourcePaths: [
+              {
+                path: "workers/work-graph-api",
+                mode: "exclusive",
+                subjects: ["component:work-graph/work-graph-api"],
+              },
+            ],
+            subjects: ["component:work-graph/work-graph-api"],
+            sharedHostId: null,
+            requiredCiNames: ["Work Graph API CI"],
+            productionEnvironments: ["production-work-graph"],
+          },
+        ],
+      },
+    });
+
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+
+    await expect(db.select().from(schema.deliveryMetadataRevision)).resolves.toEqual([
+      expect.objectContaining({ sourceRevision: "catalog-blob-sha" }),
+    ]);
+    await expect(
+      db.select().from(schema.workItemPullRequestDeliveryResolution),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        metadataSourceRevision: "catalog-blob-sha",
+        targets: [
+          expect.objectContaining({ id: "delivery-target:work-graph/api" }),
+        ],
+        failureCode: null,
+      }),
+    ]);
   });
 
   it("correlates head CI, merge, and deployment when deployment arrives first without changing lifecycle authority", async () => {
@@ -2275,6 +2342,280 @@ describe("delivery evidence persistence", () => {
         currentOnly: true,
       }),
     ).resolves.toHaveLength(6);
+  });
+
+  it("snapshots generated delivery targets and preserves earlier catalog decisions", async () => {
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.createWorkItem({
+      id: "generated-targets",
+      title: "Resolve generated targets",
+      schedulingProjectId: "work-graph",
+    });
+    const deliveryTarget = (id: string, environment: string) => ({
+      id: `delivery-target:work-graph/${id}`,
+      projectId: "project:work-graph",
+      repository: "example/work-graph",
+      sourcePaths: [
+        {
+          path: "packages/work-graph-domain",
+          mode: "shared" as const,
+          subjects: ["component:work-graph/work-graph-domain"],
+        },
+      ],
+      subjects: [
+        "component:work-graph/work-graph-domain",
+        `workload:work-graph/${id}`,
+      ],
+      sharedHostId: null,
+      requiredCiNames: [`${id} CI`],
+      productionEnvironments: [environment],
+    });
+    const targets = [
+      deliveryTarget("api", "production-api"),
+      deliveryTarget("observer", "production-observer"),
+    ];
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-v1",
+        targets,
+      },
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 91,
+      url: "https://github.com/example/work-graph/pull/91",
+      headSha: commitSha("7"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["packages/work-graph-domain/src/evidence.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "generated-targets",
+      repository: "example/work-graph",
+      number: 91,
+      role: "implementation",
+    });
+
+    const [first] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution);
+    expect(first).toMatchObject({
+      metadataSourceRevision: "catalog-v1",
+      changedPaths: ["packages/work-graph-domain/src/evidence.ts"],
+      failureCode: null,
+      subjects: [
+        "component:work-graph/work-graph-domain",
+        "workload:work-graph/api",
+        "workload:work-graph/observer",
+      ],
+      targets: [
+        { id: "delivery-target:work-graph/api" },
+        { id: "delivery-target:work-graph/observer" },
+      ],
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-v2",
+        targets: [
+          deliveryTarget("api", "production-api-v2"),
+          deliveryTarget("observer", "production-observer"),
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-redelivered-old",
+        targets,
+      },
+      "2026-09-22T08:00:00.000Z",
+    );
+    await repository.putDeliveryTargetOverride({
+      workItemId: "generated-targets",
+      targetIds: ["delivery-target:work-graph/api"],
+      updatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    await expect(
+      repository.putDeliveryTargetOverride({
+        workItemId: "generated-targets",
+        targetIds: ["delivery-target:recipe-site/site-ui"],
+        updatedAt: "2026-09-22T13:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "delivery_override_outside_policy" });
+
+    const resolutions = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        eq(
+          schema.workItemPullRequestDeliveryResolution.workItemId,
+          "generated-targets",
+        ),
+      )
+      .orderBy(schema.workItemPullRequestDeliveryResolution.resolvedAt);
+    expect(resolutions).toHaveLength(3);
+    expect(
+      resolutions.find(
+        ({ metadataSourceRevision }) =>
+          metadataSourceRevision === "catalog-v1",
+      ),
+    ).toMatchObject({
+      metadataSourceRevision: "catalog-v1",
+      targets: [
+        { productionEnvironments: ["production-api"] },
+        { productionEnvironments: ["production-observer"] },
+      ],
+    });
+    expect(
+      resolutions.find(({ overrideTargetIds }) => overrideTargetIds.length > 0),
+    ).toMatchObject({
+      metadataSourceRevision: "catalog-v2",
+      overrideTargetIds: ["delivery-target:work-graph/api"],
+      targets: [
+        {
+          id: "delivery-target:work-graph/api",
+          productionEnvironments: ["production-api-v2"],
+        },
+      ],
+    });
+  });
+
+  it("fails closed with blocking attention when generated metadata is unavailable", async () => {
+    await repository.createWorkItem({
+      id: "missing-generated-targets",
+      title: "Missing generated targets",
+    });
+    await repository.refreshPullRequest({
+      repository: "example/missing",
+      number: 92,
+      url: "https://github.com/example/missing/pull/92",
+      headSha: commitSha("8"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: null,
+      checkSummary: "pending",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/missing/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "missing-generated-targets",
+      repository: "example/missing",
+      number: 92,
+      role: "implementation",
+    });
+
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "missing-generated-targets",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        deliveryResolutionId: expect.any(String),
+        kind: "delivery_target_resolution",
+        blocking: true,
+        resolution: null,
+      }),
+    ]);
+    const [resolution] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        eq(
+          schema.workItemPullRequestDeliveryResolution.workItemId,
+          "missing-generated-targets",
+        ),
+      );
+    expect(resolution).toMatchObject({
+      metadataSourceRevision: "unavailable",
+      targets: [],
+      failureCode: "delivery_metadata_missing",
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/missing",
+        sourceRevision: "catalog-current",
+        targets: [
+          {
+            id: "delivery-target:missing/api",
+            projectId: "project:missing",
+            repository: "example/missing",
+            sourcePaths: [
+              {
+                path: "workers/missing",
+                mode: "exclusive",
+                subjects: ["component:missing/api"],
+              },
+            ],
+            subjects: ["component:missing/api"],
+            sharedHostId: null,
+            requiredCiNames: ["Missing API CI"],
+            productionEnvironments: ["production-missing"],
+          },
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/missing",
+      number: 92,
+      url: "https://github.com/example/missing/pull/92",
+      headSha: commitSha("8"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: null,
+      checkSummary: "pending",
+      observedAt: "2026-09-22T12:00:00.000Z",
+      changedPaths: ["workers/missing/src/index.ts"],
+      deliveryMetadataSourceRevision: "catalog-stale",
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "missing-generated-targets",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        kind: "delivery_target_resolution",
+        note: expect.stringContaining("delivery_metadata_stale"),
+      }),
+    ]);
+    expect(
+      (
+        await db
+          .select()
+          .from(schema.workItemPullRequestDeliveryResolution)
+          .where(
+            eq(
+              schema.workItemPullRequestDeliveryResolution.workItemId,
+              "missing-generated-targets",
+            ),
+          )
+      ).some(({ failureCode }) => failureCode === "delivery_metadata_stale"),
+    ).toBe(true);
   });
 
   it("atomically releases only after every implementation pull request satisfies policy", async () => {

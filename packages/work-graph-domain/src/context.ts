@@ -7,19 +7,19 @@ import type {
   WorkItem,
   WorkItemArchitectureDecision,
   WorkItemContext,
-  WorkItemReference,
   WorkItemPullRequest,
+  WorkItemReference,
 } from "./model";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  type ArchitectureDecisionRole,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
   PULL_REQUEST_ROLES,
   PULL_REQUEST_STATES,
-  WORK_ITEM_CONTEXT_KINDS,
-  type ArchitectureDecisionRole,
   type PullRequestRole,
+  WORK_ITEM_CONTEXT_KINDS,
   type WorkItemContextKind,
 } from "./vocabulary";
 
@@ -171,37 +171,68 @@ const normalizeReferences = (
   });
 };
 
+const normalizePullRequestChangedPaths = (
+  pullRequest: PullRequestSnapshot,
+): readonly string[] | undefined => {
+  const changedPaths = pullRequest.changedPaths?.map((changedPath) =>
+    changedPath.trim().replace(/^\.\//u, "").replace(/\/$/u, ""),
+  );
+  const hasInvalidPath = changedPaths?.some(
+    (changedPath) =>
+      changedPath.length === 0 ||
+      changedPath.startsWith("/") ||
+      changedPath
+        .split("/")
+        .some((segment) => segment === ".." || segment === ""),
+  );
+  if (
+    hasInvalidPath ||
+    (changedPaths !== undefined &&
+      new Set(changedPaths).size !== changedPaths.length)
+  ) {
+    throw new WorkGraphError(
+      "invalid_pull_request",
+      `Pull request ${pullRequest.repository}#${pullRequest.number} has invalid changed paths.`,
+    );
+  }
+  return changedPaths;
+};
+
+const hasInvalidPullRequestFields = (
+  pullRequest: PullRequestSnapshot,
+): boolean =>
+  !REPOSITORY_PATTERN.test(pullRequest.repository) ||
+  !Number.isSafeInteger(pullRequest.number) ||
+  pullRequest.number <= 0 ||
+  pullRequest.number > 2_147_483_647 ||
+  !HEAD_SHA_PATTERN.test(pullRequest.headSha) ||
+  (pullRequest.acceptedHeadSha !== null &&
+    !HEAD_SHA_PATTERN.test(pullRequest.acceptedHeadSha)) ||
+  (pullRequest.mergeCommitSha !== null &&
+    !HEAD_SHA_PATTERN.test(pullRequest.mergeCommitSha)) ||
+  !(PULL_REQUEST_STATES as readonly unknown[]).includes(pullRequest.state) ||
+  typeof pullRequest.draft !== "boolean" ||
+  !(PULL_REQUEST_MERGEABILITIES as readonly unknown[]).includes(
+    pullRequest.mergeability,
+  ) ||
+  (pullRequest.reviewDecision !== null &&
+    !(PULL_REQUEST_REVIEW_DECISIONS as readonly unknown[]).includes(
+      pullRequest.reviewDecision,
+    )) ||
+  !(PULL_REQUEST_CHECK_SUMMARIES as readonly unknown[]).includes(
+    pullRequest.checkSummary,
+  ) ||
+  !Number.isFinite(Date.parse(pullRequest.observedAt)) ||
+  (pullRequest.deliveryMetadataSourceRevision !== undefined &&
+    pullRequest.deliveryMetadataSourceRevision.trim().length === 0);
+
 const normalizePullRequests = (
   pullRequests: readonly PullRequestSnapshot[],
 ): readonly PullRequestSnapshot[] => {
   const identities = new Set<string>();
   return pullRequests.map((pullRequest) => {
-    if (
-      !REPOSITORY_PATTERN.test(pullRequest.repository) ||
-      !Number.isSafeInteger(pullRequest.number) ||
-      pullRequest.number <= 0 ||
-      pullRequest.number > 2_147_483_647 ||
-      !HEAD_SHA_PATTERN.test(pullRequest.headSha) ||
-      (pullRequest.acceptedHeadSha !== null &&
-        !HEAD_SHA_PATTERN.test(pullRequest.acceptedHeadSha)) ||
-      (pullRequest.mergeCommitSha !== null &&
-        !HEAD_SHA_PATTERN.test(pullRequest.mergeCommitSha)) ||
-      !(PULL_REQUEST_STATES as readonly unknown[]).includes(
-        pullRequest.state,
-      ) ||
-      typeof pullRequest.draft !== "boolean" ||
-      !(PULL_REQUEST_MERGEABILITIES as readonly unknown[]).includes(
-        pullRequest.mergeability,
-      ) ||
-      (pullRequest.reviewDecision !== null &&
-        !(PULL_REQUEST_REVIEW_DECISIONS as readonly unknown[]).includes(
-          pullRequest.reviewDecision,
-        )) ||
-      !(PULL_REQUEST_CHECK_SUMMARIES as readonly unknown[]).includes(
-        pullRequest.checkSummary,
-      ) ||
-      !Number.isFinite(Date.parse(pullRequest.observedAt))
-    ) {
+    const changedPaths = normalizePullRequestChangedPaths(pullRequest);
+    if (hasInvalidPullRequestFields(pullRequest)) {
       throw new WorkGraphError(
         "invalid_pull_request",
         `Pull request ${pullRequest.repository}#${pullRequest.number} has an invalid snapshot.`,
@@ -215,6 +246,19 @@ const normalizePullRequests = (
       acceptedHeadSha: pullRequest.acceptedHeadSha?.toLowerCase() ?? null,
       mergeCommitSha: pullRequest.mergeCommitSha?.toLowerCase() ?? null,
       observedAt: new Date(pullRequest.observedAt).toISOString(),
+      ...(changedPaths === undefined
+        ? {}
+        : {
+            changedPaths: changedPaths.toSorted((left, right) =>
+              left.localeCompare(right),
+            ),
+          }),
+      ...(pullRequest.deliveryMetadataSourceRevision === undefined
+        ? {}
+        : {
+            deliveryMetadataSourceRevision:
+              pullRequest.deliveryMetadataSourceRevision.trim(),
+          }),
     };
     const identity = pullRequestIdentity(
       normalized.repository,
