@@ -1,6 +1,34 @@
 import { describe, expect, it } from "vitest";
 import { normalizeGitHubDelivery } from "../src/github-delivery";
-import { githubDelivery, headSha, mergeSha } from "./fixtures/github";
+import {
+  githubDelivery,
+  headSha,
+  mergeSha,
+  providerTime,
+} from "./fixtures/github";
+
+const generatedDeliveryMetadata = () => ({
+  repository: "EXAMPLE/SITE",
+  sourceRevision: "catalog-sha",
+  targets: [
+    {
+      id: "delivery-target:site/api",
+      projectId: "project:site",
+      repository: "example/site",
+      sourcePaths: [
+        {
+          path: "workers/site",
+          mode: "exclusive",
+          subjects: ["component:site/api"],
+        },
+      ],
+      subjects: ["workload:site/api"],
+      sharedHostId: null,
+      requiredCiNames: ["Site CI"],
+      productionEnvironments: ["production"],
+    },
+  ],
+});
 
 describe("GitHub observation normalization", () => {
   it("preserves the accepted head and merged commit separately", () => {
@@ -44,6 +72,37 @@ describe("GitHub observation normalization", () => {
       reviewDecision: null,
       checkSummary: "unknown",
     });
+  });
+  it("carries changed paths and generated delivery metadata into the observation", () => {
+    const delivery = githubDelivery();
+    Object.assign(delivery.payload.pull_request as object, {
+      changed_paths: ["workers/site/src/z.ts", "workers/site/src/a.ts"],
+      delivery_metadata_source_revision: "catalog-sha",
+    });
+    delivery.payload.work_graph_delivery_metadata = generatedDeliveryMetadata();
+    delivery.payload.work_graph_delivery_metadata_created_at = providerTime;
+
+    expect(normalizeGitHubDelivery(delivery)).toMatchObject({
+      pullRequest: {
+        changedPaths: ["workers/site/src/a.ts", "workers/site/src/z.ts"],
+        deliveryMetadataSourceRevision: "catalog-sha",
+      },
+      deliveryMetadata: {
+        repository: "example/site",
+        sourceRevision: "catalog-sha",
+        targets: [{ id: "delivery-target:site/api" }],
+      },
+      deliveryMetadataCreatedAt: providerTime,
+    });
+  });
+  it("rejects generated delivery metadata without a valid creation time", () => {
+    const delivery = githubDelivery();
+    delivery.payload.work_graph_delivery_metadata = generatedDeliveryMetadata();
+    delivery.payload.work_graph_delivery_metadata_created_at = "yesterday";
+
+    expect(() => normalizeGitHubDelivery(delivery)).toThrow(
+      "Malformed GitHub observation",
+    );
   });
   it.each([
     "success",
