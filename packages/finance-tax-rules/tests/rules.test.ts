@@ -80,8 +80,18 @@ describe("UK tax rule dataset", () => {
       contract.userFlows
         .flatMap(({ claims }) => claims)
         .find(({ id }) => id === "sole-trader-tax-and-obligations")
-        ?.evidence.workGraphTicketIds,
-    ).toEqual(["finance-side-income-02-sole-trader"]);
+    ).toMatchObject({
+      status: "implemented",
+      calculationKinds: [
+        "annual-liability-estimate",
+        "user-supplied-assumption",
+      ],
+      evidence: {
+        fixturePaths: [
+          "packages/personal-finance-contracts/src/soleTraderSyntheticScenarios.ts",
+        ],
+      },
+    });
     expect(coverageContract.providerEvaluations).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ provider: "TaxScope", decision: "rejected" }),

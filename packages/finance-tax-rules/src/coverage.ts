@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
 import type { RuleDataset } from "./schema";
@@ -8,6 +8,7 @@ import type { ValidationCorpus } from "./validation";
 const evidenceSchema = z.object({
   implementationPaths: z.array(z.string().min(1)),
   testPaths: z.array(z.string().min(1)),
+  fixturePaths: z.array(z.string().min(1)).default([]),
   officialRuleSourceIds: z.array(z.string().min(1)),
   validationFixtureIds: z.array(z.string().min(1)),
   workGraphTicketIds: z.array(z.string().min(1)),
@@ -54,6 +55,14 @@ export const coverageContractSchema = z.object({
   publishedAt: z.iso.date(),
   ruleDatasetVersion: z.string().min(1),
   validationCorpusVersion: z.string().min(1),
+  externalRuleSets: z.array(
+    z.object({
+      id: z.string().min(1),
+      version: z.string().min(1),
+      sourceDefinitionPath: z.string().min(1),
+      officialRuleSourceIds: z.array(z.string().min(1)).min(1),
+    }),
+  ).min(1),
   userFlows: z.array(
     z.object({
       id: z.enum([
@@ -95,6 +104,33 @@ export const coverageContract = {
   publishedAt: "2026-11-05",
   ruleDatasetVersion: "2026.10.4",
   validationCorpusVersion: "2026.10.4",
+  externalRuleSets: [
+    {
+      id: "uk-side-income-eligibility-and-obligations",
+      version: "2026-10-31",
+      sourceDefinitionPath:
+        "packages/personal-finance-contracts/artifacts/uk-side-income-rules-2026-10-31.json",
+      officialRuleSourceIds: [
+        "register-sole-trader",
+        "tax-free-allowances-on-property-and-trading-income",
+        "register-for-vat",
+        "using-making-tax-digital-for-income-tax-for-the-first-time",
+      ],
+    },
+    {
+      id: "uk-sole-trader-tax",
+      version: "2026-10-31",
+      sourceDefinitionPath:
+        "packages/personal-finance-contracts/src/soleTraderRules.ts",
+      officialRuleSourceIds: [
+        "self-employed-national-insurance-rates",
+        "student-loans-in-tax-return",
+        "student-loan-rates-2026-27",
+        "payments-on-account",
+        "self-assessment-deadlines",
+      ],
+    },
+  ],
   userFlows: [
     {
       id: "salary-history",
@@ -289,20 +325,51 @@ export const coverageContract = {
       claims: [
         {
           id: "sole-trader-tax-and-obligations",
-          status: "explicitly-unavailable",
-          calculationKinds: ["annual-liability-estimate"],
+          status: "implemented",
+          calculationKinds: [
+            "annual-liability-estimate",
+            "user-supplied-assumption",
+          ],
           summary:
-            "The released tax package does not calculate sole-trader side-income tax, cash flow, or obligations.",
+            "The sole-trader scenario calculates 2026/27 profit, annual Income Tax, Class 4 National Insurance, student loans, payments on account, cash timing, tax reserves, and filing obligations.",
           boundaries: [
-            "Eligibility evidence on its own is not a tax calculation.",
-            "Open implementation work is tracked separately and is not counted as released coverage.",
+            "Coverage is limited to the 2026/27 ruleset and supported GB sole-trader cases.",
+            "Trading losses stop the calculation because loss relief and carry-forward treatment are not modelled.",
+            "Unresolved eligibility, expense treatment, international facts, and non-sole-trader structures return review or unsupported issues before tax is calculated.",
           ],
           evidence: {
-            implementationPaths: [],
-            testPaths: [],
-            officialRuleSourceIds: [],
-            validationFixtureIds: [],
-            workGraphTicketIds: ["finance-side-income-02-sole-trader"],
+            implementationPaths: [
+              "packages/personal-finance-contracts/src/soleTraderCashFlow.ts",
+              "packages/personal-finance-contracts/src/soleTraderRules.ts",
+              "packages/personal-finance-contracts/src/soleTraderScenario.ts",
+              "packages/personal-finance-contracts/src/soleTraderTax.ts",
+              "ui/app/_projects/personal-finance-app/components/sole-trader-scenarios.tsx",
+            ],
+            testPaths: [
+              "packages/personal-finance-contracts/tests/soleTraderRules.test.ts",
+              "packages/personal-finance-contracts/tests/soleTraderScenario.test.ts",
+              "ui/app/_projects/personal-finance-app/tests/components/routes.test.tsx",
+            ],
+            fixturePaths: [
+              "packages/personal-finance-contracts/src/soleTraderSyntheticScenarios.ts",
+            ],
+            officialRuleSourceIds: [
+              "hmrc-income-tax-current-and-past",
+              "register-sole-trader",
+              "tax-free-allowances-on-property-and-trading-income",
+              "register-for-vat",
+              "using-making-tax-digital-for-income-tax-for-the-first-time",
+              "self-employed-national-insurance-rates",
+              "student-loans-in-tax-return",
+              "student-loan-rates-2026-27",
+              "payments-on-account",
+              "self-assessment-deadlines",
+            ],
+            validationFixtureIds: [
+              "annual-personal-allowance-taper",
+              "annual-scotland-bands",
+            ],
+            workGraphTicketIds: [],
           },
         },
         {
@@ -452,6 +519,7 @@ function validateClaim(
   for (const path of [
     ...claim.evidence.implementationPaths,
     ...claim.evidence.testPaths,
+    ...claim.evidence.fixturePaths,
   ]) {
     context.validatePath(path);
   }
@@ -529,6 +597,25 @@ export function validateCoverageContract(
   const validatePath = (path: string) => {
     assert(existsSync(resolve(repositoryRoot, path)), `${path} does not exist`);
   };
+
+  for (const ruleSet of contract.externalRuleSets) {
+    validatePath(ruleSet.sourceDefinitionPath);
+    const definition = readFileSync(
+      resolve(repositoryRoot, ruleSet.sourceDefinitionPath),
+      "utf8",
+    );
+    assert(
+      definition.includes(ruleSet.version),
+      `${ruleSet.id} does not contain version ${ruleSet.version}`,
+    );
+    for (const sourceId of ruleSet.officialRuleSourceIds) {
+      assert(
+        definition.includes(sourceId),
+        `${ruleSet.id} does not define source ${sourceId}`,
+      );
+      sourceIds.add(sourceId);
+    }
+  }
 
   const context = { sourceIds, fixtureIds, claimIds, validatePath };
 
