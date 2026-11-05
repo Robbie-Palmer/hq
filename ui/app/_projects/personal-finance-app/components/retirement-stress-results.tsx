@@ -10,6 +10,23 @@ type RangeOutcome = AssumptionComparison["outcomes"][number];
 type PathComparison =
   RetirementProjectionRangeComparison["pathComparisons"][number];
 
+const RANGE_HEADINGS = [
+  "Assumption",
+  "Horizon",
+  "Liquid withdrawal capital",
+  "Restricted pension capital",
+  "Retained home equity",
+  "Liabilities",
+  "Total net worth",
+  "Retirement income coverage",
+  "Cash runway",
+  "Accessible capital exhaustion",
+  "Portfolio survival",
+  "Withdrawal tax",
+  "Withdrawal fees",
+  "Unfunded spending",
+] as const;
+
 function percentage(value: number): string {
   return `${(value * 100).toFixed(0)}%`;
 }
@@ -96,22 +113,7 @@ function RangeTable({
           </caption>
           <thead className="bg-muted/50 text-left">
             <tr>
-              {[
-                "Assumption",
-                "Horizon",
-                "Liquid withdrawal capital",
-                "Restricted pension capital",
-                "Retained home equity",
-                "Liabilities",
-                "Total net worth",
-                "Retirement income coverage",
-                "Cash runway",
-                "Accessible capital exhaustion",
-                "Portfolio survival",
-                "Withdrawal tax",
-                "Withdrawal fees",
-                "Unfunded spending",
-              ].map((heading) => (
+              {RANGE_HEADINGS.map((heading) => (
                 <th className="p-3 font-medium" key={heading}>
                   {heading}
                 </th>
