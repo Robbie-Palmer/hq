@@ -79,6 +79,9 @@ export class GitHubDeliveryConsumer {
           scopedRepository.recordEvidenceObservation(input, {
             projectCurrent: false,
           });
+        const recordDeliveryAction = async (observationId: string) => {
+          await scopedRepository.recordDeliveryActionObservation(observationId);
+        };
         const raw = normalizeGitHubDelivery(delivery);
         const observation =
           raw === null
@@ -100,6 +103,7 @@ export class GitHubDeliveryConsumer {
                 transaction,
                 observation,
                 recordEvidence,
+                recordDeliveryAction,
               );
         await transaction
           .insert(githubDeliveryProcessing)
@@ -125,6 +129,7 @@ export class GitHubDeliveryConsumer {
             transaction,
             observation.pullRequest,
             recordEvidence,
+            recordDeliveryAction,
           );
         }
         return disposition;

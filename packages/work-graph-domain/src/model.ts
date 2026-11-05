@@ -4,8 +4,12 @@ import type {
   KnowledgeScopeLifecycle,
   PullRequestCheckSummary,
   CompletionCandidateReason,
+  DeliveryActionKind,
+  DeliveryActionResultState,
   DeliveryEvidenceKind,
   DeliveryEvidenceState,
+  DeliveryRecoveryDeliveryKind,
+  DeliveryRecoveryFallback,
   EvidenceCorrelationKind,
   PullRequestMergeability,
   PullRequestReviewDecision,
@@ -168,6 +172,60 @@ export interface CompletionCandidateEvaluation {
   readonly reasons: readonly CompletionCandidateReason[];
   readonly evidenceObservationIds: readonly string[];
   readonly evaluatedAt: string;
+}
+
+export interface DeliveryActionRequest {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly kind: DeliveryActionKind;
+  readonly provider: "github";
+  readonly evidenceKind: "pull_request" | "deployment";
+  readonly evidenceExternalId: string;
+  readonly repository: string;
+  readonly commitSha: string;
+  readonly policyId: string;
+  readonly policyRevision: number;
+  readonly initiatingSessionId: string | null;
+  readonly unavailableSessionFallback: DeliveryRecoveryFallback;
+  readonly requestedAt: string;
+}
+
+export interface DeliveryActionResult {
+  readonly id: string;
+  readonly requestId: string;
+  readonly evidenceObservationId: string;
+  readonly state: DeliveryActionResultState;
+  readonly recordedAt: string;
+}
+
+export interface DeliveryRecoveryRecord {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly actionRequestId: string;
+  readonly actionResultId: string;
+  readonly initiatingSessionId: string | null;
+  readonly unavailableSessionFallback: DeliveryRecoveryFallback;
+  readonly attentionRequestId: string;
+  readonly createdAt: string;
+  readonly resolvedAt: string | null;
+  readonly evidence: {
+    readonly provider: string;
+    readonly externalId: string;
+    readonly repository: string;
+    readonly commitSha: string;
+    readonly kind: "pull_request" | "deployment";
+    readonly state: "failure" | "cancelled";
+    readonly sourceUrl: string;
+    readonly observedAt: string;
+  };
+}
+
+export interface DeliveryRecoveryDelivery {
+  readonly id: string;
+  readonly recoveryId: string;
+  readonly kind: DeliveryRecoveryDeliveryKind;
+  readonly targetSessionId: string | null;
+  readonly reservedAt: string;
 }
 
 export interface WorkItemPullRequest {
