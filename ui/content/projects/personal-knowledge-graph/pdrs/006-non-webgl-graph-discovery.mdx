@@ -1,0 +1,54 @@
+---
+title: "PDR 006: Keep graph discovery available without WebGL"
+date: "2026-08-29"
+status: "Accepted"
+decision_date: "2026-08-29"
+informed_by_adrs:
+  - "personal-knowledge-graph:038-content-graph"
+---
+
+## Context
+
+The first graph explorer rendered through WebGL. It worked for pointer users
+with a compatible browser, but its nodes and links were not available to screen
+readers. Touch users also lost hover details, and a graphics failure could
+remove the discovery path entirely.
+
+Those limits came from the renderer rather than the content model. The site
+already had canonical pages and labels for every graph node.
+
+## Decision
+
+Keep an HTML index of the filtered graph available alongside the visual
+explorer on every viewport. The index must expose the same node labels and
+canonical destinations, support keyboard navigation, and remain usable when
+WebGL is unavailable.
+
+The visual graph may add pan, zoom, drag, animation, and neighbourhood
+highlighting. Those interactions cannot become the only way to find or open a
+node. Reduced-motion and mobile modes may simplify the graphics without
+removing the HTML discovery path.
+
+## Consequences
+
+Screen-reader, keyboard, touch, and non-WebGL users can still browse the graph.
+The HTML list also gives automated checks a direct way to compare rendered
+nodes with repository data.
+
+The feature now has two coordinated presentations. Filtering, search, labels,
+and destination links must stay consistent between them. The HTML index does
+not reproduce spatial relationships, so it provides equivalent discovery, not
+an equivalent visual layout.
+
+## Evaluation
+
+Every visible graph node must appear in the current HTML index with the same
+label and destination. A reader must be able to search, filter, and open a node
+with a keyboard while animations are disabled and WebGL is unavailable.
+
+## Migration note
+
+This record preserves the accessibility policy added with the graph explorer
+revision on 2026-08-29. It is a later product change prompted by the limitations
+documented in ADR 038, not part of the original 2026-02-07 decision now stored
+as PDR 003.

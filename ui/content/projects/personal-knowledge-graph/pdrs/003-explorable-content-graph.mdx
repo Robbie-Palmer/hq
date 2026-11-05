@@ -1,0 +1,49 @@
+---
+title: "PDR 003: Let readers explore the connected content graph"
+date: "2026-02-07"
+status: "Accepted"
+decision_date: "2026-02-07"
+---
+
+## Context
+
+The site already connected projects, articles, decisions, technologies, roles,
+and tags. Those relationships powered backlinks and filters, but a reader could
+not see the graph as a whole. The author also lacked a quick way to spot dense
+clusters, central records, and isolated content.
+
+## Decision
+
+Publish an interactive view of the real content graph. Let readers filter node
+types, inspect connections, search for content, and follow a node to its page.
+Use the same repository relationships that power the rest of the site rather
+than maintaining a separate diagram.
+
+Keep positions deterministic enough that filtering and revisiting the graph do
+not produce a completely different map on each load. The visualization is a
+discovery tool, not a claim that visual proximity has semantic meaning beyond
+the rendered relationships.
+
+## Consequences
+
+Readers gain another path into the content, and the author can see missing or
+weakly connected records. The view also demonstrates that the site's graph is
+a working data model rather than a label applied to a set of pages.
+
+An interactive graph adds client code and can become visually dense. A
+graphics-only renderer also excludes readers who cannot use WebGL or a pointer.
+That limitation later required a separate accessibility decision.
+
+## Evaluation
+
+The graph should expose the same nodes and links as the repository, keep
+navigation stable enough to use, and send every selected node to a canonical
+content page. Revisit the feature if it becomes a decorative animation that
+does not help readers discover content or help the author find gaps.
+
+## Migration note
+
+This record extracts the user-facing graph explorer from ADR 038 and preserves
+the original 2026-02-07 decision. ADR 038 retains the renderer, layout, and
+interaction architecture. The HTML index and keyboard-accessible discovery
+path were added later and are recorded separately in PDR 006.

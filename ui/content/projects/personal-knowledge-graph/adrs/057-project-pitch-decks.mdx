@@ -1,20 +1,27 @@
 ---
-title: "ADR 057: Project Pitch Decks"
+title: "ADR 057: reveal.js Project Pitch Deck Rendering"
 date: "2026-08-30"
 status: "Proposed"
 tech_stack: ["reveal.js"]
+implements_product_decisions:
+  - "personal-knowledge-graph:005-agent-friendly-publication"
+  - "personal-knowledge-graph:007-project-onboarding-and-discovery"
 ---
 
 ## Summary
 
-Add an optional, project-local pitch deck to project pages. Authors will write each deck in MDX and render it with
-[reveal.js 6](https://revealjs.com/). The spike will start with the official
+[PDR 007](/projects/personal-knowledge-graph/pdrs/007-project-onboarding-and-discovery)
+defines the onboarding and discovery experience, while
+[PDR 005](/projects/personal-knowledge-graph/pdrs/005-agent-friendly-publication)
+requires an agent-friendly linear transcript. Implement those choices with project-local MDX
+rendered by [reveal.js 6](https://revealjs.com/). The spike will start with the official
 [`@revealjs/react` package](https://revealjs.com/react/) and connect it to the site's components and Tailwind tokens.
 If the published package gets in the way, vendor and cut down the relevant source.
 
-The project page will embed the deck as a first-class tab. A separate deck route will support focused viewing,
-deep links, speaker notes, fullscreen presentation, and scroll view. The same source will also produce a
-plain-Markdown transcript.
+The project page, focused deck route, presenter view, and transcript will all
+consume the same source. The architecture must isolate presentation state,
+keep React ownership of the rendered tree, and exclude presenter notes from the
+Markdown output.
 
 Take [Slidev](https://github.com/slidevjs/slidev) as the product reference for Markdown-first authoring, layouts,
 framework components, presenter tools, and static hosting. Implement that experience inside the existing React and
@@ -25,17 +32,10 @@ static export, React 19 lifecycle, MDX renderer, responsive layout, and Markdown
 
 ## Context
 
-Project pages currently combine different kinds of document:
-
-* product requirements and user stories;
-* market and competitor analysis;
-* implementation status;
-* interactive design prototypes; and
-* linked architecture decisions.
-
-That material works as a reference, but it makes a poor opening explanation. A project pitch deck can tell a
-shorter story: the problem, the audience, the insight, the proposed product, evidence, design, technical choices,
-and current result. Keep the detailed project overview and ADRs available instead of compressing them into slides.
+[PDR 007](/projects/personal-knowledge-graph/pdrs/007-project-onboarding-and-discovery)
+sets the content, optionality, accessibility, and release boundary for project
+pitches. This ADR chooses how the existing Next.js application will render that
+feature without adding a second application stack.
 
 The recipe-site project already proves that project MDX can embed an interactive React component. Its
 `DesignEmbed` uses an iframe because the design is a self-contained prototype. A deck is different. Its text,
@@ -479,3 +479,11 @@ reader can understand the work. Do not create empty decks only to make every pro
 
 Later decisions may add a shared deck theme, automated PDF artifacts, slide-level analytics, or editable office
 exports. None of those are required to introduce project pitch decks.
+
+## Migration note
+
+The 2026-11-01 migration moved the deck's audience, optionality, transcript,
+accessibility, and version-one product scope into PDR 007. This ADR keeps the
+original reveal.js proposal, React and MDX integration, route model, loading
+boundary, alternatives, and acceptance spike. Its date and Proposed status did
+not change.

@@ -3,11 +3,15 @@ title: "ADR 020: MDX"
 date: "2025-10-19"
 status: "Accepted"
 tech_stack: ["MDX"]
+implements_product_decisions:
+  - "personal-knowledge-graph:001-one-public-account-of-the-work"
 ---
 
 # Context
 
-With [Static Site Generation](/projects/personal-knowledge-graph/adrs/015-ssg) as the rendering strategy, I need a content format that balances **simplicity for prose** with **power for interactive content**:
+[PDR 001](/projects/personal-knowledge-graph/pdrs/001-one-public-account-of-the-work)
+requires one reviewed source for the public account. With [Static Site Generation](/projects/personal-knowledge-graph/adrs/015-ssg)
+as the rendering strategy, the content format must balance **simplicity for prose** with **power for interactive content**:
 
 * Rich formatting (code blocks, tables, diagrams)
 * Structured metadata (frontmatter)
