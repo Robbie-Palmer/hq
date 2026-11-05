@@ -430,6 +430,11 @@ run = "actionlint"
 description = "Fetch an Access-protected PR preview using agent credentials"
 run = "bash scripts/fetch-preview.sh"
 
+[tasks."preview:fetch:test"]
+description = "Test the protected-preview HTTP credential boundary"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/fetch-preview.test.ts"
+
 [tasks."preview:links"]
 description = "Resolve preview links from project profiles"
 depends = ["//:install"]
