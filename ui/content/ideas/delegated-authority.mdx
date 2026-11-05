@@ -1,0 +1,94 @@
+---
+title: "Delegated Authority"
+description: "A grant that lets one actor exercise a limited subset of another principal's authority over named resources."
+source_url: "https://www.rfc-editor.org/rfc/rfc8693.html"
+related_ideas:
+  - "human-in-the-loop"
+  - "human-on-the-loop"
+---
+
+Delegated authority lets one principal authorize another actor to perform selected actions without
+sharing the principal's complete identity or permissions. A useful grant names the actor, resources,
+allowed actions, constraints, expiry, and the principal that approved it.
+
+The resource remains authoritative. It must verify the actor's credential, the delegated grant, its
+own policy, and the delegator's current permission. A grant can narrow existing authority. It cannot
+create authority that the delegator does not have.
+
+## Keep the actor visible
+
+Delegation differs from impersonation. An impersonating actor appears to be the subject. A delegated
+actor acts for the subject while retaining its own identity. That distinction supports audit,
+actor-specific policy, and revocation.
+
+[RFC 8693](https://www.rfc-editor.org/rfc/rfc8693.html) makes this distinction in OAuth token
+exchange. A subject token identifies the principal whose authority is involved. An actor token can
+identify the party acting for that subject. The requested resource, audience, and scope constrain the
+new token.
+
+An audit record should therefore retain both identities. Recording only the user hides which service,
+application, or agent performed the action. Recording only the actor loses the source of its
+authority.
+
+## Intersect permissions at the resource
+
+The effective permission is the intersection of these checks:
+
+* the delegator currently has permission on the resource;
+* the grant permits the actor, action, and resource;
+* time, audience, budget, network, and other conditions hold; and
+* the resource's own policy permits the operation.
+
+[AWS session policies](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_assumerole.html)
+show this narrowing rule in practice. A session policy limits the permissions of an assumed role and
+cannot grant permissions beyond the role's identity policy. GitHub App user access tokens follow a
+similar intersection: an action needs both the app's permission and the user's permission, and the
+token can reach only resources available to both.
+
+Enforcement belongs at the service that owns the resource or at a gateway it trusts. A user interface
+that hides an unavailable button is not an authorization check. Neither is a signed token if the
+resource ignores its audience, scope, expiry, or actor.
+
+## Make grants inspectable and revocable
+
+A person approving a grant needs concrete terms: who will act, on which resource, with which actions,
+for how long, and under what limits. Broad labels such as "repository access" hide the difference
+between reading code, creating a branch, opening a pull request, and merging it.
+
+Short-lived credentials reduce exposure but do not replace revocation. The system needs a way to end
+one grant or actor without disabling the user's unrelated access. The resource must also recheck live
+authority when removing a user's permission should stop an actor before its delegated credential
+expires.
+
+Revocation has a propagation boundary. A service that validates a token locally may accept it until
+expiry unless it consults current state. A gateway can enforce revocation immediately for requests
+that pass through it, but it cannot retract an operation that has already completed or control a
+copied credential used through another path.
+
+## Do not confuse authority with oversight
+
+Authentication establishes an identity. It does not decide what that identity may do. Delegation
+adds a source and scope for authority, while the resource still makes the authorization decision.
+
+[Human in the loop](/ideas/human-in-the-loop) describes a person deciding before work continues.
+[Human on the loop](/ideas/human-on-the-loop) describes supervision with the ability to intervene.
+Either interaction model can approve or monitor a delegated grant, but neither defines the grant's
+permissions or enforcement.
+
+Delegation is not automatically transitive. An actor may delegate again only when the grant explicitly
+permits it, and the next grant must remain within the authority received. A protocol can carry that
+information, but it cannot make every receiving service interpret or enforce it correctly.
+
+## Questions it prompts
+
+* Which principal supplies the authority, and which actor uses it?
+* What exact actions, resources, audiences, and time limits does the grant cover?
+* Does the resource check both the delegator's live permission and the narrower grant?
+* Can one actor or grant be revoked without ending unrelated access?
+* Does the audit record distinguish delegation from impersonation?
+
+## Sources
+
+* IETF. [RFC 8693, "OAuth 2.0 Token Exchange"](https://www.rfc-editor.org/rfc/rfc8693.html).
+* AWS. ["Permissions for AssumeRole, AssumeRoleWithSAML, and AssumeRoleWithWebIdentity"](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_temp_control-access_assumerole.html).
+* GitHub. ["Choosing permissions for a GitHub App"](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/choosing-permissions-for-a-github-app).

@@ -74,7 +74,7 @@ describe("sitemap", () => {
     expect(ideaUrls).toContain(
       "https://robbiepalmer.me/ideas/property-based-testing",
     );
-    expect(ideaUrls).toHaveLength(44);
+    expect(ideaUrls).toHaveLength(47);
   });
 
   it("includes the technologies index", () => {
