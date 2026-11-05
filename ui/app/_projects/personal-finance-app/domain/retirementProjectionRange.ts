@@ -405,6 +405,50 @@ function employmentIncomeStream(input: {
   return streams;
 }
 
+type RetirementContributionPeriod = {
+  id: "full" | "reduced";
+  startDate: string;
+  endDate: string;
+  multiplier: number;
+};
+
+function retirementContributionPeriods(input: {
+  facts: RetirementProjectionFacts;
+  path: RetirementProjectionPath;
+  endDate: string;
+}): RetirementContributionPeriod[] {
+  if (input.path.id === "stay-in-work") {
+    return [
+      {
+        id: "full",
+        startDate: input.facts.startDate,
+        endDate: input.endDate,
+        multiplier: 1,
+      },
+    ];
+  }
+  const fullPeriod: RetirementContributionPeriod = {
+    id: "full",
+    startDate: input.facts.startDate,
+    endDate: isoDate(
+      addMonths(parseISO(input.facts.plannedRetirementDate), -1),
+    ),
+    multiplier: 1,
+  };
+  if (input.path.id === "stop-work") return [fullPeriod];
+  return [
+    fullPeriod,
+    {
+      id: "reduced",
+      startDate: input.facts.plannedRetirementDate,
+      endDate: input.endDate,
+      multiplier:
+        input.path.annualNetEmploymentIncome /
+        Math.max(input.facts.annualNetEmploymentIncome, 1),
+    },
+  ];
+}
+
 function retirementContributions(input: {
   facts: RetirementProjectionFacts;
   path: RetirementProjectionPath;
@@ -412,45 +456,7 @@ function retirementContributions(input: {
 }): RetirementCapitalContribution[] {
   const plan = input.facts.contributionPlan;
   if (plan == null) return [];
-  const periods =
-    input.path.id === "stay-in-work"
-      ? [
-          {
-            id: "full",
-            startDate: input.facts.startDate,
-            endDate: input.endDate,
-            multiplier: 1,
-          },
-        ]
-      : input.path.id === "reduced-work"
-        ? [
-            {
-              id: "full",
-              startDate: input.facts.startDate,
-              endDate: isoDate(
-                addMonths(parseISO(input.facts.plannedRetirementDate), -1),
-              ),
-              multiplier: 1,
-            },
-            {
-              id: "reduced",
-              startDate: input.facts.plannedRetirementDate,
-              endDate: input.endDate,
-              multiplier:
-                input.path.annualNetEmploymentIncome /
-                Math.max(input.facts.annualNetEmploymentIncome, 1),
-            },
-          ]
-        : [
-            {
-              id: "full",
-              startDate: input.facts.startDate,
-              endDate: isoDate(
-                addMonths(parseISO(input.facts.plannedRetirementDate), -1),
-              ),
-              multiplier: 1,
-            },
-          ];
+  const periods = retirementContributionPeriods(input);
   return periods.flatMap((period) =>
     [
       {
