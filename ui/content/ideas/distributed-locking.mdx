@@ -1,0 +1,87 @@
+---
+title: "Distributed Locking"
+description: "Coordination that grants one client temporary authority over a shared operation while protected resources reject work from superseded holders."
+source_url: "https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html"
+related_ideas:
+  - "flp-impossibility"
+  - "two-generals-problem"
+  - "idempotency"
+---
+
+A distributed lock coordinates clients that might otherwise perform conflicting work. A lock
+service records the current holder, while a lease limits how long that claim remains valid without
+renewal. If the holder fails, another client can take over after the lease expires.
+
+Expiry solves availability, but it does not stop the old holder. A process can pause long enough for
+its lease to expire, resume after another client acquires the lock, and then send a delayed write.
+The process may still believe it owns the lock. The protected resource needs a way to distinguish
+that stale request from work by the new holder.
+
+## Fence every protected operation
+
+A lock service can issue a monotonically increasing fencing token with each successful acquisition.
+Every operation performed under the lock carries that token. The protected resource remembers the
+highest token it has accepted and rejects requests with lower values.
+
+Suppose one client receives token 41 and then pauses. Its lease expires, so another client acquires
+the lock with token 42 and writes successfully. When the first client resumes, the resource rejects
+its token 41. The comparison and the protected write must share one atomic boundary. Checking a
+token and writing later would leave another race between those two steps.
+
+[Martin Kleppmann's fencing explanation](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html)
+puts the decisive check at the storage service, not at the client or lock service. Google's Chubby
+lock service uses a related mechanism called a sequencer. A sequencer identifies the lock, its mode,
+and its generation. A server can validate it before accepting an operation.
+
+The lock service cannot provide this protection by itself. If a file store, API, or device accepts
+commands without checking the holder's token, a delayed former holder can still change the resource.
+A lock that only prevents two successful acquisitions at the same instant is not enough when old
+requests can remain in flight.
+
+## Decide whether the lock protects correctness
+
+Some locks only reduce duplicate work. Two workers may occasionally run the same cleanup or refresh,
+but the result remains valid. A best-effort lock can be reasonable in that case if the operation is
+also safe to repeat.
+
+Other locks protect an invariant, such as admitting one writer for a non-commutative update. Those
+locks need a service with stated consistency guarantees and a resource that enforces fencing. A
+timeout or majority vote around independent lock stores does not replace that end-to-end
+check.
+
+[Kubernetes Lease objects](https://kubernetes.io/docs/concepts/architecture/leases/) show the
+practical shape of renewable ownership. They record a holder, renewal time, duration, and transition
+count for uses such as leader election. A leader election record still does not make every downstream
+side effect safe. Each protected system must decide how it rejects work from an earlier leader.
+
+## Know where the guarantee ends
+
+A distributed lock does not prove that the holder is alive, that the network is timely, or that work
+finished before expiry. It does not undo an operation that a stale holder completed before the
+resource observed a newer token. It also cannot protect side effects sent to a system that has no
+fencing check.
+
+Lease duration sets a recovery trade-off. A short lease speeds takeover but demands frequent renewal
+and makes pauses more likely to trigger replacement. A long lease tolerates pauses but delays
+recovery. The correctness argument should depend on token enforcement, not on choosing a timeout that
+is assumed to exceed every pause.
+
+[FLP impossibility](/ideas/flp-impossibility) explains why delay cannot always be distinguished from
+failure in an asynchronous system. [The Two Generals Problem](/ideas/two-generals-problem) explains
+why messages cannot create certainty over an unreliable channel. Distributed locking is a practical
+coordination mechanism under stated assumptions, not a way around those limits.
+
+## Questions it prompts
+
+* Does the lock prevent incorrect results, or only wasted duplicate work?
+* What monotonically increasing value identifies each acquisition?
+* Which resource checks the fencing token, and is that check atomic with the write?
+* What happens to work already in flight when a lease expires?
+* Can every side effect made under the lock enforce the same ownership boundary?
+
+## Sources
+
+* Kleppmann, Martin. ["How to do distributed locking"](https://martin.kleppmann.com/2016/02/08/how-to-do-distributed-locking.html).
+* Burrows, Mike. ["The Chubby Lock Service for Loosely-Coupled Distributed Systems"](https://research.google/pubs/the-chubby-lock-service-for-loosely-coupled-distributed-systems/).
+  OSDI, 2006.
+* Kubernetes. ["Leases"](https://kubernetes.io/docs/concepts/architecture/leases/).
