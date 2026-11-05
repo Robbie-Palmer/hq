@@ -81,6 +81,7 @@ import {
   type HmrcEmploymentObservation,
   type Household,
   type HouseholdScope,
+  type HouseholdSoleTraderScenario,
   type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
@@ -192,6 +193,7 @@ interface AssetTrackerContextValue {
   housingPlanningPosition: HousingPlanningPosition | null;
   taxEstimate: HouseholdTaxEstimate;
   taxPosition?: TaxPositionData;
+  soleTraderScenarios: HouseholdSoleTraderScenario[];
   taxSetupIncomeSuggestions: Record<string, number | null>;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
@@ -720,6 +722,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       ),
       taxEstimate,
       taxPosition: data.taxPosition,
+      soleTraderScenarios: data.soleTraderScenarios ?? [],
       taxSetupIncomeSuggestions: Object.fromEntries(
         data.household.members.map(({ id }) => [
           id,

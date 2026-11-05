@@ -882,6 +882,9 @@ importers:
 
   packages/personal-finance-contracts:
     dependencies:
+      finance-tax-rules:
+        specifier: workspace:*
+        version: link:../finance-tax-rules
       iso-codes:
         specifier: workspace:*
         version: link:../iso-codes
@@ -1424,6 +1427,9 @@ importers:
       next-themes:
         specifier: ^0.4.6
         version: 0.4.6(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      personal-finance-contracts:
+        specifier: workspace:*
+        version: link:../packages/personal-finance-contracts
       planning-case-domain:
         specifier: workspace:*
         version: link:../packages/planning-case-domain
