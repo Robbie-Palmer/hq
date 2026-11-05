@@ -2936,6 +2936,48 @@ test("the Vector controller webhook reconciler is fixed to the pilot boundary", 
   );
 });
 
+test("the Vector controller webhook rejects a terminal secret newline", () => {
+  const temporaryDirectory = mkdtempSync(
+    join(tmpdir(), "vector-controller-webhook-"),
+  );
+  const binDirectory = join(temporaryDirectory, "bin");
+  const secretPath = join(temporaryDirectory, "webhook-secret");
+  const tokenPath = join(temporaryDirectory, "github-token");
+  const reconciler = fileURLToPath(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+  );
+
+  try {
+    mkdirSync(binDirectory);
+    writeFileSync(secretPath, "test-secret\n");
+    writeFileSync(tokenPath, "test-token");
+    writeFileSync(join(binDirectory, "gh"), "#!/usr/bin/env bash\nexit 99\n");
+    chmodSync(join(binDirectory, "gh"), 0o755);
+
+    const result = spawnSync("bash", [reconciler], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+        CONTROLLER_WEBHOOK_URL: "https://relay.t3.codes/v1/hooks/test",
+        CONTROLLER_WEBHOOK_SECRET_FILE: secretPath,
+        CONTROLLER_GITHUB_TOKEN_FILE: tokenPath,
+      },
+    });
+
+    assert.equal(result.status, 2);
+    assert.match(
+      result.stderr,
+      /controller webhook secret file must not end with a newline/i,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-doppler-wrapper-"));
   const dopplerWrapper = fileURLToPath(
