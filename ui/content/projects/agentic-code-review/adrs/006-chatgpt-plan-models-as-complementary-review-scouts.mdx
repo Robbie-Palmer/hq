@@ -3,6 +3,9 @@ title: "ADR 006: ChatGPT Plan Models as Complementary Review Scouts"
 date: "2026-10-08"
 status: "Proposed"
 tech_stack: ["OpenAI"]
+implements_product_decisions:
+  - "agentic-code-review:000-own-review-policy-and-rent-inference"
+  - "agentic-code-review:003-recall-first-agent-mediated-review"
 ---
 
 # Summary
@@ -23,7 +26,10 @@ decision.
 replaceable behind a stateful review service. The deployed ensemble uses paid OpenRouter scouts,
 eligible free OpenCode scouts, and an OpenRouter merger. That diversity is deliberate. Independent
 model families find different defects, and the scorecard can remove a weak scout without replacing
-the review system.
+the review system. This implements the replaceable-inference boundary from
+[PDR 000](/projects/agentic-code-review/pdrs/000-own-review-policy-and-rent-inference)
+and tests whether another independent scout improves the recall-first objective
+in [PDR 003](/projects/agentic-code-review/pdrs/003-recall-first-agent-mediated-review).
 
 OpenAI now documents
 [ChatGPT plan usage in open-source apps](https://developers.openai.com/siwc/token-sharing-open-source).
@@ -184,3 +190,10 @@ Move this ADR to Accepted only when all of the following hold:
 * [Accounts and sessions](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions)
 * [Self-hosted VMs](https://developers.openai.com/siwc/token-sharing-open-source/self-hosted-vms)
 * [Preview limitations](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations)
+
+# Migration note
+
+This structural edit links the proposed scout to the earlier replaceable-model
+boundary and recall-first product policy. It does not change the original date,
+Proposed status, owner-only scope, eligibility gate, provider fallback, or
+adoption criteria.

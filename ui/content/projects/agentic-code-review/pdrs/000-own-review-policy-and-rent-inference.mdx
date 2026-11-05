@@ -1,0 +1,82 @@
+---
+title: "PDR 000: Own review policy and evidence, rent model inference"
+date: "2026-06-21"
+status: "Accepted"
+decision_date: "2026-07-25"
+informed_by_adrs:
+  - "personal-knowledge-graph:009-code-rabbit"
+  - "personal-knowledge-graph:041-gemini-code-assist"
+  - "personal-knowledge-graph:042-greptile"
+  - "personal-knowledge-graph:044-codex-code-review"
+  - "personal-knowledge-graph:045-qodo"
+---
+
+## Context
+
+Agentic development creates review demand faster than a solo maintainer or a
+fixed third-party allowance can absorb it. The project tried five managed
+reviewers. Their findings were useful, but quotas, product withdrawals, shared
+subscription limits, and broader enterprise bundles made dependable capacity
+hard to buy at the required pace.
+
+The parts that compound are specific to this development loop: repository
+policy, Pull Request history, finding dispositions, cost records, and evidence
+about which models find useful problems. A model or inference provider can
+change without making that history less valuable.
+
+The custom prototype proposed on 21 June showed that a narrow multi-model
+reviewer could produce useful complementary findings within the comparison
+budget. By 25 July, it had produced better observed findings per dollar than
+the evaluated managed services. Its remaining weakness was stateless
+orchestration, not the decision to own the review layer.
+
+## Decision
+
+Own the review-specific product layer: repository policy, review timing, Pull
+Request state, finding lifecycle, dispositions, budgets, and evaluation data.
+Rent model inference behind a stable finding contract and keep both models and
+providers replaceable.
+
+The initial product serves the owner's public repositories. It remains an
+advisory reviewer rather than a coding agent, merge authority, static-analysis
+bundle, or general software-development platform. Managed reviewers may remain
+supplementary inputs or a fallback, but no vendor-private learning store or
+mutable allowance becomes the product's core.
+
+Select models using observed downstream value, coverage, cost, latency, and
+failure behavior. A new model should join through configuration and an adapter,
+then earn its place through replay and live evidence. Model count, benchmark
+reputation, and open-weight status have no value on their own.
+
+## Consequences
+
+Review capacity and accumulated evidence no longer depend on one specialist
+review vendor. The product can change its model mix as quality, price, and
+availability move.
+
+The project now owns GitHub integration failures, prompt and schema changes,
+provider outages, cost control, privacy boundaries, and false-positive policy.
+That maintenance is justified only while the focused reviewer saves more work
+or produces better evidence than buying a managed service.
+
+The narrow initial audience delays private repositories, teams, billing,
+tenant isolation, compliance controls, and general administration. Each would
+need evidence and a later product decision.
+
+## Evaluation
+
+Keep the owned layer while it provides dependable review at the development
+pace, preserves portable outcome evidence, and beats the credible managed
+fallback on useful findings after cost and maintenance are counted. Reconsider
+the decision if operating the service costs more attention than it saves or if
+a managed reviewer offers equivalent capacity and evidence portability.
+
+## Migration note
+
+This record separates the product boundary first proposed in the historical
+Custom Agentic Code Review ADR from its GitHub Actions and OpenRouter design.
+The proposal became the active product direction on 25 July when the stateful
+successor recorded the prototype's observed value and retained the owned review
+layer. The historical acceptance date predates this PDR migration. ADR 000
+retains the deprecated prototype architecture, and ADR 001 retains the
+proposed stateful architecture.

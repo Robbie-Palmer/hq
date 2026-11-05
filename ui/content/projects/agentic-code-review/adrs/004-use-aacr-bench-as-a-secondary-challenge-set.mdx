@@ -2,16 +2,18 @@
 title: "ADR 004: Use AACR-Bench as a Secondary Challenge Set"
 date: "2026-09-30"
 status: "Accepted"
+implements_product_decisions:
+  - "agentic-code-review:002-local-outcomes-before-benchmark-scores"
 ---
 
 ## Context
 
 [ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
 uses outcomes from this project's real reviews to compare reviewer changes.
-Those outcomes measure whether a finding was useful to this repository and its
-owner. They are the right source for product decisions, but they can reward a
-reviewer that has learned one person's preferences without generalising to
-other repositories, languages, or defect classes.
+[PDR 002](/projects/agentic-code-review/pdrs/002-local-outcomes-before-benchmark-scores)
+makes those local outcomes the primary product evidence and requires a separate
+external challenge set to detect narrow overfitting. This ADR chooses that
+dataset and defines its reproducible technical boundary.
 
 Alibaba Aone's [AACR-Bench](https://github.com/alibaba/aacr-bench) offers a
 useful external check. At inspected commit
@@ -36,11 +38,9 @@ source revision and content hashes.
 
 ## Decision
 
-We will add AACR-Bench to the DVC evaluation pipeline as a secondary challenge
-set. The production corpus and its accepted, rejected, censored, duplicate, and
-unanswered outcomes remain the primary evidence for changing review policy.
-We will not merge external and local labels into one score, use AACR-Bench as
-training data, or treat its labels as a model of the owner's preferences.
+Add AACR-Bench to the DVC evaluation pipeline as a secondary challenge set.
+Keep its records, labels, matching rules, and reports separate from the
+production corpus. Do not use AACR-Bench as training data.
 
 The import will pin the source commit and hashes for both positive and negative
 samples. Replays will use the existing production-isolated runner and record
@@ -61,10 +61,9 @@ receive blind manual adjudication before anyone interprets reference-match
 rate as precision. Baseline and candidate runs must use the same pinned cohort,
 runner, budgets, and matching policy.
 
-AACR-Bench may block a change that causes a clear, predeclared generalisation
-regression. It cannot by itself promote a candidate that loses on local
-accepted findings or adds local noise. We will set regression thresholds only
-after a baseline pilot establishes run-to-run variance and usable coverage.
+The pipeline will expose predeclared generalisation regressions to the product
+gate in PDR 002. Set numerical thresholds only after a baseline pilot
+establishes run-to-run variance and usable coverage.
 
 ## Consequences
 
@@ -84,3 +83,10 @@ truth precision.
 We will reconsider the dataset if its pinned commits become unavailable, its
 license changes, the repositories cannot be reproduced, or a pilot shows that
 matching uncertainty and model-family contamination swamp the external signal.
+
+## Migration note
+
+This structural edit moves the rule for how benchmark evidence affects product
+promotion to PDR 002. It retains the original date, Accepted status, pinned
+dataset choice, import contract, cohort controls, matching policy, reporting
+dimensions, and technical revisit conditions. The decision did not change.
