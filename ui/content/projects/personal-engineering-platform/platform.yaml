@@ -571,6 +571,7 @@ catalog:
           target: system:wedding-planner/application
     - id: delivery-target:work-graph/api
       kind: delivery-target
+      name: Work Graph api delivery target
       project: project:work-graph
       repository: Robbie-Palmer/hq
       source_paths:
@@ -612,6 +613,7 @@ catalog:
           target: system:work-graph/service
     - id: delivery-target:work-graph/infrastructure
       kind: delivery-target
+      name: Work Graph infrastructure delivery target
       project: project:work-graph
       repository: Robbie-Palmer/hq
       source_paths:
@@ -641,6 +643,7 @@ catalog:
           target: system:work-graph/service
     - id: delivery-target:work-graph/observer
       kind: delivery-target
+      name: Work Graph observer delivery target
       project: project:work-graph
       repository: Robbie-Palmer/hq
       source_paths:
@@ -678,6 +681,7 @@ catalog:
           target: system:work-graph/service
     - id: delivery-target:work-graph/site-ui
       kind: delivery-target
+      name: Work Graph site-ui delivery target
       project: project:work-graph
       repository: Robbie-Palmer/hq
       source_paths:
@@ -698,6 +702,7 @@ catalog:
           target: system:work-graph/service
     - id: delivery-target:recipe-site/api
       kind: delivery-target
+      name: Recipe Site api delivery target
       project: project:recipe-site
       repository: Robbie-Palmer/hq
       source_paths:
@@ -739,6 +744,7 @@ catalog:
           target: system:recipe-site/application
     - id: delivery-target:recipe-site/ingest
       kind: delivery-target
+      name: Recipe Site ingest delivery target
       project: project:recipe-site
       repository: Robbie-Palmer/hq
       source_paths:
@@ -786,6 +792,7 @@ catalog:
           target: system:recipe-site/application
     - id: delivery-target:recipe-site/site-ui
       kind: delivery-target
+      name: Recipe Site site-ui delivery target
       project: project:recipe-site
       repository: Robbie-Palmer/hq
       source_paths:
