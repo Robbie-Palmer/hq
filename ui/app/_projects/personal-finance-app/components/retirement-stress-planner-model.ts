@@ -10,11 +10,12 @@ import {
   isLiability,
   type RetirementAssumptionSet,
   type RetirementCapitalAccount,
+  type RetirementHousingRelease,
   type RetirementProjectionFacts,
   type RetirementProjectionRangeComparison,
 } from "@/app/_projects/personal-finance-app/domain";
 
-const STORAGE_KEY = "assettracker:retirement-stress-planner:v1";
+const STORAGE_KEY = "assettracker:retirement-stress-planner:v2";
 
 export type RetirementStressDraft = {
   startDate: string;
@@ -26,9 +27,14 @@ export type RetirementStressDraft = {
   pensionAccessDate: string;
   taxableWithdrawalTaxRate: number;
   pensionWithdrawalTaxRate: number;
-  retireEarlierYears: number;
-  workLongerYears: number;
+  annualEmployeePensionContribution: number;
+  annualEmployerPensionContribution: number;
   lowerIncomeRate: number;
+  housingStrategy: "retain-home" | "release-equity";
+  housingReleaseDate: string;
+  housingReleaseTax: number;
+  housingReleaseFees: number;
+  housingRetainedValue: number;
   assumptionSets: RetirementAssumptionSet[];
 };
 
@@ -70,9 +76,14 @@ const RetirementStressDraftSchema: z.ZodType<RetirementStressDraft> = z.object({
   pensionAccessDate: z.iso.date(),
   taxableWithdrawalTaxRate: z.number(),
   pensionWithdrawalTaxRate: z.number(),
-  retireEarlierYears: z.number(),
-  workLongerYears: z.number(),
+  annualEmployeePensionContribution: z.number(),
+  annualEmployerPensionContribution: z.number(),
   lowerIncomeRate: z.number(),
+  housingStrategy: z.enum(["retain-home", "release-equity"]),
+  housingReleaseDate: z.iso.date(),
+  housingReleaseTax: z.number(),
+  housingReleaseFees: z.number(),
+  housingRetainedValue: z.number(),
   assumptionSets: z.array(AssumptionSetSchema),
 });
 
@@ -93,9 +104,14 @@ function initialDraft(annualSpending: number): RetirementStressDraft {
     pensionAccessDate: dateYearsFrom(start, 10),
     taxableWithdrawalTaxRate: 0.1,
     pensionWithdrawalTaxRate: 0.2,
-    retireEarlierYears: 2,
-    workLongerYears: 2,
+    annualEmployeePensionContribution: 0,
+    annualEmployerPensionContribution: 0,
     lowerIncomeRate: 0.5,
+    housingStrategy: "retain-home",
+    housingReleaseDate: dateYearsFrom(start, 15),
+    housingReleaseTax: 0,
+    housingReleaseFees: 5_000,
+    housingRetainedValue: 0,
     assumptionSets: [
       {
         id: "conservative",
@@ -264,6 +280,41 @@ export function buildRetirementProjectionFacts(
         left.name.localeCompare(right.name),
     )
     .map(({ id }) => id);
+  const pension = accounts.find(({ taxWrapper }) => taxWrapper === "pension");
+  const property = accounts.find(({ assetType }) => assetType === "property");
+  const releaseDestination = accounts.find(({ id }) =>
+    withdrawalOrder.includes(id),
+  );
+  const contributionPlan = {
+    accountId: pension?.id ?? "",
+    annualEmployeeGross: draft.annualEmployeePensionContribution,
+    annualEmployer: draft.annualEmployerPensionContribution,
+  };
+  let housingReleases: RetirementHousingRelease[] | undefined;
+  if (draft.housingStrategy === "release-equity") {
+    if (property == null || releaseDestination == null) {
+      throw new Error(
+        "Releasing home equity needs a valued property and a withdrawal account",
+      );
+    }
+    housingReleases = [
+      {
+        id: "planned-home-equity-release",
+        date: draft.housingReleaseDate,
+        sourcePropertyAccountId: property.id,
+        destinationAccountId: releaseDestination.id,
+        grossProceeds: property.balance,
+        retainedHousingValue: draft.housingRetainedValue,
+        tax: draft.housingReleaseTax,
+        fees: draft.housingReleaseFees,
+        liabilitySettlements: accounts
+          .filter(
+            ({ assetType, balance }) => assetType === "mortgage" && balance < 0,
+          )
+          .map(({ id, balance }) => ({ accountId: id, amount: -balance })),
+      },
+    ];
+  }
   return {
     startDate: draft.startDate,
     plannedRetirementDate: draft.plannedRetirementDate,
@@ -271,6 +322,8 @@ export function buildRetirementProjectionFacts(
     annualNetEmploymentIncome: draft.annualNetEmploymentIncome,
     delayedIncomeAnnual: draft.delayedIncomeAnnual,
     delayedIncomeStartDate: draft.delayedIncomeStartDate,
+    contributionPlan,
+    housingReleases,
     accounts,
     withdrawalOrder,
   };
@@ -289,8 +342,6 @@ export function calculateRetirementStressComparison(input: {
         facts: buildRetirementProjectionFacts(input.draft, input.accounts),
         assumptionSets: input.draft.assumptionSets,
         pathOptions: {
-          retireEarlierYears: input.draft.retireEarlierYears,
-          workLongerYears: input.draft.workLongerYears,
           lowerIncomeRate: input.draft.lowerIncomeRate,
         },
       }),

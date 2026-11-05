@@ -18,6 +18,10 @@ function exhaustion(date: string | null): string {
   return date ?? "Survives horizon";
 }
 
+function cashRunway(months: number | null): string {
+  return months == null ? "Survives horizon" : `${months} months`;
+}
+
 function RangeRow({
   item,
   outcome,
@@ -32,14 +36,35 @@ function RangeRow({
       <td className="p-3 font-medium">{item.assumption.name}</td>
       <td className="p-3">{outcome.horizonYears} years</td>
       <td className="p-3 font-mono">
-        {formatCurrency(outcome.accessibleCapital, currency)}
+        {formatCurrency(outcome.liquidWithdrawalCapital, currency)}
+      </td>
+      <td className="p-3 font-mono">
+        {formatCurrency(outcome.restrictedPensionCapital, currency)}
+      </td>
+      <td className="p-3 font-mono">
+        {formatCurrency(outcome.retainedHomeEquity, currency)}
+      </td>
+      <td className="p-3 font-mono">
+        {formatCurrency(outcome.liabilities, currency)}
       </td>
       <td className="p-3 font-mono">
         {formatCurrency(outcome.totalNetWorth, currency)}
       </td>
-      <td className="p-3 font-mono">{percentage(outcome.incomeCoverage)}</td>
+      <td className="p-3 font-mono">
+        {percentage(outcome.retirementIncomeCoverage)}
+      </td>
+      <td className="p-3">{cashRunway(outcome.cashRunwayMonths)}</td>
       <td className="p-3">
         {exhaustion(outcome.accessibleCapitalExhaustionDate)}
+      </td>
+      <td className="p-3">
+        {outcome.portfolioSurvives ? "Funded" : "Unfunded"}
+      </td>
+      <td className="p-3 font-mono">
+        {formatCurrency(outcome.cumulativeTax, currency)}
+      </td>
+      <td className="p-3 font-mono">
+        {formatCurrency(outcome.cumulativeFees, currency)}
       </td>
       <td className="p-3 font-mono">
         {formatCurrency(outcome.cumulativeShortfall, currency)}
@@ -65,7 +90,7 @@ function RangeTable({
         </p>
       </div>
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[56rem] text-sm">
+        <table className="w-full min-w-[104rem] text-sm">
           <caption className="sr-only">
             Retirement stress outcomes at 10, 15, 20, and 30 years
           </caption>
@@ -74,10 +99,17 @@ function RangeTable({
               {[
                 "Assumption",
                 "Horizon",
-                "Accessible capital",
+                "Liquid withdrawal capital",
+                "Restricted pension capital",
+                "Retained home equity",
+                "Liabilities",
                 "Total net worth",
-                "Income coverage",
-                "Capital exhaustion",
+                "Retirement income coverage",
+                "Cash runway",
+                "Accessible capital exhaustion",
+                "Portfolio survival",
+                "Withdrawal tax",
+                "Withdrawal fees",
                 "Unfunded spending",
               ].map((heading) => (
                 <th className="p-3 font-medium" key={heading}>
@@ -182,23 +214,30 @@ function EffectsTable({
 
 function PathRow({
   item,
+  outcome,
   currency,
-}: Readonly<{ item: PathComparison; currency: Currency }>) {
+}: Readonly<{
+  item: PathComparison;
+  outcome: PathComparison["outcomes"][number];
+  currency: Currency;
+}>) {
   return (
     <tr>
       <td className="p-3 font-medium">{item.path.name}</td>
-      <td className="p-3">{item.path.retirementDate}</td>
+      <td className="p-3">{outcome.horizonYears} years</td>
+      <td className="p-3">{item.path.retirementDate ?? "No stop date"}</td>
       <td className="p-3 font-mono">
         {formatCurrency(item.path.annualNetEmploymentIncome, currency)}
       </td>
       <td className="p-3 font-mono">
-        {formatCurrency(item.outcome.totalNetWorth, currency)}
+        {formatCurrency(outcome.liquidWithdrawalCapital, currency)}
       </td>
       <td className="p-3 font-mono">
-        {percentage(item.outcome.incomeCoverage)}
+        {percentage(outcome.retirementIncomeCoverage)}
       </td>
+      <td className="p-3">{cashRunway(outcome.cashRunwayMonths)}</td>
       <td className="p-3">
-        {exhaustion(item.outcome.accessibleCapitalExhaustionDate)}
+        {outcome.portfolioSurvives ? "Funded" : "Unfunded"}
       </td>
     </tr>
   );
@@ -214,25 +253,28 @@ function PathTable({
   return (
     <section className="space-y-2">
       <div>
-        <h3 className="font-semibold">20-year retirement choices</h3>
+        <h3 className="font-semibold">Retirement work choices</h3>
         <p className="text-sm text-muted-foreground">
-          The central assumptions hold household balances and spending fixed.
+          Stop work, stay in work, or reduce earned income under the central
+          assumptions at each planning horizon.
         </p>
       </div>
       <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[44rem] text-sm">
+        <table className="w-full min-w-[64rem] text-sm">
           <caption className="sr-only">
-            Retirement timing and replacement income comparison
+            Retirement work choices at 10, 15, and 20 years
           </caption>
           <thead className="bg-muted/50 text-left">
             <tr>
               {[
                 "Choice",
+                "Horizon",
                 "Retirement date",
-                "Net employment income",
-                "Total net worth",
-                "Income coverage",
-                "Capital exhaustion",
+                "Ongoing net employment income",
+                "Liquid withdrawal capital",
+                "Retirement income coverage",
+                "Cash runway",
+                "Portfolio survival",
               ].map((heading) => (
                 <th className="p-3 font-medium" key={heading}>
                   {heading}
@@ -241,9 +283,16 @@ function PathTable({
             </tr>
           </thead>
           <tbody className="divide-y">
-            {comparison.pathComparisons.map((item) => (
-              <PathRow key={item.path.id} item={item} currency={currency} />
-            ))}
+            {comparison.pathComparisons.flatMap((item) =>
+              item.outcomes.map((outcome) => (
+                <PathRow
+                  key={`${item.path.id}-${outcome.horizonYears}`}
+                  item={item}
+                  outcome={outcome}
+                  currency={currency}
+                />
+              )),
+            )}
           </tbody>
         </table>
       </div>
@@ -255,7 +304,7 @@ function Restrictions({ items }: Readonly<{ items: string[] }>) {
   if (items.length === 0) return null;
   return (
     <section className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-4">
-      <h3 className="font-semibold">Model limits and restricted capital</h3>
+      <h3 className="font-semibold">Access timing and excluded capital</h3>
       <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         {items.map((item) => (
           <li key={item}>{item}</li>

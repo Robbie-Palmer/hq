@@ -10,16 +10,20 @@ type DraftDateKey =
   | "startDate"
   | "plannedRetirementDate"
   | "delayedIncomeStartDate"
-  | "pensionAccessDate";
+  | "pensionAccessDate"
+  | "housingReleaseDate";
 type DraftNumberKey =
   | "annualSpending"
   | "annualNetEmploymentIncome"
   | "delayedIncomeAnnual"
   | "taxableWithdrawalTaxRate"
   | "pensionWithdrawalTaxRate"
-  | "retireEarlierYears"
-  | "workLongerYears"
-  | "lowerIncomeRate";
+  | "annualEmployeePensionContribution"
+  | "annualEmployerPensionContribution"
+  | "lowerIncomeRate"
+  | "housingReleaseTax"
+  | "housingReleaseFees"
+  | "housingRetainedValue";
 type AssumptionNumberKey = Exclude<
   keyof RetirementAssumptionSet,
   "id" | "name"
@@ -41,6 +45,11 @@ const DATE_FIELDS: Array<{ id: string; key: DraftDateKey; label: string }> = [
     id: "pension-access-date",
     key: "pensionAccessDate",
     label: "Pension access date",
+  },
+  {
+    id: "housing-release-date",
+    key: "housingReleaseDate",
+    label: "Home equity release date",
   },
 ];
 
@@ -87,24 +96,42 @@ const NUMBER_FIELDS: Array<{
     step: 0.1,
   },
   {
-    id: "retire-earlier-years",
-    key: "retireEarlierYears",
-    label: "Retire earlier by, years",
-    step: 1,
+    id: "employee-pension-contribution",
+    key: "annualEmployeePensionContribution",
+    label: "Annual gross employee pension contribution",
+    step: 100,
   },
   {
-    id: "work-longer-years",
-    key: "workLongerYears",
-    label: "Work longer by, years",
-    step: 1,
+    id: "employer-pension-contribution",
+    key: "annualEmployerPensionContribution",
+    label: "Annual employer pension contribution",
+    step: 100,
   },
   {
     id: "lower-replacement-income",
     key: "lowerIncomeRate",
-    label: "Lower replacement income, %",
+    label: "Reduced-work net income, %",
     max: 100,
     scale: 100,
     step: 1,
+  },
+  {
+    id: "housing-release-tax",
+    key: "housingReleaseTax",
+    label: "Home equity release tax",
+    step: 100,
+  },
+  {
+    id: "housing-release-fees",
+    key: "housingReleaseFees",
+    label: "Home equity release fees",
+    step: 100,
+  },
+  {
+    id: "housing-retained-value",
+    key: "housingRetainedValue",
+    label: "Home value retained after release",
+    step: 100,
   },
 ];
 
@@ -175,6 +202,24 @@ function DraftFields({
     setDraft((current) => ({ ...current, [key]: value }));
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <Field id="housing-strategy" label="Housing strategy">
+        <select
+          className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-xs"
+          id="housing-strategy"
+          value={draft.housingStrategy}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              housingStrategy: event.target.value as
+                | "retain-home"
+                | "release-equity",
+            }))
+          }
+        >
+          <option value="retain-home">Retain home</option>
+          <option value="release-equity">Release home equity</option>
+        </select>
+      </Field>
       {DATE_FIELDS.map((field) => (
         <Field key={field.key} id={field.id} label={field.label}>
           <Input
@@ -288,7 +333,10 @@ export function RetirementStressAssumptions({
             Default returns assume a 100% equity portfolio and apply across the
             whole portfolio. Adjust them for cash, bonds, or other asset mixes.
             Every input is explicit, and early shocks apply before the steady
-            return.
+            return. Pension contributions are gross deposits and do not infer
+            tax relief beyond the entered amount. Releasing home equity repays
+            tracked mortgages before adding the remainder to the first
+            withdrawal account.
           </p>
         </div>
         {draft.assumptionSets.map((assumption) => (

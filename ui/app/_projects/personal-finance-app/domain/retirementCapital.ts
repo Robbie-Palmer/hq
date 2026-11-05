@@ -51,6 +51,16 @@ export type RetirementHousingRelease = {
   liabilitySettlements: Array<{ accountId: string; amount: number }>;
 };
 
+export type RetirementCapitalContribution = {
+  id: string;
+  label: string;
+  accountId: string;
+  kind: "employee-gross" | "employer";
+  annualAmount: number;
+  startDate: string;
+  endDate?: string;
+};
+
 export type RetirementCapitalScenario = {
   id: string;
   label: string;
@@ -63,6 +73,7 @@ export type RetirementCapitalScenario = {
   /** Only listed accounts may fund spending, in this exact order. */
   withdrawalOrder: string[];
   housingReleases?: RetirementHousingRelease[];
+  contributions?: RetirementCapitalContribution[];
   incomeStreams?: RetirementIncomeStream[];
   incomeOverrides?: RetirementIncomeOverride[];
 };
@@ -93,6 +104,10 @@ export type AppliedHousingRelease = RetirementHousingRelease & {
   netReleasedCapital: number;
 };
 
+export type AppliedRetirementContribution = RetirementCapitalContribution & {
+  amount: number;
+};
+
 export type RetirementCapitalForecastPoint = {
   date: string;
   spendingRequired: number;
@@ -104,11 +119,17 @@ export type RetirementCapitalForecastPoint = {
   fees: number;
   netSpendingCash: number;
   spendingShortfall: number;
+  liquidWithdrawalCapital: number;
   accessibleCapital: number;
+  restrictedPensionCapital: number;
+  retainedHomeEquity: number;
+  otherRestrictedCapital: number;
+  liabilities: number;
   restrictedCapital: number;
   totalNetWorth: number;
   restrictions: RetirementCapitalRestriction[];
   housingReleases: AppliedHousingRelease[];
+  contributions: AppliedRetirementContribution[];
 };
 
 export type RetirementWithdrawalOrderItem = {
@@ -122,6 +143,10 @@ export type RetirementCapitalForecast = {
   label: string;
   openingNetWorth: number;
   openingAccessibleCapital: number;
+  openingRestrictedPensionCapital: number;
+  openingRetainedHomeEquity: number;
+  openingOtherRestrictedCapital: number;
+  openingLiabilities: number;
   openingRestrictedCapital: number;
   withdrawalOrder: RetirementWithdrawalOrderItem[];
   points: RetirementCapitalForecastPoint[];
@@ -355,6 +380,40 @@ function releaseForecastDate(
   return forecastDate <= scenarioEndDate ? forecastDate : null;
 }
 
+function validateContributions(
+  scenario: RetirementCapitalScenario,
+  accountsById: ReadonlyMap<string, RetirementCapitalAccount>,
+): void {
+  const contributionIds = new Set<string>();
+  for (const contribution of scenario.contributions ?? []) {
+    const account = accountsById.get(contribution.accountId);
+    if (contributionIds.has(contribution.id)) {
+      throw new Error("Retirement contribution IDs must be unique");
+    }
+    contributionIds.add(contribution.id);
+    if (
+      account == null ||
+      isLiability(account.assetType) ||
+      account.assetType === "property"
+    ) {
+      throw new Error(
+        `Retirement contribution "${contribution.id}" needs an investment account`,
+      );
+    }
+    if (
+      !Number.isFinite(contribution.annualAmount) ||
+      contribution.annualAmount < 0 ||
+      contribution.startDate < scenario.startDate ||
+      (contribution.endDate != null &&
+        contribution.endDate < contribution.startDate)
+    ) {
+      throw new Error(
+        `Retirement contribution "${contribution.id}" has invalid dates or amounts`,
+      );
+    }
+  }
+}
+
 function validateScenario(scenario: RetirementCapitalScenario): void {
   if (scenario.endDate < scenario.startDate) {
     throw new Error(
@@ -396,6 +455,7 @@ function validateScenario(scenario: RetirementCapitalScenario): void {
       scenario.endDate,
     );
   }
+  validateContributions(scenario, accountsById);
   validateRetirementIncome(scenario);
 }
 
@@ -491,6 +551,83 @@ function applyHousingReleases(
   });
 }
 
+function applyContributions(
+  contributions: readonly RetirementCapitalContribution[],
+  states: Map<string, AccountState>,
+): AppliedRetirementContribution[] {
+  return contributions.map((contribution) => {
+    const account = states.get(contribution.accountId);
+    if (account == null) {
+      throw new Error(
+        `Retirement contribution "${contribution.id}" references a missing account`,
+      );
+    }
+    const amount = roundMoney(contribution.annualAmount / 12);
+    account.balance = roundMoney(account.balance + amount);
+    return { ...contribution, amount };
+  });
+}
+
+type CapitalCategory =
+  | "liquidWithdrawalCapital"
+  | "restrictedPensionCapital"
+  | "retainedHomeEquity"
+  | "otherRestrictedCapital"
+  | "liabilities"
+  | "none";
+
+function classifyCapital(input: {
+  account: RetirementCapitalAccount;
+  balance: number;
+  selectedAccountIds: ReadonlySet<string>;
+  scenarioStartDate: string;
+  date: string;
+}): {
+  category: CapitalCategory;
+  amount: number;
+  restriction: RetirementCapitalRestriction | null;
+} {
+  const { account, balance } = input;
+  if (balance < 0 && isLiability(account.assetType)) {
+    return {
+      category: "liabilities",
+      amount: Math.abs(balance),
+      restriction: null,
+    };
+  }
+  if (balance <= 0) {
+    return { category: "none", amount: 0, restriction: null };
+  }
+  const access = resolveAccess(
+    account,
+    input.selectedAccountIds,
+    input.scenarioStartDate,
+    input.date,
+  );
+  if (account.assetType === "property") {
+    return {
+      category: "retainedHomeEquity",
+      amount: balance,
+      restriction: access.restriction,
+    };
+  }
+  if (access.accessible) {
+    return {
+      category: "liquidWithdrawalCapital",
+      amount: balance * (1 - access.taxRate - access.feeRate),
+      restriction: null,
+    };
+  }
+  return {
+    category:
+      taxWrapper(account) === "pension"
+        ? "restrictedPensionCapital"
+        : "otherRestrictedCapital",
+    amount: balance,
+    restriction: access.restriction,
+  };
+}
+
 function capitalPosition(
   accounts: readonly RetirementCapitalAccount[],
   states: ReadonlyMap<string, AccountState>,
@@ -498,34 +635,57 @@ function capitalPosition(
   scenarioStartDate: string,
   date: string,
 ): {
+  liquidWithdrawalCapital: number;
   accessibleCapital: number;
+  restrictedPensionCapital: number;
+  retainedHomeEquity: number;
+  otherRestrictedCapital: number;
+  liabilities: number;
   restrictedCapital: number;
   totalNetWorth: number;
   restrictions: RetirementCapitalRestriction[];
 } {
-  let accessibleCapital = 0;
-  let restrictedCapital = 0;
-  let totalNetWorth = 0;
+  const amounts: Record<Exclude<CapitalCategory, "none">, number> = {
+    liquidWithdrawalCapital: 0,
+    restrictedPensionCapital: 0,
+    retainedHomeEquity: 0,
+    otherRestrictedCapital: 0,
+    liabilities: 0,
+  };
+  const totalNetWorth = accounts.reduce(
+    (total, account) => total + (states.get(account.id)?.balance ?? 0),
+    0,
+  );
   const restrictions: RetirementCapitalRestriction[] = [];
   for (const account of accounts) {
     const balance = states.get(account.id)?.balance ?? 0;
-    totalNetWorth += balance;
-    if (balance <= 0) continue;
-    const access = resolveAccess(
+    const classification = classifyCapital({
       account,
+      balance,
       selectedAccountIds,
       scenarioStartDate,
       date,
-    );
-    if (access.accessible) {
-      accessibleCapital += balance * (1 - access.taxRate - access.feeRate);
-    } else {
-      restrictedCapital += balance;
-      if (access.restriction != null) restrictions.push(access.restriction);
+    });
+    if (classification.category !== "none") {
+      amounts[classification.category] += classification.amount;
+    }
+    if (classification.restriction != null) {
+      restrictions.push(classification.restriction);
     }
   }
+  const restrictedCapital =
+    amounts.restrictedPensionCapital +
+    amounts.retainedHomeEquity +
+    amounts.otherRestrictedCapital;
   return {
-    accessibleCapital: roundMoney(Math.max(accessibleCapital, 0)),
+    liquidWithdrawalCapital: roundMoney(
+      Math.max(amounts.liquidWithdrawalCapital, 0),
+    ),
+    accessibleCapital: roundMoney(Math.max(amounts.liquidWithdrawalCapital, 0)),
+    restrictedPensionCapital: roundMoney(amounts.restrictedPensionCapital),
+    retainedHomeEquity: roundMoney(amounts.retainedHomeEquity),
+    otherRestrictedCapital: roundMoney(amounts.otherRestrictedCapital),
+    liabilities: roundMoney(amounts.liabilities),
     restrictedCapital: roundMoney(restrictedCapital),
     totalNetWorth: roundMoney(totalNetWorth),
     restrictions,
@@ -596,12 +756,14 @@ function projectRetirementMonth(input: {
   states: Map<string, AccountState>;
   selectedAccountIds: ReadonlySet<string>;
   releases: readonly RetirementHousingRelease[];
+  contributions: readonly RetirementCapitalContribution[];
   date: string;
   monthlySpending: number;
   applyReturns: boolean;
 }): RetirementCapitalForecastPoint {
   if (input.applyReturns) applyMonthlyReturns(input.states, input.date);
   const housingReleases = applyHousingReleases(input.releases, input.states);
+  const contributions = applyContributions(input.contributions, input.states);
   const retirementIncome = projectRetirementIncome({
     date: input.date,
     streams: input.scenario.incomeStreams ?? [],
@@ -640,7 +802,102 @@ function projectRetirementMonth(input: {
     spendingShortfall,
     ...position,
     housingReleases,
+    contributions,
   };
+}
+
+function housingReleaseSchedule(
+  scenario: RetirementCapitalScenario,
+): Map<string, RetirementHousingRelease[]> {
+  const releasesByDate = new Map<string, RetirementHousingRelease[]>();
+  for (const release of scenario.housingReleases ?? []) {
+    const forecastDate = releaseForecastDate(
+      release.date,
+      scenario.startDate,
+      scenario.endDate,
+    ) as string;
+    const releases = releasesByDate.get(forecastDate) ?? [];
+    releases.push(release);
+    releasesByDate.set(forecastDate, releases);
+  }
+  return releasesByDate;
+}
+
+function contributionSchedule(
+  scenario: RetirementCapitalScenario,
+): Map<string, RetirementCapitalContribution[]> {
+  const contributionsByDate = new Map<
+    string,
+    RetirementCapitalContribution[]
+  >();
+  for (const contribution of scenario.contributions ?? []) {
+    let contributionDate = contribution.startDate;
+    while (
+      contributionDate <= scenario.endDate &&
+      (contribution.endDate == null || contributionDate <= contribution.endDate)
+    ) {
+      const forecastDate = releaseForecastDate(
+        contributionDate,
+        scenario.startDate,
+        scenario.endDate,
+      );
+      if (forecastDate != null) {
+        const contributions = contributionsByDate.get(forecastDate) ?? [];
+        if (!contributions.some(({ id }) => id === contribution.id)) {
+          contributions.push(contribution);
+          contributionsByDate.set(forecastDate, contributions);
+        }
+      }
+      contributionDate = format(
+        addMonths(parseISO(contributionDate), 1),
+        "yyyy-MM-dd",
+      );
+    }
+  }
+  return contributionsByDate;
+}
+
+function forecastPoints(input: {
+  scenario: RetirementCapitalScenario;
+  accountsById: ReadonlyMap<string, RetirementCapitalAccount>;
+  states: Map<string, AccountState>;
+  selectedAccountIds: ReadonlySet<string>;
+}): {
+  points: RetirementCapitalForecastPoint[];
+  accessibleCapitalExhaustionDate: string | null;
+} {
+  const releasesByDate = housingReleaseSchedule(input.scenario);
+  const contributionsByDate = contributionSchedule(input.scenario);
+  const points: RetirementCapitalForecastPoint[] = [];
+  let date = input.scenario.startDate;
+  let monthIndex = 0;
+  let accessibleCapitalExhaustionDate: string | null = null;
+  while (!isAfter(parseISO(date), parseISO(input.scenario.endDate))) {
+    const point = projectRetirementMonth({
+      ...input,
+      releases: releasesByDate.get(date) ?? [],
+      contributions: contributionsByDate.get(date) ?? [],
+      date,
+      monthlySpending:
+        (input.scenario.annualSpending / 12) *
+        (1 + (input.scenario.annualSpendingGrowthRate ?? 0)) **
+          (monthIndex / 12),
+      applyReturns: monthIndex > 0,
+    });
+    if (
+      point.spendingShortfall > 0 &&
+      accessibleCapitalExhaustionDate == null
+    ) {
+      accessibleCapitalExhaustionDate = date;
+    }
+    points.push(point);
+    monthIndex += 1;
+    date = format(
+      addMonths(parseISO(input.scenario.startDate), monthIndex),
+      "yyyy-MM-dd",
+    );
+  }
+  return { points, accessibleCapitalExhaustionDate };
 }
 
 export function projectRetirementCapital(
@@ -664,54 +921,22 @@ export function projectRetirementCapital(
     scenario.startDate,
     scenario.startDate,
   );
-  const releasesByDate = new Map<string, RetirementHousingRelease[]>();
-  for (const release of scenario.housingReleases ?? []) {
-    const forecastDate = releaseForecastDate(
-      release.date,
-      scenario.startDate,
-      scenario.endDate,
-    ) as string;
-    const releases = releasesByDate.get(forecastDate) ?? [];
-    releases.push(release);
-    releasesByDate.set(forecastDate, releases);
-  }
-
-  const points: RetirementCapitalForecastPoint[] = [];
-  let date = scenario.startDate;
-  let monthIndex = 0;
-  let accessibleCapitalExhaustionDate: string | null = null;
-  while (!isAfter(parseISO(date), parseISO(scenario.endDate))) {
-    const point = projectRetirementMonth({
-      scenario,
-      accountsById,
-      states,
-      selectedAccountIds,
-      releases: releasesByDate.get(date) ?? [],
-      date,
-      monthlySpending:
-        (scenario.annualSpending / 12) *
-        (1 + (scenario.annualSpendingGrowthRate ?? 0)) ** (monthIndex / 12),
-      applyReturns: monthIndex > 0,
-    });
-    if (
-      point.spendingShortfall > 0 &&
-      accessibleCapitalExhaustionDate == null
-    ) {
-      accessibleCapitalExhaustionDate = date;
-    }
-    points.push(point);
-    monthIndex += 1;
-    date = format(
-      addMonths(parseISO(scenario.startDate), monthIndex),
-      "yyyy-MM-dd",
-    );
-  }
+  const { points, accessibleCapitalExhaustionDate } = forecastPoints({
+    scenario,
+    accountsById,
+    states,
+    selectedAccountIds,
+  });
 
   return {
     scenarioId: scenario.id,
     label: scenario.label,
     openingNetWorth: opening.totalNetWorth,
     openingAccessibleCapital: opening.accessibleCapital,
+    openingRestrictedPensionCapital: opening.restrictedPensionCapital,
+    openingRetainedHomeEquity: opening.retainedHomeEquity,
+    openingOtherRestrictedCapital: opening.otherRestrictedCapital,
+    openingLiabilities: opening.liabilities,
     openingRestrictedCapital: opening.restrictedCapital,
     withdrawalOrder: scenario.withdrawalOrder.map((accountId) => {
       const account = accountsById.get(accountId) as RetirementCapitalAccount;
