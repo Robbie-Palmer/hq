@@ -228,7 +228,7 @@ describe("Personal Finance production profile", () => {
     expect(template).toMatchObject({
       id: "monorepo-project",
       source: "https://github.com/Robbie-Palmer/hq.git",
-      revision: "742eb8daed7054f5f701aa85e03c7612e5f21d3d",
+      revision: "4366f7a85cbc8c76a8c765b21f6b853e085606fe",
     });
     expect(plan.owned_paths).toEqual([
       "infra/personal-finance",
@@ -361,12 +361,19 @@ describe("Personal Finance production profile", () => {
       expect(source.endsWith("\n")).toBe(true);
       expect(source.endsWith("\n\n")).toBe(false);
     }
-    await expect(
-      readFile(
-        new URL("infra/personal-finance/generated-project.tf", repositoryRoot),
-        "utf8",
-      ),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    const terraformSource = await readFile(
+      new URL("infra/personal-finance/generated-project.tf", repositoryRoot),
+      "utf8",
+    );
+    expect(terraformSource).toContain('module "cloudflare_worker"');
+    expect(terraformSource).toContain('module "cloudflare_access"');
+    expect(terraformSource).toContain('module "cloudflare_r2"');
+    expect(terraformSource).toContain('module "neon"');
+    expect(terraformSource).toContain('module "telemetry"');
+    expect(terraformSource).toContain('module "posthog_alerts"');
+    expect(terraformSource).not.toMatch(
+      /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
+    );
     expect(rolloutSource).not.toMatch(
       /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
     );

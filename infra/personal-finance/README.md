@@ -1,9 +1,10 @@
 # Personal Finance infrastructure
 
-This Terraform root owns infrastructure for the Personal Finance App. The
-current configuration is an empty delivery baseline. It defines remote state,
-checks, and release gates but no Worker, Neon, Hyperdrive, R2, Pages, DNS,
-routing, or observability resources.
+This Terraform root owns the generated stateful infrastructure for the
+Personal Finance App: the API Worker and Hyperdrive binding, Cloudflare Access,
+an R2 backup bucket, production and preview Neon projects, and PostHog
+telemetry and alerts. Project-owned operation hooks live beside the generated
+rollout manifest and are kept separate from the Copier-owned resource graph.
 
 HCP Terraform stores state in `personal-site-personal-finance` and uses local
 execution. Account foundation disables automatic apply, global state sharing,
@@ -11,15 +12,18 @@ and project-wide state sharing. No other workspace can read this state.
 
 ## Delivery boundaries
 
-Account foundation creates Doppler project `personal-finance` and three
+Account foundation creates Doppler project `personal-finance` and six
 environments. Each environment receives a root config automatically, without
 the paid config-inheritance feature:
 
 | Config | Use | Minimum access |
 | --- | --- | --- |
-| `ops` | Pull-request plans | Read and lock this HCP workspace |
+| `ops` | Production plans | Read and lock this HCP workspace |
+| `preview` | Isolated previews | Preview-scoped Cloudflare and Neon writes |
 | `drift` | Scheduled main-branch drift checks | Read and lock this HCP workspace |
 | `apply` | Reviewed main-branch applies | Read and write this HCP workspace |
+| `backup` | Database backup and restore | Direct database, R2, and public age-recipient access |
+| `alerts` | Alert evaluation and delivery | PostHog alert and project-owned delivery access |
 
 Each config provides `TF_API_TOKEN`. The wrapper maps it to Terraform's
 `TF_TOKEN_app_terraform_io` variable at process runtime. Doppler remains the
@@ -37,8 +41,11 @@ Account foundation also creates these GitHub environments:
 | Environment | Branch policy | Review gate |
 | --- | --- | --- |
 | `production-personal-finance-plan` | Pull-request branches | Required |
+| `preview-personal-finance` | Internal pull requests | None |
 | `production-personal-finance-drift` | `main` only | None |
 | `production-personal-finance` | `main` only | Required |
+| `production-personal-finance-backup` | `main` only | None |
+| `production-personal-finance-alerting` | `main` only | None |
 
 After account foundation creates and protects them, populate the Doppler
 configs and mirror each config to its matching GitHub environment:
@@ -65,8 +72,8 @@ mise run //infra/personal-finance:plan:drift
 mise run //infra/personal-finance:apply
 ```
 
-The pull-request workflow runs static checks, the empty-baseline test, and a
-remote plan. The scheduled workflow fails when the remote state drifts. The
+The pull-request workflow runs static checks, the generated-resource test, and
+a remote plan. The scheduled workflow fails when remote state drifts. The
 main-branch workflow creates a fresh plan with production credentials and
 applies the saved plan only after the production environment gate opens.
 

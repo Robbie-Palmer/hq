@@ -61,6 +61,7 @@ variable "cloudflare_worker" {
     name               = string
     content            = string
     compatibility_date = string
+    hyperdrive_id      = optional(string)
     zone_id            = optional(string)
     hostname           = optional(string)
   })
@@ -79,10 +80,35 @@ module "cloudflare_worker" {
   name               = var.cloudflare_worker.name
   content            = var.cloudflare_worker.content
   compatibility_date = var.cloudflare_worker.compatibility_date
+  hyperdrive_id      = var.cloudflare_worker.hyperdrive_id
   zone_id            = var.cloudflare_worker.zone_id
   hostname           = var.cloudflare_worker.hostname
 }
 
+
+
+variable "cloudflare_access" {
+  description = "Cloudflare Access policy selected by the resolved blueprint."
+  type = object({
+    account_id       = string
+    name             = string
+    domain           = string
+    allowed_emails   = set(string)
+    session_duration = optional(string, "24h")
+  })
+}
+
+module "cloudflare_access" {
+  source    = "../project-modules/v1/modules/cloudflare-access"
+  providers = { cloudflare = cloudflare }
+
+
+  account_id       = var.cloudflare_access.account_id
+  name             = var.cloudflare_access.name
+  domain           = var.cloudflare_access.domain
+  allowed_emails   = var.cloudflare_access.allowed_emails
+  session_duration = var.cloudflare_access.session_duration
+}
 
 
 
@@ -197,6 +223,7 @@ output "selected_capabilities" {
   description = "Capabilities compiled into this Terraform root by Copier."
   value = toset([
     "backend-api.runtime",
+    "security.preview-access",
     "storage.object-store",
     "database.relational-host",
     "database.preview-isolation",
@@ -213,6 +240,7 @@ output "resource_ownership" {
   value = merge(
     { project_id = "personal-finance-app" },
     { worker = module.cloudflare_worker.worker_id },
+    { access_application = module.cloudflare_access.application_id },
     { r2_buckets = module.cloudflare_r2.bucket_ids },
     { neon = module.neon.resource_ids },
     { telemetry_dashboard = module.telemetry.dashboard_id },

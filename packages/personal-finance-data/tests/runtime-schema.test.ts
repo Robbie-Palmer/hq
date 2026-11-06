@@ -13,6 +13,7 @@ import {
   account,
   closeRuntimeDatabase,
   createRuntimeDatabase,
+  householdCanaryRecord,
   session,
   user,
   verification,
@@ -31,6 +32,16 @@ describe("authenticated runtime schema", () => {
     expect(getTableConfig(account).indexes.map((index) => index.config.name)).toEqual([
       "account_user_id_idx",
     ]);
+  });
+
+  it("keeps the canary record synthetic and household-scoped", () => {
+    const config = getTableConfig(householdCanaryRecord);
+    expect(config.name).toBe("household_canary_record");
+    expect(config.indexes.map((index) => index.config.name)).toEqual([
+      "household_canary_record_owner_user_id_idx",
+    ]);
+    expect(config.columns.find((column) => column.name === "classification")?.default)
+      .toBe("synthetic-only");
   });
 
   it("requires a database connection and delegates Drizzle lifecycle calls", async () => {

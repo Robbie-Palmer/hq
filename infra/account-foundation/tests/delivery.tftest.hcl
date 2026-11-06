@@ -207,8 +207,11 @@ run "personal_finance_delivery_boundaries" {
       if environment.project == "personal-finance"
       ]) == toset([
       "personal-finance/ops",
+      "personal-finance/preview",
       "personal-finance/drift",
       "personal-finance/apply",
+      "personal-finance/backup",
+      "personal-finance/alerts",
     ])
     error_message = "Personal Finance must separate plan, drift, and apply environment configs."
   }
@@ -225,8 +228,8 @@ run "personal_finance_delivery_boundaries" {
     condition = length([
       for environment in values(github_repository_environment.managed) : environment
       if startswith(environment.environment, "production-personal-finance")
-    ]) == 3
-    error_message = "Personal Finance must have plan, drift, and apply GitHub environments."
+    ]) == 5
+    error_message = "Personal Finance must have plan, drift, apply, backup, and alert GitHub environments."
   }
 
   assert {
@@ -252,8 +255,10 @@ run "personal_finance_delivery_boundaries" {
       ]) == toset([
       "production-personal-finance-drift/main",
       "production-personal-finance/main",
+      "production-personal-finance-backup/main",
+      "production-personal-finance-alerting/main",
     ])
-    error_message = "Personal Finance drift and apply must be restricted to main."
+    error_message = "Personal Finance drift, apply, backup, and alert operations must be restricted to main."
   }
 }
 

@@ -3,13 +3,20 @@ import { fileURLToPath } from "node:url";
 import { app } from "../src/index";
 
 const outputPath = fileURLToPath(new URL("../openapi.json", import.meta.url));
+app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+});
 const document = app.getOpenAPIDocument({
   openapi: "3.1.0",
   info: {
     title: "Personal Finance App API",
     version: "1.0.0",
   },
-  tags: [{ name: "health", description: "Worker process health." }],
+  tags: [
+    { name: "health", description: "Worker process health." },
+    { name: "canary", description: "Synthetic authenticated runtime proof." },
+  ],
 });
 const generated = `${JSON.stringify(document, null, 2)}\n`;
 
