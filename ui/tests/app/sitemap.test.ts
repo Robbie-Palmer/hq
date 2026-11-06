@@ -74,7 +74,10 @@ describe("sitemap", () => {
     expect(ideaUrls).toContain(
       "https://robbiepalmer.me/ideas/property-based-testing",
     );
-    expect(ideaUrls).toHaveLength(47);
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/study-design");
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/randomization");
+    expect(ideaUrls).toContain("https://robbiepalmer.me/ideas/sampling-bias");
+    expect(ideaUrls).toHaveLength(50);
   });
 
   it("includes the technologies index", () => {

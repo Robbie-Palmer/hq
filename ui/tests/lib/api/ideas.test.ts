@@ -11,7 +11,14 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(46);
+    expect(getAllIdeaSlugs()).toHaveLength(49);
+    expect(getAllIdeaSlugs()).toEqual(
+      expect.arrayContaining([
+        "study-design",
+        "randomization",
+        "sampling-bias",
+      ]),
+    );
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
