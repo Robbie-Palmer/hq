@@ -788,12 +788,13 @@ function recommendationOutcome(
 ) {
   const top = scored[0];
   const runnerUp = scored[1];
-  const winnerGapBasisPoints =
-    top === undefined
-      ? null
-      : runnerUp === undefined
+  let winnerGapBasisPoints: number | null = null;
+  if (top !== undefined) {
+    winnerGapBasisPoints =
+      runnerUp === undefined
         ? 10_000
         : top.scoreBasisPoints - runnerUp.scoreBasisPoints;
+  }
   const clearWinner =
     top !== undefined &&
     winnerGapBasisPoints !== null &&
@@ -842,6 +843,17 @@ const recommendationExplanation = (
   return "No supplied route is legally or status eligible for this comparison.";
 };
 
+const goalReason = (
+  deficitPence: number | null,
+  unknown: string,
+  met: string,
+  shortfallLabel: string,
+) => {
+  if (deficitPence === null) return unknown;
+  if (deficitPence === 0) return met;
+  return `The projection is ${deficitPence}p short of the stated ${shortfallLabel}.`;
+};
+
 function goalAssessmentFor(
   metrics: RecommendationMetrics,
   householdCashNeedPence: number,
@@ -856,16 +868,18 @@ function goalAssessmentFor(
   const pensionDeficitPence =
     pension === null ? null : Math.max(0, pensionGoalPence - pension);
   const goalReasons = [
-    householdCashDeficitPence === null
-      ? "Household cash against the stated need is unknown."
-      : householdCashDeficitPence === 0
-        ? "The projection meets the stated household cash need."
-        : `The projection is ${householdCashDeficitPence}p short of the stated household cash need.`,
-    pensionDeficitPence === null
-      ? "Pension funding against the stated goal is unknown."
-      : pensionDeficitPence === 0
-        ? "The projection meets the stated pension goal."
-        : `The projection is ${pensionDeficitPence}p short of the stated pension goal.`,
+    goalReason(
+      householdCashDeficitPence,
+      "Household cash against the stated need is unknown.",
+      "The projection meets the stated household cash need.",
+      "household cash need",
+    ),
+    goalReason(
+      pensionDeficitPence,
+      "Pension funding against the stated goal is unknown.",
+      "The projection meets the stated pension goal.",
+      "pension goal",
+    ),
   ];
   return {
     assessment: {

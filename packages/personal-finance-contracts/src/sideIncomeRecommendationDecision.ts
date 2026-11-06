@@ -269,8 +269,7 @@ export function detectSideIncomeRecommendationReviewTriggers(
   return decision.originalReviewSignals.flatMap((previous) => {
     const current = currentById.get(previous.id);
     if (
-      current !== undefined &&
-      current.value === previous.value &&
+      current?.value === previous.value &&
       current.sourceRevision === previous.sourceRevision &&
       current.certainty === previous.certainty
     ) {
@@ -278,7 +277,7 @@ export function detectSideIncomeRecommendationReviewTriggers(
     }
     return [
       ReviewEventSchema.parse({
-        id: `review:${previous.id}:${triggeredAt.replaceAll(/[^0-9]/g, "")}`,
+        id: `review:${previous.id}:${triggeredAt.replaceAll(/\D/g, "")}`,
         triggeredAt,
         signalId: previous.id,
         kind: previous.kind,
