@@ -59,39 +59,21 @@ jobs:
     outputs:
       plan_sha256: ${{ steps.result.outputs.plan_sha256 }}
     steps:
-      - name: Validate requested operation
-        env:
-          ACTION: ${{ inputs.action }}
-          OPERATIONS_ROOT: ${{ inputs.operations_root }}
-          SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
-          SUBJECT: ${{ inputs.subject }}
-        run: |
-          set -euo pipefail
-          case "$ACTION" in
-            preview-up|preview-cleanup)
-              [[ "$SUBJECT" =~ ^[1-9][0-9]*$ ]]
-              ;;
-            production-plan|production-apply|backup|alert-smoke)
-              [[ -z "$SUBJECT" ]]
-              ;;
-            production-rollback)
-              [[ "$SUBJECT" =~ ^[0-9a-f]{40}$ ]]
-              ;;
-            restore)
-              [[ "$SUBJECT" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
-              ;;
-            *) exit 1 ;;
-          esac
-          [[ "$OPERATIONS_ROOT" =~ ^[a-z0-9][a-z0-9./-]*$ ]]
-          [[ "$OPERATIONS_ROOT" != /* ]]
-          [[ "$OPERATIONS_ROOT" != *..* ]]
-          [[ "$SECRET_CONFIG_REF" =~ ^doppler://[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(_[a-z0-9]+)*$ ]]
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.checkout_ref || github.sha }}
 
       - uses: $/.github/actions/setup-mise
+
+      - name: Validate requested operation
+        env:
+          ACTION: ${{ inputs.action }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          OPERATIONS_GITHUB_ENVIRONMENT: ${{ inputs.github_environment }}
+          OPERATIONS_ROOT: ${{ inputs.operations_root }}
+          OPERATIONS_SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
+          SUBJECT: ${{ inputs.subject }}
+        run: mise run //:project:stateful-operation -- validate
 
       - name: Download reviewed Terraform plan
         if: ${{ inputs.action == 'production-apply' }}
@@ -108,38 +90,20 @@ jobs:
           OPERATIONS_GITHUB_ENVIRONMENT: ${{ inputs.github_environment }}
           OPERATIONS_ROOT: ${{ inputs.operations_root }}
           OPERATIONS_SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
-          RESTORE_TARGET_CLASS: ${{ inputs.action == 'restore' && 'scratch' || '' }}
           SUBJECT: ${{ inputs.subject }}
-        run: |
-          set -euo pipefail
-          case "$ACTION" in
-            preview-up) mutation_token="preview:$SUBJECT" ;;
-            preview-cleanup) mutation_token="preview-cleanup:$SUBJECT" ;;
-            production-apply) mutation_token="production:$EXPECTED_PLAN_SHA256" ;;
-            production-rollback) mutation_token="rollback:$SUBJECT" ;;
-            backup) mutation_token="backup" ;;
-            restore) mutation_token="restore:$SUBJECT" ;;
-            alert-smoke) mutation_token="alert-smoke" ;;
-            production-plan) mutation_token="" ;;
-          esac
-          export OPERATIONS_MUTATION_TOKEN="$mutation_token"
-          args=("$ACTION")
-          if [[ -n "$SUBJECT" ]]; then
-            args+=("$SUBJECT")
-          fi
-          doppler run -- \
-            bash "$OPERATIONS_ROOT/operations/operate.sh" "${args[@]}"
+        run: mise run //:project:stateful-operation -- run
 
       - name: Record plan digest
         id: result
         if: ${{ inputs.action == 'production-plan' }}
         env:
+          ACTION: ${{ inputs.action }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          OPERATIONS_GITHUB_ENVIRONMENT: ${{ inputs.github_environment }}
           OPERATIONS_ROOT: ${{ inputs.operations_root }}
-        run: |
-          set -euo pipefail
-          digest=$(cut -d ' ' -f 1 "$OPERATIONS_ROOT/operations/evidence/production.tfplan.sha256")
-          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
-          echo "plan_sha256=$digest" >> "$GITHUB_OUTPUT"
+          OPERATIONS_SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
+          SUBJECT: ${{ inputs.subject }}
+        run: mise run //:project:stateful-operation -- record-plan-digest
 
       - name: Upload reviewed Terraform plan
         if: ${{ inputs.action == 'production-plan' }}

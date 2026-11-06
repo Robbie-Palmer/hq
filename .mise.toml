@@ -142,6 +142,15 @@ description = "Test Work Graph ticket routing and T3 profile selection"
 depends = ["//:install"]
 run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
+[tasks."project:stateful-operation"]
+description = "Validate or run one generated stateful project operation"
+run = "node scripts/project-stateful-operation.mjs"
+
+[tasks."project:stateful-operation:test"]
+description = "Test the shared stateful project operation workflow driver"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/project-stateful-operation.test.ts"
+
 [tasks."project:plan"]
 description = "Produce a machine-readable Copier project change plan"
 depends = ["//packages/project-generator:install"]
