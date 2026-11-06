@@ -76,7 +76,7 @@ The stable CI entry point is:
 mise //{{ component.path }}:ci
 ```
 
-It runs formatting, Ruff, ty, pytest with 90 percent line coverage, the DVC
+It runs formatting, Ruff, ty, pytest with the configured coverage gate, the DVC
 graph, provenance verification, and the package build. CI can publish
 `coverage.xml`, `metrics/metrics.json`, and `outputs/provenance.json`. A shared
 workflow should call the mise task instead of repeating these commands.

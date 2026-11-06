@@ -80,6 +80,8 @@ copier copy \
 export MISE_TRUSTED_CONFIG_PATHS="$render_root"
 mise --cd "$component_root" run lock
 mise --cd "$component_root" run ci
+# Keep the generated starter source and tests above the downstream project floor.
+mise --cd "$component_root" run test -- --cov-fail-under=90
 
 test -f "$component_root/uv.lock"
 test -f "$component_root/dvc.lock"
@@ -90,6 +92,7 @@ test -f "$component_root/outputs/provenance.json"
 grep -Fqx '    remote = r2' "$component_root/.dvc/config"
 grep -Fqx '    url = s3://dvc/research-template-fixture' "$component_root/.dvc/config"
 grep -Fqx '    endpointurl = https://dcd7cd68dd892d610267ded6b1af567b.r2.cloudflarestorage.com' "$component_root/.dvc/config"
+grep -Fq -- '--cov-fail-under=80' "$component_root/pyproject.toml"
 test -f "$render_root/packages/support-contract/generated-component.yaml"
 test -f "$render_root/packages/support-contract/mise.toml"
 

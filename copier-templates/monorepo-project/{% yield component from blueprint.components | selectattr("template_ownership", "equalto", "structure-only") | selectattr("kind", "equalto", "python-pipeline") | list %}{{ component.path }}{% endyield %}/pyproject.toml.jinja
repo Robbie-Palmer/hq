@@ -30,7 +30,7 @@ requires = ["uv_build>=0.12.5,<0.13.0"]
 build-backend = "uv_build"
 
 [tool.pytest.ini_options]
-addopts = "--strict-config --strict-markers --cov={{ component.id | replace('-', '_') }} --cov-report=term-missing --cov-fail-under=90"
+addopts = "--strict-config --strict-markers --cov={{ component.id | replace('-', '_') }} --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
 
 [tool.ty.environment]
