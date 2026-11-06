@@ -147,7 +147,7 @@
       "additionalProperties": false,
       "properties": {
         "contract": {
-          "const": "pathologize.data-registry-export/v2",
+          "const": "pathologize.data-registry-export/v1",
           "title": "Contract",
           "type": "string"
         },

@@ -8,13 +8,15 @@ implements_product_decisions:
 
 ## Context
 
-The first benchmark manifests used `paid_api_calls_allowed` and
-`max_paid_api_calls`. Scorecards then recorded a zero call count. A call count
-does not express price, currency, prepaid access, metered usage, or who may
-authorize spending. It also puts orchestration policy inside an adapter
-description.
+Pathologize needs resource budgets that make benchmark results reproducible and
+comparable. Input volume, pixels processed, compute time, and memory describe
+the work performed. Provider authorization and funding depend on accounts,
+budgets, and deployment policy. They do not describe the benchmark adapter.
 
-The Agent Coordinator already models money as a non-negative amount with an
+A provider-call count is not a substitute for cost. Calls can use different
+models, request sizes, currencies, prepaid access, and metered rates.
+
+The Agent Coordinator models money as a non-negative amount with an
 ISO-style three-letter currency code. It distinguishes prepaid and metered
 provider use, records measured provider-request cost, and tracks resource
 quantities independently. Rewriting a smaller Python version in Pathologize
@@ -26,8 +28,8 @@ kind of ownership boundary.
 
 ## Decision
 
-Remove paid-inference permission and call-count fields from Pathologize adapter
-specifications, resource budgets, resource usage, and scorecards.
+Pathologize adapter specifications, resource budgets, resource usage, and
+scorecards will not contain provider authorization or provider-call limits.
 
 Pathologize continues to own benchmark-specific resource limits and
 measurements: input bytes, prediction bytes, pixels read, accelerator seconds,
@@ -36,14 +38,13 @@ a candidate is practical on the benchmark workload.
 
 Provider funding, account policy, and spending authorization remain in the
 orchestrator. If a future benchmark adapter uses metered inference, extract the
-existing `Money` and `ResourceQuantity` semantics into a versioned JSON Schema
-2020-12 contract owned by the platform. TypeScript and Python bindings must
-validate the same examples and generated schema. The benchmark scorecard will
-record observed monetary cost by currency. The orchestrator will continue to
-decide whether payment is allowed.
+Agent Coordinator's `Money` and `ResourceQuantity` semantics into a versioned
+JSON Schema 2020-12 contract owned by the platform. TypeScript and Python
+bindings must validate the same examples and generated schema. The benchmark
+scorecard will record observed monetary cost by currency. The orchestrator will
+continue to decide whether payment is allowed.
 
-Do not publish a Pathologize money field before a real adapter needs it. The
-current deterministic baselines make no provider calls.
+Do not publish a Pathologize money field before a real adapter needs it.
 
 ## Consequences
 
@@ -51,9 +52,9 @@ Benchmark manifests describe experiments instead of account policy. A free,
 prepaid, or metered route can run the same adapter without changing its model
 identity.
 
-The current scorecard cannot compare monetary cost. That is deliberate. Bytes,
-pixels, time, and memory remain available now, while provider pricing waits for
-a shared cross-language contract and a measured use case.
+Scorecards cannot compare monetary cost until the platform has a shared
+cross-language contract and a measured use case. They can compare bytes,
+pixels, time, and memory.
 
 Adding cost later will require a scorecard schema revision and cross-language
 contract tests. It will also need a clear rule for estimates, final charges,
@@ -61,18 +62,19 @@ currency conversion, and missing provider cost data.
 
 ## Alternatives considered
 
-### Keep a boolean permission field
+### Put a boolean permission field in the adapter
 
 A boolean is easy to validate, but authorization depends on the owner, account,
 budget, and route. The adapter cannot answer that question.
 
-### Keep a maximum provider-call count
+### Put a maximum provider-call count in the resource budget
 
 Calls can have different token, image, model, and provider prices. A count is
 neither a cost budget nor a stable resource comparison.
 
-### Copy the coordinator's money shape into Python
+### Define a Pathologize-specific money type
 
-This would produce a field immediately. It would not produce a shared contract.
-The first later change could leave Zod and Pydantic accepting different data.
-The project waits for one language-neutral schema instead.
+This would let Python scorecards record a value without coordinating a platform
+release. It would not produce a shared contract. A later change could leave
+Zod and Pydantic accepting different data. The project waits for one
+language-neutral schema instead.

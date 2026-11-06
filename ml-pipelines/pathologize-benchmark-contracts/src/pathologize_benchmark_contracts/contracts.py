@@ -261,7 +261,7 @@ class RegistryItem(StrictModel):
 
 
 class RegistryExport(StrictModel):
-    contract: Literal["pathologize.data-registry-export/v2"]
+    contract: Literal["pathologize.data-registry-export/v1"]
     registry_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
     dataset: CroissantDatasetReference
     provenance: RegistryProvenance
@@ -276,7 +276,7 @@ class SyntheticSource(StrictModel):
 
 class RegistrySource(StrictModel):
     kind: Literal["pathologize_registry"]
-    contract: Literal["pathologize.data-registry-export/v2"]
+    contract: Literal["pathologize.data-registry-export/v1"]
     registry_uri: str = Field(min_length=1)
     revision: str = Field(pattern=r"^[a-f0-9]{40}$")
     export_manifest: str

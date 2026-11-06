@@ -11,10 +11,10 @@ implements_product_decisions:
 ## Context
 
 Pathologize needs reproducible pathology benchmarks without owning or copying
-the future registry's raw clinical data. The original registry export used one
-`image_uri` and project-specific fields. That shape could not distinguish an
-acquired slide from a compute conversion, and it duplicated metadata that
-public specifications already cover.
+the future registry's raw clinical data. A benchmark import must distinguish
+an acquired slide from a representation made for interchange or computation.
+It must also preserve enough provenance to trace each derivative to a source
+without defining another clinical image format.
 
 The formats have different jobs. The current [DICOM VL Whole Slide Microscopy
 Image IOD](https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html)
@@ -85,9 +85,9 @@ Registry producers have more work. They must publish compound-object
 distributions, stable distribution IDs, and provenance documents. Pathologize
 cannot detect a false conformance claim from the reference alone.
 
-The registry export contract moves from v1 to v2. No clinical registry has
-implemented v1, so this change removes the ambiguous boundary before it gains
-consumers.
+The registry export contract starts at
+`pathologize.data-registry-export/v1`. A later incompatible change will need a
+new contract identifier and an explicit migration path.
 
 ## Alternatives considered
 
@@ -103,9 +103,9 @@ DICOM preserves medical imaging structure and interchange semantics. It is a
 poor universal inner-loop format for chunked array processing and derived
 labels. The benchmark keeps DICOM at the source and interchange boundary.
 
-### Extend the original private registry schema
+### Define all dataset and provenance metadata locally
 
-Adding more URI and provenance fields would be quick, but it would create local
-names for dataset structure and lineage already covered by Croissant,
-RO-Crate, and PROV-O. The project keeps custom fields only for benchmark
-selection and validation.
+A fully local contract would keep validation in one codebase, but it would
+create local names for dataset structure and lineage already covered by
+Croissant, RO-Crate, and PROV-O. The project keeps custom fields only for
+benchmark selection and validation.

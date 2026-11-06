@@ -114,7 +114,7 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     generate_fixtures(configured_root)
     export_path = configured_root / "registry-export.json"
     export = {
-        "contract": "pathologize.data-registry-export/v2",
+        "contract": "pathologize.data-registry-export/v1",
         "registry_revision": "a" * 40,
         "dataset": {
             "conforms_to": "http://mlcommons.org/croissant/1.1",
@@ -175,7 +175,7 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     experiment = read_json(experiment_path)
     experiment["data_source"] = {
         "kind": "pathologize_registry",
-        "contract": "pathologize.data-registry-export/v2",
+        "contract": "pathologize.data-registry-export/v1",
         "registry_uri": "https://example.invalid/pathologize-registry",
         "revision": "a" * 40,
         "export_manifest": "registry-export.json",
@@ -205,7 +205,7 @@ def test_registry_source_and_artifact_paths_are_strict(tmp_path: Path) -> None:
         RegistrySource.model_validate(
             {
                 "kind": "pathologize_registry",
-                "contract": "pathologize.data-registry-export/v2",
+                "contract": "pathologize.data-registry-export/v1",
                 "registry_uri": "https://example.invalid/registry",
                 "revision": "a" * 40,
                 "export_manifest": "export.json",
@@ -224,7 +224,7 @@ def test_registry_source_and_artifact_paths_are_strict(tmp_path: Path) -> None:
 
 def test_registry_representations_enforce_standard_lifecycle_positions() -> None:
     base = {
-        "contract": "pathologize.data-registry-export/v2",
+        "contract": "pathologize.data-registry-export/v1",
         "registry_revision": "a" * 40,
         "dataset": {
             "conforms_to": "http://mlcommons.org/croissant/1.1",

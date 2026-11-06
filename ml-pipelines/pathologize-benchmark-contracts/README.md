@@ -47,7 +47,7 @@ Every split policy isolates `subject_id`, `specimen_id`, `block_id`, and
 remain opaque strings.
 
 An external registry experiment must pin contract
-`pathologize.data-registry-export/v2`, a 40-character Git revision, registry
+`pathologize.data-registry-export/v1`, a 40-character Git revision, registry
 URI, export path, and export SHA-256. `copy_raw_data` must be `false`. The
 importer validates those references and writes an index. It does not fetch or
 copy image bytes.
@@ -78,8 +78,8 @@ from.
 
 Experiment manifests bound bytes, pixels, and accelerator time. Scorecards
 record those measurements plus optional wall time, CPU time, and peak resident
-memory. They do not contain `paid_api_calls_allowed`, call-count pricing, or a
-benchmark-specific money type.
+memory. Provider authorization and monetary cost are outside this benchmark
+contract.
 
 If a future adapter uses metered provider inference, its run telemetry must use
 the platform's shared `Money` and `ResourceQuantity` semantics. Funding policy
