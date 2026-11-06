@@ -303,15 +303,16 @@ SYNC_TEST_DIRECTORY="$work_dir" \
     production-personal-finance-backup \
     production-personal-finance-alerting
 
-for config in \
-  drift_preview \
-  ops \
-  drift_check \
-  apply_production \
-  backup \
-  apply_alerts; do
+for project_and_config in \
+  "personal-finance-operations preview" \
+  "personal-finance ops" \
+  "personal-finance drift" \
+  "personal-finance apply" \
+  "personal-finance backup" \
+  "personal-finance-operations alerts"; do
+  read -r project config <<<"$project_and_config"
   grep -Fxq -- \
-    "secrets --project personal-finance --config $config --json" \
+    "secrets --project $project --config $config --json" \
     "$work_dir/doppler-calls"
 done
 

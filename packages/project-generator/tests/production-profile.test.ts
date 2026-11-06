@@ -192,13 +192,13 @@ describe("Personal Finance production profile", () => {
       stateful_operations: {
         preview: {
           github_environment: "preview-personal-finance",
-          secret_config_ref: "doppler://personal-finance/drift_preview",
+          secret_config_ref:
+            "doppler://personal-finance-operations/preview",
         },
         production: {
           github_environment: "production-personal-finance",
           plan_secret_config_ref: "doppler://personal-finance/ops",
-          apply_secret_config_ref:
-            "doppler://personal-finance/apply_production",
+          apply_secret_config_ref: "doppler://personal-finance/apply",
         },
         backup: {
           github_environment: "production-personal-finance-backup",
@@ -206,7 +206,8 @@ describe("Personal Finance production profile", () => {
         },
         alerting: {
           github_environment: "production-personal-finance-alerting",
-          secret_config_ref: "doppler://personal-finance/apply_alerts",
+          secret_config_ref:
+            "doppler://personal-finance-operations/alerts",
         },
       },
     });

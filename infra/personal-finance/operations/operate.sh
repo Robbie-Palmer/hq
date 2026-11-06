@@ -3,10 +3,10 @@ set -euo pipefail
 
 project_id="personal-finance-app"
 preview_environment="preview-personal-finance"
-preview_secret_ref="doppler://personal-finance/drift_preview"
+preview_secret_ref="doppler://personal-finance-operations/preview"
 production_environment="production-personal-finance"
 production_plan_secret_ref="doppler://personal-finance/ops"
-production_apply_secret_ref="doppler://personal-finance/apply_production"
+production_apply_secret_ref="doppler://personal-finance/apply"
 operations_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 terraform_root="$(dirname "$operations_dir")"
 evidence_dir="$operations_dir/evidence"
@@ -171,7 +171,7 @@ backup_secret_ref="doppler://personal-finance/backup"
 hook_backup_create() { mise //infra/personal-finance:backup:create; }
 hook_backup_restore() { mise //infra/personal-finance:restore:drill; }
 alert_environment="production-personal-finance-alerting"
-alert_secret_ref="doppler://personal-finance/apply_alerts"
+alert_secret_ref="doppler://personal-finance-operations/alerts"
 hook_alert_smoke() { mise //infra/personal-finance:smoke:alert; }
 
 preview_up() {
