@@ -11,6 +11,7 @@ from {{ component.id | replace('-', '_') }}.contracts import (
     DatasetManifest,
     DownstreamRegistry,
     EvaluationArtifact,
+    RunProvenance,
 )
 
 
@@ -176,6 +177,29 @@ def test_verification_detects_artifact_drift(
     Path("metrics/metrics.json").write_text("{}\n", encoding="utf-8")
     with pytest.raises(ValueError, match="provenance does not match"):
         pipeline.verify()
+
+
+def test_provenance_uses_configured_rights_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    configured_rights_path = Path("manifests/configured-rights.json")
+    shutil.copyfile(Path("manifests/rights.json"), configured_rights_path)
+    parameters_path = Path("params.yaml")
+    parameters = json.loads(parameters_path.read_text(encoding="utf-8"))
+    parameters["fixture"]["rights"] = configured_rights_path.as_posix()
+    parameters_path.write_text(json.dumps(parameters), encoding="utf-8")
+
+    pipeline.build_fixture()
+    pipeline.train()
+    pipeline.evaluate()
+    provenance = read_model(Path("outputs/provenance.json"), RunProvenance)
+
+    assert provenance.rights_sha256 == sha256_file(configured_rights_path)
+    pipeline.verify()
 
 
 def test_contracts_reject_unpinned_downstream_artifacts() -> None:

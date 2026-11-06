@@ -124,9 +124,11 @@ def train(parameters_path: Path = Path("params.yaml")) -> ModelArtifact:
 
 
 def evaluate(parameters_path: Path = Path("params.yaml")) -> EvaluationArtifact:
-    parameters = load_parameters(parameters_path).evaluation
+    pipeline_parameters = load_parameters(parameters_path)
+    parameters = pipeline_parameters.evaluation
     dataset_path = Path(parameters.dataset)
     model_path = Path(parameters.model)
+    rights_path = Path(pipeline_parameters.fixture.rights)
     model = read_model(model_path, ModelArtifact)
     observations = tuple(
         item for item in read_observations(dataset_path) if item.split == "evaluation"
@@ -157,7 +159,7 @@ def evaluate(parameters_path: Path = Path("params.yaml")) -> EvaluationArtifact:
         model_sha256=sha256_file(model_path),
         metrics_sha256=sha256_file(metrics_path),
         parameters_sha256=sha256_file(parameters_path),
-        rights_sha256=sha256_file(Path("manifests/rights.json")),
+        rights_sha256=sha256_file(rights_path),
         decision_provenance_sha256=sha256_file(Path("manifests/decision-provenance.json")),
     )
     write_model(Path(parameters.provenance), provenance)
@@ -185,7 +187,7 @@ def verify(parameters_path: Path = Path("params.yaml")) -> None:
         "model_sha256": sha256_file(model_path),
         "metrics_sha256": sha256_file(metrics_path),
         "parameters_sha256": sha256_file(parameters_path),
-        "rights_sha256": sha256_file(Path("manifests/rights.json")),
+        "rights_sha256": sha256_file(Path(parameters.fixture.rights)),
         "decision_provenance_sha256": sha256_file(Path("manifests/decision-provenance.json")),
     }
     actual = provenance.model_dump(include=set(expected))

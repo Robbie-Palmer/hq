@@ -94,6 +94,7 @@ grep -Fqx '    remote = r2' "$component_root/.dvc/config"
 grep -Fqx '    url = s3://dvc/research-template-fixture' "$component_root/.dvc/config"
 grep -Fqx '    endpointurl = https://dcd7cd68dd892d610267ded6b1af567b.r2.cloudflarestorage.com' "$component_root/.dvc/config"
 grep -Fq -- '--cov-fail-under=80' "$component_root/pyproject.toml"
+[[ "$(grep -Fc '      - ${fixture.rights}' "$component_root/dvc.yaml")" == "2" ]]
 [[ -f "$render_root/packages/support-contract/generated-component.yaml" ]]
 [[ -f "$render_root/packages/support-contract/mise.toml" ]]
 
@@ -111,3 +112,23 @@ grep -Fq "Running stage 'evaluate':" <<<"$repro_output"
 mise --cd "$component_root" run verify
 provenance_after="$(sha256sum "$component_root/outputs/provenance.json")"
 [[ "$provenance_before" != "$provenance_after" ]]
+
+cp \
+  "$component_root/manifests/rights.json" \
+  "$component_root/manifests/configured-rights.json"
+jq '.fixture.rights = "manifests/configured-rights.json"' \
+  "$component_root/params.yaml" \
+  >"$scratch_root/params.yaml"
+mv "$scratch_root/params.yaml" "$component_root/params.yaml"
+mise --cd "$component_root" run repro
+jq '.records[0].notes = "Updated project-authored synthetic fixture rights."' \
+  "$component_root/manifests/configured-rights.json" \
+  >"$scratch_root/configured-rights.json"
+mv \
+  "$scratch_root/configured-rights.json" \
+  "$component_root/manifests/configured-rights.json"
+rights_repro_output="$(mise --cd "$component_root" run repro 2>&1)"
+printf '%s\n' "$rights_repro_output"
+grep -Fq "Running stage 'build_fixture':" <<<"$rights_repro_output"
+grep -Fq "Running stage 'evaluate':" <<<"$rights_repro_output"
+mise --cd "$component_root" run verify

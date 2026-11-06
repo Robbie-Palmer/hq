@@ -3,7 +3,7 @@ stages:
     cmd: uv run --locked {{ component.id }} build-fixture
     deps:
       - fixtures/synthetic.json
-      - manifests/rights.json
+      - ${fixture.rights}
       - pyproject.toml
       - registries/datasets.json
       - src/{{ component.id | replace('-', '_') }}
@@ -31,7 +31,7 @@ stages:
       - artifacts/model.json
       - data/synthetic
       - manifests/decision-provenance.json
-      - manifests/rights.json
+      - ${fixture.rights}
       - params.yaml
       - pyproject.toml
       - registries/downstream-evaluations.json
