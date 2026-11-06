@@ -41,8 +41,9 @@ constrains its descendants until the plan moves that edge to narrower work.
 
 Apply decomposition in one transaction. Create the child items and dependency
 edges, end the current lease, and let the children inherit the parent's scope
-and scheduling position. The parent becomes eligible for a new readiness
-projection after its direct children terminate.
+and scheduling position. When the last direct child terminates, recompute the
+parent's readiness. The parent stays open until a worker claims it and makes an
+explicit terminal decision.
 
 ## Consequences
 

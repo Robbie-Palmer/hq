@@ -50,7 +50,9 @@ Store expedite state and its required reason separately from ordinal rank.
 Expedited tickets sort ahead of the fused queue. Project their effective
 urgency onto unresolved blockers, with the source ticket recorded as
 provenance. Removing the source expedite removes the donated urgency without
-changing blocker ranks.
+changing blocker ranks. When several donors reach one blocker, select the
+provenance donor by expedited state, then higher fused score, path key, and
+stable ID.
 
 ## Consequences
 

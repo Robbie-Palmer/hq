@@ -38,7 +38,7 @@ still decide which ready leaf can advance that outcome.
 Support an explicit expedite only when the caller supplies a reason. An
 expedited outcome moves ahead of normally ranked work, and its urgency reaches
 unresolved blockers so the queue can advance the interrupted outcome. The
-blockers do not remain expedited after that reason is removed.
+blockers lose that donated urgency when the source expedite is removed.
 
 ## Consequences
 
