@@ -1,0 +1,47 @@
+---
+title: "PDR 001: Use one versioned pathology data registry"
+date: "2026-11-06"
+status: "Proposed"
+evidence:
+  - title: "DVC data registry and import contract"
+    url: "https://dvc.org/doc/command-reference/import"
+---
+
+## Context
+
+Pathology experiments reuse the same large source slides, case identities, scanner metadata and public labels.
+If each model pipeline downloads and reshapes its own copy, licence records and patient boundaries drift. Derived
+tiles can also become mistaken for independent samples or canonical data.
+
+Quality control, tissue segmentation, cell analysis, tiling, slide encoding and biomarker prediction need
+different transformations and leakage-aware partitions. Putting every derived artifact into one pipeline would
+couple unrelated experiments and make the source dataset hard to update.
+
+## Proposed decision
+
+Maintain one authoritative, versioned pathology data registry for source artifacts and source-native metadata.
+It will own provenance, rights, checksums and stable patient, case, specimen, slide and image identities.
+
+Independent downstream projects will consume a pinned registry revision and own their task-specific eligibility,
+partitions, transformations, tiles, embeddings, models and scorecards. Raw slides remain canonical source
+artifacts. Derived tiles and features remain reproducible outputs of the project that defines their parameters.
+
+Preserve source-native labels. A downstream project may add a more detailed annotation layer or migrate the same
+material to an incommensurable ontology. Version the new ontology, annotation protocol, annotator provenance,
+agreement evidence and any partial cross-dataset mapping as derived artifacts. Record categories that cannot be
+mapped instead of forcing them into a universal label scheme.
+
+## Consequences
+
+The registry gives every experiment a shared provenance and leakage boundary while allowing pipelines to evolve
+independently. Storage can deduplicate immutable artifacts without giving several projects ownership of them.
+
+Consumers must manage pinned imports and deliberate updates. Identity resolution and licence review become
+registry responsibilities. Cross-project changes require compatibility checks, and the graph must remain acyclic
+enough that a registry update can be understood without reproducing every downstream experiment.
+
+## Evaluation
+
+Accept the proposal when two downstream projects reproduce from the same pinned registry revision, derive
+different artifacts without modifying the source data, and report the same patient and slide identities. A
+registry update must show which consumers are stale without silently changing their results.

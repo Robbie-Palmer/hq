@@ -1,0 +1,44 @@
+---
+title: "PDR 004: Publish inspectable spatial evidence with aggregate scores"
+date: "2026-11-06"
+status: "Proposed"
+---
+
+## Context
+
+An aggregate Dice score, F1 score or patient-level AUROC does not show whether a model found plausible morphology,
+relied on preparation artifacts, missed small lesions, or failed on one scanner. Whole-slide outputs are spatial,
+but a table can detach the score from the regions that produced it.
+
+The repository already serves CPTAC-COAD pyramid tiles from R2 through a Leaflet viewer. Pathologize can extend
+that working surface instead of starting with another general annotation or whole-slide viewing product.
+
+## Proposed decision
+
+Publish inspectable spatial evidence alongside aggregate benchmark results. A reader should be able to trace a
+score to eligible slides, sampled regions, tissue and artifact masks, cell instances, model attention or region
+scores, errors and exclusions where licences permit publication.
+
+Use the existing Leaflet and R2 tile path as the first evidence viewer. Extend it with versioned experiment
+overlays, run comparison and provenance when those capabilities are needed. Use interoperable spatial formats so
+the same outputs can still be inspected with established pathology tools. Keep model attention labelled as model
+behaviour, not as a causal pathological explanation.
+
+Include representative failures and performance slices by dataset, scanner, stain, tissue, class and quality.
+Do not publish patient material or derived images when the source licence does not permit it.
+
+## Consequences
+
+Researchers and potential contributors can inspect what changed rather than trusting one number. Spatial evidence
+also makes tiling and quality experiments easier to compare.
+
+Publication becomes heavier and may need restricted local inspection for some datasets. The current public viewer
+also needs a deliberate boundary between redistributable examples and private or restricted artifacts. Large
+overlays require versioned storage and efficient formats. Visual examples can encourage cherry-picking, so the
+selection rule and complete machine-readable scorecard must accompany them.
+
+## Evaluation
+
+Accept the proposal when a baseline report lets a reader move from a summary metric to predetermined success and
+failure cases, inspect their versioned spatial outputs, and recover the exact run that produced them without
+exposing data outside its licence.

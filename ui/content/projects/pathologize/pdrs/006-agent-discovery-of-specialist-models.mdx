@@ -1,0 +1,49 @@
+---
+title: "PDR 006: Use exploratory agents to discover specialist pathology models"
+date: "2026-11-06"
+status: "Proposed"
+---
+
+## Context
+
+A generalist model can inspect a whole slide iteratively, choose new regions and resolutions, combine several
+forms of evidence, and explain which observations changed its hypothesis. That flexibility is useful while the
+evidence process is unknown. It is expensive, variable and difficult to validate as the final implementation of a
+repeated pathology task.
+
+[PDR 003](/projects/pathologize/pdrs/003-independent-pathology-benchmark-families) separates the capabilities that
+may emerge from this exploration. [PDR 004](/projects/pathologize/pdrs/004-inspectable-spatial-evidence) requires
+spatial claims to remain inspectable.
+
+## Proposed decision
+
+Use exploratory slide agents as research instruments for discovering narrower, reproducible pathology processes.
+An agent may navigate a multiresolution slide, call public models and analysis tools, compare competing hypotheses,
+and record a structured trace of the regions, observations and transformations that supported its result.
+
+Treat the trace as a candidate explanation and source of hypotheses. It carries no ground-truth or clinical
+authority. Mine successful traces for repeatable behaviours that can become a quality rule, sampling policy,
+annotation proposal, feature contract, tissue or cell model, spatial aggregator, or another bounded specialist.
+
+Evaluate the specialist without the exploratory agent in its inference path. Promote it only when its inputs,
+outputs, resource use and failure modes fit a preregistered benchmark and independent data supports the claimed
+generalisation. Preserve the originating traces as provenance without requiring the specialist to imitate every
+agent action.
+
+## Consequences
+
+The project can use capable generalist models before it knows the right decomposition of a task, then remove their
+cost and variability from repeated inference. Agent failures and disagreements can expose missing measurements or
+new benchmark slices even when no specialist is adopted.
+
+The agent may invent persuasive but false evidence, encode bias into pseudo-labels, or rediscover a process that a
+public method already handles better. Traces can be large and may contain derived material that the source licence
+does not permit publishing. Every proposed label or rule therefore needs independent evaluation, and some useful
+agent behaviour may resist safe distillation.
+
+## Evaluation
+
+Accept the proposal after a bounded pilot produces one candidate specialist from recorded agent traces, reproduces
+the discovery process, and evaluates the specialist on data unavailable to the agent. The pilot must show whether
+the specialist improves a declared metric or resource trade-off without retaining the generalist agent in its
+inference path. A compelling trace alone remains a research note and provides no acceptance evidence.

@@ -1,0 +1,44 @@
+---
+title: "PDR 002: Reimplement from documented public sources"
+date: "2026-11-06"
+status: "Proposed"
+affected_projects:
+  - "genomic-prediction"
+---
+
+## Context
+
+The project owner previously worked on commercial computational-pathology systems. General experience can help
+identify useful research questions, but the earlier employer may own code, data, models, annotations, inventions
+and confidential combinations of methods created during that employment.
+
+Public papers and datasets make independent research possible. They do not publish every internal implementation
+detail, grant rights to old work, or make a public dataset unrestricted for redistribution.
+
+## Proposed decision
+
+Implement Pathologize only from cited public papers, appropriately licensed public software, public datasets and
+new project-authored work. Record the source and licence for every external dataset, model and substantial method.
+
+Do not access, copy, infer or reconstruct former-employer code, data, weights, annotations, configurations,
+thresholds, experiment histories, internal diagrams, unpublished failures or private product knowledge. Do not
+publish claims about a former product unless an authorised public source supports the exact claim.
+
+When a remembered technique has no public source, exclude it until independent public evidence supports the
+method. Review former employment and confidentiality agreements before commercialising the result. Treat patent
+clearance as a separate question from source-code independence.
+
+## Consequences
+
+The repository gains an auditable explanation for where its work came from. Public citations and new code reduce
+disclosure and ownership risk while making the research easier to reproduce.
+
+The owner cannot make this a perfect legal clean room because prior knowledge cannot be removed. Some apparently
+obvious improvements will be omitted or require legal advice. Public provenance also adds documentation and
+licence checks before experimentation begins.
+
+## Evaluation
+
+Accept the proposal only if a review can account for every dataset, model and nontrivial implementation source
+without relying on private employment material. Pause publication or commercialisation when that account is
+incomplete or an old agreement creates unresolved ownership or confidentiality risk.
