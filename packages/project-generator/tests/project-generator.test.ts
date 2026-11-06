@@ -365,6 +365,21 @@ describe("project plan contracts", () => {
 });
 
 describe("shared manifest edits", () => {
+  it("refreshes the pnpm lockfile once and then becomes idempotent", async () => {
+    const repository = await createGitRepositoryFixture();
+    await write(
+      repository,
+      "package.json",
+      JSON.stringify({ name: "fixture", private: true }),
+    );
+
+    const edit = [{ kind: "pnpm_lockfile" as const }];
+    await expect(applySharedManifestEdits(repository, edit)).resolves.toEqual([
+      "pnpm-lock.yaml",
+    ]);
+    await expect(applySharedManifestEdits(repository, edit)).resolves.toEqual([]);
+  });
+
   it("recognizes packages already registered by pnpm workspace globs", async () => {
     const repository = await createGitRepositoryFixture();
     const workspacePath = path.join(repository, "pnpm-workspace.yaml");
