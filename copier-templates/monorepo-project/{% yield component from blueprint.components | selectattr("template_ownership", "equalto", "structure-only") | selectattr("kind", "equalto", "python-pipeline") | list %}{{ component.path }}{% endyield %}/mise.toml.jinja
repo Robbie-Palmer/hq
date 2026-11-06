@@ -1,0 +1,71 @@
+[tools]
+python = "3.12"
+uv = "0.12.22"
+
+[tasks.lock]
+description = "Resolve and update the {{ component.name }} uv lockfile"
+run = "uv lock"
+
+[tasks.install]
+description = "Install the locked {{ component.name }} environment"
+run = "uv sync --locked"
+
+[tasks.format]
+description = "Format {{ component.name }} Python code"
+depends = ["install"]
+run = "uv run --locked ruff format ."
+
+[tasks."format:check"]
+description = "Check {{ component.name }} Python formatting"
+depends = ["install"]
+run = "uv run --locked ruff format --check ."
+
+[tasks.lint]
+description = "Lint {{ component.name }} Python code"
+depends = ["install"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check {{ component.name }} Python code"
+depends = ["install"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run {{ component.name }} tests with coverage"
+depends = ["install"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.build]
+description = "Build the {{ component.name }} Python package"
+depends = ["install"]
+run = "uv build"
+
+[tasks.clean]
+description = "Remove reproducible {{ component.name }} stage outputs"
+depends = ["install"]
+run = "uv run --locked {{ component.id }} clean"
+
+[tasks.verify]
+description = "Verify {{ component.name }} manifests and reproduced artifacts"
+depends = ["install", "repro"]
+run = "uv run --locked {{ component.id }} verify"
+
+[tasks.check]
+description = "Run deterministic {{ component.name }} checks"
+depends = ["format:check", "lint", "typecheck", "test"]
+
+[tasks.dvc]
+description = "Run DVC in {{ component.name }} (pass arguments after --)"
+run = "bash ../scripts/dvc.sh"
+
+[tasks.repro]
+description = "Reproduce the {{ component.name }} DVC stages"
+run = "bash ../scripts/dvc.sh repro"
+
+[tasks."dvc:dag"]
+description = "Show the {{ component.name }} DVC stage graph"
+run = "bash ../scripts/dvc.sh dag"
+
+[tasks.ci]
+description = "Run the checks and local reproducibility proof used by CI"
+depends = ["check", "verify", "build"]

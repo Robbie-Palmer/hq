@@ -1,0 +1,44 @@
+stages:
+  build_fixture:
+    cmd: uv run --locked {{ component.id }} build-fixture
+    deps:
+      - fixtures/synthetic.json
+      - manifests/rights.json
+      - pyproject.toml
+      - registries/datasets.json
+      - src/{{ component.id | replace('-', '_') }}
+      - uv.lock
+    params:
+      - fixture
+    outs:
+      - data/synthetic
+
+  train:
+    cmd: uv run --locked {{ component.id }} train
+    deps:
+      - data/synthetic
+      - manifests/decision-provenance.json
+      - pyproject.toml
+      - src/{{ component.id | replace('-', '_') }}
+      - uv.lock
+    params:
+      - training
+    outs:
+      - artifacts/model.json
+
+  evaluate:
+    cmd: uv run --locked {{ component.id }} evaluate
+    deps:
+      - artifacts/model.json
+      - data/synthetic
+      - pyproject.toml
+      - registries/downstream-evaluations.json
+      - src/{{ component.id | replace('-', '_') }}
+      - uv.lock
+    params:
+      - evaluation
+    outs:
+      - outputs/evaluation.json
+      - outputs/provenance.json
+    metrics:
+      - metrics/metrics.json

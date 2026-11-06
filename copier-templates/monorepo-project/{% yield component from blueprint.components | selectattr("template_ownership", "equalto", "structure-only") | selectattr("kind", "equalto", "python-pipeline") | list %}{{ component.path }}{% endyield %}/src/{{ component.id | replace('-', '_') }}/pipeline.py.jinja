@@ -1,0 +1,211 @@
+import json
+import random
+import shutil
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from {{ component.id | replace('-', '_') }}.artifacts import (
+    read_model,
+    read_observations,
+    sha256_file,
+    write_model,
+    write_observations,
+)
+from {{ component.id | replace('-', '_') }}.contracts import (
+    DatasetManifest,
+    DatasetRegistry,
+    DownstreamRegistry,
+    EvaluationArtifact,
+    ModelArtifact,
+    Observation,
+    PipelineParameters,
+    RightsManifest,
+    RunProvenance,
+    SyntheticSpec,
+)
+from {{ component.id | replace('-', '_') }}.observability import emit_event
+
+
+def load_parameters(path: Path = Path("params.yaml")) -> PipelineParameters:
+    return PipelineParameters.model_validate_json(path.read_bytes())
+
+
+def _fixture_observations(spec: SyntheticSpec) -> tuple[Observation, ...]:
+    generator = random.Random(spec.seed)  # noqa: S311 - reproducibility is the requirement.
+    observations: list[Observation] = []
+    split_sizes = (("train", spec.train_records), ("evaluation", spec.evaluation_records))
+    for split, size in split_sizes:
+        for index in range(size):
+            features = tuple(
+                round(generator.uniform(-1.0, 1.0), 8) for _ in range(spec.feature_count)
+            )
+            margin = sum((offset + 1) * value for offset, value in enumerate(features))
+            margin += generator.uniform(-0.15, 0.15)
+            observations.append(
+                Observation(
+                    sample_id=f"{split}-{index:04d}",
+                    split=split,
+                    features=features,
+                    label=1 if margin >= 0 else 0,
+                )
+            )
+    return tuple(observations)
+
+
+def build_fixture(parameters_path: Path = Path("params.yaml")) -> DatasetManifest:
+    parameters = load_parameters(parameters_path).fixture
+    spec_path = Path(parameters.spec)
+    registry_path = Path(parameters.registry)
+    rights_path = Path(parameters.rights)
+    spec = read_model(spec_path, SyntheticSpec)
+    registry = read_model(registry_path, DatasetRegistry)
+    rights = read_model(rights_path, RightsManifest)
+    dataset = next((item for item in registry.datasets if item.id == spec.dataset_id), None)
+    if dataset is None:
+        raise ValueError(f"Dataset registry has no entry for '{spec.dataset_id}'")
+    rights_record = next(
+        (item for item in rights.records if item.id == dataset.rights_record_id),
+        None,
+    )
+    if rights_record is None:
+        raise ValueError(f"Rights manifest has no record for '{dataset.rights_record_id}'")
+    if rights_record.contains_human_data:
+        raise ValueError("The generated fixture must not contain human data")
+
+    output = Path(parameters.output)
+    records_path = output / "records.jsonl"
+    observations = _fixture_observations(spec)
+    write_observations(records_path, observations)
+    manifest = DatasetManifest(
+        schema_version=1,
+        dataset_id=spec.dataset_id,
+        artifact_contract=dataset.artifact_contract,
+        records_sha256=sha256_file(records_path),
+        spec_sha256=sha256_file(spec_path),
+        registry_sha256=sha256_file(registry_path),
+        rights_sha256=sha256_file(rights_path),
+        train_records=spec.train_records,
+        evaluation_records=spec.evaluation_records,
+        source_kind="project-authored-synthetic",
+    )
+    write_model(output / "manifest.json", manifest)
+    emit_event(
+        "research.fixture.built", {"dataset.id": spec.dataset_id, "records": len(observations)}
+    )
+    return manifest
+
+
+def train(parameters_path: Path = Path("params.yaml")) -> ModelArtifact:
+    parameters = load_parameters(parameters_path).training
+    dataset_path = Path(parameters.dataset)
+    observations = tuple(item for item in read_observations(dataset_path) if item.split == "train")
+    scores_by_label = {
+        label: [sum(item.features) for item in observations if item.label == label]
+        for label in (0, 1)
+    }
+    if not all(scores_by_label.values()):
+        raise ValueError("Training data must contain both labels")
+    negative_mean = sum(scores_by_label[0]) / len(scores_by_label[0])
+    positive_mean = sum(scores_by_label[1]) / len(scores_by_label[1])
+    model = ModelArtifact(
+        schema_version=1,
+        model_kind="sum-threshold-baseline",
+        dataset_sha256=sha256_file(dataset_path),
+        feature_count=len(observations[0].features),
+        threshold=round((negative_mean + positive_mean) / 2, 10),
+    )
+    write_model(Path(parameters.output), model)
+    emit_event(
+        "research.model.trained", {"model.kind": model.model_kind, "records": len(observations)}
+    )
+    return model
+
+
+def evaluate(parameters_path: Path = Path("params.yaml")) -> EvaluationArtifact:
+    parameters = load_parameters(parameters_path).evaluation
+    dataset_path = Path(parameters.dataset)
+    model_path = Path(parameters.model)
+    model = read_model(model_path, ModelArtifact)
+    observations = tuple(
+        item for item in read_observations(dataset_path) if item.split == "evaluation"
+    )
+    predictions = tuple(int(sum(item.features) >= model.threshold) for item in observations)
+    pairs = tuple(zip(observations, predictions, strict=True))
+    correct = sum(item.label == prediction for item, prediction in pairs)
+    result = EvaluationArtifact(
+        schema_version=1,
+        evaluated_records=len(observations),
+        correct_records=correct,
+        true_positive=sum(item.label == 1 and prediction == 1 for item, prediction in pairs),
+        true_negative=sum(item.label == 0 and prediction == 0 for item, prediction in pairs),
+        false_positive=sum(item.label == 0 and prediction == 1 for item, prediction in pairs),
+        false_negative=sum(item.label == 1 and prediction == 0 for item, prediction in pairs),
+        accuracy=round(correct / len(observations), 8),
+    )
+    output_path = Path(parameters.output)
+    metrics_path = Path(parameters.metrics)
+    write_model(output_path, result)
+    write_model(metrics_path, result)
+    read_model(Path("registries/downstream-evaluations.json"), DownstreamRegistry)
+    provenance = RunProvenance(
+        schema_version=1,
+        project="{{ blueprint.project.stable_id }}",
+        component="{{ component.stable_id }}",
+        dataset_sha256=sha256_file(dataset_path),
+        model_sha256=sha256_file(model_path),
+        metrics_sha256=sha256_file(metrics_path),
+        parameters_sha256=sha256_file(parameters_path),
+        rights_sha256=sha256_file(Path("manifests/rights.json")),
+        decision_provenance_sha256=sha256_file(Path("manifests/decision-provenance.json")),
+    )
+    write_model(Path(parameters.provenance), provenance)
+    emit_event(
+        "research.model.evaluated", {"accuracy": result.accuracy, "records": len(observations)}
+    )
+    return result
+
+
+def verify(parameters_path: Path = Path("params.yaml")) -> None:
+    parameters = load_parameters(parameters_path)
+    manifest = read_model(Path(parameters.fixture.output) / "manifest.json", DatasetManifest)
+    dataset_path = Path(parameters.training.dataset)
+    model_path = Path(parameters.evaluation.model)
+    metrics_path = Path(parameters.evaluation.metrics)
+    model = read_model(model_path, ModelArtifact)
+    read_model(Path(parameters.evaluation.output), EvaluationArtifact)
+    provenance = read_model(Path(parameters.evaluation.provenance), RunProvenance)
+    if manifest.records_sha256 != sha256_file(dataset_path):
+        raise ValueError("Dataset bytes do not match the fixture manifest")
+    if model.dataset_sha256 != sha256_file(dataset_path):
+        raise ValueError("Model input hash does not match the current dataset")
+    expected = {
+        "dataset_sha256": sha256_file(dataset_path),
+        "model_sha256": sha256_file(model_path),
+        "metrics_sha256": sha256_file(metrics_path),
+        "parameters_sha256": sha256_file(parameters_path),
+        "rights_sha256": sha256_file(Path("manifests/rights.json")),
+        "decision_provenance_sha256": sha256_file(Path("manifests/decision-provenance.json")),
+    }
+    actual = provenance.model_dump(include=set(expected))
+    if actual != expected:
+        raise ValueError("Run provenance does not match the current inputs")
+    emit_event("research.pipeline.verified", {"dataset.id": manifest.dataset_id})
+
+
+def clean(parameters_path: Path = Path("params.yaml")) -> None:
+    parameters = load_parameters(parameters_path)
+    generated_paths = (
+        Path(parameters.fixture.output),
+        Path(parameters.training.output).parent,
+        Path(parameters.evaluation.output).parent,
+        Path(parameters.evaluation.metrics).parent,
+    )
+    for path in generated_paths:
+        shutil.rmtree(path, ignore_errors=True)
+
+
+def dump_result(value: object) -> str:
+    if isinstance(value, BaseModel):
+        return json.dumps(value.model_dump(mode="json"), sort_keys=True)
+    return json.dumps(value, sort_keys=True)

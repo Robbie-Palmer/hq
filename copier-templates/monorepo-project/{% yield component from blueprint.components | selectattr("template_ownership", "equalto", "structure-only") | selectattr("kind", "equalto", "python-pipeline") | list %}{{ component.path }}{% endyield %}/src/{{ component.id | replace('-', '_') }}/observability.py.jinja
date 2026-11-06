@@ -1,0 +1,13 @@
+import json
+from collections.abc import Mapping
+
+
+def emit_event(name: str, attributes: Mapping[str, str | int | float]) -> None:
+    event = {
+        "event.name": name,
+        "me.robbiepalmer.project.id": "{{ blueprint.project.stable_id }}",
+        "service.name": "{{ component.id }}",
+        "service.namespace": "{{ blueprint.project.id }}",
+        **attributes,
+    }
+    print(json.dumps(event, separators=(",", ":"), sort_keys=True))

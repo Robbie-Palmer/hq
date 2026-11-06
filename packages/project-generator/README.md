@@ -147,6 +147,15 @@ answer. When the blueprint contains one `terraform-root` component, the
 template compiles its application capability selections into the static root
 defined by [Personal Engineering Platform ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
 
+A structure-only `python-pipeline` component receives the repository's
+research ML scaffold. It includes a Python 3.12 uv project, Fire and Pydantic
+contracts, Ruff, ty, pytest coverage, a local DVC graph, deterministic synthetic
+data, rights and provenance records, and dataset-consumer registries. The
+template does not write `uv.lock` or `dvc.lock`. Run the generated `lock` and
+`repro` mise tasks so uv and DVC create their own lockfiles, then commit those
+files with the project. `mise //packages/project-generator:template:research-ml`
+renders a disposable project and verifies the complete generated task graph.
+
 Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace
 packages. Its task ownership policy marks each standard task as generated,

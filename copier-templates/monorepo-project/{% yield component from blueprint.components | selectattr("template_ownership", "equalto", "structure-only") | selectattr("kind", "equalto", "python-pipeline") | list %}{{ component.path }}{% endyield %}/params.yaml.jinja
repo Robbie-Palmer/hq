@@ -1,0 +1,19 @@
+{
+  "fixture": {
+    "spec": "fixtures/synthetic.json",
+    "registry": "registries/datasets.json",
+    "rights": "manifests/rights.json",
+    "output": "data/synthetic"
+  },
+  "training": {
+    "dataset": "data/synthetic/records.jsonl",
+    "output": "artifacts/model.json"
+  },
+  "evaluation": {
+    "dataset": "data/synthetic/records.jsonl",
+    "model": "artifacts/model.json",
+    "metrics": "metrics/metrics.json",
+    "output": "outputs/evaluation.json",
+    "provenance": "outputs/provenance.json"
+  }
+}

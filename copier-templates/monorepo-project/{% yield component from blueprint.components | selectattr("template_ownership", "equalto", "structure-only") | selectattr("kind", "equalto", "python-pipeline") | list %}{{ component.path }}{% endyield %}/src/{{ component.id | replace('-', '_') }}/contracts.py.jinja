@@ -1,0 +1,135 @@
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class Contract(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class SyntheticSpec(Contract):
+    schema_version: Literal[1]
+    dataset_id: str = Field(min_length=1)
+    seed: int
+    feature_count: int = Field(ge=2, le=64)
+    train_records: int = Field(ge=4)
+    evaluation_records: int = Field(ge=2)
+
+
+class RightsRecord(Contract):
+    id: str = Field(min_length=1)
+    origin: str = Field(min_length=1)
+    source_url: str | None
+    contains_human_data: bool
+    rights_basis: str = Field(min_length=1)
+    permitted_uses: tuple[str, ...] = Field(min_length=1)
+    prohibited_uses: tuple[str, ...] = Field(min_length=1)
+    notes: str = Field(min_length=1)
+
+
+class RightsManifest(Contract):
+    schema_version: Literal[1]
+    records: tuple[RightsRecord, ...] = Field(min_length=1)
+
+
+class DatasetEntry(Contract):
+    id: str = Field(min_length=1)
+    kind: Literal["synthetic", "public", "private"]
+    manifest: str = Field(min_length=1)
+    rights_record_id: str = Field(min_length=1)
+    source_revision: str = Field(min_length=1)
+    artifact_contract: Literal["records-jsonl-v1"]
+
+
+class DatasetRegistry(Contract):
+    schema_version: Literal[1]
+    datasets: tuple[DatasetEntry, ...] = Field(min_length=1)
+
+
+class DownstreamConsumer(Contract):
+    project: str = Field(pattern=r"^project:[a-z0-9]+(?:-[a-z0-9]+)*$")
+    artifact: str = Field(min_length=1)
+    artifact_contract: str = Field(min_length=1)
+    content_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+
+
+class DownstreamRegistry(Contract):
+    schema_version: Literal[1]
+    consumers: tuple[DownstreamConsumer, ...]
+
+
+class FixtureParameters(Contract):
+    spec: str
+    registry: str
+    rights: str
+    output: str
+
+
+class TrainingParameters(Contract):
+    dataset: str
+    output: str
+
+
+class EvaluationParameters(Contract):
+    dataset: str
+    model: str
+    metrics: str
+    output: str
+    provenance: str
+
+
+class PipelineParameters(Contract):
+    fixture: FixtureParameters
+    training: TrainingParameters
+    evaluation: EvaluationParameters
+
+
+class Observation(Contract):
+    sample_id: str = Field(pattern=r"^(train|evaluation)-[0-9]{4}$")
+    split: Literal["train", "evaluation"]
+    features: tuple[float, ...] = Field(min_length=2)
+    label: Literal[0, 1]
+
+
+class DatasetManifest(Contract):
+    schema_version: Literal[1]
+    dataset_id: str
+    artifact_contract: Literal["records-jsonl-v1"]
+    records_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    spec_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    registry_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    rights_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    train_records: int = Field(ge=1)
+    evaluation_records: int = Field(ge=1)
+    source_kind: Literal["project-authored-synthetic"]
+
+
+class ModelArtifact(Contract):
+    schema_version: Literal[1]
+    model_kind: Literal["sum-threshold-baseline"]
+    dataset_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    feature_count: int = Field(ge=2)
+    threshold: float
+
+
+class EvaluationArtifact(Contract):
+    schema_version: Literal[1]
+    evaluated_records: int = Field(ge=1)
+    correct_records: int = Field(ge=0)
+    true_positive: int = Field(ge=0)
+    true_negative: int = Field(ge=0)
+    false_positive: int = Field(ge=0)
+    false_negative: int = Field(ge=0)
+    accuracy: float = Field(ge=0.0, le=1.0)
+
+
+class RunProvenance(Contract):
+    schema_version: Literal[1]
+    project: Literal["{{ blueprint.project.stable_id }}"]
+    component: Literal["{{ component.stable_id }}"]
+    dataset_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    model_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    metrics_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    parameters_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    rights_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    decision_provenance_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")

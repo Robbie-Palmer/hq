@@ -1,0 +1,66 @@
+[project]
+name = "{{ component.id }}"
+version = "0.1.0"
+description = "Reproducible research pipeline for {{ blueprint.project.name }}"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fire>=0.7.1,<0.8",
+    "pydantic>=2.12.5,<3",
+]
+
+[project.scripts]
+{{ component.id }} = "{{ component.id | replace('-', '_') }}.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3,<10",
+    "pytest-cases>=3.10.1",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
+    "ty>=0.0.75",
+]
+
+[tool.uv.sources]
+# Remove when https://github.com/smarie/python-pytest-cases/pull/386 is released.
+pytest-cases = { git = "https://github.com/smarie/python-pytest-cases.git", rev = "37c72c1350899d45bc80e92b4b4168b5f7a7af7c" }
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov={{ component.id | replace('-', '_') }} --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "ignore"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = [
+    "T201", # stdout is the Fire CLI and structured-event interface.
+    "TRY003", # Contract errors include the failed path or identifier.
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
