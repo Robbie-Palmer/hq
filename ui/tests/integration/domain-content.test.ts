@@ -144,6 +144,7 @@ describe("Domain Content Validation (Integration)", () => {
         "automated-macrodissection",
         "bioinformatics-platform",
         "genomic-prediction",
+        "pathologize",
         "pathology-viewer",
       ]),
     );
