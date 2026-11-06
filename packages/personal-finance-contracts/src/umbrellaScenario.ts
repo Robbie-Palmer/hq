@@ -858,7 +858,7 @@ function evaluateDirectEmploymentComparison(
       })),
     );
   }
-  if (payroll === null || !payroll.available) {
+  if (!payroll?.available) {
     issues.push({
       code: "direct-employment-payroll-unavailable",
       detail: "The direct-employment PAYE estimate is unavailable for the supplied rules and pension arrangement.",
@@ -1004,7 +1004,7 @@ function calculationIssues(
       detail: `${input.studentLoan.standardPlan} does not have a payroll threshold in ${input.taxYear}.`,
     });
   }
-  if (payroll === null || !payroll.available) {
+  if (!payroll?.available) {
     issues.push({
       code: "umbrella-payroll-unavailable",
       state: "unsupported",
