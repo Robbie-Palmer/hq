@@ -140,4 +140,4 @@ def test_dicom_validation_reports_empty_objective_power(tmp_path: Path) -> None:
         image_role="volume_primary",
     )
 
-    assert any("objective power" in issue for issue in validate_dicom(path, asset, slide))
+    assert any("invalid objective power" in issue for issue in validate_dicom(path, asset, slide))

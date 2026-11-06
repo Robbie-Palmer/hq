@@ -176,9 +176,10 @@ def _validate_primary_dicom(dataset: pydicom.Dataset, slide: SlideRecord, path: 
             if hasattr(item, "ObjectiveLensPower")
         }
     except (TypeError, ValueError):
-        objective_powers = set()
-    if objective_powers != {slide.scanner.objective_power}:
-        issues.append(f"{path}: objective power differs from the slide record")
+        issues.append(f"{path}: invalid objective power")
+    else:
+        if objective_powers != {slide.scanner.objective_power}:
+            issues.append(f"{path}: objective power differs from the slide record")
     expected_labels = {
         (label.name, label.value, label.code) for label in slide.source_native_labels
     }
