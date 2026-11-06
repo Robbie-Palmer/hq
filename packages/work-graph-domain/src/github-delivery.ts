@@ -5,6 +5,14 @@ import {
 import { normalizeEvidenceObservation } from "./evidence";
 import type { DeliveryEvidenceObservation, PullRequestSnapshot } from "./model";
 
+/**
+ * One verified GitHub webhook envelope, identified by `X-GitHub-Delivery`.
+ * Reconciliation creates the same shape with a deterministic delivery ID so
+ * webhook and repair traffic share one idempotent ingestion path.
+ *
+ * Here, "delivery" means transport from GitHub to Work Graph. A separate
+ * deployment observation proves that a change reached production.
+ */
 export interface GitHubDelivery {
   readonly deliveryId: string;
   readonly event: string;
@@ -15,6 +23,14 @@ export interface GitHubDelivery {
   readonly repository: string;
 }
 
+/**
+ * The normalized fact extracted from a relevant GitHub delivery.
+ *
+ * `evidence` is the historical PR, CI, or deployment fact. `pullRequest`
+ * carries extra PR state used to correlate that fact with a Work Graph item.
+ * `providerSequence` prevents an older redelivery from replacing newer current
+ * evidence. Deliveries with no relevant fact normalize to `null` instead.
+ */
 export interface GitHubObservation {
   readonly evidence: DeliveryEvidenceObservation;
   readonly pullRequest: PullRequestSnapshot | null;
@@ -22,6 +38,20 @@ export interface GitHubObservation {
   readonly deliveryMetadata?: GeneratedDeliveryMetadataRevision;
   readonly deliveryMetadataCreatedAt?: string;
 }
+
+/**
+ * The result of attempting to ingest and correlate one GitHub delivery.
+ *
+ * - `processed`: the observation was correlated and stored.
+ * - `ignored`: the delivery contained no relevant fact.
+ * - `unmatched`: no unique linked implementation PR owns the commit yet.
+ * - `failed`: parsing or persistence failed; the delivery may be retried.
+ */
+export type GitHubDeliveryDisposition =
+  | "processed"
+  | "ignored"
+  | "unmatched"
+  | "failed";
 
 export class InvalidGitHubDelivery extends Error {
   constructor() {

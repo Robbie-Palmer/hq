@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray, or } from "drizzle-orm";
 import {
   type GitHubDelivery,
+  type GitHubDeliveryDisposition,
   type GitHubObservation,
   InvalidGitHubDelivery,
   normalizeGitHubDelivery,
@@ -21,12 +22,10 @@ import {
   workItemPullRequest,
 } from "./schema";
 
-type Disposition = typeof githubDeliveryProcessing.$inferSelect.disposition;
-
 async function previousTerminalDisposition(
   transaction: DbTransaction,
   deliveryId: string,
-): Promise<Disposition | undefined> {
+): Promise<GitHubDeliveryDisposition | undefined> {
   // Share the PR/link event lock so association and projection are atomic
   // with explicit links and concurrent consumers, including redeliveries.
   await transaction
@@ -48,7 +47,10 @@ async function processObservation(
   transaction: DbTransaction,
   delivery: GitHubDelivery,
   ingestedAt: string,
-): Promise<{ disposition: Disposition; observation: GitHubObservation | null }> {
+): Promise<{
+  disposition: GitHubDeliveryDisposition;
+  observation: GitHubObservation | null;
+}> {
   const scopedRepository = new WorkGraphRepository(transaction);
   const recordEvidence = (
     input: Parameters<WorkGraphRepository["recordEvidenceObservation"]>[0],
@@ -93,7 +95,7 @@ async function processObservation(
 async function storeProcessingDisposition(
   transaction: DbTransaction,
   delivery: GitHubDelivery,
-  disposition: Disposition,
+  disposition: GitHubDeliveryDisposition,
   observation: GitHubObservation | null,
 ): Promise<void> {
   await transaction
@@ -133,11 +135,18 @@ function evaluationId(deliveryId: string, workItemId: string): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
-/** This boundary can observe delivery facts but exposes no work-item mutations. */
+/**
+ * Converts a GitHub transport delivery into correlated evidence. On successful
+ * processing, the database transaction stores the observation and disposition
+ * atomically. Completion-policy evaluation starts only after it commits.
+ *
+ * The caller supplies evidence. A stored completion policy is the only route
+ * from the resulting facts to a work-item state change.
+ */
 export class GitHubDeliveryConsumer {
   constructor(private readonly db: Db) {}
 
-  async consume(delivery: GitHubDelivery): Promise<Disposition> {
+  async consume(delivery: GitHubDelivery): Promise<GitHubDeliveryDisposition> {
     const repository = new WorkGraphRepository(this.db);
     const receipt = await repository.recordExternalDelivery({
       provider: "github",

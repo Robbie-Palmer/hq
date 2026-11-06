@@ -115,6 +115,7 @@ export interface PullRequestSnapshot {
   readonly deliveryMetadataSourceRevision?: string;
 }
 
+/** Immutable receipt used to deduplicate one provider transport envelope. */
 export interface ExternalDelivery {
   readonly provider: string;
   readonly externalId: string;
@@ -123,6 +124,11 @@ export interface ExternalDelivery {
   readonly ingestedAt: string;
 }
 
+/**
+ * One historical fact about a commit observed through a provider delivery.
+ * A fact becomes completion evidence only after correlation to an
+ * implementation pull request.
+ */
 export interface DeliveryEvidenceObservation {
   readonly id: string;
   readonly deliveryProvider: string;

@@ -8,6 +8,7 @@ import * as schema from "./schema";
 
 type DbClient = postgres.Sql;
 export type Db = PostgresJsDatabase<typeof schema> & { $client: DbClient };
+/** PostgreSQL atomicity boundary that exists only while database work commits. */
 export type DbTransaction = Parameters<Parameters<Db["transaction"]>[0]>[0];
 
 export interface DbConnectionOptions {

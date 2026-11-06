@@ -13,6 +13,43 @@ the normal database consumer, so rerunning the operation neither duplicates
 evidence, recovery work, nor replacement-launch reservations. It also cannot
 replace a newer projection with an older provider observation.
 
+## Concepts and processing flow
+
+Four terms describe different parts of ingestion:
+
+| Term | Meaning |
+| --- | --- |
+| GitHub delivery | One webhook envelope identified by `X-GitHub-Delivery`. Reconciliation creates an equivalent envelope with a deterministic ID. A separate deployment-status observation proves production deployment. |
+| Observation | One normalized PR, completed workflow run, or deployment-status fact extracted from a delivery. The observation records what GitHub reported, when GitHub reported it, and the exact commit. |
+| Disposition | Work Graph's processing result for the delivery. `processed` means its observation was correlated and stored, `ignored` means it carried no relevant fact, `unmatched` means no unique linked implementation PR owned the commit yet, and `failed` means parsing or persistence failed. |
+| Transaction | The PostgreSQL atomicity boundary used while correlating and storing an observation and its disposition. It exists only while the database work commits. |
+
+The ingestion path is:
+
+```text
+GitHub webhook or reconciliation
+  -> GitHub delivery receipt
+  -> normalized observation, or no relevant fact
+  -> correlation by repository, commit, and linked implementation PR
+  -> historical evidence plus current-evidence projection
+  -> completion-policy evaluation and optional ticket release
+```
+
+The delivery receipt is stored before the database transaction. Inside the
+transaction, Work Graph refreshes any PR snapshot, correlates and stores the
+observation, updates current evidence, and records the disposition together.
+Completion-policy evaluation runs after that transaction commits.
+If processing rolls back, Work Graph records the `failed` disposition in a
+separate error path.
+
+`processed` and `ignored` are terminal for a delivery ID. An `unmatched`
+delivery remains available for reconciliation after the relevant PR is linked.
+A `failed` delivery is retryable after its underlying problem is fixed.
+
+"Delivery evidence" is the broader Work Graph term for facts that prove a
+change progressed through PR, CI, and deployment stages. A GitHub delivery is
+the transport envelope that carried one of those facts.
+
 ## Verify normal processing
 
 1. Open the GitHub App's **Advanced** page and select a recent delivery for an
