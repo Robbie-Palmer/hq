@@ -13,7 +13,10 @@
     "./side-income-synthetic-cases": "./src/sideIncomeSyntheticCases.ts",
     "./sole-trader-scenario": "./src/soleTraderScenario.ts",
     "./sole-trader-rules": "./src/soleTraderRules.ts",
-    "./sole-trader-synthetic-scenarios": "./src/soleTraderSyntheticScenarios.ts"
+    "./sole-trader-synthetic-scenarios": "./src/soleTraderSyntheticScenarios.ts",
+    "./limited-company-rules": "./src/limitedCompanyRules.ts",
+    "./limited-company-scenario": "./src/limitedCompanyScenario.ts",
+    "./limited-company-synthetic-scenarios": "./src/limitedCompanySyntheticScenarios.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

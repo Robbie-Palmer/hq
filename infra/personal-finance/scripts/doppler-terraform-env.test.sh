@@ -34,6 +34,7 @@ for mode_and_config in "plan ops" "drift drift" "apply apply"; do
   read -r mode expected_config <<<"$mode_and_config"
   args_log="$work_dir/$mode-args"
   CI=false \
+    DOPPLER_PROJECT="personal-finance" \
     PATH="$mock_bin:$PATH" \
     DOPPLER_ARGS_LOG="$args_log" \
     bash "$script_dir/doppler-terraform-env.sh" "$mode" true

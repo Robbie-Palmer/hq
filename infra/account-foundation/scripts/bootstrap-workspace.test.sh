@@ -292,6 +292,30 @@ for github_environment in \
   fi
 done
 
+: > "$work_dir/doppler-calls"
+SYNC_TEST_DIRECTORY="$work_dir" \
+  PATH="$mock_bin:$PATH" \
+  bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+    preview-personal-finance \
+    production-personal-finance-plan \
+    production-personal-finance-drift \
+    production-personal-finance \
+    production-personal-finance-backup \
+    production-personal-finance-alerting
+
+for project_and_config in \
+  "personal-finance-operations preview" \
+  "personal-finance ops" \
+  "personal-finance drift" \
+  "personal-finance apply" \
+  "personal-finance backup" \
+  "personal-finance-operations alerts"; do
+  read -r project config <<<"$project_and_config"
+  grep -Fxq -- \
+    "secrets --project $project --config $config --json" \
+    "$work_dir/doppler-calls"
+done
+
 : > "$work_dir/github-calls"
 SYNC_TEST_DIRECTORY="$work_dir" \
   PATH="$mock_bin:$PATH" \

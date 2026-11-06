@@ -114,6 +114,7 @@ module "cloudflare_worker" {
   name               = each.value.name
   content            = each.value.content
   compatibility_date = each.value.compatibility_date
+  hyperdrive_id      = each.value.hyperdrive_id
   zone_id            = each.value.zone_id
   hostname           = each.value.hostname
 }

@@ -1,0 +1,52 @@
+---
+title: "PDR 000: Build an open, evidence-bounded pathology research programme"
+date: "2026-11-06"
+status: "Proposed"
+evidence:
+  - title: "Patho-Bench public tasks and dataset splits"
+    url: "https://huggingface.co/datasets/MahmoodLab/Patho-Bench"
+  - title: "TRIDENT whole-slide processing toolkit"
+    url: "https://github.com/mahmoodlab/TRIDENT"
+---
+
+## Context
+
+Modern computational pathology now has public whole-slide datasets, foundation models, processing toolkits and
+benchmark suites. An individual project is unlikely to outspend the groups training those models. It can still
+contribute careful data lineage, reproducible comparisons, reliable software and evidence about where methods
+fail or transfer.
+
+Dataset curation, annotation design, identity resolution and benchmark construction are research contributions
+in their own right. They often receive less attention than a new neural architecture even when better cohorts,
+labels and ontologies remove a larger barrier to useful cancer research.
+
+The work could also demonstrate relevant engineering ability to open-source maintainers and potential employers.
+That incentive creates a risk of optimising the project for impressive claims rather than useful or reproducible
+research.
+
+## Proposed decision
+
+Build Pathologize as an open, reproducible computational-pathology research programme. Treat curated datasets,
+new annotation layers, ontology work, benchmark design, evaluation and software improvements as first-class
+outputs where their licences permit publication. Publish enough provenance, code, parameters, resource
+measurements and failed-result context for another researcher to assess each claim.
+
+Keep the project explicitly research-only unless a later decision establishes the evidence, governance and
+regulatory boundary for another use. Do not describe benchmark performance as clinical validity. Treat portfolio
+value as a consequence of useful public work, not as a substitute for it.
+
+## Consequences
+
+The project can make a credible contribution without training the largest model. A reusable cohort, annotation
+set or benchmark can be the main research result. Public artifacts and honest negative results may be valuable
+even when they do not produce a new state of the art.
+
+Open publication requires continuing licence, privacy and disclosure review. Some useful datasets, weights or
+results may remain referenced but undistributed. Evidence production adds work to every experiment and may make
+progress appear slower than a notebook-only reproduction.
+
+## Evaluation
+
+Accept the proposal after one external user can reproduce a published baseline from its public instructions and
+trace its score to source data, code, weights and parameters. Reject it if the project mainly produces screenshots,
+leaderboard numbers or portfolio claims that cannot be independently assessed.

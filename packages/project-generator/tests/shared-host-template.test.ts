@@ -89,15 +89,15 @@ async function renderTerraform(componentKind: "project-ui" | "ui") {
 }
 
 describe("shared frontend host Terraform generation", () => {
-  it("does not claim Pages or Access for a project UI mounted in the shared host", async () => {
+  it("keeps shared Pages unclaimed while protecting a project Worker", async () => {
     const terraform = await renderTerraform("project-ui");
 
     expect(terraform).not.toContain('module "cloudflare_pages"');
-    expect(terraform).not.toContain('module "cloudflare_access"');
+    expect(terraform).toContain('module "cloudflare_access"');
     expect(terraform).toContain('module "cloudflare_worker"');
     expect(terraform).toContain('module "neon"');
     expect(terraform).not.toContain('"web-app.host"');
-    expect(terraform).not.toContain('"security.preview-access"');
+    expect(terraform).toContain('"security.preview-access"');
   });
 
   it("keeps Pages and Access for a project-owned frontend host", async () => {

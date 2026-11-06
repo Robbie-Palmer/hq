@@ -10,6 +10,11 @@ variable "account_id" { type = string }
 variable "name" { type = string }
 variable "content" { type = string }
 variable "compatibility_date" { type = string }
+variable "hyperdrive_id" {
+  type     = string
+  default  = null
+  nullable = true
+}
 variable "zone_id" {
   type     = string
   default  = null
@@ -32,6 +37,15 @@ resource "cloudflare_workers_script" "worker" {
   content            = var.content
   module             = true
   compatibility_date = var.compatibility_date
+
+  dynamic "hyperdrive_config_binding" {
+    for_each = var.hyperdrive_id == null ? [] : [var.hyperdrive_id]
+
+    content {
+      binding = "HYPERDRIVE"
+      id      = hyperdrive_config_binding.value
+    }
+  }
 
   lifecycle {
     prevent_destroy = true

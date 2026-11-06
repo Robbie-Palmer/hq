@@ -75,6 +75,30 @@ run = "pnpm db:migrate"
 [tasks.check]
 description = "Check {{ component.name }}"
 depends = ["typecheck", "test", "db:check"]
+{% elif component.runtime_role | default("") == "api-contracts" -%}
+[tasks.install]
+description = "Install dependencies for {{ component.name }}"
+depends = ["//:install"]
+
+[tasks.typecheck]
+description = "Typecheck {{ component.name }}"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test {{ component.name }}"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test {{ component.name }} with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Validate {{ component.name }}"
+depends = ["typecheck", "test"]
+run = "test -f generated-component.yaml"
 {% else -%}
 [tasks.check]
 description = "Validate the generated {{ component.name }} structural boundary"

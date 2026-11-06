@@ -354,7 +354,7 @@ locals {
         }
         environments = {
           ops = {
-            name             = "Pull request plans"
+            name             = "Production plans"
             personal_configs = false
             configs          = []
           }
@@ -368,6 +368,11 @@ locals {
             personal_configs = false
             configs          = []
           }
+          backup = {
+            name             = "Database backup and restore"
+            personal_configs = false
+            configs          = []
+          }
         }
       }
       github = {
@@ -376,6 +381,9 @@ locals {
           plan = {
             name               = "production-personal-finance-plan"
             reviewer_usernames = ["Robbie-Palmer"]
+          }
+          preview = {
+            name = "preview-personal-finance"
           }
           drift = {
             name                 = "production-personal-finance-drift"
@@ -388,7 +396,43 @@ locals {
             custom_branch_policy = true
             branch_patterns      = { main = null }
           }
+          backup = {
+            name                 = "production-personal-finance-backup"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+          alerts = {
+            name                 = "production-personal-finance-alerting"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
         }
+      }
+    }
+    personal-finance-operations = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "personal-finance-operations"
+          description = "Personal Finance preview and alert operation credentials"
+        }
+        environments = {
+          preview = {
+            name             = "Isolated previews"
+            personal_configs = false
+            configs          = []
+          }
+          alerts = {
+            name             = "Alert evaluation and delivery"
+            personal_configs = false
+            configs          = []
+          }
+        }
+      }
+      github = {
+        repository   = "hq"
+        environments = {}
       }
     }
   }
