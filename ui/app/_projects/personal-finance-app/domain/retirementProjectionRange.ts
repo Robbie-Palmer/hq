@@ -9,13 +9,16 @@ import { isLiability } from "./account";
 import {
   projectRetirementCapital,
   type RetirementCapitalAccount,
+  type RetirementCapitalContribution,
   type RetirementCapitalForecast,
   type RetirementCapitalForecastPoint,
   type RetirementCapitalScenario,
+  type RetirementHousingRelease,
 } from "./retirementCapital";
 import type { RetirementIncomeStream } from "./retirementIncome";
 
 export const RETIREMENT_PROJECTION_HORIZONS = [10, 15, 20, 30] as const;
+export const RETIREMENT_CHOICE_HORIZONS = [10, 15, 20] as const;
 
 export type RetirementProjectionHorizon =
   (typeof RETIREMENT_PROJECTION_HORIZONS)[number];
@@ -39,20 +42,25 @@ export type RetirementProjectionFacts = {
   annualNetEmploymentIncome: number;
   delayedIncomeAnnual: number;
   delayedIncomeStartDate: string;
+  retirementIncomeStreams?: RetirementIncomeStream[];
+  contributionPlan?: {
+    accountId: string;
+    annualEmployeeGross: number;
+    annualEmployer: number;
+  };
+  housingReleases?: RetirementHousingRelease[];
   accounts: RetirementCapitalAccount[];
   withdrawalOrder: string[];
 };
 
 export type RetirementPathOptions = {
-  retireEarlierYears: number;
-  workLongerYears: number;
   lowerIncomeRate: number;
 };
 
 export type RetirementProjectionPath = {
-  id: "planned" | "earlier" | "longer" | "lower-income";
+  id: "stop-work" | "stay-in-work" | "reduced-work";
   name: string;
-  retirementDate: string;
+  retirementDate: string | null;
   annualNetEmploymentIncome: number;
 };
 
@@ -60,9 +68,15 @@ export type RetirementProjectionOutcome = {
   horizonYears: RetirementProjectionHorizon;
   forecastDate: string;
   accessibleCapitalExhaustionDate: string | null;
+  cashRunwayMonths: number | null;
+  portfolioSurvives: boolean;
+  liquidWithdrawalCapital: number;
   accessibleCapital: number;
+  restrictedPensionCapital: number;
+  retainedHomeEquity: number;
+  liabilities: number;
   totalNetWorth: number;
-  incomeCoverage: number;
+  retirementIncomeCoverage: number;
   cumulativeTax: number;
   cumulativeFees: number;
   cumulativeShortfall: number;
@@ -87,7 +101,7 @@ export type RetirementAssumptionComparison = {
 export type RetirementPathComparison = {
   path: RetirementProjectionPath;
   assumption: RetirementAssumptionSet;
-  outcome: RetirementProjectionOutcome;
+  outcomes: RetirementProjectionOutcome[];
 };
 
 export type RetirementProjectionRangeComparison = {
@@ -116,6 +130,14 @@ function validateFacts(facts: RetirementProjectionFacts): void {
     ["Annual spending", facts.annualSpending],
     ["Annual net employment income", facts.annualNetEmploymentIncome],
     ["Delayed annual income", facts.delayedIncomeAnnual],
+    [
+      "Annual employee pension contribution",
+      facts.contributionPlan?.annualEmployeeGross ?? 0,
+    ],
+    [
+      "Annual employer pension contribution",
+      facts.contributionPlan?.annualEmployer ?? 0,
+    ],
   ] as const) {
     if (!Number.isFinite(value) || value < 0) {
       throw new Error(`${name} must be a non-negative number`);
@@ -167,16 +189,94 @@ function validatePathOptions(pathOptions: RetirementPathOptions): void {
   ) {
     throw new Error("Lower replacement income must be between 0% and 100%");
   }
-  for (const years of [
-    pathOptions.retireEarlierYears,
-    pathOptions.workLongerYears,
-  ]) {
-    if (!Number.isInteger(years) || years < 0) {
-      throw new Error(
-        "Retirement timing changes must be whole non-negative years",
+}
+
+function withdrawalSupportIssues(
+  facts: RetirementProjectionFacts,
+  accountsById: ReadonlyMap<string, RetirementCapitalAccount>,
+): string[] {
+  const issues: string[] = [];
+  for (const accountId of facts.withdrawalOrder) {
+    const account = accountsById.get(accountId);
+    if (account == null) continue;
+    if (account.accessPolicy?.taxTreatment?.kind === "unsupported") {
+      issues.push(
+        `${account.name}: ${account.accessPolicy.taxTreatment.reason}`,
+      );
+    }
+    if (
+      account.accessPolicy?.taxTreatment == null &&
+      account.taxWrapper !== "isa" &&
+      account.assetType !== "cash"
+    ) {
+      issues.push(
+        `${account.name}: ${account.taxWrapper ?? "taxable"} withdrawal tax has not been configured`,
+      );
+    }
+    if (
+      account.taxWrapper === "pension" &&
+      account.accessPolicy?.accessibleFromDate == null
+    ) {
+      issues.push(`${account.name}: add a pension access date`);
+    }
+  }
+  return issues;
+}
+
+function contributionSupportIssues(
+  facts: RetirementProjectionFacts,
+  accountsById: ReadonlyMap<string, RetirementCapitalAccount>,
+): string[] {
+  const contributionPlan = facts.contributionPlan;
+  if (
+    contributionPlan != null &&
+    contributionPlan.annualEmployeeGross + contributionPlan.annualEmployer >
+      0 &&
+    accountsById.get(contributionPlan.accountId)?.taxWrapper !== "pension"
+  ) {
+    return ["Pension contributions need a tracked pension account"];
+  }
+  return [];
+}
+
+function incomeSupportIssues(facts: RetirementProjectionFacts): string[] {
+  const issues: string[] = [];
+  for (const stream of facts.retirementIncomeStreams ?? []) {
+    if (stream.currency !== "GBP") {
+      issues.push(`${stream.name}: add a GBP exchange-rate assumption`);
+    }
+    if (stream.taxTreatment.kind === "unsupported") {
+      issues.push(`${stream.name}: ${stream.taxTreatment.reason}`);
+    }
+    if (stream.interactingBenefits.length > 0) {
+      issues.push(
+        `${stream.name}: interacting benefits need a supported calculation`,
+      );
+    }
+    if (
+      stream.kind === "rental-income" &&
+      (stream.rentalIncome?.annualResidentialFinanceCosts ?? 0) > 0
+    ) {
+      issues.push(
+        `${stream.name}: residential finance-cost tax relief needs a supported calculation`,
       );
     }
   }
+  return issues;
+}
+
+export function retirementReadinessBlockingIssues(
+  facts: RetirementProjectionFacts,
+): string[] {
+  const accountsById = new Map(
+    facts.accounts.map((account) => [account.id, account]),
+  );
+  const issues = [
+    ...withdrawalSupportIssues(facts, accountsById),
+    ...contributionSupportIssues(facts, accountsById),
+    ...incomeSupportIssues(facts),
+  ];
+  return [...new Set(issues)];
 }
 
 function validateInput(input: {
@@ -204,30 +304,22 @@ export function retirementProjectionPaths(
   facts: RetirementProjectionFacts,
   options: RetirementPathOptions,
 ): RetirementProjectionPath[] {
-  const planned = parseISO(facts.plannedRetirementDate);
-  const earlier = isoDate(addYears(planned, -options.retireEarlierYears));
   return [
     {
-      id: "planned",
-      name: "Planned retirement",
+      id: "stop-work",
+      name: "Stop work",
       retirementDate: facts.plannedRetirementDate,
+      annualNetEmploymentIncome: 0,
+    },
+    {
+      id: "stay-in-work",
+      name: "Stay in work",
+      retirementDate: null,
       annualNetEmploymentIncome: facts.annualNetEmploymentIncome,
     },
     {
-      id: "earlier",
-      name: `Retire ${options.retireEarlierYears} years earlier`,
-      retirementDate: earlier < facts.startDate ? facts.startDate : earlier,
-      annualNetEmploymentIncome: facts.annualNetEmploymentIncome,
-    },
-    {
-      id: "longer",
-      name: `Work ${options.workLongerYears} years longer`,
-      retirementDate: isoDate(addYears(planned, options.workLongerYears)),
-      annualNetEmploymentIncome: facts.annualNetEmploymentIncome,
-    },
-    {
-      id: "lower-income",
-      name: `${Math.round(options.lowerIncomeRate * 100)}% replacement income`,
+      id: "reduced-work",
+      name: `Reduce earned income to ${Math.round(options.lowerIncomeRate * 100)}%`,
       retirementDate: facts.plannedRetirementDate,
       annualNetEmploymentIncome:
         facts.annualNetEmploymentIncome * options.lowerIncomeRate,
@@ -268,24 +360,24 @@ function scenarioAccounts(
 function employmentIncomeStream(input: {
   facts: RetirementProjectionFacts;
   path: RetirementProjectionPath;
-}): RetirementIncomeStream | null {
-  if (
-    input.path.annualNetEmploymentIncome <= 0 ||
-    input.path.retirementDate <= input.facts.startDate
-  ) {
-    return null;
-  }
-  return {
-    id: "employment-income",
-    name: "Net employment income",
+  endDate: string;
+}): RetirementIncomeStream[] {
+  if (input.facts.annualNetEmploymentIncome <= 0) return [];
+  const fullIncomeEndDate =
+    input.path.retirementDate == null
+      ? input.endDate
+      : isoDate(addMonths(parseISO(input.path.retirementDate), -1));
+  const fullIncome: RetirementIncomeStream = {
+    id: `employment-income-full-${input.path.id}`,
+    name: "Full net employment income",
     kind: "other",
     ownerId: "household",
-    amount: input.path.annualNetEmploymentIncome,
+    amount: input.facts.annualNetEmploymentIncome,
     amountBasis: "net",
     frequency: "annual",
     currency: "GBP",
     startDate: input.facts.startDate,
-    endDate: isoDate(addMonths(parseISO(input.path.retirementDate), -1)),
+    endDate: fullIncomeEndDate,
     inflation: { kind: "level" },
     provenance: {
       kind: "manual-estimate",
@@ -294,6 +386,102 @@ function employmentIncomeStream(input: {
     taxTreatment: { kind: "already-net" },
     interactingBenefits: [],
   };
+  const streams: RetirementIncomeStream[] =
+    fullIncomeEndDate < input.facts.startDate ? [] : [fullIncome];
+  if (
+    input.path.id === "reduced-work" &&
+    input.path.annualNetEmploymentIncome > 0 &&
+    input.path.retirementDate != null
+  ) {
+    streams.push({
+      ...fullIncome,
+      id: "employment-income-reduced-work",
+      name: "Reduced net employment income",
+      amount: input.path.annualNetEmploymentIncome,
+      startDate: input.path.retirementDate,
+      endDate: input.endDate,
+    });
+  }
+  return streams;
+}
+
+type RetirementContributionPeriod = {
+  id: "full" | "reduced";
+  startDate: string;
+  endDate: string;
+  multiplier: number;
+};
+
+function retirementContributionPeriods(input: {
+  facts: RetirementProjectionFacts;
+  path: RetirementProjectionPath;
+  endDate: string;
+}): RetirementContributionPeriod[] {
+  if (input.path.id === "stay-in-work") {
+    return [
+      {
+        id: "full",
+        startDate: input.facts.startDate,
+        endDate: input.endDate,
+        multiplier: 1,
+      },
+    ];
+  }
+  const fullPeriod: RetirementContributionPeriod = {
+    id: "full",
+    startDate: input.facts.startDate,
+    endDate: isoDate(
+      addMonths(parseISO(input.facts.plannedRetirementDate), -1),
+    ),
+    multiplier: 1,
+  };
+  if (input.path.id === "stop-work") return [fullPeriod];
+  return [
+    fullPeriod,
+    {
+      id: "reduced",
+      startDate: input.facts.plannedRetirementDate,
+      endDate: input.endDate,
+      multiplier:
+        input.path.annualNetEmploymentIncome /
+        Math.max(input.facts.annualNetEmploymentIncome, 1),
+    },
+  ];
+}
+
+function retirementContributions(input: {
+  facts: RetirementProjectionFacts;
+  path: RetirementProjectionPath;
+  endDate: string;
+}): RetirementCapitalContribution[] {
+  const plan = input.facts.contributionPlan;
+  if (plan == null) return [];
+  const periods = retirementContributionPeriods(input);
+  return periods.flatMap((period) =>
+    [
+      {
+        id: `employee-pension-${input.path.id}-${period.id}`,
+        label: "Gross employee pension contribution",
+        accountId: plan.accountId,
+        kind: "employee-gross" as const,
+        annualAmount: plan.annualEmployeeGross * period.multiplier,
+        startDate: period.startDate,
+        endDate: period.endDate,
+      },
+      {
+        id: `employer-pension-${input.path.id}-${period.id}`,
+        label: "Employer pension contribution",
+        accountId: plan.accountId,
+        kind: "employer" as const,
+        annualAmount: plan.annualEmployer * period.multiplier,
+        startDate: period.startDate,
+        endDate: period.endDate,
+      },
+    ].filter(
+      ({ annualAmount, startDate, endDate }) =>
+        annualAmount > 0 && startDate <= endDate,
+    ),
+  );
 }
 
 function delayedIncomeStream(input: {
@@ -332,12 +520,13 @@ function buildScenario(input: {
   endDate: string;
 }): RetirementCapitalScenario {
   const streams = [
-    employmentIncomeStream(input),
+    ...employmentIncomeStream({ ...input, endDate: input.endDate }),
     delayedIncomeStream({
       facts: input.facts,
       annualInflation: input.assumption.annualInflation,
       startDate: input.facts.delayedIncomeStartDate,
     }),
+    ...(input.facts.retirementIncomeStreams ?? []),
   ].filter((stream): stream is RetirementIncomeStream => stream != null);
   return {
     id: `${input.assumption.id}-${input.path.id}`,
@@ -357,6 +546,8 @@ function buildScenario(input: {
     ),
     withdrawalOrder: input.facts.withdrawalOrder,
     incomeStreams: streams,
+    contributions: retirementContributions(input),
+    housingReleases: input.facts.housingReleases,
   };
 }
 
@@ -398,26 +589,48 @@ function outcomeFromForecast(
     0,
   );
   const totalIncome = points.reduce(
-    (sum, item) => sum + item.retirementIncome.netAmount,
+    (sum, item) =>
+      sum +
+      item.retirementIncome.streams
+        .filter(({ streamId }) => !streamId.startsWith("employment-income-"))
+        .reduce((streamSum, stream) => streamSum + stream.netAmount, 0),
     0,
   );
+  const cumulativeShortfall = points.reduce(
+    (sum, item) => sum + item.spendingShortfall,
+    0,
+  );
+  const exhaustionDate =
+    forecast.accessibleCapitalExhaustionDate != null &&
+    forecast.accessibleCapitalExhaustionDate <= point.date
+      ? forecast.accessibleCapitalExhaustionDate
+      : null;
   return {
     horizonYears,
     forecastDate: point.date,
-    accessibleCapitalExhaustionDate:
-      forecast.accessibleCapitalExhaustionDate != null &&
-      forecast.accessibleCapitalExhaustionDate <= point.date
-        ? forecast.accessibleCapitalExhaustionDate
-        : null,
+    accessibleCapitalExhaustionDate: exhaustionDate,
+    cashRunwayMonths:
+      exhaustionDate == null
+        ? null
+        : Math.max(
+            differenceInCalendarMonths(
+              parseISO(exhaustionDate),
+              parseISO(startDate),
+            ),
+            0,
+          ),
+    portfolioSurvives: cumulativeShortfall === 0,
+    liquidWithdrawalCapital: point.liquidWithdrawalCapital,
     accessibleCapital: point.accessibleCapital,
+    restrictedPensionCapital: point.restrictedPensionCapital,
+    retainedHomeEquity: point.retainedHomeEquity,
+    liabilities: point.liabilities,
     totalNetWorth: point.totalNetWorth,
-    incomeCoverage: totalSpending === 0 ? 1 : totalIncome / totalSpending,
+    retirementIncomeCoverage:
+      totalSpending === 0 ? 1 : totalIncome / totalSpending,
     cumulativeTax: points.reduce((sum, item) => sum + item.tax, 0),
     cumulativeFees: points.reduce((sum, item) => sum + item.fees, 0),
-    cumulativeShortfall: points.reduce(
-      (sum, item) => sum + item.spendingShortfall,
-      0,
-    ),
+    cumulativeShortfall,
   };
 }
 
@@ -477,7 +690,7 @@ function delayedIncomeEffect(input: {
   const months = Math.max(
     differenceInCalendarMonths(
       parseISO(delayedStart),
-      parseISO(input.path.retirementDate),
+      parseISO(input.facts.plannedRetirementDate),
     ),
     0,
   );
@@ -544,6 +757,12 @@ export function compareRetirementProjectionRanges(input: {
   pathOptions: RetirementPathOptions;
 }): RetirementProjectionRangeComparison {
   validateInput(input);
+  const blockingIssues = retirementReadinessBlockingIssues(input.facts);
+  if (blockingIssues.length > 0) {
+    throw new Error(
+      `Cannot show retirement forecast: ${blockingIssues.join("; ")}`,
+    );
+  }
   const paths = retirementProjectionPaths(input.facts, input.pathOptions);
   const plannedPath = paths[0] as RetirementProjectionPath;
   const forecasts = input.assumptionSets.map((assumption) => ({
@@ -577,7 +796,7 @@ export function compareRetirementProjectionRanges(input: {
   )?.forecast;
   const pathComparisons = paths.map((path) => {
     const forecast =
-      path.id === "planned" && centralForecast != null
+      path.id === "stop-work" && centralForecast != null
         ? centralForecast
         : runForecast({
             facts: input.facts,
@@ -588,7 +807,9 @@ export function compareRetirementProjectionRanges(input: {
     return {
       path,
       assumption: central,
-      outcome: outcomeFromForecast(forecast, 20, input.facts.startDate),
+      outcomes: RETIREMENT_CHOICE_HORIZONS.map((horizon) =>
+        outcomeFromForecast(forecast, horizon, input.facts.startDate),
+      ),
     };
   });
   return {

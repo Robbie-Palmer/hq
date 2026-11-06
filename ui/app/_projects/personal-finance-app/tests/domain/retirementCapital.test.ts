@@ -293,6 +293,8 @@ describe("projectRetirementCapital", () => {
 
     expect(result.openingAccessibleCapital).toBe(2_000);
     expect(result.openingRestrictedCapital).toBe(300_000);
+    expect(result.openingRetainedHomeEquity).toBe(300_000);
+    expect(result.openingLiabilities).toBe(0);
     expect(result.openingNetWorth).toBe(302_000);
   });
 
@@ -346,11 +348,15 @@ describe("projectRetirementCapital", () => {
     expect(retain?.accessibleCapitalExhaustionDate).toBe("2035-01-01");
     expect(retain?.points[0]).toMatchObject({
       spendingShortfall: 1_000,
+      retainedHomeEquity: 300_000,
+      liabilities: 100_000,
       totalNetWorth: 200_000,
     });
     expect(sell?.points[0]).toMatchObject({
       spendingShortfall: 0,
       accessibleCapital: 199_000,
+      retainedHomeEquity: 0,
+      liabilities: 0,
       restrictedCapital: 0,
       totalNetWorth: 199_000,
       housingReleases: [
@@ -360,6 +366,60 @@ describe("projectRetirementCapital", () => {
         },
       ],
     });
+  });
+
+  it("applies dated gross employee and employer contributions to restricted pension capital", () => {
+    const result = projectRetirementCapital(
+      scenario(
+        [
+          account({
+            id: "pension",
+            name: "Pension",
+            balance: 10_000,
+            taxWrapper: "pension",
+            liquidity: "illiquid",
+            accessPolicy: {
+              accessibleFromDate: "2040-01-01",
+              accessDelayMonths: 0,
+              withdrawalFeeRate: 0,
+              taxTreatment: { kind: "fixed-rate", rate: 0.2 },
+              canFundOrdinarySpending: true,
+            },
+          }),
+        ],
+        {
+          annualSpending: 0,
+          endDate: "2035-02-01",
+          contributions: [
+            {
+              id: "employee",
+              label: "Gross employee contribution",
+              accountId: "pension",
+              kind: "employee-gross",
+              annualAmount: 1_200,
+              startDate: "2035-01-01",
+              endDate: "2035-02-01",
+            },
+            {
+              id: "employer",
+              label: "Employer contribution",
+              accountId: "pension",
+              kind: "employer",
+              annualAmount: 600,
+              startDate: "2035-01-01",
+              endDate: "2035-02-01",
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(result.points[0]?.contributions).toEqual([
+      expect.objectContaining({ id: "employee", amount: 100 }),
+      expect.objectContaining({ id: "employer", amount: 50 }),
+    ]);
+    expect(result.points[1]?.restrictedPensionCapital).toBe(10_300);
+    expect(result.points[1]?.liquidWithdrawalCapital).toBe(0);
   });
 
   it("applies a housing release at the first forecast point after its date", () => {
