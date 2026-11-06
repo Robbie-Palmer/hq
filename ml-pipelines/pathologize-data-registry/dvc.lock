@@ -27,8 +27,8 @@ stages:
       size: 1284
     - path: src/pathologize_data_registry
       hash: md5
-      md5: 031a210bf1a5873cac2daeb0d071aee6.dir
-      size: 31039
+      md5: 1da3963231265a880e1b2571fd6e6281.dir
+      size: 32643
       nfiles: 6
     - path: uv.lock
       hash: md5

@@ -121,26 +121,45 @@ def _coded_values(sequence: Iterable[object] | None) -> set[tuple[str, str, str]
     return values
 
 
+def _anatomic_structure_labels(specimen: object) -> set[tuple[str, str, str | None]]:
+    return {
+        ("primary_anatomic_structure", meaning, f"{scheme}:{code}")
+        for scheme, code, meaning in _coded_values(
+            getattr(specimen, "PrimaryAnatomicStructureSequence", [])
+        )
+    }
+
+
+def _staining_content_labels(content: object) -> set[tuple[str, str, str | None]]:
+    concept_name = next(iter(_coded_values(getattr(content, "ConceptNameCodeSequence", []))), None)
+    if concept_name is None or concept_name[2] != "Using substance":
+        return set()
+    return {
+        ("staining_substance", meaning, f"{scheme}:{code}")
+        for scheme, code, meaning in _coded_values(getattr(content, "ConceptCodeSequence", []))
+    }
+
+
+def _preparation_labels(preparation: object) -> set[tuple[str, str, str | None]]:
+    labels: set[tuple[str, str, str | None]] = set()
+    for content in getattr(preparation, "SpecimenPreparationStepContentItemSequence", []):
+        labels.update(_staining_content_labels(content))
+    return labels
+
+
+def _specimen_labels(specimen: object) -> set[tuple[str, str, str | None]]:
+    labels = _anatomic_structure_labels(specimen)
+    for preparation in getattr(specimen, "SpecimenPreparationSequence", []):
+        labels.update(_preparation_labels(preparation))
+    return labels
+
+
 def _source_labels(dataset: pydicom.Dataset) -> set[tuple[str, str, str | None]]:
     labels: set[tuple[str, str, str | None]] = {
         ("collection", _string(getattr(dataset, "ClinicalTrialProtocolID", "")), None)
     }
     for specimen in getattr(dataset, "SpecimenDescriptionSequence", []):
-        for scheme, code, meaning in _coded_values(
-            getattr(specimen, "PrimaryAnatomicStructureSequence", [])
-        ):
-            labels.add(("primary_anatomic_structure", meaning, f"{scheme}:{code}"))
-        for preparation in getattr(specimen, "SpecimenPreparationSequence", []):
-            for content in getattr(preparation, "SpecimenPreparationStepContentItemSequence", []):
-                concept_name = next(
-                    iter(_coded_values(getattr(content, "ConceptNameCodeSequence", []))), None
-                )
-                if concept_name is None or concept_name[2] != "Using substance":
-                    continue
-                for scheme, code, meaning in _coded_values(
-                    getattr(content, "ConceptCodeSequence", [])
-                ):
-                    labels.add(("staining_substance", meaning, f"{scheme}:{code}"))
+        labels.update(_specimen_labels(specimen))
     return labels
 
 
@@ -222,9 +241,7 @@ def validate_dicom(path: Path, asset: AssetRecord, slide: SlideRecord) -> list[s
     return issues
 
 
-def validate_registry(  # noqa: C901 - one pass reports all cross-manifest and asset issues.
-    registry: LoadedRegistry, *, require_assets: bool
-) -> list[str]:
+def _collection_reference_issues(registry: LoadedRegistry) -> list[str]:
     issues: list[str] = []
     for collection in registry.collections.values():
         for subset_id in collection.subsets:
@@ -233,56 +250,108 @@ def validate_registry(  # noqa: C901 - one pass reports all cross-manifest and a
                 issues.append(f"collection {collection.collection_id}: unknown subset {subset_id}")
             elif subset.collection_id != collection.collection_id:
                 issues.append(f"subset {subset_id}: collection reference does not match")
-    for subset in registry.subsets.values():
-        collection = registry.collections.get(subset.collection_id)
-        if collection is None:
-            issues.append(f"subset {subset.subset_id}: unknown collection {subset.collection_id}")
+    return issues
+
+
+def _asset_manifest_issues(
+    subset: SubsetManifest,
+    asset_manifest: AssetManifest,
+    collection: CollectionManifest,
+) -> list[str]:
+    issues: list[str] = []
+    if asset_manifest.subset_id != subset.subset_id:
+        issues.append(f"subset {subset.subset_id}: asset manifest reference does not match")
+    if len(asset_manifest.assets) != subset.asset_count:
+        issues.append(f"subset {subset.subset_id}: asset count does not match")
+    if sum(asset.bytes for asset in asset_manifest.assets) != subset.total_bytes:
+        issues.append(f"subset {subset.subset_id}: byte count does not match")
+    allowed_bases = tuple(str(url) for url in collection.access.download_base_urls)
+    issues.extend(
+        f"asset {asset.relative_path}: source URL is not allowlisted"
+        for asset in asset_manifest.assets
+        if not source_url_is_allowlisted(str(asset.source_url), allowed_bases)
+    )
+    return issues
+
+
+def _subset_slides(
+    registry: LoadedRegistry, subset: SubsetManifest
+) -> tuple[list[SlideRecord], list[str]]:
+    slides = [registry.slides.get(slide_id) for slide_id in subset.slide_ids]
+    if any(slide is None for slide in slides):
+        return [], [f"subset {subset.subset_id}: contains an unknown slide ID"]
+    return [slide for slide in slides if slide is not None], []
+
+
+def _slide_reference_issues(subset: SubsetManifest, slide: SlideRecord) -> list[str]:
+    if slide.collection_id == subset.collection_id and slide.subset_id == subset.subset_id:
+        return []
+    return [f"slide {slide.slide_id}: collection or subset reference does not match"]
+
+
+def _slide_asset_issues(
+    registry: LoadedRegistry,
+    subset: SubsetManifest,
+    asset_by_path: dict[str, AssetRecord],
+    slide: SlideRecord,
+    *,
+    require_assets: bool,
+) -> list[str]:
+    issues: list[str] = []
+    for relative_path in slide.asset_paths:
+        asset = asset_by_path.get(relative_path)
+        if asset is None:
             continue
-        asset_manifest = registry.asset_manifests.get(subset.asset_manifest_id)
-        if asset_manifest is None:
-            issues.append(
-                f"subset {subset.subset_id}: unknown asset manifest {subset.asset_manifest_id}"
-            )
+        path = registry.root / subset.asset_root / relative_path
+        if path.is_symlink():
+            issues.append(f"{path}: source asset must not be a symbolic link")
             continue
-        if asset_manifest.subset_id != subset.subset_id:
-            issues.append(f"subset {subset.subset_id}: asset manifest reference does not match")
-        if len(asset_manifest.assets) != subset.asset_count:
-            issues.append(f"subset {subset.subset_id}: asset count does not match")
-        if sum(asset.bytes for asset in asset_manifest.assets) != subset.total_bytes:
-            issues.append(f"subset {subset.subset_id}: byte count does not match")
-        allowed_bases = tuple(str(url) for url in collection.access.download_base_urls)
+        if not path.is_file():
+            if require_assets:
+                issues.append(f"{path}: required source asset is missing")
+            continue
+        issues.extend(validate_file(path, asset))
+        issues.extend(validate_dicom(path, asset, slide))
+    return issues
+
+
+def _subset_issues(
+    registry: LoadedRegistry, subset: SubsetManifest, *, require_assets: bool
+) -> list[str]:
+    collection = registry.collections.get(subset.collection_id)
+    if collection is None:
+        return [f"subset {subset.subset_id}: unknown collection {subset.collection_id}"]
+    asset_manifest = registry.asset_manifests.get(subset.asset_manifest_id)
+    if asset_manifest is None:
+        return [f"subset {subset.subset_id}: unknown asset manifest {subset.asset_manifest_id}"]
+    issues = _asset_manifest_issues(subset, asset_manifest, collection)
+    slides, slide_issues = _subset_slides(registry, subset)
+    issues.extend(slide_issues)
+    if slide_issues:
+        return issues
+    manifest_paths = {asset.relative_path for asset in asset_manifest.assets}
+    slide_paths = {path for slide in slides for path in slide.asset_paths}
+    if slide_paths != manifest_paths:
+        issues.append(f"subset {subset.subset_id}: slide and asset paths differ")
+    asset_by_path = {asset.relative_path: asset for asset in asset_manifest.assets}
+    for slide in slides:
+        issues.extend(_slide_reference_issues(subset, slide))
         issues.extend(
-            f"asset {asset.relative_path}: source URL is not allowlisted"
-            for asset in asset_manifest.assets
-            if not source_url_is_allowlisted(str(asset.source_url), allowed_bases)
+            _slide_asset_issues(
+                registry,
+                subset,
+                asset_by_path,
+                slide,
+                require_assets=require_assets,
+            )
         )
-        subset_slides = [registry.slides.get(slide_id) for slide_id in subset.slide_ids]
-        if any(slide is None for slide in subset_slides):
-            issues.append(f"subset {subset.subset_id}: contains an unknown slide ID")
-            continue
-        slides = [slide for slide in subset_slides if slide is not None]
-        manifest_paths = {asset.relative_path for asset in asset_manifest.assets}
-        slide_paths = {path for slide in slides for path in slide.asset_paths}
-        if slide_paths != manifest_paths:
-            issues.append(f"subset {subset.subset_id}: slide and asset paths differ")
-        for slide in slides:
-            if slide.collection_id != subset.collection_id or slide.subset_id != subset.subset_id:
-                issues.append(
-                    f"slide {slide.slide_id}: collection or subset reference does not match"
-                )
-            asset_by_path = {asset.relative_path: asset for asset in asset_manifest.assets}
-            for relative_path in slide.asset_paths:
-                path = registry.root / subset.asset_root / relative_path
-                if path.is_symlink():
-                    issues.append(f"{path}: source asset must not be a symbolic link")
-                    continue
-                if not path.is_file():
-                    if require_assets:
-                        issues.append(f"{path}: required source asset is missing")
-                    continue
-                asset = asset_by_path[relative_path]
-                issues.extend(validate_file(path, asset))
-                issues.extend(validate_dicom(path, asset, slide))
+    return issues
+
+
+def validate_registry(registry: LoadedRegistry, *, require_assets: bool) -> list[str]:
+    issues = _collection_reference_issues(registry)
+    for subset in registry.subsets.values():
+        issues.extend(_subset_issues(registry, subset, require_assets=require_assets))
     return issues
 
 

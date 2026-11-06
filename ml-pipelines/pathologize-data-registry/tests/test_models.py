@@ -116,6 +116,17 @@ def test_validation_reports_cross_reference_and_missing_asset_errors(tmp_path: P
     assert len([issue for issue in missing if "required source asset is missing" in issue]) == 5
 
 
+def test_validation_reports_unknown_slide_asset_without_crashing() -> None:
+    source = load_registry(PROJECT_DIR)
+    slide = next(iter(source.slides.values()))
+    broken_slide = slide.model_copy(update={"asset_paths": [*slide.asset_paths, "unknown.dcm"]})
+    broken = replace(source, slides={broken_slide.slide_id: broken_slide})
+
+    issues = validate_registry(broken, require_assets=False)
+
+    assert any("slide and asset paths differ" in issue for issue in issues)
+
+
 def test_file_validation_reports_size_and_digest(tmp_path: Path) -> None:
     registry = load_registry(PROJECT_DIR)
     asset_manifest = next(iter(registry.asset_manifests.values()))
