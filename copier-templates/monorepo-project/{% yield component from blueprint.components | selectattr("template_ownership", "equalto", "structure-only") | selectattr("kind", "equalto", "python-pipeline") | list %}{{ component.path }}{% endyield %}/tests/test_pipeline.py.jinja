@@ -67,6 +67,65 @@ def test_pipeline_reproduces_exact_artifacts(
     } == first_artifacts
 
 
+def test_parameters_accept_yaml_syntax(tmp_path: Path) -> None:
+    parameters_path = tmp_path / "params.yaml"
+    parameters_path.write_text(
+        """# YAML comments and block mappings are part of the parameters contract.
+fixture:
+  spec: fixtures/synthetic.json
+  registry: registries/datasets.json
+  rights: manifests/rights.json
+  output: data/synthetic
+training:
+  dataset: data/synthetic/records.jsonl
+  output: artifacts/model.json
+evaluation:
+  dataset: data/synthetic/records.jsonl
+  model: artifacts/model.json
+  metrics: metrics/metrics.json
+  output: outputs/evaluation.json
+  provenance: outputs/provenance.json
+""",
+        encoding="utf-8",
+    )
+
+    parameters = pipeline.load_parameters(parameters_path)
+
+    assert parameters.fixture.output == "data/synthetic"
+    assert parameters.evaluation.provenance == "outputs/provenance.json"
+
+
+def test_clean_removes_only_declared_generated_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    parameters_path = Path("params.yaml")
+    parameters = json.loads(parameters_path.read_text(encoding="utf-8"))
+    parameters["training"]["output"] = "fixtures/model.json"
+    parameters["evaluation"]["metrics"] = "fixtures/metrics.json"
+    parameters_path.write_text(json.dumps(parameters), encoding="utf-8")
+    generated_files = (
+        Path("data/synthetic/records.jsonl"),
+        Path("data/synthetic/manifest.json"),
+        Path("fixtures/model.json"),
+        Path("fixtures/metrics.json"),
+        Path("outputs/evaluation.json"),
+        Path("outputs/provenance.json"),
+    )
+    for path in generated_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("generated\n", encoding="utf-8")
+
+    pipeline.clean()
+
+    assert all(not path.exists() for path in generated_files)
+    assert Path("fixtures/synthetic.json").is_file()
+    assert Path("manifests/rights.json").is_file()
+
+
 def test_fixture_rejects_missing_or_human_rights(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

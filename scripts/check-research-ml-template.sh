@@ -82,6 +82,7 @@ mise --cd "$component_root" run lock
 mise --cd "$component_root" run ci
 # Keep the generated starter source and tests above the downstream project floor.
 mise --cd "$component_root" run test -- --cov-fail-under=90
+mise --cd "$component_root" run dvc -- status
 
 test -f "$component_root/uv.lock"
 test -f "$component_root/dvc.lock"

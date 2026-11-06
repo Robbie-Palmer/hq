@@ -55,8 +55,8 @@ description = "Run deterministic {{ component.name }} checks"
 depends = ["format:check", "lint", "typecheck", "test"]
 
 [tasks.dvc]
-description = "Run DVC in {{ component.name }} (pass arguments after --)"
-run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh"
+description = "Run a local DVC command in {{ component.name }} (pass arguments after --)"
+run = "bash ../scripts/dvc.sh"
 
 [tasks.pull]
 description = "Pull {{ component.name }} artifacts from its private R2 prefix"

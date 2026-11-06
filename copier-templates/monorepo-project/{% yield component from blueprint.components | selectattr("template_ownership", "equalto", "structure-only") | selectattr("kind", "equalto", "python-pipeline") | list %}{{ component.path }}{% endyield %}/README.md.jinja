@@ -26,6 +26,9 @@ wrapper maps them to the AWS names used by DVC's S3 transport. The endpoint and
 project prefix are public configuration. Credentials belong only in Doppler or
 the equivalent CI secret store.
 
+The generic `dvc` task runs local commands without loading credentials. Use
+`pull`, `push`, or `status:remote` when a command needs the R2 remote.
+
 ## Pipeline
 
 `dvc.yaml` defines three local stages. `build_fixture` writes a deterministic

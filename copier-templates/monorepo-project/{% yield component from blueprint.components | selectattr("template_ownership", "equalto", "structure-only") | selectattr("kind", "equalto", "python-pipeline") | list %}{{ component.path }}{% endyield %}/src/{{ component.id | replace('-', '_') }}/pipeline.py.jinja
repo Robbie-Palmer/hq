@@ -1,9 +1,9 @@
 import json
 import random
-import shutil
 from pathlib import Path
 
 from pydantic import BaseModel
+from ruamel.yaml import YAML
 
 from {{ component.id | replace('-', '_') }}.artifacts import (
     read_model,
@@ -28,7 +28,8 @@ from {{ component.id | replace('-', '_') }}.observability import emit_event
 
 
 def load_parameters(path: Path = Path("params.yaml")) -> PipelineParameters:
-    return PipelineParameters.model_validate_json(path.read_bytes())
+    yaml = YAML(typ="safe", pure=True)
+    return PipelineParameters.model_validate(yaml.load(path))
 
 
 def _fixture_observations(spec: SyntheticSpec) -> tuple[Observation, ...]:
@@ -195,14 +196,16 @@ def verify(parameters_path: Path = Path("params.yaml")) -> None:
 
 def clean(parameters_path: Path = Path("params.yaml")) -> None:
     parameters = load_parameters(parameters_path)
-    generated_paths = (
-        Path(parameters.fixture.output),
-        Path(parameters.training.output).parent,
-        Path(parameters.evaluation.output).parent,
-        Path(parameters.evaluation.metrics).parent,
+    generated_files = (
+        Path(parameters.fixture.output) / "records.jsonl",
+        Path(parameters.fixture.output) / "manifest.json",
+        Path(parameters.training.output),
+        Path(parameters.evaluation.output),
+        Path(parameters.evaluation.metrics),
+        Path(parameters.evaluation.provenance),
     )
-    for path in generated_paths:
-        shutil.rmtree(path, ignore_errors=True)
+    for path in generated_files:
+        path.unlink(missing_ok=True)
 
 
 def dump_result(value: object) -> str:
