@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark_id": "pathologize.cell-analysis/v1",
+  "workstream": "nucleus_detection_segmentation_classification",
+  "experiments": [
+    "experiments/cell-analysis.json"
+  ]
+}

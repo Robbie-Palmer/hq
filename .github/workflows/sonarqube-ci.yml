@@ -131,12 +131,14 @@ jobs:
             packages/agent-coordinator-domain/coverage/lcov.info
             packages/ai-review-domain/coverage/lcov.info
             packages/browser-base/coverage/lcov.info
+            packages/data-artifacts/coverage.xml
             packages/drizzle-postgres/coverage/lcov.info
             packages/finance-housing-indices/coverage/lcov.info
             packages/finance-inflation-indices/coverage/lcov.info
             packages/finance-tax-rules/coverage/lcov.info
             packages/inbox-signal-data/coverage/lcov.info
             packages/iso-codes/coverage/lcov.info
+            packages/ml-evaluation/coverage.xml
             packages/node-base/coverage/lcov.info
             packages/object-storage/coverage/lcov.info
             packages/observability/coverage/lcov.info
@@ -156,6 +158,7 @@ jobs:
             packages/wedding-planner-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
             ml-pipelines/financial-document-idp-evaluation/coverage.xml
+            ml-pipelines/pathologize-benchmark-contracts/coverage.xml
             ml-pipelines/pathologize-data-registry/coverage.xml
             ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info

@@ -5,10 +5,7 @@ from pathlib import Path
 
 import pytest
 from conftest import run_pipeline
-from pydantic import ValidationError
-
-from financial_document_idp import cli
-from financial_document_idp.evaluation_artifacts import (
+from data_artifacts.files import (
     load_model,
     read_json,
     read_jsonl,
@@ -17,6 +14,9 @@ from financial_document_idp.evaluation_artifacts import (
     write_json,
     write_jsonl,
 )
+from pydantic import ValidationError
+
+from financial_document_idp import cli
 from financial_document_idp.pipeline import (
     _parse_extraction,
     _render_document,

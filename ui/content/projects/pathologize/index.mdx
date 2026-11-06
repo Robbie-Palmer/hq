@@ -8,6 +8,12 @@ initiatives:
 tech_stack:
   - "Python"
   - "DVC"
+  - "Pydantic"
+  - "DICOM"
+  - "OME-Zarr"
+  - "MLCommons Croissant"
+  - "W3C PROV"
+  - "RO-Crate"
   - "OpenSlide"
   - "PyTorch"
   - "DuckDB"
@@ -50,8 +56,17 @@ The initial proposals define the intended research boundary:
   outputs and failures alongside aggregate scores.
 * [PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) proposes
   evaluating image restoration as uncertain reconstruction and as a possible input to downstream models.
-* [PDR 006](/projects/pathologize/pdrs/006-agent-discovery-of-specialist-models) proposes using
-  exploratory slide agents to discover evidence processes that can be distilled into bounded specialist models.
+
+# Architecture decisions
+
+The accepted implementation boundaries are:
+
+* [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) assigns Croissant,
+  DICOM WSI, OME-Zarr, RO-Crate and PROV-O to distinct data-lifecycle roles.
+* [ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary) keeps provider funding
+  policy outside benchmark manifests and defers money fields until the platform has one cross-language contract.
+* [ADR 002](/projects/pathologize/adrs/002-shared-python-package-boundaries) separates generic data
+  artifact helpers, reusable ML evaluation contracts, and Pathologize domain code.
 
 # Research programme
 

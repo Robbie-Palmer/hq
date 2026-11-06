@@ -1,0 +1,446 @@
+from __future__ import annotations
+
+from enum import StrEnum
+from typing import Annotated, Literal, Self
+
+from ml_evaluation.contracts import (
+    SHA256_PATTERN,
+    AdapterSpec,
+    GateResult,
+    MetricObjective,
+    ResourceBudget,
+    RunSummary,
+    Split,
+    StrictModel,
+)
+from pydantic import BaseModel, Field, model_validator
+
+
+class Workstream(StrEnum):
+    SLIDE_QUALITY = "whole_slide_tissue_artifact_quality"
+    TILING_POLICY = "tiling_magnification_policy"
+    NUCLEI = "nucleus_detection_segmentation_classification"
+
+
+class BenchmarkProject(StrictModel):
+    schema_version: Literal["1.0.0"]
+    benchmark_id: str = Field(pattern=r"^pathologize\.[a-z0-9-]+/v[0-9]+$")
+    workstream: Workstream
+    experiments: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def require_unique_experiment_paths(self) -> Self:
+        if len(self.experiments) != len(set(self.experiments)):
+            raise ValueError("experiment paths must be unique")
+        return self
+
+
+class LeakageUnit(StrEnum):
+    SUBJECT = "subject_id"
+    SPECIMEN = "specimen_id"
+    BLOCK = "block_id"
+    SLIDE = "slide_id"
+    ACQUISITION = "acquisition_id"
+    SITE = "site_id"
+
+
+class LeakageKeys(StrictModel):
+    subject_id: str = Field(min_length=1)
+    specimen_id: str = Field(min_length=1)
+    block_id: str = Field(min_length=1)
+    slide_id: str = Field(min_length=1)
+    acquisition_id: str = Field(min_length=1)
+    site_id: str = Field(min_length=1)
+
+
+class FixturePlanCase(StrictModel):
+    case_id: str = Field(pattern=r"^synthetic-[a-z0-9-]+$")
+    split: Split
+    variant: Literal["clean", "fold_like", "mark_like"]
+
+
+class FixturePlan(StrictModel):
+    schema_version: Literal["1.0.0"]
+    seed: int = Field(ge=0)
+    width: int = Field(ge=32, le=512)
+    height: int = Field(ge=32, le=512)
+    cases: list[FixturePlanCase] = Field(min_length=3)
+
+    @model_validator(mode="after")
+    def require_unique_cases_and_all_splits(self) -> Self:
+        ids = [case.case_id for case in self.cases]
+        if len(ids) != len(set(ids)):
+            raise ValueError("fixture case IDs must be unique")
+        if {case.split for case in self.cases} != set(Split):
+            raise ValueError("fixture plan must contain train, validation, and test cases")
+        return self
+
+
+NucleusClass = Literal["synthetic_type_a", "synthetic_type_b"]
+
+
+class NucleusTruth(StrictModel):
+    instance_id: int = Field(gt=0)
+    class_name: NucleusClass
+
+
+class FixtureItem(StrictModel):
+    item_id: str = Field(pattern=r"^synthetic-[a-z0-9-]+$")
+    split: Split
+    synthetic: Literal[True]
+    image_path: str
+    tissue_mask_path: str
+    artifact_mask_path: str
+    nucleus_instance_mask_path: str
+    nucleus_truth: list[NucleusTruth]
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    microns_per_pixel_x: float = Field(gt=0)
+    microns_per_pixel_y: float = Field(gt=0)
+    leakage: LeakageKeys
+
+
+class FixtureManifest(StrictModel):
+    schema_version: Literal["1.0.0"]
+    dataset_id: Literal["pathologize-synthetic-contract-fixtures-v1"]
+    intended_use: Literal["contract_and_pipeline_tests_only"]
+    clinical_validity: Literal[False]
+    seed: int = Field(ge=0)
+    items: list[FixtureItem] = Field(min_length=1)
+
+
+class RegistryAnnotation(StrictModel):
+    kind: Literal["tissue_mask", "artifact_mask", "nucleus_instances", "nucleus_classes"]
+    croissant_record_set_id: str = Field(min_length=1)
+    croissant_record_id: str = Field(min_length=1)
+    derived_from_representation: str = Field(min_length=1)
+
+
+class CroissantDatasetReference(StrictModel):
+    conforms_to: Literal["http://mlcommons.org/croissant/1.1"]  # NOSONAR: canonical identifier
+    metadata_uri: str = Field(min_length=1)
+    metadata_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class RegistryProvenance(StrictModel):
+    ro_crate_conforms_to: Literal["https://w3id.org/ro/crate/1.3"]
+    ro_crate_metadata_uri: str = Field(min_length=1)
+    ro_crate_metadata_sha256: str = Field(pattern=SHA256_PATTERN)
+    prov_o_conforms_to: Literal["https://www.w3.org/TR/prov-o/"]
+    prov_o_graph_uri: str = Field(min_length=1)
+    prov_o_graph_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class RepresentationRole(StrEnum):
+    SOURCE = "source"
+    INTERCHANGE = "interchange"
+    COMPUTE_DERIVATIVE = "compute_derivative"
+
+
+class RepresentationFormat(StrEnum):
+    DICOM_WSI = "dicom_wsi"
+    VENDOR_NATIVE_WSI = "vendor_native_wsi"
+    OME_ZARR = "ome_zarr"
+
+
+class RegistryRepresentationBase(StrictModel):
+    representation_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]+$")
+    croissant_distribution_id: str = Field(min_length=1)
+    derived_from: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def require_unique_derived_representations(self) -> Self:
+        if len(self.derived_from) != len(set(self.derived_from)):
+            raise ValueError("derived representation IDs must be unique")
+        return self
+
+
+class VendorNativeWsiRepresentation(RegistryRepresentationBase):
+    role: Literal[RepresentationRole.SOURCE]
+    format: Literal[RepresentationFormat.VENDOR_NATIVE_WSI]
+    conforms_to: Literal[None]
+    dicom_sop_class_uid: Literal[None] = None
+    derived_from: list[str] = Field(default_factory=list, max_length=0)
+
+
+class DicomWsiRepresentationBase(RegistryRepresentationBase):
+    format: Literal[RepresentationFormat.DICOM_WSI]
+    conforms_to: Literal[
+        "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html"
+    ]
+    dicom_sop_class_uid: Literal["1.2.840.10008.5.1.4.1.1.77.1.6"]
+
+
+class DicomWsiSourceRepresentation(DicomWsiRepresentationBase):
+    role: Literal[RepresentationRole.SOURCE]
+    derived_from: list[str] = Field(default_factory=list, max_length=0)
+
+
+class DicomWsiInterchangeRepresentation(DicomWsiRepresentationBase):
+    role: Literal[RepresentationRole.INTERCHANGE]
+    derived_from: list[str] = Field(min_length=1)
+
+
+class OmeZarrRepresentation(RegistryRepresentationBase):
+    role: Literal[RepresentationRole.COMPUTE_DERIVATIVE]
+    format: Literal[RepresentationFormat.OME_ZARR]
+    conforms_to: Literal["https://ngff.openmicroscopy.org/specifications/0.6/"]
+    dicom_sop_class_uid: Literal[None] = None
+    derived_from: list[str] = Field(min_length=1)
+
+
+RegistryRepresentation = (
+    VendorNativeWsiRepresentation
+    | DicomWsiSourceRepresentation
+    | DicomWsiInterchangeRepresentation
+    | OmeZarrRepresentation
+)
+
+
+def _reject_representation_cycles(
+    identifiers: list[str], by_id: dict[str, RegistryRepresentation]
+) -> None:
+    ancestry_state: dict[str, Literal["visiting", "visited"]] = {}
+
+    def visit(representation_id: str) -> None:
+        state = ancestry_state.get(representation_id)
+        if state == "visiting":
+            raise ValueError("representation ancestry must be acyclic")
+        if state == "visited":
+            return
+        ancestry_state[representation_id] = "visiting"
+        for parent in by_id[representation_id].derived_from:
+            visit(parent)
+        ancestry_state[representation_id] = "visited"
+
+    for representation_id in identifiers:
+        visit(representation_id)
+
+
+def _reaches_source(
+    representation_id: str, by_id: dict[str, RegistryRepresentation]
+) -> bool:
+    representation = by_id[representation_id]
+    if representation.role == RepresentationRole.SOURCE:
+        return True
+    return any(_reaches_source(parent, by_id) for parent in representation.derived_from)
+
+
+def _require_direct_ome_source(
+    representations: list[RegistryRepresentation],
+    by_id: dict[str, RegistryRepresentation],
+) -> None:
+    for representation in representations:
+        if isinstance(representation, OmeZarrRepresentation) and not any(
+            by_id[parent].role == RepresentationRole.SOURCE
+            for parent in representation.derived_from
+        ):
+            raise ValueError("OME-Zarr representations must directly reference an acquired source")
+
+
+class RegistryItem(StrictModel):
+    item_id: str = Field(min_length=1)
+    split: Split
+    croissant_record_set_id: str = Field(min_length=1)
+    croissant_record_id: str = Field(min_length=1)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    microns_per_pixel_x: float = Field(gt=0)
+    microns_per_pixel_y: float = Field(gt=0)
+    leakage: LeakageKeys
+    representations: list[RegistryRepresentation] = Field(min_length=1)
+    annotations: list[RegistryAnnotation]
+
+    @model_validator(mode="after")
+    def require_consistent_representation_graph(self) -> Self:
+        identifiers = [item.representation_id for item in self.representations]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("representation IDs must be unique within a registry item")
+        known = set(identifiers)
+        if not any(item.role == RepresentationRole.SOURCE for item in self.representations):
+            raise ValueError("a registry item must retain a source representation")
+        by_id = {item.representation_id: item for item in self.representations}
+        for representation in self.representations:
+            missing = set(representation.derived_from) - known
+            if representation.representation_id in representation.derived_from:
+                raise ValueError("a representation cannot derive from itself")
+            if missing:
+                raise ValueError(
+                    f"unknown derived representation IDs: {', '.join(sorted(missing))}"
+                )
+
+        _reject_representation_cycles(identifiers, by_id)
+        _require_direct_ome_source(self.representations, by_id)
+
+        if any(
+            not _reaches_source(representation.representation_id, by_id)
+            for representation in self.representations
+        ):
+            raise ValueError("every derived representation must reach a source")
+        missing_annotation_sources = {
+            annotation.derived_from_representation
+            for annotation in self.annotations
+            if annotation.derived_from_representation not in known
+        }
+        if missing_annotation_sources:
+            raise ValueError(
+                "annotations reference unknown representations: "
+                + ", ".join(sorted(missing_annotation_sources))
+            )
+        return self
+
+
+class RegistryExport(StrictModel):
+    contract: Literal["pathologize.data-registry-export/v1"]
+    registry_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    dataset: CroissantDatasetReference
+    provenance: RegistryProvenance
+    items: list[RegistryItem] = Field(min_length=1)
+
+
+class SyntheticSource(StrictModel):
+    kind: Literal["synthetic_fixture"]
+    fixture_manifest: str
+    dataset_id: Literal["pathologize-synthetic-contract-fixtures-v1"]
+
+
+class RegistrySource(StrictModel):
+    kind: Literal["pathologize_registry"]
+    contract: Literal["pathologize.data-registry-export/v1"]
+    registry_uri: str = Field(min_length=1)
+    revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    export_manifest: str
+    export_sha256: str = Field(pattern=SHA256_PATTERN)
+    copy_raw_data: Literal[False]
+
+
+DataSource = Annotated[SyntheticSource | RegistrySource, Field(discriminator="kind")]
+
+
+class SplitPolicy(StrictModel):
+    evaluation_split: Literal[Split.TEST]
+    leakage_units: list[LeakageUnit] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def require_core_pathology_units(self) -> Self:
+        required = {
+            LeakageUnit.SUBJECT,
+            LeakageUnit.SPECIMEN,
+            LeakageUnit.BLOCK,
+            LeakageUnit.SLIDE,
+        }
+        if not required.issubset(self.leakage_units):
+            raise ValueError("leakage units must include subject, specimen, block, and slide")
+        if len(self.leakage_units) != len(set(self.leakage_units)):
+            raise ValueError("leakage units must be unique")
+        return self
+
+
+class SuperResolutionSeam(StrictModel):
+    enabled: Literal[False]
+    status: Literal["future_evaluation_only"]
+    source_pixels_preserved: Literal[True]
+    synthetic_detail_claims_forbidden: Literal[True]
+    separate_native_resolution_scorecard_required: Literal[True]
+
+
+class ExperimentManifest(StrictModel):
+    schema_version: Literal["1.0.0"]
+    experiment_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    workstream: Workstream
+    purpose: str = Field(min_length=1)
+    clinical_validity_claimed: Literal[False]
+    random_seed: int = Field(ge=0)
+    data_source: DataSource
+    split_policy: SplitPolicy
+    baseline: AdapterSpec
+    candidate: AdapterSpec | None
+    objectives: list[MetricObjective] = Field(min_length=1)
+    resource_budget: ResourceBudget
+    super_resolution: SuperResolutionSeam
+    parameters: dict[str, int | float | str | bool]
+
+    @model_validator(mode="after")
+    def require_unique_metrics_and_adapters(self) -> Self:
+        names = [objective.metric for objective in self.objectives]
+        if len(names) != len(set(names)):
+            raise ValueError("objective metric names must be unique")
+        if self.candidate and self.candidate.adapter_id == self.baseline.adapter_id:
+            raise ValueError("candidate adapter must differ from baseline adapter")
+        return self
+
+
+class QualityPrediction(StrictModel):
+    workstream: Literal[Workstream.SLIDE_QUALITY]
+    item_id: str
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+    tissue_labels: list[int]
+    artifact_labels: list[int]
+    reject_slide: bool
+
+
+class TilePrediction(StrictModel):
+    x: int = Field(ge=0)
+    y: int = Field(ge=0)
+    width: int = Field(gt=0)
+    height: int = Field(gt=0)
+
+
+class TilingPrediction(StrictModel):
+    workstream: Literal[Workstream.TILING_POLICY]
+    item_id: str
+    target_microns_per_pixel: float = Field(gt=0)
+    tiles: list[TilePrediction]
+
+
+class NucleusPrediction(StrictModel):
+    instance_id: int = Field(gt=0)
+    class_name: NucleusClass
+    pixels: list[int] = Field(min_length=1)
+
+
+class NucleiPrediction(StrictModel):
+    workstream: Literal[Workstream.NUCLEI]
+    item_id: str
+    instances: list[NucleusPrediction]
+
+
+Prediction = QualityPrediction | TilingPrediction | NucleiPrediction
+
+
+class Scorecard(StrictModel):
+    schema_version: Literal["1.0.0"]
+    scorecard_id: str = Field(pattern=r"^scorecard:sha256:[a-f0-9]{64}$")
+    experiment_id: str
+    workstream: Workstream
+    data_source_kind: Literal["synthetic_fixture", "pathologize_registry"]
+    synthetic_evidence_only: bool
+    baseline: RunSummary
+    candidate: RunSummary | None
+    gates: list[GateResult]
+    recommendation: Literal["baseline_only", "promote_candidate", "reject_candidate"]
+    clinical_validity: Literal[False]
+
+    @model_validator(mode="after")
+    def require_synthetic_evidence_label(self) -> Self:
+        if self.data_source_kind == "synthetic_fixture" and not self.synthetic_evidence_only:
+            raise ValueError("synthetic fixtures require synthetic evidence only")
+        return self
+
+
+class AggregateScorecard(StrictModel):
+    schema_version: Literal["1.0.0"]
+    benchmark_id: str = Field(pattern=r"^benchmark:sha256:[a-f0-9]{64}$")
+    scorecards: list[Scorecard] = Field(min_length=1)
+    clinical_validity: Literal[False]
+
+
+SCHEMA_MODELS: dict[str, type[BaseModel]] = {
+    "benchmark-project.schema.json": BenchmarkProject,
+    "experiment-manifest.schema.json": ExperimentManifest,
+    "fixture-manifest.schema.json": FixtureManifest,
+    "pathologize-registry-export.schema.json": RegistryExport,
+    "scorecard.schema.json": Scorecard,
+    "aggregate-scorecard.schema.json": AggregateScorecard,
+}

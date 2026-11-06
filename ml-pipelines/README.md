@@ -15,6 +15,13 @@ Current projects:
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
+- `pathologize-benchmark-contracts`: pathology manifests, leakage checks,
+  registry references, deterministic adapters, metrics, and scorecard schemas.
+- `pathologize-slide-quality-benchmark`: tissue segmentation, artifact quality,
+  artifact-free tissue, and slide rejection.
+- `pathologize-tiling-benchmark`: tissue-aware tiling and physical-scale policy.
+- `pathologize-cell-analysis-benchmark`: nucleus detection, instance
+  segmentation, and synthetic cell classification.
 - `pathologize-data-registry`: public computational-pathology source assets,
   provenance, licences, identities, scanner metadata, and source-native labels.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
@@ -25,6 +32,11 @@ Current projects:
   tile datasets, with Python tooling for validation and WSI tiling.
 - `writing-editor-evaluation`: Git-revision writing pairs, frozen evaluation
   cohorts, producer outputs, edit matching, and writing-quality scorecards.
+
+Python projects share deterministic JSON, hashing, and safe path helpers through
+`packages/data-artifacts`. Evaluation projects add domain-neutral contracts,
+resource gates, adapter loading, and schema writing through
+`packages/ml-evaluation`.
 
 ## Prerequisites
 
