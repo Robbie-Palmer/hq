@@ -1,4 +1,4 @@
-_commit: 224dcd405406c6cb12ed9ed762fb080ac44d52cc
+_commit: dd37b7bbc2c5719730824f0aebf2359896b153ec
 _src_path: https://github.com/Robbie-Palmer/hq.git
 blueprint:
   catalog:
@@ -296,7 +296,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-11-06 00:00:01+00:00
+  effective_at: 2026-11-06 00:00:02+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
