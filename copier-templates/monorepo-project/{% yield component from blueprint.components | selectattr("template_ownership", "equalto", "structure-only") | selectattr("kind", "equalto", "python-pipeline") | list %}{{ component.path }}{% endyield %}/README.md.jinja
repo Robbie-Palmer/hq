@@ -19,6 +19,13 @@ Commit `uv.lock` and `dvc.lock` after reviewing the resolved packages and DVC
 stage hashes. `mise //{{ component.path }}:install` and every CI task use the
 lockfile with `--locked`.
 
+The checked-in DVC remote uses the shared private R2 bucket at
+`s3://dvc/{{ component.id }}`. The repository's `dev_ml_pipelines` Doppler
+config supplies `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`; the shared
+wrapper maps them to the AWS names used by DVC's S3 transport. The endpoint and
+project prefix are public configuration. Credentials belong only in Doppler or
+the equivalent CI secret store.
+
 ## Pipeline
 
 `dvc.yaml` defines three local stages. `build_fixture` writes a deterministic
@@ -29,6 +36,7 @@ metrics plus content-hash provenance. None of the stages make a network call.
 mise //{{ component.path }}:dvc:dag
 mise //{{ component.path }}:repro
 mise //{{ component.path }}:verify
+mise //{{ component.path }}:status:remote
 ```
 
 The fixture tests repository wiring only. Replace the baseline when a research

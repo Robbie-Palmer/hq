@@ -56,7 +56,19 @@ depends = ["format:check", "lint", "typecheck", "test"]
 
 [tasks.dvc]
 description = "Run DVC in {{ component.name }} (pass arguments after --)"
-run = "bash ../scripts/dvc.sh"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh"
+
+[tasks.pull]
+description = "Pull {{ component.name }} artifacts from its private R2 prefix"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh pull"
+
+[tasks.push]
+description = "Push {{ component.name }} artifacts to its private R2 prefix"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh push"
+
+[tasks."status:remote"]
+description = "Compare the local {{ component.name }} cache with R2"
+run = "bash ../scripts/doppler-pipeline-env.sh ../scripts/dvc.sh status --cloud"
 
 [tasks.repro]
 description = "Reproduce the {{ component.name }} DVC stages"
