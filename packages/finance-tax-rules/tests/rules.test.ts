@@ -8,6 +8,7 @@ import {
   validateDataset,
   validateReleaseLineage,
 } from "../src/build";
+import { coverageContract, validateCoverageContract } from "../src/coverage";
 import { ruleDataset } from "../src/data";
 import { resolveRules } from "../src/index";
 import {
@@ -23,6 +24,45 @@ import { validationCorpus } from "../src/validationData";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
+type CoverageContract = ReturnType<typeof validateCoverageContract>;
+
+function coverageClaim(candidate: CoverageContract, id: string) {
+  const claim = candidate.userFlows
+    .flatMap(({ claims }) => claims)
+    .find(({ id: claimId }) => claimId === id);
+  if (!claim) {
+    throw new Error(`Missing coverage claim ${id}`);
+  }
+  return claim;
+}
+
+function providerEvaluation(candidate: CoverageContract, provider: string) {
+  const evaluation = candidate.providerEvaluations.find(
+    ({ provider: candidateProvider }) => candidateProvider === provider,
+  );
+  if (!evaluation) {
+    throw new Error(`Missing provider evaluation ${provider}`);
+  }
+  return evaluation;
+}
+
+function expectInvalidCoverage(
+  mutate: (candidate: CoverageContract) => void,
+  message: string,
+) {
+  const candidate = structuredClone(coverageContract) as CoverageContract;
+  mutate(candidate);
+
+  expect(() =>
+    validateCoverageContract(
+      packageRoot,
+      ruleDataset,
+      validationCorpus,
+      candidate,
+    ),
+  ).toThrow(message);
+}
+
 describe("UK tax rule dataset", () => {
   it("passes structural and semantic validation", () => {
     expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.4");
@@ -37,6 +77,9 @@ describe("UK tax rule dataset", () => {
       '"legalStatus": "enacted"',
     );
     expect(first.has("artifacts/announced/2026.10.4.json")).toBe(false);
+    expect(first.get("artifacts/coverage-matrix/2026.11.0.json")).toContain(
+      '"coverageContractVersion": "2026.11.0"',
+    );
     expect(first.get("artifacts/manifest.json")).not.toContain(
       "artifacts/announced/2026.10.4.json",
     );
@@ -44,6 +87,94 @@ describe("UK tax rule dataset", () => {
       '"calculationContractVersion": "salary-validation-v1"',
     );
     expect(first.get("artifacts/manifest.json")).toContain('"fixtureCount": 16');
+  });
+
+  it("publishes traceable coverage by user flow", () => {
+    const contract = validateCoverageContract(
+      packageRoot,
+      ruleDataset,
+      validationCorpus,
+    );
+
+    expect(contract.userFlows.map(({ id }) => id)).toEqual([
+      "salary-history",
+      "job-move-forecast",
+      "household-tax-position",
+      "side-income-scenarios",
+    ]);
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "payslip-reconciliation"),
+    ).toMatchObject({
+      status: "explicitly-unavailable",
+      calculationKinds: ["period-exact-payroll-calculation"],
+    });
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "annualised-national-insurance-fallback"),
+    ).toMatchObject({ status: "approximate" });
+    expect(
+      contract.userFlows
+        .flatMap(({ claims }) => claims)
+        .find(({ id }) => id === "sole-trader-tax-and-obligations")
+    ).toMatchObject({
+      status: "implemented",
+      calculationKinds: [
+        "annual-liability-estimate",
+        "user-supplied-assumption",
+      ],
+      evidence: {
+        fixturePaths: [
+          "packages/personal-finance-contracts/src/soleTraderSyntheticScenarios.ts",
+        ],
+      },
+    });
+    expect(coverageContract.providerEvaluations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ provider: "TaxScope", decision: "rejected" }),
+        expect.objectContaining({
+          provider: "@saving-tool/hmrc-income-tax",
+          decision: "accepted",
+        }),
+      ]),
+    );
+  });
+
+  it("rejects duplicate coverage claims", () => {
+    expectInvalidCoverage((candidate) => {
+      const claim = coverageClaim(candidate, "payslip-reconciliation");
+      const [firstUserFlow] = candidate.userFlows;
+      if (!firstUserFlow) {
+        throw new Error("Missing coverage user flow");
+      }
+      firstUserFlow.claims.push(structuredClone(claim));
+    }, "Duplicate coverage claim payslip-reconciliation");
+  });
+
+  it("rejects unknown rule sources and validation fixtures", () => {
+    expectInvalidCoverage((candidate) => {
+      coverageClaim(candidate, "annual-tax-and-pension-estimate")
+        .evidence.officialRuleSourceIds = ["unknown-source"];
+    }, "references unknown source unknown-source");
+    expectInvalidCoverage((candidate) => {
+      providerEvaluation(candidate, "PolicyEngine UK").validationFixtureIds = [
+        "unknown-fixture",
+      ];
+    }, "references unknown fixture unknown-fixture");
+  });
+
+  it("rejects missing implementation and file evidence", () => {
+    expectInvalidCoverage((candidate) => {
+      coverageClaim(candidate, "annual-tax-and-pension-estimate")
+        .evidence.implementationPaths = [];
+    }, "has no implementation evidence");
+    expectInvalidCoverage((candidate) => {
+      providerEvaluation(candidate, "PolicyEngine UK").evidencePaths = [
+        "packages/finance-tax-rules/missing-evidence.md",
+      ];
+    }, "packages/finance-tax-rules/missing-evidence.md does not exist");
   });
 
   it("requires a superseded enacted artifact to remain available", () => {
