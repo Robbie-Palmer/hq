@@ -20,6 +20,14 @@ Each token must resolve only the matching reference in
 ID in the project profile checkpoint. Never record a token value, database URL,
 age identity, R2 secret key, or Access service credential.
 
+`bootstrap-contract.json` is the redacted inventory for that handoff. The
+project-owned `bootstrap:check:runtime` task checks only whether the declared
+names are present in the current config. It never prints values. Keep
+`PERSONAL_FINANCE_OPERATIONS_READY` unset until provider checks and the scoped
+token handoff pass. Keep `PERSONAL_FINANCE_TERRAFORM_READY` unset until all six
+checkpoints have audit evidence and the first Personal Finance plan has been
+reviewed.
+
 The generated dispatcher checks both `OPERATIONS_GITHUB_ENVIRONMENT` and
 `OPERATIONS_SECRET_CONFIG_REF`. Mutation commands also require an exact
 `OPERATIONS_MUTATION_TOKEN`. The reusable workflow derives that token only

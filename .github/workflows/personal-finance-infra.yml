@@ -41,6 +41,7 @@ jobs:
         run: mise run //infra/personal-finance:plan
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
 
       - name: Add Terraform plan to summary
@@ -57,6 +58,7 @@ jobs:
         run: mise run //infra/personal-finance:apply
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
 
       - name: Report pending Terraform bootstrap

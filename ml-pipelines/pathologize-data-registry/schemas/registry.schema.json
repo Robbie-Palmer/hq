@@ -1,0 +1,93 @@
+{
+  "$defs": {
+    "RegistryOwnership": {
+      "additionalProperties": false,
+      "properties": {
+        "excludes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Excludes",
+          "type": "array"
+        },
+        "owns": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Owns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "owns",
+        "excludes"
+      ],
+      "title": "RegistryOwnership",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "asset_manifests": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Asset Manifests",
+      "type": "array"
+    },
+    "collections": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Collections",
+      "type": "array"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "ownership": {
+      "$ref": "#/$defs/RegistryOwnership"
+    },
+    "registry_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Registry Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "slide_records": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Slide Records",
+      "type": "array"
+    },
+    "subsets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subsets",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "registry_id",
+    "description",
+    "collections",
+    "subsets",
+    "asset_manifests",
+    "slide_records",
+    "ownership"
+  ],
+  "title": "RegistryIndex",
+  "type": "object"
+}

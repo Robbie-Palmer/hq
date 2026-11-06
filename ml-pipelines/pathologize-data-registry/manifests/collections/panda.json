@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "collection_id": "panda",
+  "title": "Prostate cANcer graDe Assessment challenge",
+  "description": "Digitized prostate-biopsy slides with source-provided data-provider, ISUP-grade, Gleason-score, and partial mask labels.",
+  "registration_status": "manifest_only",
+  "source": {
+    "publisher": "PANDA challenge organizers via Kaggle",
+    "landing_page_url": "https://www.kaggle.com/competitions/prostate-cancer-grade-assessment/data",
+    "documentation_urls": [
+      "https://panda.grand-challenge.org/data/",
+      "https://doi.org/10.1038/s41591-021-01620-2"
+    ],
+    "doi": "10.1038/s41591-021-01620-2",
+    "source_version": "Kaggle competition dataset",
+    "retrieved_at": "2026-11-06"
+  },
+  "access": {
+    "public": true,
+    "authentication_required": true,
+    "automated_access": false,
+    "acquisition_policy": "manifest_only",
+    "reason": "Kaggle requires sign-in and acceptance of competition rules. The 411.9 GB dataset is not eligible for unattended registry acquisition.",
+    "download_base_urls": []
+  },
+  "license": {
+    "name": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+    "spdx_id": "CC-BY-NC-SA-4.0",
+    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "scope": "The PANDA publication and current challenge data page state the non-commercial share-alike licence. Kaggle competition rules also apply to access.",
+    "redistribution": "No registry copy is made. A future acquisition requires explicit operator acceptance of Kaggle terms and must preserve the non-commercial, attribution, and share-alike conditions."
+  },
+  "citation": "Bulten, W. et al. Artificial intelligence for diagnosis and Gleason grading of prostate cancer: the PANDA challenge. Nature Medicine 28, 154-163 (2022). https://doi.org/10.1038/s41591-021-01620-2",
+  "known_scale": {
+    "slides_or_series": 10616,
+    "bytes": 411900000000,
+    "basis": "Kaggle reports 411.9 GB; the publication reports 10,616 development slides. No registry bytes were acquired."
+  },
+  "source_native_label_domains": [
+    "data provider",
+    "ISUP grade",
+    "Gleason score",
+    "source label masks"
+  ],
+  "subsets": []
+}

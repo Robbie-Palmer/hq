@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "slide_id": "cptac-coad-idc:09co003:0b1ee2c0",
+  "collection_id": "cptac-coad-idc",
+  "subset_id": "cptac-coad-idc-v23-smallest-series",
+  "identity": {
+    "patient_id": "09CO003",
+    "case_id": "09CO003",
+    "specimen_id": "0b1ee2c0-0481-4b94-a42c-88062e",
+    "specimen_uid": "2.25.219495107800710200043847899671282921279",
+    "slide_container_id": "0b1ee2c0-0481-4b94-a42c-88062e",
+    "study_instance_uid": "2.25.269288054043178549332414987746538859978",
+    "series_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.2.0",
+    "identity_basis": "IDC DICOM PatientID and ClinicalTrialSubjectID identify the case; SpecimenIdentifier, SpecimenUID, ContainerIdentifier, StudyInstanceUID, and SeriesInstanceUID supply the remaining source identities."
+  },
+  "scanner": {
+    "manufacturer": "Leica Biosystems",
+    "model": "Aperio converted by com.pixelmed.convert.TIFFToDicom",
+    "device_serial_number": "SS1289",
+    "objective_power": 40.0,
+    "conversion_note": "IDC converted the source Aperio TIFF to DICOM with PixelMed TIFFToDicom; the model string describes that conversion."
+  },
+  "physical_resolution": {
+    "micrometres_per_pixel_x": 0.2501,
+    "micrometres_per_pixel_y": 0.2501,
+    "total_pixel_matrix_columns": 14400,
+    "total_pixel_matrix_rows": 14770,
+    "source_instance_path": "ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm"
+  },
+  "source_native_labels": [
+    {
+      "name": "collection",
+      "value": "CPTAC-COAD",
+      "code": null,
+      "provenance": "DICOM ClinicalTrialProtocolID"
+    },
+    {
+      "name": "primary_anatomic_structure",
+      "value": "Colon",
+      "code": "SCT:71854001",
+      "provenance": "DICOM SpecimenDescriptionSequence.PrimaryAnatomicStructureSequence"
+    },
+    {
+      "name": "staining_substance",
+      "value": "hematoxylin stain",
+      "code": "SCT:12710003",
+      "provenance": "DICOM SpecimenPreparationSequence"
+    },
+    {
+      "name": "staining_substance",
+      "value": "water soluble eosin stain",
+      "code": "SCT:36879007",
+      "provenance": "DICOM SpecimenPreparationSequence"
+    }
+  ],
+  "label_limitations": "The source series does not state a slide-level tumor diagnosis or task target. Collection membership is not promoted to a patient- or slide-level diagnosis.",
+  "asset_paths": [
+    "0192795d-4378-4ad3-8301-05a619500b52.dcm",
+    "6356f91d-ceba-44fe-b3fd-34c157c12b29.dcm",
+    "82975e65-0e70-4439-a39e-df9785708f94.dcm",
+    "a75b39af-d0bc-490b-95ae-d569650ace66.dcm",
+    "ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm",
+    "eb3e0b2b-932b-4e6d-8176-59dc0a1575eb.dcm"
+  ]
+}
