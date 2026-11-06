@@ -17,7 +17,7 @@ import {
 import { registerProjectRoutes } from "./project-routes";
 
 export type Bindings = AuthEnv & {
-  HYPERDRIVE?: Hyperdrive;
+  HYPERDRIVE?: { connectionString: string };
   DATABASE_URL?: string;
   DEPLOYMENT_ENV?: string;
 };

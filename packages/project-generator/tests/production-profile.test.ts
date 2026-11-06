@@ -223,6 +223,9 @@ describe("Personal Finance production profile", () => {
       "ui/content/projects/personal-finance-app",
       "workers/personal-finance-api",
     ]);
+    expect(plan.shared_manifest_edits).toContainEqual({
+      kind: "pnpm_lockfile",
+    });
     expect(
       blueprint.components.flatMap(({ id, tasks }) =>
         tasks
@@ -267,7 +270,17 @@ describe("Personal Finance production profile", () => {
           path: "workers/personal-finance-api",
         },
         ownership: {
-          template_files: ["generated-component.yaml", "mise.toml"],
+          template_files: [
+            "generated-component.yaml",
+            "mise.toml",
+            "package.json",
+            "openapi.json",
+            "src/auth.ts",
+            "src/authorization.ts",
+            "src/index.ts",
+            "src/runtime.ts",
+            "wrangler.toml",
+          ],
           product_logic: "project",
           secrets: "external",
         },
@@ -291,7 +304,19 @@ describe("Personal Finance production profile", () => {
           path: "packages/personal-finance-data",
         },
         ownership: {
-          template_files: ["generated-component.yaml", "mise.toml"],
+          template_files: [
+            "generated-component.yaml",
+            "mise.toml",
+            "drizzle.config.ts",
+            "drizzle/0000_create_authenticated_runtime.sql",
+            "drizzle/meta/0000_snapshot.json",
+            "package.json",
+            "src/connection.ts",
+            "src/index.ts",
+            "src/runtime-schema.ts",
+            "src/schema.ts",
+            "tests/runtime-schema.test.ts",
+          ],
           product_logic: "project",
           secrets: "external",
         },

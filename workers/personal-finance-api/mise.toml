@@ -1,3 +1,37 @@
+[tasks.install]
+description = "Install Personal Finance API dependencies"
+run = "pnpm install --frozen-lockfile --filter personal-finance-api..."
+
+[tasks.typecheck]
+description = "Typecheck Personal Finance API"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test Personal Finance API"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test Personal Finance API with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."openapi:generate"]
+description = "Generate the committed Personal Finance API OpenAPI contract"
+depends = ["install"]
+run = "pnpm openapi:generate"
+
+[tasks."lint:api"]
+description = "Check and lint the committed Personal Finance API OpenAPI contract"
+depends = ["install"]
+run = "pnpm lint:api"
+
+[tasks."openapi:breaking"]
+description = "Fail when the Personal Finance API contract breaks at a Git revision"
+depends = ["lint:api"]
+run = "bash scripts/check-openapi-breaking.sh"
+
 [tasks.check]
-description = "Validate the generated Personal Finance API structural boundary"
-run = "test -f generated-component.yaml"
+description = "Check Personal Finance API"
+depends = ["typecheck", "test", "lint:api"]

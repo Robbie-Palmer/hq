@@ -1,4 +1,4 @@
-_commit: 6fdbc10f6700a9a42c2288e4e301a7fd86ed3367
+_commit: 32c24801582332cfa3e59446114ede27a85cc10a
 _src_path: https://github.com/Robbie-Palmer/hq.git
 blueprint:
   catalog:
@@ -186,6 +186,7 @@ blueprint:
       kind: worker
       name: Personal Finance API
       path: workers/personal-finance-api
+      runtime_role: authenticated-worker
       stable_id: component:personal-finance-app/personal-finance-api
       tasks:
         - disposition: inherited
@@ -207,6 +208,7 @@ blueprint:
       kind: typescript-package
       name: Personal Finance contracts
       path: packages/personal-finance-contracts
+      runtime_role: api-contracts
       stable_id: component:personal-finance-app/personal-finance-contracts
       tasks:
         - disposition: inherited
@@ -228,6 +230,7 @@ blueprint:
       kind: typescript-package
       name: Personal Finance data boundary
       path: packages/personal-finance-data
+      runtime_role: relational-data
       stable_id: component:personal-finance-app/personal-finance-data
       tasks:
         - disposition: inherited
@@ -293,7 +296,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-10-30 23:18:00+00:00
+  effective_at: 2026-11-06 00:00:00+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
@@ -365,6 +368,37 @@ blueprint:
       evidence: []
       fulfillment: manual
       id: database-backup-restore-encrypted-archives-2026-09-29-state-restore-drill-evidence
+      status: pending
+    - action: Configure BETTER_AUTH_SECRET for
+        identity-authentication-library-better-auth-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: identity-authentication-library-better-auth-2026-09-29-configuration-better-auth-secret
+      status: pending
+    - action: Configure BETTER_AUTH_URL for
+        identity-authentication-library-better-auth-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: identity-authentication-library-better-auth-2026-09-29-configuration-better-auth-url
+      status: pending
+    - action: Configure GOOGLE_CLIENT_ID for
+        identity-login-provider-google-oauth-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: identity-login-provider-google-oauth-2026-09-29-configuration-google-client-id
+      status: pending
+    - action: Configure GOOGLE_CLIENT_SECRET for
+        identity-login-provider-google-oauth-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: identity-login-provider-google-oauth-2026-09-29-configuration-google-client-secret
+      status: pending
+    - action: Create the OAuth consent screen and Web application client in Google
+        Cloud Console for each stable environment, then register that
+        environment's exact callback URI.
+      evidence: []
+      fulfillment: manual
+      id: identity-login-provider-google-oauth-2026-09-29-manual-setup-create-the-oauth-consent-screen-and-web-application-client-in-google-cloud-console-for-each-stable-environment-then-register-that-environment-s-exact-callback-uri
       status: pending
     - action: "Verify Correlated log ingestion smoke test:
         /projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
@@ -598,6 +632,49 @@ blueprint:
         id: copier-profile-conformance
   schema_version: 2
   selections:
+    - decision: personal-engineering-platform:015-api-governance
+      id: api-governance-compatibility-check-oasdiff-2026-09-29
+      kind: technology
+      layer: api-governance
+      slot: api-governance.compatibility-check
+      source: default
+      value: oasdiff
+    - decision: personal-engineering-platform:033-api-and-event-contract-standard
+      id: api-governance-contract-lifecycle-policy-2026-10-15
+      kind: policy
+      layer: api-governance
+      slot: api-governance.contract-lifecycle
+      source: default
+      value: Runtime-derived, committed, validated, compatibility-gated, indexed,
+        versioned, and published as immutable OCI artifacts
+    - decision: personal-engineering-platform:015-api-governance
+      id: api-governance-contract-linter-spectral-2026-09-29
+      kind: technology
+      layer: api-governance
+      slot: api-governance.contract-linter
+      source: default
+      value: spectral
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-contract-format-openapi-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-format
+      source: default
+      value: openapi
+    - decision: personal-engineering-platform:035-web-api-data-capability-contracts
+      id: backend-api-contract-generator-hono-zod-openapi-2026-10-19
+      kind: technology
+      layer: backend-api
+      slot: backend-api.contract-generator
+      source: default
+      value: honozod-openapi
+    - decision: personal-engineering-platform:014-hono-openapi
+      id: backend-api-http-framework-hono-2026-09-29
+      kind: technology
+      layer: backend-api
+      slot: backend-api.http-framework
+      source: default
+      value: hono
     - decision: personal-engineering-platform:017-relational-data-stack
       id: backend-api-relational-connection-hyperdrive-2026-09-29
       kind: technology
@@ -711,6 +788,34 @@ blueprint:
       slot: governance.source-boundary
       source: default
       value: Shared personal-project monorepo
+    - decision: personal-engineering-platform:020-better-auth-and-google-oidc
+      id: identity-authentication-library-better-auth-2026-09-29
+      kind: technology
+      layer: identity
+      slot: identity.authentication-library
+      source: default
+      value: better-auth
+    - decision: personal-engineering-platform:034-identity-and-access-capability-contracts
+      id: identity-authorization-policy-server-side-resource-rules-2026-10-15
+      kind: policy
+      layer: identity
+      slot: identity.authorization-policy
+      source: default
+      value: Project-owned server-side resource and action policy
+    - decision: personal-engineering-platform:020-better-auth-and-google-oidc
+      id: identity-login-provider-google-oauth-2026-09-29
+      kind: technology
+      layer: identity
+      slot: identity.login-provider
+      source: default
+      value: google-oauth
+    - decision: personal-engineering-platform:034-identity-and-access-capability-contracts
+      id: identity-session-transport-same-origin-cookie-2026-10-15
+      kind: policy
+      layer: identity
+      slot: identity.session-transport
+      source: default
+      value: Same-origin Secure HttpOnly first-party cookie session
     - decision: personal-engineering-platform:009-infrastructure-operations
       id: infrastructure-linter-tflint-2026-09-15
       kind: technology
