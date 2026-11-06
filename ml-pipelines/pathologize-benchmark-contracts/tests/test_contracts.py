@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from typing import cast
 
 import pytest
 from data_artifacts.files import (
@@ -16,7 +17,11 @@ from data_artifacts.files import (
 from ml_evaluation.contracts import AdapterSpec
 from pydantic import ValidationError
 
-from pathologize_benchmark_contracts.adapters import load_adapter
+from pathologize_benchmark_contracts.adapters import (
+    ModelAdapter,
+    load_adapter,
+    reported_accelerator_seconds,
+)
 from pathologize_benchmark_contracts.contracts import (
     ExperimentManifest,
     FixtureManifest,
@@ -61,6 +66,40 @@ def test_fixture_masks_and_images_have_declared_dimensions(configured_root: Path
             channels = 3 if relative.endswith(".ppm") else 1
             assert (width, height) == (item.width, item.height)
             assert len(values) == width * height * channels
+
+
+def test_minimum_fixture_geometry_stays_inside_tissue_and_outside_artifacts(
+    tmp_path: Path,
+) -> None:
+    write_json(
+        tmp_path / "fixtures/spec.json",
+        {
+            "schema_version": "1.0.0",
+            "seed": 1,
+            "width": 32,
+            "height": 32,
+            "cases": [
+                {"case_id": "synthetic-train-fold", "split": "train", "variant": "fold_like"},
+                {
+                    "case_id": "synthetic-validation-mark",
+                    "split": "validation",
+                    "variant": "mark_like",
+                },
+                {"case_id": "synthetic-test-clean", "split": "test", "variant": "clean"},
+            ],
+        },
+    )
+    manifest = generate_fixtures(tmp_path)
+
+    for item in manifest.items:
+        _, _, tissue = read_pnm(tmp_path / item.tissue_mask_path)
+        _, _, artifact = read_pnm(tmp_path / item.artifact_mask_path)
+        _, _, instances = read_pnm(tmp_path / item.nucleus_instance_mask_path)
+        nucleus_pixels = [index for index, instance in enumerate(instances) if instance]
+        assert {instances[index] for index in nucleus_pixels} == {1, 2, 3}
+        assert all(instances.count(instance_id) == 29 for instance_id in (1, 2, 3))
+        assert all(tissue[index] == 1 for index in nucleus_pixels)
+        assert all(artifact[index] == 0 for index in nucleus_pixels)
 
 
 def test_read_pnm_rejects_invalid_content(tmp_path: Path) -> None:
@@ -293,6 +332,43 @@ def test_registry_representations_enforce_standard_lifecycle_positions() -> None
     with pytest.raises(ValidationError):
         RegistryExport.model_validate(unsafe)
 
+    cycle = RegistryExport.model_validate(base).model_dump(mode="json")
+    cycle["items"][0]["representations"] = [
+        cycle["items"][0]["representations"][0],
+        {
+            "representation_id": "interchange-1",
+            "role": "interchange",
+            "format": "dicom_wsi",
+            "croissant_distribution_id": "interchange-files",
+            "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
+            "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
+            "derived_from": ["compute-1"],
+        },
+        {
+            **cycle["items"][0]["representations"][1],
+            "derived_from": ["source-1", "interchange-1"],
+        },
+    ]
+    with pytest.raises(ValidationError, match="ancestry must be acyclic"):
+        RegistryExport.model_validate(cycle)
+
+    indirect = RegistryExport.model_validate(base).model_dump(mode="json")
+    indirect["items"][0]["representations"].insert(
+        1,
+        {
+            "representation_id": "interchange-1",
+            "role": "interchange",
+            "format": "dicom_wsi",
+            "croissant_distribution_id": "interchange-files",
+            "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
+            "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
+            "derived_from": ["source-1"],
+        },
+    )
+    indirect["items"][0]["representations"][2]["derived_from"] = ["interchange-1"]
+    with pytest.raises(ValidationError, match="directly reference an acquired source"):
+        RegistryExport.model_validate(indirect)
+
 
 def test_registry_json_schema_encodes_representation_profiles() -> None:
     schema = RegistryExport.model_json_schema()
@@ -336,16 +412,29 @@ def test_jsonl_and_model_helpers_round_trip(tmp_path: Path, configured_root: Pat
     assert manifest.dataset_id == "pathologize-synthetic-contract-fixtures-v1"
 
 
-def test_adapter_loader_rejects_bad_entrypoints_and_ids(configured_root: Path) -> None:
+def test_adapter_loader_rejects_bad_entrypoints_and_ids(
+    configured_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     baseline = read_json(configured_root / "experiments/whole-slide-quality.json")["baseline"]
     adapter = load_adapter(AdapterSpec.model_validate(baseline))
     assert adapter.adapter_id == "deterministic-color-v1"
 
+    module_path = tmp_path / "external_pathologize_adapter.py"
+    module_path.write_text(
+        "class WrongAdapter:\n"
+        "    adapter_id = 'external-adapter-v1'\n\n"
+        "class WrongIdentity:\n"
+        "    adapter_id = 'other-v1'\n"
+        "    def predict(self, manifest, item, root):\n"
+        "        return None\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
     external = baseline | {
         "adapter_id": "external-adapter-v1",
         "kind": "python_entrypoint",
-        "entrypoint": "builtins:dict",
-        "artifact_sha256": "a" * 64,
+        "entrypoint": "external_pathologize_adapter:WrongAdapter",
+        "artifact_sha256": sha256_file(module_path),
     }
     external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(TypeError, match="does not implement"):
@@ -356,7 +445,25 @@ def test_adapter_loader_rejects_bad_entrypoints_and_ids(configured_root: Path) -
     with pytest.raises(ValueError, match="module:attribute"):
         load_adapter(external_spec)
 
-    external["entrypoint"] = "pathologize_benchmark_contracts.adapters:DeterministicColorBaseline"
+    external["entrypoint"] = "external_pathologize_adapter:WrongIdentity"
     external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(ValueError, match="adapter ID"):
         load_adapter(external_spec)
+
+
+def test_missing_or_invalid_accelerator_telemetry_is_conservative() -> None:
+    class MissingTelemetry:
+        pass
+
+    class NegativeTelemetry:
+        @staticmethod
+        def accelerator_seconds() -> float:
+            return -1.0
+
+    missing = MissingTelemetry()
+    negative = NegativeTelemetry()
+    missing_adapter = cast(ModelAdapter, missing)
+    negative_adapter = cast(ModelAdapter, negative)
+    assert reported_accelerator_seconds(missing_adapter) is None
+    with pytest.raises(ValueError, match="non-negative"):
+        reported_accelerator_seconds(negative_adapter)

@@ -6,6 +6,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+import yaml
 from pydantic import BaseModel
 
 
@@ -25,18 +26,24 @@ def pretty_bytes(value: Any) -> bytes:
 
 def write_json(path: Path, value: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(pretty_bytes(value))
+    with path.open("wb") as destination:
+        destination.write(pretty_bytes(value))
 
 
 def write_jsonl(path: Path, values: Iterable[Any]) -> int:
     content = b"".join(canonical_bytes(value) for value in values)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
+    with path.open("wb") as destination:
+        destination.write(content)
     return len(content)
 
 
 def read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_yaml(path: Path) -> Any:
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:

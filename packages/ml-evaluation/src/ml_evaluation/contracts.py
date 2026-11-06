@@ -72,7 +72,7 @@ class ResourceUsage(StrictModel):
     input_bytes: int = Field(ge=0)
     prediction_bytes: int = Field(ge=0)
     pixels_read: int = Field(ge=0)
-    accelerator_seconds: float = Field(ge=0)
+    accelerator_seconds: float | None = Field(default=None, ge=0)
     observed_wall_seconds: float | None = Field(default=None, ge=0)
     observed_cpu_seconds: float | None = Field(default=None, ge=0)
     observed_peak_rss_bytes: int | None = Field(default=None, ge=0)
@@ -89,7 +89,7 @@ class MetricResult(StrictModel):
 class GateResult(StrictModel):
     gate: str
     passed: bool
-    observed: float
+    observed: float | None
     threshold: float
 
 

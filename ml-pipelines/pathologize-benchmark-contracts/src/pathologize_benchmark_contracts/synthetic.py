@@ -95,20 +95,25 @@ def _render_case(
             image[index] = TISSUE
             tissue[index] = 1
 
+    artifact_x = x_stop - 3
     if case.variant != "clean":
         label = 1 if case.variant == "fold_like" else 2
         color = FOLD_LIKE if label == 1 else MARK_LIKE
-        artifact_x = width - 18
         for y in range(y_start + 2, y_stop - 2):
             for x in range(artifact_x, artifact_x + 3):
                 index = y * width + x
                 image[index] = color
                 artifact[index] = label
 
+    radius = 3
+    left_x = x_start + radius
+    right_x = artifact_x - radius - 1
+    top_y = y_start + radius
+    bottom_y = y_stop - radius - 1
     nuclei: list[tuple[int, NucleusClass, int, int]] = [
-        (1, "synthetic_type_a", x_start + 12, y_start + 13),
-        (2, "synthetic_type_b", x_start + 25, y_start + 24),
-        (3, "synthetic_type_a", x_start + 35, y_start + 12),
+        (1, "synthetic_type_a", left_x, top_y),
+        (2, "synthetic_type_b", right_x, bottom_y),
+        (3, "synthetic_type_a", right_x, top_y),
     ]
     for instance_id, class_name, center_x, center_y in nuclei:
         _paint_circle(
@@ -118,7 +123,7 @@ def _render_case(
             height=height,
             center_x=center_x,
             center_y=center_y,
-            radius=3,
+            radius=radius,
             color=NUCLEUS_COLORS[class_name],
             instance_id=instance_id,
         )

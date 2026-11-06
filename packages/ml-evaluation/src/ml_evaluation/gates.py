@@ -73,15 +73,17 @@ def resource_gates(budget: ResourceBudget, run_role: str, run: RunSummary) -> li
         "pixels_read": run.resources.pixels_read,
         "accelerator_seconds": run.resources.accelerator_seconds,
     }
-    return [
-        GateResult(
-            gate=f"{run_role}-resource:{name}",
-            passed=observed <= limits[name],
-            observed=float(observed),
-            threshold=float(limits[name]),
+    gates: list[GateResult] = []
+    for name, observed in resource_values.items():
+        gates.append(
+            GateResult(
+                gate=f"{run_role}-resource:{name}",
+                passed=observed is not None and observed <= limits[name],
+                observed=float(observed) if observed is not None else None,
+                threshold=float(limits[name]),
+            )
         )
-        for name, observed in resource_values.items()
-    ]
+    return gates
 
 
 def evaluate_gates(

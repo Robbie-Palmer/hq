@@ -6,7 +6,7 @@ It has no ML, dataset, provider, or application-domain vocabulary.
 The package owns:
 
 - canonical and readable JSON serialization;
-- JSON and JSON Lines file reads and writes;
+- JSON, JSON Lines, and YAML reads plus JSON and JSON Lines writes;
 - Pydantic model loading from JSON;
 - SHA-256 hashes for bytes, files, and directory trees;
 - content-address identifiers;

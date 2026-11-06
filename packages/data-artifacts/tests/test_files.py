@@ -9,6 +9,7 @@ from data_artifacts.files import (
     load_model,
     read_json,
     read_jsonl,
+    read_yaml,
     resolve_under,
     sha256_file,
     sha256_tree,
@@ -41,6 +42,12 @@ def test_json_lines_report_written_bytes(tmp_path: Path) -> None:
     size = write_jsonl(path, [{"id": 1}, {"id": 2}])
     assert size == path.stat().st_size
     assert read_jsonl(path) == [{"id": 1}, {"id": 2}]
+
+
+def test_yaml_reader_accepts_yaml_comments(tmp_path: Path) -> None:
+    path = tmp_path / "params.yaml"
+    path.write_text("# benchmark parameters\nname: example\nversion: 1\n", encoding="utf-8")
+    assert read_yaml(path) == {"name": "example", "version": 1}
 
 
 def test_tree_digest_includes_relative_paths(tmp_path: Path) -> None:

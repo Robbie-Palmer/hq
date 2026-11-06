@@ -57,8 +57,15 @@
           "type": "string"
         },
         "observed": {
-          "title": "Observed",
-          "type": "number"
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observed"
         },
         "passed": {
           "title": "Passed",
@@ -116,9 +123,17 @@
       "additionalProperties": false,
       "properties": {
         "accelerator_seconds": {
-          "minimum": 0,
-          "title": "Accelerator Seconds",
-          "type": "number"
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Accelerator Seconds"
         },
         "input_bytes": {
           "minimum": 0,
@@ -184,8 +199,7 @@
         "samples",
         "input_bytes",
         "prediction_bytes",
-        "pixels_read",
-        "accelerator_seconds"
+        "pixels_read"
       ],
       "title": "ResourceUsage",
       "type": "object"

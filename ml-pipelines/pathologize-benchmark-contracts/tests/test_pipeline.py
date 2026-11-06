@@ -6,6 +6,7 @@ import pytest
 from data_artifacts.files import load_model, read_json, write_json
 from ml_evaluation.contracts import ResourceUsage
 from ml_evaluation.gates import evaluate_gates
+from pydantic import ValidationError
 
 from pathologize_benchmark_contracts import cli
 from pathologize_benchmark_contracts.contracts import (
@@ -131,7 +132,17 @@ def test_unknown_experiment_and_wrong_registry_import_fail(configured_root: Path
         import_registry("whole-slide-quality-contract-v1", configured_root)
 
 
-def test_cli_dispatch_and_error_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_params_yaml_accepts_comments(configured_root: Path) -> None:
+    path = configured_root / "params.yaml"
+    path.write_text("# benchmark configuration\n" + path.read_text(encoding="utf-8"))
+    assert load_experiments(configured_root)[0].experiment_id == "whole-slide-quality-contract-v1"
+
+
+def test_cli_dispatch_and_error_codes(
+    monkeypatch: pytest.MonkeyPatch,
+    configured_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     calls: list[str] = []
     monkeypatch.setattr(cli, "verify", lambda: calls.append("verify"))
     monkeypatch.setattr(
@@ -143,7 +154,17 @@ def test_cli_dispatch_and_error_codes(monkeypatch: pytest.MonkeyPatch) -> None:
     assert cli.main(["verify"]) == 0
     assert cli.main(["schemas", "--check"]) == 0
     assert calls == ["verify", "schemas:True"]
+    monkeypatch.chdir(configured_root)
     assert cli.main(["import-registry", "missing"]) == 2
+    assert "unknown experiment: missing" in capsys.readouterr().out
+
+
+def test_scorecard_rejects_mislabelled_synthetic_evidence(reproduced_root: Path) -> None:
+    manifest = load_experiments(reproduced_root)[0]
+    value = read_json(reproduced_root / f"outputs/scorecards/{manifest.experiment_id}.json")
+    value["synthetic_evidence_only"] = False
+    with pytest.raises(ValidationError, match="synthetic evidence only"):
+        Scorecard.model_validate(value)
 
 
 def test_dvc_dag_keeps_workstreams_independent(configured_root: Path) -> None:

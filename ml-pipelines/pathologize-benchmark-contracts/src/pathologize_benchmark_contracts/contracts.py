@@ -117,7 +117,7 @@ class RegistryAnnotation(StrictModel):
 
 
 class CroissantDatasetReference(StrictModel):
-    conforms_to: Literal["http://mlcommons.org/croissant/1.1"]
+    conforms_to: Literal["http://mlcommons.org/croissant/1.1"]  # NOSONAR: canonical identifier
     metadata_uri: str = Field(min_length=1)
     metadata_sha256: str = Field(pattern=SHA256_PATTERN)
 
@@ -197,6 +197,47 @@ RegistryRepresentation = (
 )
 
 
+def _reject_representation_cycles(
+    identifiers: list[str], by_id: dict[str, RegistryRepresentation]
+) -> None:
+    ancestry_state: dict[str, Literal["visiting", "visited"]] = {}
+
+    def visit(representation_id: str) -> None:
+        state = ancestry_state.get(representation_id)
+        if state == "visiting":
+            raise ValueError("representation ancestry must be acyclic")
+        if state == "visited":
+            return
+        ancestry_state[representation_id] = "visiting"
+        for parent in by_id[representation_id].derived_from:
+            visit(parent)
+        ancestry_state[representation_id] = "visited"
+
+    for representation_id in identifiers:
+        visit(representation_id)
+
+
+def _reaches_source(
+    representation_id: str, by_id: dict[str, RegistryRepresentation]
+) -> bool:
+    representation = by_id[representation_id]
+    if representation.role == RepresentationRole.SOURCE:
+        return True
+    return any(_reaches_source(parent, by_id) for parent in representation.derived_from)
+
+
+def _require_direct_ome_source(
+    representations: list[RegistryRepresentation],
+    by_id: dict[str, RegistryRepresentation],
+) -> None:
+    for representation in representations:
+        if isinstance(representation, OmeZarrRepresentation) and not any(
+            by_id[parent].role == RepresentationRole.SOURCE
+            for parent in representation.derived_from
+        ):
+            raise ValueError("OME-Zarr representations must directly reference an acquired source")
+
+
 class RegistryItem(StrictModel):
     item_id: str = Field(min_length=1)
     split: Split
@@ -228,22 +269,14 @@ class RegistryItem(StrictModel):
                     f"unknown derived representation IDs: {', '.join(sorted(missing))}"
                 )
 
-        def reaches_source(representation_id: str, visiting: frozenset[str]) -> bool:
-            if representation_id in visiting:
-                return False
-            representation = by_id[representation_id]
-            if representation.role == RepresentationRole.SOURCE:
-                return True
-            return any(
-                reaches_source(parent, visiting | {representation_id})
-                for parent in representation.derived_from
-            )
+        _reject_representation_cycles(identifiers, by_id)
+        _require_direct_ome_source(self.representations, by_id)
 
         if any(
-            not reaches_source(representation.representation_id, frozenset())
+            not _reaches_source(representation.representation_id, by_id)
             for representation in self.representations
         ):
-            raise ValueError("every derived representation must reach a source without a cycle")
+            raise ValueError("every derived representation must reach a source")
         missing_annotation_sources = {
             annotation.derived_from_representation
             for annotation in self.annotations
@@ -388,6 +421,12 @@ class Scorecard(StrictModel):
     gates: list[GateResult]
     recommendation: Literal["baseline_only", "promote_candidate", "reject_candidate"]
     clinical_validity: Literal[False]
+
+    @model_validator(mode="after")
+    def require_synthetic_evidence_label(self) -> Self:
+        if self.data_source_kind == "synthetic_fixture" and not self.synthetic_evidence_only:
+            raise ValueError("synthetic fixtures require synthetic evidence only")
+        return self
 
 
 class AggregateScorecard(StrictModel):

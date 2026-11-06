@@ -33,7 +33,10 @@ The generated JSON Schemas define:
 
 Every experiment pins its source, evaluation split, leakage units, adapters,
 metric direction and gates, resource limits, and disabled super-resolution
-seam. Candidate adapters must pin a version and artifact SHA-256. The checked-in
+seam. Candidate adapters must pin a version and the SHA-256 of the Python module
+file that contains their entrypoint. The loader verifies that digest before it
+imports the module. An adapter must report accelerator time after prediction;
+an unavailable measurement fails the accelerator resource gate. The checked-in
 baseline reads fixture colors and makes no network, model, or GPU call. It tests
 the contracts and metric arithmetic. It is not a model choice.
 
@@ -71,11 +74,11 @@ claim to validate the external Croissant, DICOM, OME-NGFF, RO-Crate, or PROV-O
 documents themselves. A registry producer must run the validators owned by
 those formats before publishing an export.
 
-DICOM and vendor-native objects remain source or interchange representations.
-OME-Zarr is a derived, compute-oriented representation for chunked analysis,
-labels, and multiresolution access. The export cannot describe OME-Zarr as a
-source, and every OME-Zarr representation names the representation it derives
-from.
+DICOM objects remain source or interchange representations. Vendor-native
+objects remain source representations. OME-Zarr is a derived, compute-oriented
+representation for chunked analysis, labels, and multiresolution access. The
+export cannot describe OME-Zarr as a source, and every OME-Zarr representation
+names at least one acquired source representation directly.
 
 ## Resource and cost boundary
 

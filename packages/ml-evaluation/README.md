@@ -8,7 +8,8 @@ The package owns:
 
 - strict Pydantic base types for adapters, objectives, resource budgets, runs,
   and gates;
-- pinned Python entrypoint loading with adapter identity checks;
+- pinned Python entrypoint loading with adapter identity and module-file digest
+  checks;
 - metric and resource promotion gates.
 
 `packages/data-artifacts` owns canonical JSON and JSON Lines, hashing,
@@ -19,6 +20,10 @@ part of the ML contract.
 Evaluation projects own their data contracts, leakage units, prediction types,
 metrics, safety policy, and scorecard envelope. Importing this package does not
 make two projects share those domain decisions.
+
+For a Python entrypoint, `artifact_sha256` hashes the module file that defines
+the entrypoint attribute. The loader resolves and hashes that file before it
+imports the module or invokes the attribute.
 
 Run the package checks through mise:
 

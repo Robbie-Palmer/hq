@@ -7,6 +7,7 @@ from data_artifacts.files import (
     content_address,
     load_model,
     read_jsonl,
+    read_yaml,
     resolve_under,
     sha256_file,
     write_json,
@@ -17,7 +18,7 @@ from ml_evaluation.contracts import AdapterSpec, MetricResult, ResourceUsage, Ru
 from ml_evaluation.gates import evaluate_gates, recommendation
 from pydantic import BaseModel
 
-from .adapters import load_adapter
+from .adapters import load_adapter, reported_accelerator_seconds
 from .artifacts import contract_root, project_root
 from .contracts import (
     SCHEMA_MODELS,
@@ -43,7 +44,7 @@ from .synthetic import generate_fixtures
 
 
 def _configuration(root: Path) -> BenchmarkProject:
-    return load_model(root / "params.yaml", BenchmarkProject)
+    return BenchmarkProject.model_validate(read_yaml(root / "params.yaml"))
 
 
 def experiment_paths(root: Path) -> list[Path]:
@@ -187,7 +188,7 @@ def _run_adapter(
         input_bytes=sum(path.stat().st_size for path in input_paths),
         prediction_bytes=prediction_bytes,
         pixels_read=sum(item.width * item.height for item in items),
-        accelerator_seconds=0,
+        accelerator_seconds=reported_accelerator_seconds(adapter),
         observed_wall_seconds=None,
         observed_cpu_seconds=None,
         observed_peak_rss_bytes=None,
