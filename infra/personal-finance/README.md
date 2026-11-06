@@ -25,10 +25,10 @@ the paid config-inheritance feature:
 | `backup` | Database backup and restore | Direct database, R2, and public age-recipient access |
 | `alerts` | Alert evaluation and delivery | PostHog alert and project-owned delivery access |
 
-Each config provides `TF_API_TOKEN`. The wrapper maps it to Terraform's
-`TF_TOKEN_app_terraform_io` variable at process runtime. Doppler remains the
-source of secret values. Terraform configuration, state, plan comments, and
-repository files must not contain the token.
+The `ops`, `drift`, and `apply` configs provide `TF_API_TOKEN`. The wrapper
+maps it to Terraform's `TF_TOKEN_app_terraform_io` variable at process runtime.
+Doppler remains the source of secret values. Terraform configuration, state,
+plan comments, and repository files must not contain the token.
 
 The HCP organization uses the free Personal Developer plan. It does not offer
 workspace-scoped team tokens, so the three configs may initially hold an

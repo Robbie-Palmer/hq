@@ -213,7 +213,7 @@ run "personal_finance_delivery_boundaries" {
       "personal-finance/backup",
       "personal-finance/alerts",
     ])
-    error_message = "Personal Finance must separate plan, drift, and apply environment configs."
+    error_message = "Personal Finance must separate ops, preview, drift, apply, backup, and alerts environments."
   }
 
   assert {
@@ -245,6 +245,25 @@ run "personal_finance_delivery_boundaries" {
   assert {
     condition     = length(github_repository_environment.managed["hq/production-personal-finance-drift"].reviewers) == 0
     error_message = "The Personal Finance drift environment must run without a reviewer gate."
+  }
+
+  assert {
+    condition = alltrue([
+      for environment in [
+        "hq/preview-personal-finance",
+        "hq/production-personal-finance-backup",
+        "hq/production-personal-finance-alerting",
+      ] : length(github_repository_environment.managed[environment].reviewers) == 0
+    ])
+    error_message = "Personal Finance preview, backup, and alert environments must run without reviewer gates."
+  }
+
+  assert {
+    condition = length([
+      for policy in values(github_repository_environment_deployment_policy.managed) : policy
+      if policy.environment == "preview-personal-finance"
+    ]) == 0
+    error_message = "The Personal Finance preview environment must not restrict deployments to main."
   }
 
   assert {

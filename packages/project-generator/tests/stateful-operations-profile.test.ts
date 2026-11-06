@@ -203,6 +203,9 @@ describe("stateful project operations", () => {
     expect(script).toContain("RESTORE_TARGET_CLASS must be scratch.");
     expect(script).toContain("production.tfplan.age");
     expect(script).toContain("unset TERRAFORM_PLAN_AGE_IDENTITY");
+    expect(script).toContain('mkdir -p "$evidence_dir" || return');
+    expect(script).toContain('sensitive_temp_files+=("$plan_file")');
+    expect(script.match(/run_step "terraform-init"/g)).toHaveLength(2);
     expect(runbook).toContain("fresh Neon branch");
     expect(runbook).toContain("does not trigger an automatic rollback");
     expect(previewWorkflow).toContain("github.event.pull_request.head.sha");
