@@ -215,17 +215,23 @@ run "personal_finance_delivery_boundaries" {
   }
 
   assert {
+    condition = length([
+      for config in values(doppler_config.managed) : config
+      if startswith(config.project, "personal-finance")
+    ]) == 0
+    error_message = "Personal Finance must use environment root configs because this Doppler workplace does not support config inheritance."
+  }
+
+  assert {
     condition = toset([
-      for config in values(doppler_config.managed) :
-      "${config.project}/${config.name}"
-      if config.project == "personal-finance"
+      for environment in values(doppler_environment.managed) :
+      "${environment.project}/${environment.slug}"
+      if environment.project == "personal-finance-operations"
       ]) == toset([
-      "personal-finance/drift_check",
-      "personal-finance/drift_preview",
-      "personal-finance/apply_alerts",
-      "personal-finance/apply_production",
+      "personal-finance-operations/preview",
+      "personal-finance-operations/alerts",
     ])
-    error_message = "Personal Finance must keep preview, drift, apply, and alert credentials in separate branch configs."
+    error_message = "Personal Finance preview and alert credentials must use isolated root configs in a second Doppler project."
   }
 
   assert {

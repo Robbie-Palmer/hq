@@ -160,7 +160,7 @@ rollout:
   stateful_operations:
     preview:
       github_environment: "preview-personal-finance"
-      secret_config_ref: "doppler://personal-finance/drift_preview"
+      secret_config_ref: "doppler://personal-finance-operations/preview"
       provision: "mise //infra/personal-finance:preview:provision"
       migrate: "mise //infra/personal-finance:db:migrate:preview"
       seed_synthetic: "mise //infra/personal-finance:db:seed:preview"
@@ -171,7 +171,7 @@ rollout:
     production:
       github_environment: "production-personal-finance"
       plan_secret_config_ref: "doppler://personal-finance/ops"
-      apply_secret_config_ref: "doppler://personal-finance/apply_production"
+      apply_secret_config_ref: "doppler://personal-finance/apply"
       migrate: "mise //infra/personal-finance:db:migrate:production"
       deploy: "mise //infra/personal-finance:deploy:production"
       smoke: "mise //infra/personal-finance:smoke:production"
@@ -184,6 +184,6 @@ rollout:
       restore: "mise //infra/personal-finance:restore:drill"
     alerting:
       github_environment: "production-personal-finance-alerting"
-      secret_config_ref: "doppler://personal-finance/apply_alerts"
+      secret_config_ref: "doppler://personal-finance-operations/alerts"
       responder: "Personal Finance owner"
       smoke: "mise //infra/personal-finance:smoke:alert"

@@ -13,7 +13,7 @@ jobs:
       action: alert-smoke
       operations_root: "infra/personal-finance"
       github_environment: "production-personal-finance-alerting"
-      secret_config_ref: "doppler://personal-finance/apply_alerts"
+      secret_config_ref: "doppler://personal-finance-operations/alerts"
       checkout_ref: ${{ github.sha }}
     secrets:
       DOPPLER_TOKEN: ${{ secrets.PROJECT_ALERT_DOPPLER_TOKEN }}

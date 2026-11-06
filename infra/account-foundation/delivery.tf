@@ -359,14 +359,14 @@ locals {
             configs          = []
           }
           drift = {
-            name             = "Preview and drift scopes"
+            name             = "Drift checks"
             personal_configs = false
-            configs          = ["drift_check", "drift_preview"]
+            configs          = []
           }
           apply = {
-            name             = "Apply and alert scopes"
+            name             = "Production applies"
             personal_configs = false
-            configs          = ["apply_alerts", "apply_production"]
+            configs          = []
           }
           backup = {
             name             = "Database backup and restore"
@@ -407,6 +407,32 @@ locals {
             branch_patterns      = { main = null }
           }
         }
+      }
+    }
+    personal-finance-operations = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "personal-finance-operations"
+          description = "Personal Finance preview and alert operation credentials"
+        }
+        environments = {
+          preview = {
+            name             = "Isolated previews"
+            personal_configs = false
+            configs          = []
+          }
+          alerts = {
+            name             = "Alert evaluation and delivery"
+            personal_configs = false
+            configs          = []
+          }
+        }
+      }
+      github = {
+        repository   = "hq"
+        environments = {}
       }
     }
   }
