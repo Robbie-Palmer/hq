@@ -3,6 +3,7 @@ _subdirectory: "copier-templates/monorepo-project"
 _exclude:
   - "__no_terraform_root__"
   - "__no_rollout_root__"
+  - "__no_operations_root__"
 _skip_if_exists:
   - "packages/*/src/project-schema.ts"
   - "workers/*/src/project-authorization.ts"
@@ -27,3 +28,12 @@ rollout_root_path:
   default: >-
     {%- set roots = blueprint.components | selectattr("kind", "equalto", "terraform-root") | list -%}
     {{ roots[0].path if roots | length == 1 else "__no_rollout_root__" }}
+
+operations_root_path:
+  type: str
+  when: false
+  default: >-
+    {%- set roots = blueprint.components | selectattr("kind", "equalto", "terraform-root") | list -%}
+    {%- set rollout = blueprint.rollout | default({}, true) -%}
+    {%- set operations = rollout.stateful_operations | default(none, true) -%}
+    {{ roots[0].path if roots | length == 1 and operations else "__no_operations_root__" }}

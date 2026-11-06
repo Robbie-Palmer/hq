@@ -60,6 +60,14 @@ resolved targets as catalog records. Profile version 1 remains valid and still
 resolves to blueprint version 2. Version 2 remains valid and resolves to
 blueprint version 3.
 
+Profiles that own a stateful serverless service can declare
+`rollout.stateful_operations`. The contract names repository mise hooks,
+protected GitHub environments, and redacted `doppler://project/config`
+references. Copier writes the operation dispatcher, workflow callers, runbook,
+secret handoff checkpoints, and rollout evidence schema into the project's
+Terraform component. The shared reusable workflow remains repository-owned.
+The generator never writes credential values or invokes a provider.
+
 Set `project.published: false` for an internal fixture. Copier still records
 its resolved blueprint and owns its declared component paths, but it does not
 add the fixture to the public repository-layout or platform catalogs and does

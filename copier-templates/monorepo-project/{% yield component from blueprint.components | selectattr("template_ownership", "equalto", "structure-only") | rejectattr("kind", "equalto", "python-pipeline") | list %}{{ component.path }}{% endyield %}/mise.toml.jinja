@@ -1,3 +1,4 @@
+{% set rollout = blueprint.rollout | default({}, true) -%}
 {% if component.runtime_role | default("") == "authenticated-worker" -%}
 [tasks.install]
 description = "Install {{ component.name }} dependencies"
@@ -77,5 +78,16 @@ depends = ["typecheck", "test", "db:check"]
 {% else -%}
 [tasks.check]
 description = "Validate the generated {{ component.name }} structural boundary"
-run = "test -f generated-component.yaml"
+run = [
+  "test -f generated-component.yaml",
+{% if component.kind == "terraform-root" and rollout.stateful_operations | default(none, true) %}  "bash -n operations/operate.sh",
+  "test -f operations/generated-operations.yaml",
+  "test -f operations/rollout-evidence.schema.json",
+{% endif %}]
+{% if component.kind == "terraform-root" and rollout.stateful_operations | default(none, true) %}
+
+[tasks."operations:run"]
+description = "Run a generated stateful project operation"
+run = "bash operations/operate.sh"
+{% endif -%}
 {% endif -%}
