@@ -56,7 +56,7 @@ run = "uv run --locked pathologize-registry validate"
 
 [tasks.verify]
 description = "Require and validate the complete bounded starter subset"
-depends = ["sync"]
+depends = ["acquire"]
 run = "uv run --locked pathologize-registry validate --require-assets"
 
 [tasks.dvc]

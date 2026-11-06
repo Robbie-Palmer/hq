@@ -653,6 +653,7 @@ depends = [
     "//ml-pipelines/recipe-dataset:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/financial-document-idp-evaluation:test:coverage",
+    "//ml-pipelines/pathologize-data-registry:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//data-pipelines/work-graph-analytics:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",

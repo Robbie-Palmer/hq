@@ -46,6 +46,27 @@ from the public IDC objects in `dvc.yaml`. No registry command uploads to R2.
 Adding a remote or redistributing source bytes needs a separate licence and
 cost review.
 
+## Standards boundary
+
+The platform accepts DVC for dataset and evaluation-artifact versioning and
+OCI as the portable artifact envelope. Agent-first Writing also accepts
+ModelPack v0.0.7 for model metadata and CNCF media types on top of OCI. That is
+the repository's concrete model-packaging precedent. Pathologize should reuse
+it instead of creating another model manifest when it registers model weights.
+This dataset registry contains no model artifacts.
+
+ModelPack defines media types for dataset files bundled as layers in a model
+package. It does not define a standalone dataset metadata record. The registry
+therefore uses generated JSON Schemas for its governance records and SPDX
+licence identifiers for source terms. It does not claim CNCF compatibility for
+those dataset records. Adopting a portable dataset metadata format, such as
+MLCommons Croissant, needs a separate decision and migration contract.
+
+The platform DVC decision normally requires an external DVC blob remote. This
+starter registry is a stated exception because this change may not upload to
+R2. Its DVC stage reconstructs the pinned output from public IDC objects. A
+later remote decision must preserve the same digests and source terms.
+
 ## Commands
 
 Run every command through mise from anywhere in the repository:
