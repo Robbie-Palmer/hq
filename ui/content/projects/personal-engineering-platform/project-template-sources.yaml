@@ -3,6 +3,6 @@ schema_version: 1
 templates:
   - id: "monorepo-project"
     source: "https://github.com/Robbie-Palmer/hq.git"
-    revision: "cb04207da91ee39ecbf31157823d6dbbc60be5af"
+    revision: "dd37b7bbc2c5719730824f0aebf2359896b153ec"
     checks:
       - "//:layout:check"

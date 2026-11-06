@@ -1,0 +1,135 @@
+import { createRoute, OpenAPIHono, z } from "@hono/zod-openapi";
+import type { Context } from "hono";
+import {
+  closeRuntimeDatabase,
+  createRuntimeDatabase,
+  type RuntimeDatabase,
+  type RuntimeDatabaseClient,
+} from "personal-finance-data";
+import {
+  createAuth,
+  type AuthenticatedSession,
+  type AuthEnv,
+  type RuntimeAuth,
+} from "./auth";
+import {
+  requireAuthorization,
+  type AuthorizationPolicy,
+  type AuthorizationRequest,
+} from "./authorization";
+import { projectAuthorization } from "./project-authorization";
+import { registerProjectRoutes } from "./project-routes";
+
+export type Bindings = AuthEnv & {
+  HYPERDRIVE?: { connectionString: string };
+  DATABASE_URL?: string;
+  DEPLOYMENT_ENV?: string;
+};
+
+type RuntimeVariables = {
+  auth: RuntimeAuth;
+  authorizationPolicy: AuthorizationPolicy;
+  db: RuntimeDatabase;
+  session: AuthenticatedSession | null;
+};
+
+type RuntimeEnv = {
+  Bindings: Bindings;
+  Variables: RuntimeVariables;
+};
+
+export type RuntimeApp = OpenAPIHono<RuntimeEnv>;
+
+type RuntimeConnection = {
+  client: RuntimeDatabaseClient;
+  db: RuntimeDatabase;
+};
+
+export type RuntimeDependencies = {
+  authorizationPolicy: AuthorizationPolicy;
+  closeDatabase: (client: RuntimeDatabaseClient) => Promise<void>;
+  connectDatabase: (env: Bindings) => RuntimeConnection;
+  createAuth: (db: RuntimeDatabase, env: Bindings) => RuntimeAuth;
+  registerRoutes: (app: RuntimeApp) => void;
+};
+
+const healthRoute = createRoute({
+  method: "get",
+  path: "/health",
+  operationId: "getHealth",
+  tags: ["health"],
+  responses: {
+    200: {
+      description: "The Worker process is accepting requests.",
+      content: {
+        "application/json": {
+          schema: z.object({ status: z.literal("ok") }),
+        },
+      },
+    },
+  },
+});
+
+const defaults: RuntimeDependencies = {
+  authorizationPolicy: projectAuthorization,
+  closeDatabase: closeRuntimeDatabase,
+  connectDatabase: createRuntimeDatabase,
+  createAuth,
+  registerRoutes: registerProjectRoutes,
+};
+
+export function createRuntimeApp(
+  replacements: Partial<RuntimeDependencies> = {},
+): RuntimeApp {
+  const dependencies = { ...defaults, ...replacements };
+  const app = new OpenAPIHono<RuntimeEnv>();
+
+  app.openapi(healthRoute, (context) => context.json({ status: "ok" }, 200));
+
+  app.use("/api/*", async (context, next) => {
+    const { client, db } = dependencies.connectDatabase(context.env);
+    context.set("db", db);
+    context.set("auth", dependencies.createAuth(db, context.env));
+    context.set("authorizationPolicy", dependencies.authorizationPolicy);
+    context.set("session", null);
+    try {
+      await next();
+    } finally {
+      await dependencies.closeDatabase(client);
+    }
+  });
+
+  app.on(["GET", "POST"], "/api/auth/*", (context) =>
+    context.var.auth.handler(context.req.raw),
+  );
+
+  app.use("/api/*", async (context, next) => {
+    const session = await context.var.auth.api.getSession({
+      headers: context.req.raw.headers,
+    });
+    context.set("session", session);
+    await next();
+  });
+
+  dependencies.registerRoutes(app);
+  return app;
+}
+
+export function requireAuthenticatedSession(
+  context: Context<RuntimeEnv>,
+): AuthenticatedSession {
+  const session = context.var.session;
+  if (!session) throw new Error("Authentication required");
+  return session;
+}
+
+export function authorizeProjectRequest(
+  context: Context<RuntimeEnv>,
+  request: AuthorizationRequest,
+): Promise<void> {
+  return requireAuthorization(
+    context.var.authorizationPolicy,
+    requireAuthenticatedSession(context),
+    request,
+  );
+}
