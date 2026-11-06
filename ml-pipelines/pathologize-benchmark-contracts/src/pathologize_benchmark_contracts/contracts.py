@@ -114,26 +114,157 @@ class FixtureManifest(StrictModel):
 
 class RegistryAnnotation(StrictModel):
     kind: Literal["tissue_mask", "artifact_mask", "nucleus_instances", "nucleus_classes"]
-    uri: str = Field(min_length=1)
-    sha256: str = Field(pattern=SHA256_PATTERN)
+    croissant_record_set_id: str = Field(min_length=1)
+    croissant_record_id: str = Field(min_length=1)
+    derived_from_representation: str = Field(min_length=1)
+
+
+class CroissantDatasetReference(StrictModel):
+    conforms_to: Literal["http://mlcommons.org/croissant/1.1"]
+    metadata_uri: str = Field(min_length=1)
+    metadata_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class RegistryProvenance(StrictModel):
+    ro_crate_conforms_to: Literal["https://w3id.org/ro/crate/1.3"]
+    ro_crate_metadata_uri: str = Field(min_length=1)
+    ro_crate_metadata_sha256: str = Field(pattern=SHA256_PATTERN)
+    prov_o_conforms_to: Literal["https://www.w3.org/TR/prov-o/"]
+    prov_o_graph_uri: str = Field(min_length=1)
+    prov_o_graph_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class RepresentationRole(StrEnum):
+    SOURCE = "source"
+    INTERCHANGE = "interchange"
+    COMPUTE_DERIVATIVE = "compute_derivative"
+
+
+class RepresentationFormat(StrEnum):
+    DICOM_WSI = "dicom_wsi"
+    VENDOR_NATIVE_WSI = "vendor_native_wsi"
+    OME_ZARR = "ome_zarr"
+
+
+class RegistryRepresentationBase(StrictModel):
+    representation_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]+$")
+    croissant_distribution_id: str = Field(min_length=1)
+    derived_from: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def require_unique_derived_representations(self) -> Self:
+        if len(self.derived_from) != len(set(self.derived_from)):
+            raise ValueError("derived representation IDs must be unique")
+        return self
+
+
+class VendorNativeWsiRepresentation(RegistryRepresentationBase):
+    role: Literal[RepresentationRole.SOURCE]
+    format: Literal[RepresentationFormat.VENDOR_NATIVE_WSI]
+    conforms_to: Literal[None]
+    dicom_sop_class_uid: Literal[None] = None
+    derived_from: list[str] = Field(default_factory=list, max_length=0)
+
+
+class DicomWsiRepresentationBase(RegistryRepresentationBase):
+    format: Literal[RepresentationFormat.DICOM_WSI]
+    conforms_to: Literal[
+        "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html"
+    ]
+    dicom_sop_class_uid: Literal["1.2.840.10008.5.1.4.1.1.77.1.6"]
+
+
+class DicomWsiSourceRepresentation(DicomWsiRepresentationBase):
+    role: Literal[RepresentationRole.SOURCE]
+    derived_from: list[str] = Field(default_factory=list, max_length=0)
+
+
+class DicomWsiInterchangeRepresentation(DicomWsiRepresentationBase):
+    role: Literal[RepresentationRole.INTERCHANGE]
+    derived_from: list[str] = Field(min_length=1)
+
+
+class OmeZarrRepresentation(RegistryRepresentationBase):
+    role: Literal[RepresentationRole.COMPUTE_DERIVATIVE]
+    format: Literal[RepresentationFormat.OME_ZARR]
+    conforms_to: Literal["https://ngff.openmicroscopy.org/specifications/0.6/"]
+    dicom_sop_class_uid: Literal[None] = None
+    derived_from: list[str] = Field(min_length=1)
+
+
+RegistryRepresentation = (
+    VendorNativeWsiRepresentation
+    | DicomWsiSourceRepresentation
+    | DicomWsiInterchangeRepresentation
+    | OmeZarrRepresentation
+)
 
 
 class RegistryItem(StrictModel):
     item_id: str = Field(min_length=1)
     split: Split
-    image_uri: str = Field(min_length=1)
-    image_sha256: str = Field(pattern=SHA256_PATTERN)
+    croissant_record_set_id: str = Field(min_length=1)
+    croissant_record_id: str = Field(min_length=1)
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     microns_per_pixel_x: float = Field(gt=0)
     microns_per_pixel_y: float = Field(gt=0)
     leakage: LeakageKeys
+    representations: list[RegistryRepresentation] = Field(min_length=1)
     annotations: list[RegistryAnnotation]
+
+    @model_validator(mode="after")
+    def require_consistent_representation_graph(self) -> Self:
+        identifiers = [item.representation_id for item in self.representations]
+        if len(identifiers) != len(set(identifiers)):
+            raise ValueError("representation IDs must be unique within a registry item")
+        known = set(identifiers)
+        if not any(item.role == RepresentationRole.SOURCE for item in self.representations):
+            raise ValueError("a registry item must retain a source representation")
+        by_id = {item.representation_id: item for item in self.representations}
+        for representation in self.representations:
+            missing = set(representation.derived_from) - known
+            if representation.representation_id in representation.derived_from:
+                raise ValueError("a representation cannot derive from itself")
+            if missing:
+                raise ValueError(
+                    f"unknown derived representation IDs: {', '.join(sorted(missing))}"
+                )
+
+        def reaches_source(representation_id: str, visiting: frozenset[str]) -> bool:
+            if representation_id in visiting:
+                return False
+            representation = by_id[representation_id]
+            if representation.role == RepresentationRole.SOURCE:
+                return True
+            return any(
+                reaches_source(parent, visiting | {representation_id})
+                for parent in representation.derived_from
+            )
+
+        if any(
+            not reaches_source(representation.representation_id, frozenset())
+            for representation in self.representations
+        ):
+            raise ValueError("every derived representation must reach a source without a cycle")
+        missing_annotation_sources = {
+            annotation.derived_from_representation
+            for annotation in self.annotations
+            if annotation.derived_from_representation not in known
+        }
+        if missing_annotation_sources:
+            raise ValueError(
+                "annotations reference unknown representations: "
+                + ", ".join(sorted(missing_annotation_sources))
+            )
+        return self
 
 
 class RegistryExport(StrictModel):
-    contract: Literal["pathologize.data-registry-export/v1"]
+    contract: Literal["pathologize.data-registry-export/v2"]
     registry_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    dataset: CroissantDatasetReference
+    provenance: RegistryProvenance
     items: list[RegistryItem] = Field(min_length=1)
 
 
@@ -145,7 +276,7 @@ class SyntheticSource(StrictModel):
 
 class RegistrySource(StrictModel):
     kind: Literal["pathologize_registry"]
-    contract: Literal["pathologize.data-registry-export/v1"]
+    contract: Literal["pathologize.data-registry-export/v2"]
     registry_uri: str = Field(min_length=1)
     revision: str = Field(pattern=r"^[a-f0-9]{40}$")
     export_manifest: str
@@ -181,7 +312,6 @@ class AdapterSpec(StrictModel):
     entrypoint: str = Field(min_length=1)
     version: str = Field(min_length=1)
     artifact_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
-    paid_api_calls_allowed: Literal[False]
 
     @model_validator(mode="after")
     def pin_external_adapter(self) -> Self:
@@ -222,7 +352,6 @@ class ResourceBudget(StrictModel):
     max_prediction_bytes: int = Field(gt=0)
     max_pixels_read: int = Field(gt=0)
     max_accelerator_seconds: float = Field(ge=0)
-    max_paid_api_calls: Literal[0]
 
 
 class SuperResolutionSeam(StrictModel):
@@ -304,7 +433,6 @@ class ResourceUsage(StrictModel):
     prediction_bytes: int = Field(ge=0)
     pixels_read: int = Field(ge=0)
     accelerator_seconds: float = Field(ge=0)
-    paid_api_calls: Literal[0]
     observed_wall_seconds: float | None = Field(default=None, ge=0)
     observed_cpu_seconds: float | None = Field(default=None, ge=0)
     observed_peak_rss_bytes: int | None = Field(default=None, ge=0)

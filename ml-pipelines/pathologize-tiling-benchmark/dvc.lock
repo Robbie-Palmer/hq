@@ -5,8 +5,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: fixtures/spec.json
       hash: md5
@@ -31,8 +31,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic/manifest.json
       hash: md5
@@ -40,8 +40,8 @@ stages:
       size: 7191
     - path: experiments/tiling-magnification.json
       hash: md5
-      md5: 3b91c9d4ae9fb96bf979266e4727e269
-      size: 2248
+      md5: b3237f9ef31c3ff4e3df661d6daf6753
+      size: 2182
     - path: params.yaml
       hash: md5
       md5: 9d05cf9a407777cc8ebb57d366d86eeb
@@ -62,8 +62,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic
       hash: md5
@@ -72,8 +72,8 @@ stages:
       nfiles: 25
     - path: experiments/tiling-magnification.json
       hash: md5
-      md5: 3b91c9d4ae9fb96bf979266e4727e269
-      size: 2248
+      md5: b3237f9ef31c3ff4e3df661d6daf6753
+      size: 2182
     - path: outputs/contracts/validation.json
       hash: md5
       md5: b11f845db412ee100b9fe668092aecda
@@ -89,16 +89,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 3507369619eb2bc01cc6c09e9117815e.dir
-      size: 1715
+      md5: c32b830e3ae839d60c93c19d9df0650b.dir
+      size: 1692
       nfiles: 2
   evaluate_tiling_magnification:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic
       hash: md5
@@ -107,30 +107,30 @@ stages:
       nfiles: 25
     - path: experiments/tiling-magnification.json
       hash: md5
-      md5: 3b91c9d4ae9fb96bf979266e4727e269
-      size: 2248
+      md5: b3237f9ef31c3ff4e3df661d6daf6753
+      size: 2182
     - path: outputs/runs/tiling-magnification-contract-v1
       hash: md5
-      md5: 021199bdb11db15d37af91b121c85277.dir
-      size: 1715
+      md5: f48075dab3d685ddb48e892ac34b17b2.dir
+      size: 1692
       nfiles: 2
     outs:
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
       hash: md5
-      md5: 808e52850c93e3f937d3b3e754897eeb
-      size: 2943
+      md5: 7ed88da9c23c8293c234b90385c4a1de
+      size: 2746
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
       hash: md5
-      md5: 808e52850c93e3f937d3b3e754897eeb
-      size: 2943
+      md5: 7ed88da9c23c8293c234b90385c4a1de
+      size: 2746
     - path: params.yaml
       hash: md5
       md5: 9d05cf9a407777cc8ebb57d366d86eeb
@@ -138,8 +138,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: e35b0ac5489b57fd337ec8f7c4d5f506
-      size: 3603
+      md5: 8e21694739786b5bb4dbc586d27ef74c
+      size: 3374
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: eee49458c74d8a5aff7b377ccb313545

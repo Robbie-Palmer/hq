@@ -34,11 +34,6 @@
           "title": "Kind",
           "type": "string"
         },
-        "paid_api_calls_allowed": {
-          "const": false,
-          "title": "Paid Api Calls Allowed",
-          "type": "boolean"
-        },
         "version": {
           "minLength": 1,
           "title": "Version",
@@ -49,8 +44,7 @@
         "adapter_id",
         "kind",
         "entrypoint",
-        "version",
-        "paid_api_calls_allowed"
+        "version"
       ],
       "title": "AdapterSpec",
       "type": "object"
@@ -170,11 +164,6 @@
           "default": null,
           "title": "Observed Wall Seconds"
         },
-        "paid_api_calls": {
-          "const": 0,
-          "title": "Paid Api Calls",
-          "type": "integer"
-        },
         "pixels_read": {
           "minimum": 0,
           "title": "Pixels Read",
@@ -196,8 +185,7 @@
         "input_bytes",
         "prediction_bytes",
         "pixels_read",
-        "accelerator_seconds",
-        "paid_api_calls"
+        "accelerator_seconds"
       ],
       "title": "ResourceUsage",
       "type": "object"

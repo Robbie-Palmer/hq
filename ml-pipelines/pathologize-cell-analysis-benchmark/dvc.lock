@@ -5,8 +5,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: fixtures/spec.json
       hash: md5
@@ -31,8 +31,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic/manifest.json
       hash: md5
@@ -40,8 +40,8 @@ stages:
       size: 7191
     - path: experiments/cell-analysis.json
       hash: md5
-      md5: 544ab88ce49aed68f74f935543bf4c7c
-      size: 2371
+      md5: 5782e889b9c22b6c0542d097a812c39c
+      size: 2305
     - path: params.yaml
       hash: md5
       md5: bc0b3999abcf6c13a3a91e8510804c10
@@ -62,8 +62,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic
       hash: md5
@@ -72,8 +72,8 @@ stages:
       nfiles: 25
     - path: experiments/cell-analysis.json
       hash: md5
-      md5: 544ab88ce49aed68f74f935543bf4c7c
-      size: 2371
+      md5: 5782e889b9c22b6c0542d097a812c39c
+      size: 2305
     - path: outputs/contracts/validation.json
       hash: md5
       md5: 0850fc3a145b3d7edc28d8ed0d93a475
@@ -89,16 +89,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: e988773705309919bbd2958652d7e9fd.dir
-      size: 1701
+      md5: c41f1b3f611be28fdd122c4556065514.dir
+      size: 1678
       nfiles: 2
   evaluate_cell_analysis:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: data/synthetic
       hash: md5
@@ -107,30 +107,30 @@ stages:
       nfiles: 25
     - path: experiments/cell-analysis.json
       hash: md5
-      md5: 544ab88ce49aed68f74f935543bf4c7c
-      size: 2371
+      md5: 5782e889b9c22b6c0542d097a812c39c
+      size: 2305
     - path: outputs/runs/cell-analysis-contract-v1
       hash: md5
-      md5: 8197b2dc428137710de17b09df5001bf.dir
-      size: 1701
+      md5: ee9cca7c5eb18f0e6b6e697cf7813c8b.dir
+      size: 1678
       nfiles: 2
     outs:
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 8f5a911fece371cc69785540bcbdfcf9
-      size: 3061
+      md5: 42559af835ad2036f130400d3629ce88
+      size: 2864
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: ddde6509cf3f87bab07baed627c24386.dir
-      size: 60754
+      md5: 3195357e43c1579668b6caa17f719bc5.dir
+      size: 66105
       nfiles: 8
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 8f5a911fece371cc69785540bcbdfcf9
-      size: 3061
+      md5: 42559af835ad2036f130400d3629ce88
+      size: 2864
     - path: params.yaml
       hash: md5
       md5: bc0b3999abcf6c13a3a91e8510804c10
@@ -138,8 +138,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: 0cf357878daca2c02b8edfdd47a83441
-      size: 3749
+      md5: ed62fe86696c2056ed8b1ac582f9da9a
+      size: 3520
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: 08fa4f6e7087a15dfb17707bdc67b511

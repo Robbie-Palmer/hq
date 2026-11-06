@@ -31,8 +31,8 @@ The generated JSON Schemas define:
 Every experiment pins its source, evaluation split, leakage units, adapters,
 metric direction and gates, resource limits, and disabled super-resolution
 seam. Candidate adapters must pin a version and artifact SHA-256. The checked-in
-baseline reads fixture colors and makes no network, model, GPU, or paid API
-call. It tests the contracts and metric arithmetic. It is not a model choice.
+baseline reads fixture colors and makes no network, model, or GPU call. It tests
+the contracts and metric arithmetic. It is not a model choice.
 
 Run the package checks through mise:
 
@@ -47,15 +47,50 @@ Every split policy isolates `subject_id`, `specimen_id`, `block_id`, and
 remain opaque strings.
 
 An external registry experiment must pin contract
-`pathologize.data-registry-export/v1`, a 40-character Git revision, registry
+`pathologize.data-registry-export/v2`, a 40-character Git revision, registry
 URI, export path, and export SHA-256. `copy_raw_data` must be `false`. The
 importer validates those references and writes an index. It does not fetch or
 copy image bytes.
 
+The registry export references public standards at their actual lifecycle
+positions:
+
+| Boundary | Contract |
+| --- | --- |
+| Dataset structure and distributions | [MLCommons Croissant 1.1](https://docs.mlcommons.org/croissant/docs/croissant-spec-1.1.html) metadata, referenced by URI and SHA-256 |
+| Source or interchange slide representation | [DICOM VL Whole Slide Microscopy Image IOD](https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html), or an explicitly non-standard vendor-native source |
+| Derived compute representation | [OME-NGFF 0.6](https://ngff.openmicroscopy.org/specifications/0.6/) with a required link to its source representation |
+| Research-object packaging | [RO-Crate 1.3](https://www.researchobject.org/ro-crate/specification/1.3/) metadata, referenced by URI and SHA-256 |
+| Transformation provenance | [W3C PROV-O](https://www.w3.org/TR/prov-o/) graph, referenced by URI and SHA-256 |
+
+Pathologize validates its references and lifecycle invariants. It does not
+claim to validate the external Croissant, DICOM, OME-NGFF, RO-Crate, or PROV-O
+documents themselves. A registry producer must run the validators owned by
+those formats before publishing an export.
+
+DICOM and vendor-native objects remain source or interchange representations.
+OME-Zarr is a derived, compute-oriented representation for chunked analysis,
+labels, and multiresolution access. The export cannot describe OME-Zarr as a
+source, and every OME-Zarr representation names the representation it derives
+from.
+
+## Resource and cost boundary
+
+Experiment manifests bound bytes, pixels, and accelerator time. Scorecards
+record those measurements plus optional wall time, CPU time, and peak resident
+memory. They do not contain `paid_api_calls_allowed`, call-count pricing, or a
+benchmark-specific money type.
+
+If a future adapter uses metered provider inference, its run telemetry must use
+the platform's shared `Money` and `ResourceQuantity` semantics. Funding policy
+belongs to orchestration, while the scorecard records observed cost. Until a
+language-neutral shared contract exists, Pathologize does not publish monetary
+fields.
+
 ## Fixture formats
 
-The deterministic fixtures use Netpbm files because the parser is tiny and
-needs no imaging library. PPM means Portable Pixmap and stores RGB pixels. PGM
+The deterministic fixtures use Netpbm files because the parser needs no imaging
+library. PPM means Portable Pixmap and stores RGB pixels. PGM
 means Portable Graymap and stores one integer channel, which the fixtures use
 for masks and instance IDs. These plain-text images are geometric contract
 fixtures. They do not resemble tissue or represent a patient cohort.
@@ -75,4 +110,5 @@ The public method references are:
   separately.
 
 The package makes no clinical-validity claim. Super-resolution remains a
-disabled, safety-bounded contract field. No image enhancement is implemented.
+disabled, safety-bounded contract field. The package implements no image
+enhancement.

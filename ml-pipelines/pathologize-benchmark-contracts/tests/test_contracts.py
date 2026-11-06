@@ -21,6 +21,7 @@ from pathologize_benchmark_contracts.contracts import (
     ExperimentManifest,
     FixtureManifest,
     LeakageUnit,
+    RegistryExport,
     RegistrySource,
     Split,
 )
@@ -113,14 +114,27 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     generate_fixtures(configured_root)
     export_path = configured_root / "registry-export.json"
     export = {
-        "contract": "pathologize.data-registry-export/v1",
+        "contract": "pathologize.data-registry-export/v2",
         "registry_revision": "a" * 40,
+        "dataset": {
+            "conforms_to": "http://mlcommons.org/croissant/1.1",
+            "metadata_uri": "s3://external-registry/croissant.json",
+            "metadata_sha256": "b" * 64,
+        },
+        "provenance": {
+            "ro_crate_conforms_to": "https://w3id.org/ro/crate/1.3",
+            "ro_crate_metadata_uri": "s3://external-registry/ro-crate-metadata.json",
+            "ro_crate_metadata_sha256": "c" * 64,
+            "prov_o_conforms_to": "https://www.w3.org/TR/prov-o/",
+            "prov_o_graph_uri": "s3://external-registry/provenance.jsonld",
+            "prov_o_graph_sha256": "d" * 64,
+        },
         "items": [
             {
                 "item_id": "opaque-item-1",
                 "split": "test",
-                "image_uri": "s3://external-registry/opaque-item-1",
-                "image_sha256": "b" * 64,
+                "croissant_record_set_id": "slides",
+                "croissant_record_id": "opaque-item-1",
                 "width": 100,
                 "height": 80,
                 "microns_per_pixel_x": 0.5,
@@ -133,6 +147,25 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
                     "acquisition_id": "opaque-acquisition",
                     "site_id": "opaque-site",
                 },
+                "representations": [
+                    {
+                        "representation_id": "source-dicom",
+                        "role": "source",
+                        "format": "dicom_wsi",
+                        "croissant_distribution_id": "dicom-wsi-files",
+                        "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
+                        "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
+                        "derived_from": [],
+                    },
+                    {
+                        "representation_id": "compute-ome-zarr",
+                        "role": "compute_derivative",
+                        "format": "ome_zarr",
+                        "croissant_distribution_id": "ome-zarr-files",
+                        "conforms_to": "https://ngff.openmicroscopy.org/specifications/0.6/",
+                        "derived_from": ["source-dicom"],
+                    },
+                ],
                 "annotations": [],
             }
         ],
@@ -142,7 +175,7 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     experiment = read_json(experiment_path)
     experiment["data_source"] = {
         "kind": "pathologize_registry",
-        "contract": "pathologize.data-registry-export/v1",
+        "contract": "pathologize.data-registry-export/v2",
         "registry_uri": "https://example.invalid/pathologize-registry",
         "revision": "a" * 40,
         "export_manifest": "registry-export.json",
@@ -157,7 +190,9 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     )
     assert imported["raw_data_copied"] is False
     assert imported["registry_revision"] == "a" * 40
-    assert imported["items"][0]["image_uri"].startswith("s3://external-registry/")
+    assert imported["dataset"]["conforms_to"] == "http://mlcommons.org/croissant/1.1"
+    assert imported["items"][0]["representations"][0]["format"] == "dicom_wsi"
+    assert imported["items"][0]["representations"][1]["format"] == "ome_zarr"
 
     export["registry_revision"] = "c" * 40
     write_json(export_path, export)
@@ -170,7 +205,7 @@ def test_registry_source_and_artifact_paths_are_strict(tmp_path: Path) -> None:
         RegistrySource.model_validate(
             {
                 "kind": "pathologize_registry",
-                "contract": "pathologize.data-registry-export/v1",
+                "contract": "pathologize.data-registry-export/v2",
                 "registry_uri": "https://example.invalid/registry",
                 "revision": "a" * 40,
                 "export_manifest": "export.json",
@@ -185,6 +220,109 @@ def test_registry_source_and_artifact_paths_are_strict(tmp_path: Path) -> None:
         resolve_under(root, "../outside.json")
     with pytest.raises(ValueError, match="relative"):
         resolve_under(root, tmp_path / "absolute.json")
+
+
+def test_registry_representations_enforce_standard_lifecycle_positions() -> None:
+    base = {
+        "contract": "pathologize.data-registry-export/v2",
+        "registry_revision": "a" * 40,
+        "dataset": {
+            "conforms_to": "http://mlcommons.org/croissant/1.1",
+            "metadata_uri": "s3://registry/croissant.json",
+            "metadata_sha256": "b" * 64,
+        },
+        "provenance": {
+            "ro_crate_conforms_to": "https://w3id.org/ro/crate/1.3",
+            "ro_crate_metadata_uri": "s3://registry/ro-crate-metadata.json",
+            "ro_crate_metadata_sha256": "c" * 64,
+            "prov_o_conforms_to": "https://www.w3.org/TR/prov-o/",
+            "prov_o_graph_uri": "s3://registry/provenance.jsonld",
+            "prov_o_graph_sha256": "d" * 64,
+        },
+        "items": [
+            {
+                "item_id": "item-1",
+                "split": "test",
+                "croissant_record_set_id": "slides",
+                "croissant_record_id": "item-1",
+                "width": 100,
+                "height": 80,
+                "microns_per_pixel_x": 0.5,
+                "microns_per_pixel_y": 0.5,
+                "leakage": {
+                    "subject_id": "subject-1",
+                    "specimen_id": "specimen-1",
+                    "block_id": "block-1",
+                    "slide_id": "slide-1",
+                    "acquisition_id": "acquisition-1",
+                    "site_id": "site-1",
+                },
+                "representations": [
+                    {
+                        "representation_id": "source-1",
+                        "role": "source",
+                        "format": "vendor_native_wsi",
+                        "croissant_distribution_id": "source-files",
+                        "conforms_to": None,
+                        "dicom_sop_class_uid": None,
+                        "derived_from": [],
+                    },
+                    {
+                        "representation_id": "compute-1",
+                        "role": "compute_derivative",
+                        "format": "ome_zarr",
+                        "croissant_distribution_id": "compute-files",
+                        "conforms_to": "https://ngff.openmicroscopy.org/specifications/0.6/",
+                        "derived_from": ["source-1"],
+                    },
+                ],
+                "annotations": [],
+            }
+        ],
+    }
+    assert RegistryExport.model_validate(base).items[0].representations[1].derived_from == [
+        "source-1"
+    ]
+
+    unsafe = base.copy()
+    unsafe["items"] = [base["items"][0].copy()]
+    unsafe["items"][0]["representations"] = [
+        item.copy() for item in base["items"][0]["representations"]
+    ]
+    unsafe["items"][0]["representations"][1]["derived_from"] = []
+    with pytest.raises(ValidationError):
+        RegistryExport.model_validate(unsafe)
+
+
+def test_registry_json_schema_encodes_representation_profiles() -> None:
+    schema = RegistryExport.model_json_schema()
+    definitions = schema["$defs"]
+    representation_schema = definitions["RegistryItem"]["properties"]["representations"]["items"]
+    assert {entry["$ref"] for entry in representation_schema["anyOf"]} == {
+        "#/$defs/VendorNativeWsiRepresentation",
+        "#/$defs/DicomWsiSourceRepresentation",
+        "#/$defs/DicomWsiInterchangeRepresentation",
+        "#/$defs/OmeZarrRepresentation",
+    }
+    assert (
+        definitions["DicomWsiSourceRepresentation"]["properties"]["dicom_sop_class_uid"]["const"]
+        == "1.2.840.10008.5.1.4.1.1.77.1.6"
+    )
+    assert definitions["OmeZarrRepresentation"]["properties"]["derived_from"]["minItems"] == 1
+
+
+def test_paid_inference_policy_is_not_part_of_benchmark_contracts(
+    configured_root: Path,
+) -> None:
+    value = read_json(configured_root / "experiments/whole-slide-quality.json")
+    value["baseline"]["paid_api_calls_allowed"] = False
+    with pytest.raises(ValidationError, match="paid_api_calls_allowed"):
+        ExperimentManifest.model_validate(value)
+
+    value = read_json(configured_root / "experiments/whole-slide-quality.json")
+    value["resource_budget"]["max_paid_api_calls"] = 0
+    with pytest.raises(ValidationError, match="max_paid_api_calls"):
+        ExperimentManifest.model_validate(value)
 
 
 def test_jsonl_and_model_helpers_round_trip(tmp_path: Path, configured_root: Path) -> None:

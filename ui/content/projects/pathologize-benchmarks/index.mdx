@@ -1,0 +1,66 @@
+---
+title: "Pathologize Benchmarks"
+description: "Separate reproducible benchmarks for computational pathology methods without owning clinical data"
+date: "2026-11-06"
+status: "in_progress"
+tech_stack:
+  - "Python"
+  - "Pydantic"
+  - "DVC"
+  - "DICOM"
+  - "OME-Zarr"
+  - "MLCommons Croissant"
+  - "W3C PROV"
+  - "RO-Crate"
+tags:
+  - "machine-learning"
+  - "bioinformatics"
+initiatives:
+  - "personalized-medicine"
+---
+
+# Purpose
+
+Pathologize Benchmarks compares computational pathology methods without copying
+clinical slides or choosing a foundation model before evidence exists. Each
+benchmark owns one evaluation question and produces a machine-readable
+scorecard from a pinned data reference, adapter, metrics, leakage policy, and
+resource budget.
+
+The initial executable projects are:
+
+* whole-slide tissue segmentation and artifact quality;
+* tissue-aware tiling and physical-scale policy; and
+* nucleus detection, instance segmentation, and cell classification.
+
+Slide-encoder and downstream biomarker evaluations will be separate projects
+after they have a concrete dataset contract and endpoint.
+
+# Data boundary
+
+The public repository contains deterministic geometric fixtures, schemas, DVC
+graphs, and trivial baselines. It contains no raw pathology data and makes no
+clinical-validity claim.
+
+The future registry import uses a pinned export rather than copying the
+registry. Croissant describes the dataset. DICOM WSI or a vendor-native file
+remains the source or interchange representation. OME-Zarr is a derived
+compute representation with an explicit source link. RO-Crate and PROV-O
+identify the package and transformations. DVC binds each benchmark run to its
+inputs and outputs.
+
+[ADR 000](/projects/pathologize-benchmarks/adrs/000-standards-based-pathology-data-boundary)
+records this lifecycle. [ADR
+001](/projects/pathologize-benchmarks/adrs/001-resource-and-cost-contract-boundary)
+keeps provider funding policy out of benchmark manifests.
+
+# Evaluation boundary
+
+Every split isolates subject, specimen, block, and slide identifiers. The
+current experiments also isolate acquisitions. Scorecards report objective
+metrics and measured compute resources. Synthetic fixtures prove contract and
+metric behavior only.
+
+Super-resolution remains a disabled future evaluation seam. A future study
+would have to preserve source pixels and report native-resolution results
+separately. This project does not implement image enhancement.

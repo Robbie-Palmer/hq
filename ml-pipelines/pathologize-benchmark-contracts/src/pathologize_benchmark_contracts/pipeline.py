@@ -97,6 +97,8 @@ def _load_registry_source(root: Path, source: RegistrySource) -> RegistryExport:
     if sha256_file(path) != source.export_sha256:
         raise ValueError("registry export SHA-256 differs from the pinned experiment source")
     export = load_model(path, RegistryExport)
+    if export.contract != source.contract:
+        raise ValueError("registry export contract differs from the experiment source")
     if export.registry_revision != source.revision:
         raise ValueError("registry revision differs from the pinned experiment source")
     return export
@@ -157,6 +159,8 @@ def import_registry(experiment_id: str, root: Path | None = None) -> None:
         "registry_revision": export.registry_revision,
         "export_sha256": manifest.data_source.export_sha256,
         "raw_data_copied": False,
+        "dataset": export.dataset.model_dump(mode="json"),
+        "provenance": export.provenance.model_dump(mode="json"),
         "items": [item.model_dump(mode="json") for item in export.items],
     }
     write_json(root / f"data/imported/{experiment_id}/registry-index.json", output)
@@ -190,7 +194,6 @@ def _run_adapter(
         prediction_bytes=prediction_bytes,
         pixels_read=sum(item.width * item.height for item in items),
         accelerator_seconds=0,
-        paid_api_calls=0,
         observed_wall_seconds=None,
         observed_cpu_seconds=None,
         observed_peak_rss_bytes=None,
@@ -316,14 +319,12 @@ def _resource_gates(
         "prediction_bytes": budget.max_prediction_bytes,
         "pixels_read": budget.max_pixels_read,
         "accelerator_seconds": budget.max_accelerator_seconds,
-        "paid_api_calls": budget.max_paid_api_calls,
     }
     resource_values = {
         "input_bytes": run.resources.input_bytes,
         "prediction_bytes": run.resources.prediction_bytes,
         "pixels_read": run.resources.pixels_read,
         "accelerator_seconds": run.resources.accelerator_seconds,
-        "paid_api_calls": run.resources.paid_api_calls,
     }
     return [
         GateResult(

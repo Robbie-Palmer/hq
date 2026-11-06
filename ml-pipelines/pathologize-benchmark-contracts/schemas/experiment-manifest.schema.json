@@ -34,11 +34,6 @@
           "title": "Kind",
           "type": "string"
         },
-        "paid_api_calls_allowed": {
-          "const": false,
-          "title": "Paid Api Calls Allowed",
-          "type": "boolean"
-        },
         "version": {
           "minLength": 1,
           "title": "Version",
@@ -49,8 +44,7 @@
         "adapter_id",
         "kind",
         "entrypoint",
-        "version",
-        "paid_api_calls_allowed"
+        "version"
       ],
       "title": "AdapterSpec",
       "type": "object"
@@ -153,7 +147,7 @@
       "additionalProperties": false,
       "properties": {
         "contract": {
-          "const": "pathologize.data-registry-export/v1",
+          "const": "pathologize.data-registry-export/v2",
           "title": "Contract",
           "type": "string"
         },
@@ -212,11 +206,6 @@
           "title": "Max Input Bytes",
           "type": "integer"
         },
-        "max_paid_api_calls": {
-          "const": 0,
-          "title": "Max Paid Api Calls",
-          "type": "integer"
-        },
         "max_pixels_read": {
           "exclusiveMinimum": 0,
           "title": "Max Pixels Read",
@@ -232,8 +221,7 @@
         "max_input_bytes",
         "max_prediction_bytes",
         "max_pixels_read",
-        "max_accelerator_seconds",
-        "max_paid_api_calls"
+        "max_accelerator_seconds"
       ],
       "title": "ResourceBudget",
       "type": "object"

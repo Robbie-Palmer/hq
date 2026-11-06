@@ -19,8 +19,7 @@
     "kind": "builtin",
     "entrypoint": "pathologize_benchmark_contracts.adapters:DeterministicColorBaseline",
     "version": "1.0.0",
-    "artifact_sha256": null,
-    "paid_api_calls_allowed": false
+    "artifact_sha256": null
   },
   "candidate": null,
   "objectives": [
@@ -34,8 +33,7 @@
     "max_input_bytes": 200000,
     "max_prediction_bytes": 200000,
     "max_pixels_read": 10000,
-    "max_accelerator_seconds": 0,
-    "max_paid_api_calls": 0
+    "max_accelerator_seconds": 0
   },
   "super_resolution": {
     "enabled": false,

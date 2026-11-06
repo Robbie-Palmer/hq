@@ -39,9 +39,7 @@ def test_full_pipeline_builds_typed_hill_climbable_scorecards(
     assert all(scorecard.clinical_validity is False for scorecard in aggregate.scorecards)
     assert all(gate.passed for scorecard in aggregate.scorecards for gate in scorecard.gates)
     assert all(
-        scorecard.baseline.resources.accelerator_seconds == 0
-        and scorecard.baseline.resources.paid_api_calls == 0
-        for scorecard in aggregate.scorecards
+        scorecard.baseline.resources.accelerator_seconds == 0 for scorecard in aggregate.scorecards
     )
 
     metrics = read_json(reproduced_benchmark_root / "outputs/scorecard/metrics.json")
@@ -184,7 +182,6 @@ def test_candidate_must_improve_without_breaking_resource_budget(
                 prediction_bytes=manifest.resource_budget.max_prediction_bytes + 1,
                 pixels_read=baseline_resources.pixels_read,
                 accelerator_seconds=baseline_resources.accelerator_seconds,
-                paid_api_calls=0,
                 observed_wall_seconds=None,
                 observed_cpu_seconds=None,
                 observed_peak_rss_bytes=None,
