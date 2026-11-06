@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "collection_id": "cptac-coad-idc-v7",
+  "collection_id": "cptac-coad-idc",
   "title": "DICOM converted Slide Microscopy images for the CPTAC-COAD collection",
-  "description": "Public DICOM slide-microscopy conversion of the CPTAC colon adenocarcinoma collection in Imaging Data Commons release v7.",
+  "description": "Public DICOM slide-microscopy conversion of the CPTAC colon adenocarcinoma collection in NCI Imaging Data Commons.",
   "registration_status": "acquired_subset",
   "source": {
     "publisher": "National Cancer Institute Imaging Data Commons",
-    "landing_page_url": "https://doi.org/10.5281/zenodo.12666785",
+    "landing_page_url": "https://doi.org/10.5281/zenodo.13351625",
     "documentation_urls": [
       "https://learn.canceridc.dev/data/downloading-data",
+      "https://github.com/ImagingDataCommons/idc-index-data/releases/tag/23.10.1",
       "https://datacommons.cancer.gov/repository/imaging-data-commons"
     ],
-    "doi": "10.5281/zenodo.12666785",
-    "source_version": "IDC v7 manifest; metadata checked against idc-index v23",
+    "doi": "10.5281/zenodo.13351625",
+    "source_version": "IDC v10 series version selected from idc-index-data 23.10.1 for IDC v23",
     "retrieved_at": "2026-11-06"
   },
   "access": {
@@ -32,11 +33,11 @@
     "scope": "The Zenodo dataset record and IDC file metadata identify this collection as CC BY 3.0.",
     "redistribution": "Redistribution is allowed only under CC BY 3.0 with attribution and a licence notice. This registry fetches from IDC and does not publish a separate data remote."
   },
-  "citation": "Clunie, D., Clifford, W., Pot, D., Wagner, U., Farahani, K., Kim, E., and Fedorov, A. (2024). DICOM converted Slide Microscopy images for the CPTAC-COAD collection. Zenodo. https://doi.org/10.5281/zenodo.12666785",
+  "citation": "Clunie, D., Clifford, W., Pot, D., Wagner, U., Farahani, K., Kim, E., and Fedorov, A. (2024). DICOM converted Slide Microscopy images for the CPTAC-COAD collection. Zenodo. https://doi.org/10.5281/zenodo.13351625",
   "known_scale": {
     "slides_or_series": 372,
     "bytes": 70234381296,
-    "basis": "IDC idc-index v23 SM series rows and series_size_MB totals queried on 2026-11-06."
+    "basis": "idc-index-data 23.10.1 SM series rows and series_size_MB totals for IDC v23, queried on 2026-11-06."
   },
   "source_native_label_domains": [
     "collection membership",
@@ -44,6 +45,6 @@
     "staining substances"
   ],
   "subsets": [
-    "cptac-coad-idc-v7-smallest-series"
+    "cptac-coad-idc-v23-smallest-series"
   ]
 }

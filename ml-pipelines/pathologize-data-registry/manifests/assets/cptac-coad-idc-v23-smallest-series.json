@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "asset_manifest_id": "cptac-coad-idc-v7-smallest-series-assets",
-  "subset_id": "cptac-coad-idc-v7-smallest-series",
+  "asset_manifest_id": "cptac-coad-idc-v23-smallest-series-assets",
+  "subset_id": "cptac-coad-idc-v23-smallest-series",
   "assets": [
     {
       "relative_path": "0192795d-4378-4ad3-8301-05a619500b52.dcm",

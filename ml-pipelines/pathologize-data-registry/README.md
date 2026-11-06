@@ -65,15 +65,17 @@ acquisition through DVC. `verify` requires all files in the acquired subset;
 
 1. Add a collection manifest with the publisher's source, access route,
    licence scope, redistribution conditions, and citation.
-2. Preserve source patient, case, specimen, slide, and label identities. Mark
-   missing metadata as missing instead of inferring it from filenames or
-   tissue appearance.
+2. Preserve source patient, case, specimen, slide, and label identities. Use
+   `null` for optional metadata that the source omits. If a required identity
+   is absent, keep the collection manifest-only until the schema supports an
+   honest representation; never infer it from filenames or tissue appearance.
 3. Keep large, gated, authenticated, or legally unclear collections
    manifest-only.
 4. Add a subset and asset manifest only when automated access is permitted.
    Bound the download, pin every source URL, and record each byte count and
    SHA-256 digest.
-5. Regenerate the schemas and run the project check.
+5. Declare the acquired subset's `data/raw` asset root as a DVC stage output.
+6. Regenerate the schemas and run the project check.
 
 ```bash
 mise //ml-pipelines/pathologize-data-registry:schemas

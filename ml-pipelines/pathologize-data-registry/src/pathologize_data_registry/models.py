@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from datetime import date
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -20,6 +22,22 @@ def require_relative_path(value: str) -> str:
     if value.startswith("/") or ".." in parts or "." in parts or "" in parts:
         raise ValueError("must be a normalized project-relative path")
     return value
+
+
+def source_url_is_allowlisted(source_url: str, base_urls: Iterable[str]) -> bool:
+    source = urlsplit(source_url)
+    if source.scheme != "https" or source.hostname is None:
+        return False
+    for base_url in base_urls:
+        base = urlsplit(base_url)
+        if (
+            base.scheme == "https"
+            and base.hostname == source.hostname
+            and base.port == source.port
+            and source.path.startswith(base.path)
+        ):
+            return True
+    return False
 
 
 class RegistryOwnership(StrictModel):
@@ -78,6 +96,8 @@ class AccessPolicy(StrictModel):
                 raise ValueError("automated acquisition requires anonymous public automated access")
             if not self.download_base_urls:
                 raise ValueError("automated acquisition requires an allowlisted download base URL")
+            if any(not (url.path or "").endswith("/") for url in self.download_base_urls):
+                raise ValueError("download base URLs must identify a path prefix ending in /")
         elif self.download_base_urls:
             raise ValueError("manifest-only collections must not expose acquisition base URLs")
         return self
@@ -147,7 +167,10 @@ class SubsetManifest(StrictModel):
     @field_validator("asset_root")
     @classmethod
     def validate_asset_root(cls, value: str) -> str:
-        return require_relative_path(value)
+        normalized = require_relative_path(value)
+        if not normalized.startswith("data/raw/"):
+            raise ValueError("must be contained by data/raw")
+        return normalized
 
 
 class AssetRecord(StrictModel):
@@ -203,7 +226,7 @@ class SourceIdentity(StrictModel):
 class ScannerMetadata(StrictModel):
     manufacturer: str = Field(min_length=1)
     model: str = Field(min_length=1)
-    device_serial_number: str = Field(min_length=1)
+    device_serial_number: str | None = Field(min_length=1)
     objective_power: float = Field(gt=0)
     conversion_note: str = Field(min_length=1)
 

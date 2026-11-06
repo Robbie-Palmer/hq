@@ -10,4 +10,4 @@ stages:
       - src/pathologize_data_registry
       - uv.lock
     outs:
-      - data/raw/cptac-coad-idc-v7/b117aabf-c225-432e-95af-8ee9247a1ad6
+      - data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6

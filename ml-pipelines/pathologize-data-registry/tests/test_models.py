@@ -6,7 +6,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from pathologize_data_registry.models import AssetRecord, RegistryIndex, SubsetManifest
+from pathologize_data_registry.models import (
+    AssetRecord,
+    RegistryIndex,
+    SlideRecord,
+    SubsetManifest,
+    source_url_is_allowlisted,
+)
 from pathologize_data_registry.repository import load_registry, validate_file, validate_registry
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -15,7 +21,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 def test_committed_registry_has_complete_references() -> None:
     registry = load_registry(PROJECT_DIR)
 
-    assert set(registry.collections) == {"camelyon16", "cptac-coad-idc-v7", "panda"}
+    assert set(registry.collections) == {"camelyon16", "cptac-coad-idc", "panda"}
     assert validate_registry(registry, require_assets=False) == []
     assert registry.collections["panda"].access.authentication_required is True
     assert registry.collections["camelyon16"].registration_status == "manifest_only"
@@ -30,11 +36,20 @@ def test_registry_rejects_parent_traversal() -> None:
 
 
 def test_subset_contract_rejects_task_split() -> None:
-    path = PROJECT_DIR / "manifests/subsets/cptac-coad-idc-v7-smallest-series.json"
+    path = PROJECT_DIR / "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
     payload["selection"]["task_split"] = "train"
 
     with pytest.raises(ValidationError):
+        SubsetManifest.model_validate(payload)
+
+
+def test_subset_contract_requires_data_raw_asset_root() -> None:
+    path = PROJECT_DIR / "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["asset_root"] = "derived/copied-slides"
+
+    with pytest.raises(ValidationError, match="contained by data/raw"):
         SubsetManifest.model_validate(payload)
 
 
@@ -51,9 +66,26 @@ def test_asset_contract_rejects_non_https_source() -> None:
         )
 
 
+def test_source_allowlist_compares_origin_and_path_boundary() -> None:
+    bases = ("https://public.example.test/series/",)
+
+    assert source_url_is_allowlisted("https://public.example.test/series/asset.dcm", bases)
+    assert not source_url_is_allowlisted("https://public.example.test/series-evil/a", bases)
+    assert not source_url_is_allowlisted("https://public.example.test.evil/series/a", bases)
+    assert not source_url_is_allowlisted("http://public.example.test/series/a", bases)
+
+
+def test_slide_contract_allows_explicitly_missing_scanner_serial() -> None:
+    path = PROJECT_DIR / "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["scanner"]["device_serial_number"] = None
+
+    assert SlideRecord.model_validate(payload).scanner.device_serial_number is None
+
+
 def test_validation_reports_cross_reference_and_missing_asset_errors(tmp_path: Path) -> None:
     source = load_registry(PROJECT_DIR)
-    collection = source.collections["cptac-coad-idc-v7"].model_copy(
+    collection = source.collections["cptac-coad-idc"].model_copy(
         update={"subsets": ["missing-subset"]}
     )
     broken = replace(

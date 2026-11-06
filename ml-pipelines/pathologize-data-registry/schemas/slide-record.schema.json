@@ -48,9 +48,16 @@
           "type": "string"
         },
         "device_serial_number": {
-          "minLength": 1,
-          "title": "Device Serial Number",
-          "type": "string"
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Device Serial Number"
         },
         "manufacturer": {
           "minLength": 1,

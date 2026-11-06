@@ -9,8 +9,8 @@ stages:
       size: 5
     - path: manifests
       hash: md5
-      md5: 9935e6ba9874949757bb19794fc62da3.dir
-      size: 10583
+      md5: 640f28b3bff7d13ee2179cd9ac94efbe.dir
+      size: 10775
       nfiles: 5
     - path: pyproject.toml
       hash: md5
@@ -18,24 +18,24 @@ stages:
       size: 1428
     - path: records
       hash: md5
-      md5: ffb315ac391584e2f1ff33572dc19cdb.dir
-      size: 2632
+      md5: 99668a2425834988b9733107555d4185.dir
+      size: 2627
       nfiles: 1
     - path: registry.json
       hash: md5
-      md5: 7e9a0218a373ff4813467fecdfc6db1f
-      size: 1288
+      md5: 4fb285bc034ce6e1248a51bf35b8a2aa
+      size: 1284
     - path: src/pathologize_data_registry
       hash: md5
-      md5: c1f6e77aef4600bfcde6848a9f17f352.dir
-      size: 28384
+      md5: 7e3e60645388b3b818a505a87fbfc59b.dir
+      size: 30996
       nfiles: 6
     - path: uv.lock
       hash: md5
       md5: a845c63dcfda3ed60a3bb00f1340ad76
       size: 68422
     outs:
-    - path: data/raw/cptac-coad-idc-v7/b117aabf-c225-432e-95af-8ee9247a1ad6
+    - path: data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
       md5: f5c467788e1301a842f27b1c97d25238.dir
       size: 18701962

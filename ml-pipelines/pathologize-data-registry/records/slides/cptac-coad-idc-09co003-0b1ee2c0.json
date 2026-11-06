@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "slide_id": "cptac-coad-idc-v7:09co003:0b1ee2c0",
-  "collection_id": "cptac-coad-idc-v7",
-  "subset_id": "cptac-coad-idc-v7-smallest-series",
+  "slide_id": "cptac-coad-idc:09co003:0b1ee2c0",
+  "collection_id": "cptac-coad-idc",
+  "subset_id": "cptac-coad-idc-v23-smallest-series",
   "identity": {
     "patient_id": "09CO003",
     "case_id": "09CO003",

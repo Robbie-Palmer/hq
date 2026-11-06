@@ -3,11 +3,12 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from contextlib import closing
+from http.client import HTTPMessage
 from pathlib import Path
-from typing import BinaryIO, Protocol, cast
-from urllib.request import Request, urlopen
+from typing import IO, BinaryIO, Protocol, cast, override
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from pathologize_data_registry.models import AssetRecord
+from pathologize_data_registry.models import AssetRecord, source_url_is_allowlisted
 from pathologize_data_registry.repository import sha256_file
 
 
@@ -24,19 +25,41 @@ class AcquisitionError(RuntimeError):
     pass
 
 
-def _default_opener(request: Request) -> Response:
-    response = urlopen(  # noqa: S310 - registry validation allowlists the URL.
+class _AllowlistedRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, allowed_base_urls: tuple[str, ...]) -> None:
+        self.allowed_base_urls = allowed_base_urls
+        super().__init__()
+
+    @override
+    def redirect_request(
+        self,
+        req: Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> Request | None:
+        if not source_url_is_allowlisted(newurl, self.allowed_base_urls):
+            raise AcquisitionError(f"redirect URL is not allowlisted: {newurl}")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def _default_opener(request: Request, allowed_base_urls: tuple[str, ...]) -> Response:
+    response = build_opener(_AllowlistedRedirectHandler(allowed_base_urls)).open(
         request, timeout=60
     )
     return cast(Response, response)
 
 
-def _copy_and_hash(source: Response, destination: BinaryIO) -> tuple[int, str]:
+def _copy_and_hash(source: Response, destination: BinaryIO, max_bytes: int) -> tuple[int, str]:
     import hashlib
 
     digest = hashlib.sha256()
     byte_count = 0
-    while chunk := source.read(1024 * 1024):
+    while chunk := source.read(min(1024 * 1024, max_bytes - byte_count + 1)):
+        if byte_count + len(chunk) > max_bytes:
+            return max_bytes + 1, digest.hexdigest()
         destination.write(chunk)
         digest.update(chunk)
         byte_count += len(chunk)
@@ -67,7 +90,8 @@ def acquire_asset(
     asset: AssetRecord,
     destination: Path,
     *,
-    opener: Opener = _default_opener,
+    allowed_base_urls: tuple[str, ...],
+    opener: Opener | None = None,
 ) -> bool:
     if asset_matches(destination, asset):
         return False
@@ -78,9 +102,14 @@ def acquire_asset(
         str(asset.source_url),
         headers={"User-Agent": "pathologize-data-registry/0.1 (+public-data-acquisition)"},
     )
+    if not source_url_is_allowlisted(request.full_url, allowed_base_urls):
+        raise AcquisitionError(f"source URL is not allowlisted: {request.full_url}")
     try:
-        with closing(opener(request)) as response, temporary.open("wb") as output:
-            byte_count, sha256 = _copy_and_hash(response, output)
+        response = (
+            opener(request) if opener is not None else _default_opener(request, allowed_base_urls)
+        )
+        with closing(response) as source, temporary.open("wb") as output:
+            byte_count, sha256 = _copy_and_hash(source, output, asset.bytes)
             output.flush()
             os.fsync(output.fileno())
         _require_download_matches(asset, byte_count, sha256)

@@ -47,7 +47,7 @@ run = "uv run --locked pathologize-registry schemas --check"
 [tasks.acquire]
 description = "Acquire the bounded public starter subset and verify every SHA-256 digest"
 depends = ["sync"]
-run = "uv run --locked pathologize-registry acquire --subset cptac-coad-idc-v7-smallest-series"
+run = "uv run --locked pathologize-registry acquire --subset cptac-coad-idc-v23-smallest-series"
 
 [tasks.validate]
 description = "Validate registry manifests and any materialized source assets"

@@ -16,6 +16,7 @@ from pathologize_data_registry.models import (
     RegistryIndex,
     SlideRecord,
     SubsetManifest,
+    source_url_is_allowlisted,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -165,13 +166,17 @@ def _validate_primary_dicom(dataset: pydicom.Dataset, slide: SlideRecord, path: 
         "DeviceSerialNumber": slide.scanner.device_serial_number,
     }
     for keyword, expected in expected_values.items():
-        if getattr(dataset, keyword, None) != expected:
+        actual = getattr(dataset, keyword, None)
+        if (expected is None and _string(actual)) or (expected is not None and actual != expected):
             issues.append(f"{path}: DICOM {keyword} does not match the slide record")
-    objective_powers = {
-        float(item.ObjectiveLensPower)
-        for item in getattr(dataset, "OpticalPathSequence", [])
-        if hasattr(item, "ObjectiveLensPower")
-    }
+    try:
+        objective_powers = {
+            float(item.ObjectiveLensPower)
+            for item in getattr(dataset, "OpticalPathSequence", [])
+            if hasattr(item, "ObjectiveLensPower")
+        }
+    except (TypeError, ValueError):
+        objective_powers = set()
     if objective_powers != {slide.scanner.objective_power}:
         issues.append(f"{path}: objective power differs from the slide record")
     expected_labels = {
@@ -248,7 +253,7 @@ def validate_registry(  # noqa: C901 - one pass reports all cross-manifest and a
         issues.extend(
             f"asset {asset.relative_path}: source URL is not allowlisted"
             for asset in asset_manifest.assets
-            if not str(asset.source_url).startswith(allowed_bases)
+            if not source_url_is_allowlisted(str(asset.source_url), allowed_bases)
         )
         subset_slides = [registry.slides.get(slide_id) for slide_id in subset.slide_ids]
         if any(slide is None for slide in subset_slides):

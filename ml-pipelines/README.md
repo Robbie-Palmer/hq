@@ -4,6 +4,11 @@ ML projects in this directory use [DVC](https://dvc.org/) to version data,
 with a shared private Cloudflare R2 bucket (`dvc`) as remote storage.
 Each project stores data under its own prefix (e.g. `s3://dvc/recipe-parsing`).
 
+The `pathologize-data-registry` is the exception: it reconstructs its bounded
+raw subset from allowlisted public sources and has no R2 remote. Use its
+`acquire` or `repro` task; do not run the shared `pull` or `push` workflow for
+that project.
+
 Current projects:
 
 - `ai-review-evaluation`: versioned Pull Request replay corpora, controlled

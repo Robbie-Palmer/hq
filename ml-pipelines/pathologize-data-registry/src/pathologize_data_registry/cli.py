@@ -28,7 +28,7 @@ class RegistryApplication:
 
     def acquire(
         self,
-        subset: str = "cptac-coad-idc-v7-smallest-series",
+        subset: str = "cptac-coad-idc-v23-smallest-series",
         max_bytes: int = 50_000_000,
     ) -> None:
         registry = require_valid_registry(self.root)
@@ -44,10 +44,15 @@ class RegistryApplication:
             )
         asset_manifest = registry.asset_manifests[subset_manifest.asset_manifest_id]
         destination_root = self.root / subset_manifest.asset_root
+        allowed_base_urls = tuple(str(url) for url in collection.access.download_base_urls)
         downloaded = 0
         reused = 0
         for asset in asset_manifest.assets:
-            if acquire_asset(asset, destination_root / asset.relative_path):
+            if acquire_asset(
+                asset,
+                destination_root / asset.relative_path,
+                allowed_base_urls=allowed_base_urls,
+            ):
                 downloaded += 1
             else:
                 reused += 1

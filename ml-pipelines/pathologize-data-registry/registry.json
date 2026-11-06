@@ -4,17 +4,17 @@
   "description": "Canonical public source data and metadata for Pathologize computational-pathology projects.",
   "collections": [
     "manifests/collections/camelyon16.json",
-    "manifests/collections/cptac-coad-idc-v7.json",
+    "manifests/collections/cptac-coad-idc.json",
     "manifests/collections/panda.json"
   ],
   "subsets": [
-    "manifests/subsets/cptac-coad-idc-v7-smallest-series.json"
+    "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
   ],
   "asset_manifests": [
-    "manifests/assets/cptac-coad-idc-v7-smallest-series.json"
+    "manifests/assets/cptac-coad-idc-v23-smallest-series.json"
   ],
   "slide_records": [
-    "records/slides/cptac-coad-idc-v7-09co003-0b1ee2c0.json"
+    "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json"
   ],
   "ownership": {
     "owns": [

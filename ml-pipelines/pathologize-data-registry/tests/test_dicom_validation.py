@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 
+import pydicom
 from pydicom.dataset import Dataset, FileDataset, FileMetaDataset
 from pydicom.sequence import Sequence
 from pydicom.uid import ExplicitVRLittleEndian
@@ -41,7 +42,8 @@ def write_synthetic_dicom(path: Path, slide: SlideRecord, sop_instance_uid: str)
     dataset.ClinicalTrialProtocolID = "CPTAC-COAD"
     dataset.Manufacturer = slide.scanner.manufacturer
     dataset.ManufacturerModelName = slide.scanner.model
-    dataset.DeviceSerialNumber = slide.scanner.device_serial_number
+    if slide.scanner.device_serial_number is not None:
+        dataset.DeviceSerialNumber = slide.scanner.device_serial_number
     dataset.TotalPixelMatrixColumns = slide.physical_resolution.total_pixel_matrix_columns
     dataset.TotalPixelMatrixRows = slide.physical_resolution.total_pixel_matrix_rows
 
@@ -76,7 +78,7 @@ def write_synthetic_dicom(path: Path, slide: SlideRecord, sop_instance_uid: str)
 
 def test_synthetic_dicom_matches_source_contract(tmp_path: Path) -> None:
     slide = SlideRecord.model_validate_json(
-        (PROJECT_DIR / "records/slides/cptac-coad-idc-v7-09co003-0b1ee2c0.json").read_text(
+        (PROJECT_DIR / "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json").read_text(
             encoding="utf-8"
         )
     )
@@ -98,3 +100,44 @@ def test_synthetic_dicom_matches_source_contract(tmp_path: Path) -> None:
 
     wrong_asset = asset.model_copy(update={"image_role": "thumbnail"})
     assert any("ImageType" in issue for issue in validate_dicom(path, wrong_asset, slide))
+
+    slide_without_serial = slide.model_copy(
+        update={"scanner": slide.scanner.model_copy(update={"device_serial_number": None})}
+    )
+    no_serial_path = tmp_path / "no-serial.dcm"
+    write_synthetic_dicom(no_serial_path, slide_without_serial, sop_instance_uid)
+    no_serial_content = no_serial_path.read_bytes()
+    no_serial_asset = asset.model_copy(
+        update={
+            "relative_path": slide.physical_resolution.source_instance_path,
+            "bytes": len(no_serial_content),
+            "sha256": hashlib.sha256(no_serial_content).hexdigest(),
+        }
+    )
+    assert validate_dicom(no_serial_path, no_serial_asset, slide_without_serial) == []
+
+
+def test_dicom_validation_reports_empty_objective_power(tmp_path: Path) -> None:
+    slide = SlideRecord.model_validate_json(
+        (PROJECT_DIR / "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    path = tmp_path / slide.physical_resolution.source_instance_path
+    sop_instance_uid = "1.2.3.4.5"
+    write_synthetic_dicom(path, slide, sop_instance_uid)
+    dataset = pydicom.dcmread(path)
+    dataset.OpticalPathSequence[0].ObjectiveLensPower = None
+    dataset.save_as(path, enforce_file_format=True)
+    content = path.read_bytes()
+    asset = AssetRecord(
+        relative_path=path.name,
+        source_url="https://public.example.test/synthetic.dcm",
+        bytes=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        source_etag="0" * 32,
+        sop_instance_uid=sop_instance_uid,
+        image_role="volume_primary",
+    )
+
+    assert any("objective power" in issue for issue in validate_dicom(path, asset, slide))
