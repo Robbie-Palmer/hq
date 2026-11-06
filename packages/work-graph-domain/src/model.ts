@@ -1,8 +1,5 @@
 import type {
   ArchitectureDecisionRole,
-  KnowledgeScopeKind,
-  KnowledgeScopeLifecycle,
-  PullRequestCheckSummary,
   CompletionCandidateReason,
   DeliveryActionKind,
   DeliveryActionResultState,
@@ -11,6 +8,9 @@ import type {
   DeliveryRecoveryDeliveryKind,
   DeliveryRecoveryFallback,
   EvidenceCorrelationKind,
+  KnowledgeScopeKind,
+  KnowledgeScopeLifecycle,
+  PullRequestCheckSummary,
   PullRequestMergeability,
   PullRequestReviewDecision,
   PullRequestRole,
@@ -111,8 +111,11 @@ export interface PullRequestSnapshot {
   readonly reviewDecision: PullRequestReviewDecision | null;
   readonly checkSummary: PullRequestCheckSummary;
   readonly observedAt: string;
+  readonly changedPaths?: string[];
+  readonly deliveryMetadataSourceRevision?: string;
 }
 
+/** Immutable receipt used to deduplicate one provider transport envelope. */
 export interface ExternalDelivery {
   readonly provider: string;
   readonly externalId: string;
@@ -121,6 +124,11 @@ export interface ExternalDelivery {
   readonly ingestedAt: string;
 }
 
+/**
+ * One historical fact about a commit observed through a provider delivery.
+ * A fact becomes completion evidence only after correlation to an
+ * implementation pull request.
+ */
 export interface DeliveryEvidenceObservation {
   readonly id: string;
   readonly deliveryProvider: string;

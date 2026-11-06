@@ -17,6 +17,21 @@ const { privateKey, publicKey } = generateKeyPairSync("rsa", {
   modulusLength: 2048,
 });
 const privateKeyPem = privateKey.export({ type: "pkcs8", format: "pem" }).toString();
+const platformCatalog = `catalog:
+  records:
+    - id: delivery-target:site/api
+      kind: delivery-target
+      project: project:site
+      repository: example/site
+      source_path_bindings:
+        - path: workers/site
+          mode: exclusive
+          subjects: [component:site/api]
+      subjects: [component:site/api]
+      github:
+        required_ci_names: [CI]
+        production_environments: [production]
+`;
 
 function json(value: unknown): Response {
   return Response.json(value);
@@ -48,6 +63,34 @@ const githubHandlers = new Map<string, FetchHandler>([
     },
   ],
   [
+    "/repos/example/site",
+    (_url, init) => {
+      expectInstallationToken(init);
+      return json({ default_branch: "main" });
+    },
+  ],
+  [
+    "/repos/example/site/commits/main",
+    (_url, init) => {
+      expectInstallationToken(init);
+      return json({
+        commit: { committer: { date: "2026-10-17T08:00:00Z" } },
+      });
+    },
+  ],
+  [
+    "/repos/example/site/contents/ui/content/projects/personal-engineering-platform/platform.yaml",
+    (url, init) => {
+      expectInstallationToken(init);
+      expect(url.searchParams.get("ref")).toBe("main");
+      return json({
+        encoding: "base64",
+        content: Buffer.from(platformCatalog).toString("base64"),
+        sha: "catalog-sha",
+      });
+    },
+  ],
+  [
     "/repos/example/site/pulls/7",
     (_url, init) => {
       expectInstallationToken(init);
@@ -63,6 +106,15 @@ const githubHandlers = new Map<string, FetchHandler>([
         html_url: "https://github.com/example/site/pull/7",
         updated_at: "2026-10-17T08:30:00Z",
       });
+    },
+  ],
+  [
+    "/repos/example/site/pulls/7/files",
+    (_url, init) => {
+      expectInstallationToken(init);
+      return json([
+        { filename: "workers/site/src/new.ts", previous_filename: "workers/site/src/old.ts" },
+      ]);
     },
   ],
   [
@@ -199,6 +251,22 @@ describe("GitHub reconciliation", () => {
             (delivery.payload.deployment_status as { state: string }).state,
         ),
     ).toEqual(["success", "waiting"]);
+    const pullRequestDelivery = deliveries.find(
+      ({ event }) => event === "pull_request",
+    );
+    expect(pullRequestDelivery?.payload).toMatchObject({
+      pull_request: {
+        changed_paths: [
+          "workers/site/src/new.ts",
+          "workers/site/src/old.ts",
+        ],
+      },
+      work_graph_delivery_metadata: {
+        sourceRevision: "catalog-sha",
+        targets: [{ id: "delivery-target:site/api" }],
+      },
+      work_graph_delivery_metadata_created_at: "2026-10-17T08:00:00Z",
+    });
 
     deliveries.length = 0;
     await reconciler.reconcile([{ repository, number: 7 }]);

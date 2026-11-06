@@ -1,15 +1,15 @@
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
-import { projectPlanFromBlueprint } from "../src/profile-plan.js";
 import {
+  type ProjectProfileContracts,
   parseProjectProfile,
   parseProjectProfileContracts,
+  type ResolvedDeliveryEvidence,
   resolveProjectProfile,
   serializeResolvedBlueprint,
   validateResolvedDeliveryEvidenceCatalog,
-  type ProjectProfileContracts,
-  type ResolvedDeliveryEvidence,
 } from "../src/profile.js";
+import { projectPlanFromBlueprint } from "../src/profile-plan.js";
 
 const repositoryRoot = new URL("../../../", import.meta.url);
 const platformRoot = new URL(
@@ -52,6 +52,24 @@ async function blueprint(projectId: "recipe-site" | "work-graph") {
 }
 
 describe("production project delivery evidence", () => {
+  it("keeps the runtime catalog synchronized with Copier-compiled targets", async () => {
+    const currentContracts = await contracts();
+    const records = (
+      currentContracts.platform.catalog as {
+        records: Array<Record<string, unknown>>;
+      }
+    ).records;
+    for (const projectId of ["work-graph", "recipe-site"] as const) {
+      const resolved = await blueprint(projectId);
+      expect(
+        records.filter(
+          ({ kind, project }) =>
+            kind === "delivery-target" && project === `project:${projectId}`,
+        ),
+      ).toEqual(resolved.catalog.delivery_targets);
+    }
+  });
+
   it("compiles Work Graph component ownership into stable evidence targets", async () => {
     const first = await blueprint("work-graph");
     const second = await blueprint("work-graph");

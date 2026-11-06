@@ -2,6 +2,7 @@ import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
   InvalidGitHubDelivery,
   type DeliveryEvidenceObservation,
+  type GitHubDeliveryDisposition,
   type GitHubObservation,
   type PullRequestSnapshot,
 } from "work-graph-domain";
@@ -13,7 +14,6 @@ import {
   pullRequest,
   workItemPullRequest,
 } from "./schema";
-type Disposition = typeof githubDeliveryProcessing.$inferSelect.disposition;
 type EvidenceRecorder = (
   observation: DeliveryEvidenceObservation,
 ) => Promise<DeliveryEvidenceObservation>;
@@ -36,7 +36,7 @@ export async function appendCorrelatedEvidence(
   observation: GitHubObservation,
   recordEvidence: EvidenceRecorder,
   recordDeliveryAction?: DeliveryActionRecorder,
-): Promise<Disposition> {
+): Promise<GitHubDeliveryDisposition> {
   const fact = observation.evidence;
   const [existing] = await transaction
     .select()

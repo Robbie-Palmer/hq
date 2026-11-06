@@ -106,6 +106,7 @@ export const COMPLETION_CANDIDATE_REASONS = [
   "missing_pull_request_evidence",
   "missing_required_ci",
   "missing_production_deployment",
+  "missing_delivery_target_resolution",
   "unfinished_children",
   "unsatisfied_dependencies",
   "unresolved_blocking_attention",

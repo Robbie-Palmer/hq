@@ -1947,6 +1947,9 @@ importers:
       work-graph-domain:
         specifier: workspace:*
         version: link:../../packages/work-graph-domain
+      yaml:
+        specifier: ^2.8.2
+        version: 2.9.1
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^5.20260924.1

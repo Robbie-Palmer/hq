@@ -1,5 +1,3 @@
-import { parse } from "yaml";
-import { z } from "zod";
 import {
   type DeliveryEvidenceContract,
   deliveryEvidenceContractSchema,
@@ -18,8 +16,8 @@ import {
   parseOpenTelemetryContract,
 } from "platform-contracts/opentelemetry";
 import {
-  parsePlatformManifestSource,
   type PlatformManifestSource,
+  parsePlatformManifestSource,
 } from "platform-contracts/platform-manifest";
 import {
   parseRepositoryLayoutContract,
@@ -40,6 +38,8 @@ import {
   LOWERCASE_KEBAB_CASE_PATTERN,
   normalizeSlug,
 } from "ts-base/strings";
+import { parse } from "yaml";
+import { z } from "zod";
 
 const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -1579,6 +1579,7 @@ export function resolveProjectProfile(
     deliveryEvidence?.targets.map((target) => ({
       id: target.id,
       kind: "delivery-target",
+      name: `${profile.project.name} ${target.id.split("/").at(-1)} delivery target`,
       project: `project:${profile.project.id}`,
       repository: deliveryEvidence.repository,
       source_paths: target.source_paths.map(({ path: sourcePath }) => sourcePath),

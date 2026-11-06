@@ -1,6 +1,18 @@
+import {
+  type GeneratedDeliveryMetadataRevision,
+  normalizeGeneratedDeliveryMetadata,
+} from "./delivery-target";
 import { normalizeEvidenceObservation } from "./evidence";
 import type { DeliveryEvidenceObservation, PullRequestSnapshot } from "./model";
 
+/**
+ * One verified GitHub webhook envelope, identified by `X-GitHub-Delivery`.
+ * Reconciliation creates the same shape with a deterministic delivery ID so
+ * webhook and repair traffic share one idempotent ingestion path.
+ *
+ * Here, "delivery" means transport from GitHub to Work Graph. A separate
+ * deployment observation proves that a change reached production.
+ */
 export interface GitHubDelivery {
   readonly deliveryId: string;
   readonly event: string;
@@ -11,11 +23,35 @@ export interface GitHubDelivery {
   readonly repository: string;
 }
 
+/**
+ * The normalized fact extracted from a relevant GitHub delivery.
+ *
+ * `evidence` is the historical PR, CI, or deployment fact. `pullRequest`
+ * carries extra PR state used to correlate that fact with a Work Graph item.
+ * `providerSequence` prevents an older redelivery from replacing newer current
+ * evidence. Deliveries with no relevant fact normalize to `null` instead.
+ */
 export interface GitHubObservation {
   readonly evidence: DeliveryEvidenceObservation;
   readonly pullRequest: PullRequestSnapshot | null;
   readonly providerSequence: number;
+  readonly deliveryMetadata?: GeneratedDeliveryMetadataRevision;
+  readonly deliveryMetadataCreatedAt?: string;
 }
+
+/**
+ * The result of attempting to ingest and correlate one GitHub delivery.
+ *
+ * - `processed`: the observation was correlated and stored.
+ * - `ignored`: the delivery contained no relevant fact.
+ * - `unmatched`: no unique linked implementation PR owns the commit yet.
+ * - `failed`: parsing or persistence failed; the delivery may be retried.
+ */
+export type GitHubDeliveryDisposition =
+  | "processed"
+  | "ignored"
+  | "unmatched"
+  | "failed";
 
 export class InvalidGitHubDelivery extends Error {
   constructor() {
@@ -67,6 +103,35 @@ function deploymentState(value: unknown): DeliveryEvidenceObservation["state"] {
   return "pending";
 }
 
+function pullRequestChangedPaths(pr: RecordValue): string[] | undefined {
+  if (!Array.isArray(pr.changed_paths)) return undefined;
+  return pr.changed_paths
+    .map((path) => text(path))
+    .toSorted((left, right) => left.localeCompare(right));
+}
+
+function pullRequestDeliveryMetadata(delivery: GitHubDelivery): {
+  deliveryMetadata?: GeneratedDeliveryMetadataRevision;
+  deliveryMetadataCreatedAt?: string;
+} {
+  if (delivery.payload.work_graph_delivery_metadata === undefined) return {};
+  try {
+    const deliveryMetadata = normalizeGeneratedDeliveryMetadata(
+      delivery.payload
+        .work_graph_delivery_metadata as GeneratedDeliveryMetadataRevision,
+    );
+    const deliveryMetadataCreatedAt = text(
+      delivery.payload.work_graph_delivery_metadata_created_at,
+    );
+    if (!Number.isFinite(Date.parse(deliveryMetadataCreatedAt))) {
+      throw new InvalidGitHubDelivery();
+    }
+    return { deliveryMetadata, deliveryMetadataCreatedAt };
+  } catch {
+    throw new InvalidGitHubDelivery();
+  }
+}
+
 function pullRequestObservation(delivery: GitHubDelivery): GitHubObservation {
   const pr = record(delivery.payload.pull_request);
   const headSha = sha(record(pr.head).sha);
@@ -87,6 +152,7 @@ function pullRequestObservation(delivery: GitHubDelivery): GitHubObservation {
   if (merged && pr.state !== "closed") throw new InvalidGitHubDelivery();
   // GitHub uses merge_commit_sha for a speculative test merge on open PRs.
   const mergeCommitSha = merged ? sha(pr.merge_commit_sha) : null;
+  const changedPaths = pullRequestChangedPaths(pr);
   const snapshot: PullRequestSnapshot = {
     repository: delivery.repository.toLowerCase(),
     number: id(pr.number),
@@ -100,9 +166,23 @@ function pullRequestObservation(delivery: GitHubDelivery): GitHubObservation {
     reviewDecision: null,
     checkSummary: "unknown",
     observedAt: text(pr.updated_at),
+    ...(changedPaths === undefined ? {} : { changedPaths }),
+    ...(pr.delivery_metadata_source_revision === undefined
+      ? {}
+      : {
+          deliveryMetadataSourceRevision: text(
+            pr.delivery_metadata_source_revision,
+          ),
+        }),
   };
+  const { deliveryMetadata, deliveryMetadataCreatedAt } =
+    pullRequestDeliveryMetadata(delivery);
   return {
     pullRequest: snapshot,
+    ...(deliveryMetadata === undefined ? {} : { deliveryMetadata }),
+    ...(deliveryMetadataCreatedAt === undefined
+      ? {}
+      : { deliveryMetadataCreatedAt }),
     providerSequence: stateDetails[state].sequence,
     evidence: evidence(delivery, {
       externalId: `${snapshot.repository}/pull/${snapshot.number}`,

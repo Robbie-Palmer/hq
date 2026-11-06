@@ -1,0 +1,1 @@
+ALTER TABLE "pull_requests" ADD COLUMN "delivery_metadata_source_revision" text;

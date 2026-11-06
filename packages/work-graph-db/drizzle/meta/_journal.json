@@ -155,6 +155,34 @@
       "when": 1793832403755,
       "tag": "0021_allow_shared_delivery_action_evidence",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793854371865,
+      "tag": "0022_add_delivery_target_resolution_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793855345659,
+      "tag": "0023_track_delivery_metadata_source_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793859709523,
+      "tag": "0024_add_current_delivery_resolution",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793960820391,
+      "tag": "0025_add_current_delivery_metadata_revision",
+      "breakpoints": true
     }
   ]
 }

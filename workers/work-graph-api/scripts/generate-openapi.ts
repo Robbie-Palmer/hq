@@ -28,6 +28,8 @@ const repository: WorkGraphApiRepository = {
   getCompletionCandidate: unavailable,
   putCompletionPolicyRevision: unavailable,
   putRepositoryCompletionPolicyDefaultRevision: unavailable,
+  putDeliveryMetadataRevision: unavailable,
+  putDeliveryTargetOverride: unavailable,
   putDeliveryActionRequest: unavailable,
   listDeliveryRecoveries: unavailable,
   reserveDeliveryRecovery: unavailable,
