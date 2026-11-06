@@ -134,6 +134,7 @@ const recordedRolloutSchema = z
   .object({
     operational_checks: z.array(recordedOperationalCheckSchema),
     migration_checkpoints: z.array(recordedMigrationCheckpointSchema),
+    stateful_operations: z.unknown().optional(),
   })
   .strict();
 

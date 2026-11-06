@@ -1,0 +1,51 @@
+---
+title: "PDR 003: Evaluate pathology capabilities as independent benchmark families"
+date: "2026-11-06"
+status: "Proposed"
+evidence:
+  - title: "Patho-Bench public benchmark families"
+    url: "https://huggingface.co/datasets/MahmoodLab/Patho-Bench"
+  - title: "CellViT++ cell segmentation and classification"
+    url: "https://pubmed.ncbi.nlm.nih.gov/41576779/"
+  - title: "GrandQC whole-slide quality control study"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC11649692/"
+---
+
+## Context
+
+Slide-level biomarker prediction is only one computational-pathology capability. Whole-slide quality, tissue and
+artifact segmentation, tiling, nucleus analysis, cell phenotyping and slide representation have different labels,
+leakage units, failure costs and useful metrics.
+
+One end-to-end score would hide whether a change improved source quality, sampling, representation or aggregation.
+It would also make dense cell labels and weak slide labels look interchangeable.
+
+## Proposed decision
+
+Maintain independent benchmark families for:
+
+1. whole-slide ingestion, scanner metadata, tissue coverage and artifacts;
+2. tiling, physical resolution, multiresolution context and sampling policy;
+3. tissue-compartment segmentation;
+4. nucleus detection, instance segmentation and cell-type classification;
+5. patch and whole-slide representations; and
+6. slide-level morphology, molecular and biomarker tasks.
+
+Let downstream studies compose versioned outputs across these boundaries, but require each capability to report
+its own primary, guardrail, robustness and resource metrics. A downstream gain does not excuse an upstream model
+that inserts structure, leaks patients or relies on scanner artifacts.
+
+## Consequences
+
+The project can improve shared preprocessing without rerunning every biomarker model and can compare models at the
+level where their supervision exists. Failures become easier to locate.
+
+Several scorecards and label ontologies are harder to maintain than one leaderboard. Cross-family conclusions
+need explicit dependency versions. Some research questions will require a coordinated experiment across several
+projects rather than one pipeline run.
+
+## Evaluation
+
+Accept the proposal when the quality, tiling and cell families each reproduce a trivial baseline and publish
+machine-readable results with distinct leakage and metric contracts. Revisit the boundaries when two families
+cannot evolve or be evaluated independently.

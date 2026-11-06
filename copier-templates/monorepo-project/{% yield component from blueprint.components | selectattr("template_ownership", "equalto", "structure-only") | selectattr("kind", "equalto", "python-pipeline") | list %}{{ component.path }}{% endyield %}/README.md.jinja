@@ -1,0 +1,85 @@
+# {{ component.name }}
+
+This directory is the research pipeline for {{ blueprint.project.name }}. Its
+checked-in fixture is generated from a fixed seed and contains no human,
+patient, employer, or third-party data. The baseline model exists to test the
+pipeline contract. It does not support medical or clinical use.
+
+## First setup
+
+Run commands through mise. The template does not write `uv.lock` because the
+repository layout contract requires uv to create its own lockfile.
+
+```bash
+mise //{{ component.path }}:lock
+mise //{{ component.path }}:ci
+```
+
+Commit `uv.lock` and `dvc.lock` after reviewing the resolved packages and DVC
+stage hashes. `mise //{{ component.path }}:install` and every CI task use the
+lockfile with `--locked`.
+
+The checked-in DVC remote uses the shared private R2 bucket at
+`s3://dvc/{{ component.id }}`. The repository's `dev_ml_pipelines` Doppler
+config supplies `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY`; the shared
+wrapper maps them to the AWS names used by DVC's S3 transport. The endpoint and
+project prefix are public configuration. Credentials belong only in Doppler or
+the equivalent CI secret store.
+
+The generic `dvc` task runs local commands without loading credentials. Use
+`pull`, `push`, or `status:remote` when a command needs the R2 remote.
+
+## Pipeline
+
+`dvc.yaml` defines three local stages. `build_fixture` writes a deterministic
+JSONL dataset, `train` fits a small threshold baseline, and `evaluate` writes
+metrics plus content-hash provenance. None of the stages make a network call.
+
+```bash
+mise //{{ component.path }}:dvc:dag
+mise //{{ component.path }}:repro
+mise //{{ component.path }}:verify
+mise //{{ component.path }}:status:remote
+```
+
+The fixture tests repository wiring only. Replace the baseline when a research
+question needs another model, but keep model inputs, parameters, code, outputs,
+and compact metrics declared in DVC.
+
+## Data and evaluation extensions
+
+`registries/datasets.json` is the dataset identity boundary. Add public or
+privately governed datasets there only after adding a matching rights record.
+Keep source-specific download and validation code in this component, then add
+its checked manifest to the relevant DVC stage. Do not put credentials or
+private artifact bytes in Git.
+
+`registries/downstream-evaluations.json` records consumers outside this
+component. A consumer pins the producer project, artifact path, schema version,
+and content hash. Cross-project code imports are not allowed; exchange a
+versioned artifact or use an API.
+
+The committed manifests have separate jobs:
+
+- `manifests/rights.json` records the authority to use each source.
+- `manifests/decision-provenance.json` points to the platform decisions behind
+  the generated structure.
+- `outputs/provenance.json` binds one reproduced result to exact input hashes.
+
+The CLI emits one JSON event per stage on standard output. The resource keys
+match the repository OpenTelemetry identity contract. A deployed project may
+replace the local emitter with an OpenTelemetry SDK and exporter after it has
+defined redaction, queue bounds, retention, and an operator.
+
+## CI integration
+
+The stable CI entry point is:
+
+```bash
+mise //{{ component.path }}:ci
+```
+
+It runs formatting, Ruff, ty, pytest with the configured coverage gate, the DVC
+graph, provenance verification, and the package build. CI can publish
+`coverage.xml`, `metrics/metrics.json`, and `outputs/provenance.json`. A shared
+workflow should call the mise task instead of repeating these commands.

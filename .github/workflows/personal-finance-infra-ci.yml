@@ -33,7 +33,7 @@ jobs:
       - name: Validate Terraform without credentials
         run: mise run //infra/personal-finance:validate
 
-      - name: Test the empty delivery baseline
+      - name: Test the generated stateful infrastructure
         run: mise run //infra/personal-finance:test
 
       - name: Lint Terraform
@@ -43,17 +43,24 @@ jobs:
         run: mise run //infra/personal-finance:security:scan
 
       - name: Terraform plan with plan credentials
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' }}
         run: mise run //infra/personal-finance:plan
         env:
           CI: "true"
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
 
       - name: Add Terraform plan to PR comment
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' }}
         uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
         with:
           token: ${{ github.token }}
           planfile: .planfile
           working-directory: ./infra/personal-finance
+
+      - name: Report pending Terraform bootstrap
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY != 'true' }}
+        run: |
+          echo "Remote plan deferred: Account Foundation and the scoped Personal Finance secret handoff must complete first." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove Terraform plan
         if: ${{ always() }}

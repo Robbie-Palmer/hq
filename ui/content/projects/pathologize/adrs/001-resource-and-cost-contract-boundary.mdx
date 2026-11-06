@@ -2,6 +2,8 @@
 title: "ADR 001: Resource and cost contract boundary"
 date: "2026-11-06"
 status: "Accepted"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
 ---
 
 ## Context
@@ -18,7 +20,7 @@ provider use, records measured provider-request cost, and tracks resource
 quantities independently. Rewriting a smaller Python version in Pathologize
 would create two contracts with the same names and different release cycles.
 
-[ADR 000](/projects/pathologize-benchmarks/adrs/000-standards-based-pathology-data-boundary)
+[ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary)
 keeps registry ownership outside the benchmark package. Cost needs the same
 kind of ownership boundary.
 

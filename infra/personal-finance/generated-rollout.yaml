@@ -1,6 +1,8 @@
 # Managed by Copier; record evidence in the project profile, not in this file.
 schema_version: 1
 project: "project:personal-finance-app"
+stateful_operations: "operations/generated-operations.yaml"
+
 operational_checks:
   - id: "browser-export-recovery"
     command: "mise //ui:test -- app/_projects/personal-finance-app/tests/domain/assetTrackerBackup.test.ts app/_projects/personal-finance-app/tests/api/assettracker.test.ts"

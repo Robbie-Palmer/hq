@@ -320,8 +320,11 @@ known_environments=(
   production-cloudflare-access-drift
   production-cloudflare-access-plan
   production-personal-finance
+  production-personal-finance-alerting
+  production-personal-finance-backup
   production-personal-finance-drift
   production-personal-finance-plan
+  preview-personal-finance
   production-recipe-api
   production-recipe-ingest
   production-site-ui
@@ -360,8 +363,11 @@ sync_requested_env production-cloudflare-access cloudflare-access/ops_apply
 sync_requested_env production-cloudflare-access-drift cloudflare-access/ops_drift
 sync_requested_env production-cloudflare-access-plan cloudflare-access/ops_plan
 sync_requested_env production-personal-finance personal-finance/apply
+sync_requested_env production-personal-finance-alerting personal-finance-operations/alerts
+sync_requested_env production-personal-finance-backup personal-finance/backup
 sync_requested_env production-personal-finance-drift personal-finance/drift
 sync_requested_env production-personal-finance-plan personal-finance/ops
+sync_requested_env preview-personal-finance personal-finance-operations/preview
 sync_requested_env production-recipe-api prd_recipe_api prd_site_ui prd_pages_env
 sync_requested_env production-recipe-ingest prd_recipe_ingest prd_site_ui prd_pages_env
 sync_requested_env production-site-ui prd_site_ui prd_pages_env

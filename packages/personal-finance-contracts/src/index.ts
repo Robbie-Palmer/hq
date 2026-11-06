@@ -6,3 +6,6 @@ export * from "./sideIncomeSyntheticCases";
 export * from "./soleTraderRules";
 export * from "./soleTraderScenario";
 export * from "./soleTraderSyntheticScenarios";
+export * from "./limitedCompanyRules";
+export * from "./limitedCompanyScenario";
+export * from "./limitedCompanySyntheticScenarios";

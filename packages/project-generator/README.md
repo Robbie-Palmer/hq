@@ -60,6 +60,14 @@ resolved targets as catalog records. Profile version 1 remains valid and still
 resolves to blueprint version 2. Version 2 remains valid and resolves to
 blueprint version 3.
 
+Profiles that own a stateful serverless service can declare
+`rollout.stateful_operations`. The contract names repository mise hooks,
+protected GitHub environments, and redacted `doppler://project/config`
+references. Copier writes the operation dispatcher, workflow callers, runbook,
+secret handoff checkpoints, and rollout evidence schema into the project's
+Terraform component. The shared reusable workflow remains repository-owned.
+The generator never writes credential values or invokes a provider.
+
 Set `project.published: false` for an internal fixture. Copier still records
 its resolved blueprint and owns its declared component paths, but it does not
 add the fixture to the public repository-layout or platform catalogs and does
@@ -146,6 +154,15 @@ The adapter records the complete resolved blueprint as a non-secret Copier
 answer. When the blueprint contains one `terraform-root` component, the
 template compiles its application capability selections into the static root
 defined by [Personal Engineering Platform ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
+
+A structure-only `python-pipeline` component receives the repository's
+research ML scaffold. It includes a Python 3.12 uv project, Fire and Pydantic
+contracts, Ruff, ty, pytest coverage, a local DVC graph, deterministic synthetic
+data, rights and provenance records, and dataset-consumer registries. The
+template does not write `uv.lock` or `dvc.lock`. Run the generated `lock` and
+`repro` mise tasks so uv and DVC create their own lockfiles, then commit those
+files with the project. `mise //packages/project-generator:template:research-ml`
+renders a disposable project and verifies the complete generated task graph.
 
 Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace

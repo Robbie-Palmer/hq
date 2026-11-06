@@ -18,7 +18,7 @@ describe("initiatives API", () => {
       "automated-macrodissection",
       "bioinformatics-platform",
       "pathology-viewer",
-      "pathologize-benchmarks",
+      "pathologize",
     ]);
     expect(initiative.projects[0]?.contribution).toMatch(
       /human-in-the-loop workflow/,

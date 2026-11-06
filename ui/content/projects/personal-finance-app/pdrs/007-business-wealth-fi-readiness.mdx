@@ -1,0 +1,95 @@
+---
+title: "PDR 007: Make business wealth in FI planning tax, access, and time aware"
+date: "2026-11-06"
+status: "Accepted"
+decision_date: "2026-11-06"
+---
+
+## Context
+
+A business interest can increase household net worth without funding household
+spending today. Company cash may be needed for Corporation Tax, VAT, payroll,
+creditors, or continued operation. Moving value to the household may require a
+salary, dividend, pension contribution, sale, wind-down, or another supported
+route, each with different timing and tax treatment.
+
+Asset Tracker already separates net worth from capital that can fund retirement
+spending. Owned businesses need the same discipline. Treating the value of a
+company as immediately available would overstate financial independence.
+Excluding every business interest would understate the options available to an
+owner who can extract surplus, sell the business, or fund a pension over time.
+
+## Decision
+
+Do not include a business interest in FI-eligible capital merely because it is
+included in household net worth. Count business value only through an explicit
+plan that states how and when value becomes available to the household.
+
+Support these plan treatments as their calculation rules become available:
+
+* continue trading and extract supported surplus through salary, dividends, or
+  employer pension contributions;
+* wind down the company and extract the supported net proceeds;
+* sell the ownership interest using a dated valuation or sale assumption; or
+* exclude the business from the FI plan while retaining it in net worth.
+
+An extraction plan starts with company cash and distributable amounts that the
+selected route can legally use. It deducts company liabilities, accrued taxes,
+user-defined operating reserves, transaction costs, and personal tax. It records
+the date on which the resulting household cash or pension value becomes
+available. Employer pension contributions enter the pension access path rather
+than current household cash.
+
+A sale or wind-down plan must not reuse ordinary dividend assumptions when the
+relevant capital, liquidation, relief, and transaction-cost rules are not
+implemented. Unsupported routes remain visible and contribute no FI-eligible
+capital until the user selects a supported treatment.
+
+Show at least these distinct measures:
+
+* total economic net worth, including the selected value of owned businesses;
+* household capital available for spending on the valuation date;
+* future capital with its access date, including pensions and planned business
+  extraction; and
+* FI-eligible capital under the selected plan, after supported tax and costs.
+
+The FI view shows the business treatment, gross value, deductions, net value,
+availability date, ownership share, valuation source, and unsupported
+assumptions. Users can compare plans without changing the recorded financial
+facts or the standalone company accounts.
+
+## Consequences
+
+Two households with the same total net worth may have different FI status. A
+household with accessible investments can fund spending sooner than one whose
+wealth sits in a trading company, even when their headline net worth matches.
+
+The calculation needs to connect business valuation, company cash and reserves,
+limited-company extraction scenarios, pension access, and household spending
+goals. Forecasts must carry the company boundary across periods rather than
+convert retained profits into personal cash at the first opportunity.
+
+The interface needs a concise default and enough detail to explain why business
+wealth is excluded, deferred, or reduced. Unknown tax or legal treatment must
+lower confidence or block the affected plan instead of producing a precise but
+unsupported FI date.
+
+## Alternatives considered
+
+### Count the full business valuation as available capital
+
+This was rejected because a valuation is not cash and may depend on continued
+trading. It ignores extraction tax, liabilities, operating needs, sale timing,
+and whether a buyer exists.
+
+### Exclude business wealth from every FI calculation
+
+This was rejected because owners can often extract surplus, contribute to a
+pension, or sell an interest. The product should model those options when it can
+support them rather than assume the value is permanently inaccessible.
+
+### Apply one fixed liquidity discount
+
+This was rejected because a generic haircut cannot represent tax, legal access,
+operating reserves, or timing. An explicit plan is more work, but it explains the
+result and can identify unsupported states.

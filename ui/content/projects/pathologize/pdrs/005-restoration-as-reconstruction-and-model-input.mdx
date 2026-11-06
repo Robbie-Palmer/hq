@@ -1,0 +1,48 @@
+---
+title: "PDR 005: Evaluate restoration as reconstruction and model input"
+date: "2026-11-06"
+status: "Proposed"
+---
+
+## Context
+
+Super-resolution can make a low-resolution pathology image look sharper while inserting, removing or changing
+cellular structure. Pixel similarity alone may reward a visually convincing image that is unsafe as biological
+evidence. Improvement in one downstream classifier can also reflect artifacts introduced for that model.
+
+Resolution reconstruction remains a useful research question for compression, remote review, older scans and
+multiresolution model efficiency. Learned restoration may also expose a stronger feature signal when downstream
+models receive blurred tiles, corrupt or missing tiles, or unavailable pyramid resolutions.
+
+## Proposed decision
+
+Evaluate image restoration in two explicit roles: an uncertain reconstruction for inspection and a transformation
+or feature extractor for downstream models. Keep the original image, degradation or missingness mask, and available
+native resolutions immutable beside every derived artifact. Record generated pixels, latent features and
+transformations in the artifact provenance.
+
+Require paired or defensible synthetic reference data and measure structural insertion and deletion, nucleus and
+cell consistency, morphometry, embedding drift, cross-scanner behaviour, uncertainty and downstream-task effects.
+Compare learned restoration with the degraded input, conventional interpolation or inpainting, and models trained
+directly for robustness to the same corruption. Do not promote a method from PSNR, SSIM or visual preference alone.
+
+Reconstructed images carry no source-observation authority and cannot become source annotations or benchmark
+ground truth. A restoration model may still be useful as an internal representation when sealed downstream
+evaluation shows a robust signal gain. A later use outside research requires its own decision and evidence.
+
+## Consequences
+
+The project can study resolution, missing data and bandwidth trade-offs while preserving which morphology was
+observed. The evaluation may reveal a restoration or latent representation that helps a downstream model despite
+being unsuitable for human interpretation, or the reverse.
+
+Paired pathology scans are difficult to obtain and register. Strong validation may cost more than training the
+model, and some hypotheses will remain untestable with public data. The boundary deliberately rejects attractive
+demonstrations that cannot measure hallucinated structure.
+
+## Evaluation
+
+Accept the proposal only after a benchmark detects known synthetic insertions and deletions and reports image,
+morphology and downstream-task failures. It must include controlled blur, missing tiles and unavailable-resolution
+cases, then test any apparent signal gain on sealed data with naturally occurring quality variation. Do not begin
+a public model comparison until those guardrails exist.
