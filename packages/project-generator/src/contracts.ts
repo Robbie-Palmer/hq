@@ -77,6 +77,11 @@ const catalogRecordSchema = z
 const sharedManifestEditSchema = z.discriminatedUnion("kind", [
   z
     .object({
+      kind: z.literal("pnpm_lockfile"),
+    })
+    .strict(),
+  z
+    .object({
       kind: z.literal("mise_config_root"),
       value: repositoryPathSchema,
     })

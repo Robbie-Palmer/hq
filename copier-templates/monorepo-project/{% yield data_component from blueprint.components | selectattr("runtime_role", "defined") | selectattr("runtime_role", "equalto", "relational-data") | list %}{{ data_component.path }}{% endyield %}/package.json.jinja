@@ -1,0 +1,31 @@
+{
+  "name": "{{ data_component.id }}",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Relational runtime and project-owned schema for {{ blueprint.project.name }}",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schema": "./src/schema.ts"
+  },
+  "scripts": {
+    "db:check": "check-drizzle-migrations",
+    "db:generate": "bash ../../scripts/generate-drizzle-migration.sh",
+    "db:migrate": "drizzle-kit migrate",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "drizzle-orm": "^0.45.0",
+    "drizzle-postgres": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "drizzle-kit": "^0.31.0",
+    "drizzle-tooling": "workspace:*",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}
