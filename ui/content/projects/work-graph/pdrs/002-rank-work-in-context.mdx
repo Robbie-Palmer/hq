@@ -1,0 +1,69 @@
+---
+title: "PDR 002: Rank work in context and explain expedites"
+date: "2026-09-18"
+status: "Accepted"
+decision_date: "2026-09-18"
+---
+
+## Context
+
+A global numeric priority asks the owner to calibrate every item against every
+other item. The meaning of a number changes as work enters and leaves the
+graph. A strict parent-first order has the opposite problem. Moving one
+initiative can place all of its tickets ahead of every ticket elsewhere, even
+when only its leading outcome deserves that position.
+
+The useful planning judgment is usually local: put this initiative above that
+one, or this ticket below a nearby ticket in the same project. The resulting
+queue still needs to account for projects, initiatives, dependencies, and work
+that must interrupt the normal order.
+
+## Decision
+
+Let owners and agents rank initiatives against initiatives, projects against
+projects, and tickets against tickets in the same scheduling project. Express
+changes with relative moves such as above or below a nearby item. New entries
+join the middle of their relevant stack instead of demanding a globally
+meaningful priority number.
+
+Combine those contextual positions into one ready queue. Do not group every
+ticket from a higher-ranked initiative ahead of all work in lower-ranked
+initiatives. A leading ticket in one project may outrank later tickets from a
+project or initiative that is otherwise higher.
+
+Keep decomposition from creating a new priority dimension. Child work inherits
+the scheduling position of the outcome that produced it, while dependencies
+still decide which ready leaf can advance that outcome.
+
+Support an explicit expedite only when the caller supplies a reason. An
+expedited outcome moves ahead of normally ranked work, and its urgency reaches
+unresolved blockers so the queue can advance the interrupted outcome. The
+blockers lose that donated urgency when the source expedite is removed.
+
+## Consequences
+
+People can maintain priority through nearby comparisons without learning the
+queue's scoring formula. Speculative work can enter one stack without forcing a
+repository-wide rerank.
+
+The displayed order may change when a surrounding initiative, project, or
+ticket stack changes. Work Graph must expose enough rank and expedite
+provenance to explain that movement.
+
+Relative moves are limited to one comparable stack. The product rejects direct
+comparisons between tickets in different projects or between unlike scope
+types. Expedites remain visible exceptions rather than hidden priority edits.
+
+## Evaluation
+
+The policy is useful when the owner can express the intended next work through
+local moves, and when an agent can explain why a blocker moved forward. Revisit
+it if the projected queue repeatedly contradicts the owner's ordering despite
+correct contextual ranks.
+
+## Migration note
+
+This record extracts the product policy first recorded in ADR 006. It keeps the
+original date and accepted status. ADR 006 retains the ordinal-rank storage,
+reciprocal-rank fusion, tie-breaking, and donated-urgency projection. The
+migration does not change current queue order.
