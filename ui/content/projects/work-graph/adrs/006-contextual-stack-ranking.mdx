@@ -3,12 +3,12 @@ title: "ADR 006: Reciprocal-rank fusion for contextual priority"
 date: "2026-09-18"
 status: "Accepted"
 implements_product_decisions:
-  - "work-graph:003-rank-work-in-context"
+  - "work-graph:002-rank-work-in-context"
 ---
 
 ## Context
 
-[PDR 003](/projects/work-graph/pdrs/003-rank-work-in-context) defines the
+[PDR 002](/projects/work-graph/pdrs/002-rank-work-in-context) defines the
 product behaviour: local relative moves, one queue that can interleave scopes,
 and explicit reason-bearing expedites. The service needs a deterministic data
 model and projection that implements that behaviour without exposing internal
@@ -71,7 +71,7 @@ must preserve the stored scheduling owner used by the projection.
 ### Strict lexicographic ordering
 
 Ordering initiative, then project, then ticket is deterministic but groups
-whole subtrees and cannot provide the interleaving required by PDR 003.
+whole subtrees and cannot provide the interleaving required by PDR 002.
 
 ### Weighted numeric priority
 
@@ -88,5 +88,5 @@ maintained ordinal stack instead.
 ## Migration note
 
 The 1 November 2026 PDR migration moved the user-facing ranking and expedite
-policy into PDR 003. This ADR keeps the original storage and projection
+policy into PDR 002. This ADR keeps the original storage and projection
 algorithm. Current queue order is unchanged.

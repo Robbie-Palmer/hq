@@ -3,12 +3,12 @@ title: "ADR 005: Separate terminal lifecycle from lease outcomes"
 date: "2026-09-13"
 status: "Accepted"
 implements_product_decisions:
-  - "work-graph:002-require-deliberate-parent-termination"
+  - "work-graph:001-require-deliberate-parent-termination"
 ---
 
 ## Context
 
-[PDR 002](/projects/work-graph/pdrs/002-require-deliberate-parent-termination)
+[PDR 001](/projects/work-graph/pdrs/001-require-deliberate-parent-termination)
 requires a deliberate terminal decision after the last child finishes. The
 domain model uses the same `released` and `cancelled` words in current
 work-item state, projected stage, and historical lease outcomes. Their storage
@@ -54,5 +54,5 @@ current state.
 ## Migration note
 
 The 1 November 2026 PDR migration moved the deliberate-completion policy into
-PDR 002. This ADR keeps the original lifecycle, stage, lease-outcome, and
+PDR 001. This ADR keeps the original lifecycle, stage, lease-outcome, and
 readiness architecture. No transition changed.

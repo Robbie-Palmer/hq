@@ -4,12 +4,12 @@ date: "2026-09-19"
 status: "Accepted"
 supersedes: "work-graph:007-shortcut"
 implements_product_decisions:
-  - "work-graph:004-make-work-graph-authoritative"
+  - "work-graph:003-make-work-graph-authoritative"
 ---
 
 ## Context
 
-[PDR 004](/projects/work-graph/pdrs/004-make-work-graph-authoritative) makes Work
+[PDR 003](/projects/work-graph/pdrs/003-make-work-graph-authoritative) makes Work
 Graph authoritative for migrated personal executable work. The architecture
 must span initiatives, projects, repositories, and worker environments while
 keeping project prose in the public knowledge graph.
@@ -52,7 +52,7 @@ imports can be audited without treating the source as a second live authority.
 
 This central boundary supersedes the inherited Shortcut architecture for
 migrated scopes. The owner accepted it on 25 October 2026 after the pilot and
-cutover evidence recorded by PDR 004 passed.
+cutover evidence recorded by PDR 003 passed.
 
 ## Consequences
 
@@ -96,6 +96,6 @@ would require a separate server or a conflict-prone merge protocol.
 ## Migration note
 
 The 1 November 2026 PDR migration moved the authority, supported workflow, and
-acceptance evidence into PDR 004. This ADR keeps the central service, CLI,
+acceptance evidence into PDR 003. This ADR keeps the central service, CLI,
 integration direction, and reconciliation architecture. The migration does not
 change the 25 October acceptance or the Shortcut cutover.

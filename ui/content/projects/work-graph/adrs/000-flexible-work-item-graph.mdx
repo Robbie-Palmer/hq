@@ -4,12 +4,12 @@ date: "2026-09-13"
 status: "Accepted"
 ideas: ["directed-acyclic-graph"]
 implements_product_decisions:
-  - "work-graph:001-adapt-plans-with-flexible-work-items"
+  - "work-graph:000-adapt-plans-with-flexible-work-items"
 ---
 
 ## Context
 
-[PDR 001](/projects/work-graph/pdrs/001-adapt-plans-with-flexible-work-items)
+[PDR 000](/projects/work-graph/pdrs/000-adapt-plans-with-flexible-work-items)
 requires one adaptable work-item concept, separate containment and blocking
 relationships, and derived readiness. The data model must support plan changes
 without losing identity or allowing the combined graph to deadlock.
@@ -62,5 +62,5 @@ production database engine.
 ## Migration note
 
 The 1 November 2026 PDR migration moved the adaptable planning policy into PDR
-001\. This ADR keeps the original recursive schema, graph invariants, and
+000\. This ADR keeps the original recursive schema, graph invariants, and
 transaction design. No architecture choice changed.

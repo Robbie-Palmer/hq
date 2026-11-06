@@ -3,13 +3,13 @@ title: "ADR 009: Immutable observed evidence and completion candidates"
 date: "2026-09-22"
 status: "Accepted"
 implements_product_decisions:
-  - "work-graph:002-require-deliberate-parent-termination"
-  - "work-graph:005-treat-delivery-observations-as-evidence"
+  - "work-graph:001-require-deliberate-parent-termination"
+  - "work-graph:004-treat-delivery-observations-as-evidence"
 ---
 
 ## Context
 
-[PDR 005](/projects/work-graph/pdrs/005-treat-delivery-observations-as-evidence)
+[PDR 004](/projects/work-graph/pdrs/004-treat-delivery-observations-as-evidence)
 keeps delivery observations separate from the decision to complete work.
 [ADR 008](/projects/work-graph/adrs/008-github-delivery-evidence-ingestion)
 adds repeated and potentially out-of-order events from a GitHub observer. The
@@ -47,7 +47,7 @@ the evidence identities and policy revision behind the result.
 Change worker-initiated release to reference stored evidence while retaining a
 human-readable snapshot in the immutable lifecycle event. A future automatic
 release must be a separate domain operation with its own system actor. It must
-atomically recheck evidence and work-item invariants and follow PDR 005's rule
+atomically recheck evidence and work-item invariants and follow PDR 004's rule
 for active leases.
 
 ## Consequences
@@ -85,6 +85,6 @@ from regressions.
 
 ## Migration note
 
-The 1 November 2026 PDR migration moved the completion policy into PDR 005.
+The 1 November 2026 PDR migration moved the completion policy into PDR 004.
 This ADR keeps the immutable evidence, correlation, candidacy projection, and
 release-operation architecture. No evidence or lifecycle rule changed.
