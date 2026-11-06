@@ -159,7 +159,7 @@ describe("Personal Finance production profile", () => {
         "storage.object-store",
       ]),
     );
-    expect(first.blueprint.rollout).toEqual({
+    expect(first.blueprint.rollout).toMatchObject({
       operational_checks: [
         {
           id: "browser-export-recovery",
@@ -189,6 +189,25 @@ describe("Personal Finance production profile", () => {
           status: "pending",
         }),
       ],
+      stateful_operations: {
+        preview: {
+          github_environment: "preview-personal-finance",
+          secret_config_ref: "doppler://personal-finance/preview",
+        },
+        production: {
+          github_environment: "production-personal-finance",
+          plan_secret_config_ref: "doppler://personal-finance/ops",
+          apply_secret_config_ref: "doppler://personal-finance/apply",
+        },
+        backup: {
+          github_environment: "production-personal-finance-backup",
+          secret_config_ref: "doppler://personal-finance/backup",
+        },
+        alerting: {
+          github_environment: "production-personal-finance-alerting",
+          secret_config_ref: "doppler://personal-finance/alerts",
+        },
+      },
     });
   });
 

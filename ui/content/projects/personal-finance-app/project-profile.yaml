@@ -48,6 +48,8 @@ layers:
     slots:
       - "secrets.runtime-store"
       - "secrets.ci-store"
+      - "delivery.preview-environment"
+      - "security.preview-access"
   - layer: "typescript"
   - layer: "web-app"
     slots:
@@ -75,6 +77,7 @@ layers:
       - "database.relational-access"
       - "database.migration-discipline"
       - "database.backup-restore"
+      - "database.preview-isolation"
   - layer: "infrastructure"
     slots:
       - "infrastructure.provisioner"
@@ -83,11 +86,16 @@ layers:
     slots:
       - "observability.telemetry-protocol"
       - "observability.application-telemetry"
+      - "observability.alert-evaluation"
+      - "observability.alert-delivery"
   - layer: "storage"
     slots:
       - "storage.object-store"
 
 requirements:
+  - "preview-scoped-credentials"
+  - "synthetic-preview-data"
+  - "preview-cleanup"
   - "provider-registration"
   - "runtime-derived-api-contract"
   - "javascript-typescript-server-component"
@@ -103,10 +111,14 @@ requirements:
   - "backup-key-custody"
   - "backup-retention-policy"
   - "restore-drill"
+  - "fresh-migration-baseline"
   - "instrumented-runtime"
   - "telemetry-redaction"
   - "bounded-exporter-failure"
   - "telemetry-retention"
+  - "responder-ownership"
+  - "alert-routing"
+  - "project-owned-slack-credentials"
   - "data-classification"
   - "object-lifecycle-policy"
   - "scoped-storage-credentials"
@@ -145,3 +157,33 @@ rollout:
       verification: "mise //infra/personal-finance:test"
       status: "pending"
       evidence: []
+  stateful_operations:
+    preview:
+      github_environment: "preview-personal-finance"
+      secret_config_ref: "doppler://personal-finance/preview"
+      provision: "mise //infra/personal-finance:preview:provision"
+      migrate: "mise //infra/personal-finance:db:migrate:preview"
+      seed_synthetic: "mise //infra/personal-finance:db:seed:preview"
+      deploy: "mise //infra/personal-finance:deploy:preview"
+      smoke_authenticated: "mise //infra/personal-finance:smoke:preview"
+      smoke_telemetry: "mise //infra/personal-finance:smoke:telemetry"
+      cleanup: "mise //infra/personal-finance:preview:cleanup"
+    production:
+      github_environment: "production-personal-finance"
+      plan_secret_config_ref: "doppler://personal-finance/ops"
+      apply_secret_config_ref: "doppler://personal-finance/apply"
+      migrate: "mise //infra/personal-finance:db:migrate:production"
+      deploy: "mise //infra/personal-finance:deploy:production"
+      smoke: "mise //infra/personal-finance:smoke:production"
+      rollback: "mise //infra/personal-finance:rollback:production"
+    backup:
+      github_environment: "production-personal-finance-backup"
+      secret_config_ref: "doppler://personal-finance/backup"
+      schedule: "23 4 * * 0"
+      create: "mise //infra/personal-finance:backup:create"
+      restore: "mise //infra/personal-finance:restore:drill"
+    alerting:
+      github_environment: "production-personal-finance-alerting"
+      secret_config_ref: "doppler://personal-finance/alerts"
+      responder: "Personal Finance owner"
+      smoke: "mise //infra/personal-finance:smoke:alert"
