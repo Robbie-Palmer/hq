@@ -248,7 +248,18 @@ class SourceNativeLabel(StrictModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_]+$")
     value: str = Field(min_length=1)
     code: str | None
+    coding_scheme: str | None
+    coding_scheme_version: str | None
     provenance: str = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_coding_scheme(self) -> SourceNativeLabel:
+        coded = self.code is not None
+        if coded != (self.coding_scheme is not None):
+            raise ValueError("code and coding scheme must either both be present or both be absent")
+        if self.coding_scheme_version is not None and self.coding_scheme is None:
+            raise ValueError("a coding scheme version requires a coding scheme")
+        return self
 
 
 class SlideRecord(StrictModel):

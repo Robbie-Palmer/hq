@@ -61,8 +61,9 @@ The initial proposals define the intended research boundary:
 
 The accepted implementation boundaries are:
 
-* [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) assigns Croissant,
-  DICOM WSI, OME-Zarr, RO-Crate and PROV-O to distinct data-lifecycle roles.
+* [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) makes the registry's
+  portable artifact a source-only Croissant export and assigns DICOM WSI, OME-Zarr, RO-Crate and PROV-O
+  to distinct downstream roles.
 * [ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary) keeps provider funding
   policy outside benchmark manifests and defers money fields until the platform has one cross-language contract.
 * [ADR 002](/projects/pathologize/adrs/002-shared-python-package-boundaries) separates generic data
@@ -73,9 +74,9 @@ The accepted implementation boundaries are:
 ## Data registry
 
 One authoritative registry will describe public datasets, licences, checksums, retrieval evidence, and the
-patient, case, specimen, slide and image identities needed to prevent leakage. It will preserve source-native
-labels, scanner metadata, physical pixel spacing and stain information without forcing every dataset into one
-false universal ontology.
+patient, case, specimen, slide and image identities needed to keep related records on one side of each train,
+validation and test boundary. It will preserve source-native labels, scanner metadata, physical pixel spacing
+and stain information without forcing every dataset into one false universal ontology.
 
 New annotation layers may apply a finer ontology or replace source categories with an incommensurable ontology.
 The registry will preserve both label systems, their annotation protocols and any partial mappings instead of
@@ -130,7 +131,7 @@ Every published result should identify:
 
 * the registry and code revisions;
 * source rights, licence and retrieval evidence;
-* the patient-level leakage unit and frozen partitions;
+* patient-level split isolation and frozen partitions;
 * preprocessing, physical scale and scanner assumptions;
 * model weights and their permitted use;
 * primary, guardrail and resource metrics;

@@ -156,6 +156,28 @@
           ],
           "title": "Code"
         },
+        "coding_scheme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Coding Scheme"
+        },
+        "coding_scheme_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Coding Scheme Version"
+        },
         "name": {
           "pattern": "^[a-z][a-z0-9_]+$",
           "title": "Name",
@@ -176,6 +198,8 @@
         "name",
         "value",
         "code",
+        "coding_scheme",
+        "coding_scheme_version",
         "provenance"
       ],
       "title": "SourceNativeLabel",
