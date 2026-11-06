@@ -1,0 +1,37 @@
+{% set data_components = blueprint.components | selectattr("runtime_role", "defined") | selectattr("runtime_role", "equalto", "relational-data") | list -%}
+{% set data_component = data_components[0] -%}
+{
+  "name": "{{ worker_component.id }}",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Authenticated Cloudflare Worker runtime for {{ blueprint.project.name }}",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit && tsc --project tsconfig.scripts.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "openapi:generate": "tsx scripts/generate-openapi.ts",
+    "openapi:check": "tsx scripts/generate-openapi.ts --check",
+    "lint:api": "pnpm openapi:check && spectral lint openapi.json --ruleset .spectral.yaml --fail-severity error"
+  },
+  "dependencies": {
+    "@hono/zod-openapi": "1.6.3",
+    "better-auth": "^1.6.19",
+    "drizzle-orm": "^0.45.0",
+    "hono": "^4.7.11",
+    "{{ data_component.id }}": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.0.0",
+    "@stoplight/spectral-cli": "6.17.0",
+    "@stoplight/spectral-owasp-ruleset": "2.0.1",
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0",
+    "wrangler": "^4"
+  }
+}

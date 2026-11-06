@@ -1,0 +1,42 @@
+{% set data_components = blueprint.components | selectattr("runtime_role", "defined") | selectattr("runtime_role", "equalto", "relational-data") | list -%}
+{% set data_component = data_components[0] -%}
+import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { betterAuth } from "better-auth";
+import type { RuntimeDatabase } from "{{ data_component.id }}";
+import { schema } from "{{ data_component.id }}/schema";
+
+export type AuthEnv = {
+  BETTER_AUTH_SECRET: string;
+  BETTER_AUTH_URL: string;
+  GOOGLE_CLIENT_ID: string;
+  GOOGLE_CLIENT_SECRET: string;
+};
+
+export function createAuth(db: RuntimeDatabase, env: AuthEnv) {
+  const baseURL = new URL(env.BETTER_AUTH_URL).origin;
+  return betterAuth({
+    baseURL,
+    basePath: "/api/auth",
+    secret: env.BETTER_AUTH_SECRET,
+    trustedOrigins: [baseURL],
+    database: drizzleAdapter(db, { provider: "pg", schema }),
+    socialProviders: {
+      google: {
+        clientId: env.GOOGLE_CLIENT_ID,
+        clientSecret: env.GOOGLE_CLIENT_SECRET,
+      },
+    },
+    advanced: {
+      defaultCookieAttributes: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: baseURL.startsWith("https://"),
+      },
+    },
+  });
+}
+
+export type RuntimeAuth = ReturnType<typeof createAuth>;
+export type AuthenticatedSession = NonNullable<
+  Awaited<ReturnType<RuntimeAuth["api"]["getSession"]>>
+>;

@@ -12,6 +12,26 @@ ownership:
   template_files:
     - "generated-component.yaml"
     - "mise.toml"
+{% if component.runtime_role | default("") == "authenticated-worker" %}    - "package.json"
+    - "src/auth.ts"
+    - "src/authorization.ts"
+    - "src/index.ts"
+    - "src/runtime.ts"
+    - "wrangler.toml"
+{% elif component.runtime_role | default("") == "relational-data" %}    - "drizzle.config.ts"
+    - "package.json"
+    - "src/connection.ts"
+    - "src/index.ts"
+    - "src/runtime-schema.ts"
+    - "src/schema.ts"
+{% endif %}{% if component.runtime_role | default("") == "authenticated-worker" %}  project_extensions:
+    - "src/project-authorization.ts"
+    - "src/project-routes.ts"
+{% elif component.runtime_role | default("") == "relational-data" %}  project_extensions:
+    - "src/project-schema.ts"
+{% else %}  project_extensions: []
+{% endif %}{% if component.runtime_role | default("") != "" %}  runtime_role: "{{ component.runtime_role }}"
+{% endif %}
   product_logic: "project"
   secrets: "external"
 rollout:
