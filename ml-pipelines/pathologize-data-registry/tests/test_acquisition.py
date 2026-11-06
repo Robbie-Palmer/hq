@@ -98,14 +98,17 @@ def test_acquisition_rejects_source_outside_allowlist(tmp_path: Path) -> None:
 
 def test_acquisition_rejects_redirect_outside_allowlist() -> None:
     handler = _AllowlistedRedirectHandler(ALLOWED_BASE_URLS)
+    request = Request("https://public.example.test/synthetic.dcm")
+    file_pointer = BytesIO()
+    headers = HTTPMessage()
 
     with pytest.raises(AcquisitionError, match="redirect URL is not allowlisted"):
         handler.redirect_request(
-            Request("https://public.example.test/synthetic.dcm"),
-            BytesIO(),
+            request,
+            file_pointer,
             302,
             "Found",
-            HTTPMessage(),
+            headers,
             "https://untrusted.example.test/synthetic.dcm",
         )
 
