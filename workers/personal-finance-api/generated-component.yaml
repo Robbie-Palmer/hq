@@ -11,6 +11,18 @@ ownership:
   template_files:
     - "generated-component.yaml"
     - "mise.toml"
+    - "package.json"
+    - "openapi.json"
+    - "src/auth.ts"
+    - "src/authorization.ts"
+    - "src/index.ts"
+    - "src/runtime.ts"
+    - "wrangler.toml"
+  project_extensions:
+    - "src/project-authorization.ts"
+    - "src/project-routes.ts"
+  runtime_role: "authenticated-worker"
+
   product_logic: "project"
   secrets: "external"
 rollout:

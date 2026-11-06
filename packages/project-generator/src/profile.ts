@@ -108,6 +108,12 @@ const taskExceptionSchema = z
 
 const templateOwnershipSchema = z.enum(["structure-only", "project"]);
 
+const runtimeRoleSchema = z.enum([
+  "authenticated-worker",
+  "api-contracts",
+  "relational-data",
+]);
+
 const miseCommandSchema = z
   .string()
   .regex(/^mise \/\//, "must invoke a repository task through mise");
@@ -257,6 +263,7 @@ const componentSchema = z
     name: z.string().min(1),
     mount_path: webMountPathSchema.optional(),
     template_ownership: templateOwnershipSchema.optional(),
+    runtime_role: runtimeRoleSchema.optional(),
     task_exceptions: z.array(taskExceptionSchema).default([]),
   })
   .strict()
@@ -273,6 +280,37 @@ const componentSchema = z
         code: "custom",
         path: ["mount_path"],
         message: "is only valid for a project-ui component",
+      });
+    }
+    if (
+      component.runtime_role !== undefined &&
+      component.template_ownership !== "structure-only"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: "requires template_ownership 'structure-only'",
+      });
+    }
+    if (
+      component.runtime_role === "authenticated-worker" &&
+      component.kind !== "worker"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: "authenticated-worker requires component kind 'worker'",
+      });
+    }
+    if (
+      component.runtime_role !== undefined &&
+      component.runtime_role !== "authenticated-worker" &&
+      component.kind !== "typescript-package"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: `${component.runtime_role} requires component kind 'typescript-package'`,
       });
     }
     addDuplicateIssues(
@@ -479,6 +517,21 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     "project UI mount paths",
     context,
   );
+  const runtimeRoles = profile.components.flatMap(({ runtime_role }) =>
+    runtime_role === undefined ? [] : [runtime_role],
+  );
+  addDuplicateIssues(runtimeRoles, "runtime roles", context);
+  if (
+    runtimeRoles.length > 0 &&
+    runtimeRoleSchema.options.some((role) => !runtimeRoles.includes(role))
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["components"],
+      message:
+        "authenticated runtime generation requires one authenticated-worker, one api-contracts, and one relational-data component",
+    });
+  }
   addDuplicateIssues(
     profile.layers.map(({ layer }) => layer),
     "layers",
@@ -607,6 +660,7 @@ export interface ResolvedProjectBlueprint {
     readonly path: string;
     readonly mount_path?: string;
     readonly template_ownership?: "structure-only" | "project";
+    readonly runtime_role?: z.infer<typeof runtimeRoleSchema>;
     readonly tasks: readonly {
       readonly name: string;
       readonly disposition:
@@ -1044,6 +1098,9 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       ...(component.template_ownership === undefined
         ? {}
         : { template_ownership: component.template_ownership }),
+      ...(component.runtime_role === undefined
+        ? {}
+        : { runtime_role: component.runtime_role }),
       tasks: requiredTasks
         .toSorted(compareStrings)
         .map((name) =>
@@ -1442,11 +1499,6 @@ function validateStatefulOperations(
       "Stateful backup operations must be declared exactly when database.backup-restore is selected",
     );
   }
-  if (backupSelected && !selectedSlots.has("storage.object-store")) {
-    throw new Error(
-      "Stateful backup operations require storage.object-store",
-    );
-  }
 
   const alertingSelected = selectedSlots.has(
     "observability.alert-evaluation",
@@ -1456,15 +1508,40 @@ function validateStatefulOperations(
       "Stateful alert operations must be declared exactly when observability.alert-evaluation is selected",
     );
   }
-  if (
-    alertingSelected &&
-    (!selectedSlots.has("observability.application-telemetry") ||
-      !selectedSlots.has("observability.telemetry-protocol"))
-  ) {
-    throw new Error(
-      "Stateful alert operations require OpenTelemetry application telemetry",
-    );
-  }
+}
+
+const AUTHENTICATED_WORKER_STACK = new Map<string, string>([
+  ["api-governance.compatibility-check", "oasdiff"],
+  ["api-governance.contract-linter", "spectral"],
+  ["backend-api.contract-format", "openapi"],
+  ["backend-api.contract-generator", "honozod-openapi"],
+  ["backend-api.http-framework", "hono"],
+  ["backend-api.relational-connection", "hyperdrive"],
+  ["backend-api.runtime", "cloudflare-workers"],
+  ["database.migration-discipline", "Committed ordered migrations with drift checks and one serialized deployment runner"],
+  ["database.relational-access", "drizzle"],
+  ["database.relational-engine", "postgresql"],
+  ["database.relational-host", "neon"],
+  ["identity.authentication-library", "better-auth"],
+  ["identity.authorization-policy", "Project-owned server-side resource and action policy"],
+  ["identity.login-provider", "google-oauth"],
+  ["identity.session-transport", "Same-origin Secure HttpOnly first-party cookie session"],
+]);
+
+function assertAuthenticatedWorkerStack(
+  components: ResolvedProjectBlueprint["components"],
+  selections: readonly ResolvedSelection[],
+): void {
+  if (!components.some(({ runtime_role }) => runtime_role !== undefined)) return;
+  const selected = new Map(selections.map(({ slot, value }) => [slot, value]));
+  const mismatch = [...AUTHENTICATED_WORKER_STACK].find(
+    ([slot, value]) => selected.get(slot) !== value,
+  );
+  if (!mismatch) return;
+  const [slot, value] = mismatch;
+  throw new Error(
+    `Authenticated runtime generation requires '${slot}' to resolve to '${value}'`,
+  );
 }
 
 export function resolveProjectProfile(
@@ -1484,6 +1561,7 @@ export function resolveProjectProfile(
   );
   const { selections, checkpoints } = resolveSelections(profile, contracts, instant);
   validateStatefulOperations(profile, components, selections);
+  assertAuthenticatedWorkerStack(components, selections);
   const paths = contracts.layout.knowledge_graph;
   const substituteProject = (template: string) => substitutePath(template, { project: profile.project.id, sequence: "{sequence}", slug: "{slug}" });
   const componentRecords = components.map((component) => ({

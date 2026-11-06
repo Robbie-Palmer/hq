@@ -308,17 +308,54 @@ describe("stateful project operations", () => {
     );
   });
 
-  it("rejects selected backup and alert capabilities without matching operations", async () => {
+  it("requires exactly one Terraform root for stateful operations", async () => {
+    const { profile, contracts } = await fixture();
+    const invalid = structuredClone(profile) as ProjectProfile;
+    invalid.components = invalid.components.filter(
+      ({ kind }) => kind !== "terraform-root",
+    );
+
+    expect(() =>
+      resolveProjectProfile(invalid, contracts, "2026-11-06T00:00:00Z"),
+    ).toThrow(/require one terraform-root component, found 0/);
+  });
+
+  it("rejects stateful operations with a missing required capability", async () => {
+    const { profile, contracts } = await fixture();
+    const invalid = structuredClone(profile) as ProjectProfile;
+    invalid.layers = invalid.layers.map((layer) => ({
+      ...layer,
+      slots: layer.slots.filter((slot) => slot !== "security.preview-access"),
+    }));
+
+    expect(() =>
+      resolveProjectProfile(invalid, contracts, "2026-11-06T00:00:00Z"),
+    ).toThrow(/require selected capabilities: security.preview-access/);
+  });
+
+  it("rejects selected backup capability without matching operations", async () => {
     const { profile, contracts } = await fixture();
     const invalid = structuredClone(profile) as ProjectProfile;
     if (!invalid.rollout.stateful_operations) {
       throw new Error("Fixture is missing stateful operations");
     }
     delete invalid.rollout.stateful_operations.backup;
-    delete invalid.rollout.stateful_operations.alerting;
 
     expect(() =>
       resolveProjectProfile(invalid, contracts, "2026-11-06T00:00:00Z"),
     ).toThrow(/backup operations must be declared/);
+  });
+
+  it("rejects selected alert capability without matching operations", async () => {
+    const { profile, contracts } = await fixture();
+    const invalid = structuredClone(profile) as ProjectProfile;
+    if (!invalid.rollout.stateful_operations) {
+      throw new Error("Fixture is missing stateful operations");
+    }
+    delete invalid.rollout.stateful_operations.alerting;
+
+    expect(() =>
+      resolveProjectProfile(invalid, contracts, "2026-11-06T00:00:00Z"),
+    ).toThrow(/alert operations must be declared/);
   });
 });

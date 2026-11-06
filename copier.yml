@@ -4,6 +4,10 @@ _exclude:
   - "__no_terraform_root__"
   - "__no_rollout_root__"
   - "__no_operations_root__"
+_skip_if_exists:
+  - "packages/*/src/project-schema.ts"
+  - "workers/*/src/project-authorization.ts"
+  - "workers/*/src/project-routes.ts"
 
 project_id:
   type: str

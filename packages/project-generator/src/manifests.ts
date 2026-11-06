@@ -3,6 +3,7 @@ import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { isSeq, parseDocument, type Document, type YAMLSeq } from "yaml";
 import type { JsonValue, SharedManifestEdit } from "./contracts.js";
+import { runCommand } from "./process.js";
 
 export const REPOSITORY_LAYOUT_PATH =
   "ui/content/projects/personal-engineering-platform/repository-layout.yaml";
@@ -10,6 +11,7 @@ export const PLATFORM_MANIFEST_PATH =
   "ui/content/projects/personal-engineering-platform/platform.yaml";
 export const SHARED_MANIFEST_PATHS = new Set([
   ".mise.toml",
+  "pnpm-lock.yaml",
   "pnpm-workspace.yaml",
   REPOSITORY_LAYOUT_PATH,
   PLATFORM_MANIFEST_PATH,
@@ -183,6 +185,8 @@ async function editYamlSequence(
 
 export function manifestPathForEdit(edit: SharedManifestEdit): string {
   switch (edit.kind) {
+    case "pnpm_lockfile":
+      return "pnpm-lock.yaml";
     case "mise_config_root":
       return ".mise.toml";
     case "pnpm_workspace_package":
@@ -202,7 +206,17 @@ export async function applySharedManifestEdits(
   for (const edit of edits) {
     const manifestPath = manifestPathForEdit(edit);
     let changed: boolean;
-    if (edit.kind === "mise_config_root") {
+    if (edit.kind === "pnpm_lockfile") {
+      const absolutePath = path.join(repositoryRoot, manifestPath);
+      const before = await readFile(absolutePath, "utf8").catch(() => "");
+      await runCommand(
+        "pnpm",
+        ["install", "--lockfile-only", "--ignore-scripts"],
+        { cwd: repositoryRoot },
+      );
+      const after = await readFile(absolutePath, "utf8");
+      changed = before !== after;
+    } else if (edit.kind === "mise_config_root") {
       const absolutePath = path.join(repositoryRoot, manifestPath);
       const source = await readFile(absolutePath, "utf8");
       const updated = addMiseConfigRoot(source, edit.value);

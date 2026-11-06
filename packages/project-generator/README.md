@@ -203,6 +203,9 @@ later updates. Never edit that file by hand.
 Shared manifests use typed additions and record replacements. A replacement
 must include the expected old record, so the engine stops if another change has
 already altered it. The template itself cannot write a shared manifest.
+Plans that generate workspace package manifests declare a `pnpm_lockfile` edit.
+The engine updates only the lockfile with lifecycle scripts disabled before it
+runs template checks.
 
 ## Execution boundary
 
