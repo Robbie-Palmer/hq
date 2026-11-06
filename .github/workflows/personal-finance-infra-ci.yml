@@ -47,6 +47,7 @@ jobs:
         run: mise run //infra/personal-finance:plan
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
 
       - name: Add Terraform plan to PR comment

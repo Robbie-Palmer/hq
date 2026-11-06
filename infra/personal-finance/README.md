@@ -56,8 +56,34 @@ configs and mirror each config to its matching GitHub environment:
 mise run //infra/personal-finance:credentials:sync
 ```
 
-The sync command copies values without printing them. Do not sync before the
-environment protection rules exist.
+The sync command creates one read-only, config-scoped Doppler service token per
+config and installs only that token in its matching GitHub environment. It does
+not copy provider values into GitHub. Do not run it before the environment
+protection rules exist.
+
+The committed handoff contract at
+`operations/bootstrap-contract.json` lists required names, never values. Check
+the contract before populating any config:
+
+```bash
+mise run //infra/personal-finance:bootstrap:check
+```
+
+After injecting one scoped config, run its presence check through that config's
+service token. The check reads environment-variable presence and prints only
+missing names:
+
+```bash
+OPERATIONS_SECRET_CONFIG_REF=doppler://personal-finance-operations/preview \
+  doppler run --project personal-finance-operations --config preview -- \
+  mise run //infra/personal-finance:bootstrap:check:runtime
+```
+
+The backup config deliberately excludes the private age identity and scratch
+restore target. Supply `AGE_IDENTITY_FILE`, `RESTORE_DATABASE_URL`, and
+`RESTORE_OBJECT_KEY` only for an attended restore drill from the separate
+recovery-key custody path. The scheduled workflow creates backups only; it
+cannot run a restore because GitHub and Doppler do not hold the private key.
 
 ## Commands
 
@@ -72,6 +98,7 @@ mise run //infra/personal-finance:test
 mise run //infra/personal-finance:plan
 mise run //infra/personal-finance:plan:drift
 mise run //infra/personal-finance:apply
+mise run //infra/personal-finance:bootstrap:check
 ```
 
 The pull-request workflow always runs static checks and the generated-resource
