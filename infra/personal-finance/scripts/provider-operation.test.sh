@@ -32,7 +32,13 @@ assert_succeeds bash "$bootstrap" contract
 jq -e 'has("values") | not' "$contract" >/dev/null
 jq -e 'all(.configs[]; has("required") and (has("secrets") | not))' "$contract" >/dev/null
 
-assert_succeeds env PERSONAL_FINANCE_TOKEN_HANDOFF_CHECK_ONLY=1 bash "$token_handoff"
+check_only_bin="$temp_dir/check-only-bin"
+mkdir "$check_only_bin"
+for command_name in bash dirname find jq mktemp rmdir unlink; do
+  ln -s "$(command -v "$command_name")" "$check_only_bin/$command_name"
+done
+assert_succeeds env PATH="$check_only_bin" PERSONAL_FINANCE_TOKEN_HANDOFF_CHECK_ONLY=1 \
+  bash "$token_handoff"
 [[ "$(grep -c '^Would install a scoped token' "$temp_dir/stdout")" == "6" ]] \
   || fail "service-token handoff did not cover all six configs"
 

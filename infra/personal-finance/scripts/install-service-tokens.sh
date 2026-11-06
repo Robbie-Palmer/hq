@@ -10,6 +10,7 @@ temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/personal-finance-service-tokens.XXXXXX")"
 active_project=""
 active_config=""
 active_token_name=""
+check_only="${PERSONAL_FINANCE_TOKEN_HANDOFF_CHECK_ONLY:-0}"
 
 cleanup() {
   local status="$?"
@@ -27,12 +28,21 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-for command_name in doppler gh jq; do
+for command_name in jq; do
   command -v "$command_name" >/dev/null 2>&1 || {
     echo "Missing required command: $command_name" >&2
     exit 1
   }
 done
+
+if [[ "$check_only" != "1" ]]; then
+  for command_name in doppler gh; do
+    command -v "$command_name" >/dev/null 2>&1 || {
+      echo "Missing required command: $command_name" >&2
+      exit 1
+    }
+  done
+fi
 
 jq -e '.schema_version == 1 and (.configs | length == 6)' "$contract" >/dev/null
 
@@ -42,14 +52,14 @@ while IFS= read -r config; do
   active_config="${active_project#*/}"
   active_project="${active_project%%/*}"
   github_environment="$(jq -r '.github_environment' <<<"$config")"
-  active_token_name="personal-finance-github-${active_config}-$(date -u +%Y%m%dT%H%M%SZ)"
-  token_file="$temp_dir/$active_project-$active_config.token"
 
-  if [[ "${PERSONAL_FINANCE_TOKEN_HANDOFF_CHECK_ONLY:-0}" == "1" ]]; then
+  if [[ "$check_only" == "1" ]]; then
     echo "Would install a scoped token for $reference in $github_environment."
-    active_token_name=""
     continue
   fi
+
+  active_token_name="personal-finance-github-${active_config}-$(date -u +%Y%m%dT%H%M%SZ)"
+  token_file="$temp_dir/$active_project-$active_config.token"
 
   doppler configs tokens create "$active_token_name" --access read \
     --project "$active_project" --config "$active_config" --plain >"$token_file"
