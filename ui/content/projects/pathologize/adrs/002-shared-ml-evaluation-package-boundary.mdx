@@ -1,0 +1,76 @@
+---
+title: "ADR 002: Shared ML evaluation package boundary"
+date: "2026-11-06"
+status: "Accepted"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+---
+
+## Context
+
+Pathologize has several independent benchmark projects. They need the same
+mechanics for typed adapters, canonical artifacts, resource accounting,
+promotion gates, and schema drift checks. Other evaluation projects in the
+repository need those mechanics too.
+
+Those mechanics do not depend on pathology. DICOM and OME-Zarr roles, leakage
+units, prediction types, metrics, fixtures, and clinical claim boundaries do.
+Keeping both categories in one Pathologize package would give unrelated
+projects a pathology dependency or encourage them to copy the generic code.
+
+[ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary)
+already keeps account and provider policy outside benchmark contracts. Code
+ownership needs an equally clear boundary.
+
+## Decision
+
+Put domain-neutral Python evaluation code in `packages/ml-evaluation`.
+Pathologize and other evaluation projects may import:
+
+* strict adapter, objective, resource, run, and gate contracts;
+* canonical JSON and JSON Lines artifacts, content hashes, and confined paths;
+* pinned Python entrypoint loading and adapter identity checks;
+* metric and resource gate evaluation; and
+* JSON Schema writing and drift checks.
+
+The shared package must not define pathology formats, registry exports,
+leakage vocabulary, prediction records, metrics, fixtures, safety claims, or
+scorecard policy. Pathologize owns those in its benchmark contract package.
+
+Add a contract to the shared package only when its meaning is independent of a
+dataset, model provider, clinical domain, and benchmark workstream. It must
+also have repeated use across benchmark projects or an existing consumer
+outside Pathologize.
+
+## Consequences
+
+Pathologize benchmark packages are smaller and state their domain assumptions
+directly. Fixes to canonical serialization, path confinement, adapter loading,
+or gate arithmetic can be tested once and used by more than one evaluation.
+
+The package creates a compatibility boundary. Consumers must update their lock
+files when it changes, and changes to its Pydantic models can affect generated
+schemas in downstream projects.
+
+Not every repeated-looking type belongs there. Domain projects keep similar
+metric names and scorecard fields separate until their scientific meanings
+match.
+
+## Alternatives considered
+
+### Keep all shared code under Pathologize
+
+This keeps one Python distribution for the initial benchmarks. It gives
+non-pathology evaluations a misleading dependency and makes ownership unclear.
+
+### Copy utilities into each evaluation project
+
+Each project could evolve independently, but hashing, path safety, and gate
+behavior would drift. These are mechanical contracts and benefit from one
+implementation.
+
+### Put pathology contracts in the generic package
+
+This would reduce the Pathologize package further, but it would turn a shared
+package into a collection of unrelated domain models. The package stays small
+and domain-neutral instead.

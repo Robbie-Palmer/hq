@@ -1,43 +1,38 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
+from ml_evaluation.artifacts import content_address
+from ml_evaluation.contracts import AdapterSpec, MetricResult, ResourceUsage, RunSummary
+from ml_evaluation.gates import evaluate_gates, recommendation
+from ml_evaluation.schema_artifacts import write_schemas as write_schema_artifacts
 from pydantic import BaseModel
 
 from .adapters import load_adapter
 from .artifacts import (
-    canonical_bytes,
     contract_root,
     load_model,
     project_root,
-    read_json,
     read_jsonl,
     resolve_under,
-    sha256_bytes,
     sha256_file,
     write_json,
     write_jsonl,
 )
 from .contracts import (
     SCHEMA_MODELS,
-    AdapterSpec,
     AggregateScorecard,
     BenchmarkProject,
     ExperimentManifest,
     FixtureItem,
     FixtureManifest,
-    GateResult,
     LeakageUnit,
-    MetricObjective,
-    MetricResult,
     NucleiPrediction,
     QualityPrediction,
     RegistryExport,
     RegistryItem,
     RegistrySource,
-    ResourceUsage,
-    RunSummary,
     Scorecard,
     Split,
     SyntheticSource,
@@ -256,119 +251,8 @@ def _read_run(
     )
 
 
-def _metric_values(run: RunSummary) -> dict[str, float]:
-    return {metric.metric: metric.value for metric in run.metrics}
-
-
-def _directional_delta(direction: str, new: float, reference: float) -> float:
-    return new - reference if direction == "maximize" else reference - new
-
-
-def _metric_gates(
-    objective: MetricObjective,
-    baseline_value: float,
-    candidate_value: float | None,
-) -> list[GateResult]:
-    if objective.role == "diagnostic":
-        return []
-    if objective.baseline_floor is None:
-        raise ValueError(f"missing baseline threshold for {objective.metric}")
-    threshold = objective.baseline_floor
-    baseline_passed = _directional_delta(objective.direction, baseline_value, threshold) >= 0
-    gates = [
-        GateResult(
-            gate=f"baseline:{objective.metric}",
-            passed=baseline_passed,
-            observed=baseline_value,
-            threshold=threshold,
-        )
-    ]
-    if candidate_value is None:
-        return gates
-    if objective.role == "primary":
-        if objective.candidate_min_delta is None:
-            raise ValueError(f"missing candidate delta for {objective.metric}")
-        improvement = _directional_delta(objective.direction, candidate_value, baseline_value)
-        gates.append(
-            GateResult(
-                gate=f"candidate-improvement:{objective.metric}",
-                passed=improvement >= objective.candidate_min_delta,
-                observed=improvement,
-                threshold=objective.candidate_min_delta,
-            )
-        )
-    if objective.candidate_max_regression is not None:
-        regression = _directional_delta(objective.direction, baseline_value, candidate_value)
-        gates.append(
-            GateResult(
-                gate=f"candidate-regression:{objective.metric}",
-                passed=regression <= objective.candidate_max_regression,
-                observed=regression,
-                threshold=objective.candidate_max_regression,
-            )
-        )
-    return gates
-
-
-def _resource_gates(
-    manifest: ExperimentManifest, run_role: str, run: RunSummary
-) -> list[GateResult]:
-    budget = manifest.resource_budget
-    limits = {
-        "input_bytes": budget.max_input_bytes,
-        "prediction_bytes": budget.max_prediction_bytes,
-        "pixels_read": budget.max_pixels_read,
-        "accelerator_seconds": budget.max_accelerator_seconds,
-    }
-    resource_values = {
-        "input_bytes": run.resources.input_bytes,
-        "prediction_bytes": run.resources.prediction_bytes,
-        "pixels_read": run.resources.pixels_read,
-        "accelerator_seconds": run.resources.accelerator_seconds,
-    }
-    return [
-        GateResult(
-            gate=f"{run_role}-resource:{name}",
-            passed=observed <= limits[name],
-            observed=float(observed),
-            threshold=float(limits[name]),
-        )
-        for name, observed in resource_values.items()
-    ]
-
-
-def _gates(
-    manifest: ExperimentManifest, baseline: RunSummary, candidate: RunSummary | None
-) -> list[GateResult]:
-    baseline_values = _metric_values(baseline)
-    candidate_values = _metric_values(candidate) if candidate else {}
-    gates: list[GateResult] = []
-    for objective in manifest.objectives:
-        gates.extend(
-            _metric_gates(
-                objective,
-                baseline_values[objective.metric],
-                candidate_values.get(objective.metric),
-            )
-        )
-    gates.extend(_resource_gates(manifest, "baseline", baseline))
-    if candidate is not None:
-        gates.extend(_resource_gates(manifest, "candidate", candidate))
-    return gates
-
-
 def _scorecard_id(scorecard: dict[str, Any]) -> str:
-    return f"scorecard:sha256:{sha256_bytes(canonical_bytes(scorecard))}"
-
-
-def _recommendation(
-    candidate: RunSummary | None, gates: list[GateResult]
-) -> Literal["baseline_only", "promote_candidate", "reject_candidate"]:
-    if candidate is None:
-        return "baseline_only"
-    if all(gate.passed for gate in gates):
-        return "promote_candidate"
-    return "reject_candidate"
+    return content_address("scorecard", scorecard)
 
 
 def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scorecard:
@@ -385,8 +269,13 @@ def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scoreca
         if manifest.candidate is not None
         else None
     )
-    gates = _gates(manifest, baseline, candidate)
-    recommendation = _recommendation(candidate, gates)
+    gates = evaluate_gates(
+        manifest.objectives,
+        manifest.resource_budget,
+        baseline,
+        candidate,
+    )
+    experiment_recommendation = recommendation(candidate, gates)
     body = {
         "schema_version": "1.0.0",
         "experiment_id": manifest.experiment_id,
@@ -396,7 +285,7 @@ def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scoreca
         "baseline": baseline.model_dump(mode="json"),
         "candidate": candidate.model_dump(mode="json") if candidate else None,
         "gates": [gate.model_dump(mode="json") for gate in gates],
-        "recommendation": recommendation,
+        "recommendation": experiment_recommendation,
         "clinical_validity": False,
     }
     scorecard = Scorecard(scorecard_id=_scorecard_id(body), **body)
@@ -423,7 +312,7 @@ def aggregate_scorecards(root: Path | None = None) -> AggregateScorecard:
         "scorecards": [scorecard.model_dump(mode="json") for scorecard in scorecards],
         "clinical_validity": False,
     }
-    benchmark_id = f"benchmark:sha256:{sha256_bytes(canonical_bytes(body))}"
+    benchmark_id = content_address("benchmark", body)
     aggregate = AggregateScorecard(benchmark_id=benchmark_id, **body)
     write_json(root / "outputs/scorecard/benchmark.json", aggregate)
     write_json(
@@ -440,14 +329,7 @@ def aggregate_scorecards(root: Path | None = None) -> AggregateScorecard:
 
 def write_schemas(*, check: bool = False, root: Path | None = None) -> None:
     root = root or contract_root()
-    for filename, model in SCHEMA_MODELS.items():
-        path = root / "schemas" / filename
-        content = model.model_json_schema(mode="validation")
-        if check:
-            if read_json(path) != content:
-                raise ValueError(f"JSON Schema drift: {filename}")
-        else:
-            write_json(path, content)
+    write_schema_artifacts(SCHEMA_MODELS, root=root, check=check)
 
 
 def _validate_scorecard_id(scorecard: Scorecard) -> None:
@@ -467,7 +349,7 @@ def verify(root: Path | None = None) -> None:
         if not all(gate.passed for gate in scorecard.gates):
             raise ValueError(f"failed benchmark gate in {scorecard.experiment_id}")
     body = aggregate.model_dump(mode="json", exclude={"benchmark_id"})
-    expected = f"benchmark:sha256:{sha256_bytes(canonical_bytes(body))}"
+    expected = content_address("benchmark", body)
     if aggregate.benchmark_id != expected:
         raise ValueError("aggregate benchmark ID mismatch")
 

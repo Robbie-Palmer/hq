@@ -41,6 +41,10 @@ parameters, prompt, model manifest, corpus manifest, stage artifacts, and
 failure files. The pipeline makes no network call and does not require a model
 API key.
 
+Canonical JSON, JSON Lines, hashing, typed artifact loading, and confined path
+resolution come from `packages/ml-evaluation`. Financial document schemas and
+pipeline policy remain in this project.
+
 ## Metrics and gates
 
 `outputs/evaluation/metrics.json` reports canonical-field accuracy, transaction

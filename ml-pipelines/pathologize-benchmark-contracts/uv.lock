@@ -119,6 +119,29 @@ wheels = [
 ]
 
 [[package]]
+name = "ml-evaluation"
+version = "0.1.0"
+source = { editable = "../../packages/ml-evaluation" }
+dependencies = [
+    { name = "fire" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fire", specifier = ">=0.7.1,<0.8" },
+    { name = "pydantic", specifier = ">=2.12.5,<3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "ruff", specifier = ">=0.14.14" },
+    { name = "ty", specifier = ">=0.0.75" },
+]
+
+[[package]]
 name = "packaging"
 version = "26.3"
 source = { registry = "https://pypi.org/simple" }
@@ -133,6 +156,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fire" },
+    { name = "ml-evaluation" },
     { name = "pydantic" },
 ]
 
@@ -147,6 +171,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fire", specifier = ">=0.7.1,<0.8" },
+    { name = "ml-evaluation", editable = "../../packages/ml-evaluation" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },
 ]
 

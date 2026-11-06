@@ -4,6 +4,7 @@ import hashlib
 from pathlib import Path
 
 import pytest
+from ml_evaluation.contracts import AdapterSpec
 from pydantic import ValidationError
 
 from pathologize_benchmark_contracts.adapters import load_adapter
@@ -17,7 +18,6 @@ from pathologize_benchmark_contracts.artifacts import (
     write_jsonl,
 )
 from pathologize_benchmark_contracts.contracts import (
-    AdapterSpec,
     ExperimentManifest,
     FixtureManifest,
     LeakageUnit,

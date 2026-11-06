@@ -1,8 +1,10 @@
 # Pathologize benchmark contracts
 
-This Python package holds the types and deterministic runner shared by the
-Pathologize benchmark projects. It is not an evaluation project, dataset, data
-registry, or clinical product.
+This Python package holds pathology-specific types, fixtures, metrics, and the
+deterministic runner shared by the Pathologize benchmark projects. Generic
+artifact handling, adapter contracts, resource accounting, gates, and schema
+writing come from `packages/ml-evaluation`. This package is not an evaluation
+project, dataset, data registry, or clinical product.
 
 The executable projects are:
 

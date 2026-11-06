@@ -137,6 +137,7 @@ jobs:
             packages/finance-tax-rules/coverage/lcov.info
             packages/inbox-signal-data/coverage/lcov.info
             packages/iso-codes/coverage/lcov.info
+            packages/ml-evaluation/coverage.xml
             packages/node-base/coverage/lcov.info
             packages/object-storage/coverage/lcov.info
             packages/observability/coverage/lcov.info

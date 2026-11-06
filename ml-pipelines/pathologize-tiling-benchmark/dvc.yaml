@@ -1,10 +1,24 @@
 stages:
+  pin_ml_evaluation:
+    cmd: uv run --locked ml-evaluation fingerprint
+    deps:
+      - ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/artifacts.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/cli.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/gates.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/schema_artifacts.py
+    outs:
+      - outputs/ml-evaluation-source.sha256
+
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
     deps:
       - fixtures/spec.json
       - pyproject.toml
       - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
       - uv.lock
     outs:
       - data/synthetic
@@ -16,6 +30,7 @@ stages:
       - experiments/tiling-magnification.json
       - params.yaml
       - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
     params:
       - benchmark_id
       - workstream
@@ -31,6 +46,7 @@ stages:
       - outputs/contracts/validation.json
       - pyproject.toml
       - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
       - uv.lock
     outs:
       - outputs/runs
@@ -42,6 +58,7 @@ stages:
       - experiments/tiling-magnification.json
       - outputs/runs/tiling-magnification-contract-v1
       - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
     outs:
       - outputs/scorecards/tiling-magnification-contract-v1.json
 
@@ -51,6 +68,7 @@ stages:
       - outputs/scorecards/tiling-magnification-contract-v1.json
       - params.yaml
       - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
     outs:
       - outputs/scorecard/benchmark.json
     metrics:

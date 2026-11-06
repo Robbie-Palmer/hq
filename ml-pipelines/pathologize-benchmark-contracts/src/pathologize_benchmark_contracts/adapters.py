@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import importlib
 from collections import deque
 from pathlib import Path
-from typing import ClassVar, Protocol, cast, runtime_checkable
+from typing import ClassVar, Protocol, runtime_checkable
+
+from ml_evaluation.adapters import load_adapter as load_shared_adapter
+from ml_evaluation.contracts import AdapterSpec
 
 from .artifacts import resolve_under
 from .contracts import (
-    AdapterSpec,
     ExperimentManifest,
     FixtureItem,
     NucleiPrediction,
@@ -167,17 +168,12 @@ class DeterministicColorBaseline:
 
 
 def load_adapter(spec: AdapterSpec) -> ModelAdapter:
-    if spec.kind == "builtin":
-        adapter: object = DeterministicColorBaseline()
-    else:
-        module_name, separator, attribute = spec.entrypoint.partition(":")
-        if not separator:
-            raise ValueError("python adapter entrypoint must use module:attribute")
-        factory = getattr(importlib.import_module(module_name), attribute)
-        adapter = factory()
-    if not isinstance(adapter, ModelAdapter):
-        raise TypeError(f"adapter {spec.adapter_id} does not implement ModelAdapter")
-    typed_adapter = cast(ModelAdapter, adapter)
-    if typed_adapter.adapter_id != spec.adapter_id:
-        raise ValueError("loaded adapter ID differs from the pinned manifest")
-    return typed_adapter
+    return load_shared_adapter(
+        spec,
+        builtins={
+            "pathologize_benchmark_contracts.adapters:DeterministicColorBaseline": (
+                DeterministicColorBaseline
+            )
+        },
+        expected_type=ModelAdapter,
+    )

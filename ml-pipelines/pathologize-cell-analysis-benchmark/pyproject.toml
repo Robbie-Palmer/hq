@@ -9,4 +9,5 @@ dependencies = ["pathologize-benchmark-contracts"]
 package = false
 
 [tool.uv.sources]
+ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }

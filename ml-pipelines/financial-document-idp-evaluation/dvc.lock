@@ -7,14 +7,18 @@ stages:
       hash: md5
       md5: e096089178632c214a8535852964ae86
       size: 15919
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 45efa1011444c7b65adfcfd0fb88bf49
-      size: 1559
+      md5: 64b6726da64a41ace0ec8941c18e3b5b
+      size: 1674
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -25,8 +29,8 @@ stages:
       size: 9331
     - path: uv.lock
       hash: md5
-      md5: b9cc8741a6b10c5300f7aedc6af9610e
-      size: 66580
+      md5: edb6277d3975e20c0c7c13dac272b15a
+      size: 67250
     params:
       params.yaml:
         corpusSpec: fixtures/corpus-spec.json
@@ -45,10 +49,14 @@ stages:
       md5: 526bcca458083116e38d22d900d8bb49.dir
       size: 22209
       nfiles: 13
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -85,6 +93,10 @@ stages:
       hash: md5
       md5: ea0a55db91e4b5ac3c9a6f0ddef2016a
       size: 256
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: outputs/rendered/documents.jsonl
       hash: md5
       md5: 603028a8dd373a887664b0a1804798e5
@@ -95,12 +107,12 @@ stages:
       size: 201
     - path: pyproject.toml
       hash: md5
-      md5: 45efa1011444c7b65adfcfd0fb88bf49
-      size: 1559
+      md5: 64b6726da64a41ace0ec8941c18e3b5b
+      size: 1674
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -111,8 +123,8 @@ stages:
       size: 9331
     - path: uv.lock
       hash: md5
-      md5: b9cc8741a6b10c5300f7aedc6af9610e
-      size: 66580
+      md5: edb6277d3975e20c0c7c13dac272b15a
+      size: 67250
     params:
       params.yaml:
         extraction:
@@ -134,7 +146,7 @@ stages:
       size: 6552
     - path: outputs/extraction/run.json
       hash: md5
-      md5: f6f8a2e89eca63213552761b6d5b8b50
+      md5: f5bb78a57b1214ed1fa6c477517bf25f
       size: 599
   normalize:
     cmd: uv run --locked financial-document-idp normalize
@@ -143,10 +155,14 @@ stages:
       hash: md5
       md5: 75175955c60ed615bc7bd40ca617c576
       size: 6552
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -172,14 +188,18 @@ stages:
       md5: 526bcca458083116e38d22d900d8bb49.dir
       size: 22209
       nfiles: 13
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: outputs/normalized/predictions.jsonl
       hash: md5
       md5: 63ed940505ffa6180da33a813827380f
       size: 6552
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -212,14 +232,18 @@ stages:
       hash: md5
       md5: 89270ce5a9db26f21a3b27a9f0460b5a
       size: 1984
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: outputs/normalized/predictions.jsonl
       hash: md5
       md5: 63ed940505ffa6180da33a813827380f
       size: 6552
     - path: src/financial_document_idp/evaluation_artifacts.py
       hash: md5
-      md5: 605035616fc12359752e5b5df88e56de
-      size: 3239
+      md5: 04b08c29f8a9d9cff3f24caf02b65a2c
+      size: 1599
     - path: src/financial_document_idp/pipeline.py
       hash: md5
       md5: c406badfb136f3f87517fb08c2189559
@@ -280,6 +304,10 @@ stages:
       hash: md5
       md5: 58e0494c51d30eb3494f7c9198986bb9
       size: 3
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65
     - path: outputs/normalized/failures.json
       hash: md5
       md5: 58e0494c51d30eb3494f7c9198986bb9
@@ -294,17 +322,17 @@ stages:
       size: 201
     - path: pyproject.toml
       hash: md5
-      md5: 45efa1011444c7b65adfcfd0fb88bf49
-      size: 1559
+      md5: 64b6726da64a41ace0ec8941c18e3b5b
+      size: 1674
     - path: src/financial_document_idp
       hash: md5
-      md5: 90b72bf5ff1548175dc108fdf8271a14.dir
-      size: 51279
+      md5: 641f723ec8311b3b2069c2e8a7adb9df.dir
+      size: 49639
       nfiles: 5
     - path: uv.lock
       hash: md5
-      md5: b9cc8741a6b10c5300f7aedc6af9610e
-      size: 66580
+      md5: edb6277d3975e20c0c7c13dac272b15a
+      size: 67250
     outs:
     - path: outputs/error-analysis/errors.json
       hash: md5
@@ -312,9 +340,45 @@ stages:
       size: 516
     - path: outputs/error-analysis/provenance.json
       hash: md5
-      md5: 4c8dd7030501bf532cd5bbe51b00f843
-      size: 2463
+      md5: b20f25db69f47fbfa7c45db98c78228c
+      size: 2768
     - path: outputs/error-analysis/summary.md
       hash: md5
       md5: c3e48303d5fe7f96d131546d0c266739
       size: 92
+  pin_ml_evaluation:
+    cmd: uv run --locked ml-evaluation fingerprint
+    deps:
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
+      hash: md5
+      md5: bacbc6c23e7549f4a065f9d4cf9adf70
+      size: 192
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
+      hash: md5
+      md5: 34cf0a4de1f88ef9ad0aafdc78929e7c
+      size: 1153
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/artifacts.py
+      hash: md5
+      md5: a74eef2afb1121562ef8d2162a434786
+      size: 2768
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/cli.py
+      hash: md5
+      md5: 9cad3638a295ff9b10cfbf52cede2ff9
+      size: 1432
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
+      hash: md5
+      md5: f9bac2c1a29d7e207eff056607525531
+      size: 3352
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/gates.py
+      hash: md5
+      md5: 9c02ce69493bfec66e0af63a9d7cee24
+      size: 4068
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/schema_artifacts.py
+      hash: md5
+      md5: 8072bb6bd4dfa7dd07ad9da9ba37ad8b
+      size: 612
+    outs:
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: dd6c819eeb4690976b21d17a73befef1
+      size: 65

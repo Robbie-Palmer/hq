@@ -1,8 +1,22 @@
 stages:
+  pin_ml_evaluation:
+    cmd: uv run --locked ml-evaluation fingerprint
+    deps:
+      - ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/artifacts.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/cli.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/gates.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/schema_artifacts.py
+    outs:
+      - outputs/ml-evaluation-source.sha256
+
   build_corpus:
     cmd: uv run --locked financial-document-idp build-corpus
     deps:
       - fixtures/corpus-spec.json
+      - outputs/ml-evaluation-source.sha256
       - pyproject.toml
       - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
@@ -18,6 +32,7 @@ stages:
     cmd: uv run --locked financial-document-idp safety-render
     deps:
       - data/corpus
+      - outputs/ml-evaluation-source.sha256
       - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
@@ -32,6 +47,7 @@ stages:
     cmd: uv run --locked financial-document-idp extract
     deps:
       - models.json
+      - outputs/ml-evaluation-source.sha256
       - outputs/rendered/documents.jsonl
       - prompts/extraction-v1.txt
       - pyproject.toml
@@ -53,6 +69,7 @@ stages:
     cmd: uv run --locked financial-document-idp normalize
     deps:
       - outputs/extraction/predictions.jsonl
+      - outputs/ml-evaluation-source.sha256
       - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
       - src/financial_document_idp/schemas.py
@@ -64,6 +81,7 @@ stages:
     cmd: uv run --locked financial-document-idp match
     deps:
       - data/corpus
+      - outputs/ml-evaluation-source.sha256
       - outputs/normalized/predictions.jsonl
       - src/financial_document_idp/evaluation_artifacts.py
       - src/financial_document_idp/pipeline.py
@@ -76,6 +94,7 @@ stages:
     cmd: uv run --locked financial-document-idp evaluate
     deps:
       - data/corpus/manifest.json
+      - outputs/ml-evaluation-source.sha256
       - models.json
       - outputs/matching/records.jsonl
       - outputs/normalized/predictions.jsonl
@@ -95,6 +114,7 @@ stages:
     cmd: uv run --locked financial-document-idp error-analysis
     deps:
       - data/corpus/manifest.json
+      - outputs/ml-evaluation-source.sha256
       - models.json
       - outputs/evaluation/metrics.json
       - outputs/evaluation/release-decision.json

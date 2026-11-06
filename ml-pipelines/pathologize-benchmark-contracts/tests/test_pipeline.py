@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from ml_evaluation.contracts import ResourceUsage
+from ml_evaluation.gates import evaluate_gates
 
 from pathologize_benchmark_contracts import cli
 from pathologize_benchmark_contracts.artifacts import load_model, read_json, write_json
@@ -11,13 +13,11 @@ from pathologize_benchmark_contracts.contracts import (
     ExperimentManifest,
     FixtureManifest,
     QualityPrediction,
-    ResourceUsage,
     Scorecard,
     Workstream,
 )
 from pathologize_benchmark_contracts.metrics import evaluate_predictions
 from pathologize_benchmark_contracts.pipeline import (
-    _gates,
     evaluate_experiment,
     load_experiments,
     validate_contracts,
@@ -189,7 +189,12 @@ def test_candidate_must_improve_without_breaking_resource_budget(
         }
     )
     candidate_manifest = manifest.model_copy(update={"candidate": candidate_adapter})
-    gates = _gates(candidate_manifest, scorecard.baseline, candidate)
+    gates = evaluate_gates(
+        candidate_manifest.objectives,
+        candidate_manifest.resource_budget,
+        scorecard.baseline,
+        candidate,
+    )
 
     assert next(
         gate for gate in gates if gate.gate == "candidate-improvement:tile_selection_f1"
