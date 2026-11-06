@@ -1,0 +1,42 @@
+schema: '2.0'
+stages:
+  acquire_cptac_coad_smallest_series:
+    cmd: uv run --locked pathologize-registry acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifests
+      hash: md5
+      md5: 640f28b3bff7d13ee2179cd9ac94efbe.dir
+      size: 10775
+      nfiles: 5
+    - path: pyproject.toml
+      hash: md5
+      md5: fd0e12aa6897eac471771d5daa490621
+      size: 1428
+    - path: records
+      hash: md5
+      md5: 99668a2425834988b9733107555d4185.dir
+      size: 2627
+      nfiles: 1
+    - path: registry.json
+      hash: md5
+      md5: 4fb285bc034ce6e1248a51bf35b8a2aa
+      size: 1284
+    - path: src/pathologize_data_registry
+      hash: md5
+      md5: 1da3963231265a880e1b2571fd6e6281.dir
+      size: 32643
+      nfiles: 6
+    - path: uv.lock
+      hash: md5
+      md5: a845c63dcfda3ed60a3bb00f1340ad76
+      size: 68422
+    outs:
+    - path: data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+      hash: md5
+      md5: f5c467788e1301a842f27b1c97d25238.dir
+      size: 18701962
+      nfiles: 6

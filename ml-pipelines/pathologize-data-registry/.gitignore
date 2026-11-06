@@ -1,0 +1,7 @@
+/data/raw
+/.dvc/cache
+/.dvc/tmp
+/.dvc/config.local
+/.dvc/site-cache
+/coverage.xml
+/.coverage

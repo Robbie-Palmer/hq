@@ -4,12 +4,19 @@ ML projects in this directory use [DVC](https://dvc.org/) to version data,
 with a shared private Cloudflare R2 bucket (`dvc`) as remote storage.
 Each project stores data under its own prefix (e.g. `s3://dvc/recipe-parsing`).
 
+The `pathologize-data-registry` is the exception: it reconstructs its bounded
+raw subset from allowlisted public sources and has no R2 remote. Use its
+`acquire` or `repro` task; do not run the shared `pull` or `push` workflow for
+that project.
+
 Current projects:
 
 - `ai-review-evaluation`: versioned Pull Request replay corpora, controlled
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
+- `pathologize-data-registry`: public computational-pathology source assets,
+  provenance, licences, identities, scanner metadata, and source-native labels.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text

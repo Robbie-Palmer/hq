@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "asset_manifest_id": "cptac-coad-idc-v23-smallest-series-assets",
+  "subset_id": "cptac-coad-idc-v23-smallest-series",
+  "assets": [
+    {
+      "relative_path": "0192795d-4378-4ad3-8301-05a619500b52.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/0192795d-4378-4ad3-8301-05a619500b52.dcm",
+      "bytes": 795484,
+      "sha256": "39a11a53cf9d4297259fbc76a3528ff24d156a90c359f6196e16a727995dc391",
+      "source_etag": "7d628f14174e3800ffc99573bb8cbbc2",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.2142795846.153648507.1655705237574.37.0",
+      "image_role": "label"
+    },
+    {
+      "relative_path": "6356f91d-ceba-44fe-b3fd-34c157c12b29.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/6356f91d-ceba-44fe-b3fd-34c157c12b29.dcm",
+      "bytes": 2376984,
+      "sha256": "29e507d6312f98103e16298754b3529d13c0445ca2fd9ce762f311b83d42bc47",
+      "source_etag": "01270e6180a1b6667150ca013592d390",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.21.0",
+      "image_role": "volume_resampled"
+    },
+    {
+      "relative_path": "82975e65-0e70-4439-a39e-df9785708f94.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/82975e65-0e70-4439-a39e-df9785708f94.dcm",
+      "bytes": 972276,
+      "sha256": "c92f1bb52c4c2f7dd5d544d5974a138181d5f13b3dfd1674a39c15e895847a42",
+      "source_etag": "98c8fd5e0a0456436dd770c382c17804",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.28.0",
+      "image_role": "volume_resampled"
+    },
+    {
+      "relative_path": "a75b39af-d0bc-490b-95ae-d569650ace66.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/a75b39af-d0bc-490b-95ae-d569650ace66.dcm",
+      "bytes": 2013034,
+      "sha256": "40e41c8d99415d2e03cacbcfe6ff6221f0bbba00485e6c6f42d5b86caa4997d7",
+      "source_etag": "533d283025a6b693d2c7abd9a8f5cd2e",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.14.0",
+      "image_role": "thumbnail"
+    },
+    {
+      "relative_path": "ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm",
+      "bytes": 10600048,
+      "sha256": "675ddd4dd43ed48994bacd331f5d9bec2d3b585f1d3b36141eecaa64719569ba",
+      "source_etag": "9235714ffd137e7762b16d294a1df212",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.7.0",
+      "image_role": "volume_primary"
+    },
+    {
+      "relative_path": "eb3e0b2b-932b-4e6d-8176-59dc0a1575eb.dcm",
+      "source_url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/eb3e0b2b-932b-4e6d-8176-59dc0a1575eb.dcm",
+      "bytes": 1944136,
+      "sha256": "5eb4588b1433b79b7aea8973eb4a2e44cf53c15398d91bf77d1a76233b9681b8",
+      "source_etag": "19004a1a3be1d1db0ec71c94a64ab024",
+      "sop_instance_uid": "1.3.6.1.4.1.5962.99.1.182091152.1645077543.1640859630992.35.0",
+      "image_role": "overview"
+    }
+  ]
+}
