@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(git rev-parse --show-toplevel)"
+scratch_root="$(mktemp -d)"
+trap 'rm -rf -- "$scratch_root"' EXIT
+
+template_root="$scratch_root/template"
+render_root="$scratch_root/render"
+component_root="$render_root/ml-pipelines/research-template-fixture"
+mkdir -p "$template_root" "$render_root/ml-pipelines"
+cp "$repository_root/copier.yml" "$template_root/copier.yml"
+cp -R "$repository_root/copier-templates" "$template_root/copier-templates"
+cp -R "$repository_root/ml-pipelines/dvc-tool" "$render_root/ml-pipelines/dvc-tool"
+cp -R "$repository_root/ml-pipelines/scripts" "$render_root/ml-pipelines/scripts"
+git -C "$render_root" init --quiet --initial-branch=main
+
+cat >"$scratch_root/answers.yaml" <<'YAML'
+project_id: research-template-fixture
+blueprint:
+  schema_version: 4
+  profile_schema_version: 3
+  effective_at: "2026-11-06T00:00:00Z"
+  project:
+    id: research-template-fixture
+    stable_id: project:research-template-fixture
+    name: Research template fixture
+    kind: data-pipeline
+    published: false
+  components:
+    - id: research-template-fixture
+      stable_id: component:research-template-fixture/research-template-fixture
+      name: Research template fixture
+      kind: python-pipeline
+      path: ml-pipelines/research-template-fixture
+      template_ownership: structure-only
+      tasks: []
+    - id: support-contract
+      stable_id: component:research-template-fixture/support-contract
+      name: Support contract
+      kind: typescript-package
+      path: packages/support-contract
+      template_ownership: structure-only
+      tasks: []
+  repository_paths:
+    copier_answers: .copier/projects/research-template-fixture.yml
+    project_index: ui/content/projects/research-template-fixture/index.mdx
+    architecture_decisions: ui/content/projects/research-template-fixture/adrs/{sequence}-{slug}.mdx
+    product_decisions: ui/content/projects/research-template-fixture/pdrs/{sequence}-{slug}.mdx
+  selections: []
+  catalog:
+    system:
+      id: system:research-template-fixture/data-pipeline
+      kind: system
+      project: project:research-template-fixture
+    components: []
+  ownership:
+    owned_paths:
+      - ml-pipelines/research-template-fixture
+      - packages/support-contract
+    structural_edits: []
+  nix:
+    enabled: false
+  opentelemetry:
+    enabled: false
+  fulfillment_checkpoints: []
+  rollout:
+    operational_checks: []
+    migration_checkpoints: []
+YAML
+
+copier copy \
+  --data-file "$scratch_root/answers.yaml" \
+  --defaults \
+  --overwrite \
+  --skip-tasks \
+  "$template_root" \
+  "$render_root"
+
+export MISE_TRUSTED_CONFIG_PATHS="$render_root"
+mise --cd "$component_root" run lock
+mise --cd "$component_root" run ci
+# Keep the generated starter source and tests above the downstream project floor.
+mise --cd "$component_root" run test -- --cov-fail-under=90
+mise --cd "$component_root" run dvc -- status
+
+[[ -f "$component_root/uv.lock" ]]
+[[ -f "$component_root/dvc.lock" ]]
+[[ -f "$component_root/.dvcignore" ]]
+[[ -f "$component_root/coverage.xml" ]]
+[[ -f "$component_root/metrics/metrics.json" ]]
+[[ -f "$component_root/outputs/provenance.json" ]]
+grep -Fqx '    remote = r2' "$component_root/.dvc/config"
+grep -Fqx '    url = s3://dvc/research-template-fixture' "$component_root/.dvc/config"
+grep -Fqx '    endpointurl = https://dcd7cd68dd892d610267ded6b1af567b.r2.cloudflarestorage.com' "$component_root/.dvc/config"
+grep -Fq -- '--cov-fail-under=80' "$component_root/pyproject.toml"
+[[ "$(grep -Fc '      - ${fixture.rights}' "$component_root/dvc.yaml")" == "2" ]]
+[[ -f "$render_root/packages/support-contract/generated-component.yaml" ]]
+[[ -f "$render_root/packages/support-contract/mise.toml" ]]
+
+provenance_before="$(sha256sum "$component_root/outputs/provenance.json")"
+jq '.local_decisions = ["research-template-fixture:001-local-decision"]' \
+  "$component_root/manifests/decision-provenance.json" \
+  >"$scratch_root/decision-provenance.json"
+mv "$scratch_root/decision-provenance.json" \
+  "$component_root/manifests/decision-provenance.json"
+repro_output="$(mise --cd "$component_root" run repro 2>&1)"
+printf '%s\n' "$repro_output"
+grep -Fq "Stage 'build_fixture' didn't change, skipping" <<<"$repro_output"
+grep -Fq "Stage 'train' didn't change, skipping" <<<"$repro_output"
+grep -Fq "Running stage 'evaluate':" <<<"$repro_output"
+mise --cd "$component_root" run verify
+provenance_after="$(sha256sum "$component_root/outputs/provenance.json")"
+[[ "$provenance_before" != "$provenance_after" ]]
+
+cp \
+  "$component_root/manifests/rights.json" \
+  "$component_root/manifests/configured-rights.json"
+jq '.fixture.rights = "manifests/configured-rights.json"' \
+  "$component_root/params.yaml" \
+  >"$scratch_root/params.yaml"
+mv "$scratch_root/params.yaml" "$component_root/params.yaml"
+mise --cd "$component_root" run repro
+jq '.records[0].notes = "Updated project-authored synthetic fixture rights."' \
+  "$component_root/manifests/configured-rights.json" \
+  >"$scratch_root/configured-rights.json"
+mv \
+  "$scratch_root/configured-rights.json" \
+  "$component_root/manifests/configured-rights.json"
+rights_repro_output="$(mise --cd "$component_root" run repro 2>&1)"
+printf '%s\n' "$rights_repro_output"
+grep -Fq "Running stage 'build_fixture':" <<<"$rights_repro_output"
+grep -Fq "Running stage 'evaluate':" <<<"$rights_repro_output"
+mise --cd "$component_root" run verify

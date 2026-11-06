@@ -1,0 +1,239 @@
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from {{ component.id | replace('-', '_') }} import pipeline
+from {{ component.id | replace('-', '_') }}.artifacts import read_model, sha256_file
+from {{ component.id | replace('-', '_') }}.contracts import (
+    DatasetManifest,
+    DownstreamRegistry,
+    EvaluationArtifact,
+    RunProvenance,
+)
+
+
+def copy_contract_inputs(project_root: Path, destination: Path) -> None:
+    for relative in (
+        "fixtures/synthetic.json",
+        "manifests/decision-provenance.json",
+        "manifests/rights.json",
+        "registries/datasets.json",
+        "registries/downstream-evaluations.json",
+        "params.yaml",
+    ):
+        target = destination / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(project_root / relative, target)
+
+
+def test_pipeline_reproduces_exact_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    manifest = pipeline.build_fixture()
+    model = pipeline.train()
+    result = pipeline.evaluate()
+    pipeline.verify()
+    first_artifacts = {
+        relative: (tmp_path / relative).read_bytes()
+        for relative in (
+            "data/synthetic/records.jsonl",
+            "data/synthetic/manifest.json",
+            "artifacts/model.json",
+            "outputs/evaluation.json",
+            "outputs/provenance.json",
+            "metrics/metrics.json",
+        )
+    }
+
+    assert manifest.train_records == 48
+    assert manifest.evaluation_records == 16
+    assert model.dataset_sha256 == sha256_file(Path("data/synthetic/records.jsonl"))
+    assert result.evaluated_records == 16
+    assert result.correct_records <= result.evaluated_records
+
+    pipeline.clean()
+    pipeline.build_fixture()
+    pipeline.train()
+    pipeline.evaluate()
+    assert {
+        relative: (tmp_path / relative).read_bytes() for relative in first_artifacts
+    } == first_artifacts
+
+
+def test_parameters_accept_yaml_syntax(tmp_path: Path) -> None:
+    parameters_path = tmp_path / "params.yaml"
+    parameters_path.write_text(
+        """# YAML comments and block mappings are part of the parameters contract.
+fixture:
+  spec: fixtures/synthetic.json
+  registry: registries/datasets.json
+  rights: manifests/rights.json
+  output: data/synthetic
+training:
+  dataset: data/synthetic/records.jsonl
+  output: artifacts/model.json
+evaluation:
+  dataset: data/synthetic/records.jsonl
+  model: artifacts/model.json
+  metrics: metrics/metrics.json
+  output: outputs/evaluation.json
+  provenance: outputs/provenance.json
+""",
+        encoding="utf-8",
+    )
+
+    parameters = pipeline.load_parameters(parameters_path)
+
+    assert parameters.fixture.output == "data/synthetic"
+    assert parameters.evaluation.provenance == "outputs/provenance.json"
+
+
+def test_clean_removes_only_declared_generated_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    parameters_path = Path("params.yaml")
+    parameters = json.loads(parameters_path.read_text(encoding="utf-8"))
+    parameters["training"]["output"] = "fixtures/model.json"
+    parameters["evaluation"]["metrics"] = "fixtures/metrics.json"
+    parameters_path.write_text(json.dumps(parameters), encoding="utf-8")
+    generated_files = (
+        Path("data/synthetic/records.jsonl"),
+        Path("data/synthetic/manifest.json"),
+        Path("fixtures/model.json"),
+        Path("fixtures/metrics.json"),
+        Path("outputs/evaluation.json"),
+        Path("outputs/provenance.json"),
+    )
+    for path in generated_files:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("generated\n", encoding="utf-8")
+
+    pipeline.clean()
+
+    assert all(not path.exists() for path in generated_files)
+    assert Path("fixtures/synthetic.json").is_file()
+    assert Path("manifests/rights.json").is_file()
+
+
+def test_fixture_rejects_missing_or_human_rights(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    rights_path = Path("manifests/rights.json")
+    rights = json.loads(rights_path.read_text(encoding="utf-8"))
+    rights["records"] = []
+    rights_path.write_text(json.dumps(rights), encoding="utf-8")
+    with pytest.raises(ValidationError, match="at least 1"):
+        pipeline.build_fixture()
+
+    copy_contract_inputs(project_root, tmp_path)
+    rights = json.loads(rights_path.read_text(encoding="utf-8"))
+    rights["records"][0]["contains_human_data"] = True
+    rights_path.write_text(json.dumps(rights), encoding="utf-8")
+    with pytest.raises(ValueError, match="must not contain human data"):
+        pipeline.build_fixture()
+
+
+def test_registered_dataset_needs_a_rights_record(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    registry_path = Path("registries/datasets.json")
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
+    registry["datasets"][0]["rights_record_id"] = "missing"
+    registry_path.write_text(json.dumps(registry), encoding="utf-8")
+    with pytest.raises(ValueError, match="Rights manifest has no record"):
+        pipeline.build_fixture()
+
+
+def test_verification_detects_artifact_drift(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    pipeline.build_fixture()
+    pipeline.train()
+    pipeline.evaluate()
+    Path("metrics/metrics.json").write_text("{}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="provenance does not match"):
+        pipeline.verify()
+
+
+def test_provenance_uses_configured_rights_manifest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    project_root = Path.cwd()
+    copy_contract_inputs(project_root, tmp_path)
+    monkeypatch.chdir(tmp_path)
+    configured_rights_path = Path("manifests/configured-rights.json")
+    shutil.copyfile(Path("manifests/rights.json"), configured_rights_path)
+    parameters_path = Path("params.yaml")
+    parameters = json.loads(parameters_path.read_text(encoding="utf-8"))
+    parameters["fixture"]["rights"] = configured_rights_path.as_posix()
+    parameters_path.write_text(json.dumps(parameters), encoding="utf-8")
+
+    pipeline.build_fixture()
+    pipeline.train()
+    pipeline.evaluate()
+    provenance = read_model(Path("outputs/provenance.json"), RunProvenance)
+
+    assert provenance.rights_sha256 == sha256_file(configured_rights_path)
+    pipeline.verify()
+
+
+def test_contracts_reject_unpinned_downstream_artifacts() -> None:
+    with pytest.raises(ValidationError, match="content_sha256"):
+        DownstreamRegistry.model_validate(
+            {
+                "schema_version": 1,
+                "consumers": [
+                    {
+                        "project": "project:downstream-evaluation",
+                        "artifact": "artifacts/model.json",
+                        "artifact_contract": "model-json-v1",
+                        "content_sha256": "mutable",
+                    }
+                ],
+            }
+        )
+
+
+def test_artifacts_parse_as_versioned_contracts() -> None:
+    manifest = DatasetManifest.model_validate(
+        {
+            "schema_version": 1,
+            "dataset_id": "fixture",
+            "artifact_contract": "records-jsonl-v1",
+            "records_sha256": "a" * 64,
+            "spec_sha256": "b" * 64,
+            "registry_sha256": "c" * 64,
+            "rights_sha256": "d" * 64,
+            "train_records": 1,
+            "evaluation_records": 1,
+            "source_kind": "project-authored-synthetic",
+        }
+    )
+    assert manifest.schema_version == 1
+    assert read_model is not None
+    assert EvaluationArtifact.model_fields["accuracy"] is not None

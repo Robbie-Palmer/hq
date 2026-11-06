@@ -1,0 +1,47 @@
+import hashlib
+import json
+from pathlib import Path
+
+from pydantic import BaseModel
+
+from {{ component.id | replace('-', '_') }}.contracts import Observation
+
+
+def canonical_json_bytes(value: BaseModel) -> bytes:
+    serialized = json.dumps(
+        value.model_dump(mode="json"),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return f"{serialized}\n".encode()
+
+
+def write_model(path: Path, value: BaseModel) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(canonical_json_bytes(value))
+
+
+def read_model[T: BaseModel](path: Path, model: type[T]) -> T:
+    return model.model_validate_json(path.read_bytes())
+
+
+def write_observations(path: Path, observations: tuple[Observation, ...]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"".join(canonical_json_bytes(item) for item in observations))
+
+
+def read_observations(path: Path) -> tuple[Observation, ...]:
+    return tuple(
+        Observation.model_validate_json(line)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line
+    )
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
