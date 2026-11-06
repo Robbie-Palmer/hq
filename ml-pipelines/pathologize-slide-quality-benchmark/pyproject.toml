@@ -1,0 +1,12 @@
+[project]
+name = "pathologize-slide-quality-benchmark"
+version = "0.1.0"
+description = "Whole-slide tissue and artifact quality benchmark"
+requires-python = ">=3.12,<3.15"
+dependencies = ["pathologize-benchmark-contracts"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }

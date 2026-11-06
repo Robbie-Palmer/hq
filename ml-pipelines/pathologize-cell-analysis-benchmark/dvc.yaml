@@ -1,0 +1,57 @@
+stages:
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-benchmark generate-fixtures
+    deps:
+      - fixtures/spec.json
+      - pyproject.toml
+      - ../pathologize-benchmark-contracts/src
+      - uv.lock
+    outs:
+      - data/synthetic
+
+  validate_contracts:
+    cmd: uv run --locked pathologize-benchmark validate-contracts
+    deps:
+      - data/synthetic/manifest.json
+      - experiments/cell-analysis.json
+      - params.yaml
+      - ../pathologize-benchmark-contracts/src
+    params:
+      - benchmark_id
+      - workstream
+      - experiments
+    outs:
+      - outputs/contracts/validation.json
+
+  run_baseline:
+    cmd: uv run --locked pathologize-benchmark run-adapters
+    deps:
+      - data/synthetic
+      - experiments/cell-analysis.json
+      - outputs/contracts/validation.json
+      - pyproject.toml
+      - ../pathologize-benchmark-contracts/src
+      - uv.lock
+    outs:
+      - outputs/runs
+
+  evaluate_cell_analysis:
+    cmd: uv run --locked pathologize-benchmark eval-only
+    deps:
+      - data/synthetic
+      - experiments/cell-analysis.json
+      - outputs/runs/cell-analysis-contract-v1
+      - ../pathologize-benchmark-contracts/src
+    outs:
+      - outputs/scorecards/cell-analysis-contract-v1.json
+
+  write_scorecard:
+    cmd: uv run --locked pathologize-benchmark aggregate
+    deps:
+      - outputs/scorecards/cell-analysis-contract-v1.json
+      - params.yaml
+      - ../pathologize-benchmark-contracts/src
+    outs:
+      - outputs/scorecard/benchmark.json
+    metrics:
+      - outputs/scorecard/metrics.json

@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark_id": "pathologize.slide-quality/v1",
+  "workstream": "whole_slide_tissue_artifact_quality",
+  "experiments": [
+    "experiments/whole-slide-quality.json"
+  ]
+}

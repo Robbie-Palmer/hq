@@ -10,9 +10,13 @@ Current projects:
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
-- `pathologize-evaluation`: synthetic contract tests and downstream benchmark
-  scorecards for slide quality, tiling policy, and nucleus analysis. It stores
-  no clinical images and can consume a pinned external Pathologize registry export.
+- `pathologize-benchmark-contracts`: shared typed manifests, leakage checks,
+  resource accounting, registry references, adapters, and scorecard schemas.
+- `pathologize-slide-quality-benchmark`: tissue segmentation, artifact quality,
+  artifact-free tissue, and slide rejection.
+- `pathologize-tiling-benchmark`: tissue-aware tiling and physical-scale policy.
+- `pathologize-cell-analysis-benchmark`: nucleus detection, instance
+  segmentation, and synthetic cell classification.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text

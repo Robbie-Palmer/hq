@@ -1,0 +1,146 @@
+schema: '2.0'
+stages:
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-benchmark generate-fixtures
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: ddde6509cf3f87bab07baed627c24386.dir
+      size: 60754
+      nfiles: 8
+    - path: fixtures/spec.json
+      hash: md5
+      md5: d8aeaf96aa58609e503388b743adbb66
+      size: 608
+    - path: pyproject.toml
+      hash: md5
+      md5: 5a4e252be556df72df90875dcd8c8add
+      size: 368
+    - path: uv.lock
+      hash: md5
+      md5: 2b8519d9a8fff2df34bc37a502744da4
+      size: 28402
+    outs:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+  validate_contracts:
+    cmd: uv run --locked pathologize-benchmark validate-contracts
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: ddde6509cf3f87bab07baed627c24386.dir
+      size: 60754
+      nfiles: 8
+    - path: data/synthetic/manifest.json
+      hash: md5
+      md5: f2bf1f8812801362b6b21821a8b0bafd
+      size: 7191
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: f8d45bba9b652ceee878fbf5db3c5c0d
+      size: 2190
+    - path: params.yaml
+      hash: md5
+      md5: 10d0241c3386cb6b7001e2455ee4d317
+      size: 204
+    params:
+      params.yaml:
+        benchmark_id: pathologize.slide-quality/v1
+        experiments:
+        - experiments/whole-slide-quality.json
+        workstream: whole_slide_tissue_artifact_quality
+    outs:
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: af0b02042746f49a267151a83410900a
+      size: 270
+  run_baseline:
+    cmd: uv run --locked pathologize-benchmark run-adapters
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: ddde6509cf3f87bab07baed627c24386.dir
+      size: 60754
+      nfiles: 8
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: f8d45bba9b652ceee878fbf5db3c5c0d
+      size: 2190
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: af0b02042746f49a267151a83410900a
+      size: 270
+    - path: pyproject.toml
+      hash: md5
+      md5: 5a4e252be556df72df90875dcd8c8add
+      size: 368
+    - path: uv.lock
+      hash: md5
+      md5: 2b8519d9a8fff2df34bc37a502744da4
+      size: 28402
+    outs:
+    - path: outputs/runs
+      hash: md5
+      md5: 8ced1075a8f96e539f94d5a9eb65f780.dir
+      size: 33348
+      nfiles: 2
+  evaluate_slide_quality:
+    cmd: uv run --locked pathologize-benchmark eval-only
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: ddde6509cf3f87bab07baed627c24386.dir
+      size: 60754
+      nfiles: 8
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: f8d45bba9b652ceee878fbf5db3c5c0d
+      size: 2190
+    - path: outputs/runs/whole-slide-quality-contract-v1
+      hash: md5
+      md5: b88b44755e9cf39fe519edd7d3744de8.dir
+      size: 33348
+      nfiles: 2
+    outs:
+    - path: outputs/scorecards/whole-slide-quality-contract-v1.json
+      hash: md5
+      md5: 70655fa7be06a5a8c5d612b821f9eb38
+      size: 2972
+  write_scorecard:
+    cmd: uv run --locked pathologize-benchmark aggregate
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: ddde6509cf3f87bab07baed627c24386.dir
+      size: 60754
+      nfiles: 8
+    - path: outputs/scorecards/whole-slide-quality-contract-v1.json
+      hash: md5
+      md5: 70655fa7be06a5a8c5d612b821f9eb38
+      size: 2972
+    - path: params.yaml
+      hash: md5
+      md5: 10d0241c3386cb6b7001e2455ee4d317
+      size: 204
+    outs:
+    - path: outputs/scorecard/benchmark.json
+      hash: md5
+      md5: daa59bbe6cc95c20e880543f3b3925af
+      size: 3632
+    - path: outputs/scorecard/metrics.json
+      hash: md5
+      md5: a3b4b0fb7ce388ce80ceea8dd4ca1f8a
+      size: 204

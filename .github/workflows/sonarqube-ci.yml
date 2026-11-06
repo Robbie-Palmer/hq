@@ -156,7 +156,7 @@ jobs:
             packages/wedding-planner-domain/coverage/lcov.info
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
             ml-pipelines/financial-document-idp-evaluation/coverage.xml
-            ml-pipelines/pathologize-evaluation/coverage.xml
+            ml-pipelines/pathologize-benchmark-contracts/coverage.xml
             ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info

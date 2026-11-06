@@ -1,8 +1,0 @@
-{
-  "pipeline_version": "1.0.0",
-  "experiments": [
-    "experiments/whole-slide-quality.json",
-    "experiments/tiling-magnification.json",
-    "experiments/nucleus-analysis.json"
-  ]
-}
