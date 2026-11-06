@@ -26,7 +26,7 @@ capabilities:
     value: "cloudflare-r2"
 preview:
   github_environment: "preview-personal-finance"
-  secret_config_ref: "doppler://personal-finance/preview"
+  secret_config_ref: "doppler://personal-finance/drift_preview"
   isolation:
     database: "fresh Neon branch from empty preview base"
     credentials: "preview-scoped"
@@ -42,7 +42,7 @@ preview:
 production:
   github_environment: "production-personal-finance"
   plan_secret_config_ref: "doppler://personal-finance/ops"
-  apply_secret_config_ref: "doppler://personal-finance/apply"
+  apply_secret_config_ref: "doppler://personal-finance/apply_production"
   terraform:
     plan_artifact: "operations/evidence/production.tfplan.age"
     reviewed_plan_digest: "operations/evidence/production.tfplan.sha256"
@@ -62,13 +62,13 @@ backup:
     restore: "mise //infra/personal-finance:restore:drill"
 alerting:
   github_environment: "production-personal-finance-alerting"
-  secret_config_ref: "doppler://personal-finance/alerts"
+  secret_config_ref: "doppler://personal-finance/apply_alerts"
   responder: "Personal Finance owner"
   hooks:
     smoke: "mise //infra/personal-finance:smoke:alert"
 secret_handoff_checkpoints:
   - id: "preview-read-write-scope"
-    reference: "doppler://personal-finance/preview"
+    reference: "doppler://personal-finance/drift_preview"
     status: "pending"
     proof: []
   - id: "production-plan-read-only-scope"
@@ -76,11 +76,11 @@ secret_handoff_checkpoints:
     status: "pending"
     proof: []
   - id: "production-apply-protected-scope"
-    reference: "doppler://personal-finance/apply"
+    reference: "doppler://personal-finance/apply_production"
     status: "pending"
     proof: []
   - id: "terraform-plan-age-key-custody"
-    reference: "doppler://personal-finance/apply"
+    reference: "doppler://personal-finance/apply_production"
     status: "pending"
     proof: []
   - id: "backup-r2-and-age-custody"
@@ -88,6 +88,6 @@ secret_handoff_checkpoints:
     status: "pending"
     proof: []
   - id: "alert-destination-routing"
-    reference: "doppler://personal-finance/alerts"
+    reference: "doppler://personal-finance/apply_alerts"
     status: "pending"
     proof: []

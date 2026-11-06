@@ -207,21 +207,25 @@ run "personal_finance_delivery_boundaries" {
       if environment.project == "personal-finance"
       ]) == toset([
       "personal-finance/ops",
-      "personal-finance/preview",
       "personal-finance/drift",
       "personal-finance/apply",
       "personal-finance/backup",
-      "personal-finance/alerts",
     ])
-    error_message = "Personal Finance must separate ops, preview, drift, apply, backup, and alerts environments."
+    error_message = "Personal Finance must stay within the four-environment Developer-plan limit."
   }
 
   assert {
-    condition = length([
-      for config in values(doppler_config.managed) : config
+    condition = toset([
+      for config in values(doppler_config.managed) :
+      "${config.project}/${config.name}"
       if config.project == "personal-finance"
-    ]) == 0
-    error_message = "Personal Finance must use free-tier environment root configs instead of paid config inheritance."
+      ]) == toset([
+      "personal-finance/drift_check",
+      "personal-finance/drift_preview",
+      "personal-finance/apply_alerts",
+      "personal-finance/apply_production",
+    ])
+    error_message = "Personal Finance must keep preview, drift, apply, and alert credentials in separate branch configs."
   }
 
   assert {
