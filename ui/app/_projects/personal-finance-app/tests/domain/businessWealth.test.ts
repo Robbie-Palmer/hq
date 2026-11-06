@@ -370,6 +370,31 @@ describe("business wealth entity and ownership contracts", () => {
     });
   });
 
+  it("reports a missing direct-account value without inventing zero", () => {
+    const data = businessWealthFixture();
+    const result = consolidateHouseholdWealth({
+      selectedPersonEntityIds: ["person:alex", "person:sam"],
+      validAt: "2026-09-30",
+      asKnownAt: "2026-10-15T00:00:00.000Z",
+      baseCurrency: "GBP",
+      accounts: data.accounts,
+      accountValues: accountValues.filter(
+        ({ accountId }) => accountId !== "alex-cash",
+      ),
+      financialEntities: data.financialEntities,
+      accountOwnerships: data.accountOwnerships,
+      shareOwnershipInterests: data.shareOwnershipInterests,
+      companyEquityValuations: data.companyEquityValuations,
+    });
+
+    expect(result.knownSubtotal).toBe(160_000);
+    expect(result.complete).toBe(false);
+    expect(result.issues).toContainEqual({
+      kind: "missing_account_value",
+      subjectId: "alex-cash",
+    });
+  });
+
   it("reports an unsupported valuation while retaining known direct wealth", () => {
     const data = businessWealthFixture();
     const valuation = data.companyEquityValuations.find(
