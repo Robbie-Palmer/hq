@@ -9,3 +9,7 @@ export * from "./soleTraderSyntheticScenarios";
 export * from "./limitedCompanyRules";
 export * from "./limitedCompanyScenario";
 export * from "./limitedCompanySyntheticScenarios";
+export * from "./offPayrollStatus";
+export * from "./umbrellaRules";
+export * from "./umbrellaScenario";
+export * from "./umbrellaSyntheticScenarios";
