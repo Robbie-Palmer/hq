@@ -1,119 +1,94 @@
-# Pathologize public data registry
+# Pathologize data registry
 
-This DVC project owns Pathologize's public computational-pathology source
-data. It records provenance, access terms, licences, source checksums, source
-identities, scanner details, physical resolution, and labels supplied by the
-publisher. It does not own tiles, embeddings, task labels, model output, or
-dataset splits.
+This project tracks public computational-pathology source datasets used by
+Pathologize. It records where each dataset came from, its licence and access
+terms, checksums, source identities, scanner metadata, physical resolution,
+and labels published with the source.
 
-The first acquisition is deliberately small. It contains one complete
-CPTAC-COAD DICOM slide-microscopy series from NCI Imaging Data Commons:
+Keep raw slides canonical here. Tiles, embeddings, masks, model output,
+task-specific labels, and train or test splits belong in the downstream
+project that creates them.
 
-- patient and source case `09CO003`;
-- one specimen and slide container;
-- six DICOM instances, including the native-resolution volume, resampled
-  volumes, label, thumbnail, and overview;
-- 18,701,962 bytes in total; and
-- CC BY 3.0, with the attribution recorded in the collection manifest.
+## Registered data
 
-The acquisition selects the smallest CPTAC-COAD `SM` series in IDC index v23,
-ordered by published series size and then Series Instance UID. This is a
-pipeline fixture, not a representative scientific cohort. CAMELYON16 and
-PANDA are registered without data. Their scale and access conditions make an
-automatic starter download inappropriate.
+| Collection | Registry status | Licence |
+| --- | --- | --- |
+| CPTAC-COAD Slide Microscopy | One complete six-file DICOM series, 18,701,962 bytes | CC BY 3.0 |
+| CAMELYON16 | Manifest only | CC0 1.0 |
+| PANDA | Manifest only | CC BY-NC-SA 4.0 and Kaggle access terms |
 
-## Registry boundary
+The CPTAC-COAD series is a small pipeline fixture from NCI Imaging Data
+Commons. It is not a representative scientific cohort. CAMELYON16 and PANDA
+remain manifest-only because their size or access terms do not suit an
+unattended starter download.
 
-Git owns all reviewable records:
+## Repository layout
 
 ```text
-registry.json                 registry scope and manifest indexes
+registry.json                 registry indexes
 manifests/collections/        source, access, licence, citation, and scale
-manifests/subsets/            source selection, with no task split
-manifests/assets/             immutable source URL, byte count, and SHA-256
-records/slides/               patient through slide identity and source metadata
+manifests/subsets/            bounded source selections with no task split
+manifests/assets/             source URLs, byte counts, and SHA-256 digests
+records/slides/               patient, case, specimen, slide, and scanner data
 schemas/                      generated JSON Schemas
+data/raw/                     DVC-managed source files, ignored by Git
 ```
 
-DVC owns materialized source bytes under `data/raw`. The acquisition stage
-fetches only allowlisted HTTPS URLs, refuses a subset above its byte limit,
-writes through a temporary file, and checks the byte count and SHA-256 before
-renaming it. Validation reads DICOM headers without decoding pixel data and
-checks the manifest against source identities and metadata.
+The acquisition command accepts only allowlisted HTTPS sources. It checks the
+declared byte count and SHA-256 digest before installing a file. Validation
+reads DICOM headers without decoding pixel data.
 
-This project has no DVC remote. A clean checkout reproduces the bounded data
-from the public IDC objects in `dvc.yaml`. No registry command uploads to R2.
-Adding a remote or redistributing source bytes needs a separate licence and
-cost review.
+## Get started
 
-## Standards boundary
-
-The platform accepts DVC for dataset and evaluation-artifact versioning and
-OCI as the portable artifact envelope. Agent-first Writing also accepts
-ModelPack v0.0.7 for model metadata and CNCF media types on top of OCI. That is
-the repository's concrete model-packaging precedent. Pathologize should reuse
-it instead of creating another model manifest when it registers model weights.
-This dataset registry contains no model artifacts.
-
-ModelPack defines media types for dataset files bundled as layers in a model
-package. It does not define a standalone dataset metadata record. The registry
-therefore uses generated JSON Schemas for its governance records and SPDX
-licence identifiers for source terms. It does not claim CNCF compatibility for
-those dataset records. Adopting a portable dataset metadata format, such as
-MLCommons Croissant, needs a separate decision and migration contract.
-
-The platform DVC decision normally requires an external DVC blob remote. This
-starter registry is a stated exception because this change may not upload to
-R2. Its DVC stage reconstructs the pinned output from public IDC objects. A
-later remote decision must preserve the same digests and source terms.
-
-## Commands
-
-Run every command through mise from anywhere in the repository:
+Run tasks through mise from the repository root or any subdirectory.
 
 ```bash
-# Install the pinned Python environment.
-mise //ml-pipelines/pathologize-data-registry:sync
-
-# Fetch or reuse the six source objects, then validate their DICOM headers.
+# Download the 18.7 MB starter subset and verify its checksums.
 mise //ml-pipelines/pathologize-data-registry:acquire
-mise //ml-pipelines/pathologize-data-registry:verify
 
-# Reproduce the public acquisition as a DVC stage.
-mise //ml-pipelines/pathologize-data-registry:repro
-
-# Run lint, type checks, synthetic tests, schema drift checks, and data checks.
+# Run lint, type checks, tests, schema drift checks, and data validation.
 mise //ml-pipelines/pathologize-data-registry:check
 ```
 
-`validate` permits an unmaterialized checkout and checks every available
-source file. `verify` requires the full acquired subset. Neither command calls
-the network.
+`check` acquires the starter subset when it is absent. To inspect a checkout
+without downloading data, run:
 
-## Downstream use
+```bash
+mise //ml-pipelines/pathologize-data-registry:validate
+```
 
-A downstream task project records three values: the registry Git revision,
-the subset ID, and the slide IDs it consumes. It materializes that pinned
-registry revision, then treats `data/raw` as read-only input. Its DVC stage may
-depend on the registry source directory, but its outputs stay in the
-downstream project.
+Use `mise //ml-pipelines/pathologize-data-registry:repro` to reproduce the
+acquisition through DVC. `verify` requires all files in the acquired subset;
+`validate` checks manifests and any source files already present.
 
-Do not copy collection manifests or redefine patient, specimen, or slide IDs
-downstream. Do not add benchmark folds here. Leakage groups, train and test
-partitions, tiles, masks, features, and task-specific label interpretations
-belong to the benchmark or training project that creates them.
+## Add a collection
 
-When adding a collection:
-
-1. Record the publisher's current source, access route, licence scope,
-   redistribution conditions, and citation.
-2. Keep large, gated, authenticated, non-automatable, or legally unclear data
+1. Add a collection manifest with the publisher's source, access route,
+   licence scope, redistribution conditions, and citation.
+2. Preserve source patient, case, specimen, slide, and label identities. Mark
+   missing metadata as missing instead of inferring it from filenames or
+   tissue appearance.
+3. Keep large, gated, authenticated, or legally unclear collections
    manifest-only.
-3. Add an acquired subset only when unattended access is allowed and the
-   byte limit is appropriate for local verification.
-4. Preserve source identities and labels. State missing labels instead of
-   inferring them from the collection name or tissue appearance.
-5. Generate schemas, reproduce DVC, validate the data, and run the full check.
+4. Add a subset and asset manifest only when automated access is permitted.
+   Bound the download, pin every source URL, and record each byte count and
+   SHA-256 digest.
+5. Regenerate the schemas and run the project check.
 
-Public availability alone is not permission to republish a dataset. The
-collection manifest is the review point for that distinction.
+```bash
+mise //ml-pipelines/pathologize-data-registry:schemas
+mise //ml-pipelines/pathologize-data-registry:check
+```
+
+Public availability does not grant redistribution rights. The collection
+manifest must state what the source licence and access terms allow.
+
+## Use the registry downstream
+
+A downstream project pins the registry Git revision, subset ID, and slide IDs
+that it consumes. It treats `data/raw` as read-only input and keeps its derived
+outputs in its own DVC project.
+
+Do not copy collection manifests or redefine patient, specimen, or slide IDs.
+Downstream benchmark and training projects own leakage groups, data splits,
+tiles, features, and task-specific label interpretations.
