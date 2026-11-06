@@ -72,14 +72,17 @@ mise run //infra/personal-finance:plan:drift
 mise run //infra/personal-finance:apply
 ```
 
-The pull-request workflow runs static checks, the generated-resource test, and
-a remote plan. The scheduled workflow fails when remote state drifts. The
-main-branch workflow creates a fresh plan with production credentials and
-applies the saved plan only after the production environment gate opens.
+The pull-request workflow always runs static checks and the generated-resource
+test. Remote plan, apply, and drift steps additionally require the repository
+variable `PERSONAL_FINANCE_TERRAFORM_READY=true`. Keep it unset while Account
+Foundation creates the protected environments and the scoped Doppler configs.
+After the non-secret inputs and provider credentials are handed off, set the
+variable and require a reviewed remote plan before merge.
 
 The account-foundation apply must run before this root's first remote plan.
-The first and second Personal Finance plans must both report no changes. If
-either reports a resource action, stop and inspect the state before continuing.
+Review that first plan against the generated ownership manifest before applying
+it. The next plan must report no changes; if it contains any resource action,
+stop and inspect the state before continuing.
 
 The [operations runbook](recovery.md) covers credentials, drift, destructive
 plans, state recovery, and the handoff to runtime provisioning.
