@@ -1,0 +1,21 @@
+name = "personal-finance-api"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
+
+[vars]
+DEPLOYMENT_ENV = "production"
+
+[secrets]
+required = [
+  "BETTER_AUTH_SECRET",
+  "BETTER_AUTH_URL",
+  "GOOGLE_CLIENT_ID",
+  "GOOGLE_CLIENT_SECRET",
+]
+
+# Environment-specific delivery configuration supplies the HYPERDRIVE binding.
+# Database credentials and Hyperdrive IDs do not belong in the project profile.

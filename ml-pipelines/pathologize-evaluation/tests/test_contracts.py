@@ -209,13 +209,16 @@ def test_adapter_loader_rejects_bad_entrypoints_and_ids(configured_root: Path) -
         "entrypoint": "builtins:dict",
         "artifact_sha256": "a" * 64,
     }
+    external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(TypeError, match="does not implement"):
-        load_adapter(AdapterSpec.model_validate(external))
+        load_adapter(external_spec)
 
     external["entrypoint"] = "builtins.dict"
+    external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(ValueError, match="module:attribute"):
-        load_adapter(AdapterSpec.model_validate(external))
+        load_adapter(external_spec)
 
     external["entrypoint"] = "pathologize_evaluation.adapters:DeterministicColorBaseline"
+    external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(ValueError, match="adapter ID"):
-        load_adapter(AdapterSpec.model_validate(external))
+        load_adapter(external_spec)

@@ -322,6 +322,27 @@ describe("project profile contracts", () => {
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],
     [{ components: [{ id: "web", name: "Web", kind: "project-ui" }] }, /required for a project-ui/],
     [{ components: [{ id: "web", name: "Web", kind: "ui", mount_path: "/web" }] }, /only valid for a project-ui/],
+    [{ components: [{
+      id: "api",
+      name: "API",
+      kind: "worker",
+      template_ownership: "structure-only",
+      runtime_role: "authenticated-worker",
+    }] }, /requires one authenticated-worker, one api-contracts, and one relational-data/],
+    [{ components: [{
+      id: "api",
+      name: "API",
+      kind: "worker",
+      template_ownership: "project",
+      runtime_role: "authenticated-worker",
+    }] }, /requires template_ownership 'structure-only'/],
+    [{ components: [{
+      id: "data",
+      name: "Data",
+      kind: "worker",
+      template_ownership: "structure-only",
+      runtime_role: "relational-data",
+    }] }, /relational-data requires component kind 'typescript-package'/],
     [{ components: [
       { id: "first", name: "First", kind: "project-ui", mount_path: "/same" },
       { id: "second", name: "Second", kind: "project-ui", mount_path: "/same" },

@@ -1,3 +1,81 @@
+{% if component.runtime_role | default("") == "authenticated-worker" -%}
+[tasks.install]
+description = "Install {{ component.name }} dependencies"
+run = "pnpm install --frozen-lockfile --filter {{ component.id }}..."
+
+[tasks.typecheck]
+description = "Typecheck {{ component.name }}"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test {{ component.name }}"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test {{ component.name }} with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."openapi:generate"]
+description = "Generate the committed {{ component.name }} OpenAPI contract"
+depends = ["install"]
+run = "pnpm openapi:generate"
+
+[tasks."lint:api"]
+description = "Check and lint the committed {{ component.name }} OpenAPI contract"
+depends = ["install"]
+run = "pnpm lint:api"
+
+[tasks."openapi:breaking"]
+description = "Fail when the {{ component.name }} contract breaks at a Git revision"
+depends = ["lint:api"]
+run = "bash scripts/check-openapi-breaking.sh"
+
+[tasks.check]
+description = "Check {{ component.name }}"
+depends = ["typecheck", "test", "lint:api"]
+{% elif component.runtime_role | default("") == "relational-data" -%}
+[tasks.install]
+description = "Install {{ component.name }} dependencies"
+run = "pnpm install --frozen-lockfile --filter {{ component.id }}..."
+
+[tasks.typecheck]
+description = "Typecheck {{ component.name }}"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test {{ component.name }}"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test {{ component.name }} with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks."db:check"]
+description = "Validate {{ component.name }} migration history and schema snapshot"
+depends = ["install"]
+run = "pnpm db:check"
+
+[tasks."db:generate"]
+description = "Generate a named {{ component.name }} migration"
+depends = ["install"]
+run = "pnpm db:generate"
+
+[tasks."db:migrate"]
+description = "Apply committed {{ component.name }} migrations to DATABASE_URL"
+depends = ["install"]
+run = "pnpm db:migrate"
+
+[tasks.check]
+description = "Check {{ component.name }}"
+depends = ["typecheck", "test", "db:check"]
+{% else -%}
 [tasks.check]
 description = "Validate the generated {{ component.name }} structural boundary"
 run = "test -f generated-component.yaml"
+{% endif -%}

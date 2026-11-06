@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import shutil
-from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -29,7 +28,7 @@ def configured_root(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def reproduced_root(configured_root: Path) -> Iterator[Path]:
+def reproduced_root(configured_root: Path) -> Path:
     write_schemas(root=configured_root)
     generate(configured_root)
     validate_contracts(configured_root)
@@ -37,4 +36,4 @@ def reproduced_root(configured_root: Path) -> Iterator[Path]:
     for manifest in load_experiments(configured_root):
         evaluate_experiment(manifest.experiment_id, configured_root)
     aggregate_scorecards(configured_root)
-    yield configured_root
+    return configured_root

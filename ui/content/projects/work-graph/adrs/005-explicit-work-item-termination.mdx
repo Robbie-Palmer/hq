@@ -1,51 +1,58 @@
 ---
-title: "ADR 005: Explicit work-item termination"
+title: "ADR 005: Separate terminal lifecycle from lease outcomes"
 date: "2026-09-13"
 status: "Accepted"
+implements_product_decisions:
+  - "work-graph:001-require-deliberate-parent-termination"
 ---
 
 ## Context
 
-[ADR 000](/projects/work-graph/adrs/000-flexible-work-item-graph) makes a work
-item non-actionable while it has non-terminal direct children. Once its last
-child terminates, the parent becomes executable again. The graph still needs a
-clear rule for whether that event also completes the parent.
+[PDR 001](/projects/work-graph/pdrs/001-require-deliberate-parent-termination)
+requires a deliberate terminal decision after the last child finishes. The
+domain model uses the same `released` and `cancelled` words in current
+work-item state, projected stage, and historical lease outcomes. Their storage
+and transition roles must remain distinct.
 
-Child completion does not prove that the parent's outcome is complete. The
-parent may need synthesis, verification, a final note, or evidence assembled
-from several children. Automatically completing it would skip that work and
-make decomposition an implicit completion policy.
-
-The model also uses `released` and `cancelled` in stored lifecycle, projected
-board stage, and lease history. Their relationship must be explicit so those
-representations do not drift.
+[ADR 000](/projects/work-graph/adrs/000-flexible-work-item-graph) makes an open
+parent wait while it has non-terminal direct children. Removing the last child
+blocker must update readiness without implying a terminal transition.
 
 ## Decision
 
-Terminating the final direct child only removes the child blocker. The parent
-remains open, its readiness is recomputed, and a worker must claim it before an
-explicit release or cancellation. The system never completes or cancels a
-parent solely because all of its children are terminal.
+When the final direct child terminates, recompute the parent's normal readiness
+predicates. Keep its lifecycle open. A later release or cancellation must run
+as an explicit, lease-fenced transition on the parent.
 
 Use `released` and `cancelled` as the canonical terminal work-item values.
 Stored lifecycle and projected board stage share those values because they
-describe the same current terminal condition.
+describe the same current condition.
 
 Keep lease outcome as a separate historical type. A lease outcome of
 `released` or `cancelled` records how that lease ended and identifies the lease
-that performed the transition. It does not independently determine current
-work-item state.
+that performed the transition. It does not determine current work-item state
+independently.
+
+Define the terminal values once in the domain package, then compose the
+lifecycle and stage vocabularies from that definition. Reuse the strings in
+lease outcomes while retaining their separate schema and event meaning.
 
 ## Consequences
 
-A decomposed item may return to the ready queue after its children finish. A
-worker can then combine their results, check the parent acceptance criteria,
-attach evidence, and terminate the parent deliberately.
+The parent can return to the ready queue without a hidden lifecycle write.
+Release and cancellation remain attributable to one current lease and fencing
+epoch.
 
-Some parents will need a short final claim even when their children did all of
-the implementation. That extra transition preserves an accountable completion
-decision and avoids silently losing parent-level work.
+The read model must distinguish a ready parent from a released parent even when
+all children are terminal. Event consumers must also distinguish current
+lifecycle from the reason a historical lease ended.
 
-The domain package must define terminal work-item values once and compose the
-lifecycle and stage vocabularies from them. Lease outcomes may reuse the same
-strings while retaining their own type and storage meaning.
+Using the same strings across the three types keeps projections consistent but
+requires tests that prevent lease history from becoming a second source of
+current state.
+
+## Migration note
+
+The 1 November 2026 PDR migration moved the deliberate-completion policy into
+PDR 001. This ADR keeps the original lifecycle, stage, lease-outcome, and
+readiness architecture. No transition changed.

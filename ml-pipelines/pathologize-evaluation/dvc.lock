@@ -17,8 +17,8 @@ stages:
       size: 2079
     - path: src/pathologize_evaluation/contracts.py
       hash: md5
-      md5: d2be7363f98a89daca765155228ad7b0
-      size: 11372
+      md5: 52e4d3c7c7bd5b93e9bc5499970e1b84
+      size: 11396
     - path: src/pathologize_evaluation/synthetic.py
       hash: md5
       md5: 211f8f2101a700345f0af1da40d8761b
@@ -55,12 +55,12 @@ stages:
       size: 2079
     - path: src/pathologize_evaluation/contracts.py
       hash: md5
-      md5: d2be7363f98a89daca765155228ad7b0
-      size: 11372
+      md5: 52e4d3c7c7bd5b93e9bc5499970e1b84
+      size: 11396
     - path: src/pathologize_evaluation/pipeline.py
       hash: md5
-      md5: a0829117070b12f76603d902ca039ad7
-      size: 17379
+      md5: 5a4c96400eaf322f7d2ffb774bcdc001
+      size: 17633
     params:
       params.yaml:
         experiments:
@@ -95,8 +95,8 @@ stages:
       size: 1477
     - path: src/pathologize_evaluation
       hash: md5
-      md5: 498441b4ac27cad64fa002bd309c75e4.dir
-      size: 57697
+      md5: 359918e33fb3a0f070acbb76f3348ad9.dir
+      size: 60171
       nfiles: 8
     - path: uv.lock
       hash: md5
@@ -133,8 +133,8 @@ stages:
       nfiles: 2
     - path: src/pathologize_evaluation
       hash: md5
-      md5: 498441b4ac27cad64fa002bd309c75e4.dir
-      size: 57697
+      md5: 359918e33fb3a0f070acbb76f3348ad9.dir
+      size: 60171
       nfiles: 8
     outs:
     - path: outputs/scorecards/whole-slide-quality-contract-v1.json
@@ -160,8 +160,8 @@ stages:
       nfiles: 2
     - path: src/pathologize_evaluation
       hash: md5
-      md5: 498441b4ac27cad64fa002bd309c75e4.dir
-      size: 57697
+      md5: 359918e33fb3a0f070acbb76f3348ad9.dir
+      size: 60171
       nfiles: 8
     outs:
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
@@ -187,8 +187,8 @@ stages:
       nfiles: 2
     - path: src/pathologize_evaluation
       hash: md5
-      md5: 498441b4ac27cad64fa002bd309c75e4.dir
-      size: 57697
+      md5: 359918e33fb3a0f070acbb76f3348ad9.dir
+      size: 60171
       nfiles: 8
     outs:
     - path: outputs/scorecards/nucleus-analysis-contract-v1.json
@@ -213,12 +213,12 @@ stages:
       size: 2079
     - path: src/pathologize_evaluation/contracts.py
       hash: md5
-      md5: d2be7363f98a89daca765155228ad7b0
-      size: 11372
+      md5: 52e4d3c7c7bd5b93e9bc5499970e1b84
+      size: 11396
     - path: src/pathologize_evaluation/pipeline.py
       hash: md5
-      md5: a0829117070b12f76603d902ca039ad7
-      size: 17379
+      md5: 5a4c96400eaf322f7d2ffb774bcdc001
+      size: 17633
     params:
       params.yaml:
         experiments:

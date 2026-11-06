@@ -31,6 +31,67 @@ def _load_mask(root: Path, relative: str) -> list[int]:
     return values
 
 
+def _binary_overlap(truth: list[int], prediction: list[int]) -> tuple[int, int]:
+    intersection = sum(
+        bool(expected) and bool(observed)
+        for expected, observed in zip(truth, prediction, strict=True)
+    )
+    union = sum(
+        bool(expected) or bool(observed)
+        for expected, observed in zip(truth, prediction, strict=True)
+    )
+    return intersection, union
+
+
+def _artifact_class_counts(truth: list[int], prediction: list[int]) -> dict[int, list[int]]:
+    return {
+        label: [
+            sum(
+                expected == label and observed == label
+                for expected, observed in zip(truth, prediction, strict=True)
+            ),
+            sum(
+                expected != label and observed == label
+                for expected, observed in zip(truth, prediction, strict=True)
+            ),
+            sum(
+                expected == label and observed != label
+                for expected, observed in zip(truth, prediction, strict=True)
+            ),
+        ]
+        for label in (1, 2)
+    }
+
+
+def _quality_item_counts(
+    item: FixtureItem, prediction: QualityPrediction, root: Path
+) -> tuple[int, int, int, int, int, dict[int, list[int]]]:
+    tissue_truth = _load_mask(root, item.tissue_mask_path)
+    artifact_truth = _load_mask(root, item.artifact_mask_path)
+    if len(prediction.tissue_labels) != len(tissue_truth):
+        raise ValueError(f"quality mask length differs for {item.item_id}")
+    tissue_intersection, tissue_union = _binary_overlap(tissue_truth, prediction.tissue_labels)
+    clean_truth = [
+        int(bool(tissue) and artifact == 0)
+        for tissue, artifact in zip(tissue_truth, artifact_truth, strict=True)
+    ]
+    clean_prediction = [
+        int(bool(tissue) and artifact == 0)
+        for tissue, artifact in zip(
+            prediction.tissue_labels, prediction.artifact_labels, strict=True
+        )
+    ]
+    clean_intersection, _ = _binary_overlap(clean_truth, clean_prediction)
+    return (
+        tissue_intersection,
+        tissue_union,
+        clean_intersection,
+        sum(clean_truth) + sum(clean_prediction),
+        int(prediction.reject_slide == any(artifact_truth)),
+        _artifact_class_counts(artifact_truth, prediction.artifact_labels),
+    )
+
+
 def evaluate_quality(
     items: list[FixtureItem], predictions: list[QualityPrediction], root: Path
 ) -> dict[str, float]:
@@ -40,35 +101,16 @@ def evaluate_quality(
     rejection_correct = 0
     class_counts = {label: [0, 0, 0] for label in (1, 2)}
     for item in items:
-        prediction = by_id[item.item_id]
-        tissue_truth = _load_mask(root, item.tissue_mask_path)
-        artifact_truth = _load_mask(root, item.artifact_mask_path)
-        if len(prediction.tissue_labels) != len(tissue_truth):
-            raise ValueError(f"quality mask length differs for {item.item_id}")
-        for truth, predicted in zip(tissue_truth, prediction.tissue_labels, strict=True):
-            tissue_intersection += int(bool(truth) and bool(predicted))
-            tissue_union += int(bool(truth) or bool(predicted))
-        for truth, predicted in zip(artifact_truth, prediction.artifact_labels, strict=True):
-            for label in class_counts:
-                class_counts[label][0] += int(truth == label and predicted == label)
-                class_counts[label][1] += int(truth != label and predicted == label)
-                class_counts[label][2] += int(truth == label and predicted != label)
-        clean_truth = [
-            bool(tissue) and artifact == 0
-            for tissue, artifact in zip(tissue_truth, artifact_truth, strict=True)
-        ]
-        clean_prediction = [
-            bool(tissue) and artifact == 0
-            for tissue, artifact in zip(
-                prediction.tissue_labels, prediction.artifact_labels, strict=True
-            )
-        ]
-        clean_intersection += sum(
-            truth and predicted
-            for truth, predicted in zip(clean_truth, clean_prediction, strict=True)
-        )
-        clean_total += sum(clean_truth) + sum(clean_prediction)
-        rejection_correct += int(prediction.reject_slide == any(artifact_truth))
+        item_counts = _quality_item_counts(item, by_id[item.item_id], root)
+        tissue_intersection += item_counts[0]
+        tissue_union += item_counts[1]
+        clean_intersection += item_counts[2]
+        clean_total += item_counts[3]
+        rejection_correct += item_counts[4]
+        for label, counts in item_counts[5].items():
+            class_counts[label] = [
+                current + added for current, added in zip(class_counts[label], counts, strict=True)
+            ]
     artifact_f1 = sum(_f1(*counts) for counts in class_counts.values()) / len(class_counts)
     return {
         "tissue_iou": _ratio(tissue_intersection, tissue_union),
@@ -80,6 +122,43 @@ def evaluate_quality(
 
 def _tile_key(tile: TilePrediction) -> tuple[int, int, int, int]:
     return tile.x, tile.y, tile.width, tile.height
+
+
+def _tile_indices(x: int, y: int, width: int, height: int, image_width: int) -> set[int]:
+    return {
+        row * image_width + column for row in range(y, y + height) for column in range(x, x + width)
+    }
+
+
+def _expected_tiles(
+    item: FixtureItem, truth: list[int], tile_size: int, minimum_tissue: float
+) -> set[tuple[int, int, int, int]]:
+    expected: set[tuple[int, int, int, int]] = set()
+    for y in range(0, item.height - tile_size + 1, tile_size):
+        for x in range(0, item.width - tile_size + 1, tile_size):
+            indices = _tile_indices(x, y, tile_size, tile_size, item.width)
+            tissue_fraction = sum(bool(truth[index]) for index in indices) / len(indices)
+            if tissue_fraction >= minimum_tissue:
+                expected.add((x, y, tile_size, tile_size))
+    return expected
+
+
+def _selected_tile_stats(
+    item: FixtureItem,
+    truth: list[int],
+    selected: set[tuple[int, int, int, int]],
+) -> tuple[int, int, int]:
+    covered: set[int] = set()
+    background = pixels = 0
+    for x, y, width, height in selected:
+        if x + width > item.width or y + height > item.height:
+            raise ValueError(f"tile escapes image bounds for {item.item_id}")
+        indices = _tile_indices(x, y, width, height, item.width)
+        covered.update(indices)
+        background += sum(not truth[index] for index in indices)
+        pixels += len(indices)
+    covered_tissue = sum(bool(truth[index]) for index in covered)
+    return covered_tissue, background, pixels
 
 
 def evaluate_tiling(
@@ -98,34 +177,16 @@ def evaluate_tiling(
     for item in items:
         truth = _load_mask(root, item.tissue_mask_path)
         prediction = by_id[item.item_id]
-        expected: set[tuple[int, int, int, int]] = set()
-        for y in range(0, item.height - tile_size + 1, tile_size):
-            for x in range(0, item.width - tile_size + 1, tile_size):
-                indices = [
-                    row * item.width + column
-                    for row in range(y, y + tile_size)
-                    for column in range(x, x + tile_size)
-                ]
-                if sum(bool(truth[index]) for index in indices) / len(indices) >= minimum_tissue:
-                    expected.add((x, y, tile_size, tile_size))
+        expected = _expected_tiles(item, truth, tile_size, minimum_tissue)
         selected = {_tile_key(tile) for tile in prediction.tiles}
         true_positive += len(expected & selected)
         false_positive += len(selected - expected)
         false_negative += len(expected - selected)
-        covered: set[int] = set()
-        for x, y, width, height in selected:
-            if x + width > item.width or y + height > item.height:
-                raise ValueError(f"tile escapes image bounds for {item.item_id}")
-            indices = {
-                row * item.width + column
-                for row in range(y, y + height)
-                for column in range(x, x + width)
-            }
-            covered.update(indices)
-            selected_background += sum(not truth[index] for index in indices)
-            selected_pixels += len(indices)
+        item_covered, item_background, item_pixels = _selected_tile_stats(item, truth, selected)
+        covered_tissue += item_covered
+        selected_background += item_background
+        selected_pixels += item_pixels
         total_tissue += sum(bool(value) for value in truth)
-        covered_tissue += sum(bool(truth[index]) for index in covered)
         scale_errors.append(abs(prediction.target_microns_per_pixel - expected_mpp) / expected_mpp)
     return {
         "tile_selection_f1": _f1(true_positive, false_positive, false_negative),

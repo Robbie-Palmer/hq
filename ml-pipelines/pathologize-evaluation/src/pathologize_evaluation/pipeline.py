@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -27,6 +27,7 @@ from .contracts import (
     FixtureManifest,
     GateResult,
     LeakageUnit,
+    MetricObjective,
     MetricResult,
     NucleiPrediction,
     QualityPrediction,
@@ -259,67 +260,59 @@ def _metric_values(run: RunSummary) -> dict[str, float]:
     return {metric.metric: metric.value for metric in run.metrics}
 
 
-def _gates(
-    manifest: ExperimentManifest, baseline: RunSummary, candidate: RunSummary | None
+def _directional_delta(direction: str, new: float, reference: float) -> float:
+    return new - reference if direction == "maximize" else reference - new
+
+
+def _metric_gates(
+    objective: MetricObjective,
+    baseline_value: float,
+    candidate_value: float | None,
 ) -> list[GateResult]:
-    baseline_values = _metric_values(baseline)
-    candidate_values = _metric_values(candidate) if candidate else {}
-    gates: list[GateResult] = []
-    for objective in manifest.objectives:
-        if objective.role == "diagnostic":
-            continue
-        baseline_value = baseline_values[objective.metric]
-        if objective.baseline_floor is None:
-            raise ValueError(f"missing baseline threshold for {objective.metric}")
-        threshold = objective.baseline_floor
-        baseline_passed = (
-            baseline_value >= threshold
-            if objective.direction == "maximize"
-            else baseline_value <= threshold
+    if objective.role == "diagnostic":
+        return []
+    if objective.baseline_floor is None:
+        raise ValueError(f"missing baseline threshold for {objective.metric}")
+    threshold = objective.baseline_floor
+    baseline_passed = _directional_delta(objective.direction, baseline_value, threshold) >= 0
+    gates = [
+        GateResult(
+            gate=f"baseline:{objective.metric}",
+            passed=baseline_passed,
+            observed=baseline_value,
+            threshold=threshold,
         )
+    ]
+    if candidate_value is None:
+        return gates
+    if objective.role == "primary":
+        if objective.candidate_min_delta is None:
+            raise ValueError(f"missing candidate delta for {objective.metric}")
+        improvement = _directional_delta(objective.direction, candidate_value, baseline_value)
         gates.append(
             GateResult(
-                gate=f"baseline:{objective.metric}",
-                passed=baseline_passed,
-                observed=baseline_value,
-                threshold=threshold,
+                gate=f"candidate-improvement:{objective.metric}",
+                passed=improvement >= objective.candidate_min_delta,
+                observed=improvement,
+                threshold=objective.candidate_min_delta,
             )
         )
-        if candidate is None:
-            continue
-        candidate_value = candidate_values[objective.metric]
-        if objective.role == "primary":
-            delta = (
-                candidate_value - baseline_value
-                if objective.direction == "maximize"
-                else baseline_value - candidate_value
+    if objective.candidate_max_regression is not None:
+        regression = _directional_delta(objective.direction, baseline_value, candidate_value)
+        gates.append(
+            GateResult(
+                gate=f"candidate-regression:{objective.metric}",
+                passed=regression <= objective.candidate_max_regression,
+                observed=regression,
+                threshold=objective.candidate_max_regression,
             )
-            if objective.candidate_min_delta is None:
-                raise ValueError(f"missing candidate delta for {objective.metric}")
-            required = objective.candidate_min_delta
-            gates.append(
-                GateResult(
-                    gate=f"candidate-improvement:{objective.metric}",
-                    passed=delta >= required,
-                    observed=delta,
-                    threshold=required,
-                )
-            )
-        if objective.candidate_max_regression is not None:
-            regression = (
-                baseline_value - candidate_value
-                if objective.direction == "maximize"
-                else candidate_value - baseline_value
-            )
-            allowed = objective.candidate_max_regression
-            gates.append(
-                GateResult(
-                    gate=f"candidate-regression:{objective.metric}",
-                    passed=regression <= allowed,
-                    observed=regression,
-                    threshold=allowed,
-                )
-            )
+        )
+    return gates
+
+
+def _resource_gates(
+    manifest: ExperimentManifest, run_role: str, run: RunSummary
+) -> list[GateResult]:
     budget = manifest.resource_budget
     limits = {
         "input_bytes": budget.max_input_bytes,
@@ -328,30 +321,56 @@ def _gates(
         "accelerator_seconds": budget.max_accelerator_seconds,
         "paid_api_calls": budget.max_paid_api_calls,
     }
-    for run_role, run in (("baseline", baseline), ("candidate", candidate)):
-        if run is None:
-            continue
-        resource_values = {
-            "input_bytes": run.resources.input_bytes,
-            "prediction_bytes": run.resources.prediction_bytes,
-            "pixels_read": run.resources.pixels_read,
-            "accelerator_seconds": run.resources.accelerator_seconds,
-            "paid_api_calls": run.resources.paid_api_calls,
-        }
-        for name, observed in resource_values.items():
-            gates.append(
-                GateResult(
-                    gate=f"{run_role}-resource:{name}",
-                    passed=observed <= limits[name],
-                    observed=float(observed),
-                    threshold=float(limits[name]),
-                )
+    resource_values = {
+        "input_bytes": run.resources.input_bytes,
+        "prediction_bytes": run.resources.prediction_bytes,
+        "pixels_read": run.resources.pixels_read,
+        "accelerator_seconds": run.resources.accelerator_seconds,
+        "paid_api_calls": run.resources.paid_api_calls,
+    }
+    return [
+        GateResult(
+            gate=f"{run_role}-resource:{name}",
+            passed=observed <= limits[name],
+            observed=float(observed),
+            threshold=float(limits[name]),
+        )
+        for name, observed in resource_values.items()
+    ]
+
+
+def _gates(
+    manifest: ExperimentManifest, baseline: RunSummary, candidate: RunSummary | None
+) -> list[GateResult]:
+    baseline_values = _metric_values(baseline)
+    candidate_values = _metric_values(candidate) if candidate else {}
+    gates: list[GateResult] = []
+    for objective in manifest.objectives:
+        gates.extend(
+            _metric_gates(
+                objective,
+                baseline_values[objective.metric],
+                candidate_values.get(objective.metric),
             )
+        )
+    gates.extend(_resource_gates(manifest, "baseline", baseline))
+    if candidate is not None:
+        gates.extend(_resource_gates(manifest, "candidate", candidate))
     return gates
 
 
 def _scorecard_id(scorecard: dict[str, Any]) -> str:
     return f"scorecard:sha256:{sha256_bytes(canonical_bytes(scorecard))}"
+
+
+def _recommendation(
+    candidate: RunSummary | None, gates: list[GateResult]
+) -> Literal["baseline_only", "promote_candidate", "reject_candidate"]:
+    if candidate is None:
+        return "baseline_only"
+    if all(gate.passed for gate in gates):
+        return "promote_candidate"
+    return "reject_candidate"
 
 
 def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scorecard:
@@ -369,13 +388,7 @@ def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scoreca
         else None
     )
     gates = _gates(manifest, baseline, candidate)
-    recommendation = (
-        "baseline_only"
-        if candidate is None
-        else "promote_candidate"
-        if all(gate.passed for gate in gates)
-        else "reject_candidate"
-    )
+    recommendation = _recommendation(candidate, gates)
     body = {
         "schema_version": "1.0.0",
         "experiment_id": manifest.experiment_id,

@@ -6,6 +6,8 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -100,14 +102,14 @@ class FixtureManifest(StrictModel):
 class RegistryAnnotation(StrictModel):
     kind: Literal["tissue_mask", "artifact_mask", "nucleus_instances", "nucleus_classes"]
     uri: str = Field(min_length=1)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=SHA256_PATTERN)
 
 
 class RegistryItem(StrictModel):
     item_id: str = Field(min_length=1)
     split: Split
     image_uri: str = Field(min_length=1)
-    image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    image_sha256: str = Field(pattern=SHA256_PATTERN)
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     microns_per_pixel_x: float = Field(gt=0)
@@ -134,7 +136,7 @@ class RegistrySource(StrictModel):
     registry_uri: str = Field(min_length=1)
     revision: str = Field(pattern=r"^[a-f0-9]{40}$")
     export_manifest: str
-    export_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    export_sha256: str = Field(pattern=SHA256_PATTERN)
     copy_raw_data: Literal[False]
 
 
@@ -165,7 +167,7 @@ class AdapterSpec(StrictModel):
     kind: Literal["builtin", "python_entrypoint"]
     entrypoint: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    artifact_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    artifact_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
     paid_api_calls_allowed: Literal[False]
 
     @model_validator(mode="after")
