@@ -87,7 +87,7 @@ column owns the values and decides which values may be mirrored into GitHub.
 | `homelab` | `dev`, `dev_personal`, `stg`, `prd`, `prd_personal_archive_backup`, `prd_personal_archive_infra`, `prd_remote_development`, `prd_remote_development_backup`, `prd_remote_development_cluster`, `prd_remote_development_host`, `prd_remote_development_infra`, `prd_remote_development_observability`, the `prd_tailnet_values` environment and its three configs, `prd_vector_development` | `account-foundation` | `homelab`, `infra/remote-development`, `infra/tailnet`, the Vector workstation, and the personal archive workloads |
 | `personal-site` | `dev`, `dev_personal`, `dev_agent`, `dev_bootstrap_infra`, `dev_infra`, `dev_ml_pipelines`, `dev_pages_env`, `dev_recipe_api`, `stg`, `stg_pages_env`, `stg_recipe_api`, `stg_site_ui`, `prd`, `prd_bootstrap_infra`, `prd_bootstrap_plan`, `prd_ci_repo`, `prd_database_backup`, `prd_infra`, `prd_pages_env`, `prd_recipe_api`, `prd_recipe_ingest`, `prd_site_ui`, `ops`, `ops_preview_agent_access` | `account-foundation` | The matching public-platform, bootstrap, ML pipeline, recipe, backup, or preview workload |
 | `work-graph` | `dev`, `dev_personal`, `stg`, `prd`, `analytics`, `prd_work_graph`, `prd_work_graph_backup`, `prd_work_graph_infra` | `account-foundation` | `infra/work-graph`, Work Graph runtime, analytics, and backup workloads |
-| `personal-finance` | `ops`, `drift`, `apply` environment root configs | `account-foundation` | `infra/personal-finance` delivery |
+| `personal-finance` | `ops`, `drift`, `apply`, and `backup` environments; `drift_check`, `drift_preview`, `apply_alerts`, and `apply_production` branch configs | `account-foundation` | `infra/personal-finance` delivery and stateful operations |
 
 Import each project before its environments and configs. Do not read, export,
 or set values during the structure import. The provider's root configs such as
@@ -132,8 +132,11 @@ independent state source.
 | `production-infra-bootstrap` | None | `infra/bootstrap` apply |
 | `production-infra-bootstrap-plan` | One required reviewer | `infra/bootstrap` plan |
 | `production-personal-finance` | One required reviewer and `main` branch policy | `infra/personal-finance` apply |
+| `production-personal-finance-alerting` | `main` branch policy | `infra/personal-finance` alert smoke |
+| `production-personal-finance-backup` | `main` branch policy | `infra/personal-finance` backup and restore |
 | `production-personal-finance-drift` | `main` branch policy | `infra/personal-finance` drift |
 | `production-personal-finance-plan` | One required reviewer | `infra/personal-finance` plan |
+| `preview-personal-finance` | Internal pull-request workflow gate | `infra/personal-finance` preview lifecycle |
 | `production-recipe-api` | None | Recipe API workload |
 | `production-recipe-ingest` | None | Recipe ingest workload |
 | `production-remote-development-infra` | One required reviewer | `infra/remote-development` apply |

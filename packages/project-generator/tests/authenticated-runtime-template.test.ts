@@ -148,6 +148,7 @@ describe("authenticated Worker runtime template", () => {
   it("renders the selected runtime without recording secret values", async () => {
     const { output } = await renderRuntimeFixture();
     const worker = path.join(output, "workers/runtime-fixture-api");
+    const contracts = path.join(output, "packages/runtime-fixture-contracts");
     const data = path.join(output, "packages/runtime-fixture-data");
     const workerManifest = parse(
       await readFile(path.join(worker, "generated-component.yaml"), "utf8"),
@@ -175,6 +176,9 @@ describe("authenticated Worker runtime template", () => {
     );
     await expect(readFile(path.join(data, "drizzle.config.ts"), "utf8")).resolves.toContain(
       '"./src/project-schema.ts"',
+    );
+    await expect(readFile(path.join(contracts, "mise.toml"), "utf8")).resolves.toContain(
+      "Install dependencies for Runtime fixture contracts",
     );
     const receipt = await readFile(path.join(output, ".copier-answers.yml"), "utf8");
     expect(receipt).not.toContain("fixture-secret-value");

@@ -1,0 +1,21 @@
+{% if blueprint.rollout.stateful_operations.alerting -%}
+name: {{ blueprint.project.name }} alert smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: alert-smoke
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.alerting.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.alerting.secret_config_ref | tojson }}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_ALERT_DOPPLER_TOKEN }}{% endraw %}
+{% endif -%}

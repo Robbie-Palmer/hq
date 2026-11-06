@@ -8,9 +8,19 @@
     {
       "name": "health",
       "description": "Worker process health."
+    },
+    {
+      "name": "canary",
+      "description": "Synthetic authenticated runtime proof."
     }
   ],
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
     "schemas": {},
     "parameters": {}
   },
@@ -42,6 +52,123 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/canary/household": {
+      "put": {
+        "operationId": "writeSyntheticHouseholdCanary",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "tags": [
+          "canary"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "enum": [
+                      "synthetic household"
+                    ]
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The synthetic household canary record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "classification": {
+                      "type": "string",
+                      "enum": [
+                        "synthetic-only"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "label": {
+                      "type": "string",
+                      "enum": [
+                        "synthetic household"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "classification",
+                    "id",
+                    "label"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "readSyntheticHouseholdCanary",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "tags": [
+          "canary"
+        ],
+        "responses": {
+          "200": {
+            "description": "The synthetic household canary record.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "classification": {
+                      "type": "string",
+                      "enum": [
+                        "synthetic-only"
+                      ]
+                    },
+                    "id": {
+                      "type": "string",
+                      "maxLength": 128
+                    },
+                    "label": {
+                      "type": "string",
+                      "enum": [
+                        "synthetic household"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "classification",
+                    "id",
+                    "label"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No synthetic household canary record exists."
           }
         }
       }

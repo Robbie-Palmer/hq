@@ -1,4 +1,4 @@
-_commit: dd37b7bbc2c5719730824f0aebf2359896b153ec
+_commit: 4b70db2d7edb71fb71041e5e9253c6757f84e8ff
 _src_path: https://github.com/Robbie-Palmer/hq.git
 blueprint:
   catalog:
@@ -296,7 +296,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-11-06 00:00:02+00:00
+  effective_at: 2026-11-06 18:12:00+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
@@ -369,6 +369,40 @@ blueprint:
       fulfillment: manual
       id: database-backup-restore-encrypted-archives-2026-09-29-state-restore-drill-evidence
       status: pending
+    - action: "Verify Preview migrations and synthetic fixtures:
+        .github/workflows/preview-environment.yml"
+      evidence: []
+      fulfillment: manual
+      id: database-preview-isolation-fresh-2026-10-20-operational-check-preview-migrations-and-synthetic-fixtures
+      status: pending
+    - action: "Verify Stateful preview smoke test: //workers/recipe-api:preview:smoke"
+      evidence: []
+      fulfillment: manual
+      id: database-preview-isolation-fresh-2026-10-20-operational-check-stateful-preview-smoke-test
+      status: pending
+    - action: Provision Pull-request database branch for
+        database-preview-isolation-fresh-2026-10-20
+      evidence: []
+      fulfillment: manual
+      id: database-preview-isolation-fresh-2026-10-20-state-pull-request-database-branch
+      status: pending
+    - action: "Verify Authenticated preview smoke test:
+        //workers/recipe-api:preview:smoke"
+      evidence: []
+      fulfillment: manual
+      id: delivery-preview-environment-isolated-2026-09-29-operational-check-authenticated-preview-smoke-test
+      status: pending
+    - action: "Verify Preview workflow: .github/workflows/preview-environment.yml"
+      evidence: []
+      fulfillment: manual
+      id: delivery-preview-environment-isolated-2026-09-29-operational-check-preview-workflow
+      status: pending
+    - action: Provision Pull-request deployment resources for
+        delivery-preview-environment-isolated-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: delivery-preview-environment-isolated-2026-09-29-state-pull-request-deployment-resources
+      status: pending
     - action: Configure BETTER_AUTH_SECRET for
         identity-authentication-library-better-auth-2026-09-29
       evidence: []
@@ -399,6 +433,48 @@ blueprint:
       evidence: []
       fulfillment: manual
       id: identity-login-provider-google-oauth-2026-09-29-manual-setup-create-the-oauth-consent-screen-and-web-application-client-in-google-cloud-console-for-each-stable-environment-then-register-that-environment-s-exact-callback-uri
+      status: pending
+    - action: Configure CLOUDFLARE_SLACK_WEBHOOK_URL for
+        observability-alert-delivery-slack-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-delivery-slack-2026-09-29-configuration-cloudflare-slack-webhook-url
+      status: pending
+    - action: "Verify Synthetic alert delivery:
+        /projects/recipe-site/adrs/021-posthog-alerting-and-slack"
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-delivery-slack-2026-09-29-operational-check-synthetic-alert-delivery
+      status: pending
+    - action: Provision Alert channel routing for
+        observability-alert-delivery-slack-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-delivery-slack-2026-09-29-state-alert-channel-routing
+      status: pending
+    - action: Configure POSTHOG_API_KEY for
+        observability-alert-evaluation-posthog-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-evaluation-posthog-2026-09-29-configuration-posthog-api-key
+      status: pending
+    - action: Configure POSTHOG_PROJECT_ID for
+        observability-alert-evaluation-posthog-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-evaluation-posthog-2026-09-29-configuration-posthog-project-id
+      status: pending
+    - action: "Verify Production-safe synthetic alert:
+        /projects/recipe-site/adrs/021-posthog-alerting-and-slack"
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-evaluation-posthog-2026-09-29-operational-check-production-safe-synthetic-alert
+      status: pending
+    - action: Provision Alert definitions and named responder ownership for
+        observability-alert-evaluation-posthog-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: observability-alert-evaluation-posthog-2026-09-29-state-alert-definitions-and-named-responder-ownership
       status: pending
     - action: "Verify Correlated log ingestion smoke test:
         /projects/recipe-site/adrs/020-direct-otlp-export-to-posthog"
@@ -446,6 +522,41 @@ blueprint:
       evidence: []
       fulfillment: manual
       id: observability-telemetry-protocol-opentelemetry-2026-09-29-state-project-instrumentation-and-exporter-configuration
+      status: pending
+    - action: Configure CF_ACCESS_CLIENT_ID for
+        security-preview-access-cloudflare-access-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-configuration-cf-access-client-id
+      status: pending
+    - action: Configure CF_ACCESS_CLIENT_SECRET for
+        security-preview-access-cloudflare-access-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-configuration-cf-access-client-secret
+      status: pending
+    - action: Enable the Pages preview access policy, configure the account identity
+        provider and human allowlist, then import the generated Access
+        application before Terraform manages it.
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-manual-setup-enable-the-pages-preview-access-policy-configure-the-account-identity-provider-and-human-allowlist-then-import-the-generated-access-application-before-terraform-manages-it
+      status: pending
+    - action: "Verify Authenticated browser QA: //ui:test:e2e:preview"
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-operational-check-authenticated-browser-qa
+      status: pending
+    - action: "Verify Protected preview fetch: //:preview:fetch"
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-operational-check-protected-preview-fetch
+      status: pending
+    - action: Provision Access application and reviewer policy for
+        security-preview-access-cloudflare-access-2026-09-29
+      evidence: []
+      fulfillment: manual
+      id: security-preview-access-cloudflare-access-2026-09-29-state-access-application-and-reviewer-policy
       status: pending
     - action: "Verify Declared bucket plan: //infra/public-platform:check"
       evidence: []
@@ -630,6 +741,36 @@ blueprint:
         id: compiled-provider-boundary
       - command: mise //packages/project-generator:check
         id: copier-profile-conformance
+    stateful_operations:
+      alerting:
+        github_environment: production-personal-finance-alerting
+        responder: Personal Finance owner
+        secret_config_ref: doppler://personal-finance/apply_alerts
+        smoke: mise //infra/personal-finance:smoke:alert
+      backup:
+        create: mise //infra/personal-finance:backup:create
+        github_environment: production-personal-finance-backup
+        restore: mise //infra/personal-finance:restore:drill
+        schedule: 23 4 * * 0
+        secret_config_ref: doppler://personal-finance/backup
+      preview:
+        cleanup: mise //infra/personal-finance:preview:cleanup
+        deploy: mise //infra/personal-finance:deploy:preview
+        github_environment: preview-personal-finance
+        migrate: mise //infra/personal-finance:db:migrate:preview
+        provision: mise //infra/personal-finance:preview:provision
+        secret_config_ref: doppler://personal-finance/drift_preview
+        seed_synthetic: mise //infra/personal-finance:db:seed:preview
+        smoke_authenticated: mise //infra/personal-finance:smoke:preview
+        smoke_telemetry: mise //infra/personal-finance:smoke:telemetry
+      production:
+        apply_secret_config_ref: doppler://personal-finance/apply_production
+        deploy: mise //infra/personal-finance:deploy:production
+        github_environment: production-personal-finance
+        migrate: mise //infra/personal-finance:db:migrate:production
+        plan_secret_config_ref: doppler://personal-finance/ops
+        rollback: mise //infra/personal-finance:rollback:production
+        smoke: mise //infra/personal-finance:smoke:production
   schema_version: 2
   selections:
     - decision: personal-engineering-platform:015-api-governance
@@ -711,6 +852,14 @@ blueprint:
       source: default
       value: Committed ordered migrations with drift checks and one serialized
         deployment runner
+    - decision: personal-engineering-platform:036-operated-capability-contracts
+      id: database-preview-isolation-fresh-2026-10-20
+      kind: policy
+      layer: database
+      slot: database.preview-isolation
+      source: default
+      value: Fresh pull-request database from committed migrations and synthetic
+        fixtures
     - decision: personal-engineering-platform:017-relational-data-stack
       id: database-relational-access-drizzle-2026-09-29
       kind: technology
@@ -746,6 +895,14 @@ blueprint:
       slot: delivery.dependency-updates
       source: default
       value: renovate
+    - decision: personal-engineering-platform:018-pull-request-preview-environments
+      id: delivery-preview-environment-isolated-2026-09-29
+      kind: policy
+      layer: base
+      slot: delivery.preview-environment
+      source: default
+      value: Isolated pull-request deployments with scoped resources and automatic
+        cleanup
     - decision: personal-engineering-platform:006-repository-delivery-baseline
       id: delivery-workflow-linter-actionlint-2026-09-15
       kind: technology
@@ -837,6 +994,20 @@ blueprint:
       slot: infrastructure.state-backend
       source: default
       value: terraform-cloud
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-alert-delivery-slack-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.alert-delivery
+      source: default
+      value: slack
+    - decision: personal-engineering-platform:023-application-observability-stack
+      id: observability-alert-evaluation-posthog-2026-09-29
+      kind: technology
+      layer: observability
+      slot: observability.alert-evaluation
+      source: default
+      value: posthog
     - decision: personal-engineering-platform:023-application-observability-stack
       id: observability-application-telemetry-posthog-2026-09-29
       kind: technology
@@ -935,6 +1106,13 @@ blueprint:
       slot: security.dependency-and-iac-scan
       source: default
       value: trivy
+    - decision: personal-engineering-platform:019-cloudflare-access-boundaries
+      id: security-preview-access-cloudflare-access-2026-09-29
+      kind: technology
+      layer: base
+      slot: security.preview-access
+      source: default
+      value: cloudflare-access
     - decision: personal-engineering-platform:006-repository-delivery-baseline
       id: security-repository-posture-openssf-scorecard-2026-09-15
       kind: technology

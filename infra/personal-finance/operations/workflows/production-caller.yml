@@ -1,0 +1,64 @@
+name: Personal Finance App production
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Plan only, plan and apply, or roll back the application revision
+        required: true
+        default: plan
+        type: choice
+        options: [plan, apply, rollback]
+      rollback_revision:
+        description: Previously deployed revision required for rollback
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-finance-app-production
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: ${{ inputs.operation != 'rollback' }}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-plan
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance"
+      secret_config_ref: "doppler://personal-finance/ops"
+      checkout_ref: ${{ github.sha }}
+      plan_artifact: personal-finance-app-production-plan
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_PRODUCTION_PLAN_DOPPLER_TOKEN }}
+
+  apply:
+    if: ${{ inputs.operation == 'apply' }}
+    needs: plan
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-apply
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance"
+      secret_config_ref: "doppler://personal-finance/apply_production"
+      checkout_ref: ${{ github.sha }}
+      plan_artifact: personal-finance-app-production-plan
+      expected_plan_sha256: ${{ needs.plan.outputs.plan_sha256 }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_PRODUCTION_APPLY_DOPPLER_TOKEN }}
+
+  rollback:
+    if: ${{ inputs.operation == 'rollback' && inputs.rollback_revision != '' }}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-rollback
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance"
+      secret_config_ref: "doppler://personal-finance/apply_production"
+      subject: ${{ inputs.rollback_revision }}
+      checkout_ref: ${{ github.sha }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_PRODUCTION_APPLY_DOPPLER_TOKEN }}

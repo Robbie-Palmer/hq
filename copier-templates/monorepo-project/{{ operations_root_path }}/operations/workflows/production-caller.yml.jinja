@@ -1,0 +1,64 @@
+name: {{ blueprint.project.name }} production
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Plan only, plan and apply, or roll back the application revision
+        required: true
+        default: plan
+        type: choice
+        options: [plan, apply, rollback]
+      rollback_revision:
+        description: Previously deployed revision required for rollback
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: {{ blueprint.project.id }}-production
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    if: {% raw %}${{ inputs.operation != 'rollback' }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-plan
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.production.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.production.plan_secret_config_ref | tojson }}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+      plan_artifact: {{ blueprint.project.id }}-production-plan
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_PRODUCTION_PLAN_DOPPLER_TOKEN }}{% endraw %}
+
+  apply:
+    if: {% raw %}${{ inputs.operation == 'apply' }}{% endraw %}
+    needs: plan
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-apply
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.production.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.production.apply_secret_config_ref | tojson }}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+      plan_artifact: {{ blueprint.project.id }}-production-plan
+      expected_plan_sha256: {% raw %}${{ needs.plan.outputs.plan_sha256 }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_PRODUCTION_APPLY_DOPPLER_TOKEN }}{% endraw %}
+
+  rollback:
+    if: {% raw %}${{ inputs.operation == 'rollback' && inputs.rollback_revision != '' }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: production-rollback
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.production.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.production.apply_secret_config_ref | tojson }}
+      subject: {% raw %}${{ inputs.rollback_revision }}{% endraw %}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_PRODUCTION_APPLY_DOPPLER_TOKEN }}{% endraw %}

@@ -1,0 +1,52 @@
+{% if blueprint.rollout.stateful_operations.backup -%}
+name: {{ blueprint.project.name }} database backup
+
+on:
+  schedule:
+    - cron: {{ blueprint.rollout.stateful_operations.backup.schedule | tojson }}
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Create a backup or run a scratch restore drill
+        required: true
+        default: backup
+        type: choice
+        options: [backup, restore]
+      restore_drill_id:
+        description: Unique drill ID required for restore
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: {{ blueprint.project.id }}-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: {% raw %}${{ github.event_name == 'schedule' || inputs.operation == 'backup' }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: backup
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.backup.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.backup.secret_config_ref | tojson }}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_BACKUP_DOPPLER_TOKEN }}{% endraw %}
+
+  restore:
+    if: {% raw %}${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'restore' && inputs.restore_drill_id != '' }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: restore
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.backup.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.backup.secret_config_ref | tojson }}
+      subject: {% raw %}${{ inputs.restore_drill_id }}{% endraw %}
+      checkout_ref: {% raw %}${{ github.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_BACKUP_DOPPLER_TOKEN }}{% endraw %}
+{% endif -%}

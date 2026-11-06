@@ -209,24 +209,31 @@ run "personal_finance_delivery_boundaries" {
       "personal-finance/ops",
       "personal-finance/drift",
       "personal-finance/apply",
+      "personal-finance/backup",
     ])
-    error_message = "Personal Finance must separate plan, drift, and apply environment configs."
+    error_message = "Personal Finance must stay within the four-environment Developer-plan limit."
   }
 
   assert {
-    condition = length([
-      for config in values(doppler_config.managed) : config
+    condition = toset([
+      for config in values(doppler_config.managed) :
+      "${config.project}/${config.name}"
       if config.project == "personal-finance"
-    ]) == 0
-    error_message = "Personal Finance must use free-tier environment root configs instead of paid config inheritance."
+      ]) == toset([
+      "personal-finance/drift_check",
+      "personal-finance/drift_preview",
+      "personal-finance/apply_alerts",
+      "personal-finance/apply_production",
+    ])
+    error_message = "Personal Finance must keep preview, drift, apply, and alert credentials in separate branch configs."
   }
 
   assert {
     condition = length([
       for environment in values(github_repository_environment.managed) : environment
       if startswith(environment.environment, "production-personal-finance")
-    ]) == 3
-    error_message = "Personal Finance must have plan, drift, and apply GitHub environments."
+    ]) == 5
+    error_message = "Personal Finance must have plan, drift, apply, backup, and alert GitHub environments."
   }
 
   assert {
@@ -245,6 +252,25 @@ run "personal_finance_delivery_boundaries" {
   }
 
   assert {
+    condition = alltrue([
+      for environment in [
+        "hq/preview-personal-finance",
+        "hq/production-personal-finance-backup",
+        "hq/production-personal-finance-alerting",
+      ] : length(github_repository_environment.managed[environment].reviewers) == 0
+    ])
+    error_message = "Personal Finance preview, backup, and alert environments must run without reviewer gates."
+  }
+
+  assert {
+    condition = length([
+      for policy in values(github_repository_environment_deployment_policy.managed) : policy
+      if policy.environment == "preview-personal-finance"
+    ]) == 0
+    error_message = "The Personal Finance preview environment must not restrict deployments to main."
+  }
+
+  assert {
     condition = toset([
       for policy in values(github_repository_environment_deployment_policy.managed) :
       "${policy.environment}/${policy.branch_pattern}"
@@ -252,8 +278,10 @@ run "personal_finance_delivery_boundaries" {
       ]) == toset([
       "production-personal-finance-drift/main",
       "production-personal-finance/main",
+      "production-personal-finance-backup/main",
+      "production-personal-finance-alerting/main",
     ])
-    error_message = "Personal Finance drift and apply must be restricted to main."
+    error_message = "Personal Finance drift, apply, backup, and alert operations must be restricted to main."
   }
 }
 
