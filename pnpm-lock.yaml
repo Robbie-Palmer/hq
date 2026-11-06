@@ -1719,9 +1719,6 @@ importers:
       '@stoplight/spectral-cli':
         specifier: 6.17.0
         version: 6.17.0
-      '@stoplight/spectral-owasp-ruleset':
-        specifier: 2.0.1
-        version: 2.0.1
       '@types/node':
         specifier: ^24
         version: 24.19.1

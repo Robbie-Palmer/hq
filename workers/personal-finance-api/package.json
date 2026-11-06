@@ -24,7 +24,6 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^5.0.0",
     "@stoplight/spectral-cli": "6.17.0",
-    "@stoplight/spectral-owasp-ruleset": "2.0.1",
     "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "tsx": "^4.21.0",

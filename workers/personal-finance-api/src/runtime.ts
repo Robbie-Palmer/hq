@@ -12,6 +12,12 @@ import {
   type AuthEnv,
   type RuntimeAuth,
 } from "./auth";
+import {
+  requireAuthorization,
+  type AuthorizationPolicy,
+  type AuthorizationRequest,
+} from "./authorization";
+import { projectAuthorization } from "./project-authorization";
 import { registerProjectRoutes } from "./project-routes";
 
 export type Bindings = AuthEnv & {
@@ -22,6 +28,7 @@ export type Bindings = AuthEnv & {
 
 type RuntimeVariables = {
   auth: RuntimeAuth;
+  authorizationPolicy: AuthorizationPolicy;
   db: RuntimeDatabase;
   session: AuthenticatedSession | null;
 };
@@ -39,6 +46,7 @@ type RuntimeConnection = {
 };
 
 export type RuntimeDependencies = {
+  authorizationPolicy: AuthorizationPolicy;
   closeDatabase: (client: RuntimeDatabaseClient) => Promise<void>;
   connectDatabase: (env: Bindings) => RuntimeConnection;
   createAuth: (db: RuntimeDatabase, env: Bindings) => RuntimeAuth;
@@ -63,6 +71,7 @@ const healthRoute = createRoute({
 });
 
 const defaults: RuntimeDependencies = {
+  authorizationPolicy: projectAuthorization,
   closeDatabase: closeRuntimeDatabase,
   connectDatabase: createRuntimeDatabase,
   createAuth,
@@ -81,6 +90,7 @@ export function createRuntimeApp(
     const { client, db } = dependencies.connectDatabase(context.env);
     context.set("db", db);
     context.set("auth", dependencies.createAuth(db, context.env));
+    context.set("authorizationPolicy", dependencies.authorizationPolicy);
     context.set("session", null);
     try {
       await next();
@@ -111,4 +121,15 @@ export function requireAuthenticatedSession(
   const session = context.var.session;
   if (!session) throw new Error("Authentication required");
   return session;
+}
+
+export function authorizeProjectRequest(
+  context: Context<RuntimeEnv>,
+  request: AuthorizationRequest,
+): Promise<void> {
+  return requireAuthorization(
+    context.var.authorizationPolicy,
+    requireAuthenticatedSession(context),
+    request,
+  );
 }
