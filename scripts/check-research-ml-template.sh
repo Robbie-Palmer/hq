@@ -103,7 +103,11 @@ jq '.local_decisions = ["research-template-fixture:001-local-decision"]' \
   >"$scratch_root/decision-provenance.json"
 mv "$scratch_root/decision-provenance.json" \
   "$component_root/manifests/decision-provenance.json"
-mise --cd "$component_root" run repro
+repro_output="$(mise --cd "$component_root" run repro 2>&1)"
+printf '%s\n' "$repro_output"
+grep -Fq "Stage 'build_fixture' didn't change, skipping" <<<"$repro_output"
+grep -Fq "Stage 'train' didn't change, skipping" <<<"$repro_output"
+grep -Fq "Running stage 'evaluate':" <<<"$repro_output"
 mise --cd "$component_root" run verify
 provenance_after="$(sha256sum "$component_root/outputs/provenance.json")"
 test "$provenance_before" != "$provenance_after"
