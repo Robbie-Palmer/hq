@@ -1,0 +1,236 @@
+schema: '2.0'
+stages:
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-evaluation generate-fixtures
+    deps:
+    - path: fixtures/spec.json
+      hash: md5
+      md5: d8aeaf96aa58609e503388b743adbb66
+      size: 608
+    - path: pyproject.toml
+      hash: md5
+      md5: 673d88231a0294c7e6cb74fcdd7cc4fe
+      size: 1477
+    - path: src/pathologize_evaluation/artifacts.py
+      hash: md5
+      md5: 744f0282ee618fa65f511cfd5fbefcfd
+      size: 2079
+    - path: src/pathologize_evaluation/contracts.py
+      hash: md5
+      md5: d2be7363f98a89daca765155228ad7b0
+      size: 11372
+    - path: src/pathologize_evaluation/synthetic.py
+      hash: md5
+      md5: 211f8f2101a700345f0af1da40d8761b
+      size: 6262
+    - path: uv.lock
+      hash: md5
+      md5: 6d618655581d1d0544a243e6850e8a42
+      size: 67647
+    outs:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+  validate_contracts:
+    cmd: uv run --locked pathologize-evaluation validate-contracts
+    deps:
+    - path: data/synthetic/manifest.json
+      hash: md5
+      md5: f2bf1f8812801362b6b21821a8b0bafd
+      size: 7191
+    - path: experiments
+      hash: md5
+      md5: 3c59dbaf7671ddc3feaa6e1ca85d80b8.dir
+      size: 6780
+      nfiles: 3
+    - path: params.yaml
+      hash: md5
+      md5: e23ff8906ce862ca4d773e83ae5c929d
+      size: 187
+    - path: src/pathologize_evaluation/artifacts.py
+      hash: md5
+      md5: 744f0282ee618fa65f511cfd5fbefcfd
+      size: 2079
+    - path: src/pathologize_evaluation/contracts.py
+      hash: md5
+      md5: d2be7363f98a89daca765155228ad7b0
+      size: 11372
+    - path: src/pathologize_evaluation/pipeline.py
+      hash: md5
+      md5: a0829117070b12f76603d902ca039ad7
+      size: 17379
+    params:
+      params.yaml:
+        experiments:
+        - experiments/whole-slide-quality.json
+        - experiments/tiling-magnification.json
+        - experiments/nucleus-analysis.json
+    outs:
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: 4d7fbf60d79c527f26a47bb651a1eb50
+      size: 582
+  run_adapters:
+    cmd: uv run --locked pathologize-evaluation run-adapters
+    deps:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments
+      hash: md5
+      md5: 3c59dbaf7671ddc3feaa6e1ca85d80b8.dir
+      size: 6780
+      nfiles: 3
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: 4d7fbf60d79c527f26a47bb651a1eb50
+      size: 582
+    - path: pyproject.toml
+      hash: md5
+      md5: 673d88231a0294c7e6cb74fcdd7cc4fe
+      size: 1477
+    - path: src/pathologize_evaluation
+      hash: md5
+      md5: 498441b4ac27cad64fa002bd309c75e4.dir
+      size: 57697
+      nfiles: 8
+    - path: uv.lock
+      hash: md5
+      md5: 6d618655581d1d0544a243e6850e8a42
+      size: 67647
+    params:
+      params.yaml:
+        experiments:
+        - experiments/whole-slide-quality.json
+        - experiments/tiling-magnification.json
+        - experiments/nucleus-analysis.json
+    outs:
+    - path: outputs/runs
+      hash: md5
+      md5: b4f6e7469bf5b8e92f8a40a13c940646.dir
+      size: 36764
+      nfiles: 6
+  evaluate_whole_slide_quality:
+    cmd: uv run --locked path-eval eval quality
+    deps:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: 3bdb0895bfc608a8cd2f4372a1958643
+      size: 2181
+    - path: outputs/runs/whole-slide-quality-contract-v1
+      hash: md5
+      md5: b88b44755e9cf39fe519edd7d3744de8.dir
+      size: 33348
+      nfiles: 2
+    - path: src/pathologize_evaluation
+      hash: md5
+      md5: 498441b4ac27cad64fa002bd309c75e4.dir
+      size: 57697
+      nfiles: 8
+    outs:
+    - path: outputs/scorecards/whole-slide-quality-contract-v1.json
+      hash: md5
+      md5: 4834232fc578bb3a2b26a1e6f2e5a7d8
+      size: 2963
+  evaluate_tiling_magnification:
+    cmd: uv run --locked path-eval eval tiling
+    deps:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments/tiling-magnification.json
+      hash: md5
+      md5: dba589d829779ffffe73d70713c94bad
+      size: 2239
+    - path: outputs/runs/tiling-magnification-contract-v1
+      hash: md5
+      md5: 021199bdb11db15d37af91b121c85277.dir
+      size: 1715
+      nfiles: 2
+    - path: src/pathologize_evaluation
+      hash: md5
+      md5: 498441b4ac27cad64fa002bd309c75e4.dir
+      size: 57697
+      nfiles: 8
+    outs:
+    - path: outputs/scorecards/tiling-magnification-contract-v1.json
+      hash: md5
+      md5: fc95e00d7cf8c22ad68b07fe91308d1e
+      size: 2934
+  evaluate_nucleus_analysis:
+    cmd: uv run --locked path-eval eval nuclei
+    deps:
+    - path: data/synthetic
+      hash: md5
+      md5: 43b05e026ae5dd3e92e49f6196fbf4ae.dir
+      size: 447614
+      nfiles: 25
+    - path: experiments/nucleus-analysis.json
+      hash: md5
+      md5: a6eb905fdc09f27024b59fd764be8e06
+      size: 2360
+    - path: outputs/runs/nucleus-analysis-contract-v1
+      hash: md5
+      md5: 8197b2dc428137710de17b09df5001bf.dir
+      size: 1701
+      nfiles: 2
+    - path: src/pathologize_evaluation
+      hash: md5
+      md5: 498441b4ac27cad64fa002bd309c75e4.dir
+      size: 57697
+      nfiles: 8
+    outs:
+    - path: outputs/scorecards/nucleus-analysis-contract-v1.json
+      hash: md5
+      md5: 766bda864bcb93a5cb045d2540585f9f
+      size: 3055
+  aggregate_scorecards:
+    cmd: uv run --locked pathologize-evaluation aggregate
+    deps:
+    - path: outputs/scorecards
+      hash: md5
+      md5: 5b801031c043ade55f1b80a97b22a254.dir
+      size: 8952
+      nfiles: 3
+    - path: params.yaml
+      hash: md5
+      md5: e23ff8906ce862ca4d773e83ae5c929d
+      size: 187
+    - path: src/pathologize_evaluation/artifacts.py
+      hash: md5
+      md5: 744f0282ee618fa65f511cfd5fbefcfd
+      size: 2079
+    - path: src/pathologize_evaluation/contracts.py
+      hash: md5
+      md5: d2be7363f98a89daca765155228ad7b0
+      size: 11372
+    - path: src/pathologize_evaluation/pipeline.py
+      hash: md5
+      md5: a0829117070b12f76603d902ca039ad7
+      size: 17379
+    params:
+      params.yaml:
+        experiments:
+        - experiments/whole-slide-quality.json
+        - experiments/tiling-magnification.json
+        - experiments/nucleus-analysis.json
+    outs:
+    - path: outputs/scorecard/benchmark.json
+      hash: md5
+      md5: 8de89f82a0dcef9a00c8af94e49b48c6
+      size: 10586
+    - path: outputs/scorecard/metrics.json
+      hash: md5
+      md5: 24f1cf9d5e81b43e971f8eb2f346b662
+      size: 589

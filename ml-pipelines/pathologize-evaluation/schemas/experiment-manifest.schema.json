@@ -1,0 +1,457 @@
+{
+  "$defs": {
+    "AdapterSpec": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "pattern": "^[a-z0-9][a-z0-9._-]+$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Sha256"
+        },
+        "entrypoint": {
+          "minLength": 1,
+          "title": "Entrypoint",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "builtin",
+            "python_entrypoint"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "paid_api_calls_allowed": {
+          "const": false,
+          "title": "Paid Api Calls Allowed",
+          "type": "boolean"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_id",
+        "kind",
+        "entrypoint",
+        "version",
+        "paid_api_calls_allowed"
+      ],
+      "title": "AdapterSpec",
+      "type": "object"
+    },
+    "LeakageUnit": {
+      "enum": [
+        "subject_id",
+        "specimen_id",
+        "block_id",
+        "slide_id",
+        "acquisition_id",
+        "site_id"
+      ],
+      "title": "LeakageUnit",
+      "type": "string"
+    },
+    "MetricObjective": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_floor": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Floor"
+        },
+        "candidate_max_regression": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Max Regression"
+        },
+        "candidate_min_delta": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Min Delta"
+        },
+        "direction": {
+          "enum": [
+            "maximize",
+            "minimize"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "metric": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Metric",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "guardrail",
+            "diagnostic"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "unit": {
+          "enum": [
+            "ratio",
+            "pixels",
+            "bytes",
+            "seconds"
+          ],
+          "title": "Unit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "role",
+        "direction",
+        "unit"
+      ],
+      "title": "MetricObjective",
+      "type": "object"
+    },
+    "RegistrySource": {
+      "additionalProperties": false,
+      "properties": {
+        "contract": {
+          "const": "pathologize.data-registry-export/v1",
+          "title": "Contract",
+          "type": "string"
+        },
+        "copy_raw_data": {
+          "const": false,
+          "title": "Copy Raw Data",
+          "type": "boolean"
+        },
+        "export_manifest": {
+          "title": "Export Manifest",
+          "type": "string"
+        },
+        "export_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Export Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "const": "pathologize_registry",
+          "title": "Kind",
+          "type": "string"
+        },
+        "registry_uri": {
+          "minLength": 1,
+          "title": "Registry Uri",
+          "type": "string"
+        },
+        "revision": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Revision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "contract",
+        "registry_uri",
+        "revision",
+        "export_manifest",
+        "export_sha256",
+        "copy_raw_data"
+      ],
+      "title": "RegistrySource",
+      "type": "object"
+    },
+    "ResourceBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_accelerator_seconds": {
+          "minimum": 0,
+          "title": "Max Accelerator Seconds",
+          "type": "number"
+        },
+        "max_input_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Input Bytes",
+          "type": "integer"
+        },
+        "max_paid_api_calls": {
+          "const": 0,
+          "title": "Max Paid Api Calls",
+          "type": "integer"
+        },
+        "max_pixels_read": {
+          "exclusiveMinimum": 0,
+          "title": "Max Pixels Read",
+          "type": "integer"
+        },
+        "max_prediction_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Max Prediction Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "max_input_bytes",
+        "max_prediction_bytes",
+        "max_pixels_read",
+        "max_accelerator_seconds",
+        "max_paid_api_calls"
+      ],
+      "title": "ResourceBudget",
+      "type": "object"
+    },
+    "SplitPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluation_split": {
+          "const": "test",
+          "title": "Evaluation Split",
+          "type": "string"
+        },
+        "leakage_units": {
+          "items": {
+            "$ref": "#/$defs/LeakageUnit"
+          },
+          "minItems": 1,
+          "title": "Leakage Units",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evaluation_split",
+        "leakage_units"
+      ],
+      "title": "SplitPolicy",
+      "type": "object"
+    },
+    "SuperResolutionSeam": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "const": false,
+          "title": "Enabled",
+          "type": "boolean"
+        },
+        "separate_native_resolution_scorecard_required": {
+          "const": true,
+          "title": "Separate Native Resolution Scorecard Required",
+          "type": "boolean"
+        },
+        "source_pixels_preserved": {
+          "const": true,
+          "title": "Source Pixels Preserved",
+          "type": "boolean"
+        },
+        "status": {
+          "const": "future_evaluation_only",
+          "title": "Status",
+          "type": "string"
+        },
+        "synthetic_detail_claims_forbidden": {
+          "const": true,
+          "title": "Synthetic Detail Claims Forbidden",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "status",
+        "source_pixels_preserved",
+        "synthetic_detail_claims_forbidden",
+        "separate_native_resolution_scorecard_required"
+      ],
+      "title": "SuperResolutionSeam",
+      "type": "object"
+    },
+    "SyntheticSource": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_id": {
+          "const": "pathologize-synthetic-contract-fixtures-v1",
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "fixture_manifest": {
+          "title": "Fixture Manifest",
+          "type": "string"
+        },
+        "kind": {
+          "const": "synthetic_fixture",
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "fixture_manifest",
+        "dataset_id"
+      ],
+      "title": "SyntheticSource",
+      "type": "object"
+    },
+    "Workstream": {
+      "enum": [
+        "whole_slide_tissue_artifact_quality",
+        "tiling_magnification_policy",
+        "nucleus_detection_segmentation_classification"
+      ],
+      "title": "Workstream",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "baseline": {
+      "$ref": "#/$defs/AdapterSpec"
+    },
+    "candidate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AdapterSpec"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "clinical_validity_claimed": {
+      "const": false,
+      "title": "Clinical Validity Claimed",
+      "type": "boolean"
+    },
+    "data_source": {
+      "discriminator": {
+        "mapping": {
+          "pathologize_registry": "#/$defs/RegistrySource",
+          "synthetic_fixture": "#/$defs/SyntheticSource"
+        },
+        "propertyName": "kind"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SyntheticSource"
+        },
+        {
+          "$ref": "#/$defs/RegistrySource"
+        }
+      ],
+      "title": "Data Source"
+    },
+    "experiment_id": {
+      "pattern": "^[a-z0-9][a-z0-9-]+$",
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "objectives": {
+      "items": {
+        "$ref": "#/$defs/MetricObjective"
+      },
+      "minItems": 1,
+      "title": "Objectives",
+      "type": "array"
+    },
+    "parameters": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          }
+        ]
+      },
+      "title": "Parameters",
+      "type": "object"
+    },
+    "purpose": {
+      "minLength": 1,
+      "title": "Purpose",
+      "type": "string"
+    },
+    "random_seed": {
+      "minimum": 0,
+      "title": "Random Seed",
+      "type": "integer"
+    },
+    "resource_budget": {
+      "$ref": "#/$defs/ResourceBudget"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "split_policy": {
+      "$ref": "#/$defs/SplitPolicy"
+    },
+    "super_resolution": {
+      "$ref": "#/$defs/SuperResolutionSeam"
+    },
+    "workstream": {
+      "$ref": "#/$defs/Workstream"
+    }
+  },
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "workstream",
+    "purpose",
+    "clinical_validity_claimed",
+    "random_seed",
+    "data_source",
+    "split_policy",
+    "baseline",
+    "candidate",
+    "objectives",
+    "resource_budget",
+    "super_resolution",
+    "parameters"
+  ],
+  "title": "ExperimentManifest",
+  "type": "object"
+}

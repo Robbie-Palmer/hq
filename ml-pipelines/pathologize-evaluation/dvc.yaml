@@ -1,0 +1,85 @@
+stages:
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-evaluation generate-fixtures
+    deps:
+      - fixtures/spec.json
+      - pyproject.toml
+      - src/pathologize_evaluation/artifacts.py
+      - src/pathologize_evaluation/contracts.py
+      - src/pathologize_evaluation/synthetic.py
+      - uv.lock
+    outs:
+      - data/synthetic
+
+  validate_contracts:
+    cmd: uv run --locked pathologize-evaluation validate-contracts
+    deps:
+      - data/synthetic/manifest.json
+      - experiments
+      - params.yaml
+      - src/pathologize_evaluation/artifacts.py
+      - src/pathologize_evaluation/contracts.py
+      - src/pathologize_evaluation/pipeline.py
+    params:
+      - experiments
+    outs:
+      - outputs/contracts/validation.json
+
+  run_adapters:
+    cmd: uv run --locked pathologize-evaluation run-adapters
+    deps:
+      - data/synthetic
+      - experiments
+      - outputs/contracts/validation.json
+      - pyproject.toml
+      - src/pathologize_evaluation
+      - uv.lock
+    params:
+      - experiments
+    outs:
+      - outputs/runs
+
+  evaluate_whole_slide_quality:
+    cmd: uv run --locked path-eval eval quality
+    deps:
+      - data/synthetic
+      - experiments/whole-slide-quality.json
+      - outputs/runs/whole-slide-quality-contract-v1
+      - src/pathologize_evaluation
+    outs:
+      - outputs/scorecards/whole-slide-quality-contract-v1.json
+
+  evaluate_tiling_magnification:
+    cmd: uv run --locked path-eval eval tiling
+    deps:
+      - data/synthetic
+      - experiments/tiling-magnification.json
+      - outputs/runs/tiling-magnification-contract-v1
+      - src/pathologize_evaluation
+    outs:
+      - outputs/scorecards/tiling-magnification-contract-v1.json
+
+  evaluate_nucleus_analysis:
+    cmd: uv run --locked path-eval eval nuclei
+    deps:
+      - data/synthetic
+      - experiments/nucleus-analysis.json
+      - outputs/runs/nucleus-analysis-contract-v1
+      - src/pathologize_evaluation
+    outs:
+      - outputs/scorecards/nucleus-analysis-contract-v1.json
+
+  aggregate_scorecards:
+    cmd: uv run --locked pathologize-evaluation aggregate
+    deps:
+      - outputs/scorecards
+      - params.yaml
+      - src/pathologize_evaluation/artifacts.py
+      - src/pathologize_evaluation/contracts.py
+      - src/pathologize_evaluation/pipeline.py
+    params:
+      - experiments
+    outs:
+      - outputs/scorecard/benchmark.json
+    metrics:
+      - outputs/scorecard/metrics.json

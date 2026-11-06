@@ -10,6 +10,9 @@ Current projects:
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
+- `pathologize-evaluation`: synthetic contract tests and downstream benchmark
+  scorecards for slide quality, tiling policy, and nucleus analysis. It stores
+  no clinical images and can consume a pinned external Pathologize registry export.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text

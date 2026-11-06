@@ -1,0 +1,209 @@
+{
+  "$defs": {
+    "FixtureItem": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_mask_path": {
+          "title": "Artifact Mask Path",
+          "type": "string"
+        },
+        "height": {
+          "exclusiveMinimum": 0,
+          "title": "Height",
+          "type": "integer"
+        },
+        "image_path": {
+          "title": "Image Path",
+          "type": "string"
+        },
+        "item_id": {
+          "pattern": "^synthetic-[a-z0-9-]+$",
+          "title": "Item Id",
+          "type": "string"
+        },
+        "leakage": {
+          "$ref": "#/$defs/LeakageKeys"
+        },
+        "microns_per_pixel_x": {
+          "exclusiveMinimum": 0,
+          "title": "Microns Per Pixel X",
+          "type": "number"
+        },
+        "microns_per_pixel_y": {
+          "exclusiveMinimum": 0,
+          "title": "Microns Per Pixel Y",
+          "type": "number"
+        },
+        "nucleus_instance_mask_path": {
+          "title": "Nucleus Instance Mask Path",
+          "type": "string"
+        },
+        "nucleus_truth": {
+          "items": {
+            "$ref": "#/$defs/NucleusTruth"
+          },
+          "title": "Nucleus Truth",
+          "type": "array"
+        },
+        "split": {
+          "$ref": "#/$defs/Split"
+        },
+        "synthetic": {
+          "const": true,
+          "title": "Synthetic",
+          "type": "boolean"
+        },
+        "tissue_mask_path": {
+          "title": "Tissue Mask Path",
+          "type": "string"
+        },
+        "width": {
+          "exclusiveMinimum": 0,
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "item_id",
+        "split",
+        "synthetic",
+        "image_path",
+        "tissue_mask_path",
+        "artifact_mask_path",
+        "nucleus_instance_mask_path",
+        "nucleus_truth",
+        "width",
+        "height",
+        "microns_per_pixel_x",
+        "microns_per_pixel_y",
+        "leakage"
+      ],
+      "title": "FixtureItem",
+      "type": "object"
+    },
+    "LeakageKeys": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_id": {
+          "minLength": 1,
+          "title": "Acquisition Id",
+          "type": "string"
+        },
+        "block_id": {
+          "minLength": 1,
+          "title": "Block Id",
+          "type": "string"
+        },
+        "site_id": {
+          "minLength": 1,
+          "title": "Site Id",
+          "type": "string"
+        },
+        "slide_id": {
+          "minLength": 1,
+          "title": "Slide Id",
+          "type": "string"
+        },
+        "specimen_id": {
+          "minLength": 1,
+          "title": "Specimen Id",
+          "type": "string"
+        },
+        "subject_id": {
+          "minLength": 1,
+          "title": "Subject Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_id",
+        "specimen_id",
+        "block_id",
+        "slide_id",
+        "acquisition_id",
+        "site_id"
+      ],
+      "title": "LeakageKeys",
+      "type": "object"
+    },
+    "NucleusTruth": {
+      "additionalProperties": false,
+      "properties": {
+        "class_name": {
+          "enum": [
+            "synthetic_type_a",
+            "synthetic_type_b"
+          ],
+          "title": "Class Name",
+          "type": "string"
+        },
+        "instance_id": {
+          "exclusiveMinimum": 0,
+          "title": "Instance Id",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "instance_id",
+        "class_name"
+      ],
+      "title": "NucleusTruth",
+      "type": "object"
+    },
+    "Split": {
+      "enum": [
+        "train",
+        "validation",
+        "test"
+      ],
+      "title": "Split",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "clinical_validity": {
+      "const": false,
+      "title": "Clinical Validity",
+      "type": "boolean"
+    },
+    "dataset_id": {
+      "const": "pathologize-synthetic-contract-fixtures-v1",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "intended_use": {
+      "const": "contract_and_pipeline_tests_only",
+      "title": "Intended Use",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/FixtureItem"
+      },
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed": {
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "intended_use",
+    "clinical_validity",
+    "seed",
+    "items"
+  ],
+  "title": "FixtureManifest",
+  "type": "object"
+}
