@@ -8,6 +8,7 @@ repository_root="$(cd "$terraform_root/../.." && pwd)"
 worker_root="$repository_root/workers/personal-finance-api"
 runtime_root="$terraform_root/operations/runtime"
 postgres_image="postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193"
+json_content_type_header="Content-Type: application/json"
 check_only="${PERSONAL_FINANCE_OPERATION_CHECK_ONLY:-0}"
 work_dir=""
 
@@ -17,7 +18,8 @@ fail() {
 }
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "missing command '$1'"
+  local command_name="$1"
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command '$command_name'"
 }
 
 require_value() {
@@ -117,7 +119,7 @@ preview_provision() {
     jq -n --arg name "$preview_slug" '{branch: {name: $name}}' >"$work_dir/create-branch.json"
     request_json "$work_dir/neon.curl" "$work_dir/created-branch.json" --request POST \
       --url "https://console.neon.tech/api/v2/projects/$PERSONAL_FINANCE_PREVIEW_NEON_PROJECT_ID/branches" \
-      --header "Content-Type: application/json" --data-binary "@$work_dir/create-branch.json"
+      --header "$json_content_type_header" --data-binary "@$work_dir/create-branch.json"
     branch_id="$(jq -er '.branch.id' "$work_dir/created-branch.json")"
   else
     branch_id="$(jq -er --arg name "$preview_slug" '.branches[] | select(.name == $name) | .id' "$work_dir/branches.json")"
@@ -152,7 +154,7 @@ preview_provision() {
       >"$work_dir/create-app.json"
     request_json "$work_dir/cloudflare.curl" "$work_dir/created-app.json" --request POST \
       --url "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/access/apps" \
-      --header "Content-Type: application/json" --data-binary "@$work_dir/create-app.json"
+      --header "$json_content_type_header" --data-binary "@$work_dir/create-app.json"
     require_cloudflare_response "$work_dir/created-app.json"
     access_id="$(jq -er '.result.id' "$work_dir/created-app.json")"
     access_aud="$(jq -er '.result.aud' "$work_dir/created-app.json")"
@@ -188,7 +190,7 @@ preview_provision() {
     }' >"$work_dir/create-policy.json"
     request_json "$work_dir/cloudflare.curl" "$work_dir/created-policy.json" --request POST \
       --url "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/access/apps/$access_id/policies" \
-      --header "Content-Type: application/json" --data-binary "@$work_dir/create-policy.json"
+      --header "$json_content_type_header" --data-binary "@$work_dir/create-policy.json"
     require_cloudflare_response "$work_dir/created-policy.json"
   fi
 
@@ -281,7 +283,7 @@ posthog_capture() {
     }' >"$work_dir/posthog-capture.json"
   curl --connect-timeout 10 --fail --max-time 30 --silent --show-error \
     --output "$work_dir/posthog-captured.json" --request POST \
-    --url "${POSTHOG_HOST%/}/capture/" --header "Content-Type: application/json" \
+    --url "${POSTHOG_HOST%/}/capture/" --header "$json_content_type_header" \
     --data-binary "@$work_dir/posthog-capture.json"
 }
 
@@ -302,7 +304,7 @@ preview_smoke() {
   )
   curl --connect-timeout 10 --fail --max-time 30 --silent --show-error \
     --output "$work_dir/write.json" --request PUT "${common_headers[@]}" \
-    --header "Content-Type: application/json" --url "$preview_url/api/canary/household" \
+    --header "$json_content_type_header" --url "$preview_url/api/canary/household" \
     --data '{"label":"synthetic household"}'
   curl --connect-timeout 10 --fail --max-time 30 --silent --show-error \
     --output "$work_dir/read.json" "${common_headers[@]}" \

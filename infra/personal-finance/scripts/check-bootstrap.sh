@@ -10,7 +10,8 @@ fail() {
 }
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || fail "missing command '$1'"
+  local command_name="$1"
+  command -v "$command_name" >/dev/null 2>&1 || fail "missing command '$command_name'"
 }
 
 validate_contract() {
