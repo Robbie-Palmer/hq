@@ -228,7 +228,7 @@ describe("Personal Finance production profile", () => {
     expect(template).toMatchObject({
       id: "monorepo-project",
       source: "https://github.com/Robbie-Palmer/hq.git",
-      revision: "dd37b7bbc2c5719730824f0aebf2359896b153ec",
+      revision: "3e346aeaf479d783ec219ec810fed3c938ed5177",
     });
     expect(plan.owned_paths).toEqual([
       "infra/personal-finance",

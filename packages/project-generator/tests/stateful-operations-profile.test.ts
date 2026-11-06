@@ -308,6 +308,49 @@ describe("stateful project operations", () => {
     );
   });
 
+  it("compiles infrastructure for a project-owned stateful Terraform root", async () => {
+    const { profile, contracts } = await fixture();
+    const projectOwned = structuredClone(profile) as ProjectProfile;
+    projectOwned.components = projectOwned.components.map((component) =>
+      component.kind === "terraform-root"
+        ? { ...component, template_ownership: "project" }
+        : component,
+    );
+    const blueprint = resolveProjectProfile(
+      projectOwned,
+      contracts,
+      "2026-11-06T00:00:00Z",
+    );
+    const root = await mkdtemp(path.join(tmpdir(), "stateful-project-root-"));
+    temporaryRoots.push(root);
+    const dataPath = path.join(root, "answers.yaml");
+    const destination = path.join(root, "rendered");
+    await writeFile(
+      dataPath,
+      stringify({ project_id: blueprint.project.id, blueprint }),
+      "utf8",
+    );
+
+    await runCommand("copier", [
+      "copy",
+      "--quiet",
+      "--defaults",
+      "--skip-tasks",
+      "--data-file",
+      dataPath,
+      repositoryRoot,
+      destination,
+    ]);
+
+    const terraform = await readFile(
+      path.join(destination, "infra/example-stateful-service/generated-project.tf"),
+      "utf8",
+    );
+    expect(terraform).toContain('module "cloudflare_worker"');
+    expect(terraform).toContain('module "neon"');
+    expect(terraform).toContain('module "cloudflare_r2"');
+  });
+
   it("requires exactly one Terraform root for stateful operations", async () => {
     const { profile, contracts } = await fixture();
     const invalid = structuredClone(profile) as ProjectProfile;
