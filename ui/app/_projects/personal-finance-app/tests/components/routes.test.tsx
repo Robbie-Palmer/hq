@@ -454,6 +454,7 @@ describe("Asset Tracker project routes", () => {
     const tracker = {
       ...current,
       household: {
+        id: "household",
         members: [{ id: "alex", displayName: "Alex" }],
         activeScope: { kind: "household" as const },
       },
