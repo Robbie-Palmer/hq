@@ -24,15 +24,23 @@ const githubFilesResult = [
     filename: "workers/work-graph-api/src/index.ts",
     previous_filename: "workers/legacy-api/src/index.ts",
   },
+  {
+    filename: "packages/work-graph-domain/src/evidence.ts",
+  },
 ];
 
 const githubRunner = (
   pullRequest: unknown = githubResult,
   files: unknown = githubFilesResult,
 ) =>
-  vi.fn(async (args: readonly string[]) =>
-    JSON.stringify(args[0] === "pr" ? pullRequest : files),
-  );
+  vi.fn(async (args: readonly string[]) => {
+    if (args.includes("--slurp") && args.includes("--jq")) {
+      throw new Error("gh does not allow --slurp with --jq");
+    }
+    if (args[0] === "pr") return JSON.stringify(pullRequest);
+    if (!Array.isArray(files)) return JSON.stringify(files);
+    return files.map((file) => JSON.stringify(file)).join("\n");
+  });
 
 describe("GitHub pull-request inspection", () => {
   it("maps gh output into a Work Graph snapshot", async () => {
@@ -57,6 +65,7 @@ describe("GitHub pull-request inspection", () => {
       checkSummary: "success",
       observedAt: "2026-09-20T15:00:00.000Z",
       changedPaths: [
+        "packages/work-graph-domain/src/evidence.ts",
         "workers/legacy-api/src/index.ts",
         "workers/work-graph-api/src/index.ts",
       ],
@@ -71,10 +80,9 @@ describe("GitHub pull-request inspection", () => {
     expect(runGitHub).toHaveBeenCalledWith([
       "api",
       "--paginate",
-      "--slurp",
       "repos/example/work-graph/pulls/42/files",
       "--jq",
-      "[.[][] | {filename, previous_filename}]",
+      ".[] | {filename, previous_filename}",
     ]);
   });
 

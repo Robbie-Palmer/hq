@@ -42,7 +42,10 @@ const githubPullRequestFilesSchema = z.array(
 const parseGitHubPullRequestFiles = (raw: string): readonly string[] => {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    parsed = raw
+      .split("\n")
+      .filter((line) => line.trim() !== "")
+      .map((line) => JSON.parse(line));
   } catch (cause) {
     throw new CliError(
       "INVALID_GITHUB_RESPONSE",
@@ -251,10 +254,9 @@ export const inspectGitHubPullRequest = async (
     rawFiles = await runGitHub([
       "api",
       "--paginate",
-      "--slurp",
       `repos/${returnedIdentity.repository}/pulls/${returnedIdentity.number}/files`,
       "--jq",
-      "[.[][] | {filename, previous_filename}]",
+      ".[] | {filename, previous_filename}",
     ]);
   } catch (cause) {
     throw new CliError(

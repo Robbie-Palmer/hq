@@ -176,6 +176,13 @@
       "when": 1793859709523,
       "tag": "0024_add_current_delivery_resolution",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793960820391,
+      "tag": "0025_add_current_delivery_metadata_revision",
+      "breakpoints": true
     }
   ]
 }

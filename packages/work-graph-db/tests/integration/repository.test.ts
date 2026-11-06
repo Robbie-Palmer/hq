@@ -270,7 +270,7 @@ beforeAll(async () => {
     order by enumsortorder
   `);
 
-  expect(migrationCount?.count).toBe(25);
+  expect(migrationCount?.count).toBe(26);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
@@ -294,6 +294,7 @@ beforeAll(async () => {
     "notes",
     "pull_requests",
     "repository_completion_policy_default_revisions",
+    "repository_current_delivery_metadata_revisions",
     "work_item_architecture_decisions",
     "work_item_completion_candidates",
     "work_item_completion_policies",
@@ -977,6 +978,9 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemReference);
     await transaction.delete(schema.workItemPullRequest);
     await transaction.delete(schema.pullRequest);
+    await transaction.delete(
+      schema.repositoryCurrentDeliveryMetadataRevision,
+    );
     await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} disable trigger delivery_metadata_revisions_immutable`);
     await transaction.delete(schema.deliveryMetadataRevision);
     await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} enable trigger delivery_metadata_revisions_immutable`);
@@ -2499,6 +2503,143 @@ describe("delivery evidence persistence", () => {
         },
       ],
     });
+  });
+
+  it("makes a replayed metadata revision current after a catalog revert", async () => {
+    await repository.putKnowledgeScope({
+      id: "catalog-revert-project",
+      kind: "project",
+      title: "Catalog revert project",
+      canonicalUrl: "https://example.test/projects/catalog-revert",
+      markdownUrl: "https://example.test/projects/catalog-revert.md",
+    });
+    await repository.createWorkItem({
+      id: "catalog-revert",
+      title: "Revert generated delivery metadata",
+      schedulingProjectId: "catalog-revert-project",
+    });
+    const target = (environment: string) => ({
+      id: "delivery-target:catalog-revert/api",
+      projectId: "project:catalog-revert-project",
+      repository: "example/catalog-revert",
+      sourcePaths: [
+        {
+          path: "workers/api",
+          mode: "exclusive" as const,
+          subjects: ["component:catalog-revert/api"],
+        },
+      ],
+      subjects: ["component:catalog-revert/api"],
+      sharedHostId: null,
+      requiredCiNames: ["API CI"],
+      productionEnvironments: [environment],
+    });
+    const catalogA = {
+      repository: "example/catalog-revert",
+      sourceRevision: "catalog-a",
+      targets: [target("production-a")],
+    };
+    await repository.putDeliveryMetadataRevision(
+      catalogA,
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/catalog-revert",
+      number: 95,
+      url: "https://github.com/example/catalog-revert/pull/95",
+      headSha: commitSha("5"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/api/src/index.ts"],
+      deliveryMetadataSourceRevision: "catalog-a",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "catalog-revert",
+      repository: "example/catalog-revert",
+      number: 95,
+      role: "implementation",
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/catalog-revert",
+        sourceRevision: "catalog-b",
+        targets: [target("production-b")],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "catalog-revert",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        kind: "delivery_target_resolution",
+        note: expect.stringContaining("delivery_metadata_stale"),
+      }),
+    ]);
+
+    await repository.putDeliveryMetadataRevision(
+      catalogA,
+      "2026-09-22T12:00:00.000Z",
+    );
+
+    await expect(
+      db
+        .select()
+        .from(schema.repositoryCurrentDeliveryMetadataRevision)
+        .where(
+          eq(
+            schema.repositoryCurrentDeliveryMetadataRevision.repository,
+            "example/catalog-revert",
+          ),
+        ),
+    ).resolves.toEqual([
+      {
+        repository: "example/catalog-revert",
+        sourceRevision: "catalog-a",
+        selectedAt: new Date("2026-09-22T12:00:00.000Z"),
+      },
+    ]);
+    const [currentResolution] = await db
+      .select({
+        metadataSourceRevision:
+          schema.workItemPullRequestDeliveryResolution
+            .metadataSourceRevision,
+        failureCode:
+          schema.workItemPullRequestDeliveryResolution.failureCode,
+      })
+      .from(schema.workItemPullRequestCurrentDeliveryResolution)
+      .innerJoin(
+        schema.workItemPullRequestDeliveryResolution,
+        eq(
+          schema.workItemPullRequestCurrentDeliveryResolution.resolutionId,
+          schema.workItemPullRequestDeliveryResolution.id,
+        ),
+      )
+      .where(
+        eq(
+          schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+          "catalog-revert",
+        ),
+      );
+    expect(currentResolution).toEqual({
+      metadataSourceRevision: "catalog-a",
+      failureCode: null,
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "catalog-revert",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([]);
   });
 
   it("does not resolve overrides against legacy pull requests without changed paths", async () => {

@@ -108,6 +108,7 @@ import {
   lease,
   note,
   pullRequest,
+  repositoryCurrentDeliveryMetadataRevision,
   repositoryCompletionPolicyDefaultRevision,
   workItem,
   workItemArchitectureDecision,
@@ -145,6 +146,36 @@ interface DeliveryTargetResolutionOutcome {
   readonly changedPaths: readonly string[];
   readonly failureCode: string | null;
 }
+
+const selectCurrentDeliveryMetadataRevision = async (
+  transaction: DbTransaction,
+  repository: string,
+): Promise<typeof deliveryMetadataRevision.$inferSelect | undefined> => {
+  const [metadata] = await transaction
+    .select({
+      repository: deliveryMetadataRevision.repository,
+      sourceRevision: deliveryMetadataRevision.sourceRevision,
+      targets: deliveryMetadataRevision.targets,
+      createdAt: deliveryMetadataRevision.createdAt,
+    })
+    .from(repositoryCurrentDeliveryMetadataRevision)
+    .innerJoin(
+      deliveryMetadataRevision,
+      and(
+        eq(
+          deliveryMetadataRevision.repository,
+          repositoryCurrentDeliveryMetadataRevision.repository,
+        ),
+        eq(
+          deliveryMetadataRevision.sourceRevision,
+          repositoryCurrentDeliveryMetadataRevision.sourceRevision,
+        ),
+      ),
+    )
+    .where(eq(repositoryCurrentDeliveryMetadataRevision.repository, repository))
+    .limit(1);
+  return metadata;
+};
 
 const resolveDeliveryTargetOutcome = (input: {
   readonly metadata: typeof deliveryMetadataRevision.$inferSelect | undefined;
@@ -2670,18 +2701,31 @@ export class WorkGraphRepository {
           `Delivery metadata revision ${normalized.sourceRevision} is immutable.`,
         );
       }
-      const [current] = await transaction
-        .select({ sourceRevision: deliveryMetadataRevision.sourceRevision })
-        .from(deliveryMetadataRevision)
-        .where(
-          eq(deliveryMetadataRevision.repository, normalized.repository),
-        )
-        .orderBy(
-          desc(deliveryMetadataRevision.createdAt),
-          desc(deliveryMetadataRevision.sourceRevision),
-        )
-        .limit(1);
-      if (current?.sourceRevision !== normalized.sourceRevision) return replayed;
+      const [selectedCurrent] = await transaction
+        .insert(repositoryCurrentDeliveryMetadataRevision)
+        .values({
+          repository: normalized.repository,
+          sourceRevision: normalized.sourceRevision,
+          selectedAt: timestamp,
+        })
+        .onConflictDoUpdate({
+          target: repositoryCurrentDeliveryMetadataRevision.repository,
+          set: {
+            sourceRevision: normalized.sourceRevision,
+            selectedAt: timestamp,
+          },
+          setWhere: lte(
+            repositoryCurrentDeliveryMetadataRevision.selectedAt,
+            timestamp,
+          ),
+        })
+        .returning({
+          sourceRevision:
+            repositoryCurrentDeliveryMetadataRevision.sourceRevision,
+        });
+      if (selectedCurrent?.sourceRevision !== normalized.sourceRevision) {
+        return replayed;
+      }
       const resolutionAt = await readDatabaseClock(transaction);
       const links = await transaction
         .select({
@@ -2845,15 +2889,10 @@ export class WorkGraphRepository {
     const item = graph.workItems.find(({ id }) => id === workItemId);
     if (!item) throw workItemNotFound(workItemId);
     const owner = getWorkItemSchedulingOwner(graph, item);
-    const [metadata] = await transaction
-      .select()
-      .from(deliveryMetadataRevision)
-      .where(eq(deliveryMetadataRevision.repository, repository))
-      .orderBy(
-        desc(deliveryMetadataRevision.createdAt),
-        desc(deliveryMetadataRevision.sourceRevision),
-      )
-      .limit(1);
+    const metadata = await selectCurrentDeliveryMetadataRevision(
+      transaction,
+      repository,
+    );
     const [override] = await transaction
       .select({ targetIds: workItemDeliveryTargetOverride.targetIds })
       .from(workItemDeliveryTargetOverride)

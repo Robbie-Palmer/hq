@@ -419,6 +419,29 @@ export const deliveryMetadataRevision = pgTable(
   ],
 );
 
+export const repositoryCurrentDeliveryMetadataRevision = pgTable(
+  "repository_current_delivery_metadata_revisions",
+  {
+    repository: text().primaryKey(),
+    sourceRevision: text().notNull(),
+    selectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "repository_current_delivery_metadata_revision_fk",
+      columns: [table.repository, table.sourceRevision],
+      foreignColumns: [
+        deliveryMetadataRevision.repository,
+        deliveryMetadataRevision.sourceRevision,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "repository_current_delivery_metadata_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+  ],
+);
+
 export const workItemDeliveryTargetOverride = pgTable(
   "work_item_delivery_target_overrides",
   {
