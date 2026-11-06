@@ -1,6 +1,15 @@
 import { z } from "zod";
 import { AccountContentSchema } from "./account";
 import { BalanceSnapshotSchema } from "./balanceSnapshot";
+import {
+  AccountOwnershipRecordSchema,
+  CompanyEquityValuationSchema,
+  EntityObligationSchema,
+  EntityTransferSchema,
+  FinancialEntityRecordSchema,
+  migrateLegacyBusinessWealth,
+  ShareOwnershipInterestSchema,
+} from "./businessWealth";
 import { CapitalFlowSchema } from "./capitalFlow";
 import { CurrencySchema, DEFAULT_BASE_CURRENCY } from "./currency";
 import { FinancialDecisionRecordSchema } from "./decisionRecord";
@@ -121,6 +130,12 @@ export const AssetTrackerDataSchema = z
       .optional(),
     household: HouseholdSchema.default(DEFAULT_HOUSEHOLD),
     ownership: HouseholdOwnershipIndexSchema.default(EMPTY_HOUSEHOLD_OWNERSHIP),
+    financialEntities: z.array(FinancialEntityRecordSchema).default([]),
+    accountOwnerships: z.array(AccountOwnershipRecordSchema).default([]),
+    shareOwnershipInterests: z.array(ShareOwnershipInterestSchema).default([]),
+    entityObligations: z.array(EntityObligationSchema).default([]),
+    entityTransfers: z.array(EntityTransferSchema).default([]),
+    companyEquityValuations: z.array(CompanyEquityValuationSchema).default([]),
     taxPosition: TaxPositionDataSchema.optional(),
     soleTraderScenarios: z.array(HouseholdSoleTraderScenarioSchema).optional(),
     settings: AssetTrackerSettingsSchema.default({
@@ -161,7 +176,7 @@ export const AssetTrackerDataSchema = z
         return [legacyPlannedExpenditureToCommitment(expenditure, currency)];
       },
     );
-    return migrateHouseholdOwnership({
+    const householdData = migrateHouseholdOwnership({
       ...data,
       recurringFlows,
       futureCashFlows: [
@@ -169,6 +184,7 @@ export const AssetTrackerDataSchema = z
         ...migratedPlannedExpenditures,
       ],
     });
+    return migrateLegacyBusinessWealth(householdData);
   });
 
 export type AssetTrackerData = z.infer<typeof AssetTrackerDataSchema>;

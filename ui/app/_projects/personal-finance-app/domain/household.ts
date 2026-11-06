@@ -64,12 +64,14 @@ export const HouseholdScopeSchema = z.discriminatedUnion("kind", [
 export type HouseholdScope = z.infer<typeof HouseholdScopeSchema>;
 
 export const HouseholdSchema = z.object({
+  id: z.string().trim().min(1).default("household"),
   members: z.array(HouseholdMemberSchema).min(1),
   activeScope: HouseholdScopeSchema,
 });
 export type Household = z.infer<typeof HouseholdSchema>;
 
 export const DEFAULT_HOUSEHOLD: Household = {
+  id: "household",
   members: [{ id: DEFAULT_HOUSEHOLD_MEMBER_ID, displayName: "Me" }],
   activeScope: { kind: "household" },
 };
@@ -105,10 +107,18 @@ export const EMPTY_HOUSEHOLD_OWNERSHIP: HouseholdOwnershipIndex = {
 
 export function defaultHouseholdFields(): Pick<
   AssetTrackerData,
-  "household" | "ownership"
+  | "household"
+  | "ownership"
+  | "financialEntities"
+  | "accountOwnerships"
+  | "shareOwnershipInterests"
+  | "entityObligations"
+  | "entityTransfers"
+  | "companyEquityValuations"
 > {
   return {
     household: {
+      id: DEFAULT_HOUSEHOLD.id,
       members: DEFAULT_HOUSEHOLD.members.map((member) => ({ ...member })),
       activeScope: { kind: "household" },
     },
@@ -123,6 +133,12 @@ export function defaultHouseholdFields(): Pick<
       futureCashFlows: {},
       holdingObservations: {},
     },
+    financialEntities: [],
+    accountOwnerships: [],
+    shareOwnershipInterests: [],
+    entityObligations: [],
+    entityTransfers: [],
+    companyEquityValuations: [],
   };
 }
 
@@ -785,6 +801,20 @@ export function scopeAssetTrackerData(
   const propertyComparableSearches = (
     data.propertyComparableSearches ?? []
   ).filter(({ accountId }) => keptAccountIds.has(accountId));
+  const accountOwnerships = data.accountOwnerships.filter(({ accountId }) =>
+    keptAccountIds.has(accountId),
+  );
+  const entityTransfers = data.entityTransfers.filter((transfer) =>
+    transfer.legs.every(
+      ({ accountId }) => accountId == null || keptAccountIds.has(accountId),
+    ),
+  );
+  const companyEquityValuations = data.companyEquityValuations.filter(
+    (valuation) =>
+      (valuation.inputs?.accountIds ?? []).every((accountId) =>
+        keptAccountIds.has(accountId),
+      ),
+  );
   return {
     ...data,
     accounts,
@@ -805,5 +835,8 @@ export function scopeAssetTrackerData(
     holdingObservations,
     propertyComparableSearches,
     propertyIndexHistories,
+    accountOwnerships,
+    entityTransfers,
+    companyEquityValuations,
   };
 }

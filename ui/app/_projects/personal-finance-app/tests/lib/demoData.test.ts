@@ -243,6 +243,7 @@ describe("Asset Tracker demo-data adapter", () => {
     const data = getDemoAssetTrackerData();
 
     expect(data.household).toEqual({
+      id: "household",
       members: [
         { id: "alex", displayName: "Alex" },
         { id: "sam", displayName: "Sam" },

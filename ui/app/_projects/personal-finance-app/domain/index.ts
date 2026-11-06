@@ -8,6 +8,7 @@ export * from "./assetTrackerQueries";
 export * from "./assetTrackerRepository";
 export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
+export * from "./businessWealth";
 export * from "./capitalFlow";
 export * from "./compoundGrowth";
 export * from "./currency";
