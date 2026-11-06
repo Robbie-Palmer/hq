@@ -1,0 +1,39 @@
+name: {{ blueprint.project.name }} preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: {{ blueprint.project.id }}-preview-{% raw %}${{ github.event.pull_request.number }}{% endraw %}
+  cancel-in-progress: false
+
+jobs:
+  up:
+    if: {% raw %}${{ github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: preview-up
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.preview.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.preview.secret_config_ref | tojson }}
+      subject: {% raw %}${{ github.event.pull_request.number }}{% endraw %}
+      checkout_ref: {% raw %}${{ github.event.pull_request.head.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_PREVIEW_DOPPLER_TOKEN }}{% endraw %}
+
+  cleanup:
+    if: {% raw %}${{ github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository }}{% endraw %}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: preview-cleanup
+      operations_root: {{ operations_root_path | tojson }}
+      github_environment: {{ blueprint.rollout.stateful_operations.preview.github_environment | tojson }}
+      secret_config_ref: {{ blueprint.rollout.stateful_operations.preview.secret_config_ref | tojson }}
+      subject: {% raw %}${{ github.event.pull_request.number }}{% endraw %}
+      checkout_ref: {% raw %}${{ github.event.pull_request.base.sha }}{% endraw %}
+    secrets:
+      DOPPLER_TOKEN: {% raw %}${{ secrets.PROJECT_PREVIEW_DOPPLER_TOKEN }}{% endraw %}

@@ -1,0 +1,162 @@
+name: Project stateful operations
+
+on:
+  workflow_call:
+    inputs:
+      action:
+        description: Operation accepted by the generated project dispatcher
+        required: true
+        type: string
+      operations_root:
+        description: Repository-relative Terraform component path
+        required: true
+        type: string
+      github_environment:
+        description: Protected GitHub environment named by the project profile
+        required: true
+        type: string
+      secret_config_ref:
+        description: Redacted Doppler config reference named by the project profile
+        required: true
+        type: string
+      subject:
+        description: PR number, rollback revision, or restore drill ID
+        required: false
+        default: ""
+        type: string
+      checkout_ref:
+        description: Exact revision to operate
+        required: false
+        default: ""
+        type: string
+      plan_artifact:
+        description: Artifact carrying a reviewed production Terraform plan
+        required: false
+        default: "stateful-production-plan"
+        type: string
+      expected_plan_sha256:
+        description: Digest returned by a prior production-plan call
+        required: false
+        default: ""
+        type: string
+    secrets:
+      DOPPLER_TOKEN:
+        description: Config-scoped token for secret_config_ref
+        required: true
+    outputs:
+      plan_sha256:
+        description: Digest of the saved Terraform plan
+        value: ${{ jobs.operate.outputs.plan_sha256 }}
+
+permissions:
+  contents: read
+
+jobs:
+  operate:
+    name: ${{ inputs.action }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.github_environment }}
+    outputs:
+      plan_sha256: ${{ steps.result.outputs.plan_sha256 }}
+    steps:
+      - name: Validate requested operation
+        env:
+          ACTION: ${{ inputs.action }}
+          OPERATIONS_ROOT: ${{ inputs.operations_root }}
+          SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
+          SUBJECT: ${{ inputs.subject }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            preview-up|preview-cleanup)
+              [[ "$SUBJECT" =~ ^[1-9][0-9]*$ ]]
+              ;;
+            production-plan|production-apply|backup|alert-smoke)
+              [[ -z "$SUBJECT" ]]
+              ;;
+            production-rollback)
+              [[ "$SUBJECT" =~ ^[0-9a-f]{40}$ ]]
+              ;;
+            restore)
+              [[ "$SUBJECT" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]
+              ;;
+            *) exit 1 ;;
+          esac
+          [[ "$OPERATIONS_ROOT" =~ ^[a-z0-9][a-z0-9./-]*$ ]]
+          [[ "$OPERATIONS_ROOT" != /* ]]
+          [[ "$OPERATIONS_ROOT" != *..* ]]
+          [[ "$SECRET_CONFIG_REF" =~ ^doppler://[a-z0-9]+(-[a-z0-9]+)*/[a-z0-9]+(_[a-z0-9]+)*$ ]]
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Download reviewed Terraform plan
+        if: ${{ inputs.action == 'production-apply' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ inputs.plan_artifact }}
+          path: ${{ inputs.operations_root }}/operations/evidence
+
+      - name: Run generated operation
+        env:
+          ACTION: ${{ inputs.action }}
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
+          EXPECTED_PLAN_SHA256: ${{ inputs.expected_plan_sha256 }}
+          OPERATIONS_GITHUB_ENVIRONMENT: ${{ inputs.github_environment }}
+          OPERATIONS_ROOT: ${{ inputs.operations_root }}
+          OPERATIONS_SECRET_CONFIG_REF: ${{ inputs.secret_config_ref }}
+          RESTORE_TARGET_CLASS: ${{ inputs.action == 'restore' && 'scratch' || '' }}
+          SUBJECT: ${{ inputs.subject }}
+        run: |
+          set -euo pipefail
+          case "$ACTION" in
+            preview-up) mutation_token="preview:$SUBJECT" ;;
+            preview-cleanup) mutation_token="preview-cleanup:$SUBJECT" ;;
+            production-apply) mutation_token="production:$EXPECTED_PLAN_SHA256" ;;
+            production-rollback) mutation_token="rollback:$SUBJECT" ;;
+            backup) mutation_token="backup" ;;
+            restore) mutation_token="restore:$SUBJECT" ;;
+            alert-smoke) mutation_token="alert-smoke" ;;
+            production-plan) mutation_token="" ;;
+          esac
+          export OPERATIONS_MUTATION_TOKEN="$mutation_token"
+          args=("$ACTION")
+          if [[ -n "$SUBJECT" ]]; then
+            args+=("$SUBJECT")
+          fi
+          doppler run -- \
+            bash "$OPERATIONS_ROOT/operations/operate.sh" "${args[@]}"
+
+      - name: Record plan digest
+        id: result
+        if: ${{ inputs.action == 'production-plan' }}
+        env:
+          OPERATIONS_ROOT: ${{ inputs.operations_root }}
+        run: |
+          set -euo pipefail
+          digest=$(cut -d ' ' -f 1 "$OPERATIONS_ROOT/operations/evidence/production.tfplan.sha256")
+          [[ "$digest" =~ ^[0-9a-f]{64}$ ]]
+          echo "plan_sha256=$digest" >> "$GITHUB_OUTPUT"
+
+      - name: Upload reviewed Terraform plan
+        if: ${{ inputs.action == 'production-plan' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ inputs.plan_artifact }}
+          path: |
+            ${{ inputs.operations_root }}/operations/evidence/production.tfplan.age
+            ${{ inputs.operations_root }}/operations/evidence/production.tfplan.sha256
+          if-no-files-found: error
+          retention-days: 3
+
+      - name: Upload rollout evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rollout-evidence-${{ inputs.action }}-${{ github.run_attempt }}
+          path: ${{ inputs.operations_root }}/operations/evidence/*.json
+          if-no-files-found: error
+          retention-days: 30

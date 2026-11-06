@@ -112,6 +112,20 @@ const miseCommandSchema = z
   .string()
   .regex(/^mise \/\//, "must invoke a repository task through mise");
 
+const statefulHookCommandSchema = z
+  .string()
+  .regex(
+    /^mise \/\/[a-z0-9./-]*:[a-z0-9][a-z0-9:._-]*$/,
+    "must invoke one repository task through mise without inline shell syntax",
+  );
+
+const dopplerReferenceSchema = z
+  .string()
+  .regex(
+    /^doppler:\/\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:_[a-z0-9]+)*$/,
+    "must be a redacted doppler://project/config reference",
+  );
+
 const operationalCheckSchema = z
   .object({
     id: slugSchema,
@@ -138,10 +152,89 @@ const migrationCheckpointSchema = z
     }
   });
 
+const statefulPreviewOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    provision: statefulHookCommandSchema,
+    migrate: statefulHookCommandSchema,
+    seed_synthetic: statefulHookCommandSchema,
+    deploy: statefulHookCommandSchema,
+    smoke_authenticated: statefulHookCommandSchema,
+    smoke_telemetry: statefulHookCommandSchema,
+    cleanup: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulProductionOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    plan_secret_config_ref: dopplerReferenceSchema,
+    apply_secret_config_ref: dopplerReferenceSchema,
+    migrate: statefulHookCommandSchema,
+    deploy: statefulHookCommandSchema,
+    smoke: statefulHookCommandSchema,
+    rollback: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulBackupOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    schedule: z
+      .string()
+      .regex(
+        /^(?:[0-5]?\d) (?:[01]?\d|2[0-3]) \* \* [0-6]$/,
+        "must be a weekly UTC cron expression",
+      ),
+    create: statefulHookCommandSchema,
+    restore: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulAlertOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    responder: z.string().min(1),
+    smoke: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulOperationsSchema = z
+  .object({
+    preview: statefulPreviewOperationsSchema,
+    production: statefulProductionOperationsSchema,
+    backup: statefulBackupOperationsSchema.optional(),
+    alerting: statefulAlertOperationsSchema.optional(),
+  })
+  .strict()
+  .superRefine((operations, context) => {
+    const references = [
+      operations.preview.secret_config_ref,
+      operations.production.plan_secret_config_ref,
+      operations.production.apply_secret_config_ref,
+      ...(operations.backup ? [operations.backup.secret_config_ref] : []),
+      ...(operations.alerting ? [operations.alerting.secret_config_ref] : []),
+    ];
+    const duplicate = references.find(
+      (reference, index) => references.indexOf(reference) !== index,
+    );
+    if (duplicate) {
+      context.addIssue({
+        code: "custom",
+        path: ["production", "apply_secret_config_ref"],
+        message: `secret handoff references must be distinct; duplicate '${duplicate}'`,
+      });
+    }
+  });
+
 const rolloutSchema = z
   .object({
     operational_checks: z.array(operationalCheckSchema).default([]),
     migration_checkpoints: z.array(migrationCheckpointSchema).default([]),
+    stateful_operations: statefulOperationsSchema.optional(),
   })
   .strict()
   .superRefine((rollout, context) => {
@@ -558,6 +651,7 @@ export interface ResolvedProjectBlueprint {
       readonly status: "pending" | "verified";
       readonly evidence: readonly string[];
     }[];
+    readonly stateful_operations?: z.infer<typeof statefulOperationsSchema>;
   };
 }
 
@@ -1306,6 +1400,73 @@ function resolvedBlueprintSchemaVersion(
   return RESOLVED_BLUEPRINT_SCHEMA_VERSION;
 }
 
+function validateStatefulOperations(
+  profile: ProjectProfile,
+  components: ResolvedProjectBlueprint["components"],
+  selections: readonly ResolvedSelection[],
+): void {
+  const operations = profile.rollout.stateful_operations;
+  if (!operations) return;
+
+  const terraformRoots = components.filter(
+    ({ kind }) => kind === "terraform-root",
+  );
+  if (terraformRoots.length !== 1) {
+    throw new Error(
+      `Stateful operations require one terraform-root component, found ${terraformRoots.length}`,
+    );
+  }
+
+  const selectedSlots = new Set(selections.map(({ slot }) => slot));
+  const requiredSlots = [
+    "backend-api.runtime",
+    "database.migration-discipline",
+    "database.preview-isolation",
+    "database.relational-host",
+    "delivery.ci",
+    "delivery.preview-environment",
+    "infrastructure.provisioner",
+    "infrastructure.state-backend",
+    "security.preview-access",
+  ];
+  const missingSlots = requiredSlots.filter((slot) => !selectedSlots.has(slot));
+  if (missingSlots.length > 0) {
+    throw new Error(
+      `Stateful operations require selected capabilities: ${missingSlots.join(", ")}`,
+    );
+  }
+
+  const backupSelected = selectedSlots.has("database.backup-restore");
+  if (backupSelected !== (operations.backup !== undefined)) {
+    throw new Error(
+      "Stateful backup operations must be declared exactly when database.backup-restore is selected",
+    );
+  }
+  if (backupSelected && !selectedSlots.has("storage.object-store")) {
+    throw new Error(
+      "Stateful backup operations require storage.object-store",
+    );
+  }
+
+  const alertingSelected = selectedSlots.has(
+    "observability.alert-evaluation",
+  );
+  if (alertingSelected !== (operations.alerting !== undefined)) {
+    throw new Error(
+      "Stateful alert operations must be declared exactly when observability.alert-evaluation is selected",
+    );
+  }
+  if (
+    alertingSelected &&
+    (!selectedSlots.has("observability.application-telemetry") ||
+      !selectedSlots.has("observability.telemetry-protocol"))
+  ) {
+    throw new Error(
+      "Stateful alert operations require OpenTelemetry application telemetry",
+    );
+  }
+}
+
 export function resolveProjectProfile(
   profile: ProjectProfile,
   contracts: ProjectProfileContracts,
@@ -1322,6 +1483,7 @@ export function resolveProjectProfile(
     workloads,
   );
   const { selections, checkpoints } = resolveSelections(profile, contracts, instant);
+  validateStatefulOperations(profile, components, selections);
   const paths = contracts.layout.knowledge_graph;
   const substituteProject = (template: string) => substitutePath(template, { project: profile.project.id, sequence: "{sequence}", slug: "{slug}" });
   const componentRecords = components.map((component) => ({
@@ -1454,6 +1616,9 @@ export function resolveProjectProfile(
           evidence: [...checkpoint.evidence].toSorted(compareStrings),
         }))
         .toSorted((left, right) => compareStrings(left.id, right.id)),
+      ...(profile.rollout.stateful_operations
+        ? { stateful_operations: profile.rollout.stateful_operations }
+        : {}),
     },
   };
 }

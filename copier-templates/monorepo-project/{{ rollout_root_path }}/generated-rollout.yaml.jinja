@@ -2,6 +2,8 @@
 # Managed by Copier; record evidence in the project profile, not in this file.
 schema_version: 1
 project: "{{ blueprint.project.stable_id }}"
+{% if rollout.stateful_operations | default(none, true) %}stateful_operations: "operations/generated-operations.yaml"
+{% endif %}
 {% if rollout.operational_checks %}operational_checks:
 {% for check in rollout.operational_checks %}  - id: "{{ check.id }}"
     command: "{{ check.command }}"

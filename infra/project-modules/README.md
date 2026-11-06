@@ -29,6 +29,7 @@ state. It is the executable proof for the managed serverless path.
 | `database.relational-host=neon` | Production Neon project | `application` |
 | `database.preview-isolation` | Separate empty Neon preview project | `application` |
 | `observability.application-telemetry=posthog` | Project operations dashboard | `application` |
+| `observability.alert-evaluation=posthog` | Production-filtered PostHog log alerts | `application` |
 
 The module ignores unrelated selections. It rejects configuration for an
 unselected capability and rejects a selected capability without configuration.
@@ -57,6 +58,14 @@ routine template update. New projects use compiled roots. A deliberate legacy
 migration must keep the old provider configuration available for the destroy
 or state-move phase, move each capability address under review, and reach a
 no-change plan before removing the aggregate call.
+
+When a profile also declares `rollout.stateful_operations`, Copier adds the
+project-owned operation contract beside the compiled root. The generated
+dispatcher requires explicit mutation tokens, checks the named GitHub
+environment and redacted Doppler handoff, preserves reviewed Terraform plan
+digests, and writes schema-checked JSON evidence. Preview, migration, seed,
+deploy, smoke, cleanup, rollback, backup, restore, and alert hooks remain mise
+tasks owned by the project runtime.
 
 ## State boundaries
 
