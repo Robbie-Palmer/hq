@@ -58,8 +58,11 @@ export const AnimatedThemeToggler = ({
 
     await document.startViewTransition(updateDOM).ready;
 
-    const { top, left, width, height } =
-      buttonRef.current.getBoundingClientRect();
+    // The button can unmount while the transition runs.
+    const button = buttonRef.current;
+    if (!button) return;
+
+    const { top, left, width, height } = button.getBoundingClientRect();
     const x = left + width / 2;
     const y = top + height / 2;
     const maxRadius = Math.hypot(
