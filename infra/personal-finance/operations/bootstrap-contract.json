@@ -1,0 +1,135 @@
+{
+  "schema_version": 1,
+  "project": "project:personal-finance-app",
+  "operations_readiness_variable": "PERSONAL_FINANCE_OPERATIONS_READY",
+  "readiness_variable": "PERSONAL_FINANCE_TERRAFORM_READY",
+  "configs": [
+    {
+      "reference": "doppler://personal-finance-operations/preview",
+      "github_environment": "preview-personal-finance",
+      "github_token_secrets": ["PROJECT_PREVIEW_DOPPLER_TOKEN"],
+      "required": [
+        "BETTER_AUTH_SECRET",
+        "CANARY_PREVIEW_AUTH_TOKEN",
+        "CF_ACCESS_CLIENT_ID",
+        "CF_ACCESS_CLIENT_SECRET",
+        "CF_ACCESS_SERVICE_TOKEN_ID",
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_WORKERS_SUBDOMAIN",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "NEON_API_KEY",
+        "PERSONAL_FINANCE_DATABASE_NAME",
+        "PERSONAL_FINANCE_DATABASE_ROLE",
+        "PERSONAL_FINANCE_PREVIEW_NEON_PROJECT_ID",
+        "POSTHOG_HOST",
+        "POSTHOG_PERSONAL_API_KEY",
+        "POSTHOG_PROJECT_ID",
+        "POSTHOG_WRITE_KEY"
+      ]
+    },
+    {
+      "reference": "doppler://personal-finance/ops",
+      "github_environment": "production-personal-finance-plan",
+      "github_token_secrets": [
+        "DOPPLER_TOKEN",
+        "PROJECT_PRODUCTION_PLAN_DOPPLER_TOKEN"
+      ],
+      "required": [
+        "CLOUDFLARE_API_TOKEN",
+        "NEON_API_KEY",
+        "POSTHOG_API_KEY",
+        "TERRAFORM_PLAN_AGE_RECIPIENT",
+        "TF_API_TOKEN",
+        "TF_VAR_cloudflare_access",
+        "TF_VAR_cloudflare_r2",
+        "TF_VAR_cloudflare_worker",
+        "TF_VAR_neon",
+        "TF_VAR_posthog_alerting",
+        "TF_VAR_posthog_api_key",
+        "TF_VAR_telemetry"
+      ]
+    },
+    {
+      "reference": "doppler://personal-finance/drift",
+      "github_environment": "production-personal-finance-drift",
+      "github_token_secrets": ["DOPPLER_TOKEN"],
+      "required": [
+        "CLOUDFLARE_API_TOKEN",
+        "NEON_API_KEY",
+        "POSTHOG_API_KEY",
+        "TF_API_TOKEN",
+        "TF_VAR_cloudflare_access",
+        "TF_VAR_cloudflare_r2",
+        "TF_VAR_cloudflare_worker",
+        "TF_VAR_neon",
+        "TF_VAR_posthog_alerting",
+        "TF_VAR_posthog_api_key",
+        "TF_VAR_telemetry"
+      ]
+    },
+    {
+      "reference": "doppler://personal-finance/apply",
+      "github_environment": "production-personal-finance",
+      "github_token_secrets": [
+        "DOPPLER_TOKEN",
+        "PROJECT_PRODUCTION_APPLY_DOPPLER_TOKEN"
+      ],
+      "required": [
+        "BETTER_AUTH_SECRET",
+        "CLOUDFLARE_ACCOUNT_ID",
+        "CLOUDFLARE_API_TOKEN",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "NEON_API_KEY",
+        "PERSONAL_FINANCE_HYPERDRIVE_ID",
+        "PERSONAL_FINANCE_PRODUCTION_URL",
+        "POSTHOG_API_KEY",
+        "PRODUCTION_DATABASE_URL",
+        "TERRAFORM_PLAN_AGE_IDENTITY",
+        "TF_API_TOKEN",
+        "TF_VAR_cloudflare_access",
+        "TF_VAR_cloudflare_r2",
+        "TF_VAR_cloudflare_worker",
+        "TF_VAR_neon",
+        "TF_VAR_posthog_alerting",
+        "TF_VAR_posthog_api_key",
+        "TF_VAR_telemetry"
+      ],
+      "post_deploy": [
+        "PERSONAL_FINANCE_ROLLBACK_GIT_REVISION",
+        "PERSONAL_FINANCE_ROLLBACK_VERSION_ID"
+      ]
+    },
+    {
+      "reference": "doppler://personal-finance/backup",
+      "github_environment": "production-personal-finance-backup",
+      "github_token_secrets": ["PROJECT_BACKUP_DOPPLER_TOKEN"],
+      "required": [
+        "AGE_RECIPIENT",
+        "CLOUDFLARE_ACCOUNT_ID",
+        "NEON_DATABASE_URL_UNPOOLED",
+        "R2_ACCESS_KEY_ID",
+        "R2_DATABASE_BACKUPS_BUCKET_NAME",
+        "R2_SECRET_ACCESS_KEY"
+      ],
+      "external_custody": [
+        "AGE_IDENTITY_FILE",
+        "RESTORE_DATABASE_URL",
+        "RESTORE_OBJECT_KEY"
+      ]
+    },
+    {
+      "reference": "doppler://personal-finance-operations/alerts",
+      "github_environment": "production-personal-finance-alerting",
+      "github_token_secrets": ["PROJECT_ALERT_DOPPLER_TOKEN"],
+      "required": [
+        "POSTHOG_HOST",
+        "POSTHOG_PERSONAL_API_KEY",
+        "POSTHOG_PROJECT_ID",
+        "POSTHOG_WRITE_KEY"
+      ]
+    }
+  ]
+}

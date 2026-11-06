@@ -64,7 +64,7 @@ terraform test
 
 [tasks.test]
 description = "Test the Personal Finance stateful infrastructure"
-depends = ["test:scripts", "test:foundation", "test:terraform"]
+depends = ["test:scripts", "test:foundation", "test:terraform", "test:operations"]
 
 [tasks.plan]
 description = "Plan Personal Finance infrastructure with plan credentials"
@@ -82,8 +82,76 @@ bash scripts/doppler-terraform-env.sh drift terraform plan -input=false -detaile
 """
 
 [tasks."credentials:sync"]
-description = "Sync Personal Finance configs to their protected GitHub environments"
-run = "../../scripts/sync-doppler-github-envs.sh preview-personal-finance production-personal-finance-plan production-personal-finance-drift production-personal-finance production-personal-finance-backup production-personal-finance-alerting"
+description = "Install config-scoped Personal Finance Doppler tokens in protected GitHub environments"
+run = "bash scripts/install-service-tokens.sh"
+
+[tasks."bootstrap:check"]
+description = "Validate the redacted Personal Finance provider handoff contract"
+run = "bash scripts/check-bootstrap.sh contract"
+
+[tasks."bootstrap:check:runtime"]
+description = "Check that the current scoped config supplies its declared handoff names"
+run = "bash scripts/check-bootstrap.sh runtime"
+
+[tasks."preview:provision"]
+description = "Create the isolated Neon branch and Cloudflare Access application for a preview"
+run = "bash scripts/provider-operation.sh preview-provision"
+
+[tasks."db:migrate:preview"]
+description = "Apply committed migrations to the isolated preview database"
+run = "bash scripts/provider-operation.sh preview-migrate"
+
+[tasks."db:seed:preview"]
+description = "Insert the synthetic-only preview fixture"
+run = "bash scripts/provider-operation.sh preview-seed"
+
+[tasks."deploy:preview"]
+description = "Deploy the isolated Personal Finance preview Worker"
+run = "bash scripts/provider-operation.sh preview-deploy"
+
+[tasks."smoke:preview"]
+description = "Create and read the authenticated synthetic preview record"
+run = "bash scripts/provider-operation.sh preview-smoke"
+
+[tasks."smoke:telemetry"]
+description = "Verify the redacted preview telemetry event"
+run = "bash scripts/provider-operation.sh preview-telemetry"
+
+[tasks."preview:cleanup"]
+description = "Delete the preview Worker, Access application, and Neon branch"
+run = "bash scripts/provider-operation.sh preview-cleanup"
+
+[tasks."db:migrate:production"]
+description = "Apply committed migrations to the production database"
+run = "bash scripts/provider-operation.sh production-migrate"
+
+[tasks."deploy:production"]
+description = "Deploy the reviewed Personal Finance production Worker revision"
+run = "bash scripts/provider-operation.sh production-deploy"
+
+[tasks."smoke:production"]
+description = "Smoke-test the authenticated production Worker"
+run = "bash scripts/provider-operation.sh production-smoke"
+
+[tasks."rollback:production"]
+description = "Deploy a declared prior Personal Finance Worker version"
+run = "bash scripts/provider-operation.sh production-rollback"
+
+[tasks."backup:create"]
+description = "Create and verify an encrypted Personal Finance database backup"
+run = "bash scripts/provider-operation.sh backup-create"
+
+[tasks."restore:drill"]
+description = "Restore an encrypted Personal Finance backup into a scratch database"
+run = "bash scripts/provider-operation.sh restore-drill"
+
+[tasks."smoke:alert"]
+description = "Emit and verify a synthetic Personal Finance alert event"
+run = "bash scripts/provider-operation.sh alert-smoke"
+
+[tasks."test:operations"]
+description = "Test Personal Finance provider operation and handoff boundaries"
+run = "bash scripts/provider-operation.test.sh"
 
 [tasks.apply]
 description = "Apply a reviewed Personal Finance Terraform plan"
