@@ -306,13 +306,13 @@ describe("business wealth entity and ownership contracts", () => {
     ]);
   });
 
-  it("keeps unknown ownership unresolved instead of inventing a share or zero", () => {
+  it("keeps an unrecorded share unresolved instead of inventing a value", () => {
     const data = businessWealthFixture();
     const samInterest = data.shareOwnershipInterests.find(
       ({ recordId }) => recordId === "interest-sam-current",
     );
     if (samInterest == null) throw new Error("fixture has no Sam interest");
-    samInterest.fraction = { state: "unknown" };
+    samInterest.fraction = { state: "fraction-not-recorded" };
 
     const result = consolidateHouseholdWealth({
       selectedPersonEntityIds: ["person:alex", "person:sam"],
@@ -330,12 +330,12 @@ describe("business wealth entity and ownership contracts", () => {
     expect(result.knownSubtotal).toBe(30_000);
     expect(result.complete).toBe(false);
     expect(result.issues).toContainEqual({
-      kind: "unknown_share_ownership",
+      kind: "share_fraction_not_recorded",
       subjectId: "company:northstar",
     });
   });
 
-  it("counts an unknown shared account once as unallocated value", () => {
+  it("counts a candidate-owned shared account once as unallocated value", () => {
     const data = businessWealthFixture();
     const sharedOwnership = data.accountOwnerships.find(
       ({ accountId }) => accountId === "shared-cash",
@@ -343,7 +343,7 @@ describe("business wealth entity and ownership contracts", () => {
     if (sharedOwnership == null)
       throw new Error("fixture has no shared account ownership");
     sharedOwnership.ownership = {
-      state: "unknown",
+      state: "candidate-owners",
       candidateEntityIds: ["person:alex", "person:sam"],
     };
 
@@ -365,7 +365,7 @@ describe("business wealth entity and ownership contracts", () => {
       result.contributions.find(({ id }) => id === "account:shared-cash"),
     ).toMatchObject({ amount: 10_000, attribution: [] });
     expect(result.issues).toContainEqual({
-      kind: "unknown_account_ownership",
+      kind: "candidate_account_owners",
       subjectId: "shared-cash",
     });
   });
@@ -400,6 +400,37 @@ describe("business wealth entity and ownership contracts", () => {
       kind: "unsupported_company_valuation",
       subjectId: "company:northstar",
       reason: "Going-concern method is not implemented",
+    });
+  });
+
+  it("reports a valuation amount that has not been recorded", () => {
+    const data = businessWealthFixture();
+    const valuation = data.companyEquityValuations.find(
+      ({ recordId }) => recordId === "northstar-valuation-original",
+    );
+    if (valuation == null) throw new Error("fixture has no company valuation");
+    valuation.amount = {
+      state: "amount-not-recorded",
+      currency: "GBP",
+    };
+
+    const result = consolidateHouseholdWealth({
+      selectedPersonEntityIds: ["person:alex", "person:sam"],
+      validAt: "2026-09-30",
+      asKnownAt: "2026-10-15T00:00:00.000Z",
+      baseCurrency: "GBP",
+      accounts: data.accounts,
+      accountValues,
+      financialEntities: data.financialEntities,
+      accountOwnerships: data.accountOwnerships,
+      shareOwnershipInterests: data.shareOwnershipInterests,
+      companyEquityValuations: data.companyEquityValuations,
+    });
+
+    expect(result.knownSubtotal).toBe(30_000);
+    expect(result.issues).toContainEqual({
+      kind: "company_valuation_not_recorded",
+      subjectId: "company:northstar",
     });
   });
 
@@ -439,6 +470,18 @@ describe("business wealth entity and ownership contracts", () => {
     expect(() => buildRepository(missingEntity)).toThrow(
       /missing entity "person:missing"/,
     );
+
+    const emptyCandidates = businessWealthFixture();
+    const sharedOwnership = emptyCandidates.accountOwnerships.find(
+      ({ accountId }) => accountId === "shared-cash",
+    );
+    if (sharedOwnership == null)
+      throw new Error("fixture has no shared account ownership");
+    sharedOwnership.ownership = {
+      state: "candidate-owners",
+      candidateEntityIds: [],
+    };
+    expect(() => buildRepository(emptyCandidates)).toThrow();
 
     const duplicatedLiability = businessWealthFixture();
     const obligation = duplicatedLiability.entityObligations[0];

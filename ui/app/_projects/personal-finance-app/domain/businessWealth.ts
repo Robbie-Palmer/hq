@@ -48,7 +48,7 @@ export const CompanyStructureSchema = z.enum([
   "overseas-company",
   "foreign-llc",
   "other",
-  "unknown",
+  "structure-not-recorded",
 ]);
 
 export const FinancialEntityRecordSchema = z.discriminatedUnion("kind", [
@@ -103,10 +103,19 @@ export const AccountOwnershipStateSchema = z.discriminatedUnion("state", [
         });
       }
     }),
-  z.object({
-    state: z.literal("unknown"),
-    candidateEntityIds: z.array(EntityIdSchema).default([]),
-  }),
+  z
+    .object({
+      state: z.literal("candidate-owners"),
+      candidateEntityIds: z.array(EntityIdSchema).min(1),
+    })
+    .refine(
+      ({ candidateEntityIds }) =>
+        new Set(candidateEntityIds).size === candidateEntityIds.length,
+      {
+        message: "Candidate account owners must be unique",
+        path: ["candidateEntityIds"],
+      },
+    ),
   z.object({
     state: z.literal("unsupported"),
     reason: z.string().trim().min(1),
@@ -129,7 +138,7 @@ export const FractionStateSchema = z.discriminatedUnion("state", [
     state: z.literal("known"),
     fraction: z.number().positive().max(1),
   }),
-  z.object({ state: z.literal("unknown") }),
+  z.object({ state: z.literal("fraction-not-recorded") }),
   z.object({
     state: z.literal("unsupported"),
     reason: z.string().trim().min(1),
@@ -156,7 +165,7 @@ export const MonetaryStateSchema = z.discriminatedUnion("state", [
     amount: z.number().nonnegative(),
   }),
   z.object({
-    state: z.literal("unknown"),
+    state: z.literal("amount-not-recorded"),
     currency: CurrencySchema,
   }),
   z.object({
@@ -174,7 +183,7 @@ export const SignedMonetaryStateSchema = z.discriminatedUnion("state", [
     amount: z.number(),
   }),
   z.object({
-    state: z.literal("unknown"),
+    state: z.literal("amount-not-recorded"),
     currency: CurrencySchema,
   }),
   z.object({
@@ -201,7 +210,13 @@ export const EntityObligationSchema = z.object({
   periodStart: z.iso.date(),
   periodEnd: z.iso.date(),
   dueDate: z.iso.date(),
-  status: z.enum(["estimated", "assessed", "due", "paid", "unknown"]),
+  status: z.enum([
+    "estimated",
+    "assessed",
+    "due",
+    "paid",
+    "status-not-recorded",
+  ]),
   amount: MonetaryStateSchema,
 });
 export type EntityObligation = z.infer<typeof EntityObligationSchema>;
@@ -261,7 +276,7 @@ export const EntityTransferClassificationSchema = z.discriminatedUnion(
         "other",
       ]),
     }),
-    z.object({ state: z.literal("unknown") }),
+    z.object({ state: z.literal("classification-not-recorded") }),
     z.object({
       state: z.literal("unsupported"),
       reason: z.string().trim().min(1),
@@ -397,8 +412,9 @@ export function migrateLegacyBusinessWealth<T extends LegacyBusinessWealthData>(
     ),
   );
   const earliestAccountDate =
-    data.accounts.map(({ createdAt }) => createdAt).toSorted()[0] ??
-    "1970-01-01";
+    data.accounts
+      .map(({ createdAt }) => createdAt)
+      .toSorted((left, right) => left.localeCompare(right))[0] ?? "1970-01-01";
   for (const member of data.household.members) {
     if (representedMemberIds.has(member.id)) continue;
     const entityId = legacyPersonEntityId(member.id);
@@ -783,7 +799,17 @@ function accountOwnershipEntityIds(
   ownership: AccountOwnershipRecord,
 ): string[] {
   if (ownership.ownership.state !== "known") {
-    return ownership.ownership.candidateEntityIds;
+    const candidateEntityIds = ownership.ownership.candidateEntityIds;
+    if (
+      ownership.ownership.state === "candidate-owners" &&
+      (candidateEntityIds.length === 0 ||
+        new Set(candidateEntityIds).size !== candidateEntityIds.length)
+    ) {
+      throw new Error(
+        `Candidate account ownership "${ownership.recordId}" must name at least one unique entity`,
+      );
+    }
+    return candidateEntityIds;
   }
   const entityIds = ownership.ownership.allocations.map(
     ({ entityId }) => entityId,
@@ -1040,15 +1066,15 @@ export function validateBusinessWealth(
 export type HouseholdConsolidationIssue = {
   kind:
     | "missing_account_ownership"
-    | "unknown_account_ownership"
+    | "candidate_account_owners"
     | "unsupported_account_ownership"
     | "missing_account_value"
-    | "unknown_account_value"
+    | "account_value_not_recorded"
     | "unsupported_account_value"
     | "missing_company_valuation"
-    | "unknown_company_valuation"
+    | "company_valuation_not_recorded"
     | "unsupported_company_valuation"
-    | "unknown_share_ownership"
+    | "share_fraction_not_recorded"
     | "unsupported_share_ownership"
     | "unsupported_currency";
   subjectId: string;
@@ -1110,19 +1136,24 @@ type ConsolidationAccumulator = {
 function unresolvedMonetaryIssue(
   amount: Exclude<SignedMonetaryState, { state: "known" }>,
   subjectId: string,
-  unknownKind: "unknown_account_value" | "unknown_company_valuation",
+  notRecordedKind:
+    | "account_value_not_recorded"
+    | "company_valuation_not_recorded",
   unsupportedKind:
     | "unsupported_account_value"
     | "unsupported_company_valuation",
 ): HouseholdConsolidationIssue {
   return {
-    kind: amount.state === "unknown" ? unknownKind : unsupportedKind,
+    kind:
+      amount.state === "amount-not-recorded"
+        ? notRecordedKind
+        : unsupportedKind,
     subjectId,
     ...(amount.state === "unsupported" ? { reason: amount.reason } : {}),
   };
 }
 
-function addUnknownAccountContribution(
+function addUnresolvedAccountContribution(
   input: HouseholdConsolidationInput,
   account: Account,
   ownershipRecord: AccountOwnershipRecord,
@@ -1156,8 +1187,8 @@ function addUnknownAccountContribution(
   }
   result.issues.push({
     kind:
-      ownership.state === "unknown"
-        ? "unknown_account_ownership"
+      ownership.state === "candidate-owners"
+        ? "candidate_account_owners"
         : "unsupported_account_ownership",
     subjectId: account.id,
     ...(ownership.state === "unsupported" ? { reason: ownership.reason } : {}),
@@ -1193,7 +1224,7 @@ function addKnownAccountContribution(
       unresolvedMonetaryIssue(
         value.amount,
         account.id,
-        "unknown_account_value",
+        "account_value_not_recorded",
         "unsupported_account_value",
       ),
     );
@@ -1255,7 +1286,7 @@ function addAccountContribution(
     );
     return;
   }
-  addUnknownAccountContribution(
+  addUnresolvedAccountContribution(
     input,
     account,
     ownership,
@@ -1287,8 +1318,8 @@ function addUnresolvedInterestIssue(
 ) {
   result.issues.push({
     kind:
-      interest.fraction.state === "unknown"
-        ? "unknown_share_ownership"
+      interest.fraction.state === "fraction-not-recorded"
+        ? "share_fraction_not_recorded"
         : "unsupported_share_ownership",
     subjectId: interest.companyEntityId,
     ...(interest.fraction.state === "unsupported"
@@ -1344,7 +1375,7 @@ function addBusinessContribution(
       unresolvedMonetaryIssue(
         valuation.amount,
         companyEntityId,
-        "unknown_company_valuation",
+        "company_valuation_not_recorded",
         "unsupported_company_valuation",
       ),
     );
@@ -1422,9 +1453,15 @@ export function consolidateHouseholdWealth(
     complete: result.issues.length === 0,
     contributions: filteredContributions,
     includedContributionIds: filteredContributions.map(({ id }) => id),
-    excludedUnderlyingIds: [...result.excludedUnderlyingIds].sort(),
-    valuationRecordIds: [...result.valuationRecordIds].sort(),
-    ownershipRecordIds: [...result.ownershipRecordIds].sort(),
+    excludedUnderlyingIds: [...result.excludedUnderlyingIds].sort(
+      (left, right) => left.localeCompare(right),
+    ),
+    valuationRecordIds: [...result.valuationRecordIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
+    ownershipRecordIds: [...result.ownershipRecordIds].sort((left, right) =>
+      left.localeCompare(right),
+    ),
     exchangeRateObservationIds: [],
     issues: result.issues,
   };
