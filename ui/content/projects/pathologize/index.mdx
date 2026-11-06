@@ -8,6 +8,7 @@ initiatives:
 tech_stack:
   - "Python"
   - "DVC"
+  - "Cloudflare R2"
   - "Pydantic"
   - "DICOM"
   - "OME-Zarr"
@@ -67,9 +68,8 @@ The accepted implementation boundaries are:
   policy outside benchmark manifests and defers money fields until the platform has one cross-language contract.
 * [ADR 002](/projects/pathologize/adrs/002-shared-python-package-boundaries) separates generic data
   artifact helpers, reusable ML evaluation contracts, and Pathologize domain code.
-* [ADR 003](/projects/pathologize/adrs/003-public-source-reconstruction-before-dvc-remote) keeps the
-  initial registry on verified public-source reconstruction and requires a licence, lifecycle, cost and recovery
-  gate before adding a shared DVC remote.
+* [ADR 003](/projects/pathologize/adrs/003-private-r2-source-copies) keeps private R2 copies of benchmark
+  sources, isolates accepted-access data, and records the storage cost and offline recovery path.
 
 # Research programme
 

@@ -1,0 +1,185 @@
+---
+title: "ADR 003: Keep private R2 copies of benchmark sources"
+date: "2026-11-06"
+status: "Accepted"
+tech_stack: ["Cloudflare R2"]
+implements_product_decisions:
+  - "pathologize:001-one-versioned-pathology-data-registry"
+  - "pathologize:002-public-source-provenance-boundary"
+---
+
+## Context
+
+Pathologize needs pinned source bytes after an upstream download moves or
+disappears. Publisher reconstruction is useful for acquisition, but it does
+not give an old experiment a recovery copy that the project controls.
+[ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary)
+keeps registry references separate from image bytes, while
+[ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary)
+keeps provider funding outside benchmark manifests.
+
+The initial registry contains three collections with different access terms:
+
+| Collection                  | Recorded size | Source terms                                                                                                                                                                   | Copy policy                                                                                                                                     |
+| --------------------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| CPTAC-COAD DICOM conversion |     70.234 GB | [CC BY 3.0](https://zenodo.org/records/13351625)                                                                                                                               | Copying and redistribution are allowed with attribution, a licence notice, and change disclosure.                                               |
+| CAMELYON16                  |    762.472 GB | [CC0](https://registry.opendata.aws/camelyon/)                                                                                                                                 | Copying and redistribution are allowed. Keep the dataset citation even though CC0 does not require attribution.                                 |
+| PANDA                       |    411.900 GB | [CC BY-NC-SA 4.0](https://panda.grand-challenge.org/data/) plus accepted [Kaggle competition rules](https://www.kaggle.com/competitions/prostate-cancer-grade-assessment/data) | Keep only a private research copy for people who accepted the source terms. Do not treat Kaggle access as permission to publish a new download. |
+
+The CAMELYON total comes from listing the official AWS Open Data
+`CAMELYON16/` prefix on 2026-11-06: 1,366 objects total
+762,471,984,787 bytes. The registry already records 70,234,381,296 bytes for
+CPTAC-COAD and Kaggle reports 411.9 GB for PANDA. Together they occupy
+1,244,606,366,083 bytes, or 1,244.606 decimal GB.
+
+The repository already uses private prefixes in a shared Cloudflare R2 DVC
+bucket. R2 credentials, Doppler injection, and the DVC wrapper are established
+platform conventions. A machine-owned filesystem remote remains useful
+offline, but one disk is not the project's durability copy. Backblaze B2 serves
+the separate personal archive, which needs provider separation and Object
+Lock. Pathologize does not share those requirements.
+
+## Decision
+
+Keep an owned, private R2 copy of every source collection used by a pinned
+Pathologize benchmark. Use R2 Standard storage as the DVC remote. The registry
+in Git is authoritative for source identity, licence and access terms,
+citations, byte counts, SHA-256 digests, and retrieval evidence. R2 is the
+operational source for repeatable processing when the publisher is unavailable.
+The named publisher remains the legal and provenance source.
+
+Store the redistributable CPTAC-COAD and CAMELYON16 artifacts under the
+Pathologize data-registry prefix in the existing private `dvc` bucket. Keep the
+bucket private even when a source licence permits public redistribution. This
+remote exists to reproduce experiments, not to operate another public dataset
+service.
+
+Store PANDA in a separate private R2 bucket after an operator accepts the
+Kaggle rules on the account used to acquire it. Cloudflare scopes
+[long-lived R2 object credentials](https://developers.cloudflare.com/r2/api/tokens/)
+to buckets, not prefixes, so a separate bucket gives PANDA its own access list.
+Do not give the public-source pipeline token, CI, preview deployments, or
+application runtime access to that bucket. Anyone receiving PANDA access must
+first satisfy the source terms. A later public release of source or derived
+PANDA material needs a fresh review of the non-commercial, attribution,
+share-alike, and Kaggle conditions.
+
+Use the asset-manifest SHA-256 digest to verify source bytes before they enter
+the DVC cache and again after a restore. DVC's content hash binds cached
+artifacts to a pipeline revision, but it does not replace the publisher digest,
+licence record, attribution file, or retrieval evidence. Never bless different
+bytes under an existing registry revision.
+
+Keep public metadata and clinical bytes on opposite sides of the access
+boundary:
+
+* Git may contain manifests, citations, terms, checksums, and synthetic
+  fixtures. It must not contain clinical slide bytes.
+* Each R2 source prefix includes the licence and attribution notice needed to
+  understand the copied objects without consulting a working tree.
+* Public-source credentials are bucket-scoped through Doppler. Use separate
+  read and write identities when provisioning allows it. Bucket configuration
+  and deletion authority do not belong in routine pipeline credentials.
+* PANDA uses its dedicated bucket and credentials. Do not deduplicate its
+  objects into the public-source remote.
+* Derived tiles, masks, embeddings, and model outputs inherit the source terms
+  until a documented review permits wider publication.
+
+Retain every verified source object referenced by a registry revision or a
+pinned experiment. Delete incomplete uploads and failed acquisition artifacts,
+but do not age out a complete source merely because the publisher still has a
+copy. When a collection leaves all active and retained benchmarks, remove its
+unreferenced R2 objects after confirming no lock file needs them. An access
+withdrawal or legal deletion obligation also removes working copies, DVC cache
+objects, offline remotes, and affected derived artifacts.
+
+For local or offline work, pull the pinned revision from R2 while connected,
+verify its source digests, and push the DVC cache to an ignored filesystem
+remote configured in `.dvc/config.local`. The filesystem copy is a working
+backup, not a replacement for R2. A clean recovery drill must work from R2
+without reaching the publisher.
+
+## Cost and storage class
+
+[R2 pricing](https://developers.cloudflare.com/r2/pricing/) on 2026-11-06 is
+$0.015 per GB-month for Standard storage, with 10 GB-month, one million Class A
+operations, and ten million Class B operations included each month. Direct R2
+egress is free. Cloudflare rounds 1,244.606 GB to 1,245 GB-month. If the account
+free tier remains available, steady-state storage for the three current
+collections costs about $18.53 per month or $222.30 per year. If another
+project consumes the free storage, the upper estimate is $18.68 per month or
+$224.10 per year.
+
+The initial upload and ordinary DVC pulls should remain inside the included
+operation counts. Confirm that assumption from the first full migration bill
+because multipart upload parts count as Class A operations. The decision uses
+no paid model or inference API.
+
+R2 Infrequent Access would cost about $12.45 per month for the same bytes, but
+it has no free storage tier and charges $0.01 per GB retrieved. One full restore
+would add about $12.45. Standard is cheaper once the corpus is read in full
+roughly every two months, and it avoids making each processing run a retrieval
+cost decision.
+
+## Rollout boundary
+
+This ADR approves the storage architecture and its expected budget. It does
+not upload data or provision credentials. A follow-up implementation will:
+
+1. add the Pathologize R2 remote and scoped public-source credentials;
+2. acquire, verify, cache, and push CPTAC-COAD and CAMELYON16 with their notices;
+3. provision the separate PANDA bucket only after recording operator acceptance
+   of the Kaggle rules;
+4. restore each rights class into a clean checkout and verify every recorded
+   SHA-256 digest; and
+5. measure stored bytes and operations against the estimate before granting CI
+   any remote access.
+
+CI continues to validate public metadata, synthetic fixtures, and the public
+six-file CPTAC-COAD series without R2 credentials until that rollout lands.
+
+## Consequences
+
+Pinned experiments no longer depend on the continued availability or layout
+of publisher downloads. The project pays about $19 per month for the current
+1.245 TB corpus and accepts the work of maintaining credentials, attribution,
+restore checks, and deletion procedures.
+
+The private remote is deliberately less convenient than a public mirror.
+Contributors without credentials can inspect the registry and acquire public
+sources themselves, but they cannot pull the owned copy. PANDA access remains
+separate even though this prevents cross-collection DVC deduplication.
+
+R2 provides one project-controlled copy. The publisher and permitted offline
+remotes supply other recovery paths. If a benchmark later needs protection
+from a Cloudflare account or regional failure, compare a second provider using
+that measured requirement.
+
+## Alternatives considered
+
+### Reconstruct only from publishers
+
+This avoids storage charges, but it leaves old experiments dependent on URLs,
+accounts, and object layouts that the project does not control. It was rejected
+because the whole point of pinning a registry revision is to process the same
+bytes later.
+
+### Put every collection in the shared DVC bucket
+
+One bucket is simple and may deduplicate identical objects. It was rejected for
+PANDA because ordinary long-lived R2 tokens are bucket-scoped. A separate
+bucket keeps accepted-access data out of credentials used by public-source
+pipelines.
+
+### Use R2 Infrequent Access
+
+The lower storage rate saves about $6.08 per month, but one full-corpus read
+costs about $12.45. Pathologize expects repeated processing, so Standard has
+the clearer and likely lower bill.
+
+### Add Backblaze B2 or Amazon S3
+
+B2 fits the independent personal archive, and S3 hosts some upstream public
+data. Neither improves this first owned copy enough to justify another account,
+credential path, and operating procedure. Revisit a second provider when a
+measured recovery requirement calls for one.
