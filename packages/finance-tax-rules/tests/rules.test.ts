@@ -24,6 +24,45 @@ import { validationCorpus } from "../src/validationData";
 
 const packageRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
+type CoverageContract = ReturnType<typeof validateCoverageContract>;
+
+function coverageClaim(candidate: CoverageContract, id: string) {
+  const claim = candidate.userFlows
+    .flatMap(({ claims }) => claims)
+    .find(({ id: claimId }) => claimId === id);
+  if (!claim) {
+    throw new Error(`Missing coverage claim ${id}`);
+  }
+  return claim;
+}
+
+function providerEvaluation(candidate: CoverageContract, provider: string) {
+  const evaluation = candidate.providerEvaluations.find(
+    ({ provider: candidateProvider }) => candidateProvider === provider,
+  );
+  if (!evaluation) {
+    throw new Error(`Missing provider evaluation ${provider}`);
+  }
+  return evaluation;
+}
+
+function expectInvalidCoverage(
+  mutate: (candidate: CoverageContract) => void,
+  message: string,
+) {
+  const candidate = structuredClone(coverageContract) as CoverageContract;
+  mutate(candidate);
+
+  expect(() =>
+    validateCoverageContract(
+      packageRoot,
+      ruleDataset,
+      validationCorpus,
+      candidate,
+    ),
+  ).toThrow(message);
+}
+
 describe("UK tax rule dataset", () => {
   it("passes structural and semantic validation", () => {
     expect(validateDataset(ruleDataset).datasetVersion).toBe("2026.10.4");
@@ -101,6 +140,41 @@ describe("UK tax rule dataset", () => {
         }),
       ]),
     );
+  });
+
+  it("rejects duplicate coverage claims", () => {
+    expectInvalidCoverage((candidate) => {
+      const claim = coverageClaim(candidate, "payslip-reconciliation");
+      const [firstUserFlow] = candidate.userFlows;
+      if (!firstUserFlow) {
+        throw new Error("Missing coverage user flow");
+      }
+      firstUserFlow.claims.push(structuredClone(claim));
+    }, "Duplicate coverage claim payslip-reconciliation");
+  });
+
+  it("rejects unknown rule sources and validation fixtures", () => {
+    expectInvalidCoverage((candidate) => {
+      coverageClaim(candidate, "annual-tax-and-pension-estimate")
+        .evidence.officialRuleSourceIds = ["unknown-source"];
+    }, "references unknown source unknown-source");
+    expectInvalidCoverage((candidate) => {
+      providerEvaluation(candidate, "PolicyEngine UK").validationFixtureIds = [
+        "unknown-fixture",
+      ];
+    }, "references unknown fixture unknown-fixture");
+  });
+
+  it("rejects missing implementation and file evidence", () => {
+    expectInvalidCoverage((candidate) => {
+      coverageClaim(candidate, "annual-tax-and-pension-estimate")
+        .evidence.implementationPaths = [];
+    }, "has no implementation evidence");
+    expectInvalidCoverage((candidate) => {
+      providerEvaluation(candidate, "PolicyEngine UK").evidencePaths = [
+        "packages/finance-tax-rules/missing-evidence.md",
+      ];
+    }, "packages/finance-tax-rules/missing-evidence.md does not exist");
   });
 
   it("requires a superseded enacted artifact to remain available", () => {

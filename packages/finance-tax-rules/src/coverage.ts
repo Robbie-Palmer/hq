@@ -99,6 +99,31 @@ const payrollFixtureIds = [
   "unsupported-job-change-without-prior-state",
 ];
 
+type ProviderEvaluationInput = z.input<typeof providerEvaluationSchema>;
+
+const salaryProviderEvidencePath =
+  "ui/content/projects/personal-finance-app/adrs/005-adapt-savingtool-for-annual-salary-estimates.mdx";
+
+const evaluatedSalaryProvider = (
+  evaluation: Omit<
+    ProviderEvaluationInput,
+    "evaluationStatus" | "validationFixtureIds" | "evidencePaths"
+  >,
+  additionalEvidencePaths: string[] = [],
+): ProviderEvaluationInput => {
+  const { provider, version, decision, ...details } = evaluation;
+
+  return {
+    provider,
+    version,
+    decision,
+    evaluationStatus: "evaluated",
+    ...details,
+    validationFixtureIds: [...annualFixtureIds, ...payrollFixtureIds],
+    evidencePaths: [salaryProviderEvidencePath, ...additionalEvidencePaths],
+  };
+};
+
 export const coverageContract = {
   coverageContractVersion: "2026.11.0",
   publishedAt: "2026-11-05",
@@ -406,55 +431,42 @@ export const coverageContract = {
     },
   ],
   providerEvaluations: [
-    {
-      provider: "@saving-tool/hmrc-income-tax",
-      version: "3.0.1",
-      decision: "accepted",
-      evaluationStatus: "evaluated",
-      runtimeFit: "TypeScript with no runtime dependencies; used behind a local adapter.",
-      licence: "MIT",
-      versionSelection: "The package version is pinned exactly in package.json and calculation lineage.",
-      reproducibility: "Saved results record the adapter, dependency, rule dataset, rules, sources, inputs, assumptions, and rounding contract.",
-      historicalDepth: "The application limits use to reviewed 2015/16 through 2026/27 local rules even when the dependency exposes other constants.",
-      failureBehavior: "Unsupported dates, jurisdictions, payroll facts, or pension facts return unavailable; no alternative rule set is substituted.",
-      validationFixtureIds: [...annualFixtureIds, ...payrollFixtureIds],
-      evidencePaths: [
-        "ui/content/projects/personal-finance-app/adrs/005-adapt-savingtool-for-annual-salary-estimates.mdx",
-        "packages/finance-tax-rules/src/historicalSalary.ts",
-      ],
-    },
-    {
+    evaluatedSalaryProvider(
+      {
+        provider: "@saving-tool/hmrc-income-tax",
+        version: "3.0.1",
+        decision: "accepted",
+        runtimeFit: "TypeScript with no runtime dependencies; used behind a local adapter.",
+        licence: "MIT",
+        versionSelection: "The package version is pinned exactly in package.json and calculation lineage.",
+        reproducibility: "Saved results record the adapter, dependency, rule dataset, rules, sources, inputs, assumptions, and rounding contract.",
+        historicalDepth: "The application limits use to reviewed 2015/16 through 2026/27 local rules even when the dependency exposes other constants.",
+        failureBehavior: "Unsupported dates, jurisdictions, payroll facts, or pension facts return unavailable; no alternative rule set is substituted.",
+      },
+      ["packages/finance-tax-rules/src/historicalSalary.ts"],
+    ),
+    evaluatedSalaryProvider({
       provider: "PolicyEngine UK",
       version: "2.109.4",
       decision: "rejected",
-      evaluationStatus: "evaluated",
       runtimeFit: "Python 3.11 or newer with 76 installed packages in the evaluation environment.",
       licence: "AGPL-3.0",
       versionSelection: "The evaluated release was pinned, but adopting it would add a Python service and licence boundary.",
       reproducibility: "Annual Income Tax matched after rounding; no candidate completed the exact-payroll contract.",
       historicalDepth: "Evaluated against the versioned local salary corpus rather than accepting broad package coverage claims.",
       failureBehavior: "Not integrated; local unsupported cases remain unavailable.",
-      validationFixtureIds: [...annualFixtureIds, ...payrollFixtureIds],
-      evidencePaths: [
-        "ui/content/projects/personal-finance-app/adrs/005-adapt-savingtool-for-annual-salary-estimates.mdx",
-      ],
-    },
-    {
+    }),
+    evaluatedSalaryProvider({
       provider: "uk-tax",
       version: "0.1.3",
       decision: "rejected",
-      evaluationStatus: "evaluated",
       runtimeFit: "Rust with no dependencies, but TypeScript or WebAssembly integration would still be required.",
       licence: "MIT",
       versionSelection: "The evaluated crate release was pinned.",
       reproducibility: "It failed the Personal Allowance taper fixture and lacks Scottish, pension, and payroll-period coverage.",
       historicalDepth: "Older constants do not extend the product claim without reviewed official rules and fixtures.",
       failureBehavior: "Not integrated; missing cases remain unavailable.",
-      validationFixtureIds: [...annualFixtureIds, ...payrollFixtureIds],
-      evidencePaths: [
-        "ui/content/projects/personal-finance-app/adrs/005-adapt-savingtool-for-annual-salary-estimates.mdx",
-      ],
-    },
+    }),
     {
       provider: "TaxScope",
       version: "unversioned-public-api-observed-2026-11-04",
@@ -581,8 +593,9 @@ export function validateCoverageContract(
   packageRoot: string,
   dataset: RuleDataset,
   corpus: ValidationCorpus,
+  candidate: unknown = coverageContract,
 ): CoverageContract {
-  const contract = coverageContractSchema.parse(coverageContract);
+  const contract = coverageContractSchema.parse(candidate);
   assert.equal(contract.ruleDatasetVersion, dataset.datasetVersion);
   assert.equal(contract.validationCorpusVersion, corpus.corpusVersion);
 
