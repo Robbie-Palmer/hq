@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import pytest
+from pydantic import BaseModel, ConfigDict
 
-from ml_evaluation.artifacts import (
+from data_artifacts.files import (
     canonical_bytes,
     content_address,
     load_model,
@@ -15,21 +16,21 @@ from ml_evaluation.artifacts import (
     write_json,
     write_jsonl,
 )
-from ml_evaluation.contracts import AdapterSpec
+
+
+class ExampleRecord(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    name: str
+    version: int
 
 
 def test_json_artifacts_are_canonical_and_typed(tmp_path: Path) -> None:
-    spec = AdapterSpec(
-        adapter_id="baseline-v1",
-        kind="builtin",
-        entrypoint="example:Baseline",
-        version="1",
-        artifact_sha256=None,
-    )
-    path = tmp_path / "nested/spec.json"
-    write_json(path, spec)
-    assert read_json(path)["adapter_id"] == "baseline-v1"
-    assert load_model(path, AdapterSpec) == spec
+    record = ExampleRecord(name="example", version=1)
+    path = tmp_path / "nested/record.json"
+    write_json(path, record)
+    assert read_json(path) == {"name": "example", "version": 1}
+    assert load_model(path, ExampleRecord) == record
     assert canonical_bytes({"b": 2, "a": 1}) == b'{"a":1,"b":2}\n'
     assert content_address("artifact", {"a": 1}).startswith("artifact:sha256:")
     assert len(sha256_file(path)) == 64

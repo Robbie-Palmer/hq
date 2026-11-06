@@ -1,0 +1,71 @@
+---
+title: "ADR 002: Shared Python package boundaries"
+date: "2026-11-06"
+status: "Accepted"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+---
+
+## Context
+
+Pathologize has independent benchmark projects. They need common evaluation
+contracts, but some shared code is more general than ML. JSON serialization,
+hashing, source fingerprints, and confined file paths also apply to Python
+projects that do not evaluate models.
+
+Pathology concepts form a third category. DICOM and OME-Zarr roles, leakage
+units, prediction types, metrics, fixtures, and clinical claim limits belong to
+Pathologize alone.
+
+[ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary)
+keeps account and provider policy outside benchmark contracts. Python package
+ownership needs the same separation by meaning.
+
+## Decision
+
+Use three package layers:
+
+* `packages/data-artifacts` owns deterministic JSON and JSON Lines files,
+  Pydantic model loading, SHA-256 helpers, content addresses, source
+  fingerprints, root-confined paths, and schema artifact writing.
+* `packages/ml-evaluation` owns domain-neutral model adapter contracts,
+  objective and resource types, promotion gates, and run summaries.
+* `pathologize-benchmark-contracts` owns pathology formats, registry exports,
+  leakage vocabulary, prediction records, metrics, fixtures, safety claims,
+  and scorecard policy.
+
+Code belongs in `data-artifacts` when its behavior has no evaluation meaning.
+Code belongs in `ml-evaluation` when it expresses evaluation behavior without
+assuming a dataset, provider, clinical domain, or benchmark workstream.
+
+## Consequences
+
+Python projects can use deterministic files and hashing without importing ML
+types. Evaluation projects share gate behavior without taking on pathology
+contracts. Pathologize code states its domain assumptions directly.
+
+Each package adds a compatibility boundary. Consumers must update their lock
+files when either shared package changes. DVC pipelines must fingerprint both
+packages so a dependency change invalidates the relevant stages.
+
+The split also creates a judgement call for new helpers. Callers should keep a
+helper local until its ownership is clear instead of adding unrelated
+functions to either shared package.
+
+## Alternatives considered
+
+### Put all shared Python code in `ml-evaluation`
+
+This uses one distribution, but Python projects would need an ML dependency to
+read canonical JSON or hash a file. The package name and dependency direction
+would both be misleading.
+
+### Copy file helpers into each project
+
+This avoids shared package releases, but canonical bytes, hashes, and path
+safety would drift across projects.
+
+### Put pathology contracts in a shared package
+
+This would reduce the Pathologize package further, but unrelated evaluations
+would inherit pathology-specific types. Those types remain with Pathologize.

@@ -3,7 +3,8 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
-from .artifacts import load_model, write_json
+from data_artifacts.files import load_model, write_json
+
 from .contracts import (
     FixtureItem,
     FixtureManifest,

@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from data_artifacts.files import load_model, read_json, write_json
 from ml_evaluation.contracts import ResourceUsage
 from ml_evaluation.gates import evaluate_gates
 
 from pathologize_benchmark_contracts import cli
-from pathologize_benchmark_contracts.artifacts import load_model, read_json, write_json
 from pathologize_benchmark_contracts.contracts import (
     AggregateScorecard,
     ExperimentManifest,

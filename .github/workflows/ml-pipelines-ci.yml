@@ -7,6 +7,7 @@ on:
       - "packages/recipe-parsing/**"
       - "packages/recipe-domain/**"
       - "packages/ai-review-domain/**"
+      - "packages/data-artifacts/**"
       - "packages/ml-evaluation/**"
       - "patches/@cooklang__cooklang@*.patch"
       - "pnpm-lock.yaml"
@@ -17,6 +18,18 @@ permissions:
   contents: read
 
 jobs:
+  data-artifacts-package-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check shared data artifacts package
+        run: mise run //packages/data-artifacts:check
+
   ml-evaluation-package-check:
     runs-on: ubuntu-latest
     steps:

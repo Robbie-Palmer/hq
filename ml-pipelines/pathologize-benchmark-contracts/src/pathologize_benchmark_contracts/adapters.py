@@ -4,10 +4,10 @@ from collections import deque
 from pathlib import Path
 from typing import ClassVar, Protocol, runtime_checkable
 
+from data_artifacts.files import resolve_under
 from ml_evaluation.adapters import load_adapter as load_shared_adapter
 from ml_evaluation.contracts import AdapterSpec
 
-from .artifacts import resolve_under
 from .contracts import (
     ExperimentManifest,
     FixtureItem,

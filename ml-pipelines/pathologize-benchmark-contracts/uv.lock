@@ -98,6 +98,29 @@ wheels = [
 ]
 
 [[package]]
+name = "data-artifacts"
+version = "0.1.0"
+source = { editable = "../../packages/data-artifacts" }
+dependencies = [
+    { name = "fire" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fire", specifier = ">=0.7.1,<0.8" },
+    { name = "pydantic", specifier = ">=2.12.5,<3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", specifier = ">=7.0.0" },
+    { name = "ruff", specifier = ">=0.14.14" },
+    { name = "ty", specifier = ">=0.0.75" },
+]
+
+[[package]]
 name = "fire"
 version = "0.7.1"
 source = { registry = "https://pypi.org/simple" }
@@ -123,15 +146,11 @@ name = "ml-evaluation"
 version = "0.1.0"
 source = { editable = "../../packages/ml-evaluation" }
 dependencies = [
-    { name = "fire" },
     { name = "pydantic" },
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "fire", specifier = ">=0.7.1,<0.8" },
-    { name = "pydantic", specifier = ">=2.12.5,<3" },
-]
+requires-dist = [{ name = "pydantic", specifier = ">=2.12.5,<3" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -155,6 +174,7 @@ name = "pathologize-benchmark-contracts"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "data-artifacts" },
     { name = "fire" },
     { name = "ml-evaluation" },
     { name = "pydantic" },
@@ -170,6 +190,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "data-artifacts", editable = "../../packages/data-artifacts" },
     { name = "fire", specifier = ">=0.7.1,<0.8" },
     { name = "ml-evaluation", editable = "../../packages/ml-evaluation" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },

@@ -1,14 +1,22 @@
 stages:
-  pin_ml_evaluation:
-    cmd: uv run --locked ml-evaluation fingerprint
+  pin_data_artifacts:
+    cmd: uv run --locked data-artifacts fingerprint data_artifacts
     deps:
+      - ../../packages/data-artifacts/src/data_artifacts/__init__.py
+      - ../../packages/data-artifacts/src/data_artifacts/cli.py
+      - ../../packages/data-artifacts/src/data_artifacts/files.py
+      - ../../packages/data-artifacts/src/data_artifacts/schemas.py
+    outs:
+      - outputs/data-artifacts-source.sha256
+
+  pin_ml_evaluation:
+    cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
+    deps:
+      - outputs/data-artifacts-source.sha256
       - ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
       - ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
-      - ../../packages/ml-evaluation/src/ml_evaluation/artifacts.py
-      - ../../packages/ml-evaluation/src/ml_evaluation/cli.py
       - ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
       - ../../packages/ml-evaluation/src/ml_evaluation/gates.py
-      - ../../packages/ml-evaluation/src/ml_evaluation/schema_artifacts.py
     outs:
       - outputs/ml-evaluation-source.sha256
 

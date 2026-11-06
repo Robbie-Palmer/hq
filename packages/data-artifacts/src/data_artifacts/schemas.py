@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from .artifacts import read_json, write_json
+from .files import read_json, write_json
 
 
 def write_schemas(

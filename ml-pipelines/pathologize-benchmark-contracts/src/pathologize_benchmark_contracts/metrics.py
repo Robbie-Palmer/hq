@@ -3,7 +3,8 @@ from __future__ import annotations
 from collections import defaultdict
 from pathlib import Path
 
-from .artifacts import resolve_under
+from data_artifacts.files import resolve_under
+
 from .contracts import (
     ExperimentManifest,
     FixtureItem,

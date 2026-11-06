@@ -3,23 +3,22 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ml_evaluation.artifacts import content_address
-from ml_evaluation.contracts import AdapterSpec, MetricResult, ResourceUsage, RunSummary
-from ml_evaluation.gates import evaluate_gates, recommendation
-from ml_evaluation.schema_artifacts import write_schemas as write_schema_artifacts
-from pydantic import BaseModel
-
-from .adapters import load_adapter
-from .artifacts import (
-    contract_root,
+from data_artifacts.files import (
+    content_address,
     load_model,
-    project_root,
     read_jsonl,
     resolve_under,
     sha256_file,
     write_json,
     write_jsonl,
 )
+from data_artifacts.schemas import write_schemas as write_schema_artifacts
+from ml_evaluation.contracts import AdapterSpec, MetricResult, ResourceUsage, RunSummary
+from ml_evaluation.gates import evaluate_gates, recommendation
+from pydantic import BaseModel
+
+from .adapters import load_adapter
+from .artifacts import contract_root, project_root
 from .contracts import (
     SCHEMA_MODELS,
     AggregateScorecard,

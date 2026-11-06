@@ -33,7 +33,8 @@ Current projects:
 - `writing-editor-evaluation`: Git-revision writing pairs, frozen evaluation
   cohorts, producer outputs, edit matching, and writing-quality scorecards.
 
-Python evaluation projects share domain-neutral contracts, artifact handling,
+Python projects share deterministic JSON, hashing, and safe path helpers through
+`packages/data-artifacts`. Evaluation projects add domain-neutral contracts,
 resource gates, adapter loading, and schema writing through
 `packages/ml-evaluation`.
 

@@ -3,35 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from ml_evaluation.artifacts import (
+from data_artifacts.files import (
     canonical_bytes,
-    load_model,
-    pretty_bytes,
     read_json,
-    read_jsonl,
-    resolve_under,
     sha256_bytes,
-    sha256_file,
     sha256_tree,
-    write_json,
-    write_jsonl,
 )
 
 __all__ = [
-    "canonical_bytes",
     "code_revision",
-    "load_model",
     "load_params",
-    "pretty_bytes",
     "project_root",
-    "read_json",
-    "read_jsonl",
-    "resolve_under",
-    "sha256_bytes",
-    "sha256_file",
-    "sha256_tree",
-    "write_json",
-    "write_jsonl",
 ]
 
 
@@ -53,13 +35,16 @@ def code_revision(root: Path) -> dict[str, str]:
         root / "pyproject.toml",
         root / "uv.lock",
     ]
-    shared_root = root.parents[1] / "packages/ml-evaluation"
-    shared_paths = sorted((shared_root / "src").rglob("*.py"))
+    evaluation_root = root.parents[1] / "packages/ml-evaluation"
+    evaluation_paths = sorted((evaluation_root / "src").rglob("*.py"))
+    artifacts_root = root.parents[1] / "packages/data-artifacts"
+    artifact_paths = sorted((artifacts_root / "src").rglob("*.py"))
     value = sha256_bytes(
         canonical_bytes(
             {
                 "project": sha256_tree(project_paths, root=root),
-                "ml_evaluation": sha256_tree(shared_paths, root=shared_root),
+                "data_artifacts": sha256_tree(artifact_paths, root=artifacts_root),
+                "ml_evaluation": sha256_tree(evaluation_paths, root=evaluation_root),
             }
         )
     )

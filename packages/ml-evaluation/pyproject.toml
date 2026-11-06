@@ -1,16 +1,12 @@
 [project]
 name = "ml-evaluation"
 version = "0.1.0"
-description = "Typed contracts and deterministic utilities for machine-learning evaluations"
+description = "Typed contracts and promotion gates for machine-learning evaluations"
 readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
-    "fire>=0.7.1,<0.8",
     "pydantic>=2.12.5,<3",
 ]
-
-[project.scripts]
-ml-evaluation = "ml_evaluation.cli:main"
 
 [dependency-groups]
 dev = [
