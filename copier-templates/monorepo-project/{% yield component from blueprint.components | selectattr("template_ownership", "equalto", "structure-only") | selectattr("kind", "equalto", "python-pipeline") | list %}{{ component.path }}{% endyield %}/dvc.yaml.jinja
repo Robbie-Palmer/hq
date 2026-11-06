@@ -17,7 +17,6 @@ stages:
     cmd: uv run --locked {{ component.id }} train
     deps:
       - data/synthetic
-      - manifests/decision-provenance.json
       - pyproject.toml
       - src/{{ component.id | replace('-', '_') }}
       - uv.lock
@@ -31,6 +30,9 @@ stages:
     deps:
       - artifacts/model.json
       - data/synthetic
+      - manifests/decision-provenance.json
+      - manifests/rights.json
+      - params.yaml
       - pyproject.toml
       - registries/downstream-evaluations.json
       - src/{{ component.id | replace('-', '_') }}

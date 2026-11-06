@@ -83,6 +83,7 @@ mise --cd "$component_root" run ci
 
 test -f "$component_root/uv.lock"
 test -f "$component_root/dvc.lock"
+test -f "$component_root/.dvcignore"
 test -f "$component_root/coverage.xml"
 test -f "$component_root/metrics/metrics.json"
 test -f "$component_root/outputs/provenance.json"
@@ -91,3 +92,14 @@ grep -Fqx '    url = s3://dvc/research-template-fixture' "$component_root/.dvc/c
 grep -Fqx '    endpointurl = https://dcd7cd68dd892d610267ded6b1af567b.r2.cloudflarestorage.com' "$component_root/.dvc/config"
 test -f "$render_root/packages/support-contract/generated-component.yaml"
 test -f "$render_root/packages/support-contract/mise.toml"
+
+provenance_before="$(sha256sum "$component_root/outputs/provenance.json")"
+jq '.local_decisions = ["research-template-fixture:001-local-decision"]' \
+  "$component_root/manifests/decision-provenance.json" \
+  >"$scratch_root/decision-provenance.json"
+mv "$scratch_root/decision-provenance.json" \
+  "$component_root/manifests/decision-provenance.json"
+mise --cd "$component_root" run repro
+mise --cd "$component_root" run verify
+provenance_after="$(sha256sum "$component_root/outputs/provenance.json")"
+test "$provenance_before" != "$provenance_after"
