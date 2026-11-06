@@ -1,5 +1,5 @@
 [tasks.install]
-description = "Install Personal Finance contract dependencies"
+description = "Install dependencies for Personal Finance contracts"
 depends = ["//:install"]
 
 [tasks.typecheck]

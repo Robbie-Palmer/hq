@@ -354,7 +354,12 @@ locals {
         }
         environments = {
           ops = {
-            name             = "Pull request plans"
+            name             = "Production plans"
+            personal_configs = false
+            configs          = []
+          }
+          preview = {
+            name             = "Isolated previews"
             personal_configs = false
             configs          = []
           }
@@ -368,6 +373,16 @@ locals {
             personal_configs = false
             configs          = []
           }
+          backup = {
+            name             = "Database backup and restore"
+            personal_configs = false
+            configs          = []
+          }
+          alerts = {
+            name             = "Alert evaluation and delivery"
+            personal_configs = false
+            configs          = []
+          }
         }
       }
       github = {
@@ -377,6 +392,9 @@ locals {
             name               = "production-personal-finance-plan"
             reviewer_usernames = ["Robbie-Palmer"]
           }
+          preview = {
+            name = "preview-personal-finance"
+          }
           drift = {
             name                 = "production-personal-finance-drift"
             custom_branch_policy = true
@@ -385,6 +403,16 @@ locals {
           apply = {
             name                 = "production-personal-finance"
             reviewer_usernames   = ["Robbie-Palmer"]
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+          backup = {
+            name                 = "production-personal-finance-backup"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+          alerts = {
+            name                 = "production-personal-finance-alerting"
             custom_branch_policy = true
             branch_patterns      = { main = null }
           }

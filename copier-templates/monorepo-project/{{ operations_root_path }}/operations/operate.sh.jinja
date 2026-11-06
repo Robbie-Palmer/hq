@@ -43,8 +43,9 @@ USAGE
 }
 
 require_command() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "Missing required command: $1" >&2
+  local command_name="$1"
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "Missing required command: $command_name" >&2
     exit 1
   fi
 }
@@ -188,22 +189,22 @@ preview_cleanup() {
 
 production_plan() {
   require_value TERRAFORM_PLAN_AGE_RECIPIENT
-  mkdir -p "$evidence_dir"
+  mkdir -p "$evidence_dir" || return
   local plan_file="$evidence_dir/production.tfplan"
   local encrypted_plan="$evidence_dir/production.tfplan.age"
   sensitive_temp_files+=("$plan_file")
   run_step "terraform-init" terraform -chdir="$terraform_root" init -input=false || return
   run_step "terraform-plan" terraform -chdir="$terraform_root" plan \
     -input=false -out="$plan_file" || return
-  sha256sum "$plan_file" >"$evidence_dir/production.tfplan.sha256"
-  PLAN_DIGEST="$(cut -d ' ' -f 1 "$evidence_dir/production.tfplan.sha256")"
+  sha256sum "$plan_file" >"$evidence_dir/production.tfplan.sha256" || return
+  PLAN_DIGEST="$(cut -d ' ' -f 1 "$evidence_dir/production.tfplan.sha256")" || return
   export PLAN_DIGEST
   run_step "encrypt-terraform-plan" run_age \
     --recipient "$TERRAFORM_PLAN_AGE_RECIPIENT" \
     --output "$encrypted_plan" \
     "$plan_file" || return
-  : >"$plan_file"
-  rm -f "$plan_file"
+  : >"$plan_file" || return
+  rm -f "$plan_file" || return
 }
 
 verify_reviewed_plan_digest() {
@@ -222,22 +223,24 @@ production_apply() {
   local plan_file
   local identity_file
   local actual_digest
-  plan_file="$(mktemp "$evidence_dir/production.tfplan.XXXXXX")"
-  identity_file="$(mktemp "$evidence_dir/production.tfplan.identity.XXXXXX")"
-  sensitive_temp_files+=("$plan_file" "$identity_file")
-  chmod 600 "$identity_file"
-  printf '%s\n' "$TERRAFORM_PLAN_AGE_IDENTITY" >"$identity_file"
-  unset TERRAFORM_PLAN_AGE_IDENTITY
+  plan_file="$(mktemp "$evidence_dir/production.tfplan.XXXXXX")" || return
+  sensitive_temp_files+=("$plan_file")
+  identity_file="$(mktemp "$evidence_dir/production.tfplan.identity.XXXXXX")" || return
+  sensitive_temp_files+=("$identity_file")
+  chmod 600 "$identity_file" || return
+  printf '%s\n' "$TERRAFORM_PLAN_AGE_IDENTITY" >"$identity_file" || return
+  unset TERRAFORM_PLAN_AGE_IDENTITY || return
   run_step "decrypt-reviewed-terraform-plan" run_age \
     --decrypt \
     --identity "$identity_file" \
     --output "$plan_file" \
     "$encrypted_plan" || return
-  actual_digest="$(sha256sum "$plan_file" | cut -d ' ' -f 1)"
+  actual_digest="$(sha256sum "$plan_file" | cut -d ' ' -f 1)" || return
   run_step "verify-reviewed-plan-digest" verify_reviewed_plan_digest \
     "$actual_digest" "$EXPECTED_PLAN_SHA256" || return
   PLAN_DIGEST="$actual_digest"
   export PLAN_DIGEST
+  run_step "terraform-init" terraform -chdir="$terraform_root" init -input=false || return
   run_step "terraform-apply-reviewed-plan" terraform -chdir="$terraform_root" apply \
     -input=false "$plan_file" || return
   run_step "production-migrate" hook_production_migrate || return

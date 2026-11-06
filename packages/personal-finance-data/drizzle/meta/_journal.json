@@ -12,8 +12,8 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1793965457621,
-      "tag": "0001_add_uncommitted_schema_change",
+      "when": 1793980045640,
+      "tag": "0001_add_household_canary_record",
       "breakpoints": true
     }
   ]

@@ -1,4 +1,16 @@
 import type { AuthorizationPolicy } from "./authorization";
 
-// Copier creates this deny-by-default policy once. Replace it with product rules.
-export const projectAuthorization: AuthorizationPolicy = () => false;
+const canaryActions = new Set(["create", "read"]);
+
+// Keep this policy synthetic-only until the product runtime ticket defines the
+// complete household membership model.
+export const projectAuthorization: AuthorizationPolicy = (session, request) => {
+  const prefix = "household-canary:";
+  const ownerUserId = request.resourceId.startsWith(prefix)
+    ? request.resourceId.slice(prefix.length)
+    : null;
+  return (
+    ownerUserId === session.user.id &&
+    canaryActions.has(request.action)
+  );
+};
