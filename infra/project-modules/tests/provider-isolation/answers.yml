@@ -7,6 +7,10 @@ blueprint:
     kind: application
     published: false
   components:
+    - id: web
+      kind: ui
+      name: Provider isolation frontend
+      path: ui
     - id: provider-isolation
       kind: terraform-root
       name: Provider isolation fixture

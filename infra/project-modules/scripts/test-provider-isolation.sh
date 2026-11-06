@@ -30,6 +30,31 @@ render_fixture answers-neon.yml neon-only
 render_fixture answers-all.yml all-capabilities
 render_fixture answers-policy-only.yml policy-only
 
+all_capabilities_root="$test_data_dir/answers-all.yml/infra/all-capabilities"
+bash -n "$all_capabilities_root/operations/operate.sh"
+for expected in \
+  'source  = "Mastercard/restapi"' \
+  'module "posthog_alerts"' \
+  '"database.backup-restore"' \
+  '"observability.alert-evaluation"'; do
+  if ! grep -Fq "$expected" "$all_capabilities_root/generated-project.tf"; then
+    echo "All-capabilities root is missing $expected" >&2
+    exit 1
+  fi
+done
+for expected in \
+  operations/generated-operations.yaml \
+  operations/rollout-evidence.schema.json \
+  operations/workflows/preview-caller.yml \
+  operations/workflows/production-caller.yml \
+  operations/workflows/backup-caller.yml \
+  operations/workflows/alert-caller.yml; do
+  if [[ ! -f "$all_capabilities_root/$expected" ]]; then
+    echo "All-capabilities root is missing $expected" >&2
+    exit 1
+  fi
+done
+
 policy_only_root="$test_data_dir/answers-policy-only.yml/infra/policy-only/generated-project.tf"
 for forbidden in cloudflare/cloudflare kislerdm/neon; do
   if grep -Fq "$forbidden" "$policy_only_root"; then
