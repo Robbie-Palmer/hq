@@ -12,6 +12,7 @@ ownership:
     - "generated-component.yaml"
     - "mise.toml"
     - "package.json"
+    - "openapi.json"
     - "src/auth.ts"
     - "src/authorization.ts"
     - "src/index.ts"
