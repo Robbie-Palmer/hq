@@ -16,7 +16,11 @@
     "./sole-trader-synthetic-scenarios": "./src/soleTraderSyntheticScenarios.ts",
     "./limited-company-rules": "./src/limitedCompanyRules.ts",
     "./limited-company-scenario": "./src/limitedCompanyScenario.ts",
-    "./limited-company-synthetic-scenarios": "./src/limitedCompanySyntheticScenarios.ts"
+    "./limited-company-synthetic-scenarios": "./src/limitedCompanySyntheticScenarios.ts",
+    "./off-payroll-status": "./src/offPayrollStatus.ts",
+    "./umbrella-rules": "./src/umbrellaRules.ts",
+    "./umbrella-scenario": "./src/umbrellaScenario.ts",
+    "./umbrella-synthetic-scenarios": "./src/umbrellaSyntheticScenarios.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
