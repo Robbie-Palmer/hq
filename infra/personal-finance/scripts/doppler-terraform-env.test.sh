@@ -30,7 +30,7 @@ printf '%s\n' "$@" > "$DOPPLER_ARGS_LOG"
 MOCK_DOPPLER
 chmod +x "$mock_bin/doppler"
 
-for mode_and_config in "plan ops" "drift drift" "apply apply"; do
+for mode_and_config in "plan ops" "drift drift_check" "apply apply_production"; do
   read -r mode expected_config <<<"$mode_and_config"
   args_log="$work_dir/$mode-args"
   CI=false \

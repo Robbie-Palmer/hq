@@ -296,7 +296,7 @@ blueprint:
         - disposition: delegated
           name: typecheck-or-compile
           target: //ui:typecheck
-  effective_at: 2026-11-06 17:45:00+00:00
+  effective_at: 2026-11-06 18:12:00+00:00
   fulfillment_checkpoints:
     - action: Configure AGE_RECIPIENT for
         database-backup-restore-encrypted-archives-2026-09-29
@@ -745,7 +745,7 @@ blueprint:
       alerting:
         github_environment: production-personal-finance-alerting
         responder: Personal Finance owner
-        secret_config_ref: doppler://personal-finance/alerts
+        secret_config_ref: doppler://personal-finance/apply_alerts
         smoke: mise //infra/personal-finance:smoke:alert
       backup:
         create: mise //infra/personal-finance:backup:create
@@ -759,12 +759,12 @@ blueprint:
         github_environment: preview-personal-finance
         migrate: mise //infra/personal-finance:db:migrate:preview
         provision: mise //infra/personal-finance:preview:provision
-        secret_config_ref: doppler://personal-finance/preview
+        secret_config_ref: doppler://personal-finance/drift_preview
         seed_synthetic: mise //infra/personal-finance:db:seed:preview
         smoke_authenticated: mise //infra/personal-finance:smoke:preview
         smoke_telemetry: mise //infra/personal-finance:smoke:telemetry
       production:
-        apply_secret_config_ref: doppler://personal-finance/apply
+        apply_secret_config_ref: doppler://personal-finance/apply_production
         deploy: mise //infra/personal-finance:deploy:production
         github_environment: production-personal-finance
         migrate: mise //infra/personal-finance:db:migrate:production

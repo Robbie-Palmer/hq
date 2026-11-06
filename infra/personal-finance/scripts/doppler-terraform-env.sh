@@ -6,8 +6,8 @@ shift
 
 case "$mode" in
   plan) config="${DOPPLER_PERSONAL_FINANCE_PLAN_CONFIG:-ops}" ;;
-  drift) config="${DOPPLER_PERSONAL_FINANCE_DRIFT_CONFIG:-drift}" ;;
-  apply) config="${DOPPLER_PERSONAL_FINANCE_APPLY_CONFIG:-apply}" ;;
+  drift) config="${DOPPLER_PERSONAL_FINANCE_DRIFT_CONFIG:-drift_check}" ;;
+  apply) config="${DOPPLER_PERSONAL_FINANCE_APPLY_CONFIG:-apply_production}" ;;
   *)
     echo "Unknown Personal Finance credential mode: $mode" >&2
     exit 2

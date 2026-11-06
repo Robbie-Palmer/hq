@@ -358,28 +358,18 @@ locals {
             personal_configs = false
             configs          = []
           }
-          preview = {
-            name             = "Isolated previews"
-            personal_configs = false
-            configs          = []
-          }
           drift = {
-            name             = "Drift checks"
+            name             = "Preview and drift scopes"
             personal_configs = false
-            configs          = []
+            configs          = ["drift_check", "drift_preview"]
           }
           apply = {
-            name             = "Production applies"
+            name             = "Apply and alert scopes"
             personal_configs = false
-            configs          = []
+            configs          = ["apply_alerts", "apply_production"]
           }
           backup = {
             name             = "Database backup and restore"
-            personal_configs = false
-            configs          = []
-          }
-          alerts = {
-            name             = "Alert evaluation and delivery"
             personal_configs = false
             configs          = []
           }

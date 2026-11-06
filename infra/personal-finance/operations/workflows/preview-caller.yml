@@ -19,7 +19,7 @@ jobs:
       action: preview-up
       operations_root: "infra/personal-finance"
       github_environment: "preview-personal-finance"
-      secret_config_ref: "doppler://personal-finance/preview"
+      secret_config_ref: "doppler://personal-finance/drift_preview"
       subject: ${{ github.event.pull_request.number }}
       checkout_ref: ${{ github.event.pull_request.head.sha }}
     secrets:
@@ -32,7 +32,7 @@ jobs:
       action: preview-cleanup
       operations_root: "infra/personal-finance"
       github_environment: "preview-personal-finance"
-      secret_config_ref: "doppler://personal-finance/preview"
+      secret_config_ref: "doppler://personal-finance/drift_preview"
       subject: ${{ github.event.pull_request.number }}
       checkout_ref: ${{ github.event.pull_request.base.sha }}
     secrets:

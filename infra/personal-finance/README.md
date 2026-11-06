@@ -12,23 +12,26 @@ and project-wide state sharing. No other workspace can read this state.
 
 ## Delivery boundaries
 
-Account foundation creates Doppler project `personal-finance` and six
-environments. Each environment receives a root config automatically, without
-the paid config-inheritance feature:
+Account foundation creates Doppler project `personal-finance` with four
+environments, the Developer-plan limit. The `drift` and `apply` environment
+root configs stay empty. Their branch configs separate credentials that must
+not reach the same GitHub job:
 
 | Config | Use | Minimum access |
 | --- | --- | --- |
 | `ops` | Production plans | Read and lock this HCP workspace |
-| `preview` | Isolated previews | Preview-scoped Cloudflare and Neon writes |
-| `drift` | Scheduled main-branch drift checks | Read and lock this HCP workspace |
-| `apply` | Reviewed main-branch applies | Read and write this HCP workspace |
+| `drift_preview` | Isolated previews | Preview-scoped Cloudflare and Neon writes |
+| `drift_check` | Scheduled main-branch drift checks | Read and lock this HCP workspace |
+| `apply_production` | Reviewed main-branch applies | Read and write this HCP workspace |
 | `backup` | Database backup and restore | Direct database, R2, and public age-recipient access |
-| `alerts` | Alert evaluation and delivery | PostHog alert and project-owned delivery access |
+| `apply_alerts` | Alert evaluation and delivery | PostHog alert and project-owned delivery access |
 
-The `ops`, `drift`, and `apply` configs provide `TF_API_TOKEN`. The wrapper
-maps it to Terraform's `TF_TOKEN_app_terraform_io` variable at process runtime.
-Doppler remains the source of secret values. Terraform configuration, state,
-plan comments, and repository files must not contain the token.
+The `ops`, `drift_check`, and `apply_production` configs provide
+`TF_API_TOKEN`. The wrapper maps it to Terraform's
+`TF_TOKEN_app_terraform_io` variable at process runtime. Doppler remains the
+source of secret values. Terraform configuration, state, plan comments, and
+repository files must not contain the token. Keep the `drift` and `apply` root
+configs empty so their branch configs inherit no credentials.
 
 The HCP organization uses the free Personal Developer plan. It does not offer
 workspace-scoped team tokens, so the three configs may initially hold an
