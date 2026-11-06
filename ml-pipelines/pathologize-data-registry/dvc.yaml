@@ -1,0 +1,13 @@
+stages:
+  acquire_cptac_coad_smallest_series:
+    cmd: uv run --locked pathologize-registry acquire
+    deps:
+      - .python-version
+      - manifests
+      - pyproject.toml
+      - records
+      - registry.json
+      - src/pathologize_data_registry
+      - uv.lock
+    outs:
+      - data/raw/cptac-coad-idc-v7/b117aabf-c225-432e-95af-8ee9247a1ad6

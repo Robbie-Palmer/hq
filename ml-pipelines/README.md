@@ -10,6 +10,8 @@ Current projects:
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
+- `pathologize-data-registry`: public computational-pathology source assets,
+  provenance, licences, identities, scanner metadata, and source-native labels.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text

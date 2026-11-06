@@ -1,0 +1,96 @@
+{
+  "$defs": {
+    "AssetRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Bytes",
+          "type": "integer"
+        },
+        "image_role": {
+          "enum": [
+            "label",
+            "overview",
+            "thumbnail",
+            "volume_primary",
+            "volume_resampled"
+          ],
+          "title": "Image Role",
+          "type": "string"
+        },
+        "relative_path": {
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._/-]+$",
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "sop_instance_uid": {
+          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+          "title": "Sop Instance Uid",
+          "type": "string"
+        },
+        "source_etag": {
+          "pattern": "^[0-9a-f]{32}$",
+          "title": "Source Etag",
+          "type": "string"
+        },
+        "source_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Source Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relative_path",
+        "source_url",
+        "bytes",
+        "sha256",
+        "source_etag",
+        "sop_instance_uid",
+        "image_role"
+      ],
+      "title": "AssetRecord",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "asset_manifest_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Asset Manifest Id",
+      "type": "string"
+    },
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/AssetRecord"
+      },
+      "minItems": 1,
+      "title": "Assets",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "subset_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Subset Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "asset_manifest_id",
+    "subset_id",
+    "assets"
+  ],
+  "title": "AssetManifest",
+  "type": "object"
+}

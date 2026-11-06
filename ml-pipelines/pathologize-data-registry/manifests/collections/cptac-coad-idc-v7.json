@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "collection_id": "cptac-coad-idc-v7",
+  "title": "DICOM converted Slide Microscopy images for the CPTAC-COAD collection",
+  "description": "Public DICOM slide-microscopy conversion of the CPTAC colon adenocarcinoma collection in Imaging Data Commons release v7.",
+  "registration_status": "acquired_subset",
+  "source": {
+    "publisher": "National Cancer Institute Imaging Data Commons",
+    "landing_page_url": "https://doi.org/10.5281/zenodo.12666785",
+    "documentation_urls": [
+      "https://learn.canceridc.dev/data/downloading-data",
+      "https://datacommons.cancer.gov/repository/imaging-data-commons"
+    ],
+    "doi": "10.5281/zenodo.12666785",
+    "source_version": "IDC v7 manifest; metadata checked against idc-index v23",
+    "retrieved_at": "2026-11-06"
+  },
+  "access": {
+    "public": true,
+    "authentication_required": false,
+    "automated_access": true,
+    "acquisition_policy": "automated_bounded",
+    "reason": "IDC documents anonymous programmatic download from its public AWS and Google Cloud buckets. The registry acquisition is pinned to six objects in one 18.7 MB series.",
+    "download_base_urls": [
+      "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/"
+    ]
+  },
+  "license": {
+    "name": "Creative Commons Attribution 3.0 Unported",
+    "spdx_id": "CC-BY-3.0",
+    "url": "https://creativecommons.org/licenses/by/3.0/",
+    "scope": "The Zenodo dataset record and IDC file metadata identify this collection as CC BY 3.0.",
+    "redistribution": "Redistribution is allowed only under CC BY 3.0 with attribution and a licence notice. This registry fetches from IDC and does not publish a separate data remote."
+  },
+  "citation": "Clunie, D., Clifford, W., Pot, D., Wagner, U., Farahani, K., Kim, E., and Fedorov, A. (2024). DICOM converted Slide Microscopy images for the CPTAC-COAD collection. Zenodo. https://doi.org/10.5281/zenodo.12666785",
+  "known_scale": {
+    "slides_or_series": 372,
+    "bytes": 70234381296,
+    "basis": "IDC idc-index v23 SM series rows and series_size_MB totals queried on 2026-11-06."
+  },
+  "source_native_label_domains": [
+    "collection membership",
+    "primary anatomic structure",
+    "staining substances"
+  ],
+  "subsets": [
+    "cptac-coad-idc-v7-smallest-series"
+  ]
+}

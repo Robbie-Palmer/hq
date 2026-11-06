@@ -1,0 +1,263 @@
+{
+  "$defs": {
+    "AccessPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "acquisition_policy": {
+          "enum": [
+            "automated_bounded",
+            "manifest_only"
+          ],
+          "title": "Acquisition Policy",
+          "type": "string"
+        },
+        "authentication_required": {
+          "title": "Authentication Required",
+          "type": "boolean"
+        },
+        "automated_access": {
+          "title": "Automated Access",
+          "type": "boolean"
+        },
+        "download_base_urls": {
+          "items": {
+            "format": "uri",
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Download Base Urls",
+          "type": "array"
+        },
+        "public": {
+          "title": "Public",
+          "type": "boolean"
+        },
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "public",
+        "authentication_required",
+        "automated_access",
+        "acquisition_policy",
+        "reason",
+        "download_base_urls"
+      ],
+      "title": "AccessPolicy",
+      "type": "object"
+    },
+    "KnownScale": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "minLength": 1,
+          "title": "Basis",
+          "type": "string"
+        },
+        "bytes": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bytes"
+        },
+        "slides_or_series": {
+          "exclusiveMinimum": 0,
+          "title": "Slides Or Series",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slides_or_series",
+        "basis"
+      ],
+      "title": "KnownScale",
+      "type": "object"
+    },
+    "LicenseRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "redistribution": {
+          "minLength": 1,
+          "title": "Redistribution",
+          "type": "string"
+        },
+        "scope": {
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        },
+        "spdx_id": {
+          "pattern": "^[A-Za-z0-9.-]+$",
+          "title": "Spdx Id",
+          "type": "string"
+        },
+        "url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "spdx_id",
+        "url",
+        "scope",
+        "redistribution"
+      ],
+      "title": "LicenseRecord",
+      "type": "object"
+    },
+    "SourceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "documentation_urls": {
+          "items": {
+            "format": "uri",
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Documentation Urls",
+          "type": "array"
+        },
+        "doi": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Doi"
+        },
+        "landing_page_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Landing Page Url",
+          "type": "string"
+        },
+        "publisher": {
+          "minLength": 1,
+          "title": "Publisher",
+          "type": "string"
+        },
+        "retrieved_at": {
+          "format": "date",
+          "title": "Retrieved At",
+          "type": "string"
+        },
+        "source_version": {
+          "minLength": 1,
+          "title": "Source Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "publisher",
+        "landing_page_url",
+        "documentation_urls",
+        "doi",
+        "source_version",
+        "retrieved_at"
+      ],
+      "title": "SourceReference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "access": {
+      "$ref": "#/$defs/AccessPolicy"
+    },
+    "citation": {
+      "minLength": 1,
+      "title": "Citation",
+      "type": "string"
+    },
+    "collection_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Collection Id",
+      "type": "string"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "known_scale": {
+      "$ref": "#/$defs/KnownScale"
+    },
+    "license": {
+      "$ref": "#/$defs/LicenseRecord"
+    },
+    "registration_status": {
+      "enum": [
+        "acquired_subset",
+        "manifest_only"
+      ],
+      "title": "Registration Status",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/SourceReference"
+    },
+    "source_native_label_domains": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Source Native Label Domains",
+      "type": "array"
+    },
+    "subsets": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Subsets",
+      "type": "array"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "collection_id",
+    "title",
+    "description",
+    "registration_status",
+    "source",
+    "access",
+    "license",
+    "citation",
+    "known_scale",
+    "source_native_label_domains",
+    "subsets"
+  ],
+  "title": "CollectionManifest",
+  "type": "object"
+}

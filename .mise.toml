@@ -19,6 +19,7 @@ config_roots = [
     "ml-pipelines",
     "ml-pipelines/ai-review-evaluation",
     "ml-pipelines/financial-document-idp-evaluation",
+    "ml-pipelines/pathologize-data-registry",
     "ml-pipelines/recipe-dataset",
     "ml-pipelines/recipe-parsing",
     "ml-pipelines/writing-editor-evaluation",

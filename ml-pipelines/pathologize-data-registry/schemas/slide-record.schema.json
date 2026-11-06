@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "PhysicalResolution": {
+      "additionalProperties": false,
+      "properties": {
+        "micrometres_per_pixel_x": {
+          "exclusiveMinimum": 0,
+          "title": "Micrometres Per Pixel X",
+          "type": "number"
+        },
+        "micrometres_per_pixel_y": {
+          "exclusiveMinimum": 0,
+          "title": "Micrometres Per Pixel Y",
+          "type": "number"
+        },
+        "source_instance_path": {
+          "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._/-]+$",
+          "title": "Source Instance Path",
+          "type": "string"
+        },
+        "total_pixel_matrix_columns": {
+          "exclusiveMinimum": 0,
+          "title": "Total Pixel Matrix Columns",
+          "type": "integer"
+        },
+        "total_pixel_matrix_rows": {
+          "exclusiveMinimum": 0,
+          "title": "Total Pixel Matrix Rows",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "micrometres_per_pixel_x",
+        "micrometres_per_pixel_y",
+        "total_pixel_matrix_columns",
+        "total_pixel_matrix_rows",
+        "source_instance_path"
+      ],
+      "title": "PhysicalResolution",
+      "type": "object"
+    },
+    "ScannerMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "conversion_note": {
+          "minLength": 1,
+          "title": "Conversion Note",
+          "type": "string"
+        },
+        "device_serial_number": {
+          "minLength": 1,
+          "title": "Device Serial Number",
+          "type": "string"
+        },
+        "manufacturer": {
+          "minLength": 1,
+          "title": "Manufacturer",
+          "type": "string"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "objective_power": {
+          "exclusiveMinimum": 0,
+          "title": "Objective Power",
+          "type": "number"
+        }
+      },
+      "required": [
+        "manufacturer",
+        "model",
+        "device_serial_number",
+        "objective_power",
+        "conversion_note"
+      ],
+      "title": "ScannerMetadata",
+      "type": "object"
+    },
+    "SourceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "identity_basis": {
+          "minLength": 1,
+          "title": "Identity Basis",
+          "type": "string"
+        },
+        "patient_id": {
+          "minLength": 1,
+          "title": "Patient Id",
+          "type": "string"
+        },
+        "series_instance_uid": {
+          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+          "title": "Series Instance Uid",
+          "type": "string"
+        },
+        "slide_container_id": {
+          "minLength": 1,
+          "title": "Slide Container Id",
+          "type": "string"
+        },
+        "specimen_id": {
+          "minLength": 1,
+          "title": "Specimen Id",
+          "type": "string"
+        },
+        "specimen_uid": {
+          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+          "title": "Specimen Uid",
+          "type": "string"
+        },
+        "study_instance_uid": {
+          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+          "title": "Study Instance Uid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "patient_id",
+        "case_id",
+        "specimen_id",
+        "specimen_uid",
+        "slide_container_id",
+        "study_instance_uid",
+        "series_instance_uid",
+        "identity_basis"
+      ],
+      "title": "SourceIdentity",
+      "type": "object"
+    },
+    "SourceNativeLabel": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Code"
+        },
+        "name": {
+          "pattern": "^[a-z][a-z0-9_]+$",
+          "title": "Name",
+          "type": "string"
+        },
+        "provenance": {
+          "minLength": 1,
+          "title": "Provenance",
+          "type": "string"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value",
+        "code",
+        "provenance"
+      ],
+      "title": "SourceNativeLabel",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "asset_paths": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Asset Paths",
+      "type": "array"
+    },
+    "collection_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Collection Id",
+      "type": "string"
+    },
+    "identity": {
+      "$ref": "#/$defs/SourceIdentity"
+    },
+    "label_limitations": {
+      "minLength": 1,
+      "title": "Label Limitations",
+      "type": "string"
+    },
+    "physical_resolution": {
+      "$ref": "#/$defs/PhysicalResolution"
+    },
+    "scanner": {
+      "$ref": "#/$defs/ScannerMetadata"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "slide_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Slide Id",
+      "type": "string"
+    },
+    "source_native_labels": {
+      "items": {
+        "$ref": "#/$defs/SourceNativeLabel"
+      },
+      "minItems": 1,
+      "title": "Source Native Labels",
+      "type": "array"
+    },
+    "subset_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Subset Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "slide_id",
+    "collection_id",
+    "subset_id",
+    "identity",
+    "scanner",
+    "physical_resolution",
+    "source_native_labels",
+    "label_limitations",
+    "asset_paths"
+  ],
+  "title": "SlideRecord",
+  "type": "object"
+}
