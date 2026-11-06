@@ -94,7 +94,7 @@ const transferableAmount = (personalAllowancePence: number): number =>
 
 const taxYears = [
   ...new Set(ruleDataset.incomeTax.map(({ taxYear }) => taxYear)),
-].toSorted();
+].toSorted((left, right) => left.localeCompare(right));
 
 const marriageAllowanceRules: MarriageAllowanceRule[] = taxYears.map(
   (taxYear) => {
@@ -193,8 +193,8 @@ export type OtherIncomeRatePosition =
   | "eligible-rates-only"
   | "disqualifying-rate";
 
-type MarriageAllowancePerson = {
-  jurisdiction: Jurisdiction | string;
+export type MarriageAllowancePerson = {
+  jurisdiction: string;
   meetsResidenceRequirements: boolean | null;
   hasDisqualifyingPersonalAllowanceClaim: boolean | null;
   personalAllowanceBasis: "standard" | "non-standard" | null;
@@ -205,8 +205,6 @@ type MarriageAllowancePerson = {
 export type MarriageAllowanceDonor = MarriageAllowancePerson & {
   entitledToPersonalAllowance: boolean | null;
 };
-
-export type MarriageAllowanceRecipient = MarriageAllowancePerson;
 
 export type MarriageAllowanceClaim =
   | { kind: "new-current-year"; claimDate: string | null }
@@ -233,7 +231,7 @@ export type MarriageAllowanceRequest = {
   donorHasAnotherActiveElection: boolean | null;
   recipientHasAnotherActiveClaim: boolean | null;
   donor: MarriageAllowanceDonor;
-  recipient: MarriageAllowanceRecipient;
+  recipient: MarriageAllowancePerson;
   claim: MarriageAllowanceClaim;
   cancellation: MarriageAllowanceCancellation | null;
   death: MarriageAllowanceDeath | null;
@@ -386,7 +384,7 @@ const taxWithAllowance = (
   for (const band of rule.bands) {
     const amountPence = Math.min(
       remaining,
-      band.widthPence == null ? remaining : band.widthPence,
+      band.widthPence ?? remaining,
     );
     if (amountPence > 0) {
       bands.push({
