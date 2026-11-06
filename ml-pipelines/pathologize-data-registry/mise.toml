@@ -25,13 +25,13 @@ depends = ["sync"]
 run = "uv run --locked ty check"
 
 [tasks.test]
-description = "Run synthetic Pathologize data-registry tests"
-depends = ["sync"]
+description = "Run Pathologize data-registry tests against the bounded public subset"
+depends = ["acquire"]
 run = "uv run --locked pytest --no-cov"
 
 [tasks."test:coverage"]
 description = "Run Pathologize data-registry tests with Cobertura coverage"
-depends = ["sync"]
+depends = ["acquire"]
 run = "uv run --locked pytest --cov-report=xml:coverage.xml"
 
 [tasks.schemas]
