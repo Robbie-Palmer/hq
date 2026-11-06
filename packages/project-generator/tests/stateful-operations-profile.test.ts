@@ -347,6 +347,7 @@ describe("stateful project operations", () => {
       "utf8",
     );
     expect(terraform).toContain('module "cloudflare_worker"');
+    expect(terraform).toContain('module "cloudflare_access"');
     expect(terraform).toContain('module "neon"');
     expect(terraform).toContain('module "cloudflare_r2"');
   });

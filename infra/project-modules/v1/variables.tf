@@ -94,6 +94,7 @@ variable "cloudflare_worker" {
     name               = string
     content            = string
     compatibility_date = string
+    hyperdrive_id      = optional(string)
     zone_id            = optional(string)
     hostname           = optional(string)
   })

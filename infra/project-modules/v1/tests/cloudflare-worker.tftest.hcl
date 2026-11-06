@@ -17,3 +17,19 @@ run "worker_domain_configuration_must_be_complete" {
 
   expect_failures = [var.hostname]
 }
+
+run "worker_accepts_a_preprovisioned_hyperdrive_binding" {
+  command = plan
+
+  module {
+    source = "./modules/cloudflare-worker"
+  }
+
+  variables {
+    account_id         = "dcd7cd68dd892d610267ded6b1af567b"
+    name               = "hyperdrive-worker"
+    content            = "export default { fetch() { return new Response('unconfigured', { status: 503 }); } };"
+    compatibility_date = "2026-10-24"
+    hyperdrive_id      = "7c2d44d36f5c4f55b2f8a3f29f62a2f1"
+  }
+}
