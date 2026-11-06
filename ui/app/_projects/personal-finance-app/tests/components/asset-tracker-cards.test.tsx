@@ -2008,6 +2008,7 @@ describe("ForecastAssumptionManager", () => {
     cagr: null,
   };
   const household = {
+    id: "household",
     members: [
       { id: "alex", displayName: "Alex" },
       { id: "sam", displayName: "Sam" },

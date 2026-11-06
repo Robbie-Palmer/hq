@@ -9,7 +9,7 @@ import { CurrencySchema } from "./currency";
 
 export const ASSET_TRACKER_BACKUP_FORMAT =
   "assettracker-household-backup" as const;
-export const ASSET_TRACKER_BACKUP_VERSION = 1 as const;
+export const ASSET_TRACKER_BACKUP_VERSION = 2 as const;
 
 const AssetTrackerBackupBalanceSchema = z.object({
   currency: CurrencySchema,
@@ -53,7 +53,7 @@ export interface AssetTrackerBackupPreview {
 
 const LegacyBackupSchema = z.object({
   format: z.literal(ASSET_TRACKER_BACKUP_FORMAT),
-  schemaVersion: z.literal(0),
+  schemaVersion: z.union([z.literal(0), z.literal(1)]),
   createdAt: z.iso.datetime({ offset: true }).optional(),
   data: z.unknown(),
 });
@@ -88,6 +88,12 @@ function dataCollections(data: AssetTrackerData): readonly unknown[][] {
     data.exchangeRateObservations ?? [],
     data.propertyIndexHistories ?? [],
     data.propertyComparableSearches ?? [],
+    data.financialEntities,
+    data.accountOwnerships,
+    data.shareOwnershipInterests,
+    data.entityObligations,
+    data.entityTransfers,
+    data.companyEquityValuations,
   ];
 }
 
@@ -199,7 +205,7 @@ function readBackup(raw: unknown): {
   const legacyEnvelope = LegacyBackupSchema.safeParse(raw);
   if (legacyEnvelope.success) {
     return {
-      sourceVersion: 0,
+      sourceVersion: legacyEnvelope.data.schemaVersion,
       backup: createAssetTrackerBackup(
         parseBackupData(legacyEnvelope.data.data),
         legacyEnvelope.data.createdAt ?? new Date(0).toISOString(),

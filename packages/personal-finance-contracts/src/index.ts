@@ -13,3 +13,7 @@ export * from "./offPayrollStatus";
 export * from "./umbrellaRules";
 export * from "./umbrellaScenario";
 export * from "./umbrellaSyntheticScenarios";
+export * from "./sideIncomeRecommendation";
+export * from "./sideIncomeRecommendationDecision";
+export * from "./sideIncomeRecommendationDemo";
+export * from "./sideIncomeRecommendationSyntheticScenarios";

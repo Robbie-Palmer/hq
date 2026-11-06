@@ -20,7 +20,11 @@
     "./off-payroll-status": "./src/offPayrollStatus.ts",
     "./umbrella-rules": "./src/umbrellaRules.ts",
     "./umbrella-scenario": "./src/umbrellaScenario.ts",
-    "./umbrella-synthetic-scenarios": "./src/umbrellaSyntheticScenarios.ts"
+    "./umbrella-synthetic-scenarios": "./src/umbrellaSyntheticScenarios.ts",
+    "./side-income-recommendation": "./src/sideIncomeRecommendation.ts",
+    "./side-income-recommendation-decision": "./src/sideIncomeRecommendationDecision.ts",
+    "./side-income-recommendation-demo": "./src/sideIncomeRecommendationDemo.ts",
+    "./side-income-recommendation-synthetic-scenarios": "./src/sideIncomeRecommendationSyntheticScenarios.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

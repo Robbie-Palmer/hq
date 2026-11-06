@@ -42,13 +42,12 @@
         "POSTHOG_API_KEY",
         "TERRAFORM_PLAN_AGE_RECIPIENT",
         "TF_API_TOKEN",
-        "TF_VAR_cloudflare_access",
-        "TF_VAR_cloudflare_r2",
-        "TF_VAR_cloudflare_worker",
-        "TF_VAR_neon",
-        "TF_VAR_posthog_alerting",
-        "TF_VAR_posthog_api_key",
-        "TF_VAR_telemetry"
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_ACCESS",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_R2",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_WORKER",
+        "PERSONAL_FINANCE_TERRAFORM_NEON",
+        "PERSONAL_FINANCE_TERRAFORM_POSTHOG_ALERTING",
+        "PERSONAL_FINANCE_TERRAFORM_TELEMETRY"
       ]
     },
     {
@@ -60,13 +59,12 @@
         "NEON_API_KEY",
         "POSTHOG_API_KEY",
         "TF_API_TOKEN",
-        "TF_VAR_cloudflare_access",
-        "TF_VAR_cloudflare_r2",
-        "TF_VAR_cloudflare_worker",
-        "TF_VAR_neon",
-        "TF_VAR_posthog_alerting",
-        "TF_VAR_posthog_api_key",
-        "TF_VAR_telemetry"
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_ACCESS",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_R2",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_WORKER",
+        "PERSONAL_FINANCE_TERRAFORM_NEON",
+        "PERSONAL_FINANCE_TERRAFORM_POSTHOG_ALERTING",
+        "PERSONAL_FINANCE_TERRAFORM_TELEMETRY"
       ]
     },
     {
@@ -89,13 +87,12 @@
         "PRODUCTION_DATABASE_URL",
         "TERRAFORM_PLAN_AGE_IDENTITY",
         "TF_API_TOKEN",
-        "TF_VAR_cloudflare_access",
-        "TF_VAR_cloudflare_r2",
-        "TF_VAR_cloudflare_worker",
-        "TF_VAR_neon",
-        "TF_VAR_posthog_alerting",
-        "TF_VAR_posthog_api_key",
-        "TF_VAR_telemetry"
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_ACCESS",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_R2",
+        "PERSONAL_FINANCE_TERRAFORM_CLOUDFLARE_WORKER",
+        "PERSONAL_FINANCE_TERRAFORM_NEON",
+        "PERSONAL_FINANCE_TERRAFORM_POSTHOG_ALERTING",
+        "PERSONAL_FINANCE_TERRAFORM_TELEMETRY"
       ],
       "post_deploy": [
         "PERSONAL_FINANCE_ROLLBACK_GIT_REVISION",

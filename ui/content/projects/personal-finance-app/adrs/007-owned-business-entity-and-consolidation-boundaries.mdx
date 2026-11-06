@@ -1,0 +1,294 @@
+---
+title: "ADR 007: Separate financial entities from access and consolidate owned businesses by interest"
+date: "2026-11-06"
+status: "Accepted"
+implements_product_decisions:
+  - "personal-finance-app:006-owned-business-wealth"
+  - "personal-finance-app:007-business-wealth-fi-readiness"
+---
+
+## Context
+
+[PDR 006](/projects/personal-finance-app/pdrs/006-owned-business-wealth)
+includes owned businesses in household wealth without treating company cash as
+personal cash. [PDR 007](/projects/personal-finance-app/pdrs/007-business-wealth-fi-readiness)
+keeps that economic value separate from capital that can fund household spending.
+The domain model needs one boundary that supports both decisions before account
+or Asset Tracker schemas change.
+
+[ADR 001](/projects/personal-finance-app/adrs/001-household-identity-and-authorization-boundary)
+makes a household the tenant and authorization boundary. It also keeps
+application identity, household membership, and financial ownership separate.
+[ADR 000](/projects/personal-finance-app/adrs/000-financial-fact-and-calculation-provenance)
+requires valid time, transaction time, corrections, and calculation lineage.
+Those rules now need concrete meaning for people, companies, accounts, ownership
+interests, obligations, and transfers.
+
+The released side-income and limited-company contracts already distinguish
+people, businesses, dated business ownership, financial facts, and source
+lineage. Asset Tracker's valuation code already uses dated observations and
+accepted corrections. Its retirement calculations already distinguish net
+worth from accessible capital and block accounts whose access or tax treatment
+is unsupported. This decision composes those contracts. It does not replace
+their released types or make their scenario records the canonical wealth model.
+
+## Decision
+
+### Keep identity, access, and finance separate
+
+An authenticated user is a security principal. A household membership grants
+that user a dated role in one household tenant. Neither record owns an account,
+a company, or shares.
+
+A financial entity is a stable financial subject inside a household dataset.
+The initial entity kinds are `person` and `company`. A person entity may link to
+an authenticated user, but the link is optional and has no authorization effect.
+This permits a household to represent a child, partner, or other person who does
+not have a login. A company never authenticates and never becomes a household
+member.
+
+The household remains the authorization and reporting scope, not a legal owner.
+A household view selects the person entities it covers. Access comes from the
+caller's current household membership, while balances and ownership come from
+the selected financial records.
+
+### Give accounts dated owners
+
+An account is a balance-bearing asset or liability with its own observation
+history. Dated account-ownership records connect it to one or more financial
+entities. A known ownership set records non-overlapping effective intervals and
+allocations that total 100 percent for each interval.
+
+A company account has one company owner at 100 percent. Shareholders do not own
+the company's bank, investment, loan, or credit accounts. A jointly held
+personal account may have several person owners. Its account identity and
+observations remain single records, so a household view can include the account
+once and then attribute its value among people.
+
+An ownership set may instead be explicitly `unknown`. It can name known
+candidate owners without inventing percentages. Unknown ownership blocks a
+person-level allocation. If every known candidate is in the selected household,
+the household view may include the account once as unallocated value and must
+report the ownership gap. It cannot make that value look fully attributed.
+
+### Record shares separately from accounts
+
+A dated share-ownership interest connects an owning person or company entity to
+a company entity. It records the effective interval, share class or other
+interest identity, and either a known ownership fraction or an explicit unknown
+fraction. Changes append a new interval. They do not rewrite the ownership that
+applied to an earlier valuation date.
+
+Share ownership is not account ownership. It gives the owner an economic
+interest in company equity, subject to the selected valuation and access
+treatment. It does not grant access to the household dataset or direct ownership
+of any company position.
+
+### Keep each entity's position intact
+
+Accounts, liabilities, and obligations belong to the entity that legally bears
+them. An ordinary borrowing remains a liability account when its balance changes
+through account observations. A payable or tax obligation that is not an
+account is a separate dated obligation with an entity owner, jurisdiction,
+period, due date, status, amount state, and source lineage.
+
+A tax reserve is still company cash. It does not become a liability merely
+because the company intends to retain it. Once a supported rule or accepted
+observation establishes a tax obligation, that obligation reduces the company's
+position. The model must not record the same debt as both a liability account
+and an obligation.
+
+An entity view stands on its own. It shows that entity's accounts, liabilities,
+obligations, transfers, and unresolved facts at the requested valid date and
+knowledge date. A company view may also show its whole-company equity valuation,
+but that valuation is a measure of the entity. It is not another asset owned by
+the company.
+
+### Use dated valuation observations
+
+A company-equity valuation observation names the company, value date, acceptance
+time, currency, amount state, method, source, and any record it corrects. The
+initial methods are adjusted net assets, manual valuation, and externally
+supported valuation. An adjusted-net-assets calculation cites the exact company
+account valuations, liabilities, obligations, exchange rates, assumptions, and
+calculation version it used.
+
+The observation values the whole company. A person's business-interest value is
+derived from the valuation and the share ownership effective on the same date.
+Missing ownership, stale inputs, an unsupported method, or an unknown obligation
+must remain visible. Revenue, profit, and company cash alone do not imply a
+going-concern valuation.
+
+### Make transfers cross the entity boundary explicitly
+
+Salary, dividends, employer pension contributions, director loans, capital
+contributions, expense reimbursements, asset sales, and other movements between
+entities use one transfer identity with dated source and destination legs. Each
+leg cites its account entry or financial fact. Tax, fees, and an external
+counterparty remain separate legs rather than adjustments hidden in a net
+amount.
+
+The transfer classification may be unknown, but the model must not collapse the
+two entity records into one transaction owner. A standalone view shows the
+relevant leg. A cash-flow consolidation that includes both entity ledgers
+eliminates matched internal legs and retains tax, fees, and payments involving
+an entity outside the consolidation. A net-worth calculation never adds a
+transfer itself. It uses the resulting positions.
+
+### Consolidate by economic contribution
+
+A household consolidation runs for an explicit valid date, knowledge date, and
+base currency. It produces a known subtotal plus completeness issues. It does
+not turn an unknown or unsupported contribution into zero.
+
+Directly held accounts and obligations enter through the selected person
+entities. The calculation deduplicates shared accounts by account identity
+before applying their ownership allocations.
+
+An owned company enters through one business-interest contribution. The
+calculation selects one whole-company valuation, applies the combined dated
+share interests held by the selected people, and records the valuation and
+interest IDs behind the contribution. Company accounts, liabilities, and tax
+obligations may supply an adjusted-net-assets valuation and may appear in its
+drill-down. They cannot also enter the same household total. This exclusion
+holds for every valuation method, including a fully owned company.
+
+If several household members own the same company, the calculation combines
+their interests before applying the valuation and emits one company
+contribution with person-level attribution. It rejects overlapping interests or
+known fractions above 100 percent. Unknown fractions leave the business
+contribution unresolved rather than assuming equal ownership.
+
+Every consolidated result records the included contribution IDs, excluded
+underlying IDs, valuation and ownership observations, exchange rates, rule and
+calculation versions, valid date, and knowledge date. The same inputs therefore
+produce a standalone explanation and a household reconciliation.
+
+### Preserve unknown and unsupported states
+
+Values that affect ownership, valuation, obligation amounts, transfer meaning,
+tax treatment, or access use explicit states such as `known`, `unknown`, and
+`unsupported`. `Unknown` means the fact has not been established.
+`Unsupported` means the application lacks a rule or method for the stated case
+and records why. Neither state is represented by zero, a null that loses its
+meaning, or a default 50 percent share.
+
+A result with unresolved material inputs reports its known subtotal and the
+omitted contributions. It must not label that subtotal as complete net worth or
+FI-eligible capital. Unsupported extraction or retirement tax treatment blocks
+the affected access plan while leaving the underlying economic value visible.
+
+### Append corrections and preserve lineage
+
+Entity, ownership, obligation, transfer, and valuation records follow ADR 000.
+Effective dates state when a fact applied. Acceptance times state when Asset
+Tracker knew it. A correction appends a record that names what it corrects and
+keeps the earlier record available for an `as known at` view.
+
+Derived valuations, consolidations, and access plans retain input record IDs and
+calculation versions. A correction creates a new result. It never changes a
+saved historical result in place.
+
+### Migrate existing ownership without changing history
+
+Migration keeps existing account IDs and balance history. It creates a person
+entity for each existing financial person and adds account-ownership records
+from the earliest supported account date.
+
+An account with one established personal owner receives a 100 percent ownership
+record. A shared account with established owners and percentages receives one
+dated ownership set. A shared account without established percentages keeps one
+account and receives an `unknown` ownership set. Migration does not assume an
+equal split. The household may continue to count that legacy account once as
+unallocated value, but person-level views remain incomplete until a correction
+records the ownership.
+
+Migration records its source revision and acceptance time. It does not rewrite
+old balance observations, manufacture earlier transfers, or convert a shared
+account into a household-owned account. Later user corrections append dated
+ownership records under the same lineage rules.
+
+## Composition with released contracts
+
+The side-income contract's `Person` and `Business` records map to person and
+company entities. Its `BusinessOwnership` records supply dated share interests,
+and its owner-tagged `FinancialFact` records remain facts about those entities or
+activities. Contract import uses stable adapter mappings. It does not make a
+side-income case, business fact, or authenticated actor the owner of an Asset
+Tracker account.
+
+The limited-company contract remains a scenario calculation over released
+side-income facts and versioned tax rules. Company cash facts can reconcile to
+company-owned account observations. Salary, dividends, employer pension
+contributions, and director-loan movements map to inter-entity transfers.
+Corporation Tax, VAT, payroll, and other supported amounts map to company
+obligations. A scenario output does not become a canonical balance or obligation
+until an adapter records its lineage and amount state.
+
+The valuation contract's `validAt`, `acceptedAt`, source, and correction
+semantics carry over to company-equity observations. Account and holding
+valuations remain inputs to adjusted net assets. The company-equity observation
+is the household contribution, so those inputs are not added again beside it.
+
+The retirement-access contract continues to decide whether recorded value can
+fund spending. A business interest starts as economic value with no assumed
+access. A supported extraction, sale, wind-down, or employer pension plan can
+produce dated transfers into household cash or a pension account. That
+destination then follows its existing access date, withdrawal order, fees, and
+tax treatment. Missing extraction rules or unsupported tax treatment block the
+plan rather than turning company equity into accessible capital.
+
+## Consequences
+
+The model can show a company balance sheet, each owner's dated interest, and one
+reconciled household contribution without claiming that the shareholders own
+company accounts. The same boundary supports a sole owner, joint personal
+accounts, several shareholders in one household, and ownership changes over
+time.
+
+The cost is more explicit data. Account ownership, share ownership, obligations,
+transfers, valuation observations, and calculation lineage need separate
+records. Views must carry unresolved states and explain partial totals instead
+of always returning one number.
+
+Adapters must reconcile released scenario facts with canonical entity records.
+They may expose disagreement between a company cash fact and the observed sum of
+company accounts. That disagreement is useful. Silently choosing either value
+would break the lineage and correction rules.
+
+## Alternatives considered
+
+### Treat a company as an authenticated user
+
+This would reuse user ownership and household membership for company data. It
+fits a product where every organization signs in as one account and delegates
+all work through that identity.
+
+It does not fit Asset Tracker. A company has no credentials, may have several
+authorized people, and continues to own its positions when a shareholder or
+director loses application access. Making it a user would also turn an
+authentication record into a financial owner and weaken the household tenant
+boundary.
+
+### Assign company accounts directly to shareholders
+
+This would make existing person-owned account totals easier to reuse. A fully
+owned company could look like another folder of personal accounts.
+
+It was rejected because the company owns its accounts. Shareholders own an
+interest in the company. Direct assignment would misstate liabilities and tax
+obligations, make ownership changes rewrite every company position, and invite
+the same company cash to appear beside the value of the shares.
+
+### Use one household-only ownership type
+
+This would make every account and liability household-owned and keep person or
+company names as attribution labels. Consolidation and legacy shared-account
+migration would be simpler because every record would already have one owner.
+
+It was rejected because the household is an authorization and reporting scope.
+The person or company is the legal or economic counterparty. One ownership type
+cannot produce a standalone company position, distinguish company tax from
+personal tax, date a change in share ownership, or preserve an account when
+household membership changes. It would also make financial ownership depend on
+which household is viewing the record.
