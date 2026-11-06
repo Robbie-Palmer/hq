@@ -1,0 +1,90 @@
+---
+title: "PDR 006: Include owned businesses in household wealth without treating company cash as personal cash"
+date: "2026-11-06"
+status: "Accepted"
+decision_date: "2026-11-06"
+---
+
+## Context
+
+Asset Tracker models people, households, businesses, accounts, and ownership as
+separate concepts. A person who owns a company has an economic interest in that
+company, so excluding it can materially understate their wealth. The company's
+bank balance is still not the person's cash. The company owns its assets, owes
+its liabilities and taxes, and may need working capital to continue trading.
+
+Assigning each company account directly to its shareholders would erase that
+boundary. Counting both the company accounts and the value of the shares would
+instead count the same wealth twice. The product needs a household view that can
+include a business interest while preserving a standalone company position.
+
+## Decision
+
+Represent an owned business as a financial entity that owns its own accounts,
+assets, liabilities, obligations, and financial history. Record dated ownership
+interests between people and the business. Application identity, household
+membership, and authority to view the records remain separate from financial
+ownership.
+
+Represent the person's interest in the business as a derived or observed asset,
+not as direct ownership of each company account. A household wealth calculation
+may include the ownership-weighted value of that interest once. It must not also
+add the underlying company assets to the same consolidated total.
+
+Support these valuation treatments:
+
+* exclude the business from the household total;
+* use an adjusted net-asset value derived from tracked company assets and
+  liabilities; or
+* use a dated manual or externally supported valuation with its method, source,
+  and observation date.
+
+Adjusted net-asset value includes company cash and other assets, then deducts
+company liabilities and accrued obligations such as unpaid Corporation Tax and
+VAT. Operating reserves remain part of company equity. They affect how much can
+be extracted, not whether the company owns the cash.
+
+Do not infer goodwill or a going-concern valuation from revenue or profit alone.
+If tracked records cannot support the selected method, show the business value as
+unknown or unsupported rather than silently substituting company cash.
+
+For household views, aggregate only the ownership interests held by people in
+the household. Preserve the company-level view and the contribution from each
+interest so the user can reconcile the consolidated result. Salary, dividends,
+capital contributions, and other movements across the company boundary remain
+explicit transfers. A transfer does not create wealth in the consolidated view,
+although tax, fees, and payments to outside parties can change it.
+
+## Consequences
+
+Total household net worth can include a closely held company without claiming
+that its assets are personally available. A fully owned cash-rich company can
+therefore increase economic net worth while leaving household cash unchanged.
+
+The model needs business-owned accounts, dated ownership interests, valuation
+observations, company liabilities, and consolidation rules. Historical net worth
+must use the valuation and ownership that applied on the date being viewed.
+
+Users may see different values for company equity and extractable company cash.
+That difference is expected. Financial-independence calculations need a separate
+decision about access, tax, timing, and operating needs.
+
+## Alternatives considered
+
+### Exclude all private businesses from household wealth
+
+This would preserve a clean legal boundary but materially understate the position
+of users whose company is one of their largest assets.
+
+### Assign company accounts directly to shareholders
+
+This was rejected because shareholders own shares in the company. The company
+remains the sole owner of each company account. Assigning those accounts to
+shareholders would also ignore company liabilities, taxes, restrictions, and
+changes in ownership.
+
+### Count company accounts and the shareholding
+
+This was rejected because it counts the same economic value twice. Company
+records may appear in a drill-down, but consolidated household totals include the
+ownership interest or the underlying value, never both.
