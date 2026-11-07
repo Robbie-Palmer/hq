@@ -28,7 +28,7 @@ continues to own remote recipe data.
 | Production timer-store infrastructure | 448 lines | 936 lines | +488 lines, or 109% |
 | Baseline timer regression suite | 47 tests in 2.78 seconds | Not applicable | Pre-migration measurement |
 | Pilot evidence suite | Not applicable | 55 tests in 5.40 seconds | Includes behavior, reducer, selector, adapter, replay, and render-isolation tests |
-| Identity-scoped persistence code | About 87 lines | 118 lines | Same v2 envelope and key format, now isolated in one adapter |
+| Identity-scoped persistence code | About 87 lines | 122 lines | Same v2 envelope and key format, now isolated in one adapter |
 
 The test durations are Vitest's reported durations from local mise runs. The
 corresponding first-run mise wall times were 8.32 seconds before the migration
