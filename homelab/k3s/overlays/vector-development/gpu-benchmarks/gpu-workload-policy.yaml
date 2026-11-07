@@ -1,0 +1,53 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vector-gpu-benchmark-workload
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - batch
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - jobs
+        scope: Namespaced
+  matchConditions:
+    - name: gpu-benchmarks-namespace
+      expression: request.namespace == 'gpu-benchmarks'
+  validations:
+    - expression: >-
+        object.spec.template.spec.serviceAccountName == 'gpu-benchmark' &&
+        object.spec.template.spec.automountServiceAccountToken == false &&
+        object.spec.template.spec.restartPolicy == 'Never' &&
+        object.spec.template.spec.runtimeClassName == 'nvidia' &&
+        object.spec.template.spec.nodeSelector == {
+          'homelab.dev/accelerator': 'nvidia',
+          'kubernetes.io/hostname': 'vector-development'
+        }
+      message: Benchmark pods must use the inert account and NVIDIA runtime on vector-development.
+    - expression: >-
+        object.spec.template.spec.containers.size() == 1 &&
+        object.spec.template.spec.containers[0].name == 'benchmark' &&
+        object.spec.template.spec.containers[0].image.matches('^(nvcr.io/nvidia/|docker.io/nvidia/|ghcr.io/robbie-palmer/)[a-z0-9._/-]+@sha256:[a-f0-9]{64}$')
+      message: The benchmark container must use an approved digest-pinned image.
+    - expression: >-
+        object.spec.template.spec.containers.size() == 1 &&
+        has(object.spec.template.spec.containers[0].resources.requests) &&
+        has(object.spec.template.spec.containers[0].resources.limits) &&
+        quantity(object.spec.template.spec.containers[0].resources.requests['nvidia.com/gpu']).compareTo(quantity('1')) == 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.limits['nvidia.com/gpu']).compareTo(quantity('1')) == 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.requests.cpu).isGreaterThan(quantity('0')) &&
+        quantity(object.spec.template.spec.containers[0].resources.requests.cpu).compareTo(quantity('8')) <= 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.limits.cpu).compareTo(quantity('8')) <= 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.requests.memory).isGreaterThan(quantity('0')) &&
+        quantity(object.spec.template.spec.containers[0].resources.requests.memory).compareTo(quantity('16Gi')) <= 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.limits.memory).compareTo(quantity('16Gi')) <= 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.requests['ephemeral-storage']).isGreaterThan(quantity('0')) &&
+        quantity(object.spec.template.spec.containers[0].resources.requests['ephemeral-storage']).compareTo(quantity('8Gi')) <= 0 &&
+        quantity(object.spec.template.spec.containers[0].resources.limits['ephemeral-storage']).compareTo(quantity('8Gi')) <= 0
+      message: Benchmarks receive one GPU and no more than 8 CPU, 16 GiB memory, or 8 GiB ephemeral storage.

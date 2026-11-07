@@ -1,0 +1,75 @@
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:13133
+
+receivers:
+  prometheus/dcgm:
+    config:
+      scrape_configs:
+        - job_name: vector-development-dcgm
+          scrape_interval: 15s
+          scrape_timeout: 10s
+          metrics_path: /api/v1/namespaces/gpu-telemetry/services/http:dcgm-exporter:9400/proxy/metrics
+          static_configs:
+            - targets:
+                - 127.0.0.1:19400
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 96
+    spike_limit_mib: 24
+
+  resource/gpu:
+    attributes:
+      - key: deployment.environment.name
+        value: vector-development
+        action: upsert
+      - key: k8s.cluster.name
+        value: vector-development
+        action: upsert
+      - key: service.name
+        value: dcgm-exporter
+        action: upsert
+      - key: service.namespace
+        value: gpu-telemetry
+        action: upsert
+
+  batch:
+    send_batch_size: 512
+    timeout: 5s
+
+exporters:
+  otlp/netdata:
+    endpoint: 127.0.0.1:4317
+    tls:
+      insecure: true
+    retry_on_failure:
+      enabled: true
+      max_elapsed_time: 5m
+    sending_queue:
+      enabled: true
+
+service:
+  extensions:
+    - health_check
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 127.0.0.1
+                port: 8888
+  pipelines:
+    metrics/gpu:
+      receivers:
+        - prometheus/dcgm
+      processors:
+        - memory_limiter
+        - resource/gpu
+        - batch
+      exporters:
+        - otlp/netdata
