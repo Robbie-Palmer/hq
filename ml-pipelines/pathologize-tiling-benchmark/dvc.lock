@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 944993acd483bd7b6523250f9298759c
-      size: 1690
+      md5: 59eee3fe009d65f24e731e79f57ed0c2
+      size: 1808
     - path: uv.lock
       hash: md5
-      md5: 86f5cf2972256a3465ac620d36c00cde
-      size: 40058
+      md5: f17ea37a8a66028921e0f78e0662690b
+      size: 50678
     outs:
     - path: data/synthetic
       hash: md5
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 944993acd483bd7b6523250f9298759c
-      size: 1690
+      md5: 59eee3fe009d65f24e731e79f57ed0c2
+      size: 1808
     - path: uv.lock
       hash: md5
-      md5: 86f5cf2972256a3465ac620d36c00cde
-      size: 40058
+      md5: f17ea37a8a66028921e0f78e0662690b
+      size: 50678
     outs:
     - path: outputs/runs
       hash: md5
@@ -252,73 +252,158 @@ stages:
       hash: md5
       md5: d3d227ebd88919142606456b30741740
       size: 555
-  run_mpp_perturbation_study:
-    cmd: uv run --locked pathologize-tiling-study run
+  prepare_mpp_experiment_inputs:
+    cmd: uv run --locked pathologize-tiling-experiment prepare
     deps:
-    - path: data/synthetic/manifest.json
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
       hash: md5
-      md5: 38db48abe9059b1579208b45b833778c
-      size: 9283
-    - path: data/synthetic/synthetic-test-clean/image.ppm
+      md5: 69cf13709a047f30f3b1e7b39a674bf6
+      size: 535
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       hash: md5
-      md5: 43bf2e8e6e81803565ce5b24c2f659bf
-      size: 48933
-    - path: fixtures/mpp-perturbations.json
+      md5: acfdc75eaa8b3c12040fe17f914653c3
+      size: 14311
+    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
-      md5: 60cd757c18357e3d0b7390271eff8553
-      size: 7230
-    - path: fixtures/spec.json
+      md5: f5c467788e1301a842f27b1c97d25238.dir
+      size: 18701962
+      nfiles: 6
+    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
       hash: md5
-      md5: 4a854e821a33887068abca8347c2b0a3
-      size: 686
+      md5: ba0870e8cb93562f0c69128afe5d1e3e
+      size: 3225
+    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+      hash: md5
+      md5: d7c616c4d81cd71ddef4bf1f402f5bec
+      size: 2882
+    - path: experiments/mpp-perturbation.json
+      hash: md5
+      md5: e169371459253e1a9142b1ed70642a7c
+      size: 6407
     - path: pyproject.toml
       hash: md5
-      md5: 944993acd483bd7b6523250f9298759c
-      size: 1690
+      md5: 59eee3fe009d65f24e731e79f57ed0c2
+      size: 1808
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 87a04fa07a30f9eeabd990e9e36f1b2a.dir
-      size: 32179
+      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
+      size: 32382
       nfiles: 4
     - path: uv.lock
       hash: md5
-      md5: 86f5cf2972256a3465ac620d36c00cde
-      size: 40058
+      md5: f17ea37a8a66028921e0f78e0662690b
+      size: 50678
     outs:
-    - path: outputs/perturbations/mpp-study.json
+    - path: data/mpp-experiment
       hash: md5
-      md5: dec2d977f1828d306b52355990249f32
-      size: 33237
-  verify_mpp_perturbation_study:
-    cmd: uv run --locked pathologize-tiling-study verify --write-report
+      md5: f17bf788357a13a9dab197b2d7c328d5.dir
+      size: 173271
+      nfiles: 2
+  run_mpp_perturbation_experiment:
+    cmd: uv run --locked pathologize-tiling-experiment run
     deps:
-    - path: data/synthetic/manifest.json
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
       hash: md5
-      md5: 38db48abe9059b1579208b45b833778c
-      size: 9283
-    - path: data/synthetic/synthetic-test-clean/image.ppm
+      md5: 69cf13709a047f30f3b1e7b39a674bf6
+      size: 535
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       hash: md5
-      md5: 43bf2e8e6e81803565ce5b24c2f659bf
-      size: 48933
-    - path: fixtures/mpp-perturbations.json
+      md5: acfdc75eaa8b3c12040fe17f914653c3
+      size: 14311
+    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
-      md5: 60cd757c18357e3d0b7390271eff8553
-      size: 7230
-    - path: fixtures/spec.json
+      md5: f5c467788e1301a842f27b1c97d25238.dir
+      size: 18701962
+      nfiles: 6
+    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
       hash: md5
-      md5: 4a854e821a33887068abca8347c2b0a3
-      size: 686
-    - path: outputs/perturbations/mpp-study.json
+      md5: ba0870e8cb93562f0c69128afe5d1e3e
+      size: 3225
+    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
       hash: md5
-      md5: dec2d977f1828d306b52355990249f32
-      size: 33237
+      md5: d7c616c4d81cd71ddef4bf1f402f5bec
+      size: 2882
+    - path: data/mpp-experiment
+      hash: md5
+      md5: f17bf788357a13a9dab197b2d7c328d5.dir
+      size: 173271
+      nfiles: 2
+    - path: experiments/mpp-perturbation.json
+      hash: md5
+      md5: e169371459253e1a9142b1ed70642a7c
+      size: 6407
+    - path: pyproject.toml
+      hash: md5
+      md5: 59eee3fe009d65f24e731e79f57ed0c2
+      size: 1808
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 87a04fa07a30f9eeabd990e9e36f1b2a.dir
-      size: 32179
+      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
+      size: 32382
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: f17ea37a8a66028921e0f78e0662690b
+      size: 50678
+    outs:
+    - path: outputs/perturbations/mpp-experiment.json
+      hash: md5
+      md5: 012383f30f51edbd8339ae9ddf3dd8da
+      size: 31981
+    - path: outputs/perturbations/tiles
+      hash: md5
+      md5: 547422927573f4f6eb68692a1141b678.dir
+      size: 2307120
+      nfiles: 18
+  verify_mpp_perturbation_experiment:
+    cmd: uv run --locked pathologize-tiling-experiment verify --write-report
+    deps:
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
+      hash: md5
+      md5: 69cf13709a047f30f3b1e7b39a674bf6
+      size: 535
+    - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
+      hash: md5
+      md5: acfdc75eaa8b3c12040fe17f914653c3
+      size: 14311
+    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+      hash: md5
+      md5: f5c467788e1301a842f27b1c97d25238.dir
+      size: 18701962
+      nfiles: 6
+    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+      hash: md5
+      md5: ba0870e8cb93562f0c69128afe5d1e3e
+      size: 3225
+    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+      hash: md5
+      md5: d7c616c4d81cd71ddef4bf1f402f5bec
+      size: 2882
+    - path: data/mpp-experiment
+      hash: md5
+      md5: f17bf788357a13a9dab197b2d7c328d5.dir
+      size: 173271
+      nfiles: 2
+    - path: experiments/mpp-perturbation.json
+      hash: md5
+      md5: e169371459253e1a9142b1ed70642a7c
+      size: 6407
+    - path: outputs/perturbations/mpp-experiment.json
+      hash: md5
+      md5: 012383f30f51edbd8339ae9ddf3dd8da
+      size: 31981
+    - path: outputs/perturbations/tiles
+      hash: md5
+      md5: 547422927573f4f6eb68692a1141b678.dir
+      size: 2307120
+      nfiles: 18
+    - path: src/pathologize_tiling_benchmark
+      hash: md5
+      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
+      size: 32382
       nfiles: 4
     outs:
     - path: outputs/perturbations/verification.json
       hash: md5
-      md5: 5ce9d87baa5381b22211e7fbe2f602d8
-      size: 263
+      md5: a370eb5bb9d193f2109fcc83dbc1ba3d
+      size: 359

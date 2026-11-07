@@ -8,27 +8,27 @@ checking that an adapter echoed the requested target. The DVC graph writes
 execution records, evaluation results, a comparison scorecard, a benchmark
 index, and a DVC metrics file as separate outputs.
 
-The physical-scale perturbation study derives trusted isotropic and anisotropic
-MPP from checked-in pixel dimensions and physical extents. It changes only the
-metadata presented to the adapter. The cases cover missing and implausible MPP,
-wrong pyramid levels, and copied-axis corruption. Each result records the known
-perturbation, source tile dimensions, physical coverage, bytes read, CPU time,
-fixture provenance, and any expected or unexpected failure.
+The physical-scale perturbation experiment runs the reusable
+`pathologize-tiler` package against a pinned 18.7 MB CPTAC-COAD DICOM series
+from NCI Imaging Data Commons. The registry record and DICOM Pixel Spacing
+supply independent MPP truth. A preparation stage extracts real slide pixels
+and halves the row count while preserving the field of view, which creates a
+second source with known anisotropic pixels.
 
-The study also runs a control adapter that reports the requested scale without
-reading source metadata. Verification requires the control to fail the
-case-level expectations and the isotropic error monotonicity check. A failure of
-the metadata-aware adapter writes a stopped report before returning an error.
+The experiment changes the MPP and pyramid metadata presented to the tiler,
+then saves the produced PNG tile for every accepted case. Each result records
+the perturbation, source and output dimensions, physical coverage, decoded
+bytes, CPU time, source provenance, and failures. The evaluator stops if
+physical coverage error does not increase with known metadata error. A control
+that substitutes requested scale for source metadata must fail.
 
 ```bash
 mise run //ml-pipelines/pathologize-tiling-benchmark:check
 mise run //ml-pipelines/pathologize-tiling-benchmark:dvc -- dag
 ```
 
-The contract uses microns per pixel rather than assuming scanner objective
-power is complete or accurate. The deterministic PPM and PGM fixtures test the
-selection arithmetic. They do not establish a useful tiling policy for a real
-cohort.
-
-The project stores no clinical image, annotation, or invented registry record.
-It makes no clinical-validity claim.
+The package unit tests cover scale arithmetic and metadata rejection with fake
+readers. DVC owns the public-data experiment, its derived anisotropic region,
+actual tiles, metrics, verification report, and locks. One slide is enough to
+test metric response, but it is not a representative clinical cohort and makes
+no clinical-validity claim.

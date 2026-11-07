@@ -1,16 +1,17 @@
 [project]
 name = "pathologize-tiling-benchmark"
 version = "0.1.0"
-description = "Tissue-aware tiling and physical-scale benchmark"
+description = "Public-data tiling and physical-scale experiment"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fire>=0.7.1,<0.8",
     "pathologize-benchmark-contracts",
+    "pathologize-tiler",
     "pydantic>=2.12.5,<3",
 ]
 
 [project.scripts]
-pathologize-tiling-study = "pathologize_tiling_benchmark.cli:main"
+pathologize-tiling-experiment = "pathologize_tiling_benchmark.cli:main"
 
 [dependency-groups]
 dev = [
@@ -28,6 +29,7 @@ build-backend = "uv_build"
 data-artifacts = { path = "../../packages/data-artifacts", editable = true }
 ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }
+pathologize-tiler = { path = "../../packages/pathologize-tiler", editable = true }
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=pathologize_tiling_benchmark --cov-report=term-missing --cov-fail-under=80"
@@ -57,7 +59,7 @@ target-version = "py312"
 select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
 ignore = [
     "T201",   # stdout is the CLI interface.
-    "TRY003", # Study failures name the violated case contract.
+    "TRY003", # Experiment failures name the violated case contract.
 ]
 
 [tool.ruff.lint.mccabe]

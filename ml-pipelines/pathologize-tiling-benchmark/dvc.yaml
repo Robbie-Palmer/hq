@@ -59,27 +59,50 @@ stages:
     outs:
       - outputs/runs
 
-  run_mpp_perturbation_study:
-    cmd: uv run --locked pathologize-tiling-study run
+  prepare_mpp_experiment_inputs:
+    cmd: uv run --locked pathologize-tiling-experiment prepare
     deps:
-      - data/synthetic/manifest.json
-      - data/synthetic/synthetic-test-clean/image.ppm
-      - fixtures/mpp-perturbations.json
-      - fixtures/spec.json
+      - ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+      - ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+      - ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+      - experiments/mpp-perturbation.json
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       - pyproject.toml
       - src/pathologize_tiling_benchmark
       - uv.lock
     outs:
-      - outputs/perturbations/mpp-study.json
+      - data/mpp-experiment
 
-  verify_mpp_perturbation_study:
-    cmd: uv run --locked pathologize-tiling-study verify --write-report
+  run_mpp_perturbation_experiment:
+    cmd: uv run --locked pathologize-tiling-experiment run
     deps:
-      - data/synthetic/manifest.json
-      - data/synthetic/synthetic-test-clean/image.ppm
-      - fixtures/mpp-perturbations.json
-      - fixtures/spec.json
-      - outputs/perturbations/mpp-study.json
+      - ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+      - ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+      - ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+      - data/mpp-experiment
+      - experiments/mpp-perturbation.json
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
+      - pyproject.toml
+      - src/pathologize_tiling_benchmark
+      - uv.lock
+    outs:
+      - outputs/perturbations/mpp-experiment.json
+      - outputs/perturbations/tiles
+
+  verify_mpp_perturbation_experiment:
+    cmd: uv run --locked pathologize-tiling-experiment verify --write-report
+    deps:
+      - ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+      - ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+      - ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+      - data/mpp-experiment
+      - experiments/mpp-perturbation.json
+      - outputs/perturbations/mpp-experiment.json
+      - outputs/perturbations/tiles
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
+      - ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       - src/pathologize_tiling_benchmark
     outs:
       - outputs/perturbations/verification.json

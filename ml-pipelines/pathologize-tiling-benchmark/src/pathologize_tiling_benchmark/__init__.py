@@ -1,3 +1,3 @@
-from .study import run_study, verify_study
+from .experiment import prepare_inputs, run_experiment, verify_experiment
 
-__all__ = ["run_study", "verify_study"]
+__all__ = ["prepare_inputs", "run_experiment", "verify_experiment"]

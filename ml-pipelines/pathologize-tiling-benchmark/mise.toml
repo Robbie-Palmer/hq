@@ -14,27 +14,27 @@ description = "Update the tiling benchmark lockfile"
 run = "uv lock"
 
 [tasks.format]
-description = "Format the tiling perturbation study"
+description = "Format the tiling perturbation experiment"
 run = "uv run --locked ruff format src tests"
 
 [tasks.lint]
-description = "Lint the tiling perturbation study"
+description = "Lint the tiling perturbation experiment"
 depends = ["sync"]
 run = "uv run --locked ruff format --check src tests && uv run --locked ruff check src tests"
 
 [tasks.typecheck]
-description = "Type-check the tiling perturbation study"
+description = "Type-check the tiling perturbation experiment"
 depends = ["sync"]
 run = "uv run --locked ty check"
 
 [tasks.test]
-description = "Test the tiling perturbation study"
-depends = ["sync"]
+description = "Test the tiling perturbation experiment"
+depends = ["sync", "//ml-pipelines/pathologize-data-registry:acquire"]
 run = "uv run --locked pytest"
 
 [tasks."test:coverage"]
-description = "Test the tiling perturbation study with coverage"
-depends = ["sync"]
+description = "Test the tiling perturbation experiment with coverage"
+depends = ["sync", "//ml-pipelines/pathologize-data-registry:acquire"]
 run = "uv run --locked pytest --cov-report=term-missing --cov-report=xml:coverage.xml"
 
 [tasks.dvc]
@@ -42,14 +42,14 @@ description = "Run a DVC command in the tiling benchmark"
 run = "bash ../scripts/dvc.sh"
 
 [tasks.repro]
-description = "Reproduce the deterministic tiling benchmark"
-depends = ["sync"]
+description = "Reproduce the public-data tiling experiment"
+depends = ["sync", "//ml-pipelines/pathologize-data-registry:acquire"]
 run = "bash ../scripts/dvc.sh repro"
 
 [tasks.verify]
 description = "Verify tiling contracts, leakage boundaries, and scorecards"
 depends = ["sync", "repro"]
-run = "uv run --locked pathologize-benchmark verify && uv run --locked pathologize-tiling-study verify"
+run = "uv run --locked pathologize-benchmark verify && uv run --locked pathologize-tiling-experiment verify"
 
 [tasks.check]
 description = "Check the tiling benchmark"
