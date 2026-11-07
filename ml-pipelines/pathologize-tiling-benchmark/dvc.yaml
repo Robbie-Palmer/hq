@@ -59,6 +59,31 @@ stages:
     outs:
       - outputs/runs
 
+  run_mpp_perturbation_study:
+    cmd: uv run --locked pathologize-tiling-study run
+    deps:
+      - data/synthetic/manifest.json
+      - data/synthetic/synthetic-test-clean/image.ppm
+      - fixtures/mpp-perturbations.json
+      - fixtures/spec.json
+      - pyproject.toml
+      - src/pathologize_tiling_benchmark
+      - uv.lock
+    outs:
+      - outputs/perturbations/mpp-study.json
+
+  verify_mpp_perturbation_study:
+    cmd: uv run --locked pathologize-tiling-study verify --write-report
+    deps:
+      - data/synthetic/manifest.json
+      - data/synthetic/synthetic-test-clean/image.ppm
+      - fixtures/mpp-perturbations.json
+      - fixtures/spec.json
+      - outputs/perturbations/mpp-study.json
+      - src/pathologize_tiling_benchmark
+    outs:
+      - outputs/perturbations/verification.json
+
   evaluate_tiling_magnification:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:

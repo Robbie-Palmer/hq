@@ -57,9 +57,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: fixtures/spec.json
       hash: md5
       md5: 4a854e821a33887068abca8347c2b0a3
@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 957f6f475b09e2a9ed0849aa56b70303
-      size: 512
+      md5: 944993acd483bd7b6523250f9298759c
+      size: 1690
     - path: uv.lock
       hash: md5
-      md5: 771bd37d57dcf6f0fa713bd46d39d7c2
-      size: 17298
+      md5: 86f5cf2972256a3465ac620d36c00cde
+      size: 40058
     outs:
     - path: data/synthetic
       hash: md5
@@ -87,9 +87,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic/manifest.json
       hash: md5
       md5: 38db48abe9059b1579208b45b833778c
@@ -122,9 +122,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 957f6f475b09e2a9ed0849aa56b70303
-      size: 512
+      md5: 944993acd483bd7b6523250f9298759c
+      size: 1690
     - path: uv.lock
       hash: md5
-      md5: 771bd37d57dcf6f0fa713bd46d39d7c2
-      size: 17298
+      md5: 86f5cf2972256a3465ac620d36c00cde
+      size: 40058
     outs:
     - path: outputs/runs
       hash: md5
@@ -161,9 +161,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -199,9 +199,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/tiling-magnification.json
       hash: md5
       md5: bd0c1c5264679f7e3d6f555eca0e92fb
@@ -228,9 +228,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/tiling-magnification.json
       hash: md5
       md5: bd0c1c5264679f7e3d6f555eca0e92fb
@@ -252,3 +252,73 @@ stages:
       hash: md5
       md5: d3d227ebd88919142606456b30741740
       size: 555
+  run_mpp_perturbation_study:
+    cmd: uv run --locked pathologize-tiling-study run
+    deps:
+    - path: data/synthetic/manifest.json
+      hash: md5
+      md5: 38db48abe9059b1579208b45b833778c
+      size: 9283
+    - path: data/synthetic/synthetic-test-clean/image.ppm
+      hash: md5
+      md5: 43bf2e8e6e81803565ce5b24c2f659bf
+      size: 48933
+    - path: fixtures/mpp-perturbations.json
+      hash: md5
+      md5: 60cd757c18357e3d0b7390271eff8553
+      size: 7230
+    - path: fixtures/spec.json
+      hash: md5
+      md5: 4a854e821a33887068abca8347c2b0a3
+      size: 686
+    - path: pyproject.toml
+      hash: md5
+      md5: 944993acd483bd7b6523250f9298759c
+      size: 1690
+    - path: src/pathologize_tiling_benchmark
+      hash: md5
+      md5: 8a03e3bcfc8cc50f7c45659253ac2ca5.dir
+      size: 32169
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 86f5cf2972256a3465ac620d36c00cde
+      size: 40058
+    outs:
+    - path: outputs/perturbations/mpp-study.json
+      hash: md5
+      md5: 51c46b56c9eb447d8238aa5ac8455595
+      size: 33237
+  verify_mpp_perturbation_study:
+    cmd: uv run --locked pathologize-tiling-study verify --write-report
+    deps:
+    - path: data/synthetic/manifest.json
+      hash: md5
+      md5: 38db48abe9059b1579208b45b833778c
+      size: 9283
+    - path: data/synthetic/synthetic-test-clean/image.ppm
+      hash: md5
+      md5: 43bf2e8e6e81803565ce5b24c2f659bf
+      size: 48933
+    - path: fixtures/mpp-perturbations.json
+      hash: md5
+      md5: 60cd757c18357e3d0b7390271eff8553
+      size: 7230
+    - path: fixtures/spec.json
+      hash: md5
+      md5: 4a854e821a33887068abca8347c2b0a3
+      size: 686
+    - path: outputs/perturbations/mpp-study.json
+      hash: md5
+      md5: 51c46b56c9eb447d8238aa5ac8455595
+      size: 33237
+    - path: src/pathologize_tiling_benchmark
+      hash: md5
+      md5: 8a03e3bcfc8cc50f7c45659253ac2ca5.dir
+      size: 32169
+      nfiles: 4
+    outs:
+    - path: outputs/perturbations/verification.json
+      hash: md5
+      md5: 5ce9d87baa5381b22211e7fbe2f602d8
+      size: 263
