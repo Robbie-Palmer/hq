@@ -12,12 +12,13 @@ from ml_evaluation.contracts import (
 
 
 def test_external_adapters_require_a_digest() -> None:
-    with pytest.raises(ValidationError, match="artifact SHA-256"):
+    with pytest.raises(ValidationError, match="artifact path and SHA-256"):
         AdapterSpec(
             adapter_id="candidate-v1",
             kind="python_entrypoint",
             entrypoint="candidate:Adapter",
             version="1",
+            artifact_path=None,
             artifact_sha256=None,
         )
 
@@ -40,6 +41,23 @@ def test_metric_objective_roles_define_valid_gates() -> None:
             direction="maximize",
             unit="ratio",
             baseline_floor=0.7,
+        )
+    with pytest.raises(ValidationError, match="greater than 0"):
+        MetricObjective(
+            metric="f1_score",
+            role="primary",
+            direction="maximize",
+            unit="ratio",
+            baseline_floor=0.7,
+            candidate_min_delta=0,
+        )
+    with pytest.raises(ValidationError, match="maximum regression"):
+        MetricObjective(
+            metric="calibration_error",
+            role="calibration",
+            direction="minimize",
+            unit="ratio",
+            baseline_floor=0.1,
         )
     with pytest.raises(ValidationError, match="cannot define decision gates"):
         MetricObjective(
@@ -64,6 +82,9 @@ def test_resource_and_split_contracts_are_domain_neutral() -> None:
         prediction_bytes=1,
         pixels_read=1,
         accelerator_seconds=0,
+        observed_wall_seconds=0.1,
+        observed_cpu_seconds=0.1,
+        observed_peak_rss_bytes=50,
     )
     assert usage.input_bytes <= budget.max_input_bytes
     assert set(Split) == {Split.TRAIN, Split.VALIDATION, Split.TEST}

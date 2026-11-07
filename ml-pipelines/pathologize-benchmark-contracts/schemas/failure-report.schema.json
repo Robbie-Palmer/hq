@@ -1,0 +1,49 @@
+{
+  "$defs": {
+    "RunFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "error_type": {
+          "title": "Error Type",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "error_type",
+        "message"
+      ],
+      "title": "RunFailure",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "failures": {
+      "items": {
+        "$ref": "#/$defs/RunFailure"
+      },
+      "title": "Failures",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "failures"
+  ],
+  "title": "FailureReport",
+  "type": "object"
+}

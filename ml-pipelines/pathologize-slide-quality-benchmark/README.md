@@ -1,9 +1,11 @@
 # Pathologize slide-quality benchmark
 
 This project evaluates whole-slide tissue and artifact quality contracts. Its
-manifest covers tissue IoU, artifact macro F1, artifact-free tissue Dice, and
-slide rejection accuracy. The DVC graph produces its own validation report,
-run resources, scorecard, and DVC metrics file.
+manifest covers tissue IoU, artifact macro F1, artifact-free tissue Dice,
+slide rejection accuracy, and slide-rejection Brier score. The clean test case
+checks false rejection instead of testing only defective slides. The DVC graph
+writes execution records, evaluation results, a comparison scorecard, a
+benchmark index, and a DVC metrics file as separate outputs.
 
 ```bash
 mise run //ml-pipelines/pathologize-slide-quality-benchmark:check

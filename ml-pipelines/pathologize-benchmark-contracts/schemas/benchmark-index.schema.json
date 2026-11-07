@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "ScorecardReference": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/ArtifactReference"
+        },
+        "experiment_id": {
+          "title": "Experiment Id",
+          "type": "string"
+        },
+        "scorecard_id": {
+          "pattern": "^scorecard:sha256:[a-f0-9]{64}$",
+          "title": "Scorecard Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "experiment_id",
+        "scorecard_id",
+        "artifact"
+      ],
+      "title": "ScorecardReference",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_id": {
+      "pattern": "^benchmark:sha256:[a-f0-9]{64}$",
+      "title": "Benchmark Id",
+      "type": "string"
+    },
+    "clinical_validity": {
+      "const": false,
+      "title": "Clinical Validity",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scorecards": {
+      "items": {
+        "$ref": "#/$defs/ScorecardReference"
+      },
+      "minItems": 1,
+      "title": "Scorecards",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "benchmark_id",
+    "scorecards",
+    "clinical_validity"
+  ],
+  "title": "BenchmarkIndex",
+  "type": "object"
+}

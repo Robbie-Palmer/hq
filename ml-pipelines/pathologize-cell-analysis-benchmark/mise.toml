@@ -3,6 +3,7 @@ python = "3.12"
 
 [env]
 PYTHONDONTWRITEBYTECODE = "1"
+UV_PYTHON = "3.12"
 
 [tasks.sync]
 description = "Install the locked cell-analysis benchmark environment"

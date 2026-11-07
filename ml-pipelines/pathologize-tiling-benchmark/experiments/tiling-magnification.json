@@ -12,7 +12,7 @@
   },
   "split_policy": {
     "evaluation_split": "test",
-    "leakage_units": ["subject_id", "specimen_id", "block_id", "slide_id", "acquisition_id"]
+    "leakage_units": ["subject_id", "specimen_id", "block_id", "slide_id", "acquisition_id", "site_id", "scanner_id"]
   },
   "baseline": {
     "adapter_id": "deterministic-color-v1",
@@ -23,15 +23,15 @@
   },
   "candidate": null,
   "objectives": [
-    {"metric": "tile_selection_f1", "role": "primary", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": 0.0, "candidate_max_regression": 0.0},
+    {"metric": "tile_selection_f1", "role": "primary", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": 0.001, "candidate_max_regression": 0.0},
     {"metric": "tissue_coverage", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.85, "candidate_min_delta": null, "candidate_max_regression": 0.01},
     {"metric": "selected_background_fraction", "role": "guardrail", "direction": "minimize", "unit": "ratio", "baseline_floor": 0.4, "candidate_min_delta": null, "candidate_max_regression": 0.01},
-    {"metric": "magnification_relative_error", "role": "guardrail", "direction": "minimize", "unit": "ratio", "baseline_floor": 0.0, "candidate_min_delta": null, "candidate_max_regression": 0.0}
+    {"metric": "magnification_relative_error", "role": "robustness", "direction": "minimize", "unit": "ratio", "baseline_floor": 0.0, "candidate_min_delta": null, "candidate_max_regression": 0.0}
   ],
   "resource_budget": {
     "max_input_bytes": 200000,
     "max_prediction_bytes": 200000,
-    "max_pixels_read": 10000,
+    "max_pixels_read": 20000,
     "max_accelerator_seconds": 0
   },
   "super_resolution": {
