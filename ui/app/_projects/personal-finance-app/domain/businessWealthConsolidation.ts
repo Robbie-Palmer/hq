@@ -144,6 +144,10 @@ function containsDate(
   );
 }
 
+function accountValueRecencyKey(value: HouseholdAccountValue): string {
+  return `${value.validAt}\u0000${value.acceptedAt}\u0000${value.recordId}`;
+}
+
 function latestAccountValueAt(
   records: readonly HouseholdAccountValue[],
   accountId: string,
@@ -151,16 +155,14 @@ function latestAccountValueAt(
   asKnownAt: string,
 ): HouseholdAccountValue | null {
   return (
-    effectiveFinancialRecords(
-      records.filter((record) => record.accountId === accountId),
-      asKnownAt,
-    )
-      .filter((record) => record.validAt <= validAt)
-      .toSorted(
-        (left, right) =>
-          right.validAt.localeCompare(left.validAt) ||
-          right.acceptedAt.localeCompare(left.acceptedAt) ||
-          right.recordId.localeCompare(left.recordId),
+    effectiveFinancialRecords(records, asKnownAt)
+      .filter(
+        (record) => record.accountId === accountId && record.validAt <= validAt,
+      )
+      .toSorted((left, right) =>
+        accountValueRecencyKey(right).localeCompare(
+          accountValueRecencyKey(left),
+        ),
       )[0] ?? null
   );
 }
@@ -380,35 +382,36 @@ function addAccountContribution(
   account: Account,
   result: ConsolidationAccumulator,
 ): void {
-  const ownership = accountOwnershipAt(
+  const ownershipRecord = accountOwnershipAt(
     input.accountOwnerships,
     account.id,
     input.validAt,
     input.asKnownAt,
   );
-  if (ownership == null) {
+  if (ownershipRecord == null) {
     result.issues.push({
       kind: "missing_account_ownership",
       subjectId: account.id,
     });
     return;
   }
-  result.ownershipRecordIds.add(ownership.recordId);
-  if (ownership.ownership.state === "known") {
-    addKnownAccountContribution(
+  result.ownershipRecordIds.add(ownershipRecord.recordId);
+  const ownership = ownershipRecord.ownership;
+  if (ownership.state !== "known") {
+    addUnresolvedAccountContribution(
       input,
       account,
+      ownershipRecord,
       ownership,
-      ownership.ownership,
       result,
     );
     return;
   }
-  addUnresolvedAccountContribution(
+  addKnownAccountContribution(
     input,
     account,
+    ownershipRecord,
     ownership,
-    ownership.ownership,
     result,
   );
 }

@@ -50,6 +50,62 @@ describe("owned-business valuation", () => {
     ]);
   });
 
+  it("rejects valuation evidence, ranges, and reserves that lose their lineage", () => {
+    const fixture = businessValuationFixture();
+    const calculated = calculateAdjustedNetAssets(
+      fixture.calculationInput,
+    ).valuation;
+    const observed = {
+      recordId: "northstar-observed-value",
+      companyEntityId: "company:northstar",
+      validAt: "2026-09-30",
+      acceptedAt: "2026-10-01T09:00:00.000Z",
+      method: "manual" as const,
+      evidenceKind: "observation" as const,
+      evidenceAt: "2026-09-30T17:00:00.000Z",
+      amount: {
+        state: "known" as const,
+        currency: "GBP" as const,
+        amount: 100,
+      },
+      lineage: fixture.calculationInput.lineage,
+    };
+    const invalidValuations = [
+      { ...observed, evidenceKind: "calculation" },
+      { ...calculated, inputs: undefined },
+      {
+        ...observed,
+        range: { currency: "USD", lowerBound: 80, upperBound: 120 },
+      },
+      {
+        ...observed,
+        amount: { ...observed.amount, amount: 150 },
+        range: { currency: "GBP", lowerBound: 80, upperBound: 120 },
+      },
+      {
+        ...calculated,
+        operatingReserve: {
+          ...calculated.operatingReserve,
+          amount: { state: "known", currency: "USD", amount: 30_000 },
+        },
+      },
+      {
+        ...calculated,
+        operatingReserve: {
+          ...calculated.operatingReserve,
+          assumptionId: "uncited-reserve-assumption",
+        },
+      },
+    ];
+
+    expect(
+      invalidValuations.map(
+        (valuation) =>
+          CompanyEquityValuationSchema.safeParse(valuation).success,
+      ),
+    ).toEqual([false, false, false, false, false, false]);
+  });
+
   it("preserves negative equity instead of flooring the company at zero", () => {
     const fixture = businessValuationFixture();
     const cash = fixture.accountValues.find(

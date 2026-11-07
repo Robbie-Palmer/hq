@@ -247,6 +247,45 @@ describe("owned-business household consolidation", () => {
     expect(after.valuationRecordIds).toEqual([correction.recordId]);
   });
 
+  it("selects the latest accepted correction to a direct account value", () => {
+    const fixture = businessValuationFixture();
+    const valuation = calculateAdjustedNetAssets(
+      fixture.calculationInput,
+    ).valuation;
+    const original = fixture.accountValues.find(
+      ({ accountId }) => accountId === "alex-cash",
+    );
+    if (original == null) throw new Error("fixture has no Alex cash value");
+    const correction = {
+      ...original,
+      recordId: "alex-cash-value-correction",
+      acceptedAt: "2026-11-01T09:00:00.000Z",
+      correctsId: original.recordId,
+      amount: {
+        state: "known" as const,
+        currency: "GBP" as const,
+        amount: 25_000,
+      },
+    };
+    const accountValues = [...fixture.accountValues, correction];
+
+    const before = consolidate(valuation, {
+      accountValues,
+      asKnownAt: "2026-10-15T00:00:00.000Z",
+    });
+    const after = consolidate(valuation, {
+      accountValues,
+      asKnownAt: "2026-11-15T00:00:00.000Z",
+    });
+
+    expect(before.knownSubtotal).toBe(120_000);
+    expect(after.knownSubtotal).toBe(125_000);
+    expect(
+      after.contributions.find(({ id }) => id === "account:alex-cash")
+        ?.inputRecordIds,
+    ).toContain(correction.recordId);
+  });
+
   it("honours explicit exclusion and never treats a selected company as a person", () => {
     const fixture = businessValuationFixture();
     const valuation = calculateAdjustedNetAssets(
