@@ -109,3 +109,6 @@ stages:
       - pyproject.toml
       - src/pathologize_slide_quality_pilot
       - uv.lock
+    outs:
+      - public-pilot/results:
+          cache: false

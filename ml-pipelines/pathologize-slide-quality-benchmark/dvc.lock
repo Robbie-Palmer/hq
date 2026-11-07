@@ -300,3 +300,9 @@ stages:
       hash: md5
       md5: 369bddefda63db07b81ce69ee6f7ef53
       size: 52653
+    outs:
+    - path: public-pilot/results
+      hash: md5
+      md5: 4e4cae336829f11a58e76ff18426639d.dir
+      size: 20607
+      nfiles: 7
