@@ -99,7 +99,9 @@ function storePendingReauthentication(value: PendingReauthentication) {
 
 export const browserAgentApprovalMachine = agentApprovalMachine.provide({
   actors: {
-    readPageState: fromPromise(() => Promise.resolve(readApprovalPageState())),
+    readPageState: fromPromise(() =>
+      Promise.resolve().then(readApprovalPageState),
+    ),
     loadAgent: fromPromise(({ input, signal }) =>
       getAgent(input.intent.agentId, signal),
     ),
