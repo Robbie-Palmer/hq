@@ -8,37 +8,44 @@ from typing import Any
 import numpy as np
 import pytest
 import torch
-from data_artifacts.files import write_json
+import yaml
+from data_artifacts.files import read_yaml, write_json
 from PIL import Image
 from pydantic import ValidationError
-
-from pathologize_cell_analysis.contracts import (
-    SplitItem,
-    UltralyticsExperiment,
-)
-from pathologize_cell_analysis.data import Annotation
-from pathologize_cell_analysis.ultralytics_conversion import (
-    acquire_ultralytics_artifacts,
+from ultralytics_extensions.checkpoints import resume_evidence
+from ultralytics_extensions.labels import (
     bbox_to_yolo,
-    convert_annotations,
-    load_ultralytics_experiment,
     polygon_to_yolo,
-    prepare_ultralytics_layout,
     yolo_to_bbox,
     yolo_to_polygon,
 )
-from pathologize_cell_analysis.ultralytics_experiment import (
-    _as_predicted_nucleus,
+
+from pathologize_cell_analysis.contracts import (
+    SplitItem,
+    UltralyticsConfig,
+)
+from pathologize_cell_analysis.data import Annotation
+from pathologize_cell_analysis.ultralytics_config import load_ultralytics_config
+from pathologize_cell_analysis.ultralytics_conversion import (
+    acquire_ultralytics_artifacts,
+    convert_annotations,
+    prepare_ultralytics_layout,
+)
+from pathologize_cell_analysis.ultralytics_evaluation import (
+    as_predicted_nucleus,
+    evaluate_records,
+    training_curve_summary,
+)
+from pathologize_cell_analysis.ultralytics_prediction import (
+    normalize_pathologize_result,
+    prediction_arguments,
+)
+from pathologize_cell_analysis.ultralytics_reporting import _report_markdown
+from pathologize_cell_analysis.ultralytics_training import (
     _clean_failed_training_output,
     _clear_ultralytics_caches,
     _clear_ultralytics_runtime_config,
-    _evaluate_records,
-    _normalize_result,
-    _prediction_arguments,
-    _report_markdown,
-    _resume_evidence,
     _seed_training_monitor,
-    _training_curve_summary,
     training_arguments,
 )
 
@@ -46,6 +53,20 @@ from pathologize_cell_analysis.ultralytics_experiment import (
 def _fixture() -> dict[str, Any]:
     path = Path(__file__).parents[1] / "fixtures/ultralytics-conversion.json"
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _params_document() -> dict[str, Any]:
+    path = Path(__file__).parents[1] / "params/nucls-ultralytics.yaml"
+    document = read_yaml(path)
+    assert isinstance(document, dict)
+    return document
+
+
+def _write_params(root: Path, document: dict[str, Any]) -> Path:
+    path = root / "params/nucls-ultralytics.yaml"
+    path.parent.mkdir(parents=True)
+    path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    return path
 
 
 def _annotations(rows: list[dict[str, Any]]) -> list[Annotation]:
@@ -133,15 +154,14 @@ def test_conversion_records_bounded_source_border_clipping() -> None:
     assert rejected.exclusions[0].reason == "invalid_source_box"
 
 
-def test_predeclaration_is_strict_and_complete() -> None:
-    path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-baseline.json"
-    document = json.loads(path.read_text(encoding="utf-8"))
-    experiment = UltralyticsExperiment.model_validate(document)
+def test_parameter_config_is_strict_and_complete() -> None:
+    document = _params_document()
+    experiment = UltralyticsConfig.model_validate(document)
     assert set(experiment.models) == {"detect", "segment"}
     assert experiment.limits.aggregate_gpu_seconds == 86400
     document["models"].pop("segment")
     with pytest.raises(ValidationError):
-        UltralyticsExperiment.model_validate(document)
+        UltralyticsConfig.model_validate(document)
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:
@@ -155,7 +175,7 @@ def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> Non
         "2,23.0,0.2,1.5,0.8\n",
         encoding="utf-8",
     )
-    resume = _resume_evidence(task_output)
+    resume = resume_evidence(task_output)
     assert resume is not None
     assert resume.completed_epochs == 2
     assert resume.elapsed_seconds_upper_bound == 23.0
@@ -256,14 +276,10 @@ def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Pat
     source = json.loads(
         (repository_root / "sources/nucls-corrected-single-rater.json").read_text(encoding="utf-8")
     )
-    experiment = json.loads(
-        (repository_root / "experiments/nucls-ultralytics-baseline.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    document = _params_document()
+    experiment = document
     write_json(tmp_path / experiment["dataset_manifest"], source)
-    experiment_path = tmp_path / "experiments/nucls-ultralytics-baseline.json"
-    write_json(experiment_path, experiment)
+    params_path = _write_params(tmp_path, document)
     data_root = tmp_path / experiment["data_directory"]
     train_slide = "TCGA-TR-0001-DX1"
     validation_slide = "TCGA-VA-0002-DX1"
@@ -276,7 +292,7 @@ def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Pat
     _write_split(split_root / "fold_1_test.csv", [(test_slide, "TE")])
     _write_split(split_root / "fold_2_test.csv", [(validation_slide, "VA")])
 
-    result: Any = prepare_ultralytics_layout(experiment_path)
+    result: Any = prepare_ultralytics_layout(params_path)
     assert result["source_ontology"] == experiment["ontology_labels"]
     assert result["split"]["patient_intersections"]["train_test"] == []
     layout = tmp_path / experiment["layout_directory"]
@@ -284,20 +300,14 @@ def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Pat
     assert (layout / f"segment/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
     assert "train: images/train" in (layout / "detect.yaml").read_text(encoding="utf-8")
     with pytest.raises(FileExistsError):
-        prepare_ultralytics_layout(experiment_path)
+        prepare_ultralytics_layout(params_path)
 
 
 def test_acquire_model_artifacts_writes_provenance(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    repository_root = Path(__file__).parents[1]
-    document = json.loads(
-        (repository_root / "experiments/nucls-ultralytics-baseline.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    experiment_path = tmp_path / "experiments/nucls-ultralytics-baseline.json"
-    write_json(experiment_path, document)
+    document = _params_document()
+    params_path = _write_params(tmp_path, document)
 
     def fake_download(url: str, output: Path, size: int | None, digest: str) -> None:
         del url, size, digest
@@ -307,11 +317,11 @@ def test_acquire_model_artifacts_writes_provenance(
         "pathologize_cell_analysis.ultralytics_conversion._download_pinned_file",
         fake_download,
     )
-    result: Any = acquire_ultralytics_artifacts(experiment_path)
+    result: Any = acquire_ultralytics_artifacts(params_path)
     assert len(result["artifacts"]) == 4
     assert result["package"]["version"] == "8.4.202"
     with pytest.raises(FileExistsError):
-        acquire_ultralytics_artifacts(experiment_path)
+        acquire_ultralytics_artifacts(params_path)
 
 
 def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Path) -> None:
@@ -339,12 +349,14 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
         annotation_path="annotations/item.csv",
     )
     _write_annotation(tmp_path / item.annotation_path)
-    record, rejections = _normalize_result(Result(), item, "segment", _fixture()["ontology_labels"])
+    record, rejections = normalize_pathologize_result(
+        Result(), item, "segment", _fixture()["ontology_labels"]
+    )
     assert not rejections
     assert record.predictions[0].polygon_xy_pixels is not None
-    predicted = _as_predicted_nucleus(record.predictions[0], (80, 100))
+    predicted = as_predicted_nucleus(record.predictions[0], (80, 100))
     assert predicted.flat_pixels.size > 0
-    evidence: Any = _evaluate_records(
+    evidence: Any = evaluate_records(
         "segment",
         [record],
         {item.item_id: item},
@@ -357,11 +369,11 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
     assert evidence["held_out_site_slices"]["TE"]["localization"]["f1"] == 1.0
 
 
-def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> None:
-    path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-baseline.json"
-    experiment = load_ultralytics_experiment(path)
+def test_parameterized_runtime_arguments_and_report_helpers(tmp_path: Path) -> None:
+    path = Path(__file__).parents[1] / "params/nucls-ultralytics.yaml"
+    experiment = load_ultralytics_config(path)
     train = training_arguments(experiment, tmp_path, "detect")
-    predict = _prediction_arguments(experiment, "segment")
+    predict = prediction_arguments(path, "segment")
     assert train["optimizer"] == "AdamW"
     assert train["seed"] == 20261107
     assert train["workers"] == 0
@@ -378,7 +390,7 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     _clear_ultralytics_runtime_config(tmp_path)
     assert not runtime_config.exists()
 
-    curve: Any = _training_curve_summary(
+    curve: Any = training_curve_summary(
         [
             {
                 "epoch": 1.0,
@@ -401,7 +413,7 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     assert curve["best_checkpoint"]["epoch"] == 2
     assert curve["stopped_by"] == "epoch_ceiling"
 
-    guard_stop: Any = _training_curve_summary(
+    guard_stop: Any = training_curve_summary(
         [
             {
                 "epoch": 1.0,
@@ -418,7 +430,7 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     assert guard_stop["stopped_by"] == "persistent_validation_regression"
     assert guard_stop["convergence_assessment"] == "stopped_by_guard"
 
-    wall_stop: Any = _training_curve_summary(
+    wall_stop: Any = training_curve_summary(
         [
             {
                 "epoch": 1.0,
@@ -435,7 +447,7 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     assert wall_stop["stopped_by"] == "wall_time_guard"
     assert wall_stop["convergence_assessment"] == "stopped_by_guard"
 
-    patience_curve = _training_curve_summary(
+    patience_curve = training_curve_summary(
         [{"epoch": 1.0, "train/box_loss": 2.0, "val/box_loss": 3.0}],
         {},
         2,
@@ -444,7 +456,6 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     assert patience_curve["convergence_assessment"] == ("validation_plateau_supports_convergence")
 
     evidence: dict[str, Any] = {
-        "experiment": experiment.model_dump(mode="json"),
         "tasks": {
             "detect": {
                 "per_class": {
@@ -489,6 +500,6 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
         "resources": {"aggregate_gpu_seconds": 10.0, "aggregate_gpu_ceiling_seconds": 86400},
         "failures": [],
     }
-    markdown = _report_markdown(evidence)
+    markdown = _report_markdown(evidence, experiment)
     assert "YOLO26 nano" in markdown
     assert all(len(line) <= 120 for line in markdown.splitlines())

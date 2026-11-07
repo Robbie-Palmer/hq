@@ -9,11 +9,10 @@ from .contracts import StrictModel
 from .data import acquire_dataset
 from .experiment import report, run
 from .ultralytics_conversion import acquire_ultralytics_artifacts, prepare_ultralytics_layout
-from .ultralytics_experiment import (
-    evaluate_ultralytics,
-    report_ultralytics,
-    train_ultralytics,
-)
+from .ultralytics_evaluation import evaluate_ultralytics
+from .ultralytics_prediction import predict_ultralytics
+from .ultralytics_reporting import report_ultralytics
+from .ultralytics_training import train_ultralytics
 
 
 class AcquireOptions(StrictModel):
@@ -28,10 +27,6 @@ class RunOptions(StrictModel):
 class ReportOptions(RunOptions):
     json_output: Path
     markdown_output: Path
-
-
-class UltralyticsOptions(StrictModel):
-    experiment: Path
 
 
 class Commands:
@@ -65,33 +60,20 @@ class Commands:
         )
         return report(options.experiment, options.json_output, options.markdown_output)
 
-    def acquire_ultralytics(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-baseline.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return acquire_ultralytics_artifacts(options.experiment)
+    def acquire_ultralytics(self) -> dict[str, Any]:
+        return acquire_ultralytics_artifacts()
 
-    def prepare_ultralytics(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-baseline.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return prepare_ultralytics_layout(options.experiment)
+    def prepare_ultralytics(self) -> dict[str, Any]:
+        return prepare_ultralytics_layout()
 
-    def train_ultralytics(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-baseline.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return train_ultralytics(options.experiment)
+    def train_ultralytics(self) -> dict[str, Any]:
+        return train_ultralytics()
 
-    def evaluate_ultralytics(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-baseline.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return evaluate_ultralytics(options.experiment)
+    def predict_ultralytics(self) -> dict[str, Any]:
+        return predict_ultralytics()
+
+    def evaluate_ultralytics(self) -> dict[str, Any]:
+        return evaluate_ultralytics()
 
     def report_ultralytics(self) -> dict[str, Any]:
         return report_ultralytics()

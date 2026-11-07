@@ -8,16 +8,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from data_artifacts.files import load_model, sha256_file, write_json
+from data_artifacts.files import sha256_file, write_json
 from PIL import Image
+from ultralytics_extensions.labels import bbox_to_yolo, polygon_to_yolo
 
-from .contracts import UltralyticsExperiment
+from .contracts import UltralyticsConfig
 from .data import (
     Annotation,
     _HttpsOnlyRedirectHandler,
     build_cohort,
     load_annotations,
     load_dataset_manifest,
+)
+from .ultralytics_config import (
+    ULTRALYTICS_PARAMS_FILE,
+    load_ultralytics_config,
+    project_root,
 )
 
 Task = Literal["detect", "segment"]
@@ -45,10 +51,6 @@ class AnnotationConversion:
     adjustment: ConversionExclusion | None = None
 
 
-def load_ultralytics_experiment(path: Path) -> UltralyticsExperiment:
-    return load_model(path, UltralyticsExperiment)
-
-
 def _download_pinned_file(url: str, output: Path, size: int | None, digest: str) -> None:
     if not url.startswith("https://"):
         raise ValueError("model artifact URL must use HTTPS")
@@ -62,9 +64,11 @@ def _download_pinned_file(url: str, output: Path, size: int | None, digest: str)
         raise ValueError(f"model artifact digest differs for {output.name}")
 
 
-def acquire_ultralytics_artifacts(experiment_path: Path) -> dict[str, object]:
-    experiment = load_ultralytics_experiment(experiment_path)
-    root = experiment_path.resolve().parent.parent
+def acquire_ultralytics_artifacts(
+    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+) -> dict[str, object]:
+    experiment = load_ultralytics_config(params_path)
+    root = project_root(params_path)
     output_root = root / experiment.weights_directory
     if output_root.exists():
         raise FileExistsError(f"Ultralytics artifact output already exists: {output_root}")
@@ -114,71 +118,6 @@ def acquire_ultralytics_artifacts(experiment_path: Path) -> dict[str, object]:
         if not complete:
             shutil.rmtree(output_root, ignore_errors=True)
     return result
-
-
-def bbox_to_yolo(
-    bbox: tuple[float, float, float, float], image_size: tuple[int, int]
-) -> tuple[float, float, float, float]:
-    xmin, ymin, xmax, ymax = bbox
-    width, height = image_size
-    if width <= 0 or height <= 0:
-        raise ValueError("image dimensions must be positive")
-    if xmin < 0 or ymin < 0 or xmax > width or ymax > height:
-        raise ValueError("bounding box falls outside the image")
-    if xmax <= xmin or ymax <= ymin:
-        raise ValueError("bounding box must have positive area")
-    return (
-        (xmin + xmax) / (2 * width),
-        (ymin + ymax) / (2 * height),
-        (xmax - xmin) / width,
-        (ymax - ymin) / height,
-    )
-
-
-def yolo_to_bbox(
-    normalized: tuple[float, float, float, float], image_size: tuple[int, int]
-) -> tuple[float, float, float, float]:
-    center_x, center_y, box_width, box_height = normalized
-    width, height = image_size
-    return (
-        (center_x - box_width / 2) * width,
-        (center_y - box_height / 2) * height,
-        (center_x + box_width / 2) * width,
-        (center_y + box_height / 2) * height,
-    )
-
-
-def polygon_to_yolo(
-    coordinates: tuple[tuple[float, float], ...], image_size: tuple[int, int]
-) -> tuple[float, ...]:
-    width, height = image_size
-    if width <= 0 or height <= 0:
-        raise ValueError("image dimensions must be positive")
-    points = (
-        coordinates[:-1]
-        if len(coordinates) > 1 and coordinates[0] == coordinates[-1]
-        else coordinates
-    )
-    if len(set(points)) < 3:
-        raise ValueError("segmentation polygon must contain three unique points")
-    values: list[float] = []
-    for x, y in points:
-        if x < 0 or y < 0 or x > width or y > height:
-            raise ValueError("segmentation polygon falls outside the image")
-        values.extend((x / width, y / height))
-    return tuple(values)
-
-
-def yolo_to_polygon(
-    normalized: tuple[float, ...], image_size: tuple[int, int]
-) -> tuple[tuple[float, float], ...]:
-    if len(normalized) < 6 or len(normalized) % 2:
-        raise ValueError("normalized polygon must contain at least three points")
-    width, height = image_size
-    return tuple(
-        (normalized[index] * width, normalized[index + 1] * height)
-        for index in range(0, len(normalized), 2)
-    )
 
 
 def _format_label(class_index: int, values: tuple[float, ...]) -> str:
@@ -319,7 +258,7 @@ def convert_annotations(
     return ConversionResult(tuple(labels), tuple(exclusions), tuple(adjustments))
 
 
-def _write_dataset_yaml(path: Path, task: Task, experiment: UltralyticsExperiment) -> None:
+def _write_dataset_yaml(path: Path, task: Task, experiment: UltralyticsConfig) -> None:
     names = "\n".join(
         f"  {index}: {json.dumps(label)}" for index, label in enumerate(experiment.ontology_labels)
     )
@@ -339,9 +278,11 @@ def _write_dataset_yaml(path: Path, task: Task, experiment: UltralyticsExperimen
     )
 
 
-def prepare_ultralytics_layout(experiment_path: Path) -> dict[str, object]:
-    experiment = load_ultralytics_experiment(experiment_path)
-    root = experiment_path.resolve().parent.parent
+def prepare_ultralytics_layout(
+    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+) -> dict[str, object]:
+    experiment = load_ultralytics_config(params_path)
+    root = project_root(params_path)
     data_root = root / experiment.data_directory
     output_root = root / experiment.layout_directory
     if output_root.exists():

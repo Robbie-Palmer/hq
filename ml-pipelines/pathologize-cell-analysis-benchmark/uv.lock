@@ -764,6 +764,7 @@ dependencies = [
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "ultralytics" },
+    { name = "ultralytics-extensions" },
 ]
 
 [package.dev-dependencies]
@@ -786,6 +787,7 @@ requires-dist = [
     { name = "scikit-learn", specifier = ">=1.6.0,<1.9" },
     { name = "scipy", specifier = ">=1.15.0,<2" },
     { name = "ultralytics", specifier = "==8.4.202" },
+    { name = "ultralytics-extensions", editable = "../../packages/ultralytics-extensions" },
 ]
 
 [package.metadata.requires-dev]
@@ -1280,6 +1282,26 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ec/46/7242e49c4811f9c27dba8c3d98d118cba209ea42a395b3921777678fc8d8/ultralytics-8.4.202.tar.gz", hash = "sha256:46b454e84dc96459178bcca3deecdf2e9548804bea76af92c392fae1307417d1", size = 1300481, upload-time = "2026-11-03T23:32:38.722Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/02/b3/d8a3d0d0b4d209659a8ea0bd9dec2171f329823f3baa5344eedb349fb24d/ultralytics-8.4.202-py3-none-any.whl", hash = "sha256:ae71dc5bb1024010fbdef5bd9281984ddd8c70885bddcfdd6aff0801b7015fb4", size = 1440905, upload-time = "2026-11-03T23:32:33.231Z" },
+]
+
+[[package]]
+name = "ultralytics-extensions"
+version = "0.1.0"
+source = { editable = "../../packages/ultralytics-extensions" }
+dependencies = [
+    { name = "ultralytics" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ultralytics", specifier = "==8.4.202" }]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "numpy", specifier = ">=2.2.0,<3" },
+    { name = "pytest", specifier = ">=9.0.3,<10" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "ruff", specifier = ">=0.14.14" },
+    { name = "ty", specifier = ">=0.0.75" },
 ]
 
 [[package]]

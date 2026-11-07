@@ -72,14 +72,19 @@ depends = ["sync"]
 run = "bash ../scripts/dvc.sh repro prepare_ultralytics_artifacts prepare_nucls_ultralytics_layout"
 
 [tasks."ultralytics:repro"]
-description = "Train and evaluate the predeclared NuCLS Ultralytics baseline"
+description = "Reproduce the parameterized NuCLS Ultralytics DVC experiment"
 depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro evaluate_nucls_ultralytics"
+run = "bash ../scripts/dvc.sh repro report_nucls_ultralytics"
 
 [tasks."ultralytics:train"]
-description = "Train or exactly resume the predeclared NuCLS Ultralytics baseline"
+description = "Train or exactly resume the configured NuCLS Ultralytics experiment"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis train-ultralytics"
+
+[tasks."ultralytics:predict"]
+description = "Run Ultralytics inference and normalize Pathologize prediction records"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis predict-ultralytics"
 
 [tasks."ultralytics:evaluate"]
 description = "Evaluate the trained NuCLS Ultralytics baseline on the frozen test fold"
@@ -87,6 +92,6 @@ depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis evaluate-ultralytics"
 
 [tasks."ultralytics:report"]
-description = "Write the tracked NuCLS Ultralytics evidence report"
+description = "Write the NuCLS Ultralytics DVC metric and tracked Markdown report"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis report-ultralytics"

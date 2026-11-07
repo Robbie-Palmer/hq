@@ -4,77 +4,150 @@ from typing import Any
 import pytest
 import torch
 from data_artifacts.files import read_json, write_json
+from ultralytics_extensions.checkpoints import load_safe_checkpoint
 
-from pathologize_cell_analysis import ultralytics_experiment
-from pathologize_cell_analysis.ultralytics_conversion import load_ultralytics_experiment
-from pathologize_cell_analysis.ultralytics_experiment import (
-    ULTRALYTICS_EXPERIMENT_PATH,
+from pathologize_cell_analysis import ultralytics_reporting
+from pathologize_cell_analysis.ultralytics_config import (
     ULTRALYTICS_JSON_REPORT,
     ULTRALYTICS_MARKDOWN_REPORT,
     ULTRALYTICS_OUTPUT_DIRECTORY,
-    _experiment_output_root,
-    _load_safe_checkpoint,
-    report_ultralytics,
+    load_ultralytics_config,
+    output_root,
 )
+from pathologize_cell_analysis.ultralytics_reporting import report_ultralytics
 
 
 def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "checkpoint.pt"
     torch.save({"epoch": 3, "loss": torch.tensor([0.25])}, checkpoint_path)
 
-    checkpoint = _load_safe_checkpoint(torch, checkpoint_path)
+    checkpoint = load_safe_checkpoint(torch, checkpoint_path)
 
     assert checkpoint["epoch"] == 3
     assert torch.equal(checkpoint["loss"], torch.tensor([0.25]))
 
 
 def test_experiment_output_directory_is_pinned(tmp_path: Path) -> None:
-    experiment_path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-baseline.json"
-    experiment = load_ultralytics_experiment(experiment_path)
+    config = load_ultralytics_config()
 
-    assert _experiment_output_root(tmp_path, experiment) == (
-        tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY
-    )
+    assert output_root(tmp_path, config) == tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY
 
-    escaped = experiment.model_copy(update={"output_directory": "../../outside"})
+    escaped = config.model_copy(update={"output_directory": "../../outside"})
     with pytest.raises(ValueError, match="output directory must be"):
-        _experiment_output_root(tmp_path, escaped)
+        output_root(tmp_path, escaped)
+
+
+def _curve(box: bool) -> dict[str, Any]:
+    suffix = "B" if box else "M"
+    metrics = {
+        f"metrics/mAP50({suffix})": {
+            "first": 0.1,
+            "best": 0.2,
+            "best_epoch": 2,
+            "final": 0.2,
+        },
+        f"metrics/mAP50-95({suffix})": {
+            "first": 0.05,
+            "best": 0.1,
+            "best_epoch": 2,
+            "final": 0.1,
+        },
+    }
+    return {
+        "completed_epochs": 2,
+        "stopped_by": "epoch_ceiling",
+        "convergence_assessment": "not_established_before_epoch_ceiling",
+        "training_loss": {"first": 2.0, "final": 1.0},
+        "validation_loss": {"first": 3.0, "final": 2.0},
+        "metrics": metrics,
+        "best_checkpoint": {
+            "epoch": 2,
+            "metrics": {key: value["best"] for key, value in metrics.items()},
+        },
+    }
+
+
+def _evidence(config: Any) -> dict[str, Any]:
+    localization = {"precision": 0.5, "recall": 0.5, "f1": 0.5}
+    segmentation = {
+        "localization_coverage": 0.8,
+        "mean_instance_iou": 0.4,
+        "mean_instance_dice": 0.5,
+        "success_at_iou_0_5": 0.6,
+    }
+    resource = {
+        "wall_seconds": 5.0,
+        "cpu_seconds": 4.0,
+        "gpu_seconds": 4.0,
+        "peak_rss_bytes": 1000,
+        "peak_vram_bytes": 2000,
+    }
+    return {
+        "tasks": {
+            "detect": {
+                "localization": localization,
+                "per_class": {
+                    label: {"localization": localization} for label in config.ontology_labels
+                },
+                "held_out_site_slices": {"TE": {"localization": localization}},
+            },
+            "segment": {
+                "localization": localization,
+                "instance_segmentation": segmentation,
+                "per_class": {
+                    label: {"instance_segmentation": segmentation}
+                    for label in config.ontology_labels
+                },
+                "held_out_site_slices": {"TE": {"instance_segmentation": segmentation}},
+            },
+        },
+        "training_curves": {"detect": _curve(True), "segment": _curve(False)},
+        "comparison": {
+            "transparent_baseline": {
+                "localization_f1": 0.3,
+                "conditional_instance_mean_iou": 0.2,
+            },
+            "ultralytics": {
+                "detection_localization_f1": 0.5,
+                "segmentation_localization_f1": 0.5,
+                "conditional_instance_mean_iou": 0.4,
+            },
+        },
+        "resources": {
+            "aggregate_gpu_seconds": 10.0,
+            "aggregate_gpu_ceiling_seconds": 86400,
+            "training": {"detect": resource},
+            "inference": {"detect": {**resource, "gpu_seconds": 1.0}},
+        },
+        "failures": [],
+    }
 
 
 def test_ultralytics_report_writes_only_pinned_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repository_root = Path(__file__).parents[1]
-    experiment_path = tmp_path / ULTRALYTICS_EXPERIMENT_PATH
-    experiment_path.parent.mkdir(parents=True)
-    source_path = repository_root / ULTRALYTICS_EXPERIMENT_PATH
-    experiment_path.write_text(source_path.read_text(encoding="utf-8"), encoding="utf-8")
-    evidence: Any = read_json(repository_root / ULTRALYTICS_JSON_REPORT)
-    write_json(
-        tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY / "evaluation" / "evidence.json",
-        evidence,
-    )
-    monkeypatch.setattr(ultralytics_experiment, "ULTRALYTICS_EXPERIMENT_FILE", experiment_path)
+    config = load_ultralytics_config()
+    evidence = _evidence(config)
+    evidence_path = tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY / "evaluation/evidence.json"
+    write_json(evidence_path, evidence)
+    monkeypatch.setattr(ultralytics_reporting, "ULTRALYTICS_OUTPUT_ROOT", evidence_path.parents[1])
     monkeypatch.setattr(
-        ultralytics_experiment,
-        "ULTRALYTICS_OUTPUT_ROOT",
-        tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY,
-    )
-    monkeypatch.setattr(
-        ultralytics_experiment,
+        ultralytics_reporting,
         "ULTRALYTICS_JSON_REPORT_FILE",
         tmp_path / ULTRALYTICS_JSON_REPORT,
     )
     monkeypatch.setattr(
-        ultralytics_experiment,
+        ultralytics_reporting,
         "ULTRALYTICS_MARKDOWN_REPORT_FILE",
         tmp_path / ULTRALYTICS_MARKDOWN_REPORT,
     )
 
     observed = report_ultralytics()
 
-    assert observed == evidence
-    assert read_json(tmp_path / ULTRALYTICS_JSON_REPORT) == evidence
+    assert "parameters" not in observed
+    detection: Any = observed["detection"]
+    assert detection["box_map50_95"] == 0.1
+    assert read_json(tmp_path / ULTRALYTICS_JSON_REPORT) == observed
     assert (
         (tmp_path / ULTRALYTICS_MARKDOWN_REPORT)
         .read_text(encoding="utf-8")

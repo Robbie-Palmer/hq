@@ -156,9 +156,9 @@ class ExportDecision(StrictModel):
     reason: str = Field(min_length=1)
 
 
-class UltralyticsExperiment(StrictModel):
+class UltralyticsConfig(StrictModel):
     schema_version: Literal["1.0.0"]
-    experiment_id: Literal["nucls-ultralytics-yolo26n-v1"]
+    experiment_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     dataset_manifest: str
     data_directory: str
     layout_directory: str

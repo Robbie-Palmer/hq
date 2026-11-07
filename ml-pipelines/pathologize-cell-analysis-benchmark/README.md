@@ -73,6 +73,23 @@ pixel coordinates. Points are excluded from box training because they have no
 area; points and rectangles are excluded from mask training because they have
 no polygon. No surrogate geometry is created.
 
+`params/nucls-ultralytics.yaml` is the typed experiment configuration. DVC
+tracks the parameter subsets consumed by acquisition,
+conversion, training, prediction, evaluation, and reporting separately. The
+JSON report is a DVC metric rather than a second copy of the full experiment
+record; cached evaluation evidence retains artifact hashes and audit detail.
+Parameter variants use DVC Experiments, for example:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  exp run -S params/nucls-ultralytics.yaml:training.initial_learning_rate=0.0005 \
+  -S params/nucls-ultralytics.yaml:training.weight_decay=0.001 report_nucls_ultralytics
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- exp show
+```
+
+Durable experiment work is kept on its branch. This project does not maintain
+a parallel experiment-manifest registry or a common training abstraction.
+
 Detection ran to the 40-epoch ceiling. Training and validation loss sums fell
 from 5.0105 to 3.1257 and 5.9297 to 3.3774. Best validation box mAP50 was
 0.4284 at epoch 38, and best mAP50-95 was 0.1860 at epoch 35. The run learned,

@@ -1,7 +1,7 @@
 # NuCLS Ultralytics baseline
 
-This non-clinical experiment trains the predeclared YOLO26 nano detection and instance-segmentation models on the frozen
-public NuCLS folds. Pathologize records, not Ultralytics-native metrics, are the evaluation boundary.
+This non-clinical DVC experiment trains YOLO26 nano detection and instance-segmentation models on the frozen public
+NuCLS folds. Pathologize records, not Ultralytics-native metrics, are the evaluation boundary.
 
 ## Task results
 
@@ -45,14 +45,14 @@ public NuCLS folds. Pathologize records, not Ultralytics-native metrics, are the
 
 Aggregate measured GPU time was 1875.5103 seconds against a 86,400-second ceiling.
 
-Prediction conversion rejected 0 instances. The evidence JSON records each rejection.
+Prediction conversion rejected 0 instances. The cached evaluation evidence records each rejection.
 
 ## Provenance
 
 - Package: `ultralytics==8.4.202` under `AGPL-3.0-or-later`.
 - Detection weights: `yolo26n.pt` at `9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef`.
 - Segmentation weights: `yolo26n-seg.pt` at `361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f`.
-- The experiment JSON records preprocessing, augmentation, optimizer, schedule, threshold, NMS, seed, package-lock,
-  split-manifest, checkpoint, and prediction pins.
+- DVC tracks the parameter, package-lock, split-manifest, checkpoint, prediction, and evaluation dependencies. Use DVC
+  Experiments for parameter variations.
 
 This experiment does not establish clinical validity.

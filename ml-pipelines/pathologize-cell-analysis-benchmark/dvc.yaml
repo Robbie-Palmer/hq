@@ -114,7 +114,15 @@ stages:
       - data/nucls-corrected-single-rater
       - experiments/nucls-public-baseline.json
       - sources/nucls-corrected-single-rater.json
-      - src/pathologize_cell_analysis
+      - src/pathologize_cell_analysis/classification.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/evaluation.py
+      - src/pathologize_cell_analysis/experiment.py
+      - src/pathologize_cell_analysis/instance_segmentation.py
+      - src/pathologize_cell_analysis/localization.py
+      - src/pathologize_cell_analysis/methods.py
       - outputs/data-artifacts-source.sha256
       - pyproject.toml
       - uv.lock
@@ -124,12 +132,17 @@ stages:
   prepare_ultralytics_artifacts:
     cmd: uv run --locked pathologize-cell-analysis acquire-ultralytics
     deps:
-      - experiments/nucls-ultralytics-baseline.json
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
       - src/pathologize_cell_analysis/ultralytics_conversion.py
       - pyproject.toml
       - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - package
+          - models
+          - weights_directory
     outs:
       - models/ultralytics/8.4.0
 
@@ -137,14 +150,23 @@ stages:
     cmd: uv run --locked pathologize-cell-analysis prepare-ultralytics
     deps:
       - data/nucls-corrected-single-rater
-      - experiments/nucls-ultralytics-baseline.json
       - sources/nucls-corrected-single-rater.json
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/labels.py
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
       - src/pathologize_cell_analysis/ultralytics_conversion.py
       - pyproject.toml
       - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - data_directory
+          - layout_directory
+          - test_fold
+          - validation_fold
+          - maximum_border_clip_pixels
+          - ontology_labels
     outs:
       - data/derived/nucls-ultralytics-yolo26n-v1
 
@@ -153,23 +175,107 @@ stages:
     deps:
       - data/derived/nucls-ultralytics-yolo26n-v1
       - models/ultralytics/8.4.0
-      - experiments/nucls-ultralytics-baseline.json
-      - src/pathologize_cell_analysis
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
+      - src/pathologize_cell_analysis/ultralytics_training.py
       - pyproject.toml
       - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - experiment_id
+          - layout_directory
+          - weights_directory
+          - output_directory
+          - package
+          - models
+          - training
+          - seeds
+          - limits
+          - prior_failed_gpu_seconds_upper_bound
+          - stop_rules
     outs:
       - outputs/public/nucls-ultralytics-yolo26n-v1/training
+
+  predict_nucls_ultralytics:
+    cmd: uv run --locked pathologize-cell-analysis predict-ultralytics
+    deps:
+      - data/derived/nucls-ultralytics-yolo26n-v1
+      - outputs/public/nucls-ultralytics-yolo26n-v1/training
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
+      - src/pathologize_cell_analysis/ultralytics_prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - data_directory
+          - layout_directory
+          - output_directory
+          - test_fold
+          - validation_fold
+          - ontology_labels
+          - training.device
+          - training.image_size
+          - inference
+          - limits
+    outs:
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/detect/predictions.jsonl
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/segment/predictions.jsonl
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/inference.json
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/rejections.json
 
   evaluate_nucls_ultralytics:
     cmd: uv run --locked pathologize-cell-analysis evaluate-ultralytics
     deps:
       - data/nucls-corrected-single-rater
-      - data/derived/nucls-ultralytics-yolo26n-v1
+      - data/derived/nucls-ultralytics-yolo26n-v1/manifest.json
       - outputs/public/nucls-ultralytics-yolo26n-v1/training
-      - experiments/nucls-ultralytics-baseline.json
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/detect/predictions.jsonl
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/segment/predictions.jsonl
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/inference.json
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/rejections.json
       - reports/nucls-public-baseline.json
-      - src/pathologize_cell_analysis
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/instance_segmentation.py
+      - src/pathologize_cell_analysis/localization.py
+      - src/pathologize_cell_analysis/methods.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
+      - src/pathologize_cell_analysis/ultralytics_evaluation.py
       - pyproject.toml
       - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - data_directory
+          - layout_directory
+          - output_directory
+          - transparent_baseline_report
+          - test_fold
+          - validation_fold
+          - localization_tolerance_pixels
+          - ontology_labels
+          - training.epochs
+          - limits
     outs:
-      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/evidence.json
+
+  report_nucls_ultralytics:
+    cmd: uv run --locked pathologize-cell-analysis report-ultralytics
+    deps:
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/evidence.json
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/ultralytics_config.py
+      - src/pathologize_cell_analysis/ultralytics_reporting.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-ultralytics.yaml:
+          - package
+          - models
+    metrics:
+      - reports/nucls-ultralytics-baseline.json
