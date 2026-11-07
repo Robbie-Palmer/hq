@@ -37,18 +37,18 @@ The selection was locked before source-slide download.
 | Item | Predeclared cap | Observed |
 | --- | ---: | ---: |
 | Network acquisition | 16,500,000,000 bytes | 15,813,730,059 bytes |
-| Peak local disk | 40,000,000,000 bytes | 33,707,121,037-byte conservative upper bound |
-| Feature-runner wall time | 7,200 seconds | 8.32 seconds |
-| Feature-runner CPU time | 28,800 seconds | 8.30 seconds |
+| Peak local disk | 40,000,000,000 bytes | 33,707,124,493-byte conservative upper bound |
+| Feature-runner wall time | 7,200 seconds | 10.88 seconds |
+| Feature-runner CPU time | 28,800 seconds | 10.43 seconds |
 | GPU time | 0 seconds | 0 seconds |
 | Peak VRAM | 0 bytes | 0 bytes |
-| Peak RSS | No separate cap | 59,179,008 bytes |
+| Peak RSS | No separate cap | 58,462,208 bytes |
 | Source bytes verified in preflight | 15,813,730,059 bytes | 15,813,730,059 bytes |
 
 The DVC cache and materialized pilot source occupy about 31.63 GB logically.
 The disk upper bound adds one largest-file temporary copy and result bytes.
-The kernel reported zero physical read bytes during the final run because the
-files were cached; the process character count was 15,813,772,920.
+The kernel reported 15,565,721,600 physical read bytes during the final run;
+the process character count was 15,813,776,380.
 
 The palette audit finds 14 positive and 10 clean-negative slides. It does not
 use a tissue gate for truth, so tissue amount cannot change a slide label.
@@ -62,8 +62,10 @@ declared RGB distance. It does not prove the absence of an unannotated defect.
 - `source-index.json` pins source IDs, byte counts, publisher MD5 values,
   annotation SHA-256 values, exclusions, failed acquisitions, and source
   review.
-- `corpus.json` pins all 24 patient, slide, scanner, source, annotation, and
-  label records plus registry-manifest hashes.
+- `corpus.json` pins all 24 stable patient-group keys, slide, scanner, source,
+  annotation, and label records plus registry-manifest hashes. Patient-group
+  keys are full, domain-separated SHA-256 digests of the public TCGA submitter
+  IDs; `source-index.json` retains the reconstruction mapping.
 - `results/per-slide.jsonl` contains numeric label and scanner evidence for
   every slide. Predictions are explicitly marked not run.
 - `results/spatial-evidence.jsonl` and `results/features.jsonl` are empty

@@ -27,6 +27,7 @@ ASSET_MANIFEST = Path("manifests/assets/airaqc-tcga-public-pilot-v1.json")
 REGISTRY_INDEX = Path("registry.json")
 CORPUS_MANIFEST = Path("public-pilot/corpus.json")
 TCGA_PATIENT_ID = re.compile(r"^TCGA-[A-Z0-9]{2}-[A-Z0-9]{4}$")
+PATIENT_GROUP_DOMAIN = b"airaqc-tcga-public-pilot-v1:patient-group:"
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -42,9 +43,6 @@ def _write(root: Path, relative_path: Path, value: object) -> None:
     if not path.is_relative_to(resolved_root):
         raise ValueError(f"output must remain within {resolved_root}: {relative_path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    # This generator serializes only validated public TCGA submitter IDs and GDC UUIDs.
-    # They are de-identified research provenance, not private patient information.
-    # codeql[py/clear-text-storage-sensitive-data]
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -63,16 +61,16 @@ def _canonical_uuid(value: str, field: str) -> str:
     return canonical
 
 
-def _public_patient_id(value: str) -> str:
+def _patient_group_id(value: str) -> str:
     if TCGA_PATIENT_ID.fullmatch(value) is None:
         raise ValueError(f"patient_id is not a public TCGA submitter ID: {value}")
-    return value
+    digest = hashlib.sha256(PATIENT_GROUP_DOMAIN + value.encode()).hexdigest()
+    return f"tcga-patient-sha256-{digest}"
 
 
-def _slide_id(patient_id: str, source_id: str) -> str:
-    public_patient_id = _public_patient_id(patient_id)
+def _slide_id(patient_group_id: str, source_id: str) -> str:
     canonical_source_id = _canonical_uuid(source_id, "file_id")
-    return f"airaqc-tcga:{public_patient_id.lower()}:{canonical_source_id}"
+    return f"airaqc-tcga:{patient_group_id}:{canonical_source_id}"
 
 
 def _labels(annotation_path: Path, declaration: dict[str, Any]) -> tuple[dict[str, int], bool]:
@@ -95,7 +93,7 @@ def build() -> None:
     slide_ids: list[str] = []
     total_bytes = 0
     for item in source_index["slides"]:
-        public_patient_id = _public_patient_id(item["patient_id"])
+        patient_group_id = _patient_group_id(item["patient_id"])
         canonical_case_id = _canonical_uuid(item["case_id"], "case_id")
         canonical_file_id = _canonical_uuid(item["file_id"], "file_id")
         slide_path = RAW_ROOT / "slides" / item["file_name"]
@@ -119,7 +117,7 @@ def build() -> None:
             objective = float(slide.properties[openslide.PROPERTY_NAME_OBJECTIVE_POWER])
             mpp = float(slide.properties[openslide.PROPERTY_NAME_MPP_X])
             width, height = slide.dimensions
-        stable_slide_id = _slide_id(public_patient_id, canonical_file_id)
+        stable_slide_id = _slide_id(patient_group_id, canonical_file_id)
         slide_ids.append(stable_slide_id)
         counts, reject = _labels(annotation_path, declaration)
         slide_asset = {
@@ -187,7 +185,7 @@ def build() -> None:
                 "collection_id": COLLECTION_ID,
                 "subset_id": SUBSET_ID,
                 "identity": {
-                    "patient_id": public_patient_id,
+                    "patient_id": patient_group_id,
                     "case_id": canonical_case_id,
                     "specimen_id": item["slide_barcode"],
                     "specimen_uid": None,
@@ -195,8 +193,10 @@ def build() -> None:
                     "study_instance_uid": None,
                     "series_instance_uid": None,
                     "identity_basis": (
-                        "GDC case UUID and TCGA submitter ID identify the patient; the TCGA "
-                        "slide barcode and GDC file UUID identify the slide asset."
+                        "A domain-separated SHA-256 key derived from the public TCGA submitter "
+                        "ID preserves patient grouping; the pinned source index retains the "
+                        "mapping. The GDC case UUID, TCGA slide barcode, and GDC file UUID "
+                        "identify the slide asset."
                     ),
                 },
                 "scanner": {
@@ -224,7 +224,7 @@ def build() -> None:
         corpus_slides.append(
             {
                 "slide_id": stable_slide_id,
-                "patient_id": public_patient_id,
+                "patient_id": patient_group_id,
                 "case_id": canonical_case_id,
                 "project_id": item["project_id"],
                 "scanner_id": scanner_id,

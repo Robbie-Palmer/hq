@@ -257,7 +257,7 @@ stages:
     deps:
     - path: ../pathologize-data-registry/dvc.lock
       hash: md5
-      md5: 3bd302e8ae0ea02d3e5e86905e6361f4
+      md5: 7681a8948ba4b3c717c5c01466126cf7
       size: 2496
     - path: ../pathologize-data-registry/manifests/assets/airaqc-tcga-public-pilot-v1.json
       hash: md5
@@ -269,16 +269,16 @@ stages:
       size: 2385
     - path: ../pathologize-data-registry/manifests/subsets/airaqc-tcga-public-pilot-v1.json
       hash: md5
-      md5: b76e83b33e95b24ae60c69cb0f262ec6
-      size: 2326
+      md5: 87afb214b066e335a0216de799859f11
+      size: 4054
     - path: ../pathologize-data-registry/registry.json
       hash: md5
       md5: 74582db3f031170391a723c439e9482e
       size: 3271
     - path: public-pilot/corpus.json
       hash: md5
-      md5: db4fb7660c45a26f0570c090280a5d87
-      size: 40182
+      md5: 981b05f19dfec6946b62231c19226d49
+      size: 43638
     - path: public-pilot/predeclaration.json
       hash: md5
       md5: 2fc7916cf0340965563c7f3dc1eb8abc

@@ -6,8 +6,8 @@
   "collection_id": "airaqc-tcga",
   "identity": {
     "case_id": "4685dc14-1809-47ea-aba9-9bde72f6661b",
-    "identity_basis": "GDC case UUID and TCGA submitter ID identify the patient; the TCGA slide barcode and GDC file UUID identify the slide asset.",
-    "patient_id": "TCGA-BR-8058",
+    "identity_basis": "A domain-separated SHA-256 key derived from the public TCGA submitter ID preserves patient grouping; the pinned source index retains the mapping. The GDC case UUID, TCGA slide barcode, and GDC file UUID identify the slide asset.",
+    "patient_id": "tcga-patient-sha256-e4492580651d8988dd94ff44edc7e3335de961801862f66972da004efc7148b2",
     "series_instance_uid": null,
     "slide_container_id": "TCGA-BR-8058-01Z-00-DX1",
     "specimen_id": "TCGA-BR-8058-01Z-00-DX1",
@@ -30,7 +30,7 @@
     "objective_power": 40.0
   },
   "schema_version": 1,
-  "slide_id": "airaqc-tcga:tcga-br-8058:dacb7269-b542-4d6b-8f88-1be1a094b463",
+  "slide_id": "airaqc-tcga:tcga-patient-sha256-e4492580651d8988dd94ff44edc7e3335de961801862f66972da004efc7148b2:dacb7269-b542-4d6b-8f88-1be1a094b463",
   "source_native_labels": [
     {
       "code": null,

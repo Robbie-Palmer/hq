@@ -57,16 +57,16 @@ stages:
       size: 2385
     - path: manifests/subsets/airaqc-tcga-public-pilot-v1.json
       hash: md5
-      md5: b76e83b33e95b24ae60c69cb0f262ec6
-      size: 2326
+      md5: 87afb214b066e335a0216de799859f11
+      size: 4054
     - path: pyproject.toml
       hash: md5
       md5: d13bdc29d409aaffbc306c0ba399c5c8
       size: 1491
     - path: records
       hash: md5
-      md5: 968ec0acca3942447cf9a76efb1c85a7.dir
-      size: 57560
+      md5: 10291d2365e1b690e577eb05e524ce40.dir
+      size: 63512
       nfiles: 25
     - path: registry.json
       hash: md5

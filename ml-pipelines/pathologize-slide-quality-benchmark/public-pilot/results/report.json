@@ -107,7 +107,7 @@
   "provenance": {
     "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
     "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
-    "corpus_manifest_sha256": "8b6da87889126fdaf7927018a99f1c8ffb480e84a73a5647ffd0d8c0b2c0e766",
+    "corpus_manifest_sha256": "1c234a1786ba4ad3070d346428f05df0373f40353a16a635c8dff1a7948d5924",
     "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
     "gdc_api": "https://api.gdc.cancer.gov/",
     "predeclaration_sha256": "8071782851736aae337d3629c374e0bdb4d73546a01ebef734f249a88d9f709c",
@@ -116,7 +116,7 @@
     "registry_collection_manifest_sha256": "bbfb9e16126dccf9cc4cf13adfafa54a1475f368451bc4950dd4c96712268867",
     "registry_index_sha256": "c984ca469d96a8cd2a94270426167c662ce797a260d5a6fbf32a27f9f876ff4c",
     "registry_subset_id": "airaqc-tcga-public-pilot-v1",
-    "registry_subset_manifest_sha256": "141180ca3559c96eb80401dcc3f1da77a3bbd364ac48d93417ca9e9e1f09b8c6",
+    "registry_subset_manifest_sha256": "48bfd200d20ccca51261eb8f478caecc03fba59509c1841e191f7fd25cf38f76",
     "reliability_deposit_archive_sha256": "76f76a1eb8405a87e2bd4466a242c6280fc086daa31364adc97c9c635c3192da",
     "reliability_deposit_doi": "10.5281/zenodo.22932961",
     "retrieved_at": "2026-11-07",
@@ -146,21 +146,21 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 8.301098618,
+    "cpu_seconds": 10.431136652,
     "gpu_seconds": 0,
-    "peak_local_disk_bytes_upper_bound": 33707121037,
+    "peak_local_disk_bytes_upper_bound": 33707124493,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 59179008,
+    "peak_rss_bytes": 58462208,
     "peak_vram_bytes": 0,
     "pixels_read": 0,
-    "process_rchar": 15813772920,
-    "process_read_bytes": 0,
-    "result_bytes_before_report": 8531,
+    "process_rchar": 15813776380,
+    "process_read_bytes": 15565721600,
+    "result_bytes_before_report": 11987,
     "schema_version": "1.0.0",
     "source_bytes_manifested": 15813730059,
     "source_bytes_verified_in_preflight": 15813730059,
     "spatial_records": 0,
-    "wall_seconds": 8.316500236047432
+    "wall_seconds": 10.884003621991724
   },
   "rights_boundary": {
     "allowed_public_artifacts": [
@@ -193,9 +193,9 @@
     },
     "missing": [
       {
-        "patient_id": "TCGA-3C-AALI",
+        "patient_id": "tcga-patient-sha256-a1e495798fb58349a5299d367601b29a0c8cbd90eb1e7b7f33064bae2caeb34c",
         "scanner_model": "Leica SCN400",
-        "slide_id": "airaqc-tcga:tcga-3c-aali:6a7477b1-86f3-473f-9bf1-174a758142e9"
+        "slide_id": "airaqc-tcga:tcga-patient-sha256-a1e495798fb58349a5299d367601b29a0c8cbd90eb1e7b7f33064bae2caeb34c:6a7477b1-86f3-473f-9bf1-174a758142e9"
       }
     ]
   },

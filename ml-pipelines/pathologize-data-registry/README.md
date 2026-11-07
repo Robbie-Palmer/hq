@@ -19,10 +19,12 @@ project that creates them.
 | PANDA | Manifest only | CC BY-NC-SA 4.0 and Kaggle access terms |
 
 The AIRAQc subset uses the fixed 24-slide test partition from the cited
-reproducibility deposit. It keeps GDC file, case, patient, and TCGA slide
-identities, plus native Aperio scanner serials where present. One Leica SCN400
-slide has no native device identifier; the downstream pilot stops on that
-missing identity. Source SVS and annotation bytes must not be redistributed.
+reproducibility deposit. It keeps GDC file, case, and TCGA slide identities,
+plus stable domain-separated SHA-256 patient-group keys and native Aperio
+scanner serials where present. The pinned source index retains the public TCGA
+submitter-ID mapping. One Leica SCN400 slide has no native device identifier;
+the downstream pilot stops on that missing identity. Source SVS and annotation
+bytes must not be redistributed.
 
 The CPTAC-COAD series is a small pipeline fixture from NCI Imaging Data
 Commons. It is not a representative scientific cohort. CAMELYON16 and PANDA
