@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RecipeClientStateProvider } from "@/components/recipes/recipe-client-state-provider";
 import { RecipeContent } from "@/components/recipes/recipe-content";
 import { CookModeProvider } from "@/contexts/cook-mode-context";
 import type { RecipeDetailView } from "@/lib/domain/recipe/recipeViews";
@@ -93,6 +94,12 @@ const recipe: RecipeDetailView = {
   instructionSdk: {} as NonNullable<RecipeDetailView["instructionSdk"]>,
 };
 
+function renderRecipeContent(children: React.ReactNode) {
+  return render(
+    <RecipeClientStateProvider>{children}</RecipeClientStateProvider>,
+  );
+}
+
 describe("RecipeContent", () => {
   beforeEach(() => {
     mocks.captureRecipeProductActivity.mockClear();
@@ -118,7 +125,7 @@ describe("RecipeContent", () => {
 
   it("previews a preset without overwriting the saved custom ladder", async () => {
     const user = userEvent.setup();
-    render(<RecipeContent recipe={recipe} />);
+    renderRecipeContent(<RecipeContent recipe={recipe} />);
 
     expect(screen.getByRole("button", { name: "Custom" })).toHaveAttribute(
       "aria-pressed",
@@ -139,7 +146,7 @@ describe("RecipeContent", () => {
   });
 
   it("renders timers as disabled in an unsaved recipe preview", () => {
-    render(
+    renderRecipeContent(
       <RecipeContent
         recipe={recipe}
         timersEnabled={false}
@@ -158,7 +165,7 @@ describe("RecipeContent", () => {
 
   it("passes the selected servings to the shopping-list action", async () => {
     const user = userEvent.setup();
-    render(<RecipeContent recipe={recipe} />);
+    renderRecipeContent(<RecipeContent recipe={recipe} />);
 
     expect(
       screen.getByRole("button", { name: "Add to shopping list" }),
@@ -179,7 +186,9 @@ describe("RecipeContent", () => {
   });
 
   it("retains native list markers for Safari accessibility", () => {
-    const { container } = render(<RecipeContent recipe={recipe} />);
+    const { container } = renderRecipeContent(
+      <RecipeContent recipe={recipe} />,
+    );
 
     const method = container.querySelector(".rt-method-steps");
     expect(method).toHaveClass("list-decimal", "marker:text-transparent");
@@ -188,7 +197,7 @@ describe("RecipeContent", () => {
 
   it("tracks a cook-mode start but only counts the meal when cooking is completed", async () => {
     const user = userEvent.setup();
-    render(
+    renderRecipeContent(
       <CookModeProvider>
         <RecipeContent recipe={recipe} />
       </CookModeProvider>,
@@ -237,7 +246,7 @@ describe("RecipeContent", () => {
     mocks.recordCookingCompletionReliably.mockRejectedValue(
       new Error("offline"),
     );
-    render(
+    renderRecipeContent(
       <CookModeProvider>
         <RecipeContent recipe={recipe} />
       </CookModeProvider>,
@@ -253,7 +262,7 @@ describe("RecipeContent", () => {
     const user = userEvent.setup();
     mocks.authState.data = null;
     mocks.authState.isPending = true;
-    render(
+    renderRecipeContent(
       <CookModeProvider>
         <RecipeContent recipe={recipe} />
       </CookModeProvider>,

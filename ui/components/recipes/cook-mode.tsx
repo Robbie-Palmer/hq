@@ -20,16 +20,11 @@ import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import { CookingOutcomeDialog } from "@/components/recipes/cooking-outcome-dialog";
 import { Button } from "@/components/ui/button";
 import { useCookModeNavigation } from "@/hooks/use-cook-mode-navigation";
-import { useCookingTimer } from "@/hooks/use-cooking-timers";
 import {
-  type CookingTimer,
-  dismissTimer,
-  extendTimer,
-  formatCountdown,
-  pauseTimer,
-  resumeTimer,
-  startTimer,
-} from "@/lib/cooking/timerStore";
+  useCookingTimer,
+  useCookingTimerCommands,
+} from "@/hooks/use-cooking-timers";
+import { type CookingTimer, formatCountdown } from "@/lib/cooking/timerStore";
 import { isWakeLockSupported } from "@/lib/cooking/wakeLock";
 import {
   formatIngredient,
@@ -585,16 +580,17 @@ function IngredientReference({
   );
 }
 
-/** Large timer control for the current step, bound to the global store. */
+/** Large timer control for the current step, bound to the Recipe store. */
 function TimerResetButton({
   timerId,
   label,
 }: Readonly<{ timerId: string; label: string }>) {
+  const { dismiss } = useCookingTimerCommands();
   return (
     <Button
       size="sm"
       variant="ghost"
-      onClick={() => dismissTimer(timerId)}
+      onClick={() => dismiss(timerId)}
       aria-label={`Reset ${label} timer`}
     >
       <RotateCcw className="size-4" />
@@ -614,6 +610,7 @@ function CookModeTimerActions({
   label: string;
   onStart: () => void;
 }>) {
+  const { dismiss, extend, pause, resume } = useCookingTimerCommands();
   if (state === "idle") {
     return (
       <Button
@@ -630,7 +627,7 @@ function CookModeTimerActions({
     return (
       <Button
         size="sm"
-        onClick={() => dismissTimer(timerId)}
+        onClick={() => dismiss(timerId)}
         className="bg-[var(--terracotta)] text-white hover:bg-[var(--terracotta-deep)]"
       >
         Dismiss
@@ -643,12 +640,12 @@ function CookModeTimerActions({
       <Button
         size="sm"
         variant="outline"
-        onClick={() => (isRunning ? pauseTimer(timerId) : resumeTimer(timerId))}
+        onClick={() => (isRunning ? pause(timerId) : resume(timerId))}
       >
         {isRunning ? <Pause className="size-4" /> : <Play className="size-4" />}
         {isRunning ? "Pause" : "Resume"}
       </Button>
-      <Button size="sm" variant="outline" onClick={() => extendTimer(timerId)}>
+      <Button size="sm" variant="outline" onClick={() => extend(timerId)}>
         +1 min
       </Button>
       <TimerResetButton timerId={timerId} label={label} />
@@ -674,6 +671,7 @@ function CookModeTimer({
   stepText: string;
 }>) {
   const timer = useCookingTimer(timerId);
+  const cookingTimers = useCookingTimerCommands();
   const state: CookingTimer["state"] | "idle" = timer?.state ?? "idle";
   const remaining = timer?.remainingSeconds ?? durationSeconds;
 
@@ -685,7 +683,7 @@ function CookModeTimer({
 
   const start = useCallback(
     () =>
-      startTimer({
+      cookingTimers.start({
         id: timerId,
         recipeSlug,
         recipeTitle,
@@ -695,6 +693,7 @@ function CookModeTimer({
         durationSeconds,
       }),
     [
+      cookingTimers,
       timerId,
       recipeSlug,
       recipeTitle,

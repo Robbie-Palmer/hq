@@ -4,19 +4,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CookMode, type CookStep } from "@/components/recipes/cook-mode";
 import { CookModeProvider, useCookMode } from "@/contexts/cook-mode-context";
 import { useCookingTimer } from "@/hooks/use-cooking-timers";
-import { startTimer } from "@/lib/cooking/timerStore";
 import { preferenceForSystem } from "@/lib/domain/recipe/unit";
+
+const timerCommands = vi.hoisted(() => ({
+  clearAll: vi.fn(),
+  dismiss: vi.fn(),
+  extend: vi.fn(),
+  pause: vi.fn(),
+  resume: vi.fn(),
+  start: vi.fn(),
+  startCustom: vi.fn(),
+}));
 
 vi.mock("@/hooks/use-cooking-timers", () => ({
   useCookingTimer: vi.fn(),
+  useCookingTimerCommands: () => timerCommands,
   useCookingTimers: vi.fn(() => []),
 }));
-
-vi.mock("@/lib/cooking/timerStore", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("@/lib/cooking/timerStore")>();
-  return { ...original, startTimer: vi.fn() };
-});
 
 const mockUseCookingTimer = vi.mocked(useCookingTimer);
 
@@ -113,7 +117,7 @@ describe("CookMode timer", () => {
       screen.getByRole("button", { name: "Start 10 min timer" }),
     );
 
-    expect(startTimer).toHaveBeenCalledWith({
+    expect(timerCommands.start).toHaveBeenCalledWith({
       id: "pasta:s0:t1",
       recipeSlug: "pasta",
       recipeTitle: "Pasta",

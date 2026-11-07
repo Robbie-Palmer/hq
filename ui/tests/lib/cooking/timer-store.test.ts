@@ -1,20 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  dismissTimer,
-  extendTimer,
   formatCountdown,
-  getTimersSnapshot,
-  pauseTimer,
-  resumeTimer,
-  setCookingTimerOwner,
-  startCustomTimer,
-  startTimer,
-  subscribeTimers,
-} from "@/lib/cooking/timerStore";
-import { __resetTimerStoreForTests } from "@/tests/support/recipe-state";
+  selectCookingTimers,
+} from "@/lib/cooking/cookingTimersSlice";
+import type { RecipeClientStoreBundle } from "@/lib/cooking/recipeClientStore";
+import {
+  changeTestRecipeOwner,
+  createTestRecipeClientStore,
+} from "@/tests/support/recipe-client-state";
 
-function firstTimer() {
-  const timer = getTimersSnapshot()[0];
+function firstTimer(bundle: RecipeClientStoreBundle) {
+  const timer = selectCookingTimers(bundle.store.getState())[0];
   if (!timer) throw new Error("expected at least one timer");
   return timer;
 }
@@ -28,120 +24,114 @@ const INPUT = {
 };
 const STORAGE_KEY = "cooking-timers:v2:test-user";
 
-describe("timerStore", () => {
+describe("Recipe Site cooking timer store", () => {
+  let bundle: RecipeClientStoreBundle;
+
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.clear();
-    __resetTimerStoreForTests();
+    bundle = createTestRecipeClientStore();
+    bundle.runtime.start(bundle.store);
+    changeTestRecipeOwner(bundle, "test-user");
   });
 
   afterEach(() => {
-    __resetTimerStoreForTests();
+    bundle.runtime.stop();
     vi.useRealTimers();
   });
 
   it("starts a running timer with the full duration", () => {
-    startTimer(INPUT);
-    const timers = getTimersSnapshot();
-    expect(timers).toHaveLength(1);
-    expect(timers[0]).toMatchObject({
+    bundle.commands.start(INPUT);
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(1);
+    expect(firstTimer(bundle)).toMatchObject({
       id: INPUT.id,
       state: "running",
       remainingSeconds: 600,
+      endTimeMs: Date.now() + 600_000,
     });
-    expect(firstTimer().endTimeMs).toBe(Date.now() + 600_000);
   });
 
   it("counts down while running and completes at zero", () => {
-    startTimer(INPUT);
+    bundle.commands.start(INPUT);
     vi.advanceTimersByTime(90_000);
-    expect(firstTimer().remainingSeconds).toBe(510);
-
+    expect(firstTimer(bundle).remainingSeconds).toBe(510);
     vi.advanceTimersByTime(510_000);
-    expect(firstTimer()).toMatchObject({
+    expect(firstTimer(bundle)).toMatchObject({
       state: "completed",
       remainingSeconds: 0,
       endTimeMs: null,
     });
   });
 
-  it("pauses (freezing remaining time) and resumes", () => {
-    startTimer(INPUT);
+  it("pauses and resumes without counting paused time", () => {
+    bundle.commands.start(INPUT);
     vi.advanceTimersByTime(100_000);
-    pauseTimer(INPUT.id);
-    expect(firstTimer()).toMatchObject({
+    bundle.commands.pause(INPUT.id);
+    expect(firstTimer(bundle)).toMatchObject({
       state: "paused",
       remainingSeconds: 500,
       endTimeMs: null,
     });
-
-    // Time passing while paused changes nothing.
     vi.advanceTimersByTime(60_000);
-    expect(firstTimer().remainingSeconds).toBe(500);
-
-    resumeTimer(INPUT.id);
+    expect(firstTimer(bundle).remainingSeconds).toBe(500);
+    bundle.commands.resume(INPUT.id);
     vi.advanceTimersByTime(10_000);
-    expect(firstTimer()).toMatchObject({
+    expect(firstTimer(bundle)).toMatchObject({
       state: "running",
       remainingSeconds: 490,
     });
   });
 
   it("extends a running timer and restarts a completed one", () => {
-    startTimer({ ...INPUT, durationSeconds: 60 });
-    extendTimer(INPUT.id, 60);
-    expect(firstTimer().remainingSeconds).toBe(120);
-
+    bundle.commands.start({ ...INPUT, durationSeconds: 60 });
+    bundle.commands.extend(INPUT.id, 60);
+    expect(firstTimer(bundle).remainingSeconds).toBe(120);
     vi.advanceTimersByTime(120_000);
-    expect(firstTimer().state).toBe("completed");
-
-    extendTimer(INPUT.id, 60);
-    expect(firstTimer()).toMatchObject({
+    expect(firstTimer(bundle).state).toBe("completed");
+    bundle.commands.extend(INPUT.id, 60);
+    expect(firstTimer(bundle)).toMatchObject({
       state: "running",
       remainingSeconds: 60,
     });
   });
 
-  it("dismisses timers", () => {
-    startTimer(INPUT);
-    dismissTimer(INPUT.id);
-    expect(getTimersSnapshot()).toHaveLength(0);
+  it("dismisses timers and removes empty persistence", () => {
+    bundle.commands.start(INPUT);
+    bundle.commands.dismiss(INPUT.id);
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
   });
 
   it("restarting an existing id replaces the timer", () => {
-    startTimer(INPUT);
+    bundle.commands.start(INPUT);
     vi.advanceTimersByTime(200_000);
-    startTimer(INPUT);
-    const timers = getTimersSnapshot();
-    expect(timers).toHaveLength(1);
-    expect(firstTimer().remainingSeconds).toBe(600);
+    bundle.commands.start(INPUT);
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(1);
+    expect(firstTimer(bundle).remainingSeconds).toBe(600);
   });
 
-  it("persists running timers as end timestamps and restores them after a reload", () => {
-    startTimer(INPUT);
+  it("persists end timestamps and restores them after a reload", () => {
+    bundle.commands.start(INPUT);
     vi.advanceTimersByTime(60_000);
-
-    // Simulate a reload: module state resets, localStorage survives, and the
-    // user comes back 120s later.
-    __resetTimerStoreForTests();
+    bundle.runtime.stop();
     vi.advanceTimersByTime(120_000);
-
-    const timers = getTimersSnapshot();
-    expect(timers).toHaveLength(1);
-    expect(timers[0]).toMatchObject({
+    bundle = createTestRecipeClientStore();
+    bundle.runtime.start(bundle.store);
+    changeTestRecipeOwner(bundle, "test-user");
+    expect(firstTimer(bundle)).toMatchObject({
       state: "running",
-      remainingSeconds: 600 - 180,
+      remainingSeconds: 420,
     });
   });
 
   it("restores a timer that expired while away as completed", () => {
-    startTimer({ ...INPUT, durationSeconds: 60 });
-
-    __resetTimerStoreForTests();
+    bundle.commands.start({ ...INPUT, durationSeconds: 60 });
+    bundle.runtime.stop();
     vi.advanceTimersByTime(120_000);
-
-    expect(firstTimer()).toMatchObject({
+    bundle = createTestRecipeClientStore();
+    bundle.runtime.start(bundle.store);
+    changeTestRecipeOwner(bundle, "test-user");
+    expect(firstTimer(bundle)).toMatchObject({
       state: "completed",
       remainingSeconds: 0,
       endTimeMs: null,
@@ -149,77 +139,106 @@ describe("timerStore", () => {
   });
 
   it("ignores malformed stored data", () => {
+    bundle.runtime.stop();
     localStorage.setItem(STORAGE_KEY, '{"not":"an envelope"}');
-    expect(getTimersSnapshot()).toHaveLength(0);
-
-    __resetTimerStoreForTests();
+    bundle = createTestRecipeClientStore();
+    changeTestRecipeOwner(bundle, "test-user");
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
     localStorage.setItem(
       STORAGE_KEY,
       '{"version":2,"userId":"test-user","timers":[{"id":42}]}',
     );
-    expect(getTimersSnapshot()).toHaveLength(0);
+    changeTestRecipeOwner(bundle, undefined);
+    changeTestRecipeOwner(bundle, "test-user");
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
   });
 
-  it("keeps timer snapshots isolated by user", () => {
-    setCookingTimerOwner("user-1");
-    startTimer(INPUT);
-
-    setCookingTimerOwner("user-2");
-    expect(getTimersSnapshot()).toHaveLength(0);
-    startTimer({ ...INPUT, id: "user-2-timer", label: "User two" });
-
-    setCookingTimerOwner("user-1");
-    expect(getTimersSnapshot().map((timer) => timer.id)).toEqual([INPUT.id]);
+  it("keeps persisted timer snapshots isolated by user", () => {
+    changeTestRecipeOwner(bundle, "user-1");
+    bundle.commands.start(INPUT);
+    changeTestRecipeOwner(bundle, "user-2");
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
+    bundle.commands.start({ ...INPUT, id: "user-2-timer", label: "User two" });
+    changeTestRecipeOwner(bundle, "user-1");
+    expect(
+      selectCookingTimers(bundle.store.getState()).map(({ id }) => id),
+    ).toEqual([INPUT.id]);
   });
 
-  it("notifies subscribers on mutations and each ticking second", () => {
+  it("keeps a timer selector reference stable until a displayed second changes", () => {
+    bundle.commands.start(INPUT);
+    const initial = firstTimer(bundle);
+    vi.advanceTimersByTime(750);
+    expect(firstTimer(bundle)).toBe(initial);
+    vi.advanceTimersByTime(250);
+    expect(firstTimer(bundle)).not.toBe(initial);
+    expect(firstTimer(bundle).remainingSeconds).toBe(599);
+  });
+
+  it("notifies store subscribers on mutations and each ticking second", () => {
     const listener = vi.fn();
-    const unsubscribe = subscribeTimers(listener);
-
-    startTimer(INPUT);
-    expect(listener).toHaveBeenCalledTimes(1);
+    const unsubscribe = bundle.store.subscribe(listener);
+    bundle.commands.start(INPUT);
+    expect(listener).toHaveBeenCalledOnce();
 
     vi.advanceTimersByTime(3_000);
-    // One notification per elapsed second (ticks that change nothing are silent).
-    expect(listener).toHaveBeenCalledTimes(4);
 
+    expect(listener).toHaveBeenCalledTimes(4);
     unsubscribe();
   });
 
   it("starts a custom timer with a minted id and no recipe context", () => {
-    const id = startCustomTimer({ label: "Pasta", durationSeconds: 300 });
+    const id = bundle.commands.startCustom({
+      label: "Pasta",
+      durationSeconds: 300,
+    });
     expect(id).toMatch(/^custom:/);
-    const timer = firstTimer();
-    expect(timer).toMatchObject({
+    expect(firstTimer(bundle)).toMatchObject({
       id,
       label: "Pasta",
       state: "running",
       remainingSeconds: 300,
     });
-    expect(timer.recipeSlug).toBeUndefined();
-    expect(timer.recipeTitle).toBeUndefined();
+    expect(firstTimer(bundle).recipeSlug).toBeUndefined();
+    expect(firstTimer(bundle).recipeTitle).toBeUndefined();
   });
 
-  it("mints a distinct id for each custom timer so they stack", () => {
-    const first = startCustomTimer({ label: "One", durationSeconds: 60 });
-    const second = startCustomTimer({ label: "Two", durationSeconds: 120 });
-    expect(first).not.toBe(second);
-    expect(getTimersSnapshot()).toHaveLength(2);
+  it("starts custom timers with distinct minted ids", () => {
+    const first = bundle.commands.startCustom({
+      label: "One",
+      durationSeconds: 60,
+    });
+    const second = bundle.commands.startCustom({
+      label: "Two",
+      durationSeconds: 120,
+    });
+    expect(first).toMatch(/^custom:/);
+    expect(second).not.toBe(first);
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(2);
   });
 
-  it("persists and restores custom timers with no recipe fields", () => {
-    startCustomTimer({ label: "Rice", durationSeconds: 600 });
+  it("persists and restores custom timers without recipe fields", () => {
+    bundle.commands.startCustom({ label: "Rice", durationSeconds: 600 });
     vi.advanceTimersByTime(60_000);
-
-    __resetTimerStoreForTests();
-    const timers = getTimersSnapshot();
-    expect(timers).toHaveLength(1);
-    expect(timers[0]).toMatchObject({
+    bundle.runtime.stop();
+    bundle = createTestRecipeClientStore();
+    changeTestRecipeOwner(bundle, "test-user");
+    expect(firstTimer(bundle)).toMatchObject({
       label: "Rice",
       state: "running",
       remainingSeconds: 540,
     });
-    expect(timers[0]?.recipeSlug).toBeUndefined();
+    expect(firstTimer(bundle).recipeSlug).toBeUndefined();
+  });
+
+  it("clears every identity-scoped timer record", () => {
+    bundle.commands.start(INPUT);
+    changeTestRecipeOwner(bundle, "another-user");
+    bundle.commands.start({ ...INPUT, id: "another" });
+    bundle.commands.clearAll();
+    expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    expect(localStorage.getItem("cooking-timers:v2:another-user")).toBeNull();
+    expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
   });
 
   it("formats countdowns", () => {

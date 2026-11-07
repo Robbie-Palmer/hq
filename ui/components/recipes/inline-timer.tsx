@@ -4,35 +4,37 @@ import { BellRing, Pause, Timer, X } from "lucide-react";
 import { useCallback } from "react";
 import { AddTimerPopover } from "@/components/recipes/add-timer-popover";
 import { badgeVariants } from "@/components/ui/badge";
-import { useCookingTimer } from "@/hooks/use-cooking-timers";
+import {
+  useCookingTimer,
+  useCookingTimerCommands,
+} from "@/hooks/use-cooking-timers";
+import type { CookingTimerCommands } from "@/lib/cooking/recipeClientStore";
 import {
   type CookingTimerState,
-  dismissTimer,
   formatCountdown,
-  pauseTimer,
-  resumeTimer,
-  startTimer,
+  type StartTimerInput,
 } from "@/lib/cooking/timerStore";
 import { cn } from "@/lib/generic/styles";
 
 type InlineTimerState = CookingTimerState | "idle";
 
 function runTimerAction(
+  commands: CookingTimerCommands,
   state: InlineTimerState,
-  input: Parameters<typeof startTimer>[0],
+  input: StartTimerInput,
 ) {
   switch (state) {
     case "idle":
-      startTimer(input);
+      commands.start(input);
       break;
     case "running":
-      pauseTimer(input.id);
+      commands.pause(input.id);
       break;
     case "paused":
-      resumeTimer(input.id);
+      commands.resume(input.id);
       break;
     case "completed":
-      dismissTimer(input.id);
+      commands.dismiss(input.id);
       break;
   }
 }
@@ -78,7 +80,7 @@ function timerDisplayText(
 
 /**
  * Tap-to-start countdown pill rendered inline in a method step. State lives
- * in the global timer store, so the same countdown is mirrored in cook mode
+ * in the Recipe store, so the same countdown is mirrored in cook mode
  * and the floating timer dock, and keeps running across page navigation.
  */
 export function InlineTimer({
@@ -98,13 +100,14 @@ export function InlineTimer({
   durationSeconds: number | null;
   label: string;
 }>) {
-  const timer = useCookingTimer(timerId);
+  const commands = useCookingTimerCommands(),
+    timer = useCookingTimer(timerId);
   const state = timer?.state ?? "idle";
   const remaining = timer?.remainingSeconds ?? durationSeconds ?? 0;
 
   const handleClick = useCallback(() => {
     if (durationSeconds === null) return;
-    runTimerAction(state, {
+    runTimerAction(commands, state, {
       id: timerId,
       recipeSlug,
       recipeTitle,
@@ -114,6 +117,7 @@ export function InlineTimer({
       durationSeconds,
     });
   }, [
+    commands,
     state,
     durationSeconds,
     timerId,
@@ -124,8 +128,7 @@ export function InlineTimer({
     label,
   ]);
 
-  // No resolved duration: offer to set a custom time. The label can be empty
-  // for free-text markers, so fall back to a generic prompt.
+  // An unresolved duration offers a custom timer with a generic fallback label.
   if (durationSeconds === null) {
     const promptLabel = label.trim() || "set timer";
     return (
@@ -169,8 +172,7 @@ export function InlineTimer({
           active: state === "running",
         }),
         "align-baseline text-[0.8125rem] font-semibold",
-        // The idle timer should read as an inviting, tappable control rather
-        // than recede into the method text — warm fill + emphasised label.
+        // Keep an idle timer visually inviting in the method text.
         state === "idle" && "bg-[var(--butter-soft)] text-[var(--ink)]",
         state === "completed" && "rt-timer-attention",
       )}
@@ -187,7 +189,7 @@ export function InlineTimer({
       {showReset && (
         <button
           type="button"
-          onClick={() => dismissTimer(timerId)}
+          onClick={() => commands.dismiss(timerId)}
           className="ml-0.5 rounded-sm opacity-60 hover:opacity-100"
           aria-label="Cancel timer"
         >

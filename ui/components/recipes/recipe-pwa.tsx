@@ -3,6 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { WifiOff } from "lucide-react";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCookingTimerCommands } from "@/hooks/use-cooking-timers";
 import { authClient } from "@/lib/auth-client";
 import { clearCookingTimerStorage } from "@/lib/cooking/timerStore";
 import {
@@ -85,13 +86,14 @@ export function formatOfflineSnapshotAge(
 function useAuthenticatedOfflineDataCleanup(
   isPending: boolean,
   userId: string | undefined,
+  clearTimers: () => void,
 ): void {
   const previousUserId = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (isPending) return;
     if (userId) {
       if (previousUserId.current && previousUserId.current !== userId) {
-        clearCookingTimerStorage();
+        clearTimers();
         clearShoppingListStorage();
       }
       previousUserId.current = userId;
@@ -99,11 +101,12 @@ function useAuthenticatedOfflineDataCleanup(
     }
     if (!previousUserId.current) return;
     previousUserId.current = undefined;
+    clearTimers();
     void clearOfflineRecipeData().catch(() => {
       // Server-side sign-out or account deletion still wins if local storage
       // is unavailable.
     });
-  }, [isPending, userId]);
+  }, [clearTimers, isPending, userId]);
 }
 
 function useOfflineConnectivity(): boolean {
@@ -201,7 +204,8 @@ export function RecipePwa() {
     getOfflineCacheStatus,
     getServerOfflineCacheStatus,
   );
-  useAuthenticatedOfflineDataCleanup(isPending, userId);
+  const cookingTimers = useCookingTimerCommands();
+  useAuthenticatedOfflineDataCleanup(isPending, userId, cookingTimers.clearAll);
   useRecipeServiceWorker(userId, offline);
 
   if (!offline && !cacheStatus.quotaExceeded) return null;

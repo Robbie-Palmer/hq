@@ -32,11 +32,13 @@ vi.mock("@/lib/pwa/offline-recipe-cache", () => ({
 }));
 
 import { QueryClientProvider } from "@tanstack/react-query";
+import { RecipeClientStateProvider } from "@/components/recipes/recipe-client-state-provider";
 import {
   clearOfflineRecipeData,
   RecipePwa,
 } from "@/components/recipes/recipe-pwa";
 import { createRecipeQueryClient } from "@/lib/query/recipe-query-client";
+import { createTestRecipeClientStore } from "@/tests/support/recipe-client-state";
 
 describe("RecipePwa", () => {
   beforeEach(() => {
@@ -65,11 +67,17 @@ describe("RecipePwa", () => {
   });
 
   function renderPwa() {
-    return render(
-      <QueryClientProvider client={createRecipeQueryClient()}>
-        <RecipePwa />
-      </QueryClientProvider>,
+    const bundle = createTestRecipeClientStore();
+    const queryClient = createRecipeQueryClient();
+    const pwa = () => (
+      <RecipeClientStateProvider bundle={bundle}>
+        <QueryClientProvider client={queryClient}>
+          <RecipePwa />
+        </QueryClientProvider>
+      </RecipeClientStateProvider>
     );
+    const view = render(pwa());
+    return { ...view, rerenderPwa: () => view.rerender(pwa()) };
   }
 
   it("explains that saved recipes remain readable while offline", async () => {
@@ -184,11 +192,7 @@ describe("RecipePwa", () => {
     await act(async () => undefined);
 
     authMocks.session = { data: null, isPending: false };
-    view.rerender(
-      <QueryClientProvider client={createRecipeQueryClient()}>
-        <RecipePwa />
-      </QueryClientProvider>,
-    );
+    view.rerenderPwa();
 
     await waitFor(() => {
       expect(pwaMocks.clearOfflineRecipeSnapshots).toHaveBeenCalled();
