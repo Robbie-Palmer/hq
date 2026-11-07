@@ -946,6 +946,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "Transformers",
+    added: "2026-11-07",
+    description:
+      "Hugging Face library for pretrained model loading, processing, training, and inference",
+    website: "https://huggingface.co/docs/transformers/",
+    type: "library",
+  },
+  {
     name: "Jenkins",
     added: "2026-01-04",
     description:
@@ -1069,6 +1077,36 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     description:
       "A Python library for designing, training, and running neural networks",
     website: "https://pytorch.org",
+    type: "library",
+  },
+  {
+    name: "fastai",
+    added: "2026-11-07",
+    description:
+      "High-level PyTorch library for transfer learning and model training",
+    website: "https://docs.fast.ai/",
+    type: "library",
+  },
+  {
+    name: "timm",
+    added: "2026-11-07",
+    description: "PyTorch image models and pretrained weight catalog",
+    website: "https://huggingface.co/docs/timm/",
+    type: "library",
+  },
+  {
+    name: "torchmil",
+    added: "2026-11-07",
+    description: "PyTorch library for deep multiple instance learning",
+    website: "https://torchmil.readthedocs.io/",
+    type: "library",
+  },
+  {
+    name: "Ultralytics",
+    added: "2026-11-07",
+    description:
+      "Computer vision training library for detection, segmentation, classification, and pose models",
+    website: "https://docs.ultralytics.com/",
     type: "library",
   },
   {
