@@ -3,6 +3,11 @@ import type { Context, MiddlewareHandler } from "hono";
 import type { Db } from "recipe-db";
 import type { RecipeVisibility } from "recipe-domain/visibility";
 import { createAuth, type Auth } from "../auth";
+import {
+  anonymousRecipePrincipal,
+  authorizeRecipePolicy,
+  userRecipePrincipal,
+} from "../authorization/recipe-authorization";
 
 type AuthorizationEnv = Parameters<typeof createAuth>[1];
 
@@ -160,7 +165,16 @@ export function authorizeOwnerOnly(
   resource: OwnedResource,
 ): AuthorizationDecision {
   if (!user) return unauthenticated();
-  return resource.userId === user.id ? allow() : forbidden();
+  const decision = authorizeRecipePolicy({
+    principal: userRecipePrincipal(user.id),
+    action: "resource.owner.manage",
+    resource: {
+      type: "OwnedResource",
+      id: `owned:${resource.userId}`,
+      attrs: { ownerId: resource.userId },
+    },
+  });
+  return decision.allowed ? allow() : forbidden();
 }
 
 export function authorizeRecipeRead(
@@ -168,16 +182,22 @@ export function authorizeRecipeRead(
   recipe: RecipeResource,
   household: HouseholdReadContext = noHouseholdReadAccess,
 ): AuthorizationDecision {
-  if (recipe.visibility === "public") return allow();
-  if (!user) return unauthenticated();
-  if (recipe.userId === user.id) return allow();
-  if (
-    recipe.visibility === "household" &&
-    household.userSharesHouseholdWithOwner
-  ) {
-    return allow();
-  }
-  return forbidden();
+  const decision = authorizeRecipePolicy({
+    principal: user
+      ? userRecipePrincipal(user.id)
+      : anonymousRecipePrincipal(),
+    action: "recipe.read",
+    resource: {
+      type: "Recipe",
+      id: `recipe-owner:${recipe.userId}`,
+      attrs: { ownerId: recipe.userId, visibility: recipe.visibility },
+    },
+    context: {
+      sharesHouseholdWithOwner: household.userSharesHouseholdWithOwner,
+    },
+  });
+  if (decision.allowed) return allow();
+  return user ? forbidden() : unauthenticated();
 }
 
 export function authorizeHouseholdMembershipManagement(
@@ -185,5 +205,14 @@ export function authorizeHouseholdMembershipManagement(
   household: HouseholdResource,
 ): AuthorizationDecision {
   if (!user) return unauthenticated();
-  return household.ownerId === user.id ? allow() : forbidden();
+  const decision = authorizeRecipePolicy({
+    principal: userRecipePrincipal(user.id),
+    action: "household.membership.manage",
+    resource: {
+      type: "Household",
+      id: `household-owner:${household.ownerId}`,
+      attrs: { ownerId: household.ownerId },
+    },
+  });
+  return decision.allowed ? allow() : forbidden();
 }

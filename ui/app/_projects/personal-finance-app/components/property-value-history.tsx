@@ -444,9 +444,9 @@ function ReadyPropertyValueHistory({
 }: Readonly<{ view: ReadyPropertyValueHistoryView }>) {
   const { history } = view;
   const points = chartPoints(view);
-  const latestEstimate = history.estimates
-    .filter((estimate) => estimate.kind === "index-estimate")
-    .at(-1);
+  const latestEstimate = history.estimates.findLast(
+    (estimate) => estimate.kind === "index-estimate",
+  );
   const latestHousingValue = history.housingValues.find(
     ({ id }) => id === `index-estimate:${latestEstimate?.date}`,
   );

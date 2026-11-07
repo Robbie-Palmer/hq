@@ -15,7 +15,7 @@ source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 cleanup() {
-  if [ -f "${secret_file}" ]; then
+  if [[ -f "${secret_file}" ]]; then
     shred --remove "${secret_file}" 2>/dev/null || rm -f "${secret_file}"
   fi
   rmdir "${secret_dir}/var/lib/remote-development-secrets" 2>/dev/null || true
@@ -32,7 +32,7 @@ for command in docker doppler ssh; do
   fi
 done
 
-if [ ! -r "${identity_file}" ]; then
+if [[ ! -r "${identity_file}" ]]; then
   echo "cannot read SSH identity ${identity_file}" >&2
   exit 1
 fi

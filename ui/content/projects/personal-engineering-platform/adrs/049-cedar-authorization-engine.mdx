@@ -1,0 +1,84 @@
+---
+title: "ADR 049: Cedar as the application authorization engine"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Cedar"]
+---
+
+## Context
+
+[ADR 034](/projects/personal-engineering-platform/adrs/034-identity-and-access-capability-contracts)
+requires identity-layer adopters to define project-owned resource and action
+rules. It deliberately stopped short of selecting an evaluation engine. Recipe
+Site, Personal Finance, Wedding Planner, and Work Graph now need the same
+default-deny behavior across user, delegated-agent, service-client, and
+field-level decisions.
+
+The projects have different entities and actions, but their policy loading
+requirements match. Each needs typed schemas, named policies, strict validation,
+fail-closed evaluation, and explicit prohibitions that override broad permits.
+Maintaining those mechanics in four adapters would make policy failures behave
+differently even when the policy language is shared.
+
+## Decision
+
+Select Cedar as the preferred engine for
+`identity.authorization-engine` in TypeScript projects that adopt the platform's
+application-authorization policy. The existing
+`identity.authorization-policy` slot remains required and project-owned. Cedar
+implements that policy; it does not move product rules into the platform.
+
+Each adopter owns its Cedar schema, policies, action vocabulary, entity mapping,
+and tests. The platform owns a small shared package that parses named static
+policies, rejects templates and duplicate IDs, validates the policy set in
+strict mode, evaluates requests, and converts every parser, validation, warning,
+or evaluation diagnostic into a denial.
+
+Every policy must have an `@id`. Callers may record the determining policy IDs
+with their existing audit events. Use `forbid` for human-only actions and other
+hard limits that must override a broader permit.
+
+Authentication remains separate. A session, Cloudflare Access assertion, or
+delegated-agent grant establishes the principal and its bounded credentials.
+Cedar then decides whether that principal may attempt the requested action on
+the current resource. Delegated access must stay within both the grant and the
+delegating user's current authority.
+
+Collection queries keep database predicates that prevent unauthorized rows from
+being loaded. Cedar authorizes the requested scope and single-resource actions;
+it does not replace SQL filtering, domain invariants, idempotency, quotas, or
+state-transition checks.
+
+A browser may evaluate the same policy for local planning or use a finite table
+that tests prove equivalent to Cedar. Either result controls interface behavior;
+it is not proof for a server. Any synchronized API must evaluate the policy again
+using server-loaded identity and resource facts.
+
+## Alternatives
+
+Project-local TypeScript predicates avoid WebAssembly and keep simple checks easy
+to step through. They become hard to compare once agents, service clients,
+resource relationships, and explicit prohibitions appear in several projects.
+Projects with a small, stable owner check may still defer this preferred slot.
+
+A central authorization service would give every caller one remote decision
+point. It would also add network availability and shared data-model coupling to
+requests that can be evaluated from local authoritative facts. The platform does
+not need that control plane.
+
+## Consequences
+
+Adopters share failure behavior and policy-loading tests while retaining their
+own product vocabulary. The policy files remain reviewable beside the code that
+maps trusted application state into Cedar entities.
+
+Cedar adds a WebAssembly evaluator to each runtime that embeds it. Node tests
+must cover policy behavior, and Worker adopters must start the bundled module in
+workerd because a dry-run bundle does not prove that WebAssembly can initialize.
+A browser adopter may ship an equivalence-tested finite table instead of adding
+the evaluator to its client bundle. A project can override the preferred engine
+when its runtime cannot support that cost, but it still owes the server-side
+resource and action policy required by ADR 034.
+
+Schema and policy changes now form one compatibility boundary. An action or
+entity change must update both and pass strict validation before release.

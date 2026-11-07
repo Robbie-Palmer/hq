@@ -102,6 +102,12 @@ import {
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
+import {
+  type WorkGraphAuthorityProfile,
+  type WorkGraphAuthorizer,
+  workGraphActionForRequest,
+  workGraphAuthorizer,
+} from "./authorization";
 import { handleWorkGraphMcpRequest } from "./mcp";
 
 const MAX_IDENTIFIER_LENGTH = 200;
@@ -2781,10 +2787,23 @@ export interface WorkGraphApiRepository {
 }
 
 export interface WorkGraphAppOptions {
+  readonly authorization?: {
+    readonly authorizer?: WorkGraphAuthorizer;
+    readonly resolveIdentity?: (
+      request: Request,
+    ) =>
+      | Promise<WorkGraphAuthorizationIdentity>
+      | WorkGraphAuthorizationIdentity;
+  };
   readonly createLeaseId?: () => string;
   readonly createRequestId?: () => string;
   readonly databaseMetrics?: DatabaseQueryMetrics;
   readonly workerVersion?: string;
+}
+
+export interface WorkGraphAuthorizationIdentity {
+  readonly authorityProfileId: WorkGraphAuthorityProfile;
+  readonly principalId: string;
 }
 
 const idempotencyOptions = (
@@ -3018,7 +3037,59 @@ export const createWorkGraphApp = (
   const app = new OpenAPIHono({ defaultHook: validationHook });
   const createLeaseId = options.createLeaseId ?? (() => crypto.randomUUID());
   const createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
+  const authorizer = options.authorization?.authorizer ?? workGraphAuthorizer;
+  const resolveAuthorizationIdentity =
+    options.authorization?.resolveIdentity ??
+    (() => ({
+      authorityProfileId: "authority:work-graph-full" as const,
+      principalId: "cloudflare-access:service-client",
+    }));
   const databaseMetrics = options.databaseMetrics;
+  app.use("/api/*", async (context, next) => {
+    const identity = await resolveAuthorizationIdentity(context.req.raw);
+    const path = new URL(context.req.url).pathname;
+    const decision = authorizer.authorize({
+      action: workGraphActionForRequest(context.req.method, path),
+      authorityProfileId: identity.authorityProfileId,
+      method: context.req.method,
+      path,
+      principalId: identity.principalId,
+    });
+    if (decision.decision === "deny") {
+      return context.json(
+        {
+          error: {
+            code: "authorization_denied",
+            message: "The authenticated client cannot perform this action.",
+          },
+        },
+        403,
+      );
+    }
+    await next();
+  });
+  app.use("/mcp", async (context, next) => {
+    const identity = await resolveAuthorizationIdentity(context.req.raw);
+    const decision = authorizer.authorize({
+      action: "mcp.invoke",
+      authorityProfileId: identity.authorityProfileId,
+      method: context.req.method,
+      path: "/mcp",
+      principalId: identity.principalId,
+    });
+    if (decision.decision === "deny") {
+      return context.json(
+        {
+          error: {
+            code: "authorization_denied",
+            message: "The authenticated client cannot perform this action.",
+          },
+        },
+        403,
+      );
+    }
+    await next();
+  });
   if (databaseMetrics !== undefined) {
     app.use("*", async (context, next) => {
       const startedAt = Date.now();

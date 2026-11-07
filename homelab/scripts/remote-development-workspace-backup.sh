@@ -5,7 +5,7 @@ config_file=${WORKSPACE_BACKUP_CONFIG:-/etc/remote-development-workspace-backup/
 restic_bin=${RESTIC_BIN:-restic}
 state_export_bin=${WORKSPACE_STATE_EXPORT_BIN:-remote-development-workspace-state-export}
 
-if [ ! -r "${config_file}" ]; then
+if [[ ! -r "${config_file}" ]]; then
   echo "workspace backup configuration is not readable" >&2
   exit 1
 fi
@@ -16,25 +16,25 @@ source "${config_file}"
 for name in WORKSPACE_ID BACKUP_SOURCE BACKUP_STAGING_DIRECTORY \
   BACKUP_EXCLUDES_FILE BACKUP_STATUS_FILE BACKUP_PASSWORD_FILE \
   CHECK_READ_DATA_SUBSET KEEP_WITHIN KEEP_LAST; do
-  if [ -z "${!name:-}" ]; then
+  if [[ -z "${!name:-}" ]]; then
     echo "workspace backup configuration is missing ${name}" >&2
     exit 1
   fi
 done
 
-if [ ! -d "${BACKUP_SOURCE}" ]; then
+if [[ ! -d "${BACKUP_SOURCE}" ]]; then
   echo "workspace backup source is not a directory" >&2
   exit 1
 fi
-if [ ! -r "${BACKUP_EXCLUDES_FILE}" ]; then
+if [[ ! -r "${BACKUP_EXCLUDES_FILE}" ]]; then
   echo "workspace backup exclude file is not readable" >&2
   exit 1
 fi
-if [ ! -r "${BACKUP_PASSWORD_FILE}" ]; then
+if [[ ! -r "${BACKUP_PASSWORD_FILE}" ]]; then
   echo "workspace backup password file is not readable" >&2
   exit 1
 fi
-if [ -z "${RESTIC_REPOSITORY:-}" ]; then
+if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   echo "RESTIC_REPOSITORY is not set" >&2
   exit 1
 fi
@@ -68,7 +68,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if [ -r "${BACKUP_STATUS_FILE}" ]; then
+if [[ -r "${BACKUP_STATUS_FILE}" ]]; then
   last_success_at=$(jq -r '.lastSuccessAt // "null"' "${BACKUP_STATUS_FILE}" 2>/dev/null || printf 'null')
   last_success_unix=$(jq -r '.lastSuccessUnix // "null"' "${BACKUP_STATUS_FILE}" 2>/dev/null || printf 'null')
 fi
@@ -81,7 +81,7 @@ write_status() {
   completed_unix=$(date +%s)
   temporary_status="${work_directory}/status.json"
 
-  if [ "${state}" = success ]; then
+  if [[ "${state}" = success ]]; then
     last_success_at=${completed_at}
     last_success_unix=${completed_unix}
   fi

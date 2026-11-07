@@ -316,7 +316,7 @@ export function TimerDock() {
     const node = attentionRef.current;
     if (!node) return;
     node.classList.remove("rt-timer-attention");
-    void node.offsetWidth; // force reflow so the re-added class restarts the animation
+    node.getBoundingClientRect(); // force reflow so the re-added class restarts the animation
     node.classList.add("rt-timer-attention");
   }, [attentionRevision]);
 

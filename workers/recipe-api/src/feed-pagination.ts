@@ -6,7 +6,7 @@ export type FeedCursor = Readonly<{ createdAt: string; id: string }>;
 
 const feedCursorSchema = z.object({
   createdAt: z.string().refine((value) => !Number.isNaN(Date.parse(value))),
-  id: z.string().uuid(),
+  id: z.uuid(),
 });
 
 type FeedRow = Readonly<{

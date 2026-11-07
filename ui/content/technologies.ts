@@ -1736,4 +1736,12 @@ Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-mi
     website: "https://frankfurter.dev",
     type: "platform",
   },
+  {
+    name: "Cedar",
+    added: "2026-11-07",
+    description:
+      "Policy language and evaluation engine for application authorization",
+    website: "https://www.cedarpolicy.com/",
+    type: "library",
+  },
 ];
