@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import {
+  type TouchEvent,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import {
   loadTermResolutionAudit,
@@ -17,6 +23,7 @@ import { TermReviewEvidence } from "./term-review-evidence";
 import {
   emptyResolutionDraft,
   type ResolutionDraft,
+  rankedCandidates,
   resolutionDraftFor,
   type TermReviewMutation,
 } from "./term-review-types";
@@ -215,6 +222,94 @@ function ReviewCardHeader({ item }: Readonly<{ item: TermReviewQueueItem }>) {
   );
 }
 
+function EvidenceDisclosure({
+  draft,
+  item,
+  setDraft,
+}: Readonly<{
+  draft: ResolutionDraft;
+  item: TermReviewQueueItem;
+  setDraft: (draft: ResolutionDraft) => void;
+}>) {
+  const matchCount = rankedCandidates(item).length;
+  return (
+    <details className="mt-4 rounded-lg border border-[var(--line)] px-3 py-2">
+      <summary className="cursor-pointer rt-body text-sm font-medium">
+        View evidence · {item.contexts.length} source
+        {item.contexts.length === 1 ? "" : "s"} · {matchCount} possible match
+        {matchCount === 1 ? "" : "es"}
+      </summary>
+      <div className="mt-4">
+        <TermReviewEvidence
+          item={item}
+          selectedSlug={draft.targetSlug}
+          selectCandidate={(targetSlug) =>
+            setDraft({ ...draft, action: "alias", targetSlug })
+          }
+        />
+      </div>
+    </details>
+  );
+}
+
+function useReviewSwipe(
+  disabled: boolean,
+  match: () => void,
+  reject: () => void,
+) {
+  const start = useRef<{ x: number; y: number } | null>(null);
+  return {
+    onTouchStart(event: TouchEvent<HTMLElement>) {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest("button, input, textarea, select, a, summary")
+      ) {
+        start.current = null;
+        return;
+      }
+      const touch = event.touches[0];
+      start.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
+    },
+    onTouchEnd(event: TouchEvent<HTMLElement>) {
+      const touch = event.changedTouches[0];
+      const origin = start.current;
+      start.current = null;
+      if (disabled || !touch || !origin) return;
+      const xDistance = touch.clientX - origin.x;
+      const yDistance = touch.clientY - origin.y;
+      if (
+        Math.abs(xDistance) < 72 ||
+        Math.abs(xDistance) < Math.abs(yDistance) * 1.5
+      ) {
+        return;
+      }
+      if (xDistance > 0) match();
+      else reject();
+    },
+  };
+}
+
+function ReviewSwipeHint({
+  action,
+  targetSlug,
+}: Readonly<{
+  action: "alias" | "new_canonical" | null;
+  targetSlug: string;
+}>) {
+  return (
+    <p className="mt-2 rt-body text-xs text-[var(--ink-3)] sm:hidden">
+      {action && (
+        <>
+          Swipe right to {action === "alias" ? "match" : "create"}{" "}
+          {targetSlug.replaceAll("-", " ")} ·{" "}
+        </>
+      )}
+      Swipe left for not a term
+    </p>
+  );
+}
+
 function ReviewCard({
   deferred,
   draft,
@@ -230,37 +325,45 @@ function ReviewCard({
   pending: boolean;
   setDraft: (draft: ResolutionDraft) => void;
 }>) {
+  const submitAction = (action = draft.action) =>
+    mutate(
+      () =>
+        submitTermResolution({
+          target: item,
+          command: reviewCommand(item, draft, action),
+        }),
+      {
+        offerUndo: true,
+        successMessage: resolutionSuccessMessage(action),
+      },
+    );
+  const matchAction =
+    draft.action === "alias" || draft.action === "new_canonical"
+      ? draft.action
+      : null;
+  const swipe = useReviewSwipe(
+    pending,
+    () => {
+      if (matchAction && draft.targetSlug) void submitAction(matchAction);
+    },
+    () => void submitAction("reject"),
+  );
   return (
-    <article className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-5 sm:p-6">
+    <article
+      aria-label={`Review ${item.rawTexts[0]}`}
+      className="touch-pan-y rounded-xl border border-[var(--line)] bg-[var(--card)] p-5 sm:p-6"
+      {...swipe}
+    >
       <ReviewCardHeader item={item} />
-      <div className="mt-6">
-        <TermReviewEvidence
-          item={item}
-          selectedSlug={draft.targetSlug}
-          selectCandidate={(targetSlug) =>
-            setDraft({ ...draft, action: "alias", targetSlug })
-          }
-        />
-      </div>
+      <ReviewSwipeHint action={matchAction} targetSlug={draft.targetSlug} />
+      <EvidenceDisclosure draft={draft} item={item} setDraft={setDraft} />
       <TermResolutionForm
         deferred={deferred}
         draft={draft}
         item={item}
         pending={pending}
         setDraft={setDraft}
-        submit={(action = draft.action) =>
-          mutate(
-            () =>
-              submitTermResolution({
-                target: item,
-                command: reviewCommand(item, draft, action),
-              }),
-            {
-              offerUndo: true,
-              successMessage: resolutionSuccessMessage(action),
-            },
-          )
-        }
+        submit={submitAction}
       />
     </article>
   );

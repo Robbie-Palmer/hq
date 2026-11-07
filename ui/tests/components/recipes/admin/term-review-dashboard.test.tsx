@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@/tests/test-utils";
+import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
 
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
@@ -142,25 +142,41 @@ describe("TermReviewDashboard", () => {
       screen.getByRole("navigation", { name: "Unresolved terms" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Submission contexts" }),
+      screen.getByText("View evidence · 2 sources · 2 possible matches"),
     ).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Candidate matches" }),
+      screen.getByRole("heading", { name: "Where it appeared" }),
+    ).not.toBeVisible();
+    expect(screen.getByText("recipe-1")).not.toBeVisible();
+
+    await user.click(
+      screen.getByText("View evidence · 2 sources · 2 possible matches"),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Where it appeared" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Authored recipe" }),
+      screen.getByRole("heading", { name: "Possible matches" }),
+    ).toBeVisible();
+    expect(screen.getByText("Authored recipe")).toBeVisible();
+    expect(screen.getByText("Imported recipe")).toBeVisible();
+    expect(screen.getByText("4 submissions across 2 sources.")).toBeVisible();
+    expect(
+      screen.getByText(/Ingredients · Direct · 30 Oct 2026/),
     ).toBeVisible();
     expect(
-      screen.getByRole("heading", { name: "Imported recipe" }),
+      screen.getByText(/Ingredients · Imported · 29 Oct 2026/),
     ).toBeVisible();
-    expect(screen.getByText(/recipe-1 · Direct user submission/)).toBeVisible();
-    expect(screen.getByText(/imported-recipe-2 · Import job/)).toBeVisible();
+    await user.click(screen.getByText("Technical provenance"));
+    expect(screen.getByText("recipe-1")).toBeVisible();
+    expect(screen.getByText("imported-recipe-2")).toBeVisible();
     expect(
       screen.getByText(/33333333-3333-4333-8333-333333333333/),
     ).toBeVisible();
     expect(
-      screen.getByText(/The ranking is evidence, not a probability/),
-    ).toBeVisible();
+      screen.queryByText(/The ranking is evidence, not a probability/),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("91%")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Canonical slug")).toHaveValue("spring-onion");
     expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
@@ -171,7 +187,7 @@ describe("TermReviewDashboard", () => {
       screen.getByText("The evidence points to more than one canonical item."),
     ).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Match" }));
+    await user.click(screen.getByRole("button", { name: "Match scallion" }));
     expect(screen.getByLabelText("Canonical slug")).toHaveValue("scallion");
     await user.click(screen.getByRole("button", { name: "Match to scallion" }));
 
@@ -197,6 +213,60 @@ describe("TermReviewDashboard", () => {
     expect(
       await screen.findByText("Saved. The next term is ready."),
     ).toBeVisible();
+  });
+
+  it("supports swipe shortcuts without removing the equivalent controls", async () => {
+    render(<TermReviewDashboard />);
+
+    const card = await screen.findByRole("article", {
+      name: "Review Green Onion",
+    });
+    expect(
+      screen.getByRole("button", { name: "Match to spring-onion" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Not a term" })).toBeVisible();
+
+    const slugInput = screen.getByLabelText("Canonical slug");
+    fireEvent.touchStart(slugInput, {
+      touches: [{ clientX: 20, clientY: 100 }],
+    });
+    fireEvent.touchEnd(slugInput, {
+      changedTouches: [{ clientX: 120, clientY: 102 }],
+    });
+    expect(mocks.submit).not.toHaveBeenCalled();
+
+    fireEvent.touchStart(card, {
+      touches: [{ clientX: 20, clientY: 100 }],
+    });
+    fireEvent.touchEnd(card, {
+      changedTouches: [{ clientX: 120, clientY: 102 }],
+    });
+
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+    expect(mocks.submit).toHaveBeenLastCalledWith({
+      target: queueItem,
+      command: expect.objectContaining({
+        action: "alias",
+        targetSlug: "spring-onion",
+      }),
+    });
+    expect(
+      await screen.findByText("Saved. The next term is ready."),
+    ).toBeVisible();
+
+    mocks.submit.mockClear();
+    fireEvent.touchStart(card, {
+      touches: [{ clientX: 120, clientY: 100 }],
+    });
+    fireEvent.touchEnd(card, {
+      changedTouches: [{ clientX: 20, clientY: 102 }],
+    });
+
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+    expect(mocks.submit).toHaveBeenLastCalledWith({
+      target: queueItem,
+      command: expect.objectContaining({ action: "reject" }),
+    });
   });
 
   it("generates the slug and display name when creating a canonical item", async () => {
