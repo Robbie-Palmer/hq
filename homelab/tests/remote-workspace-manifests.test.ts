@@ -1532,6 +1532,12 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     "t3-code",
     "t3-code",
   );
+  const posthogReadSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code-posthog-read",
+    "t3-code",
+  );
   const dopplerWrapper = resources.find(
     ({ kind, metadata }) =>
       kind === "ConfigMap" &&
@@ -1603,6 +1609,38 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     String(valueAt(dopplerWrapper, ["data", "work-graph"])),
     /exec \/usr\/local\/bin\/work-graph "\$@"/,
   );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "posthog-query"])),
+    /api\/projects\/\$\{project_id\}\/query\//,
+  );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "posthog-query"])),
+    /homepage-vitals/,
+  );
+  for (const name of [
+    "POSTHOG_PROJECT_ID",
+    "POSTHOG_QUERY_HOST",
+    "POSTHOG_PERSONAL_API_KEY",
+  ]) {
+    assert.deepEqual(
+      t3Environment.find(
+        (variable) =>
+          typeof variable === "object" &&
+          variable !== null &&
+          (variable as Record<string, unknown>).name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-posthog-read",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
   const t3VolumeMounts = valueAt(t3Container, ["volumeMounts"]);
   assert.ok(Array.isArray(t3VolumeMounts));
   assert.deepEqual(
@@ -1663,6 +1701,23 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   );
   assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "250Gi");
   assert.equal(valueAt(runtimeSecret, ["spec", "config"]), "prd_vector_development");
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "project"]),
+    "personal-site",
+  );
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "config"]),
+    "dev_agent_observability",
+  );
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-posthog-read-token",
+  );
+  assert.deepEqual(valueAt(posthogReadSecret, ["spec", "secrets"]), [
+    "POSTHOG_PROJECT_ID",
+    "POSTHOG_QUERY_HOST",
+    "POSTHOG_PERSONAL_API_KEY",
+  ]);
 
   const devicePluginContainers = valueAt(devicePlugin, [
     "spec",
@@ -3224,6 +3279,14 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
     ),
     "utf8",
   );
+  const homelabMise = readFileSync(
+    new URL("../mise.toml", import.meta.url),
+    "utf8",
+  );
+  const vectorHealthCheck = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
 
   assert.ok(installer.includes('check-t3-idle.mjs'));
   assert.ok(installer.includes('read -r -s -p'));
@@ -3303,6 +3366,13 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   }
   assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
   assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
+  assert.ok(
+    homelabMise.includes(
+      '"t3-code:doppler-posthog-read-token:personal-site:dev_agent_observability"',
+    ),
+  );
+  assert.ok(vectorHealthCheck.includes("posthog-query homepage-vitals"));
+  assert.ok(vectorHealthCheck.includes("POSTHOG_PERSONAL_API_KEY"));
 });
 
 test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
@@ -3448,6 +3518,69 @@ test("the Vector Doppler wrapper confines callers to declared dev configs", () =
     assert.equal(environmentConfig.status, 2);
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the Vector PostHog wrapper keeps its key out of arguments and returns homepage vitals", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-posthog-query-"));
+  const binDirectory = join(temporaryDirectory, "bin");
+  const argumentPath = join(temporaryDirectory, "arguments");
+  const authPath = join(temporaryDirectory, "auth");
+  const bodyPath = join(temporaryDirectory, "body");
+  mkdirSync(binDirectory);
+  const curlPath = join(binDirectory, "curl");
+  writeFileSync(
+    curlPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+previous=
+for argument in "$@"; do
+  printf '%s\\n' "$argument" >>"$POSTHOG_TEST_ARGUMENTS"
+  case "$previous" in
+    --config) cp -- "$argument" "$POSTHOG_TEST_AUTH" ;;
+    --data-binary) cp -- "\${argument#@}" "$POSTHOG_TEST_BODY" ;;
+  esac
+  previous=$argument
+done
+printf '%s\\n' '{"results":[[10,100,200,30,0.01]]}'
+`,
+  );
+  chmodSync(curlPath, 0o755);
+
+  const wrapper = fileURLToPath(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/posthog-query.sh",
+      import.meta.url,
+    ),
+  );
+  const apiKey = "phx_test_read_key";
+  const result = spawnSync("bash", [wrapper, "homepage-vitals"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+      POSTHOG_PROJECT_ID: "12345",
+      POSTHOG_QUERY_HOST: "https://eu.posthog.com",
+      POSTHOG_PERSONAL_API_KEY: apiKey,
+      POSTHOG_TEST_ARGUMENTS: argumentPath,
+      POSTHOG_TEST_AUTH: authPath,
+      POSTHOG_TEST_BODY: bodyPath,
+    },
+  });
+
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '{"results":[[10,100,200,30,0.01]]}\n');
+    assert.match(
+      readFileSync(argumentPath, "utf8"),
+      /https:\/\/eu\.posthog\.com\/api\/projects\/12345\/query\//,
+    );
+    assert.doesNotMatch(readFileSync(argumentPath, "utf8"), new RegExp(apiKey));
+    assert.match(readFileSync(authPath, "utf8"), new RegExp(apiKey));
+    assert.match(readFileSync(bodyPath, "utf8"), /p75_lcp_ms/);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(apiKey));
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
   }
 });
 

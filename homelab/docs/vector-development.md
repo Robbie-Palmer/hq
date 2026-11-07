@@ -97,6 +97,30 @@ by `homelab/prd_remote_development` and a distinct random 32-byte
 `AGENT_AUTH_ENCRYPTION_KEY`. The preview and Work Graph service-token scopes
 reuse `personal-site/dev_agent` and `work-graph/prd_work_graph`.
 
+Apply account foundation to create `personal-site/dev_agent_observability`.
+Add `POSTHOG_PROJECT_ID`, set `POSTHOG_QUERY_HOST` to
+`https://eu.posthog.com`, and add `POSTHOG_PERSONAL_API_KEY`. Create the key in
+PostHog account settings, restrict it to this project, and grant only
+`query:read` and `tracing:read`. Project secret API keys do not currently
+support these scopes. Never use the administrative `POSTHOG_API_KEY` from
+`personal-site/dev_infra` here.
+Enter each value through Doppler's hidden interactive prompt:
+
+```bash
+doppler secrets set POSTHOG_PROJECT_ID \
+  --project personal-site \
+  --config dev_agent_observability \
+  --visibility unmasked
+doppler secrets set POSTHOG_QUERY_HOST \
+  --project personal-site \
+  --config dev_agent_observability \
+  --visibility unmasked
+doppler secrets set POSTHOG_PERSONAL_API_KEY \
+  --project personal-site \
+  --config dev_agent_observability \
+  --visibility masked
+```
+
 Install the Doppler operator, deploy the workload, and run the host and GPU
 acceptance checks:
 
@@ -110,8 +134,14 @@ mise run //homelab:vector-health
 The health check covers GNOME, encrypted storage, zram, the host NVIDIA driver,
 the K3s NVIDIA runtime, GPU advertisement and allocation, the T3 rollout, and
 the local HTTP endpoint. It also waits for DCGM Exporter, proves that the host
-OpenTelemetry Collector has sent GPU metric points to Netdata, and checks the
-benchmark RBAC boundary.
+OpenTelemetry Collector has sent GPU metric points to Netdata, checks the
+benchmark RBAC boundary, and runs the seven-day homepage Web Vitals query
+through PostHog without printing the API key or query result.
+
+Inside T3 Code, run `posthog-query homepage-vitals` for the homepage FCP, LCP,
+INP, and CLS p75 values from the last seven days. Pipe a custom read-only query
+to `posthog-query hogql`, or run `posthog-query apm-services` to list services
+visible through PostHog tracing.
 
 ## GPU telemetry
 

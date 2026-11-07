@@ -133,7 +133,15 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
       --dump-dom about:blank \
       | grep -F "<html"
   ' >/dev/null
+  k3s kubectl --namespace t3-code get secret t3-code-posthog-read --output=json \
+    | jq -e '
+        .data as $data
+        | ["POSTHOG_PERSONAL_API_KEY", "POSTHOG_PROJECT_ID", "POSTHOG_QUERY_HOST"]
+        | all(.[]; (($data[.] // "") | @base64d | length) > 0)
+      ' >/dev/null
+  k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- \
+    posthog-query homepage-vitals >/dev/null
   curl --fail --silent --show-error http://127.0.0.1:30773/ >/dev/null
 fi
-echo "desktop, encrypted remote boot, sandboxed browser, NVIDIA telemetry, Tailscale, and the independent K3s server are healthy"
+echo "desktop, encrypted remote boot, sandboxed browser, PostHog read access, NVIDIA telemetry, Tailscale, and the independent K3s server are healthy"
 REMOTE
