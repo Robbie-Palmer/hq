@@ -54,9 +54,7 @@ def test_ultralytics_report_writes_only_pinned_paths(
         tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY / "evaluation" / "evidence.json",
         evidence,
     )
-    monkeypatch.setattr(
-        ultralytics_experiment, "ULTRALYTICS_EXPERIMENT_FILE", experiment_path
-    )
+    monkeypatch.setattr(ultralytics_experiment, "ULTRALYTICS_EXPERIMENT_FILE", experiment_path)
     monkeypatch.setattr(
         ultralytics_experiment,
         "ULTRALYTICS_OUTPUT_ROOT",

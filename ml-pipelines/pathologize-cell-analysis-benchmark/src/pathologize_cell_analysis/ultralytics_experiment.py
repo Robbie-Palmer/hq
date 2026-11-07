@@ -343,12 +343,21 @@ def _fit_training_model(
     )
 
 
+def _clean_failed_training_output(output_root: Path, output_root_existed: bool) -> None:
+    has_checkpoint = any(
+        (output_root / task / "weights" / "last.pt").is_file() for task in ("detect", "segment")
+    )
+    if not output_root_existed and not has_checkpoint:
+        shutil.rmtree(output_root, ignore_errors=True)
+
+
 def train_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no cover
     experiment = load_ultralytics_experiment(experiment_path)
     root = _root(experiment_path)
     output_root = _experiment_output_root(root, experiment) / "training"
     if (output_root / "manifest.json").exists():
         raise FileExistsError(f"training output already exists: {output_root}")
+    output_root_existed = output_root.exists()
     output_root.mkdir(parents=True, exist_ok=True)
     complete = False
     resources: dict[str, object] = {}
@@ -476,7 +485,7 @@ def train_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no
         _clear_ultralytics_caches(root / experiment.layout_directory)
         _clear_ultralytics_runtime_config(output_root)
         if not complete:
-            shutil.rmtree(output_root, ignore_errors=True)
+            _clean_failed_training_output(output_root, output_root_existed)
     return result
 
 
@@ -702,6 +711,9 @@ def _training_curve_summary(
     rows: list[dict[str, float]],
     best_checkpoint_metrics: dict[str, float],
     maximum_epochs: int,
+    *,
+    stop_reason: str | None = None,
+    stopped_for_wall_time: bool = False,
 ) -> dict[str, object]:
     if not rows:
         raise ValueError("training results are empty")
@@ -726,12 +738,18 @@ def _training_curve_summary(
         ),
     )
     completed_epochs = int(rows[-1]["epoch"])
-    stopped_by = "epoch_ceiling" if completed_epochs >= maximum_epochs else "validation_patience"
-    convergence = (
-        "validation_plateau_supports_convergence"
-        if stopped_by == "validation_patience"
-        else "not_established_before_epoch_ceiling"
-    )
+    if stopped_for_wall_time:
+        stopped_by = "wall_time_guard"
+        convergence = "stopped_by_guard"
+    elif stop_reason is not None:
+        stopped_by = stop_reason
+        convergence = "stopped_by_guard"
+    elif completed_epochs >= maximum_epochs:
+        stopped_by = "epoch_ceiling"
+        convergence = "not_established_before_epoch_ceiling"
+    else:
+        stopped_by = "validation_patience"
+        convergence = "validation_plateau_supports_convergence"
     return {
         "completed_epochs": completed_epochs,
         "stopped_by": stopped_by,
@@ -843,6 +861,7 @@ def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma:
         training_curves: dict[str, object] = {}
         for task in ("detect", "segment"):
             task_training_root = run_root / "training" / task
+            checkpoint_record = training_manifest["checkpoints"][task]
             checkpoint = _load_safe_checkpoint(
                 torch,
                 task_training_root / "weights" / "best.pt",
@@ -854,6 +873,8 @@ def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma:
                 _training_rows(task_training_root),
                 checkpoint_metrics,
                 experiment.training.epochs,
+                stop_reason=checkpoint_record["stop_reason"],
+                stopped_for_wall_time=bool(checkpoint_record["stopped_for_wall_time"]),
             )
         total_gpu_seconds = float(training_manifest["aggregate_gpu_seconds"]) + sum(
             float(resource_record["gpu_seconds"])

@@ -29,6 +29,7 @@ from pathologize_cell_analysis.ultralytics_conversion import (
 )
 from pathologize_cell_analysis.ultralytics_experiment import (
     _as_predicted_nucleus,
+    _clean_failed_training_output,
     _clear_ultralytics_caches,
     _clear_ultralytics_runtime_config,
     _evaluate_records,
@@ -122,7 +123,8 @@ def test_conversion_records_bounded_source_border_clipping() -> None:
     segmentation = convert_annotations(
         [annotation], (100, 80), _fixture()["ontology_labels"], "segment", 2.0
     )
-    assert not detection.exclusions and not segmentation.exclusions
+    assert not detection.exclusions
+    assert not segmentation.exclusions
     assert detection.adjustments[0].reason == "clipped_to_image_bounds"
     assert segmentation.adjustments[0].reason == "clipped_to_image_bounds"
     rejected = convert_annotations(
@@ -174,6 +176,25 @@ def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> Non
     assert monitor.best_map50_95 == 0.2
     assert monitor.best_validation_loss == 2.3
     assert monitor.stop_reason is None
+
+
+def test_failed_training_cleanup_preserves_resumable_output(tmp_path: Path) -> None:
+    empty_output = tmp_path / "empty"
+    empty_output.mkdir()
+    _clean_failed_training_output(empty_output, output_root_existed=False)
+    assert not empty_output.exists()
+
+    resumable_output = tmp_path / "resumable"
+    checkpoint = resumable_output / "detect" / "weights" / "last.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    _clean_failed_training_output(resumable_output, output_root_existed=False)
+    assert checkpoint.is_file()
+
+    preexisting_output = tmp_path / "preexisting"
+    preexisting_output.mkdir()
+    _clean_failed_training_output(preexisting_output, output_root_existed=True)
+    assert preexisting_output.is_dir()
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:
@@ -301,9 +322,7 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
 
     class Masks:
         def __init__(self) -> None:
-            self.xy = [
-                np.asarray([[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]])
-            ]
+            self.xy = [np.asarray([[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]])]
 
     class Result:
         orig_shape = (80, 100)
@@ -320,9 +339,7 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
         annotation_path="annotations/item.csv",
     )
     _write_annotation(tmp_path / item.annotation_path)
-    record, rejections = _normalize_result(
-        Result(), item, "segment", _fixture()["ontology_labels"]
-    )
+    record, rejections = _normalize_result(Result(), item, "segment", _fixture()["ontology_labels"])
     assert not rejections
     assert record.predictions[0].polygon_xy_pixels is not None
     predicted = _as_predicted_nucleus(record.predictions[0], (80, 100))
@@ -383,6 +400,48 @@ def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> Non
     )
     assert curve["best_checkpoint"]["epoch"] == 2
     assert curve["stopped_by"] == "epoch_ceiling"
+
+    guard_stop: Any = _training_curve_summary(
+        [
+            {
+                "epoch": 1.0,
+                "train/box_loss": 2.0,
+                "val/box_loss": 3.0,
+                "metrics/mAP50(B)": 0.1,
+                "metrics/mAP50-95(B)": 0.05,
+            }
+        ],
+        {"metrics/mAP50(B)": 0.1, "metrics/mAP50-95(B)": 0.05},
+        2,
+        stop_reason="persistent_validation_regression",
+    )
+    assert guard_stop["stopped_by"] == "persistent_validation_regression"
+    assert guard_stop["convergence_assessment"] == "stopped_by_guard"
+
+    wall_stop: Any = _training_curve_summary(
+        [
+            {
+                "epoch": 1.0,
+                "train/box_loss": 2.0,
+                "val/box_loss": 3.0,
+                "metrics/mAP50(B)": 0.1,
+                "metrics/mAP50-95(B)": 0.05,
+            }
+        ],
+        {"metrics/mAP50(B)": 0.1, "metrics/mAP50-95(B)": 0.05},
+        2,
+        stopped_for_wall_time=True,
+    )
+    assert wall_stop["stopped_by"] == "wall_time_guard"
+    assert wall_stop["convergence_assessment"] == "stopped_by_guard"
+
+    patience_curve = _training_curve_summary(
+        [{"epoch": 1.0, "train/box_loss": 2.0, "val/box_loss": 3.0}],
+        {},
+        2,
+    )
+    assert patience_curve["stopped_by"] == "validation_patience"
+    assert patience_curve["convergence_assessment"] == ("validation_plateau_supports_convergence")
 
     evidence: dict[str, Any] = {
         "experiment": experiment.model_dump(mode="json"),

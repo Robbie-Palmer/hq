@@ -320,8 +320,8 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: ba68a93416c518c9d4e20ab78c3fdbc6.dir
-      size: 135911
+      md5: d896c4457ce0470481094698e3818be7.dir
+      size: 137272
       nfiles: 12
     - path: uv.lock
       hash: md5
@@ -367,8 +367,8 @@ stages:
       size: 11864
     - path: src/pathologize_cell_analysis/ultralytics_conversion.py
       hash: md5
-      md5: 59376af9c6c06c2e16d4c61f344a9b5b
-      size: 16941
+      md5: ca90dcf23725d17622f6bf3b38bfe0d3
+      size: 17398
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -400,8 +400,8 @@ stages:
       size: 12112
     - path: src/pathologize_cell_analysis/ultralytics_conversion.py
       hash: md5
-      md5: 59376af9c6c06c2e16d4c61f344a9b5b
-      size: 16941
+      md5: ca90dcf23725d17622f6bf3b38bfe0d3
+      size: 17398
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -435,8 +435,8 @@ stages:
       size: 2034
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: ba68a93416c518c9d4e20ab78c3fdbc6.dir
-      size: 135911
+      md5: d896c4457ce0470481094698e3818be7.dir
+      size: 137272
       nfiles: 12
     - path: uv.lock
       hash: md5
@@ -480,8 +480,8 @@ stages:
       size: 14928
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: ba68a93416c518c9d4e20ab78c3fdbc6.dir
-      size: 135911
+      md5: d896c4457ce0470481094698e3818be7.dir
+      size: 137272
       nfiles: 12
     - path: uv.lock
       hash: md5
