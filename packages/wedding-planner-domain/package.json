@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./accommodation": "./src/accommodation/index.ts",
+    "./guest-authorization-cedar": "./src/guest-authorization-cedar.ts",
     "./seating": "./src/seating/index.ts",
     "./values": "./src/values.ts",
     "./money": "./src/money.ts"
@@ -16,10 +17,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@cedar-policy/cedar-wasm": "4.14.0",
+    "cedar-authorization": "workspace:*",
     "ts-base": "workspace:*",
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"

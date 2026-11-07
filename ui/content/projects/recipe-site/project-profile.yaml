@@ -55,6 +55,7 @@ layers:
       - "identity.login-provider"
       - "identity.session-transport"
       - "identity.authorization-policy"
+      - "identity.authorization-engine"
   - layer: "api-governance"
     slots:
       - "api-governance.compatibility-check"

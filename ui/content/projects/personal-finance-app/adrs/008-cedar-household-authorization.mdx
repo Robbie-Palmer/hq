@@ -1,0 +1,46 @@
+---
+title: "ADR 008: Adopt platform Cedar authorization"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Cedar"]
+---
+
+## Context
+
+[ADR 001](/projects/personal-finance-app/adrs/001-household-identity-and-authorization-boundary)
+makes the household the tenant and access boundary while keeping application
+membership separate from financial ownership. The authenticated Worker slice
+has a replaceable authorization function, but its first policy only protects a
+synthetic canary record.
+
+[Platform ADR 049](/projects/personal-engineering-platform/adrs/049-cedar-authorization-engine)
+selects Cedar for project-owned resource and action policies. Personal Finance
+needs a local schema that prevents financial ownership percentages from
+becoming application authority.
+
+## Decision
+
+Adopt the platform Cedar engine for Personal Finance authorization. Model the
+authenticated person or delegated client as the principal, the household-owned
+object as the resource, and the concrete operation as the action. Load current
+household membership and role from server state before evaluation. Financial
+ownership remains a domain attribute and never places a principal into an
+authorization role.
+
+Begin with the existing synthetic household create and read operations. Keep an
+explicit prohibition on deleting that canary. Extend the local schema as real
+household records, source documents, derived results, exports, and membership
+operations replace the canary.
+
+Login, session handling, financial validation, provenance, calculation rules,
+database constraints, and cross-household aggregation remain outside Cedar.
+
+## Consequences
+
+The canary and later routes use the platform's fail-closed evaluator while the
+project keeps its sensitive household vocabulary local. Tests can prove that
+application membership grants access and financial ownership does not.
+
+The Worker now carries a WebAssembly evaluator and must map database records to
+Cedar entities. The first policy preserves the narrow canary behavior; it does
+not imply that unfinished household roles already exist.

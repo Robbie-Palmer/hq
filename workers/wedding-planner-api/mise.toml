@@ -1,3 +1,28 @@
+[tasks.install]
+description = "Install Wedding Planner API dependencies"
+depends = ["//:install"]
+run = "pnpm install --frozen-lockfile --filter wedding-planner-api..."
+
+[tasks.typecheck]
+description = "Typecheck the Wedding Planner API"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the Wedding Planner API"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test the Wedding Planner API with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.format]
+description = "Format Wedding Planner API source and tests"
+depends = ["install"]
+run = "pnpm exec biome check --write --formatter-enabled=true --indent-style=space --linter-enabled=false --assist-enabled=false src tests vitest.config.ts"
+
 [tasks.check]
-description = "Validate the generated Wedding Planner API structural boundary"
-run = "test -f generated-component.yaml"
+description = "Check the Wedding Planner API authorization boundary"
+depends = ["typecheck", "test"]
