@@ -13,6 +13,7 @@ ome = "ome" # Open Microscopy Environment
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
+rgb2hed = "rgb2hed" # scikit-image RGB-to-HED color conversion API
 654a541934ba = "654a541934ba" # generated UK HPI release checksum prefix
 
 [files]
