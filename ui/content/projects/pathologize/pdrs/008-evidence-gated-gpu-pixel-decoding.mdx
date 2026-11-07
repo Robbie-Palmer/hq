@@ -1,0 +1,69 @@
+---
+title: "PDR 008: Require end-to-end evidence for GPU pixel decoding"
+date: "2026-11-07"
+status: "Accepted"
+decision_date: "2026-11-07"
+informed_by_adrs:
+  - "pathologize:001-resource-and-cost-contract-boundary"
+evidence:
+  - title: "nvImageCodec DICOM decoding examples"
+    url: "https://docs.nvidia.com/cuda/nvimagecodec/samples/DICOM_samples.html"
+  - title: "nvImageCodec pydicom performance guidance"
+    url: "https://docs.nvidia.com/cuda/nvimagecodec/samples/DICOM-pydicom.html"
+---
+
+## Context
+
+GPU decoding can avoid transferring a decoded RGB tile from host to device and can
+move codec work away from the CPU. That does not guarantee a faster pathology
+pipeline. Whole-slide tiles are often small. Decoder setup, kernel launch, container
+lookup, compressed-byte reads, and synchronization may cost more than one transfer.
+NVIDIA's nvImageCodec guidance notes that small inputs can be slower on the GPU.
+
+The useful comparison also depends on the consumer. A viewer still needs host pixels
+for PNG or JPEG encoding, so a GPU decoder may add a device-to-host transfer. A
+training or inference batch can keep decoded pixels, resizing, augmentation, and the
+model on the device. Decode-only throughput cannot establish the result for either
+workload.
+
+## Decision
+
+Pathologize will treat GPU pixel decoding as an evidence-gated optimization. It will
+not make a CUDA backend the default or claim a performance gain until a public,
+reproducible benchmark shows an end-to-end benefit for a named workload and format.
+
+The CPU baseline will use the correct reader and decoder, pinned host memory where it
+helps, and asynchronous host-to-device transfer for GPU consumers. The accelerated
+candidate will keep decoded pixels and downstream preprocessing on the device. Both
+paths must produce equivalent pixels and select the same physical field of view.
+
+Benchmarks will report container and tile lookup, compressed-byte reads, codec
+decode, color conversion, resize or augmentation, host-to-device and device-to-host
+time and bytes, representative consumer time, wall and CPU time, and peak host and
+device memory. They will cover cold and warm runs, contiguous and random access, and
+batch sizes 1, 8, 32, and 128 where the fixture contains enough tiles.
+
+Viewer and export measurements will remain separate from training and inference.
+Pathologize may enable acceleration for one workload or format while leaving another
+on the CPU. A decode-only microbenchmark supplies diagnostic evidence. Adoption
+depends on the complete workload measurement.
+
+## Consequences
+
+The project will not promise a large speedup before measuring one. This may leave
+available CUDA hardware unused for formats or batch sizes where the benefit is
+unclear. It also prevents a faster codec number from hiding new transfers, incorrect
+color, or slower end-to-end inference.
+
+Benchmark reports need more timing and memory instrumentation than the current
+decoded-byte estimate. The reports will make the trade useful even if the GPU path
+loses, because they will show whether decoding, transfer, preprocessing, or model
+execution limits the workload.
+
+## Evaluation
+
+Enable a GPU backend by default only for the tested format and workload when repeated
+end-to-end runs beat the correct CPU baseline by more than observed run-to-run noise,
+without a pixel, geometry, or memory regression. Publish the measurements and retain
+an explicit override and automatic CPU fallback. Revisit the default when the codec,
+driver, hardware generation, tile size, or downstream workload changes materially.
