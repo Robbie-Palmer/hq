@@ -70,10 +70,11 @@ their generated values must stay out of Terraform state. The
 [Vector commissioning guide](../../homelab/docs/vector-development.md)
 describes their guarded creation, rotation, and runtime health check.
 
-The root also owns `personal-site/dev_agent_observability`. Its values remain
-with the Vector workload. The config must contain only the PostHog project ID,
-private query origin, and a query-only API key. It must not inherit or copy the
-administrative provider credentials from `personal-site/dev_infra`.
+The root creates and owns the empty `personal-site/dev_agent_observability`
+config. Its values remain with the Vector workload. The config must contain
+only the PostHog project ID, private query origin, and a query-only API key. It
+must not inherit or copy the administrative provider credentials from
+`personal-site/dev_infra`.
 
 The tailnet baseline capture created its three Doppler configs before this
 registry adopted them. Account foundation imports those containers without
