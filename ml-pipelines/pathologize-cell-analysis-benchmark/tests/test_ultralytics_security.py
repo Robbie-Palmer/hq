@@ -8,6 +8,7 @@ from pathologize_cell_analysis.ultralytics_experiment import (
     ULTRALYTICS_OUTPUT_DIRECTORY,
     _experiment_output_root,
     _load_safe_checkpoint,
+    report_ultralytics,
 )
 
 
@@ -32,3 +33,24 @@ def test_experiment_output_directory_is_pinned(tmp_path: Path) -> None:
     escaped = experiment.model_copy(update={"output_directory": "../../outside"})
     with pytest.raises(ValueError, match="output directory must be"):
         _experiment_output_root(tmp_path, escaped)
+
+
+def test_ultralytics_report_rejects_paths_outside_reports(tmp_path: Path) -> None:
+    experiment_path = tmp_path / "experiments/nucls-ultralytics-baseline.json"
+    experiment_path.parent.mkdir(parents=True)
+    source_path = Path(__file__).parents[1] / experiment_path.relative_to(tmp_path)
+    experiment_path.write_text(source_path.read_text(encoding="utf-8"), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="project reports directory"):
+        report_ultralytics(
+            experiment_path,
+            tmp_path / "reports/result.json",
+            tmp_path / "../escaped.md",
+        )
+
+    with pytest.raises(ValueError, match=r"\.json suffix"):
+        report_ultralytics(
+            experiment_path,
+            tmp_path / "reports/result.txt",
+            tmp_path / "reports/result.md",
+        )
