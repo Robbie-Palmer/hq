@@ -1,8 +1,9 @@
+#include "satellite_swarm/controller.hpp"
+#include "satellite_swarm/interfaces.hpp"
 #include "satellite_swarm/resource_observer.hpp"
-#include "satellite_swarm/satellite_swarm.hpp"
+#include "satellite_swarm/types.hpp"
 
 #include <chrono>
-#include <cstddef>
 #include <iostream>
 #include <stdint.h>
 

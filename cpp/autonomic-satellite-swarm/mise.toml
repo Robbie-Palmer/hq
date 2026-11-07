@@ -23,7 +23,7 @@ run = "bash scripts/check-development-environment.sh"
 
 [tasks.clean]
 description = "Remove generated host build directories"
-run = "cmake -E rm -rf build/dev build/sanitizers build/coverage build/browser coverage"
+run = "cmake -E rm -rf build/dev build/sanitizers build/safe-buffers build/coverage build/browser build/codechecker build/codechecker-toolchain build/codechecker-compile-commands.json build/codechecker.sarif coverage"
 
 [tasks.build]
 description = "Build the portable library, tests, and simulation"
@@ -151,6 +151,21 @@ description = "Run clang-tidy with warnings promoted to errors"
 depends = ["configure"]
 run = "bash scripts/run-clang-tidy.sh"
 
+[tasks."analyze:safe-buffers"]
+description = "Audit maintained host targets with Clang unsafe-buffer diagnostics"
+tools = { "conda:clangxx" = "23.1.4" }
+run = "bash scripts/run-safe-buffer-audit.sh"
+
+[tasks."analyze:ctu"]
+description = "Run the report-only CodeChecker cross-translation-unit trial"
+depends = ["configure"]
+tools = { "conda:clang-tools" = "23.1.4", "conda:clangxx" = "23.1.4" }
+run = "bash scripts/run-codechecker-ctu.sh"
+
+[tasks."codeql:build"]
+description = "Build every maintained native and firmware C++ target for CodeQL tracing"
+run = "bash scripts/run-codeql-build.sh"
+
 [tasks.sanitize]
 description = "Run tests with AddressSanitizer and UndefinedBehaviorSanitizer"
 run = '''
@@ -208,6 +223,8 @@ depends = [
   "doctor",
   "test",
   "lint",
+  "analyze:safe-buffers",
+  "analyze:ctu",
   "sanitize",
   "coverage",
   "firmware:uno",
