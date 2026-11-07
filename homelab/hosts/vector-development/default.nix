@@ -274,6 +274,23 @@ in
       alsa.support32Bit = true;
       pulse.enable = true;
     };
+    netdata = {
+      enable = true;
+      enableAnalyticsReporting = false;
+      config = {
+        global.hostname = "vector-development";
+        db = {
+          mode = "dbengine";
+          retention = "7d";
+        };
+        web = {
+          "bind to" = "tcp:127.0.0.1:19999";
+          "allow connections from" = "localhost";
+          "allow dashboard from" = "localhost";
+        };
+        cloud.enabled = "no";
+      };
+    };
     logind.settings.Login = {
       HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "ignore";
@@ -332,6 +349,7 @@ in
   environment = {
     etc = {
       "nvidia-container-runtime/config.toml".source = nvidiaContainerConfig;
+      "opentelemetry-collector/config.yaml".source = ./opentelemetry-collector.yaml;
       projects.text = ''
         ${operatorProjectId}:${operatorDataPath}
         ${cacheProjectId}:${cacheDataPath}
@@ -546,6 +564,66 @@ in
       pkgs.apparmor-parser
       pkgs.runc
     ];
+  };
+
+  systemd.services.netdata.serviceConfig = {
+    MemoryHigh = "320M";
+    MemoryMax = "384M";
+  };
+
+  systemd.services.vector-development-dcgm-proxy = {
+    description = "Expose DCGM Exporter metrics to the host collector through the K3s API";
+    after = [ "k3s.service" ];
+    requires = [ "k3s.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = ''
+        ${pkgs.k3s}/bin/k3s kubectl \
+          --kubeconfig=/etc/rancher/k3s/k3s.yaml \
+          proxy \
+          --address=127.0.0.1 \
+          --port=19400 \
+          --accept-paths=^/api/v1/namespaces/gpu-telemetry/services/http:dcgm-exporter:9400/proxy/(health|metrics)$
+      '';
+      Restart = "on-failure";
+      RestartSec = "5s";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+    };
+  };
+
+  systemd.services.opentelemetry-collector = {
+    description = "Route Vector GPU metrics to the local infrastructure metrics backend";
+    after = [
+      "netdata.service"
+      "vector-development-dcgm-proxy.service"
+    ];
+    requires = [ "vector-development-dcgm-proxy.service" ];
+    wants = [ "netdata.service" ];
+    wantedBy = [ "multi-user.target" ];
+    restartTriggers = [ ./opentelemetry-collector.yaml ];
+    serviceConfig = {
+      DynamicUser = true;
+      ExecStart = "${pkgs.opentelemetry-collector-contrib}/bin/otelcol-contrib --config=/etc/opentelemetry-collector/config.yaml";
+      Restart = "on-failure";
+      RestartSec = "5s";
+      MemoryHigh = "112M";
+      MemoryMax = "128M";
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectSystem = "strict";
+      RestrictAddressFamilies = [
+        "AF_INET"
+        "AF_INET6"
+        "AF_UNIX"
+      ];
+    };
   };
 
   systemd.services.t3-code-tailscale-serve = {

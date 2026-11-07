@@ -1,0 +1,8 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vector-gpu-benchmark-job-contract
+spec:
+  policyName: vector-gpu-benchmark-job-contract
+  validationActions:
+    - Deny

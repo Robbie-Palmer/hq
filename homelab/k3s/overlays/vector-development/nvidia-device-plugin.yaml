@@ -34,7 +34,7 @@ spec:
             - name: DEVICE_DISCOVERY_STRATEGY
               value: auto
             - name: DEVICE_ID_STRATEGY
-              value: index
+              value: uuid
             - name: NVIDIA_VISIBLE_DEVICES
               value: all
             - name: NVIDIA_DRIVER_CAPABILITIES

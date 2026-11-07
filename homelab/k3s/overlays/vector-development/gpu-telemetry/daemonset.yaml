@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: dcgm-exporter
+  namespace: gpu-telemetry
+  labels:
+    app.kubernetes.io/name: dcgm-exporter
+    app.kubernetes.io/version: 4.8.4
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dcgm-exporter
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dcgm-exporter
+        app.kubernetes.io/version: 4.8.4
+    spec:
+      automountServiceAccountToken: false
+      serviceAccountName: dcgm-exporter
+      priorityClassName: system-node-critical
+      runtimeClassName: nvidia
+      nodeSelector:
+        homelab.dev/accelerator: nvidia
+        kubernetes.io/hostname: vector-development
+      containers:
+        - name: dcgm-exporter
+          image: nvcr.io/nvidia/k8s/dcgm-exporter:4.6.1-4.8.4-distroless@sha256:148b0c025e5f2850256816fa33754fbf4733b7a086697a95613fc0ba3db5b003
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DCGM_EXPORTER_COLLECTORS
+              value: /etc/dcgm-exporter/counters.csv
+            - name: DCGM_EXPORTER_INTERVAL
+              value: "10000"
+            - name: DCGM_EXPORTER_KUBERNETES
+              value: "true"
+            - name: DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE
+              value: uid
+            - name: DCGM_EXPORTER_LISTEN
+              value: :9400
+            - name: DCGM_EXPORTER_WEB_READ_TIMEOUT
+              value: 5s
+            - name: DCGM_EXPORTER_WEB_WRITE_TIMEOUT
+              value: 10s
+            - name: NVIDIA_DRIVER_CAPABILITIES
+              value: compute,utility
+            - name: NVIDIA_VISIBLE_DEVICES
+              value: all
+          ports:
+            - name: metrics
+              containerPort: 9400
+              protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            failureThreshold: 30
+            periodSeconds: 5
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: metrics
+            failureThreshold: 3
+            periodSeconds: 20
+            timeoutSeconds: 3
+          resources:
+            requests:
+              cpu: 50m
+              ephemeral-storage: 50Mi
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              ephemeral-storage: 200Mi
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: false
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: metrics-config
+              mountPath: /etc/dcgm-exporter
+              readOnly: true
+            - name: pod-resources
+              mountPath: /var/lib/kubelet/pod-resources
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: metrics-config
+          configMap:
+            name: dcgm-exporter-metrics
+            defaultMode: 292
+        - name: pod-resources
+          hostPath:
+            path: /var/lib/kubelet/pod-resources
+            type: Directory
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

@@ -109,7 +109,75 @@ mise run //homelab:vector-health
 
 The health check covers GNOME, encrypted storage, zram, the host NVIDIA driver,
 the K3s NVIDIA runtime, GPU advertisement and allocation, the T3 rollout, and
-the local HTTP endpoint.
+the local HTTP endpoint. It also waits for DCGM Exporter, proves that the host
+OpenTelemetry Collector has sent GPU metric points to Netdata, and checks the
+benchmark RBAC boundary.
+
+## GPU telemetry
+
+NixOS owns the NVIDIA driver and container toolkit. The Vector overlay owns the
+NVIDIA device plugin and a standalone DCGM Exporter DaemonSet. Do not install
+the NVIDIA GPU Operator on this host because it would create a second owner for
+the driver, runtime, and device plugin.
+
+The exporter image uses an immutable digest. Its reviewed counter list covers
+utilization, framebuffer memory, clocks, temperature, power, energy, PCIe
+retries, XID errors, and row remapping. It omits `DCGM_FI_PROF_*` counters, so
+the container does not need `SYS_ADMIN`. The container drops every capability,
+does not use host PID or host networking, and mounts only the kubelet
+pod-resources directory read-only. That socket supplies the `pod`, `namespace`,
+and `container` labels on metrics while a GPU workload is running. The exporter
+and device plugin both use NVIDIA GPU UUIDs for this mapping.
+
+The host OpenTelemetry Collector scrapes the ClusterIP Service through a
+loopback-only K3s API proxy. It adds the `vector-development` cluster and
+environment attributes, then exports metrics over OTLP to the local Netdata
+agent. This pipeline contains no PostHog exporter and no application telemetry.
+Netdata retains seven days and binds its dashboard to loopback. Use an SSH
+forward when the dashboard is needed:
+
+```bash
+ssh -L 19999:127.0.0.1:19999 root@vector-development.tailaa0e46.ts.net
+```
+
+Open `http://127.0.0.1:19999` locally. NVIDIA documents the standalone
+deployment and pod attribution in the
+[DCGM Exporter installation guide](https://docs.nvidia.com/datacenter/dcgm/latest/gpu-telemetry/dcgm-exporter.html).
+
+## Bounded GPU benchmark Jobs
+
+T3 Code can manage Jobs only in `gpu-benchmarks`. Its Role permits Job create,
+read, watch, and delete operations plus pod inspection and log reads. It cannot
+create pods directly or change Secrets, ConfigMaps, service accounts, RBAC,
+admission policy, or another namespace. The benchmark service account has no
+RBAC and its pods receive no Kubernetes API token.
+
+The namespace enforces the restricted Pod Security Standard and denies all pod
+network traffic. A validating admission policy also fixes the NVIDIA runtime,
+the Vector node, one container, one GPU, the non-root security context, and a
+1 GiB `emptyDir` mounted at `/tmp`. It rejects host namespaces, host or
+persistent volumes, init and ephemeral containers, added capabilities,
+unbounded resources, mutable image tags, retries, and runs longer than 30
+minutes. Finished Jobs expire after at most one hour.
+
+Benchmark images must contain their inputs because the pods have no network
+egress. The launcher accepts digest-pinned images under `nvcr.io/nvidia`,
+`docker.io/nvidia`, or `ghcr.io/robbie-palmer`. From a Vector T3 Code session,
+run it from this repository:
+
+```bash
+mise run //homelab:vector-gpu-benchmark -- create smoke-001 \
+  nvcr.io/nvidia/example@sha256:<64-hex-digest> -- --benchmark-argument
+mise run //homelab:vector-gpu-benchmark -- status smoke-001
+mise run //homelab:vector-gpu-benchmark -- logs smoke-001
+mise run //homelab:vector-gpu-benchmark -- delete smoke-001
+```
+
+Use a unique run ID for each Job. The launcher writes the same run ID to the
+Job and pod under `gpu-benchmark.homelab.dev/run-id`. DCGM emits the generated
+pod name, namespace, and container name, so the run can be matched to GPU
+samples without granting the exporter Kubernetes API access. Benchmark output
+must go to stdout or stderr; `/tmp` is deleted with the pod.
 
 ## Agent GitHub and Doppler access
 

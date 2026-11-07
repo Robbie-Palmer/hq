@@ -1,0 +1,69 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: vector-gpu-benchmark-pod-isolation
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups:
+          - batch
+        apiVersions:
+          - v1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - jobs
+        scope: Namespaced
+  matchConditions:
+    - name: gpu-benchmarks-namespace
+      expression: request.namespace == 'gpu-benchmarks'
+  validations:
+    - expression: >-
+        (!has(object.spec.template.spec.hostNetwork) || object.spec.template.spec.hostNetwork == false) &&
+        (!has(object.spec.template.spec.hostPID) || object.spec.template.spec.hostPID == false) &&
+        (!has(object.spec.template.spec.hostIPC) || object.spec.template.spec.hostIPC == false) &&
+        (!has(object.spec.template.spec.shareProcessNamespace) || object.spec.template.spec.shareProcessNamespace == false) &&
+        !has(object.spec.template.spec.nodeName) &&
+        !has(object.spec.template.spec.hostAliases) &&
+        !has(object.spec.template.spec.initContainers) &&
+        !has(object.spec.template.spec.ephemeralContainers) &&
+        !has(object.spec.template.spec.tolerations) &&
+        !has(object.spec.template.spec.affinity) &&
+        !has(object.spec.template.spec.priorityClassName) &&
+        !has(object.spec.template.spec.imagePullSecrets)
+      message: Benchmark pods cannot join host namespaces, add containers, load credentials, or override scheduling.
+    - expression: >-
+        object.spec.template.spec.securityContext.runAsNonRoot == true &&
+        object.spec.template.spec.securityContext.runAsUser == 1000 &&
+        object.spec.template.spec.securityContext.runAsGroup == 1000 &&
+        object.spec.template.spec.securityContext.seccompProfile.type == 'RuntimeDefault'
+      message: Benchmark pods must run as the fixed non-root identity with the default seccomp profile.
+    - expression: >-
+        object.spec.template.spec.containers.size() == 1 &&
+        object.spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation == false &&
+        object.spec.template.spec.containers[0].securityContext.privileged == false &&
+        object.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem == true &&
+        object.spec.template.spec.containers[0].securityContext.runAsNonRoot == true &&
+        object.spec.template.spec.containers[0].securityContext.capabilities.drop == ['ALL'] &&
+        (!has(object.spec.template.spec.containers[0].securityContext.capabilities.add) || object.spec.template.spec.containers[0].securityContext.capabilities.add.size() == 0) &&
+        object.spec.template.spec.containers[0].securityContext.seccompProfile.type == 'RuntimeDefault' &&
+        (!has(object.spec.template.spec.containers[0].envFrom) || object.spec.template.spec.containers[0].envFrom.size() == 0) &&
+        (!has(object.spec.template.spec.containers[0].env) || object.spec.template.spec.containers[0].env.all(variable, !has(variable.valueFrom)))
+      message: The benchmark container cannot gain privileges or load values from cluster resources.
+    - expression: >-
+        object.spec.template.spec.containers.size() == 1 &&
+        object.spec.template.spec.volumes.size() == 1 &&
+        object.spec.template.spec.volumes[0].name == 'tmp' &&
+        has(object.spec.template.spec.volumes[0].emptyDir) &&
+        object.spec.template.spec.volumes[0].emptyDir.medium == '' &&
+        quantity(object.spec.template.spec.volumes[0].emptyDir.sizeLimit).isGreaterThan(quantity('0')) &&
+        quantity(object.spec.template.spec.volumes[0].emptyDir.sizeLimit).compareTo(quantity('1Gi')) <= 0 &&
+        object.spec.template.spec.containers[0].volumeMounts.size() == 1 &&
+        object.spec.template.spec.containers[0].volumeMounts[0].name == 'tmp' &&
+        object.spec.template.spec.containers[0].volumeMounts[0].mountPath == '/tmp' &&
+        (!has(object.spec.template.spec.containers[0].volumeMounts[0].subPath) || object.spec.template.spec.containers[0].volumeMounts[0].subPath == '') &&
+        (!has(object.spec.template.spec.containers[0].volumeMounts[0].subPathExpr) || object.spec.template.spec.containers[0].volumeMounts[0].subPathExpr == '') &&
+        (!has(object.spec.template.spec.containers[0].volumeMounts[0].mountPropagation) || object.spec.template.spec.containers[0].volumeMounts[0].mountPropagation == 'None')
+      message: Benchmarks may mount only a 1 GiB emptyDir at /tmp; host and persistent volumes are forbidden.
