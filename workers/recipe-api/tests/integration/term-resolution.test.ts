@@ -169,6 +169,28 @@ describe("term resolution persistence", () => {
         projectedContextCount: 1,
       },
     });
+
+    await resolveAuthoredTerm(
+      db,
+      reviewerId,
+      { kind: "ingredient", normalizedText: "green onion", locale: "en-US" },
+      {
+        action: "reject",
+        idempotencyKey: "66666666-6666-4666-8666-666666666666",
+        rationale: "Exercise the next locale card.",
+        evidence: [],
+        expectedRegistryVersion: 1,
+        localeReview: true,
+        collisionReview: true,
+      },
+    );
+    const remainingGreenOnion = (await listTermReviewQueue(db)).find(
+      ({ normalizedText }) => normalizedText === "green onion",
+    );
+    expect(remainingGreenOnion).toMatchObject({
+      locale: "en-GB",
+      localeReviewRequired: true,
+    });
   });
 
   it("ranks retained evidence and applies a concurrent alias command once", async () => {

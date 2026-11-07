@@ -148,11 +148,12 @@ describe("TermReviewDashboard", () => {
     render(<TermReviewDashboard />);
 
     expect(
-      await screen.findByRole("heading", { name: "Unresolved term review" }),
+      await screen.findByRole("heading", { name: "Term review" }),
     ).toBeVisible();
     expect(
       screen.getByRole("navigation", { name: "Unresolved terms" }),
-    ).toBeVisible();
+    ).toHaveClass("hidden", "lg:block");
+    expect(screen.queryByText(/Repeated submissions come first/)).toBeNull();
     expect(
       screen.getByText("View evidence · 2 sources · 2 possible matches"),
     ).toBeVisible();
@@ -373,10 +374,14 @@ describe("TermReviewDashboard", () => {
     expect(
       await screen.findByRole("article", { name: "Review Shallot" }),
     ).toBeVisible();
-    failSubmit?.(new Error("Registry changed. Try again."));
+    failSubmit?.(
+      new Error(
+        "This term has an ambiguous locale and requires explicit locale review",
+      ),
+    );
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Registry changed. Try again.",
+      "The evidence changed while this term was open. It is back in the queue for another look.",
     );
     expect(
       screen.getByRole("article", { name: "Review Green Onion" }),
@@ -510,9 +515,7 @@ describe("TermReviewDashboard", () => {
         "Skipped for later. It moved to the deferred queue with all evidence intact.",
       ),
     ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Needs review (0)" }),
-    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review (0)" })).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Later (1)" }));
     expect(
       await screen.findByRole("heading", { name: "Green Onion" }),
@@ -533,9 +536,7 @@ describe("TermReviewDashboard", () => {
     expect(
       await screen.findByText("Undone. The term is back in review."),
     ).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Needs review (1)" }),
-    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Review (1)" })).toBeVisible();
   });
 
   it("exposes failed reprojection retry and audited reversal actions", async () => {

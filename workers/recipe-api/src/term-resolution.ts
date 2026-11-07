@@ -161,6 +161,26 @@ export async function listTermReviewQueue(
     );
   if (terms.length === 0) return [];
 
+  const localeTerms = await db
+    .select({
+      kind: schema.authoredTerm.kind,
+      normalizedText: schema.authoredTerm.normalizedText,
+      locale: schema.authoredTerm.locale,
+    })
+    .from(schema.authoredTerm)
+    .where(
+      and(
+        inArray(
+          schema.authoredTerm.kind,
+          Array.from(new Set(terms.map(({ kind }) => kind))),
+        ),
+        inArray(
+          schema.authoredTerm.normalizedText,
+          Array.from(new Set(terms.map(({ normalizedText }) => normalizedText))),
+        ),
+      ),
+    );
+
   const observations = await db
     .select()
     .from(schema.authoredTermObservation)
@@ -173,7 +193,7 @@ export async function listTermReviewQueue(
     .orderBy(desc(schema.authoredTermObservation.lastSeenAt));
   const observationsByTerm = groupBy(observations, ({ termId }) => termId);
   const localesByIdentity = groupBy(
-    terms,
+    localeTerms,
     ({ kind, normalizedText }) => JSON.stringify([kind, normalizedText]),
   );
   const groups = groupBy(terms, (term) =>

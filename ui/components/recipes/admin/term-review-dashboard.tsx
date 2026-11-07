@@ -53,6 +53,18 @@ function mutationErrorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+function reviewDecisionErrorMessage(error: unknown): string {
+  const message = mutationErrorMessage(error, "Could not save the decision.");
+  if (
+    message.includes("requires explicit locale review") ||
+    message.includes("requires explicit collision review") ||
+    message.includes("Registry version changed")
+  ) {
+    return "The evidence changed while this term was open. It is back in the queue for another look.";
+  }
+  return message;
+}
+
 function scheduleOptimisticAdvance(
   target: TermReviewQueueItem | undefined,
   delay: number,
@@ -165,7 +177,7 @@ function useTermReviewData(enabled: boolean) {
     dismissedKeys.current.delete(targetKey);
     optimistic.cancel();
     optimistic.restore();
-    setError(mutationErrorMessage(error, "Could not save the decision."));
+    setError(reviewDecisionErrorMessage(error));
     try {
       await refresh();
     } catch {
@@ -291,11 +303,7 @@ function useTermReviewData(enabled: boolean) {
       }
       setStatus(options?.successMessage ?? "Action completed.");
     } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Could not save the decision.",
-      );
+      setError(reviewDecisionErrorMessage(mutationError));
     } finally {
       setPending(false);
     }
@@ -320,17 +328,7 @@ function useTermReviewData(enabled: boolean) {
 function DashboardHeader() {
   return (
     <header>
-      <p className="rt-mono text-xs tracking-wide text-[var(--terracotta-deep)] uppercase">
-        Administrator workflow
-      </p>
-      <h1 className="rt-display text-4xl sm:text-5xl">
-        Unresolved term review
-      </h1>
-      <p className="mt-2 max-w-3xl rt-body text-[var(--ink-3)]">
-        Repeated submissions come first. Match an existing item, create a new
-        one, remove noise, or skip it for later. The source evidence stays
-        available and every decision is audited.
-      </p>
+      <h1 className="rt-display text-4xl sm:text-5xl">Term review</h1>
     </header>
   );
 }
@@ -345,7 +343,7 @@ function ReviewQueue({
   select: (index: number) => void;
 }>) {
   return (
-    <nav aria-label="Unresolved terms" className="space-y-2">
+    <nav aria-label="Unresolved terms" className="hidden space-y-2 lg:block">
       {queue.map((term, index) => (
         <button
           key={queueItemKey(term)}
@@ -717,7 +715,7 @@ function ReviewWorkspace({
   }, [data.setDraft, item]);
   if (!item) {
     return data.swipeDisabled ? null : (
-      <p className="mt-8 rounded-xl border border-[var(--line)] p-6 rt-body">
+      <p className="mt-4 rounded-xl border border-[var(--line)] p-4 rt-body">
         {deferred
           ? "No terms have been skipped for later."
           : "No terms are waiting for review."}
@@ -725,7 +723,7 @@ function ReviewWorkspace({
     );
   }
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[18rem_1fr]">
+    <div className="mt-3 grid gap-6 lg:grid-cols-[18rem_1fr]">
       <ReviewQueue
         queue={queue}
         selected={data.selected}
@@ -760,7 +758,7 @@ function QueueFilters({
   setDeferred: (deferred: boolean) => void;
 }>) {
   return (
-    <fieldset className="mt-6 flex gap-2">
+    <fieldset className="mt-3 flex gap-2">
       <legend className="sr-only">Review queue</legend>
       <Button
         type="button"
@@ -768,7 +766,7 @@ function QueueFilters({
         aria-pressed={!deferred}
         onClick={() => setDeferred(false)}
       >
-        Needs review ({activeCount})
+        Review ({activeCount})
       </Button>
       <Button
         type="button"
@@ -786,10 +784,11 @@ function ReviewStatus({
   data,
 }: Readonly<{ data: ReturnType<typeof useTermReviewData> }>) {
   const undoDecision = data.undoDecision;
+  if (!data.pending && !data.status && !undoDecision) return null;
   return (
     <div
       aria-live="polite"
-      className="mt-4 flex min-h-9 flex-wrap items-center gap-3 rt-body"
+      className="mt-2 flex flex-wrap items-center gap-3 rt-body"
     >
       {data.savingCount > 0 ? (
         <span>
@@ -838,7 +837,7 @@ function AdminDashboard() {
     setDeferred(showDeferred);
   };
   return (
-    <main className="container mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
+    <main className="container mx-auto w-full max-w-6xl px-4 py-4 sm:py-8">
       <DashboardHeader />
       <ReviewStatus data={data} />
       {data.error && (
