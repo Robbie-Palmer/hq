@@ -92,6 +92,11 @@ export interface WorkItemArchitectureDecision {
   readonly role: ArchitectureDecisionRole;
 }
 
+export interface WorkItemArchitectureDecisionIdentity {
+  readonly workItemId: string;
+  readonly url: string;
+}
+
 export interface WorkItemReference {
   readonly workItemId: string;
   readonly title: string;

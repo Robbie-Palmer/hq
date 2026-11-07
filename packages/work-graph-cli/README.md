@@ -146,6 +146,8 @@ work-graph context adr cli-8 \
   --title "Use PostgreSQL for durable coordination" \
   --url https://example.com/adrs/postgresql \
   --role governing
+work-graph context remove-adr cli-8 \
+  --url https://example.com/adrs/postgresql
 work-graph reference put cli-8 \
   --title "Context design notes" \
   --url https://example.com/context-design
@@ -258,8 +260,9 @@ the graph root. Both keep the ticket's identity and attached history, reject
 combined waits-for cycles, and accept `--idempotency-key`.
 
 `context put` upserts a brief or acceptance criteria by kind. `context adr`
-upserts a governing or background decision by URL, and `reference put` upserts
-a supplemental link by URL. `context show` uses the same deterministic order as
+upserts a governing or background decision by URL, and `context remove-adr`
+deletes one of those links by URL. `reference put` upserts a supplemental link
+by URL. `context show` uses the same deterministic order as
 `claim`: local and nearest inherited text, ADRs, project and initiative mirrors,
 pull requests, then supplemental references. Full records include their source
 ticket and inheritance depth. Compact pull-request records omit the numeric

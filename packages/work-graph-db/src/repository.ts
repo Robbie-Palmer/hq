@@ -40,6 +40,7 @@ import {
   MAX_CRITICAL_PATH_NODES,
   type NewWorkItemInput,
   normalizeAndValidateContextRecords,
+  normalizeArchitectureDecisionUrl,
   normalizeCompletionPolicyRevision,
   normalizeDeliveryActionRequest,
   normalizeDeliveryRecoveryDelivery,
@@ -68,6 +69,7 @@ import {
   WorkGraphError,
   type WorkItem,
   type WorkItemArchitectureDecision,
+  type WorkItemArchitectureDecisionIdentity,
   type WorkItemContext,
   type WorkItemDependency,
   type WorkItemPriorityCandidate,
@@ -265,6 +267,7 @@ export const WORK_GRAPH_EVENT_TYPES = [
   "delivery_action.result_recorded",
   "delivery_recovery.recorded",
   "delivery_recovery.delivery_reserved",
+  "context.removed",
   "context.put",
   "knowledge_scope.put",
   "knowledge_scope.archived",
@@ -2365,6 +2368,59 @@ export class WorkGraphRepository {
         },
       });
       return stored;
+    });
+  }
+
+  async removeWorkItemArchitectureDecision(
+    input: WorkItemArchitectureDecisionIdentity,
+    options: IdempotentMutationOptions = {},
+  ): Promise<WorkItemArchitectureDecisionIdentity> {
+    if (options.idempotencyKey !== undefined) {
+      requireIdempotencyKey(options.idempotencyKey);
+    }
+    const normalized = {
+      ...input,
+      url: normalizeArchitectureDecisionUrl(input.url),
+    };
+    return this.db.transaction(async (transaction) => {
+      await this.lockEventSequence(transaction);
+      if (options.idempotencyKey !== undefined) {
+        const replayed = await this.beginIdempotentMutation(
+          transaction,
+          options.idempotencyKey,
+          "remove-work-item-architecture-decision",
+          JSON.stringify(normalized),
+        );
+        if (replayed) return normalized;
+      }
+      await this.requireGraphWorkItem(transaction, normalized.workItemId);
+      const [removed] = await transaction
+        .delete(workItemArchitectureDecision)
+        .where(
+          and(
+            eq(
+              workItemArchitectureDecision.workItemId,
+              normalized.workItemId,
+            ),
+            eq(workItemArchitectureDecision.url, normalized.url),
+          ),
+        )
+        .returning({
+          workItemId: workItemArchitectureDecision.workItemId,
+          url: workItemArchitectureDecision.url,
+        });
+      if (!removed) {
+        throw new WorkGraphError(
+          "architecture_decision_not_found",
+          `Work item ${normalized.workItemId} does not link architecture decision ${normalized.url}.`,
+        );
+      }
+      await this.appendEvent(transaction, {
+        type: "context.removed",
+        workItemId: removed.workItemId,
+        data: { kind: "architecture_decision", url: removed.url },
+      });
+      return removed;
     });
   }
 

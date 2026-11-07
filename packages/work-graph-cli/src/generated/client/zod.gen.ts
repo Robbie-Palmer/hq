@@ -442,6 +442,11 @@ export const zWorkItemContextRecord = z.union([
     })
 ]);
 
+export const zWorkItemArchitectureDecisionIdentity = z.object({
+    workItemId: z.string().min(1).max(200),
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/)
+});
+
 export const zWorkItemReference = z.object({
     workItemId: z.string().min(1).max(200),
     title: z.string().min(1).max(10000),
@@ -494,6 +499,7 @@ export const zWorkItemEvent = z.object({
         'delivery_action.result_recorded',
         'delivery_recovery.recorded',
         'delivery_recovery.delivery_reserved',
+        'context.removed',
         'context.put',
         'lease.claimed',
         'lease.ended',
@@ -1223,6 +1229,25 @@ export const zPutWorkItemContextPath = z.object({
  */
 export const zPutWorkItemContextResponse = zWorkItemContextRecord;
 
+export const zDeleteWorkItemArchitectureDecisionBody = z.object({
+    url: z.url().max(2048).regex(/^[hH][tT][tT][pP][sS]?:\/\/(?![^\/?#]*@)/)
+});
+
+export const zDeleteWorkItemArchitectureDecisionHeaders = z.object({
+    'idempotency-key': z.uuid().max(36).register(z.globalRegistry, {
+        description: 'Client-generated mutation ID. Reusing it with the same request replays the committed effect. Reusing it for different input returns a conflict.'
+    }).optional()
+});
+
+export const zDeleteWorkItemArchitectureDecisionPath = z.object({
+    workItemId: z.string().min(1).max(200)
+});
+
+/**
+ * Architecture-decision link removed or matching mutation replayed
+ */
+export const zDeleteWorkItemArchitectureDecisionResponse = zWorkItemArchitectureDecisionIdentity;
+
 export const zCreateWorkItemDecompositionBody = z.object({
     leaseId: z.uuid().max(36),
     epoch: z.int().gte(1).lte(2147483647),
@@ -1314,6 +1339,7 @@ export const zListWorkItemEventsQuery = z.object({
         'delivery_action.result_recorded',
         'delivery_recovery.recorded',
         'delivery_recovery.delivery_reserved',
+        'context.removed',
         'context.put',
         'lease.claimed',
         'lease.ended',

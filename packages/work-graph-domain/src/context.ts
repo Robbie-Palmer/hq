@@ -58,6 +58,9 @@ const normalizeUrl = (value: unknown, label: string): string => {
   return parsed.href;
 };
 
+export const normalizeArchitectureDecisionUrl = (value: unknown): string =>
+  normalizeUrl(value, "An architecture decision URL");
+
 const requireWorkItem = (
   workItemsById: ReadonlyMap<string, WorkItem>,
   workItemId: string,
@@ -128,7 +131,7 @@ const normalizeArchitectureDecisions = (
     }
     const normalized = {
       ...decision,
-      url: normalizeUrl(decision.url, "An architecture decision URL"),
+      url: normalizeArchitectureDecisionUrl(decision.url),
     };
     const identity = `${normalized.workItemId}\u0000${normalized.url}`;
     if (identities.has(identity)) {

@@ -16,6 +16,7 @@ import {
   createWorkItemRelease,
   deleteDependency,
   deleteKnowledgeScopeRelationship,
+  deleteWorkItemArchitectureDecision,
   expediteWorkItem,
   getCriticalPath,
   getKnowledgeScope,
@@ -64,6 +65,7 @@ import type {
   CreateWorkItemReleaseData,
   DeleteDependencyData,
   DeleteKnowledgeScopeRelationshipData,
+  DeleteWorkItemArchitectureDecisionData,
   ExpediteWorkItemData,
   GetCriticalPathData,
   ListWorkItemEvidenceData,
@@ -129,6 +131,10 @@ const REPLAY_CAPABLE_MUTATIONS: ReadonlyArray<{
   { method: "PUT", path: /^\/api\/pull-requests$/u },
   { method: "POST", path: /^\/api\/work-items$/u },
   { method: "PUT", path: /^\/api\/work-items\/[^/]+\/contexts$/u },
+  {
+    method: "DELETE",
+    path: /^\/api\/work-items\/[^/]+\/contexts\/architecture-decisions$/u,
+  },
   { method: "POST", path: /^\/api\/work-items\/[^/]+\/comments$/u },
   {
     method: "POST",
@@ -757,6 +763,21 @@ export class WorkGraphClient {
   ) {
     return this.#unwrap(
       putWorkItemContext({
+        ...this.#options(),
+        body,
+        headers: idempotencyHeaders(idempotencyKey),
+        path: { workItemId },
+      }),
+    );
+  }
+
+  removeWorkItemArchitectureDecision(
+    workItemId: string,
+    body: DeleteWorkItemArchitectureDecisionData["body"],
+    idempotencyKey?: string,
+  ) {
+    return this.#unwrap(
+      deleteWorkItemArchitectureDecision({
         ...this.#options(),
         body,
         headers: idempotencyHeaders(idempotencyKey),
