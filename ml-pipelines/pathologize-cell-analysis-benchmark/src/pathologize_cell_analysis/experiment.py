@@ -292,9 +292,10 @@ def run(experiment_path: Path) -> dict[str, Any]:
         },
         methods={
             "localization": (
-                "Every point, rectangle, or polygon annotation contributes one centroid target. "
-                "Predicted watershed centroids are matched one-to-one within the declared pixel "
-                "tolerance. No boundary is required for this task."
+                "Every point, rectangle, or polygon annotation contributes its bounding-box "
+                "midpoint as a localization target. Predicted watershed centroids are matched "
+                "one-to-one within the declared pixel tolerance. No boundary is required for "
+                "this task."
             ),
             "instance_segmentation": (
                 "Pixel overlap is a separate conditional task using only source polygon "
@@ -313,6 +314,11 @@ def run(experiment_path: Path) -> dict[str, Any]:
             "classification_scope": (
                 "Probabilistic three-class prediction only for localized nuclei with one of "
                 "the source's supported biological super-classes."
+            ),
+            "classification_training_geometry": (
+                "The candidate uses source bounding-box geometry for supported training "
+                "annotations; those boxes are not treated as segmentation masks or boundary "
+                "ground truth."
             ),
             "accelerator_decision": (
                 "CPU only. Thresholding, watershed, and logistic regression do not justify GPU "
@@ -391,8 +397,9 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "",
         "## Nucleus localization",
         "",
-        "Every source annotation contributes one centroid target. Localization does not require "
-        "a polygon or assume that a rectangle is a nucleus boundary.",
+        "Every source annotation contributes its bounding-box midpoint as a localization target. "
+        "Localization does not require a polygon or assume that a rectangle is a nucleus "
+        "boundary.",
         "",
         "| Metric | Shared morphology method |",
         "| --- | ---: |",
@@ -400,9 +407,9 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         f"| Precision | {_format_number(evidence.localization.precision)} |",
         f"| Recall | {_format_number(evidence.localization.recall)} |",
         f"| F1 | {_format_number(evidence.localization.f1)} |",
-        f"| Source centroids | {_format_number(evidence.localization.truth_points)} |",
+        f"| Source midpoint targets | {_format_number(evidence.localization.truth_points)} |",
         f"| Predicted centroids | {_format_number(evidence.localization.predicted_points)} |",
-        f"| Matched centroids | {_format_number(evidence.localization.matched_points)} |",
+        f"| Matched targets | {_format_number(evidence.localization.matched_points)} |",
         "",
         "## Instance segmentation",
         "",
@@ -458,13 +465,14 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "",
         "## Scope and exclusions",
         "",
-        "- Localization reduces every published point, rectangle, or polygon annotation to one "
-        "centroid and scores one-to-one matches within tolerance.",
+        "- Localization reduces every published point, rectangle, or polygon annotation to its "
+        "bounding-box midpoint and scores one-to-one matches within tolerance.",
         "- Instance segmentation is conditional on localization and uses only source annotations "
         "marked `polyline`; rectangles and points are not converted into masks.",
-        "- Shape and size are not inferred from point or rectangle annotations. The source schema "
-        "used here has no focal-plane or shadow-nucleus label, so those effects are not scored as "
-        "a separate task.",
+        "- Point and rectangle annotations do not provide segmentation shape or size ground truth. "
+        "The candidate classifier does use source bounding-box geometry for supported training "
+        "annotations. The source schema has no focal-plane or shadow-nucleus label, so those "
+        "effects are not scored as a separate task.",
         "- Unmatched predictions count against localization precision relative to the published "
         "single-rater annotations; they are not evidence that a nucleus is biologically absent.",
         "- Classification uses localized nuclei labeled `nonTIL_stromal`, `sTIL`, or "
@@ -477,7 +485,7 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "",
         "## Resources",
         "",
-        "| Adapter | Wall time | CPU time | GPU time | Peak RSS | Peak VRAM |",
+        "| Adapter | Wall time | CPU time | GPU time | Process-lifetime peak RSS | Peak VRAM |",
         "| --- | ---: | ---: | ---: | ---: | ---: |",
         f"| Class-prior baseline | {baseline.resources.wall_seconds:.2f} s | "
         f"{baseline.resources.cpu_seconds:.2f} s | 0 s | "
@@ -490,6 +498,8 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "ceiling. The aggregate accelerator ceiling was "
         f"{baseline.resources.aggregate_gpu_ceiling_seconds} seconds. Neither method "
         "justified GPU inference, so the run used no GPU.",
+        "Peak RSS is the process-lifetime high-water mark. Because adapters run sequentially in "
+        "one process, the candidate value includes any earlier baseline peak.",
         "",
     ]
     wrapped: list[str] = []

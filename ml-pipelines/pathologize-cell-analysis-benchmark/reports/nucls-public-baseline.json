@@ -39,12 +39,12 @@
     "resources": {
       "accelerator": "none",
       "aggregate_gpu_ceiling_seconds": 86400,
-      "cpu_seconds": 11.142350492,
+      "cpu_seconds": 9.472459600999999,
       "gpu_seconds": 0,
-      "peak_rss_bytes": 233971712,
+      "peak_rss_bytes": 234635264,
       "peak_vram_bytes": 0,
       "per_run_wall_ceiling_seconds": 1800,
-      "wall_seconds": 11.181505371001549
+      "wall_seconds": 9.49737533798907
     },
     "site_slices": {
       "A1": {
@@ -117,12 +117,12 @@
     "resources": {
       "accelerator": "none",
       "aggregate_gpu_ceiling_seconds": 86400,
-      "cpu_seconds": 26.590282115999997,
+      "cpu_seconds": 22.038796123000004,
       "gpu_seconds": 0,
-      "peak_rss_bytes": 240455680,
+      "peak_rss_bytes": 239566848,
       "peak_vram_bytes": 0,
       "per_run_wall_ceiling_seconds": 1800,
-      "wall_seconds": 23.055320197017863
+      "wall_seconds": 18.536013573990203
     },
     "site_slices": {
       "A1": {
@@ -252,7 +252,7 @@
     {
       "detail": "Each adapter has an independent 30-minute wall-time ceiling.",
       "gate": "per_run_wall_budget",
-      "observed": 23.055320197017863,
+      "observed": 18.536013573990203,
       "passed": true,
       "threshold": 1800.0
     }
@@ -284,8 +284,9 @@
     "baseline": "Training-cohort source-class prevalence as a constant probability vector.",
     "candidate": "Balanced multinomial logistic regression over bounding-box size, aspect, RGB, and optical-density summary features.",
     "classification_scope": "Probabilistic three-class prediction only for localized nuclei with one of the source's supported biological super-classes.",
+    "classification_training_geometry": "The candidate uses source bounding-box geometry for supported training annotations; those boxes are not treated as segmentation masks or boundary ground truth.",
     "instance_segmentation": "Pixel overlap is a separate conditional task using only source polygon annotations that were first localized within tolerance. Point and rectangle annotations are excluded because they do not define a nucleus boundary.",
-    "localization": "Every point, rectangle, or polygon annotation contributes one centroid target. Predicted watershed centroids are matched one-to-one within the declared pixel tolerance. No boundary is required for this task.",
+    "localization": "Every point, rectangle, or polygon annotation contributes its bounding-box midpoint as a localization target. Predicted watershed centroids are matched one-to-one within the declared pixel tolerance. No boundary is required for this task.",
     "localization_match": "One-to-one centroid assignment within 12.0 pixels."
   },
   "morphology_site_slices": {

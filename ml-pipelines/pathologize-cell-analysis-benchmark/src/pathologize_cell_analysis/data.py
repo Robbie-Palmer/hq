@@ -6,9 +6,11 @@ import urllib.request
 import zipfile
 from collections import Counter
 from dataclasses import dataclass
+from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
-from typing import Literal
+from typing import IO, Literal, override
+from urllib.parse import urlsplit
 
 from data_artifacts.files import load_model, md5_file, sha256_file, write_json
 
@@ -26,6 +28,22 @@ def load_dataset_manifest(path: Path) -> DatasetManifest:
     return load_model(path, DatasetManifest)
 
 
+class _HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
+    @override
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: IO[bytes],
+        code: int,
+        msg: str,
+        headers: HTTPMessage,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        if urlsplit(newurl).scheme.lower() != "https":
+            raise ValueError("source archive redirect must use HTTPS")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def _download(archive: SourceArchive, destination: Path) -> None:
     url = str(archive.url)
     if not url.startswith("https://"):
@@ -33,10 +51,9 @@ def _download(archive: SourceArchive, destination: Path) -> None:
     request = urllib.request.Request(  # noqa: S310
         url, headers={"User-Agent": "Pathologize/1.0"}
     )
+    opener = urllib.request.build_opener(_HttpsOnlyRedirectHandler())
     with (
-        urllib.request.urlopen(  # noqa: S310
-            request, timeout=60
-        ) as response,
+        opener.open(request, timeout=60) as response,
         destination.open("wb") as target,
     ):
         shutil.copyfileobj(response, target, length=1024 * 1024)
@@ -80,27 +97,33 @@ def acquire_dataset(manifest_path: Path, output: Path) -> AcquisitionEvidence:
     if output.exists():
         raise FileExistsError(f"acquisition output already exists: {output}")
     output.mkdir(parents=True)
-    evidence: list[ArchiveEvidence] = []
-    with TemporaryDirectory(prefix="pathologize-nucls-") as temporary:
-        temporary_root = Path(temporary)
-        for archive in manifest.archives:
-            archive_path = temporary_root / f"{archive.name}.zip"
-            _download(archive, archive_path)
-            extracted = _extract(archive_path, archive, output)
-            evidence.append(
-                ArchiveEvidence(
-                    name=archive.name,
-                    url=str(archive.url),
-                    bytes=archive.bytes,
-                    md5=archive.md5,
-                    sha256=archive.sha256,
-                    extracted_files=extracted,
+    complete = False
+    try:
+        evidence: list[ArchiveEvidence] = []
+        with TemporaryDirectory(prefix="pathologize-nucls-") as temporary:
+            temporary_root = Path(temporary)
+            for archive in manifest.archives:
+                archive_path = temporary_root / f"{archive.name}.zip"
+                _download(archive, archive_path)
+                extracted = _extract(archive_path, archive, output)
+                evidence.append(
+                    ArchiveEvidence(
+                        name=archive.name,
+                        url=str(archive.url),
+                        bytes=archive.bytes,
+                        md5=archive.md5,
+                        sha256=archive.sha256,
+                        extracted_files=extracted,
+                    )
                 )
-            )
-    result = AcquisitionEvidence(
-        schema_version="1.0.0", dataset_id=manifest.dataset_id, archives=evidence
-    )
-    write_json(output / "acquisition.json", result)
+        result = AcquisitionEvidence(
+            schema_version="1.0.0", dataset_id=manifest.dataset_id, archives=evidence
+        )
+        write_json(output / "acquisition.json", result)
+        complete = True
+    finally:
+        if not complete:
+            shutil.rmtree(output, ignore_errors=True)
     return result
 
 

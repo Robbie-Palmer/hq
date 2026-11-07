@@ -11,8 +11,8 @@ stops after this single locally runnable candidate.
 
 ## Nucleus localization
 
-Every source annotation contributes one centroid target. Localization does not require a polygon or
-assume that a rectangle is a nucleus boundary.
+Every source annotation contributes its bounding-box midpoint as a localization target. Localization
+does not require a polygon or assume that a rectangle is a nucleus boundary.
 
 | Metric | Shared morphology method |
 | --- | ---: |
@@ -20,9 +20,9 @@ assume that a rectangle is a nucleus boundary.
 | Precision | 0.1538 |
 | Recall | 0.9210 |
 | F1 | 0.2636 |
-| Source centroids | 7,150 |
+| Source midpoint targets | 7,150 |
 | Predicted centroids | 42,806 |
-| Matched centroids | 6,585 |
+| Matched targets | 6,585 |
 
 ## Instance segmentation
 
@@ -84,12 +84,14 @@ used here have no scanner metadata.
 
 ## Scope and exclusions
 
-- Localization reduces every published point, rectangle, or polygon annotation to one centroid and
-  scores one-to-one matches within tolerance.
+- Localization reduces every published point, rectangle, or polygon annotation to its bounding-box
+  midpoint and scores one-to-one matches within tolerance.
 - Instance segmentation is conditional on localization and uses only source annotations marked
   `polyline`; rectangles and points are not converted into masks.
-- Shape and size are not inferred from point or rectangle annotations. The source schema used here
-  has no focal-plane or shadow-nucleus label, so those effects are not scored as a separate task.
+- Point and rectangle annotations do not provide segmentation shape or size ground truth. The
+  candidate classifier does use source bounding-box geometry for supported training annotations. The
+  source schema has no focal-plane or shadow-nucleus label, so those effects are not scored as a
+  separate task.
 - Unmatched predictions count against localization precision relative to the published single-rater
   annotations; they are not evidence that a nucleus is biologically absent.
 - Classification uses localized nuclei labeled `nonTIL_stromal`, `sTIL`, or `tumor_any` and emits a
@@ -101,10 +103,12 @@ used here have no scanner metadata.
 
 ## Resources
 
-| Adapter | Wall time | CPU time | GPU time | Peak RSS | Peak VRAM |
+| Adapter | Wall time | CPU time | GPU time | Process-lifetime peak RSS | Peak VRAM |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Class-prior baseline | 11.18 s | 11.14 s | 0 s | 233,971,712 bytes | 0 bytes |
-| Morphology logistic candidate | 23.06 s | 26.59 s | 0 s | 240,455,680 bytes | 0 bytes |
+| Class-prior baseline | 9.50 s | 9.47 s | 0 s | 234,635,264 bytes | 0 bytes |
+| Morphology logistic candidate | 18.54 s | 22.04 s | 0 s | 239,566,848 bytes | 0 bytes |
 
 Each adapter had a 1800-second wall ceiling. The aggregate accelerator ceiling was 86400 seconds.
 Neither method justified GPU inference, so the run used no GPU.
+Peak RSS is the process-lifetime high-water mark. Because adapters run sequentially in one process,
+the candidate value includes any earlier baseline peak.

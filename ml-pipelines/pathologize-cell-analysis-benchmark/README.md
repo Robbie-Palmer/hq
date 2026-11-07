@@ -36,19 +36,20 @@ the remaining fold 1 training slides are train. The paper reports one slide per
 patient. The run derives patient IDs from TCGA barcodes and rejects any patient
 or slide overlap across splits.
 
-Every NuCLS point, rectangle, or polygon contributes one centroid to the
-localization task. A prediction is localized when its centroid is matched
-one-to-one within the declared tolerance; no boundary is required. Instance
-segmentation is a separate conditional task scored only for successfully
-localized source polygons. Rectangle and point annotations are never treated as
-masks or evidence about shape and size.
+Every NuCLS point, rectangle, or polygon contributes its bounding-box midpoint
+to the localization task. A prediction is localized when its centroid is
+matched one-to-one within the declared tolerance; no boundary is required.
+Instance segmentation is a separate conditional task scored only for
+successfully localized source polygons. Rectangle and point annotations are
+never treated as segmentation masks or boundary ground truth. The classifier
+does use source bounding-box geometry for supported training annotations.
 
 The published annotation schema used by this baseline has no focal-plane or
 shadow-nucleus label. The benchmark therefore reports that limitation instead
 of interpreting a faint or out-of-plane nucleus as an annotated absence.
 Localization precision measures agreement with the published single-rater
-centroids. Unmatched predictions may still represent biologically present
-nuclei.
+bounding-box midpoints. Unmatched predictions may still represent biologically
+present nuclei.
 
 The transparent classification baseline assigns training-cohort class
 probabilities to every localized nucleus. The only classification candidate is

@@ -3,7 +3,9 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
+import urllib.request
 import zipfile
+from http.client import HTTPMessage
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ from pydantic import ValidationError
 from pathologize_cell_analysis.contracts import DatasetManifest, Experiment
 from pathologize_cell_analysis.data import (
     Annotation,
+    _HttpsOnlyRedirectHandler,
     acquire_dataset,
     build_cohort,
     load_annotations,
@@ -210,18 +213,43 @@ def test_acquisition_verifies_and_extracts(monkeypatch: pytest.MonkeyPatch, tmp_
     manifest_path = tmp_path / "source.json"
     write_json(manifest_path, _source_manifest(archives))
 
-    def fake_urlopen(request: Any, timeout: int) -> io.BytesIO:
-        assert timeout == 60
-        name = Path(request.full_url).stem
-        return io.BytesIO(contents[name])
+    class FakeOpener:
+        def open(self, request: Any, timeout: int) -> io.BytesIO:
+            assert timeout == 60
+            name = Path(request.full_url).stem
+            return io.BytesIO(contents[name])
 
-    monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
+    monkeypatch.setattr("urllib.request.build_opener", lambda *_: FakeOpener())
     evidence = acquire_dataset(manifest_path, tmp_path / "data")
     assert len(evidence.archives) == 3
     assert (tmp_path / "data/rgb/item.png").read_bytes() == b"png"
     assert (tmp_path / "data/acquisition.json").is_file()
     with pytest.raises(FileExistsError):
         acquire_dataset(manifest_path, tmp_path / "data")
+
+    class FailingOpener:
+        def open(self, request: Any, timeout: int) -> io.BytesIO:
+            del request, timeout
+            raise OSError("transient download failure")
+
+    monkeypatch.setattr("urllib.request.build_opener", lambda *_: FailingOpener())
+    failed_output = tmp_path / "failed-data"
+    with pytest.raises(OSError, match="transient download failure"):
+        acquire_dataset(manifest_path, failed_output)
+    assert not failed_output.exists()
+
+
+def test_redirects_require_https() -> None:
+    handler = _HttpsOnlyRedirectHandler()
+    with pytest.raises(ValueError, match="redirect must use HTTPS"):
+        handler.redirect_request(
+            urllib.request.Request("https://example.test/archive.zip"),
+            io.BytesIO(),
+            302,
+            "Found",
+            HTTPMessage(),
+            "http://example.test/archive.zip",
+        )
 
 
 def test_contracts_reject_incomplete_sources_and_equal_folds() -> None:
@@ -396,8 +424,6 @@ def test_segmentation_and_localization_matching() -> None:
     )
     annotation_path = Path(__file__).parent / "missing.csv"
     assert not annotation_path.exists()
-    from pathologize_cell_analysis.data import Annotation
-
     annotation = Annotation(
         class_name="tumor_any",
         annotation_type="rectangle",
