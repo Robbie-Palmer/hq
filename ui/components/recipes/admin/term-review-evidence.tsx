@@ -28,34 +28,27 @@ function observedRange(
   return first === last ? `${first} UTC` : `${first} – ${last} UTC`;
 }
 
+function contextOrigin(
+  context: TermReviewQueueItem["contexts"][number],
+): string {
+  return context.provenance.kind === "import"
+    ? `Import job ${context.provenance.importJobId ?? "unknown"}`
+    : "Direct user submission";
+}
+
 function ContextDetails({
   context,
 }: Readonly<{ context: TermReviewQueueItem["contexts"][number] }>) {
-  const origin =
-    context.provenance.kind === "import"
-      ? `Import job ${context.provenance.importJobId ?? "unknown"}`
-      : "Direct user submission";
   return (
     <dl className="mt-3 grid grid-cols-[max-content_1fr] gap-x-3 gap-y-1 rt-mono text-xs text-[var(--ink-3)]">
-      <dt>Source</dt>
-      <dd className="min-w-0 break-all text-[var(--ink)]">
-        {context.sourceContext.resourceId ?? "Unknown resource"}
-      </dd>
       <dt>Field</dt>
       <dd>{context.sourceContext.field ?? "Not recorded"}</dd>
-      <dt>Origin</dt>
-      <dd className="min-w-0 break-all">{origin}</dd>
       <dt>Actor</dt>
       <dd className="min-w-0 break-all">{context.provenance.actorUserId}</dd>
       <dt>Observed</dt>
       <dd>{observedRange(context)}</dd>
       <dt>Locale</dt>
       <dd>{context.locale}</dd>
-      <dt>Frequency</dt>
-      <dd>
-        {context.submissionCount} submission
-        {context.submissionCount === 1 ? "" : "s"}
-      </dd>
     </dl>
   );
 }
@@ -74,7 +67,17 @@ function SubmissionContexts({ item }: Readonly<{ item: TermReviewQueueItem }>) {
           >
             <h4 className="rt-body font-medium">{contextTitle(context)}</h4>
             <p className="mt-1 rt-body">{context.rawText}</p>
-            <ContextDetails context={context} />
+            <p className="mt-1 rt-mono text-xs text-[var(--ink-3)]">
+              {context.sourceContext.resourceId ?? "Unknown resource"} ·{" "}
+              {contextOrigin(context)} · {context.submissionCount} submission
+              {context.submissionCount === 1 ? "" : "s"}
+            </p>
+            <details className="mt-2">
+              <summary className="cursor-pointer rt-body text-sm text-[var(--ink-3)]">
+                Provenance and timing
+              </summary>
+              <ContextDetails context={context} />
+            </details>
           </li>
         ))}
       </ul>
@@ -113,7 +116,7 @@ function CandidateList({
             aria-pressed={selectedSlug === slug}
             onClick={() => selectCandidate(slug)}
           >
-            {selectedSlug === slug ? "Selected" : "Use slug"}
+            {selectedSlug === slug ? "Selected" : "Match"}
           </Button>
         </li>
       ))}

@@ -88,6 +88,7 @@ export type TermReviewQueueItem = {
   submissionCount: number;
   tenantCount: number;
   lastSeenAt: Date;
+  resolutionStatus: "unresolved" | "deferred";
   localeReviewRequired: boolean;
   collisionReviewRequired: boolean;
   contexts: Array<{
@@ -152,6 +153,7 @@ export async function listTermReviewQueue(
       locale: schema.authoredTerm.locale,
       frequency: schema.authoredTerm.frequency,
       lastSeenAt: schema.authoredTerm.lastSeenAt,
+      resolutionStatus: schema.authoredTerm.resolutionStatus,
     })
     .from(schema.authoredTerm)
     .where(
@@ -223,6 +225,11 @@ export async function listTermReviewQueue(
         lastSeenAt: new Date(
           Math.max(...group.map(({ lastSeenAt }) => lastSeenAt.getTime())),
         ),
+        resolutionStatus: group.every(
+          ({ resolutionStatus }) => resolutionStatus === "deferred",
+        )
+          ? "deferred"
+          : "unresolved",
         localeReviewRequired: termNeedsLocaleReview(
           first.locale,
           identityLocales.map(({ locale }) => locale),

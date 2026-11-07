@@ -4,12 +4,10 @@ import type {
 } from "@/lib/api/term-resolution";
 
 export type ResolutionDraft = {
-  action: Exclude<TermResolutionAction, "reversal">;
+  action: Exclude<TermResolutionAction, "reversal" | "merge">;
   targetSlug: string;
   canonicalName: string;
   rationale: string;
-  localeReview: boolean;
-  collisionReview: boolean;
 };
 
 export const emptyResolutionDraft: ResolutionDraft = {
@@ -17,8 +15,6 @@ export const emptyResolutionDraft: ResolutionDraft = {
   targetSlug: "",
   canonicalName: "",
   rationale: "",
-  localeReview: false,
-  collisionReview: false,
 };
 
 export function rankedCandidates(item: TermReviewQueueItem) {
@@ -51,5 +47,8 @@ export function resolutionDraftFor(
 
 export type TermReviewMutation = (
   operation: () => Promise<void>,
-  successMessage?: string,
+  options?: Readonly<{
+    offerUndo?: boolean;
+    successMessage?: string;
+  }>,
 ) => Promise<void>;

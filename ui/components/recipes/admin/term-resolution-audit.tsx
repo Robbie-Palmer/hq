@@ -25,10 +25,9 @@ function AuditActions({
           variant="outline"
           disabled={pending}
           onClick={() =>
-            void mutate(
-              () => retryTermReprojection(item.id),
-              "Projection retry completed.",
-            )
+            void mutate(() => retryTermReprojection(item.id), {
+              successMessage: "Projection retry completed.",
+            })
           }
         >
           Retry
@@ -47,7 +46,9 @@ function AuditActions({
                   item,
                   "Reviewer reversed the prior decision.",
                 ),
-              "Decision reversed and projections refreshed.",
+              {
+                successMessage: "Decision reversed and projections refreshed.",
+              },
             )
           }
         >

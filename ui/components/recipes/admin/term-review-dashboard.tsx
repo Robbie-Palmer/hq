@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   loadTermResolutionAudit,
   loadTermReviewQueue,
+  reverseTermResolution,
   submitTermResolution,
   type TermResolutionAuditItem,
   type TermReviewQueueItem,
@@ -27,6 +29,8 @@ function useTermReviewData(enabled: boolean) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
+  const [undoDecision, setUndoDecision] =
+    useState<TermResolutionAuditItem | null>(null);
   const refresh = useCallback(async () => {
     const [nextQueue, nextAudit] = await Promise.all([
       loadTermReviewQueue(),
@@ -35,13 +39,13 @@ function useTermReviewData(enabled: boolean) {
     setQueue(nextQueue);
     setAudit(nextAudit);
     setSelected((index) => Math.min(index, Math.max(nextQueue.length - 1, 0)));
-    return nextQueue;
+    return { nextAudit, nextQueue };
   }, []);
   useEffect(() => {
     if (!enabled) return;
     setPending(true);
     refresh()
-      .then((nextQueue) => setDraft(resolutionDraftFor(nextQueue[0])))
+      .then(({ nextQueue }) => setDraft(resolutionDraftFor(nextQueue[0])))
       .catch((loadError: unknown) =>
         setError(
           loadError instanceof Error
@@ -51,16 +55,26 @@ function useTermReviewData(enabled: boolean) {
       )
       .finally(() => setPending(false));
   }, [enabled, refresh]);
-  const mutate: TermReviewMutation = async (operation, successMessage) => {
+  const mutate: TermReviewMutation = async (operation, options) => {
     setPending(true);
     setError(null);
     setStatus("");
+    setUndoDecision(null);
     try {
       await operation();
-      const nextQueue = await refresh();
-      const nextIndex = Math.min(selected, Math.max(nextQueue.length - 1, 0));
-      setDraft(resolutionDraftFor(nextQueue[nextIndex]));
-      setStatus(successMessage ?? "Action completed.");
+      const previousDecisionIds = new Set(audit.map(({ id }) => id));
+      const { nextAudit } = await refresh();
+      setSelected(0);
+      setDraft(emptyResolutionDraft);
+      if (options?.offerUndo) {
+        setUndoDecision(
+          nextAudit.find(
+            ({ action, id }) =>
+              action !== "reversal" && !previousDecisionIds.has(id),
+          ) ?? null,
+        );
+      }
+      setStatus(options?.successMessage ?? "Action completed.");
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -82,6 +96,7 @@ function useTermReviewData(enabled: boolean) {
     setDraft,
     setSelected,
     status,
+    undoDecision,
   };
 }
 
@@ -95,21 +110,19 @@ function DashboardHeader() {
         Unresolved term review
       </h1>
       <p className="mt-2 max-w-3xl rt-body text-[var(--ink-3)]">
-        Repeated submissions rank first. Raw text remains unchanged while each
-        decision writes a versioned registry revision and a retryable
-        projection.
+        Repeated submissions come first. Match an existing item, create a new
+        one, remove noise, or skip it for later. The source evidence stays
+        available and every decision is audited.
       </p>
     </header>
   );
 }
 
 function ReviewQueue({
-  audit,
   queue,
   selected,
   select,
 }: Readonly<{
-  audit: TermResolutionAuditItem[];
   queue: TermReviewQueueItem[];
   selected: number;
   select: (index: number) => void;
@@ -128,16 +141,6 @@ function ReviewQueue({
           <span className="block rt-mono text-xs text-[var(--ink-3)]">
             {term.submissionCount} submissions · {term.tenantCount} accounts
           </span>
-          {audit.find(
-            (decision) =>
-              decision.kind === term.kind &&
-              decision.normalizedText === term.normalizedText &&
-              decision.locale === term.locale,
-          )?.action === "defer" && (
-            <span className="mt-1 inline-block rounded-full bg-[var(--paper-warm)] px-2 py-0.5 rt-mono text-xs text-[var(--ink-3)]">
-              Deferred · evidence retained
-            </span>
-          )}
         </button>
       ))}
     </nav>
@@ -146,43 +149,81 @@ function ReviewQueue({
 
 function resolutionSuccessMessage(action: ResolutionDraft["action"]): string {
   if (action === "defer") {
-    return "Decision deferred. Evidence remains in the review queue and audit log.";
+    return "Skipped for later. It moved to the deferred queue with all evidence intact.";
   }
   if (action === "reject") {
-    return "Term rejected. Evidence remains in the audit log and can be restored by reversal.";
+    return "Removed from the review queue. You can undo this now or reverse it from the audit log.";
   }
-  return "Decision saved and projections refreshed.";
+  return "Saved. The next term is ready.";
 }
 
-function reviewCommand(item: TermReviewQueueItem, draft: ResolutionDraft) {
+function defaultRationale(
+  action: ResolutionDraft["action"],
+  targetSlug: string,
+) {
+  if (action === "alias") return `Matched to ${targetSlug}.`;
+  if (action === "new_canonical")
+    return `Created canonical item ${targetSlug}.`;
+  if (action === "defer") return "Skipped for later review.";
+  return "Marked as not a structured term.";
+}
+
+function reviewCommand(
+  item: TermReviewQueueItem,
+  draft: ResolutionDraft,
+  action = draft.action,
+) {
+  const requiresExplicitReview = action !== "defer";
   return {
-    action: draft.action,
+    action,
     idempotencyKey: crypto.randomUUID(),
-    rationale: draft.rationale,
+    rationale:
+      draft.rationale.trim() || defaultRationale(action, draft.targetSlug),
     expectedRegistryVersion: item.registryVersion,
     evidence: item.contexts.flatMap((context) =>
       context.candidateMatches.map(
         (candidate) => `${candidate.slug}:${candidate.score.toFixed(4)}`,
       ),
     ),
-    localeReview: draft.localeReview,
-    collisionReview: draft.collisionReview,
-    ...(["alias", "new_canonical", "merge"].includes(draft.action)
+    localeReview: requiresExplicitReview && item.localeReviewRequired,
+    collisionReview: requiresExplicitReview && item.collisionReviewRequired,
+    ...(["alias", "new_canonical"].includes(action)
       ? { targetSlug: draft.targetSlug }
       : {}),
-    ...(draft.action === "new_canonical"
+    ...(action === "new_canonical"
       ? { canonicalName: draft.canonicalName }
       : {}),
   };
 }
 
+function ReviewCardHeader({ item }: Readonly<{ item: TermReviewQueueItem }>) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="rt-mono text-xs text-[var(--ink-3)]">
+          {item.kind} · {item.locale}
+        </p>
+        <h2 className="rt-display text-3xl">{item.rawTexts[0]}</h2>
+        <p className="rt-mono text-sm text-[var(--ink-3)]">
+          normalized as {item.normalizedText}
+        </p>
+      </div>
+      <p className="rounded-full bg-[var(--paper-warm)] px-3 py-1 rt-mono text-xs">
+        {item.submissionCount} submissions
+      </p>
+    </div>
+  );
+}
+
 function ReviewCard({
+  deferred,
   draft,
   item,
   mutate,
   pending,
   setDraft,
 }: Readonly<{
+  deferred: boolean;
   draft: ResolutionDraft;
   item: TermReviewQueueItem;
   mutate: TermReviewMutation;
@@ -191,40 +232,33 @@ function ReviewCard({
 }>) {
   return (
     <article className="rounded-xl border border-[var(--line)] bg-[var(--card)] p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="rt-mono text-xs text-[var(--ink-3)]">
-            {item.kind} · {item.locale}
-          </p>
-          <h2 className="rt-display text-3xl">{item.rawTexts[0]}</h2>
-          <p className="rt-mono text-sm text-[var(--ink-3)]">
-            normalized as {item.normalizedText}
-          </p>
-        </div>
-        <p className="rounded-full bg-[var(--paper-warm)] px-3 py-1 rt-mono text-xs">
-          {item.submissionCount} submissions
-        </p>
-      </div>
+      <ReviewCardHeader item={item} />
       <div className="mt-6">
         <TermReviewEvidence
           item={item}
           selectedSlug={draft.targetSlug}
-          selectCandidate={(targetSlug) => setDraft({ ...draft, targetSlug })}
+          selectCandidate={(targetSlug) =>
+            setDraft({ ...draft, action: "alias", targetSlug })
+          }
         />
       </div>
       <TermResolutionForm
+        deferred={deferred}
         draft={draft}
         item={item}
         pending={pending}
         setDraft={setDraft}
-        submit={() =>
+        submit={(action = draft.action) =>
           mutate(
             () =>
               submitTermResolution({
                 target: item,
-                command: reviewCommand(item, draft),
+                command: reviewCommand(item, draft, action),
               }),
-            resolutionSuccessMessage(draft.action),
+            {
+              offerUndo: true,
+              successMessage: resolutionSuccessMessage(action),
+            },
           )
         }
       />
@@ -234,27 +268,38 @@ function ReviewCard({
 
 function ReviewWorkspace({
   data,
-}: Readonly<{ data: ReturnType<typeof useTermReviewData> }>) {
-  const item = data.queue[data.selected];
+  deferred,
+  queue,
+}: Readonly<{
+  data: ReturnType<typeof useTermReviewData>;
+  deferred: boolean;
+  queue: TermReviewQueueItem[];
+}>) {
+  const item = queue[data.selected];
+  useEffect(() => {
+    data.setDraft(resolutionDraftFor(item));
+  }, [data.setDraft, item]);
   if (!item) {
     return data.pending ? null : (
       <p className="mt-8 rounded-xl border border-[var(--line)] p-6 rt-body">
-        No unresolved terms are waiting for review.
+        {deferred
+          ? "No terms have been skipped for later."
+          : "No terms are waiting for review."}
       </p>
     );
   }
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-[18rem_1fr]">
       <ReviewQueue
-        audit={data.audit}
-        queue={data.queue}
+        queue={queue}
         selected={data.selected}
         select={(index) => {
           data.setSelected(index);
-          data.setDraft(resolutionDraftFor(data.queue[index]));
+          data.setDraft(resolutionDraftFor(queue[index]));
         }}
       />
       <ReviewCard
+        deferred={deferred}
         draft={data.draft}
         item={item}
         mutate={data.mutate}
@@ -265,21 +310,108 @@ function ReviewWorkspace({
   );
 }
 
+function QueueFilters({
+  activeCount,
+  deferredCount,
+  deferred,
+  setDeferred,
+}: Readonly<{
+  activeCount: number;
+  deferredCount: number;
+  deferred: boolean;
+  setDeferred: (deferred: boolean) => void;
+}>) {
+  return (
+    <fieldset className="mt-6 flex gap-2">
+      <legend className="sr-only">Review queue</legend>
+      <Button
+        type="button"
+        variant={deferred ? "outline" : "default"}
+        aria-pressed={!deferred}
+        onClick={() => setDeferred(false)}
+      >
+        Needs review ({activeCount})
+      </Button>
+      <Button
+        type="button"
+        variant={deferred ? "default" : "outline"}
+        aria-pressed={deferred}
+        onClick={() => setDeferred(true)}
+      >
+        Later ({deferredCount})
+      </Button>
+    </fieldset>
+  );
+}
+
+function ReviewStatus({
+  data,
+}: Readonly<{ data: ReturnType<typeof useTermReviewData> }>) {
+  const undoDecision = data.undoDecision;
+  return (
+    <div
+      aria-live="polite"
+      className="mt-4 flex min-h-9 flex-wrap items-center gap-3 rt-body"
+    >
+      {data.pending && <span>Working…</span>}
+      {data.status && <span>{data.status}</span>}
+      {undoDecision && (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={data.pending}
+          onClick={() =>
+            void data.mutate(
+              () =>
+                reverseTermResolution(
+                  undoDecision,
+                  "Reviewer undid the previous decision.",
+                ),
+              { successMessage: "Undone. The term is back in review." },
+            )
+          }
+        >
+          Undo last decision
+        </Button>
+      )}
+    </div>
+  );
+}
+
 function AdminDashboard() {
   const data = useTermReviewData(true);
+  const [deferred, setDeferred] = useState(false);
+  const deferredQueue = data.queue.filter(
+    ({ resolutionStatus }) => resolutionStatus === "deferred",
+  );
+  const activeQueue = data.queue.filter(
+    ({ resolutionStatus }) => resolutionStatus === "unresolved",
+  );
+  const selectQueue = (showDeferred: boolean) => {
+    data.setSelected(0);
+    setDeferred(showDeferred);
+  };
   return (
     <main className="container mx-auto w-full max-w-6xl px-4 py-8 sm:py-10">
       <DashboardHeader />
-      <div aria-live="polite" className="mt-4 min-h-6 rt-body">
-        {data.pending && <span>Working…</span>}
-        {data.status && <span>{data.status}</span>}
-      </div>
+      <ReviewStatus data={data} />
       {data.error && (
         <p role="alert" className="mt-2 rt-body text-[var(--berry)]">
           {data.error}
         </p>
       )}
-      <ReviewWorkspace data={data} />
+      <QueueFilters
+        activeCount={activeQueue.length}
+        deferredCount={deferredQueue.length}
+        deferred={deferred}
+        setDeferred={selectQueue}
+      />
+      <ReviewWorkspace
+        data={data}
+        deferred={deferred}
+        queue={deferred ? deferredQueue : activeQueue}
+      />
       <TermResolutionAudit
         items={data.audit}
         mutate={data.mutate}

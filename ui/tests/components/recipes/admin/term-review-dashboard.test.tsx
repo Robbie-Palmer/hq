@@ -35,6 +35,7 @@ const queueItem = {
   submissionCount: 4,
   tenantCount: 2,
   lastSeenAt: "2026-10-30T12:00:00.000Z",
+  resolutionStatus: "unresolved" as const,
   localeReviewRequired: true,
   collisionReviewRequired: true,
   contexts: [
@@ -130,7 +131,7 @@ describe("TermReviewDashboard", () => {
     expect(mocks.loadAudit).not.toHaveBeenCalled();
   });
 
-  it("labels evidence and requires explicit locale and collision review", async () => {
+  it("matches the selected candidate in one click with visible warnings", async () => {
     const user = userEvent.setup();
     render(<TermReviewDashboard />);
 
@@ -147,46 +148,32 @@ describe("TermReviewDashboard", () => {
       screen.getByRole("heading", { name: "Candidate matches" }),
     ).toBeVisible();
     expect(
-      screen.getByRole("group", { name: "Required review" }),
-    ).toBeVisible();
-
-    expect(
       screen.getByRole("heading", { name: "Authored recipe" }),
     ).toBeVisible();
     expect(
       screen.getByRole("heading", { name: "Imported recipe" }),
     ).toBeVisible();
-    expect(screen.getByText("recipe-1")).toBeVisible();
-    expect(screen.getByText("imported-recipe-2")).toBeVisible();
-    expect(screen.getByText("Direct user submission")).toBeVisible();
+    expect(screen.getByText(/recipe-1 · Direct user submission/)).toBeVisible();
+    expect(screen.getByText(/imported-recipe-2 · Import job/)).toBeVisible();
     expect(
-      screen.getByText(/Import job 33333333-3333-4333-8333-333333333333/),
+      screen.getByText(/33333333-3333-4333-8333-333333333333/),
     ).toBeVisible();
     expect(
       screen.getByText(/The ranking is evidence, not a probability/),
     ).toBeVisible();
     expect(screen.queryByText("91%")).not.toBeInTheDocument();
     expect(screen.getByLabelText("Canonical slug")).toHaveValue("spring-onion");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("The locale is unknown or ambiguous."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("The evidence points to more than one canonical item."),
+    ).toBeVisible();
 
-    await user.click(screen.getByRole("button", { name: "Use slug" }));
+    await user.click(screen.getByRole("button", { name: "Match" }));
     expect(screen.getByLabelText("Canonical slug")).toHaveValue("scallion");
-    await user.click(screen.getByRole("button", { name: "Use slug" }));
-    expect(screen.getByLabelText("Canonical slug")).toHaveValue("spring-onion");
-    await user.type(
-      screen.getByLabelText("Rationale"),
-      "Reviewed the regional usage and candidate evidence.",
-    );
-    await user.click(
-      screen.getByRole("checkbox", {
-        name: "I reviewed the ambiguous or unknown locale.",
-      }),
-    );
-    await user.click(
-      screen.getByRole("checkbox", {
-        name: "I reviewed the conflicting candidate matches.",
-      }),
-    );
-    await user.click(screen.getByRole("button", { name: "Record decision" }));
+    await user.click(screen.getByRole("button", { name: "Match to scallion" }));
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
     expect(mocks.submit).toHaveBeenCalledWith({
@@ -194,7 +181,8 @@ describe("TermReviewDashboard", () => {
       command: expect.objectContaining({
         action: "alias",
         idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-        targetSlug: "spring-onion",
+        targetSlug: "scallion",
+        rationale: "Matched to scallion.",
         expectedRegistryVersion: 7,
         localeReview: true,
         collisionReview: true,
@@ -207,83 +195,162 @@ describe("TermReviewDashboard", () => {
       }),
     });
     expect(
-      await screen.findByText("Decision saved and projections refreshed."),
+      await screen.findByText("Saved. The next term is ready."),
     ).toBeVisible();
   });
 
-  it("clears an existing candidate when creating a new canonical item", async () => {
+  it("generates the slug and display name when creating a canonical item", async () => {
     const user = userEvent.setup();
     render(<TermReviewDashboard />);
 
     expect(await screen.findByLabelText("Canonical slug")).toHaveValue(
       "spring-onion",
     );
-    await user.selectOptions(
-      screen.getByLabelText("Decision"),
-      "new_canonical",
+    await user.click(
+      screen.getByRole("button", {
+        name: "Create new",
+      }),
     );
 
-    expect(screen.getByLabelText("Canonical slug")).toHaveValue("");
-    expect(screen.getByLabelText("Canonical display name")).toHaveValue(
-      "Green Onion",
-    );
+    expect(screen.getByLabelText("Canonical slug")).toHaveValue("green-onion");
+    expect(screen.getByLabelText("Display name")).toHaveValue("Green Onion");
     expect(
-      screen.getByText("Enter the stable slug for the canonical item."),
+      screen.getByText("Generated from the submitted term; edit if needed."),
     ).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Create canonical item" }),
+    );
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+    expect(mocks.submit).toHaveBeenCalledWith({
+      target: queueItem,
+      command: expect.objectContaining({
+        action: "new_canonical",
+        targetSlug: "green-onion",
+        canonicalName: "Green Onion",
+        rationale: "Created canonical item green-onion.",
+        localeReview: true,
+        collisionReview: true,
+      }),
+    });
   });
 
-  it("explains alias, merge, defer, and reject outcomes", async () => {
+  it("uses three plain-language decisions and removes merge from the flow", async () => {
     const user = userEvent.setup();
     render(<TermReviewDashboard />);
-    await screen.findByLabelText("Decision");
-
-    expect(screen.getByText("Treat the wording as a synonym")).toBeVisible();
-    expect(screen.getByText(/no canonical items are combined/i)).toBeVisible();
-
-    await user.selectOptions(screen.getByLabelText("Decision"), "merge");
-    expect(screen.getByText("Record a consolidation decision")).toBeVisible();
-    expect(screen.getByText(/the mapping matches an alias/i)).toBeVisible();
-
-    await user.selectOptions(screen.getByLabelText("Decision"), "defer");
-    expect(screen.getByText("Return to this later")).toBeVisible();
     expect(
-      screen.getByText(/stays in the review queue with every context/i),
+      await screen.findByRole("group", { name: "What is it?" }),
     ).toBeVisible();
-
-    await user.selectOptions(screen.getByLabelText("Decision"), "reject");
     expect(
-      screen.getByText("Exclude this term from active review"),
+      screen.getByRole("button", { name: "Match existing" }),
     ).toBeVisible();
-    expect(screen.getByText(/can reverse the rejection later/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Create new" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Not a term" })).toBeVisible();
+    expect(screen.queryByText(/merge/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Skip for later" }),
+    ).toBeVisible();
+    expect(screen.getByText("You can undo the review decision.")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Not a term" }));
+    expect(screen.queryByLabelText("Canonical slug")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Mark as not a term" }),
+    );
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+    expect(mocks.submit).toHaveBeenCalledWith({
+      target: queueItem,
+      command: expect.objectContaining({
+        action: "reject",
+        rationale: "Marked as not a structured term.",
+      }),
+    });
   });
 
-  it("defers without discarding evidence or requiring collision approval", async () => {
+  it("moves skipped terms to a retrievable later queue and supports immediate undo", async () => {
     const user = userEvent.setup();
+    const deferredDecision = {
+      id: "44444444-4444-4444-8444-444444444444",
+      kind: "ingredient" as const,
+      normalizedText: "green onion",
+      locale: "und",
+      action: "defer" as const,
+      targetSlug: null,
+      canonicalName: null,
+      rationale: "Skipped for later review.",
+      evidence: [],
+      localeReview: false,
+      collisionReview: false,
+      decidedByUserId: "admin-1",
+      reversesDecisionId: null,
+      registryVersion: 8,
+      createdAt: "2026-10-31T12:00:00.000Z",
+      reprojection: null,
+    };
+    const reversal = {
+      ...deferredDecision,
+      id: "55555555-5555-4555-8555-555555555555",
+      action: "reversal" as const,
+      reversesDecisionId: deferredDecision.id,
+      registryVersion: 9,
+      createdAt: "2026-10-31T12:01:00.000Z",
+    };
+    mocks.loadAudit.mockReset();
+    mocks.loadAudit
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([deferredDecision])
+      .mockResolvedValueOnce([reversal, deferredDecision]);
+    mocks.loadQueue.mockReset();
+    mocks.loadQueue
+      .mockResolvedValueOnce([queueItem])
+      .mockResolvedValueOnce([
+        { ...queueItem, resolutionStatus: "deferred" as const },
+      ])
+      .mockResolvedValueOnce([queueItem]);
     render(<TermReviewDashboard />);
-    await screen.findByLabelText("Decision");
-
-    await user.selectOptions(screen.getByLabelText("Decision"), "defer");
-    expect(
-      screen.queryByRole("group", { name: "Required review" }),
-    ).not.toBeInTheDocument();
-    await user.type(
-      screen.getByLabelText("Rationale"),
-      "Waiting for a regional ingredient reference.",
+    await user.click(
+      await screen.findByRole("button", { name: "Skip for later" }),
     );
-    await user.click(screen.getByRole("button", { name: "Record decision" }));
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
     expect(mocks.submit).toHaveBeenCalledWith({
       target: queueItem,
       command: expect.objectContaining({
         action: "defer",
-        rationale: "Waiting for a regional ingredient reference.",
+        rationale: "Skipped for later review.",
+        localeReview: false,
+        collisionReview: false,
       }),
     });
     expect(
       await screen.findByText(
-        "Decision deferred. Evidence remains in the review queue and audit log.",
+        "Skipped for later. It moved to the deferred queue with all evidence intact.",
       ),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Needs review (0)" }),
+    ).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Later (1)" }));
+    expect(
+      await screen.findByRole("heading", { name: "Green Onion" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Skip for later" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Undo last decision" }),
+    );
+    await waitFor(() =>
+      expect(mocks.reverse).toHaveBeenCalledWith(
+        deferredDecision,
+        "Reviewer undid the previous decision.",
+      ),
+    );
+    expect(
+      await screen.findByText("Undone. The term is back in review."),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Needs review (1)" }),
     ).toBeVisible();
   });
 

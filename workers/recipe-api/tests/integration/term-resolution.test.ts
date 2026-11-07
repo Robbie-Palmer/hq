@@ -363,6 +363,15 @@ describe("term resolution persistence", () => {
     }
 
     expect(
+      await listTermReviewQueue(db),
+    ).toEqual([
+      expect.objectContaining({
+        normalizedText: "mystery dust",
+        resolutionStatus: "deferred",
+      }),
+    ]);
+
+    expect(
       await db
         .select({ slug: schema.ingredient.slug, name: schema.ingredient.name })
         .from(schema.ingredient)

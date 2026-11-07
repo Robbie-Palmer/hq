@@ -18,6 +18,7 @@ export type TermReviewQueueItem = {
   submissionCount: number;
   tenantCount: number;
   lastSeenAt: string;
+  resolutionStatus: "unresolved" | "deferred";
   localeReviewRequired: boolean;
   collisionReviewRequired: boolean;
   contexts: Array<{
