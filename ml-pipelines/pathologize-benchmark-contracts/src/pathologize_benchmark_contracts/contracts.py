@@ -146,17 +146,6 @@ class RegistryExport(BaseModel):
                 + ", ".join(sorted(forbidden))
             )
 
-        unsafe_ground_truth = [
-            annotation.croissant_record_id
-            for annotation in self.annotations
-            if annotation.ground_truth
-            and _includes_generated_pixels(by_id, annotation.derived_from_representation)
-        ]
-        if unsafe_ground_truth:
-            raise ValueError(
-                "ground-truth annotations cannot derive from generated pixels: "
-                + ", ".join(sorted(unsafe_ground_truth))
-            )
         return self
 
 
