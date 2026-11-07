@@ -155,6 +155,29 @@ def test_experiment_contract_rejects_unsafe_or_unpinned_changes(
         AdapterSpec.model_validate(adapter)
 
 
+@pytest.mark.parametrize(
+    ("parameter", "value", "message"),
+    [
+        ("tile_size", True, "tile_size"),
+        ("minimum_tissue_fraction", False, "minimum_tissue_fraction"),
+        ("target_microns_per_pixel", True, "target_microns_per_pixel"),
+        ("target_microns_per_pixel", float("inf"), "target_microns_per_pixel"),
+    ],
+)
+def test_tiling_parameters_reject_booleans_and_non_finite_values(
+    parameter: str, value: int | float | bool, message: str
+) -> None:
+    experiment_path = (
+        Path(__file__).parents[2]
+        / "pathologize-tiling-benchmark/experiments/tiling-magnification.json"
+    )
+    experiment = read_json(experiment_path)
+    experiment["parameters"][parameter] = value
+
+    with pytest.raises(ValidationError, match=message):
+        ExperimentManifest.model_validate(experiment)
+
+
 def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None:
     generate_fixtures(configured_root)
     export_path = configured_root / "registry-export.json"

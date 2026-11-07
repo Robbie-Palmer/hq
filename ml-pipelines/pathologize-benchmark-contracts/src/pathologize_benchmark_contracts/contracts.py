@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
@@ -215,17 +216,30 @@ def _validate_tiling_parameters(parameters: dict[str, int | float | str | bool])
     tile_size = parameters.get("tile_size")
     minimum_tissue = parameters.get("minimum_tissue_fraction")
     target_mpp = parameters.get("target_microns_per_pixel")
-    if not isinstance(tile_size, int) or tile_size <= 0:
+    if isinstance(tile_size, bool) or not isinstance(tile_size, int) or tile_size <= 0:
         raise ValueError("tile_size must be a positive integer")
-    if not isinstance(minimum_tissue, (int, float)) or not 0 <= minimum_tissue <= 1:
+    if (
+        isinstance(minimum_tissue, bool)
+        or not isinstance(minimum_tissue, (int, float))
+        or not 0 <= minimum_tissue <= 1
+    ):
         raise ValueError("minimum_tissue_fraction must be between zero and one")
-    if not isinstance(target_mpp, (int, float)) or target_mpp <= 0:
+    if (
+        isinstance(target_mpp, bool)
+        or not isinstance(target_mpp, (int, float))
+        or not math.isfinite(target_mpp)
+        or target_mpp <= 0
+    ):
         raise ValueError("target_microns_per_pixel must be positive")
 
 
 def _validate_nuclei_parameters(parameters: dict[str, int | float | str | bool]) -> None:
     match_iou = parameters.get("instance_match_iou")
-    if not isinstance(match_iou, (int, float)) or not 0 <= match_iou <= 1:
+    if (
+        isinstance(match_iou, bool)
+        or not isinstance(match_iou, (int, float))
+        or not 0 <= match_iou <= 1
+    ):
         raise ValueError("instance_match_iou must be between zero and one")
 
 

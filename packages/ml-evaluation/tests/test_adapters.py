@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Literal, Protocol, runtime_checkable
 
 import pytest
@@ -112,6 +113,66 @@ def test_rejects_external_adapter_digest_before_import(
     with pytest.raises(ValueError, match="SHA-256 mismatch"):
         load_adapter(spec, builtins={}, expected_type=Adapter, root=tmp_path)
     assert "explosive_adapter" not in sys.modules
+
+
+def test_loads_uncached_adapter_from_verified_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module_name = "verified_external_adapter"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        "class Adapter:\n"
+        "    adapter_id = 'example-v1'\n"
+        "    adapter_version = '1'\n",
+        encoding="utf-8",
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    spec = AdapterSpec(
+        adapter_id="example-v1",
+        kind="python_entrypoint",
+        entrypoint=f"{module_name}:Adapter",
+        version="1",
+        artifact_path=module_path.name,
+        artifact_sha256=sha256_file(module_path),
+    )
+
+    try:
+        adapter = load_adapter(spec, builtins={}, expected_type=Adapter, root=tmp_path)
+        assert adapter.adapter_id == "example-v1"
+    finally:
+        sys.modules.pop(module_name, None)
+
+
+def test_rejects_cached_adapter_from_a_different_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    module_name = "cached_adapter_collision"
+    pinned_root = tmp_path / "pinned"
+    pinned_root.mkdir()
+    pinned_path = pinned_root / f"{module_name}.py"
+    pinned_path.write_text(
+        "class Adapter:\n"
+        "    adapter_id = 'example-v1'\n"
+        "    adapter_version = '1'\n",
+        encoding="utf-8",
+    )
+    cached_path = tmp_path / "cached.py"
+    cached_path.write_text("# wrong cached module\n", encoding="utf-8")
+    cached = ModuleType(module_name)
+    cached.__file__ = str(cached_path)
+    monkeypatch.setitem(sys.modules, module_name, cached)
+    monkeypatch.syspath_prepend(str(pinned_root))
+    spec = AdapterSpec(
+        adapter_id="example-v1",
+        kind="python_entrypoint",
+        entrypoint=f"{module_name}:Adapter",
+        version="1",
+        artifact_path=pinned_path.name,
+        artifact_sha256=sha256_file(pinned_path),
+    )
+
+    with pytest.raises(ValueError, match="cached Python adapter module"):
+        load_adapter(spec, builtins={}, expected_type=Adapter, root=pinned_root)
 
 
 def test_rejects_adapter_identity_mismatch() -> None:

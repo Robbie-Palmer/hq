@@ -5,6 +5,8 @@ import random
 import resource
 import threading
 import time
+from concurrent.futures import ProcessPoolExecutor
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +14,7 @@ from data_artifacts.files import (
     canonical_bytes,
     content_address,
     load_model,
+    read_json,
     read_jsonl,
     read_yaml,
     resolve_under,
@@ -74,17 +77,52 @@ class _NvmlProcessMonitor:
         self.thread: threading.Thread | None = None
         self.handles: list[Any] = []
         self.initialized = False
+        self.process_ids: set[int] = set()
+        self.baseline_pids: set[int] = set()
+        self.baseline_sampled = False
+        self.attributed = False
+
+    def _resolve_process_ids(self) -> None:
+        self.process_ids = {os.getpid()}
+        try:
+            status = Path("/proc/self/status").read_text(encoding="utf-8")
+        except OSError:
+            return
+        namespace_line = next(
+            (line for line in status.splitlines() if line.startswith("NSpid:")), None
+        )
+        if namespace_line is None:
+            return
+        _, _, values = namespace_line.partition(":")
+        try:
+            self.process_ids.update(int(value) for value in values.split())
+        except ValueError:
+            self.process_ids.clear()
+            self.error_message = "NVML PID namespace attribution is unavailable"
 
     def _sample(self) -> None:
         if not self.available:
             return
         try:
             observed = 0
+            reported_pids: set[int] = set()
             for handle in self.handles:
                 for process in nvmlDeviceGetComputeRunningProcesses(handle):
+                    reported_pids.add(process.pid)
                     used_memory = process.usedGpuMemory
-                    if process.pid == os.getpid() and isinstance(used_memory, int):
+                    belongs_to_run = (
+                        process.pid in self.process_ids
+                        or (
+                            self.baseline_sampled
+                            and process.pid not in self.baseline_pids
+                        )
+                    )
+                    if belongs_to_run and isinstance(used_memory, int):
                         observed += used_memory
+                        self.attributed = True
+            if not self.baseline_sampled:
+                self.baseline_pids = reported_pids
+                self.baseline_sampled = True
             self.peak_bytes = max(self.peak_bytes, observed)
             self.sampled = True
         except NVMLError as error:
@@ -95,6 +133,9 @@ class _NvmlProcessMonitor:
             self._sample()
 
     def start(self) -> None:
+        self._resolve_process_ids()
+        if not self.process_ids:
+            return
         try:
             nvmlInit()
             self.initialized = True
@@ -276,13 +317,21 @@ def _telemetry_result_failure(
             message="CPU adapter allocated NVIDIA accelerator memory",
         )
     telemetry_failed = not monitor.sampled or monitor.error_message is not None
+    telemetry_failed = telemetry_failed or not monitor.attributed
     if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR and telemetry_failed:
+        detail = monitor.error_message
+        if detail is None:
+            detail = (
+                "no workload GPU process was attributed"
+                if monitor.sampled and not monitor.attributed
+                else "no sample was recorded"
+            )
         return RunFailure(
             item_id="evaluation-cohort",
             error_type="AcceleratorTelemetryFailed",
             message=(
                 "NVML could not sample accelerator memory: "
-                + (monitor.error_message or "no sample was recorded")
+                + detail
             ),
         )
     return None
@@ -294,8 +343,7 @@ def _run_adapter(
     adapter_spec: AdapterSpec,
     items: list[FixtureItem],
 ) -> None:
-    adapter = load_adapter(adapter_spec, root)
-    output = _run_directory(root, manifest.experiment_id, adapter.adapter_id)
+    output = _run_directory(root, manifest.experiment_id, adapter_spec.adapter_id)
     failures: list[RunFailure] = []
 
     def write_failures(values: list[RunFailure]) -> None:
@@ -328,6 +376,7 @@ def _run_adapter(
         write_failures([failure])
         raise ValueError(failure.message)
     try:
+        adapter = load_adapter(adapter_spec, root)
         wall_start = time.perf_counter()
         cpu_start = time.process_time()
         predictions = predict()
@@ -372,13 +421,24 @@ def _run_adapter(
     write_json(output / "resources.json", resources)
 
 
-def run_adapters(root: Path | None = None) -> None:
+def _run_adapter_isolated(
+    root: Path,
+    manifest: ExperimentManifest,
+    adapter_spec: AdapterSpec,
+    items: list[FixtureItem],
+) -> None:
+    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
+        executor.submit(_run_adapter, root, manifest, adapter_spec, items).result()
+
+
+def run_adapters(root: Path | None = None, *, isolated: bool = True) -> None:
     root = root or project_root()
+    runner = _run_adapter_isolated if isolated else _run_adapter
     for manifest in load_experiments(root):
         items = _evaluation_items(root, manifest)
-        _run_adapter(root, manifest, manifest.baseline, items)
+        runner(root, manifest, manifest.baseline, items)
         if manifest.candidate is not None:
-            _run_adapter(root, manifest, manifest.candidate, items)
+            runner(root, manifest, manifest.candidate, items)
 
 
 def _prediction_type(workstream: Workstream) -> type[BaseModel]:
@@ -396,6 +456,11 @@ def _read_run(
     items: list[FixtureItem],
 ) -> RunSummary:
     directory = _run_directory(root, manifest.experiment_id, spec.adapter_id)
+    failures = [
+        RunFailure.model_validate(value) for value in read_json(directory / "failures.json")
+    ]
+    if failures:
+        raise ValueError(f"adapter run contains {len(failures)} recorded failure(s)")
     prediction_type = _prediction_type(manifest.workstream)
     predictions = [
         prediction_type.model_validate(value)
@@ -424,7 +489,7 @@ def _read_run(
         adapter=spec,
         metrics=metrics,
         resources=load_model(directory / "resources.json", ResourceUsage),
-        failures=[],
+        failures=failures,
     )
 
 

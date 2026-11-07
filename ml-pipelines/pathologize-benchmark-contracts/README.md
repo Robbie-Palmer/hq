@@ -84,9 +84,11 @@ Experiment manifests bound input bytes, prediction bytes, input pixels, wall
 time, CPU time, peak resident memory, accelerator wall time, and peak accelerator
 memory. Scorecards record every value. Accelerator adapters are supported and
 receive time and memory gates. The local runner uses NVIDIA NVML for
-process-level memory enforcement. Kubernetes GPU utilization, power, health,
-and workload telemetry belong to the cluster's DCGM and OpenTelemetry stack.
-Provider authorization and monetary cost are outside this benchmark contract.
+process-level memory enforcement, maps container and host PIDs from Linux
+namespace metadata, and runs each adapter in a fresh process so its peak RSS is
+independent. Kubernetes GPU utilization, power, health, and workload telemetry
+belong to the cluster's DCGM and OpenTelemetry stack. Provider authorization and
+monetary cost are outside this benchmark contract.
 
 If a future adapter uses metered provider inference, its run telemetry must use
 the platform's shared `Money` and `ResourceQuantity` semantics. Funding policy

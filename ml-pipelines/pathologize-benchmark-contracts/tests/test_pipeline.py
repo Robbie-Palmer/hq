@@ -14,6 +14,7 @@ from pathologize_benchmark_contracts import cli, pipeline
 from pathologize_benchmark_contracts.contracts import (
     AggregateScorecard,
     ExperimentManifest,
+    FixtureItem,
     FixtureManifest,
     QualityPrediction,
     Scorecard,
@@ -102,6 +103,184 @@ def test_nvml_monitor_records_current_process_memory(
     assert monitor.peak_bytes == 32 * 1024 * 1024
     assert monitor.error_message is None
     assert calls == ["init", "shutdown"]
+
+
+def test_nvml_monitor_maps_host_pid_from_namespace(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = object()
+    monkeypatch.setattr(pipeline.os, "getpid", lambda: 7)
+    monkeypatch.setattr(
+        pipeline.Path,
+        "read_text",
+        lambda _path, **_kwargs: "Name:\tpython\nNSpid:\t100 7\n",
+    )
+    monkeypatch.setattr(pipeline, "nvmlInit", lambda: None)
+    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: None)
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
+    monkeypatch.setattr(
+        pipeline,
+        "nvmlDeviceGetComputeRunningProcesses",
+        lambda _handle: [SimpleNamespace(pid=100, usedGpuMemory=16 * 1024 * 1024)],
+    )
+
+    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
+    monitor.start()
+    monitor.stop()
+
+    assert monitor.process_ids == {7, 100}
+    assert monitor.peak_bytes == 16 * 1024 * 1024
+
+
+def test_nvml_monitor_attributes_new_host_pid_to_isolated_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handle = object()
+    samples = iter(
+        [
+            [],
+            [SimpleNamespace(pid=9001, usedGpuMemory=24 * 1024 * 1024)],
+        ]
+    )
+    monkeypatch.setattr(pipeline, "nvmlInit", lambda: None)
+    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: None)
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
+    monkeypatch.setattr(
+        pipeline,
+        "nvmlDeviceGetComputeRunningProcesses",
+        lambda _handle: next(samples),
+    )
+
+    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
+    monitor.start()
+    monitor.stop()
+
+    assert monitor.baseline_pids == set()
+    assert monitor.attributed
+    assert monitor.peak_bytes == 24 * 1024 * 1024
+
+
+class _MonitorStub:
+    def __init__(
+        self,
+        *,
+        available: bool = True,
+        sampled: bool = True,
+        peak_bytes: int = 0,
+        error_message: str | None = None,
+        attributed: bool = True,
+    ) -> None:
+        self.available = available
+        self.sampled = sampled
+        self.peak_bytes = peak_bytes
+        self.error_message = error_message
+        self.attributed = attributed
+
+    def start(self) -> None:
+        pass
+
+    def stop(self) -> None:
+        pass
+
+
+def _quality_run_inputs(root: Path) -> tuple[ExperimentManifest, FixtureManifest]:
+    generate(root)
+    return (
+        load_model(root / "experiments/whole-slide-quality.json", ExperimentManifest),
+        load_model(root / "data/synthetic/manifest.json", FixtureManifest),
+    )
+
+
+def test_changed_repeated_predictions_write_failure(
+    configured_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest, fixture = _quality_run_inputs(configured_root)
+    items = [item for item in fixture.items if item.split == Split.TEST]
+    delegate = pipeline.load_adapter(manifest.baseline, configured_root)
+
+    class ChangingAdapter:
+        adapter_id = delegate.adapter_id
+        adapter_version = delegate.adapter_version
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def predict(
+            self, run_manifest: ExperimentManifest, item: FixtureItem, root: Path
+        ) -> QualityPrediction:
+            prediction = delegate.predict(run_manifest, item, root)
+            assert isinstance(prediction, QualityPrediction)
+            self.calls += 1
+            if self.calls <= len(items):
+                return prediction
+            labels = list(prediction.tissue_labels)
+            labels[0] = 1 - labels[0]
+            return prediction.model_copy(update={"tissue_labels": labels})
+
+    monkeypatch.setattr(pipeline, "load_adapter", lambda _spec, _root: ChangingAdapter())
+    monkeypatch.setattr(pipeline, "_NvmlProcessMonitor", _MonitorStub)
+
+    with pytest.raises(ValueError, match="predictions changed"):
+        pipeline._run_adapter(configured_root, manifest, manifest.baseline, items)
+
+    failures = read_json(
+        configured_root
+        / "outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json"
+    )
+    assert failures == [
+        {
+            "error_type": "NonDeterministicPredictions",
+            "item_id": "evaluation-cohort",
+            "message": "adapter predictions changed after resetting the experiment seed",
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    ("execution_device", "monitor", "error_type"),
+    [
+        ("cpu", _MonitorStub(peak_bytes=1), "UndeclaredAcceleratorUse"),
+        (
+            "accelerator",
+            _MonitorStub(available=False, sampled=False, error_message="unavailable"),
+            "AcceleratorTelemetryUnavailable",
+        ),
+        (
+            "accelerator",
+            _MonitorStub(sampled=False, error_message="sampling failed"),
+            "AcceleratorTelemetryFailed",
+        ),
+        (
+            "accelerator",
+            _MonitorStub(attributed=False),
+            "AcceleratorTelemetryFailed",
+        ),
+    ],
+)
+def test_accelerator_guardrails_write_failures(
+    configured_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    execution_device: str,
+    monitor: _MonitorStub,
+    error_type: str,
+) -> None:
+    manifest, fixture = _quality_run_inputs(configured_root)
+    items = [item for item in fixture.items if item.split == Split.TEST]
+    adapter = pipeline.load_adapter(manifest.baseline, configured_root)
+    spec = manifest.baseline.model_copy(update={"execution_device": execution_device})
+    monkeypatch.setattr(pipeline, "load_adapter", lambda _spec, _root: adapter)
+    monkeypatch.setattr(pipeline, "_NvmlProcessMonitor", lambda: monitor)
+
+    with pytest.raises(ValueError):
+        pipeline._run_adapter(configured_root, manifest, spec, items)
+
+    failures = read_json(
+        configured_root
+        / f"outputs/runs/{manifest.experiment_id}/{spec.adapter_id}/failures.json"
+    )
+    assert failures[0]["error_type"] == error_type
 
 
 def test_prediction_count_mismatch_fails_closed(reproduced_root: Path) -> None:
@@ -202,6 +381,27 @@ def test_adapter_failure_writes_machine_readable_context(configured_root: Path) 
     )
     assert failures[0]["item_id"] == test_item.item_id
     assert failures[0]["error_type"] == "ValueError"
+
+
+def test_evaluation_rejects_recorded_adapter_failures(reproduced_root: Path) -> None:
+    manifest = load_experiments(reproduced_root)[0]
+    failure_path = (
+        reproduced_root
+        / f"outputs/runs/{manifest.experiment_id}/{manifest.baseline.adapter_id}/failures.json"
+    )
+    write_json(
+        failure_path,
+        [
+            {
+                "item_id": "evaluation-cohort",
+                "error_type": "SyntheticFailure",
+                "message": "stale predictions must not be scored",
+            }
+        ],
+    )
+
+    with pytest.raises(ValueError, match="recorded failure"):
+        evaluate_experiment(manifest.experiment_id, reproduced_root)
 
 
 def test_verify_detects_scorecard_tampering(reproduced_root: Path) -> None:

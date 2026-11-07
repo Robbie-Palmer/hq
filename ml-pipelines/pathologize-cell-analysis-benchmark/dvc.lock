@@ -33,8 +33,8 @@ stages:
       size: 192
     - path: ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
       hash: md5
-      md5: d3135c1d3ab7e723958458ec4897d56b
-      size: 3060
+      md5: f125b03d15d12abbe435d35ad17799aa
+      size: 4461
     - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
       hash: md5
       md5: 29a63bbfea168223615a5472c43d35e4
@@ -50,15 +50,15 @@ stages:
     outs:
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -66,7 +66,7 @@ stages:
       size: 686
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -100,7 +100,7 @@ stages:
       size: 2662
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: params.yaml
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -140,7 +140,7 @@ stages:
       size: 264
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -153,16 +153,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 14f2ff4115349193b0c96fc3d0a2f7b8.dir
-      size: 2515
+      md5: 682538dbf8597e6cf28c048fb19715ee.dir
+      size: 2506
       nfiles: 3
   evaluate_cell_analysis:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -175,34 +175,34 @@ stages:
       size: 2662
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: outputs/runs/cell-analysis-contract-v1
       hash: md5
-      md5: 550cc02712847849a0e55425b852454f.dir
-      size: 2515
+      md5: 106bea24a4d6bce41c14db98ec178f6d.dir
+      size: 2506
       nfiles: 3
     outs:
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 2c2cb8b64b3558aa33d05f3a9f6bc2ce
-      size: 3897
+      md5: 07655fd1f23440d12c9b6d92bbc73e3b
+      size: 3879
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 2c2cb8b64b3558aa33d05f3a9f6bc2ce
-      size: 3897
+      md5: 07655fd1f23440d12c9b6d92bbc73e3b
+      size: 3879
     - path: params.yaml
       hash: md5
       md5: bc0b3999abcf6c13a3a91e8510804c10
@@ -210,8 +210,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: b94845700523c8789f9edb5ae09424be
-      size: 4717
+      md5: 5b9a867e186fb37690a783e82cddcc78
+      size: 4699
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: 5075955c9383b07e487f3f80c002f67b

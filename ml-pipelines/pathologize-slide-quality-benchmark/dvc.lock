@@ -33,8 +33,8 @@ stages:
       size: 192
     - path: ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
       hash: md5
-      md5: d3135c1d3ab7e723958458ec4897d56b
-      size: 3060
+      md5: f125b03d15d12abbe435d35ad17799aa
+      size: 4461
     - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
       hash: md5
       md5: 29a63bbfea168223615a5472c43d35e4
@@ -50,15 +50,15 @@ stages:
     outs:
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -66,7 +66,7 @@ stages:
       size: 686
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -100,7 +100,7 @@ stages:
       size: 2482
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: params.yaml
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -140,7 +140,7 @@ stages:
       size: 270
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -153,16 +153,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 8df2f51e26de07e06398145d19ead7e2.dir
-      size: 50009
+      md5: 8d2465058f3adb6c6bfc19e246eb1f3f.dir
+      size: 50010
       nfiles: 3
   evaluate_slide_quality:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -175,34 +175,34 @@ stages:
       size: 2482
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: outputs/runs/whole-slide-quality-contract-v1
       hash: md5
-      md5: 968c5968f201e6dffd7ca564f4620737.dir
-      size: 50009
+      md5: 16ad1557e78f4f95fa71b6636dbd3670.dir
+      size: 50010
       nfiles: 3
     outs:
     - path: outputs/scorecards/whole-slide-quality-contract-v1.json
       hash: md5
-      md5: 45eadc5deee50014de0f6d8214e43b80
-      size: 3748
+      md5: a278fe33373d42a7df2708e6a7fa8fc8
+      size: 3750
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 88f7809bed2325f347bd8f1d155ed800.dir
-      size: 173354
+      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
+      size: 176157
       nfiles: 15
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 0aaf5c267591733a91d96299b70db10b
+      md5: 6c29a47424e7088b672a0f1614a2366b
       size: 65
     - path: outputs/scorecards/whole-slide-quality-contract-v1.json
       hash: md5
-      md5: 45eadc5deee50014de0f6d8214e43b80
-      size: 3748
+      md5: a278fe33373d42a7df2708e6a7fa8fc8
+      size: 3750
     - path: params.yaml
       hash: md5
       md5: 10d0241c3386cb6b7001e2455ee4d317
@@ -210,8 +210,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: 9bdf2011d81884923e08386ad983e683
-      size: 4540
+      md5: d91356f5adce223ebc47d50e56b9fbfe
+      size: 4542
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: 76606fc12c9de2fe063048cd5657871e
