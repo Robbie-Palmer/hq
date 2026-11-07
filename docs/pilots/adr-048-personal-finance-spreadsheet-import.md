@@ -35,9 +35,9 @@ source `xstate`, `xstate/graph`, and `@xstate/react` packages.
 | Measure | Result |
 | --- | --- |
 | Runtime dependencies | `xstate` 5.33.3 and `@xstate/react` 6.1.0 |
-| Production implementation | 364-line machine module; drawer integration changed by +156/-95 lines, net +61 |
-| Test implementation | 552-line direct and graph suite; 67 component-test lines added |
-| Focused coverage run | 17 Vitest cases in 5.75 seconds; machine coverage 94.73% statements, 93.1% branches, 92.85% functions, and 96.15% lines |
+| Production implementation | 364-line machine module; drawer integration changed by +164/-100 lines, net +64 |
+| Test implementation | 552-line direct and graph suite; 103 component-test lines added |
+| Focused coverage run | 18 Vitest cases in 5.75 seconds; machine coverage 94.73% statements, 93.1% branches, 92.85% functions, and 96.15% lines |
 | Graph | 8 reachable stable states, 9 named transition event types, 128-state traversal bound |
 | React effects | 0 `useEffect` calls before and after; 5 workflow `useState` calls removed and 5 product-input `useState` calls retained |
 
@@ -49,6 +49,13 @@ exits. The graph suite finds shortest paths to all eight states, generates
 bounded simple paths, and replays targeted sequences for each declared
 transition. Test failures include the captured event and state-transition
 trace; development builds log the same transition records.
+
+The production provider mutations do not currently accept an `AbortSignal`.
+The drawer therefore disables its file and Cancel controls and rejects
+escape, swipe, and outside-click closure while a submission is in flight. The
+machine retains the stronger cancellation contract for replaceable submit
+actors that can honor their signal; the current product integration never
+claims cancellation while its provider operation can still commit.
 
 ## Cases found
 

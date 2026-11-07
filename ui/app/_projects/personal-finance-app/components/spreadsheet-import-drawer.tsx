@@ -298,11 +298,13 @@ export function SpreadsheetImportDrawer() {
     send({ type: "SUBMIT.REQUESTED", request });
   }
 
+  function handleOpenChange(nextOpen: boolean) {
+    if (submitting && !nextOpen) return;
+    send(drawerVisibilityEvent(nextOpen));
+  }
+
   return (
-    <Drawer
-      open={open}
-      onOpenChange={(nextOpen) => send(drawerVisibilityEvent(nextOpen))}
-    >
+    <Drawer open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger asChild>
         <Button variant="outline">
           <FileSpreadsheetIcon />
@@ -342,6 +344,7 @@ export function SpreadsheetImportDrawer() {
                 id="spreadsheet-import-file"
                 type="file"
                 accept=".csv,.tsv,text/csv,text/tab-separated-values"
+                disabled={submitting}
                 onChange={(event) => chooseSpreadsheetFile(event, send)}
               />
               {fileName && (
@@ -507,7 +510,7 @@ export function SpreadsheetImportDrawer() {
                 {spreadsheetImportButtonLabel(result.rows.length)}
               </Button>
               <DrawerClose asChild>
-                <Button type="button" variant="outline">
+                <Button type="button" variant="outline" disabled={submitting}>
                   Cancel
                 </Button>
               </DrawerClose>

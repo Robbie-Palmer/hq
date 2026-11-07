@@ -258,6 +258,42 @@ describe("SpreadsheetImportDrawer", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("stays open while an unabortable provider submission is in flight", async () => {
+    let finishImport: (() => void) | undefined;
+    importAccountHistory.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishImport = resolve;
+        }),
+    );
+    const user = userEvent.setup();
+    render(<SpreadsheetImportDrawer />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+    await user.upload(
+      screen.getByLabelText("CSV or TSV file"),
+      spreadsheetFile("balances.csv", "2024-01-31,12500"),
+    );
+    await user.click(screen.getByRole("button", { name: "Import 1 rows" }));
+    await waitFor(() => expect(importAccountHistory).toHaveBeenCalledOnce());
+
+    expect(screen.getByLabelText("CSV or TSV file")).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.getByRole("form", { name: "Import spreadsheet history" }),
+    ).toBeInTheDocument();
+
+    finishImport?.();
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("form", { name: "Import spreadsheet history" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("clears the local review when the drawer closes", async () => {
     const user = userEvent.setup();
     render(<SpreadsheetImportDrawer />);
