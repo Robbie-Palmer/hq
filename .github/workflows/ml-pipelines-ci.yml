@@ -9,6 +9,7 @@ on:
       - "packages/ai-review-domain/**"
       - "packages/data-artifacts/**"
       - "packages/ml-evaluation/**"
+      - "packages/pathologize-tiler/**"
       - "patches/@cooklang__cooklang@*.patch"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -41,6 +42,18 @@ jobs:
 
       - name: Check shared ML evaluation package
         run: mise run //packages/ml-evaluation:check
+
+  pathologize-tiler-package-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check Pathologize tiler package
+        run: mise run //packages/pathologize-tiler:check
 
   ai-review-evaluation-check:
     runs-on: ubuntu-latest
