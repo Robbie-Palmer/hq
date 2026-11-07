@@ -22,12 +22,12 @@ job_name() {
 action=${1:-}
 case "${action}" in
   create)
-    [ "$#" -ge 3 ] || usage
+    [[ $# -ge 3 ]] || usage
     run_id=$2
     name=$(job_name "${run_id}")
     image=$3
     shift 3
-    if [ "${1:-}" = -- ]; then
+    if [[ ${1:-} == -- ]]; then
       shift
     fi
     if [[ ! ${image} =~ ^(nvcr\.io/nvidia/|docker\.io/nvidia/|ghcr\.io/robbie-palmer/)[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]; then
@@ -123,7 +123,7 @@ case "${action}" in
       | kubectl --namespace "${namespace}" create --filename -
     ;;
   status)
-    [ "$#" -eq 2 ] || usage
+    [[ $# -eq 2 ]] || usage
     name=$(job_name "$2")
     kubectl --namespace "${namespace}" get job "${name}" --output=wide
     kubectl --namespace "${namespace}" get pods \
@@ -131,7 +131,7 @@ case "${action}" in
       --output=wide
     ;;
   logs)
-    [ "$#" -eq 2 ] || usage
+    [[ $# -eq 2 ]] || usage
     name=$(job_name "$2")
     exec kubectl --namespace "${namespace}" logs \
       --follow \
@@ -139,12 +139,12 @@ case "${action}" in
       "job/${name}"
     ;;
   delete)
-    [ "$#" -eq 2 ] || usage
+    [[ $# -eq 2 ]] || usage
     name=$(job_name "$2")
     exec kubectl --namespace "${namespace}" delete job "${name}" --wait=true
     ;;
   list)
-    [ "$#" -eq 1 ] || usage
+    [[ $# -eq 1 ]] || usage
     exec kubectl --namespace "${namespace}" get jobs,pods --output=wide
     ;;
   *)
