@@ -25,6 +25,40 @@ run "active_server_is_protected" {
     condition     = length(hcloud_volume_attachment.workspace) == 1
     error_message = "Active state must attach the workspace volume."
   }
+
+  assert {
+    condition     = output.nixos_host_handoff.schema_version == 1
+    error_message = "The Terraform-to-NixOS handoff must use schema version 1."
+  }
+
+  assert {
+    condition = sort(keys(output.nixos_host_handoff)) == sort([
+      "bootstrap_method",
+      "host_key_proof",
+      "host_name",
+      "host_profile",
+      "persistent_mounts",
+      "root_disk",
+      "schema_version",
+      "target",
+    ])
+    error_message = "The handoff must expose only the reviewed non-secret fields."
+  }
+
+  assert {
+    condition     = output.nixos_host_handoff.host_profile == "vm" && output.nixos_host_handoff.bootstrap_method == "nixos-anywhere"
+    error_message = "The handoff must select the VM profile and nixos-anywhere installer."
+  }
+
+  assert {
+    condition     = output.nixos_host_handoff.host_key_proof == "provider-console"
+    error_message = "The handoff must require host-key proof through the provider console."
+  }
+
+  assert {
+    condition     = output.nixos_host_handoff.persistent_mounts[0].preserve_on_replace
+    error_message = "The handoff must preserve the workspace mount during host replacement."
+  }
 }
 
 run "suspend_ready_server_is_unprotected" {
@@ -70,5 +104,10 @@ run "suspended_state_keeps_only_the_volume" {
   assert {
     condition     = hcloud_volume.workspace.delete_protection
     error_message = "Suspended state must keep volume deletion protection."
+  }
+
+  assert {
+    condition     = output.nixos_host_handoff == null
+    error_message = "A suspended host must not publish an installation target."
   }
 }

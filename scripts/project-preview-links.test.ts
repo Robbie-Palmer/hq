@@ -40,6 +40,8 @@ describe("project preview links", () => {
   it("loads project UI links from the repository profiles", async () => {
     await expect(loadProjectPreviewLinks(repositoryRoot)).resolves.toEqual([
       { name: "Asset Tracker", path: "/assettracker" },
+      { name: "Recipes", path: "/recipes" },
+      { name: "Satellite swarm", path: "/satellite-swarm" },
       { name: "Wedding planner", path: "/wedding-planner" },
     ]);
   });
@@ -65,6 +67,21 @@ describe("project preview links", () => {
     ).toThrow("Project profiles define duplicate preview path '/shared'");
   });
 
+  it("rejects a profile link that duplicates another project's UI", () => {
+    const sharedHost = profile("shared-host", "Shared host", "/host");
+    sharedHost.preview_links.push({
+      name: "Shared route",
+      mount_path: "/shared",
+    });
+
+    expect(() =>
+      projectPreviewLinksFromProfiles([
+        sharedHost,
+        profile("project-ui", "Project UI", "/shared"),
+      ]),
+    ).toThrow("Project profiles define duplicate preview path '/shared'");
+  });
+
   it("rejects a malformed project UI without a mount path", () => {
     const malformed = profile("malformed", "Malformed", "/malformed");
     delete malformed.components[0]?.mount_path;
@@ -82,7 +99,7 @@ describe("project preview links", () => {
     });
 
     expect(output).toEqual([
-      '[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
+      '[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Recipes","path":"/recipes"},{"name":"Satellite swarm","path":"/satellite-swarm"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
     ]);
   });
 
@@ -100,7 +117,7 @@ describe("project preview links", () => {
       );
 
       await expect(readFile(githubOutput, "utf8")).resolves.toBe(
-        'links=[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
+        'links=[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Recipes","path":"/recipes"},{"name":"Satellite swarm","path":"/satellite-swarm"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
       );
     } finally {
       await rm(temporaryDirectory, { recursive: true });

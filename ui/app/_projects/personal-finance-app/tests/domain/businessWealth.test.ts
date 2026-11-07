@@ -288,6 +288,7 @@ describe("business wealth entity and ownership contracts", () => {
     expect(original.excludedUnderlyingIds).toEqual([
       "company-cash",
       "company-loan",
+      "northstar-corporation-tax-2026",
     ]);
     expect(original.valuationRecordIds).toEqual([
       "northstar-valuation-original",

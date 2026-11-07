@@ -208,8 +208,37 @@ describe("GitHub reconciliation", () => {
     ).toBe(true);
   });
 
+  it("keeps the global fetch receiver when no fetch is injected", async () => {
+    const receiverSensitiveFetch = vi.fn(async function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return new Response(null, { status: 418 });
+    }) as typeof fetch;
+    vi.stubGlobal("fetch", receiverSensitiveFetch);
+    try {
+      const reconciler = new GitHubReconciler(
+        {
+          appId: "123",
+          privateKey: privateKeyPem,
+          allowedInstallationIds: new Set([42]),
+          allowedRepositories: new Set([repository]),
+        },
+        { consume: vi.fn() },
+        { now: () => now },
+      );
+
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toThrow("GitHub API request failed with HTTP 418");
+      expect(receiverSensitiveFetch).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("backfills current PR, CI, and deployment facts idempotently", async () => {
     const deliveries: GitHubDelivery[] = [];
+    const fetcher = githubFetch();
+    const finishTarget = vi.fn(async () => {});
     const consume = vi.fn(async (delivery: GitHubDelivery) => {
       deliveries.push(delivery);
       return "processed" as const;
@@ -221,8 +250,8 @@ describe("GitHub reconciliation", () => {
         allowedInstallationIds: new Set([42]),
         allowedRepositories: new Set([repository]),
       },
-      { consume },
-      { fetch: githubFetch(), now: () => now },
+      { consume, finishTarget },
+      { fetch: fetcher, now: () => now },
     );
 
     await expect(
@@ -271,6 +300,215 @@ describe("GitHub reconciliation", () => {
     deliveries.length = 0;
     await reconciler.reconcile([{ repository, number: 7 }]);
     expect(deliveries.map((delivery) => delivery.deliveryId)).toEqual(firstIds);
+    expect(finishTarget).toHaveBeenCalledTimes(2);
+    const requestedPaths = vi
+      .mocked(fetcher)
+      .mock.calls.map(([input]) => new URL(String(input)).pathname);
+    expect(
+      requestedPaths.filter(
+        (path) => path === "/repos/example/site/installation",
+      ),
+    ).toHaveLength(1);
+    expect(
+      requestedPaths.filter(
+        (path) =>
+          path ===
+          "/repos/example/site/contents/ui/content/projects/personal-engineering-platform/platform.yaml",
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("closes target-scoped consumers when a delivery commit fails", async () => {
+    const finishTarget = vi.fn(async () => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      {
+        consume: vi.fn(async () => {
+          throw new Error("database unavailable");
+        }),
+        finishTarget,
+      },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    await expect(
+      reconciler.reconcile([{ repository, number: 7 }]),
+    ).rejects.toThrow("database unavailable");
+    expect(finishTarget).toHaveBeenCalledOnce();
+  });
+
+  it("preserves the delivery error when target cleanup also fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      {
+        consume: vi.fn(async () => {
+          throw new Error("database unavailable");
+        }),
+        finishTarget: vi.fn(async () => {
+          throw new Error("cleanup failed");
+        }),
+      },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    try {
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toThrow("database unavailable");
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: true,
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("preserves an undefined delivery rejection when cleanup also fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      {
+        consume: vi.fn(async () => Promise.reject(undefined)),
+        finishTarget: vi.fn(async () => {
+          throw new Error("cleanup failed");
+        }),
+      },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    try {
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toBeUndefined();
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: true,
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("surfaces target cleanup failures after successful consumption", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      {
+        consume: vi.fn(async () => "processed" as const),
+        finishTarget: vi.fn(async () => {
+          throw new Error("cleanup failed");
+        }),
+      },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    try {
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toThrow("cleanup failed");
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: false,
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("retries transient database failures before advancing the target", async () => {
+    const consume = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("database request failed", {
+          cause: Object.assign(new Error("lock timeout"), { code: "55P03" }),
+        }),
+      )
+      .mockResolvedValue("processed");
+    const finishTarget = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("cleanup failed"))
+      .mockResolvedValue(undefined);
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      { consume, finishTarget },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    try {
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).resolves.toMatchObject({ targets: 1, deliveries: 4, processed: 4 });
+      expect(consume).toHaveBeenCalledTimes(5);
+      expect(finishTarget).toHaveBeenCalledTimes(2);
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: true,
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
+  it("retries a Hyperdrive connection closed transport failure", async () => {
+    const consume = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new Error("write CONNECTION_CLOSED hyperdrive.local:5432"),
+      )
+      .mockResolvedValue("processed");
+    const finishTarget = vi.fn(async () => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      { consume, finishTarget },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    await expect(
+      reconciler.reconcile([{ repository, number: 7 }]),
+    ).resolves.toMatchObject({ targets: 1, deliveries: 4, processed: 4 });
+    expect(consume).toHaveBeenCalledTimes(5);
+    expect(finishTarget).toHaveBeenCalledTimes(2);
   });
 
   it("rejects targets outside the configured repository policy", async () => {

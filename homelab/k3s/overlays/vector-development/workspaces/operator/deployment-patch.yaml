@@ -160,6 +160,9 @@ spec:
             - name: agent-coordinator-vulnerability-controller
               mountPath: /etc/agent-coordinator
               readOnly: true
+            - name: gpu-benchmark-kubernetes-api
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
             - name: vector-doppler-wrapper
               mountPath: /opt/vector/bin
               readOnly: true
@@ -239,6 +242,24 @@ spec:
           configMap:
             name: agent-coordinator-vulnerability-controller
             defaultMode: 292
+        - name: gpu-benchmark-kubernetes-api
+          projected:
+            defaultMode: 292
+            sources:
+              - serviceAccountToken:
+                  expirationSeconds: 3600
+                  path: token
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        apiVersion: v1
+                        fieldPath: metadata.namespace
         - name: vector-doppler-wrapper
           configMap:
             name: vector-doppler-wrapper

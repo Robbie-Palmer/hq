@@ -32,24 +32,32 @@
       "name": "collection",
       "value": "CPTAC-COAD",
       "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
       "provenance": "DICOM ClinicalTrialProtocolID"
     },
     {
       "name": "primary_anatomic_structure",
       "value": "Colon",
-      "code": "SCT:71854001",
+      "code": "71854001",
+      "coding_scheme": "SCT",
+      "coding_scheme_version": null,
       "provenance": "DICOM SpecimenDescriptionSequence.PrimaryAnatomicStructureSequence"
     },
     {
       "name": "staining_substance",
       "value": "hematoxylin stain",
-      "code": "SCT:12710003",
+      "code": "12710003",
+      "coding_scheme": "SCT",
+      "coding_scheme_version": null,
       "provenance": "DICOM SpecimenPreparationSequence"
     },
     {
       "name": "staining_substance",
       "value": "water soluble eosin stain",
-      "code": "SCT:36879007",
+      "code": "36879007",
+      "coding_scheme": "SCT",
+      "coding_scheme_version": null,
       "provenance": "DICOM SpecimenPreparationSequence"
     }
   ],

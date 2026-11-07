@@ -20,7 +20,7 @@
     "authentication_required": false,
     "automated_access": true,
     "acquisition_policy": "manifest_only",
-    "reason": "The current data page offers public GigaScience and AWS access and states CC0. The roughly 900 GB collection is outside the bounded starter acquisition, and historical challenge rules remain linked for operator review.",
+    "reason": "The current data page offers public GigaScience and AWS access and states CC0. The 762.5 GB collection is outside the bounded starter acquisition, and historical challenge rules remain linked for operator review.",
     "download_base_urls": []
   },
   "license": {
@@ -33,8 +33,8 @@
   "citation": "Bejnordi, B. E. et al. Diagnostic Assessment of Deep Learning Algorithms for Detection of Lymph Node Metastases in Women With Breast Cancer. JAMA 318, 2199-2210 (2017).",
   "known_scale": {
     "slides_or_series": 399,
-    "bytes": null,
-    "basis": "The source collection contains 399 slides. The registry does not assert a byte total because no source manifest was acquired."
+    "bytes": 762471984787,
+    "basis": "The official AWS Open Data CAMELYON16 prefix contained 1,366 objects totaling 762,471,984,787 bytes when listed on 2026-11-06."
   },
   "source_native_label_domains": [
     "challenge train or test designation",

@@ -7,6 +7,12 @@ import fire
 from pydantic import ValidationError
 
 from pathologize_data_registry.acquisition import acquire_asset
+from pathologize_data_registry.croissant import (
+    CroissantValidationError,
+    build_croissant_export,
+    validate_croissant,
+    write_croissant_export,
+)
 from pathologize_data_registry.repository import (
     PROJECT_DIR,
     RegistryValidationError,
@@ -67,11 +73,33 @@ class RegistryApplication:
         action = "Checked" if check else "Wrote"
         print(f"{action} {len(paths)} registry schemas.")
 
+    def export(
+        self,
+        revision: str,
+        output: str = "outputs/pathologize-public-data.croissant.json",
+    ) -> None:
+        registry = require_valid_registry(self.root)
+        path = write_croissant_export(registry, revision, self.root / output)
+        print(f"Wrote independently validated Croissant 1.1 metadata to {path}.")
+
+    def export_check(self) -> None:
+        registry = require_valid_registry(self.root)
+        payload = build_croissant_export(registry, "0" * 40)
+        validate_croissant(payload)
+        print("Validated generated Croissant 1.1 metadata with mlcroissant.")
+
 
 def main(command: Sequence[str] | None = None) -> int:
     try:
         fire.Fire(RegistryApplication, command=list(command) if command is not None else None)
-    except (OSError, RegistryValidationError, SchemaDriftError, ValidationError) as error:
+    except (
+        CroissantValidationError,
+        OSError,
+        RegistryValidationError,
+        SchemaDriftError,
+        ValidationError,
+        ValueError,
+    ) as error:
         print(error)
         return 1
     return 0

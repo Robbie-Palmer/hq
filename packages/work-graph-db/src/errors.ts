@@ -11,6 +11,10 @@ const RETRYABLE_DATABASE_CAPACITY_CODES = new Set([
 ]);
 
 const HYPERDRIVE_ERROR_CODE = "58000";
+const RETRYABLE_TRANSPORT_ERROR_CODES = new Set([
+  "CONNECTION_CLOSED",
+  "CONNECTION_ENDED",
+]);
 const RETRYABLE_HYPERDRIVE_MESSAGES = [
   "Failed to acquire a connection from the pool.",
   "Internal error.",
@@ -31,6 +35,14 @@ const databaseFailureForError = (
     return "capacity";
   }
   if (
+    (code !== undefined && RETRYABLE_TRANSPORT_ERROR_CODES.has(code)) ||
+    [...RETRYABLE_TRANSPORT_ERROR_CODES].some((transportCode) =>
+      error.message.includes(transportCode),
+    )
+  ) {
+    return "infrastructure";
+  }
+  if (
     code === HYPERDRIVE_ERROR_CODE &&
     RETRYABLE_HYPERDRIVE_MESSAGES.some((message) =>
       error.message.includes(message),
@@ -43,6 +55,25 @@ const databaseFailureForError = (
       : "infrastructure";
   }
   return undefined;
+};
+
+export const isClosedDatabaseConnectionFailure = (
+  error: unknown,
+): boolean => {
+  if (!(error instanceof Error)) return false;
+  const code =
+    "code" in error && typeof error.code === "string" ? error.code : undefined;
+  if (
+    (code !== undefined && RETRYABLE_TRANSPORT_ERROR_CODES.has(code)) ||
+    [...RETRYABLE_TRANSPORT_ERROR_CODES].some((transportCode) =>
+      error.message.includes(transportCode),
+    )
+  ) {
+    return true;
+  }
+  return "cause" in error
+    ? isClosedDatabaseConnectionFailure(error.cause)
+    : false;
 };
 
 export const classifyRetryableDatabaseFailure = (

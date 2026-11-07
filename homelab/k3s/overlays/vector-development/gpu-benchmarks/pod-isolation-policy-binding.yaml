@@ -1,0 +1,8 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: vector-gpu-benchmark-pod-isolation
+spec:
+  policyName: vector-gpu-benchmark-pod-isolation
+  validationActions:
+    - Deny

@@ -207,17 +207,32 @@ run = "ansible/scripts/deploy_asus.sh"
 
 [tasks.nix-flake-check]
 description = "Check the Nix flake contract and outputs for this system"
-run = "bash scripts/nix-command.sh flake check"
+depends = ["//homelab:host-ssh-test"]
+run = "bash scripts/nix-command.sh flake check --no-build"
 
 [tasks.nix-flake-show]
 description = "Show the Nix flake outputs without building them"
 run = "bash scripts/nix-command.sh flake show"
+
+[tasks.host-lifecycle-check]
+description = "Build the reusable host lifecycle contract checks"
+run = "bash scripts/nix-command.sh build --no-link .#checks.x86_64-linux.host-lifecycle-contract"
+
+[tasks.host-lifecycle-vm-test]
+description = "Boot the disposable NixOS host lifecycle VM test on a KVM-capable Linux host"
+run = "bash scripts/nix-command.sh build --no-link .#packages.x86_64-linux.host-lifecycle-vm-test"
+
+[tasks.host-ssh-test]
+description = "Test fail-closed SSH host-key verification"
+run = "bash tests/host-ssh.test.sh"
 
 [tasks.nix-format]
 description = "Format all homelab Nix declarations"
 run = '''
 bash scripts/nix-command.sh develop --command nixfmt \
   flake.nix \
+  modules/*.nix \
+  hosts/remote-development/*.nix \
   hosts/vector-development/*.nix \
   packages/*.nix
 '''
@@ -266,6 +281,10 @@ run = "bash scripts/rebuild-vector-development.sh"
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
 run = "bash scripts/vector-development-health.sh"
 
+[tasks.vector-gpu-benchmark]
+description = "Create, inspect, stream logs from, or delete a bounded Vector GPU benchmark Job"
+run = "bash scripts/vector-gpu-benchmark.sh"
+
 [tasks.vector-agent-auth-health]
 description = "Verify Vector T3 GitHub and scoped Doppler authentication without printing secrets"
 run = "bash scripts/vector-development-agent-auth-health.sh"
@@ -301,6 +320,7 @@ bash -n \
   hosts/vector-development/scripts/apply-quiet-profile.bash \
   hosts/vector-development/scripts/thermal-monitor.bash \
   hosts/vector-development/scripts/vector-remote-unlock.bash \
+  scripts/host-ssh.sh \
   scripts/vector-development-ssh.sh \
   scripts/install-vector-development.sh \
   scripts/set-vector-development-password.sh \
@@ -308,6 +328,7 @@ bash -n \
   scripts/fetch-vector-development-kubeconfig.sh \
   scripts/rebuild-vector-development.sh \
   scripts/vector-development-health.sh \
+  scripts/vector-gpu-benchmark.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
   scripts/configure-severe-vulnerability-controller-webhook.sh \

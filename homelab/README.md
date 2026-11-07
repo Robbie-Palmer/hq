@@ -1,5 +1,8 @@
 # Home Lab (code-as-config)
 
+Host provisioning and recovery follow the
+[NixOS host lifecycle contract](../docs/contracts/nixos-host-lifecycle.md).
+
 This directory declares the home lab's machines as code, following the layout
 planned in [ADR 007](/projects/homelab/adrs/007-nixos-gpu-worker). The goal is
 the same one that motivates the whole lab, the same config in produces the

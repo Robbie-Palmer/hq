@@ -1,0 +1,268 @@
+---
+title: "PDR 002: Manage project artifacts through portable contracts"
+date: "2026-11-07"
+status: "Accepted"
+decision_date: "2026-11-07"
+evidence:
+  - title: "OCI Distribution Specification"
+    url: "https://github.com/opencontainers/distribution-spec/blob/main/spec.md"
+  - title: "OCI registry implementation spike"
+    url: "https://github.com/Robbie-Palmer/hq/tree/main/infra/oci-registry-spike"
+affected_projects: ["agent-first-writing", "homelab", "pathologize"]
+---
+
+## Context
+
+Projects now produce more than source releases. They build container images,
+deployment charts, model packages, release bundles, software bills of materials,
+signatures, and attestations. Language packages add another distribution path.
+These outputs move between CI, deployment systems, development machines, model
+runtimes, and long-term archives. Today, each producer can choose a destination
+without first defining identity, verification, retention, or a way to leave that
+destination.
+
+A storage bucket alone does not provide a publication contract. A registry alone
+does not decide who may publish, which reference is immutable, what provenance a
+consumer must verify, or how to export a release. Choosing a registry product before
+answering those questions would turn one implementation into an accidental platform
+contract.
+
+The platform needs a common artifact-management capability without forcing every
+artifact through one protocol. OCI Distribution is designed to distribute
+content-addressed manifests and blobs without fixing their content type. That makes
+it a credible cross-ecosystem contract. It does not provide the dependency solver,
+package metadata, version selection, yanking, or installation behavior that language
+package ecosystems already have.
+
+## Decision
+
+Define artifact management as a language-neutral platform capability. A project can
+publish, discover, verify, retrieve, promote, retain, and export a released artifact
+through an open contract appropriate to that artifact class. Consumers identify the
+immutable object independently of the service implementation and can verify its bytes
+and provenance before use.
+
+This product contract leaves provider decisions open. Later research and ADRs will
+select registry vendors, registry implementations, hosting models, blob stores, and
+deployment targets. They may choose different answers for public packages, private
+releases, and large models. A managed service is the right default when its total cost
+and reliability beat operating the equivalent service. Portability and a tested
+self-hosting path remain requirements. The platform does not have to operate the
+infrastructure.
+
+### Affected projects and artifact classes
+
+The capability applies to the platform's own release automation and to projects that
+adopt build and release support. The first known needs are Homelab container images
+and deployment definitions, Agent-first Writing model packages, and Pathologize model
+and evaluation outputs. Generated service projects will also publish runtime images,
+release bundles, and supply-chain evidence when their profiles request those outputs.
+Adoption stays explicit. Existing projects do not acquire a new publication path
+merely because this record exists.
+
+| Artifact class        | Examples                                                          | Required contract                                                                                            | Candidate distribution path                                                                         |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| Runtime images        | OCI container images and multi-platform indexes                   | Immutable manifest and layer digests, platform metadata, pull and promotion                                  | OCI Distribution                                                                                    |
+| Deployment packages   | Helm charts and declarative workload bundles                      | Versioned package, referenced images, checksums, and release metadata                                        | OCI Distribution where the native tool supports it                                                  |
+| Model packages        | Weights, model metadata, runtime assets, and evaluation summaries | Format and licence metadata, immutable payload identity, and reproducible export                             | OCI Distribution for release packages; a model hub or data registry may remain the discovery system |
+| Release bundles       | Archives, installers, compiled tools, and offline deployment sets | Version, target platform, checksum, provenance, and complete export                                          | OCI Distribution or an ecosystem release repository                                                 |
+| Supply-chain evidence | SBOMs, signatures, vulnerability reports, and attestations        | Subject digest, media type, issuer, verification policy, and retention with the subject                      | OCI referrers are a candidate attachment contract                                                   |
+| Language packages     | npm packages, Python wheels, and source distributions             | Ecosystem metadata, dependency and version semantics, platform selection, yanking, and installation behavior | npm registries and Python indexes                                                                   |
+
+Mutable working data, caches, logs, and database backups are outside this decision.
+They may use object storage or a data-versioning system. They join the artifact
+contract only when a project publishes an immutable release package with a declared
+consumer and retention policy.
+
+### OCI's contract boundary
+
+The [OCI Distribution Specification](https://github.com/opencontainers/distribution-spec/blob/main/spec.md)
+defines registry APIs for pulling, pushing, discovering, and managing manifests and
+blobs. Blobs are addressed by digest, manifests describe typed content, and subject
+relationships let another manifest refer to an immutable object. Those properties can
+give containers, charts, models, release bundles, SBOMs, signatures, and attestations
+one transport and object-identity model. They also make export and conformance testing
+possible across registry implementations.
+
+That scope is deliberately narrower than package management. Transport answers how a
+client moves and verifies an immutable object. It does not answer which compatible
+version satisfies a dependency graph, how a prerelease compares with a stable version,
+which wheel matches an interpreter and operating system, whether a release was yanked,
+or how installation scripts and lockfiles behave.
+
+npm and pnpm therefore remain valid defaults for JavaScript and TypeScript package
+installation, backed by an npm-compatible registry when packages need publication.
+pip and uv remain valid defaults for Python installation, backed by a Python package
+index when packages need publication. Those ecosystems own dependency resolution,
+metadata, search and discovery conventions, yanking, platform selection, and install
+semantics that their users expect.
+
+ORAS can push and pull arbitrary blobs through OCI Distribution. That proves a useful
+transport path, not a suitable replacement for npm or PyPI. A project may mirror a
+language package into an OCI release bundle for offline delivery or attach an SBOM to
+the corresponding build. The package registry or Python index remains authoritative
+for language-package consumption unless a later product decision and ADR document a
+different need.
+
+### Identity, discovery, and promotion
+
+Every published artifact has an artifact class, media or package type, namespace,
+name, version or human reference, immutable digest or ecosystem integrity value,
+producer, source revision, creation time, and visibility. Provider object keys,
+temporary download URLs, database identifiers, and internal bucket names are not
+artifact identities.
+
+Consumers pin immutable production inputs by digest or by the strongest integrity
+identity their ecosystem supports. A readable tag or version can resolve to that
+identity, but it cannot silently redefine an already published immutable release.
+Channels such as `candidate` or `stable` may move. Their history must record who moved
+them, when, and from which immutable identity to which other identity.
+
+Promotion changes an approved reference or copies the same verified object into a new
+trust boundary. It does not rebuild the artifact. If policy requires a copy, the
+destination must verify the exported digest or ecosystem integrity value and preserve
+the original provenance link. Discovery must expose enough metadata to find supported
+versions and artifact types without making a provider's search API the only catalog.
+
+### Producers, consumers, and ownership
+
+The source project owns artifact meaning, build inputs, release approval, visibility,
+support period, and compatibility claims. Its CI identity may publish only within the
+project's namespace and only for declared artifact classes. A platform release
+workflow enforces the shared metadata, verification, promotion, export, and evidence
+rules. It does not gain authority to approve a project's release.
+
+Deployment controllers, package clients, model runners, developers, and archival jobs
+are consumers. Each consumer declares whether it needs read access to public,
+project-private, or restricted artifacts and which verification policy it applies.
+Human accounts do not provide unattended publication credentials. Break-glass writes
+are time-limited and audited.
+
+The selected service owner is responsible for availability, capacity, upgrades,
+backup or replication where required, access revocation, garbage collection, export
+tests, and incident recovery. A managed provider can perform those tasks under a
+service agreement. The platform owner still owns the contract and the evidence that
+the provider meets it.
+
+### Publication lifecycle
+
+1. The producer builds once from a named source revision and records the toolchain and
+   inputs needed to explain the result.
+2. The publication workflow assigns the artifact class and media or package type,
+   computes its immutable identity, scans it under project policy, and attaches
+   provenance and an SBOM where required.
+3. The workflow publishes into a restricted candidate state. Readers can retrieve the
+   object by immutable identity and verify it before approval.
+4. An authorised promotion records the same object as approved for a named channel or
+   environment. Production deployment resolves and records the immutable identity it
+   consumed.
+5. Deprecation or yanking changes discovery and new-consumer policy without erasing
+   release history. Revocation evidence remains available for the retention period.
+6. Retention removes unreferenced uploads, expired candidates, and unsupported
+   releases only after the owning policy permits deletion. Garbage collection cannot
+   race active publication or make a retained manifest incomplete.
+7. Export and restore exercises prove that retained releases, metadata, relationships,
+   and verification material can move to another conforming service.
+
+### Security and provenance
+
+Publication uses short-lived workload identity where available. Otherwise, it uses a
+narrowly scoped credential with rotation and revocation. Separate identities publish,
+promote, administer retention, and read restricted content. Registry or index
+administration is not a normal CI permission. Logs and evidence must not contain
+credentials, private package contents, or signed download URLs.
+
+The service encrypts authenticated traffic and stored private artifacts. It enforces
+namespace and visibility policy before returning manifests, metadata, or blobs.
+Rate, size, and quota controls must stop one project from exhausting shared capacity.
+Public artifacts are still untrusted input. Consumers verify the immutable identity
+after download and apply the signature, attestation, vulnerability, licence, and
+provenance policy for that artifact class before execution or deployment.
+
+Provenance binds an artifact to its source revision, builder identity, build workflow,
+declared inputs, and output digest. Signatures and attestations refer to an immutable
+subject, not only to a mutable tag. Copying or promoting an artifact preserves those
+relationships. A repository that cannot export the evidence needed for independent
+verification does not satisfy this capability.
+
+### Availability, retention, and cost
+
+Each artifact class declares its required availability, recovery point, recovery time,
+maximum acceptable publication delay, and offline need. The platform does not invent
+one uptime target for every package. A production runtime image may need a replicated
+or cached pull path. A historical evaluation bundle may accept slower archival
+recovery. Build and deployment workflows must fail clearly when a required artifact
+cannot be verified. They must not fall back to an unpinned object.
+
+Retention starts with consumer and recovery needs. Keep released identities,
+provenance, revocation records, and required verification material for the project's
+declared support period. Keep candidates and failed uploads for a shorter bounded
+period. Legal, licence, privacy, and vulnerability response requirements can shorten
+or extend those periods. Deletion must account for shared blobs and referrers before
+garbage collection.
+
+Provider evaluation measures stored bytes, request and operation classes, transfer,
+replication, build and pull latency, support, backup, and operating labour. Deduplication
+and caching may reduce cost, but they cannot weaken isolation or retention. A free
+tier is not a durable cost model. Self-hosting is viable only when the measured total
+cost and control justify upgrades, monitoring, recovery, and security work that a
+managed service would otherwise supply.
+
+### Portability, export, and anti-lock-in
+
+A conforming implementation must provide documented, automated export without asking
+the provider for a bespoke database dump. Export includes artifact bytes, manifests or
+package metadata, immutable identities, tags and channels, subject relationships,
+provenance, signatures, attestations, visibility, creation times, retention state, and
+deprecation or revocation state. It also records anything the destination cannot
+represent.
+
+Migration must preserve digest-addressed bytes and ecosystem integrity values. Stable
+platform-owned names should insulate consumers from provider hostnames where the
+protocol permits it. If a coordinate must change, the migration publishes an explicit
+mapping and keeps the old reference available for the agreed transition. A restore
+test imports the export into a different conforming implementation, verifies a sample
+from each retained class, checks referrers and metadata, and exercises an authorised
+pull before the old service can be retired.
+
+The platform rejects a provider as the sole release store when it requires proprietary
+clients for basic retrieval, hides checksums or manifests, prevents complete metadata
+export, makes signatures or attestations provider-only objects, or charges an
+unmeasured exit cost that defeats routine migration testing. Optional provider
+features may improve replication, scanning, or discovery. Published artifacts and
+their verification path must continue to work without those features.
+
+## Evidence and later decisions
+
+The completed [OCI registry implementation spike](https://github.com/Robbie-Palmer/hq/tree/main/infra/oci-registry-spike)
+showed that standard clients could move container images, Helm charts, a model bundle,
+signatures, and arbitrary ORAS content through conforming registry implementations. It
+also found material implementation differences in conformance, referrers, scrub, and
+garbage collection. That is evidence that the open contract is testable and that
+implementation choice matters. It is not the premise for this product decision and
+does not select zot, CNCF Distribution, R2, or self-hosting for production.
+
+Follow-up research will compare providers and hosting models against this contract. A
+separate architecture decision will decide whether OCI Distribution becomes the
+platform default for the cross-ecosystem classes. Another decision will define the
+language-package publication defaults. Provider, host, storage, authentication,
+replication, scanning, signing, and client selections remain open until those records
+have evidence.
+
+## Evaluation
+
+Validate the contract with at least one container image, deployment package, model or
+release bundle, and attached SBOM or attestation. Publish each by immutable identity,
+promote it without rebuilding, retrieve it through an independent client, and verify
+its bytes and provenance. Export the retained set, import it into a different
+conforming implementation, and show which identities and relationships survived.
+
+Evaluate language packages separately. Publish and install one npm package through
+npm or pnpm and one Python package through pip or uv. Exercise dependency resolution,
+platform selection where applicable, and yanking or deprecation. An ORAS round trip of
+the same bytes does not pass that test.
+
+Record publication and pull latency, stored and transferred bytes, provider operations,
+estimated monthly cost, recovery results, operator work, and any proprietary metadata
+that export loses. The later provider ADR must use those results rather than treating
+protocol conformance or a successful push as sufficient evidence.

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - role.yaml
+  - role-binding.yaml
+  - network-policy.yaml
+  - job-contract-policy.yaml
+  - job-contract-policy-binding.yaml
+  - pod-isolation-policy.yaml
+  - pod-isolation-policy-binding.yaml
+  - gpu-workload-policy.yaml
+  - gpu-workload-policy-binding.yaml

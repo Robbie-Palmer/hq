@@ -9,6 +9,7 @@ import {
   isNull,
   lt,
   lte,
+  ne,
   or,
   type SQL,
   sql,
@@ -2661,6 +2662,7 @@ export class WorkGraphRepository {
   async putDeliveryMetadataRevision(
     input: GeneratedDeliveryMetadataRevision,
     createdAt = new Date().toISOString(),
+    options: { readonly reconcileLinkedPullRequests?: boolean } = {},
   ): Promise<GeneratedDeliveryMetadataRevision> {
     const normalized = normalizeGeneratedDeliveryMetadata(input);
     const timestamp = new Date(createdAt);
@@ -2670,7 +2672,7 @@ export class WorkGraphRepository {
         "A delivery metadata revision needs an ISO creation timestamp.",
       );
     }
-    return this.db.transaction(async (transaction) => {
+    const selection = await this.db.transaction(async (transaction) => {
       await this.lockEventSequence(transaction);
       await transaction
         .insert(deliveryMetadataRevision)
@@ -2701,7 +2703,7 @@ export class WorkGraphRepository {
           `Delivery metadata revision ${normalized.sourceRevision} is immutable.`,
         );
       }
-      const [selectedCurrent] = await transaction
+      await transaction
         .insert(repositoryCurrentDeliveryMetadataRevision)
         .values({
           repository: normalized.repository,
@@ -2718,48 +2720,99 @@ export class WorkGraphRepository {
             repositoryCurrentDeliveryMetadataRevision.selectedAt,
             timestamp,
           ),
-        })
-        .returning({
+        });
+      const [current] = await transaction
+        .select({
           sourceRevision:
             repositoryCurrentDeliveryMetadataRevision.sourceRevision,
-        });
-      if (selectedCurrent?.sourceRevision !== normalized.sourceRevision) {
-        return replayed;
-      }
-      const resolutionAt = await readDatabaseClock(transaction);
-      const links = await transaction
-        .select({
-          workItemId: workItemPullRequest.workItemId,
-          number: workItemPullRequest.number,
         })
-        .from(workItemPullRequest)
-        .innerJoin(
-          pullRequest,
-          and(
-            eq(pullRequest.repository, workItemPullRequest.repository),
-            eq(pullRequest.number, workItemPullRequest.number),
+        .from(repositoryCurrentDeliveryMetadataRevision)
+        .where(
+          eq(
+            repositoryCurrentDeliveryMetadataRevision.repository,
+            normalized.repository,
           ),
         )
-        .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
-        .where(
-          and(
-            eq(workItemPullRequest.repository, normalized.repository),
-            eq(workItemPullRequest.role, "implementation"),
-            eq(workItem.lifecycle, "open"),
-            isNotNull(pullRequest.changedPaths),
-          ),
-        );
-      for (const link of links) {
-        await this.reconcileDeliveryTargetsInTransaction(
-          transaction,
-          link.workItemId,
-          normalized.repository,
-          link.number,
-          resolutionAt.toISOString(),
-        );
-      }
-      return replayed;
+        .limit(1);
+      return {
+        replayed,
+        selected: current?.sourceRevision === normalized.sourceRevision,
+      };
     });
+    if (
+      !selection.selected ||
+      options.reconcileLinkedPullRequests === false
+    ) {
+      return selection.replayed;
+    }
+
+    // A catalog change can affect every open implementation PR. Commit each
+    // projection independently so one global refresh does not hold a single
+    // Hyperdrive transaction across the entire repository backlog.
+    const links = await this.db
+      .select({
+        workItemId: workItemPullRequest.workItemId,
+        number: workItemPullRequest.number,
+      })
+      .from(workItemPullRequest)
+      .innerJoin(
+        pullRequest,
+        and(
+          eq(pullRequest.repository, workItemPullRequest.repository),
+          eq(pullRequest.number, workItemPullRequest.number),
+        ),
+      )
+      .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
+      .leftJoin(
+        workItemPullRequestCurrentDeliveryResolution,
+        and(
+          eq(
+            workItemPullRequestCurrentDeliveryResolution.workItemId,
+            workItemPullRequest.workItemId,
+          ),
+          eq(
+            workItemPullRequestCurrentDeliveryResolution.repository,
+            workItemPullRequest.repository,
+          ),
+          eq(
+            workItemPullRequestCurrentDeliveryResolution.number,
+            workItemPullRequest.number,
+          ),
+        ),
+      )
+      .leftJoin(
+        workItemPullRequestDeliveryResolution,
+        eq(
+          workItemPullRequestDeliveryResolution.id,
+          workItemPullRequestCurrentDeliveryResolution.resolutionId,
+        ),
+      )
+      .where(
+        and(
+          eq(workItemPullRequest.repository, normalized.repository),
+          eq(workItemPullRequest.role, "implementation"),
+          eq(workItem.lifecycle, "open"),
+          isNotNull(pullRequest.changedPaths),
+          or(
+            isNull(workItemPullRequestCurrentDeliveryResolution.resolutionId),
+            isNull(workItemPullRequestDeliveryResolution.id),
+            ne(
+              workItemPullRequestDeliveryResolution.metadataSourceRevision,
+              normalized.sourceRevision,
+            ),
+          ),
+        ),
+      );
+    const resolutionAt = await this.db.transaction(readDatabaseClock);
+    for (const link of links) {
+      await this.reconcileDeliveryTargetsForPullRequest(
+        link.workItemId,
+        normalized.repository,
+        link.number,
+        resolutionAt.toISOString(),
+      );
+    }
+    return selection.replayed;
   }
 
   async putDeliveryTargetOverride(
@@ -4395,6 +4448,19 @@ export class WorkGraphRepository {
         eq(
           workItemPullRequestDeliveryResolution.id,
           workItemPullRequestCurrentDeliveryResolution.resolutionId,
+        ),
+      )
+      .innerJoin(
+        repositoryCurrentDeliveryMetadataRevision,
+        and(
+          eq(
+            repositoryCurrentDeliveryMetadataRevision.repository,
+            workItemPullRequestDeliveryResolution.repository,
+          ),
+          eq(
+            repositoryCurrentDeliveryMetadataRevision.sourceRevision,
+            workItemPullRequestDeliveryResolution.metadataSourceRevision,
+          ),
         ),
       )
       .where(

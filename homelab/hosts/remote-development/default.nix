@@ -152,29 +152,37 @@ in
     }
   ];
 
+  homelab.hostLifecycle = {
+    enable = true;
+    profile = "vm";
+    hostName = "remote-development";
+    stateVersion = "25.11";
+    operator = {
+      authorizedKeys = [ operatorKey ];
+      mutablePassword = false;
+      wheelNeedsPassword = false;
+    };
+    k3s.nodeLabels = [
+      "homelab.dev/location=cloud"
+      "homelab.dev/capability=agent-workspace"
+      "homelab.dev/power-profile=always-on"
+    ];
+    requiredMounts = [
+      "/"
+      dataMount
+    ];
+    secretBootstrapPaths = [
+      dataKeyFile
+      "${observabilitySecretsDirectory}/env"
+      workspaceBackupInventory.destination.credentialsFile
+      workspaceBackupInventory.destination.passwordFile
+    ];
+  };
+
   nixpkgs.config.allowUnfreePredicate = package:
     builtins.elem (pkgs.lib.getName package) [ "netdata" ];
 
-  networking = {
-    hostName = "remote-development";
-    firewall = {
-      enable = true;
-      checkReversePath = "loose";
-      allowedUDPPorts = [ config.services.tailscale.port ];
-      trustedInterfaces = [
-        "cni0"
-        "tailscale0"
-      ];
-    };
-  };
-
-  boot = {
-    loader.grub = {
-      enable = true;
-      configurationLimit = 10;
-    };
-    tmp.cleanOnBoot = true;
-  };
+  boot.loader.grub.enable = true;
 
   zramSwap = {
     enable = true;
@@ -222,75 +230,17 @@ in
   ];
 
   users = {
-    mutableUsers = false;
     groups.t3code.gid = 2000;
-    users = {
-      root.openssh.authorizedKeys.keys = [ operatorKey ];
-      robbie = {
-        isNormalUser = true;
-        uid = 1000;
-        extraGroups = [ "wheel" ];
-        openssh.authorizedKeys.keys = [ operatorKey ];
-      };
-      t3code = {
-        isSystemUser = true;
-        uid = 2000;
-        group = "t3code";
-        home = "${operatorDataPath}/home";
-        createHome = false;
-      };
+    users.t3code = {
+      isSystemUser = true;
+      uid = 2000;
+      group = "t3code";
+      home = "${operatorDataPath}/home";
+      createHome = false;
     };
   };
 
-  security.sudo.wheelNeedsPassword = false;
-
   services = {
-    openssh = {
-      enable = true;
-      openFirewall = true;
-      settings = {
-        AllowUsers = [
-          "root"
-          "robbie"
-        ];
-        KbdInteractiveAuthentication = false;
-        PasswordAuthentication = false;
-        PermitRootLogin = "prohibit-password";
-        X11Forwarding = false;
-      };
-    };
-
-    tailscale = {
-      enable = true;
-      extraSetFlags = [ "--ssh" ];
-    };
-
-    k3s = {
-      enable = true;
-      role = "server";
-      nodeName = "remote-development";
-      nodeLabel = [
-        "homelab.dev/location=cloud"
-        "homelab.dev/capability=agent-workspace"
-        "homelab.dev/power-profile=always-on"
-      ];
-      disable = [
-        "servicelb"
-        "traefik"
-      ];
-      extraFlags = [
-        "--secrets-encryption"
-        "--write-kubeconfig-mode=0640"
-      ];
-      gracefulNodeShutdown.enable = true;
-      extraKubeletConfig = {
-        containerLogMaxFiles = 3;
-        containerLogMaxSize = "20Mi";
-        failSwapOn = false;
-        memorySwap.swapBehavior = "NoSwap";
-      };
-    };
-
     netdata = {
       enable = true;
       package = netdataPackage;
@@ -856,22 +806,5 @@ in
     opentelemetry-collector-contrib
   ];
 
-  nix = {
-    settings = {
-      experimental-features = [
-        "nix-command"
-        "flakes"
-      ];
-      auto-optimise-store = true;
-    };
-    gc = {
-      automatic = true;
-      dates = "Sun 04:15";
-      options = "--delete-older-than 30d";
-    };
-  };
-
-  system.autoUpgrade.enable = false;
   time.timeZone = "Europe/London";
-  system.stateVersion = "25.11";
 }

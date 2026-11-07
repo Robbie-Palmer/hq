@@ -64,12 +64,6 @@ async function processObservation(
       ? null
       : { ...raw, evidence: { ...raw.evidence, ingestedAt } };
   if (observation?.pullRequest) {
-    if (observation.deliveryMetadata !== undefined) {
-      await scopedRepository.putDeliveryMetadataRevision(
-        observation.deliveryMetadata,
-        observation.deliveryMetadataCreatedAt ?? ingestedAt,
-      );
-    }
     await refreshObservedPullRequest(transaction, observation.pullRequest);
   }
   const disposition =
@@ -156,6 +150,20 @@ export class GitHubDeliveryConsumer {
       ingestedAt: new Date().toISOString(),
     });
     try {
+      const normalized = normalizeGitHubDelivery(delivery);
+      if (
+        normalized?.pullRequest &&
+        normalized.deliveryMetadata !== undefined
+      ) {
+        // The observed PR is reconciled in the delivery transaction below.
+        // Other open PRs are covered by bounded scheduled replay, avoiding a
+        // repository-wide fan-out inside one observer invocation.
+        await repository.putDeliveryMetadataRevision(
+          normalized.deliveryMetadata,
+          normalized.deliveryMetadataCreatedAt ?? receipt.ingestedAt,
+          { reconcileLinkedPullRequests: false },
+        );
+      }
       const disposition = await this.db.transaction(async (transaction) => {
         const previous = await previousTerminalDisposition(
           transaction,
@@ -221,23 +229,35 @@ export class GitHubDeliveryConsumer {
         error instanceof WorkGraphError
           ? "invalid_observation"
           : "processing_failed";
-      await this.db
-        .insert(githubDeliveryProcessing)
-        .values({
-          deliveryId: delivery.deliveryId,
-          repository: delivery.repository.toLowerCase(),
-          disposition: "failed",
-          failureCode,
-          updatedAt: new Date(),
-        })
-        .onConflictDoUpdate({
-          target: githubDeliveryProcessing.deliveryId,
-          set: { disposition: "failed", failureCode, updatedAt: new Date() },
-          setWhere: inArray(githubDeliveryProcessing.disposition, [
-            "failed",
-            "unmatched",
-          ]),
-        });
+      try {
+        await this.db
+          .insert(githubDeliveryProcessing)
+          .values({
+            deliveryId: delivery.deliveryId,
+            repository: delivery.repository.toLowerCase(),
+            disposition: "failed",
+            failureCode,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: githubDeliveryProcessing.deliveryId,
+            set: { disposition: "failed", failureCode, updatedAt: new Date() },
+            setWhere: inArray(githubDeliveryProcessing.disposition, [
+              "failed",
+              "unmatched",
+            ]),
+          });
+      } catch {
+        // A broken connection cannot record its own failure. Preserve the
+        // original classified error so an idempotent caller can retry it.
+        console.error(
+          JSON.stringify({
+            operation: "github-delivery-failure-recording-failed",
+            deliveryId: delivery.deliveryId,
+            failureCode,
+          }),
+        );
+      }
       throw error;
     }
   }

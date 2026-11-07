@@ -18,8 +18,12 @@ interface TextOutput {
 export function projectPreviewLinksFromProfiles(
   profiles: readonly ReturnType<typeof parseProjectProfile>[],
 ): ProjectPreviewLink[] {
-  const links = profiles.flatMap((profile) =>
-    profile.components.flatMap((component) => {
+  const links = profiles.flatMap((profile) => [
+    ...profile.preview_links.map(({ name, mount_path: mountPath }) => ({
+      name,
+      path: mountPath,
+    })),
+    ...profile.components.flatMap((component) => {
       if (component.kind !== "project-ui") return [];
       const mountPath = component.mount_path;
       if (!mountPath) {
@@ -29,7 +33,7 @@ export function projectPreviewLinksFromProfiles(
       }
       return [{ name: component.name, path: mountPath }];
     }),
-  );
+  ]);
 
   const duplicatePath = links.find(
     (candidate, index) =>

@@ -27,7 +27,7 @@
     "excludes": [
       "derived tiles, embeddings, features, masks, and model outputs",
       "task-specific labels or label reinterpretations",
-      "train, validation, test, fold, or leakage-group assignments",
+      "train, validation, test, fold, or split-isolation assignments",
       "private data, weights, annotations, configuration, thresholds, product knowledge, and unpublished results"
     ]
   }

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
 
 import pydicom
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydicom.errors import InvalidDicomError
 
 from pathologize_data_registry.models import (
@@ -26,8 +25,9 @@ class RegistryValidationError(RuntimeError):
     pass
 
 
-@dataclass(frozen=True)
-class LoadedRegistry:
+class LoadedRegistry(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
     root: Path
     index: RegistryIndex
     collections: dict[str, CollectionManifest]
@@ -108,55 +108,68 @@ def _dicom_role(dataset: pydicom.Dataset) -> str:
     return role.lower()
 
 
-def _coded_values(sequence: Iterable[object] | None) -> set[tuple[str, str, str]]:
-    values: set[tuple[str, str, str]] = set()
+def _coded_values(sequence: Iterable[object] | None) -> set[tuple[str, str, str, str | None]]:
+    values: set[tuple[str, str, str, str | None]] = set()
     for item in sequence if sequence is not None else ():
         values.add(
             (
                 _string(getattr(item, "CodingSchemeDesignator", "")),
                 _string(getattr(item, "CodeValue", "")),
                 _string(getattr(item, "CodeMeaning", "")),
+                _string(getattr(item, "CodingSchemeVersion", "")) or None,
             )
         )
     return values
 
 
-def _anatomic_structure_labels(specimen: object) -> set[tuple[str, str, str | None]]:
+def _anatomic_structure_labels(
+    specimen: object,
+) -> set[tuple[str, str, str | None, str | None, str | None]]:
     return {
-        ("primary_anatomic_structure", meaning, f"{scheme}:{code}")
-        for scheme, code, meaning in _coded_values(
+        ("primary_anatomic_structure", meaning, code, scheme, version)
+        for scheme, code, meaning, version in _coded_values(
             getattr(specimen, "PrimaryAnatomicStructureSequence", [])
         )
     }
 
 
-def _staining_content_labels(content: object) -> set[tuple[str, str, str | None]]:
+def _staining_content_labels(
+    content: object,
+) -> set[tuple[str, str, str | None, str | None, str | None]]:
     concept_name = next(iter(_coded_values(getattr(content, "ConceptNameCodeSequence", []))), None)
     if concept_name is None or concept_name[2] != "Using substance":
         return set()
     return {
-        ("staining_substance", meaning, f"{scheme}:{code}")
-        for scheme, code, meaning in _coded_values(getattr(content, "ConceptCodeSequence", []))
+        ("staining_substance", meaning, code, scheme, version)
+        for scheme, code, meaning, version in _coded_values(
+            getattr(content, "ConceptCodeSequence", [])
+        )
     }
 
 
-def _preparation_labels(preparation: object) -> set[tuple[str, str, str | None]]:
-    labels: set[tuple[str, str, str | None]] = set()
+def _preparation_labels(
+    preparation: object,
+) -> set[tuple[str, str, str | None, str | None, str | None]]:
+    labels: set[tuple[str, str, str | None, str | None, str | None]] = set()
     for content in getattr(preparation, "SpecimenPreparationStepContentItemSequence", []):
         labels.update(_staining_content_labels(content))
     return labels
 
 
-def _specimen_labels(specimen: object) -> set[tuple[str, str, str | None]]:
+def _specimen_labels(
+    specimen: object,
+) -> set[tuple[str, str, str | None, str | None, str | None]]:
     labels = _anatomic_structure_labels(specimen)
     for preparation in getattr(specimen, "SpecimenPreparationSequence", []):
         labels.update(_preparation_labels(preparation))
     return labels
 
 
-def _source_labels(dataset: pydicom.Dataset) -> set[tuple[str, str, str | None]]:
-    labels: set[tuple[str, str, str | None]] = {
-        ("collection", _string(getattr(dataset, "ClinicalTrialProtocolID", "")), None)
+def _source_labels(
+    dataset: pydicom.Dataset,
+) -> set[tuple[str, str, str | None, str | None, str | None]]:
+    labels: set[tuple[str, str, str | None, str | None, str | None]] = {
+        ("collection", _string(getattr(dataset, "ClinicalTrialProtocolID", "")), None, None, None)
     }
     for specimen in getattr(dataset, "SpecimenDescriptionSequence", []):
         labels.update(_specimen_labels(specimen))
@@ -200,7 +213,14 @@ def _validate_primary_dicom(dataset: pydicom.Dataset, slide: SlideRecord, path: 
         if objective_powers != {slide.scanner.objective_power}:
             issues.append(f"{path}: objective power differs from the slide record")
     expected_labels = {
-        (label.name, label.value, label.code) for label in slide.source_native_labels
+        (
+            label.name,
+            label.value,
+            label.code,
+            label.coding_scheme,
+            label.coding_scheme_version,
+        )
+        for label in slide.source_native_labels
     }
     missing_labels = expected_labels - _source_labels(dataset)
     if missing_labels:

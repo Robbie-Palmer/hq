@@ -396,11 +396,9 @@ jobs:
               '### Preview environment',
               '',
               `**Personal site:** ${process.env.PREVIEW_SITE_URL}`,
-              `**Recipes:** ${process.env.PREVIEW_SITE_URL}/recipes`,
               ...projectLinks.map(({ name, path }) =>
                 `**${name}:** ${process.env.PREVIEW_SITE_URL}${path}`,
               ),
-              `**Satellite swarm:** ${process.env.PREVIEW_SITE_URL}/satellite-swarm`,
               ...backendLines,
               endMarker,
             ].join('\n');

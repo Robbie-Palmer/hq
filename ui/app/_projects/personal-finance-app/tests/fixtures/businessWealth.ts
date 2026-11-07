@@ -274,6 +274,8 @@ export function businessWealthFixture(): AssetTrackerData {
         validAt: "2026-09-30",
         acceptedAt: "2026-10-01T00:00:00.000Z",
         method: "adjusted-net-assets",
+        evidenceKind: "calculation",
+        evidenceAt: "2026-10-01T00:00:00.000Z",
         amount: { state: "known", currency: "GBP", amount: 200_000 },
         lineage: lineage("northstar-ana-2026", [
           "northstar-corporation-tax-2026",
@@ -294,6 +296,8 @@ export function businessWealthFixture(): AssetTrackerData {
         validAt: "2026-09-30",
         acceptedAt: "2026-11-01T00:00:00.000Z",
         method: "adjusted-net-assets",
+        evidenceKind: "calculation",
+        evidenceAt: "2026-11-01T00:00:00.000Z",
         amount: { state: "known", currency: "GBP", amount: 240_000 },
         correctsId: "northstar-valuation-original",
         lineage: lineage("northstar-ana-2026-revised", [

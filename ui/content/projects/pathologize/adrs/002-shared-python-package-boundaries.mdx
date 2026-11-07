@@ -13,9 +13,9 @@ contracts, but some shared code is more general than ML. JSON serialization,
 hashing, source fingerprints, and confined file paths also apply to Python
 projects that do not evaluate models.
 
-Pathology concepts form a third category. DICOM and OME-Zarr roles, leakage
-units, prediction types, metrics, fixtures, and clinical claim limits belong to
-Pathologize alone.
+Pathology concepts form a third category. DICOM and OME-Zarr roles,
+split-isolation rules, prediction types, metrics, fixtures, and clinical claim
+limits belong to Pathologize alone.
 
 [ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary)
 keeps account and provider policy outside benchmark contracts. Python package
@@ -31,7 +31,7 @@ Use three package layers:
 * `packages/ml-evaluation` owns domain-neutral model adapter contracts,
   objective and resource types, promotion gates, and run summaries.
 * `pathologize-benchmark-contracts` owns pathology formats, registry exports,
-  leakage vocabulary, prediction records, metrics, fixtures, safety claims,
+  split-isolation vocabulary, prediction records, metrics, fixtures, safety claims,
   and scorecard policy.
 
 Code belongs in `data-artifacts` when its behavior has no evaluation meaning.
