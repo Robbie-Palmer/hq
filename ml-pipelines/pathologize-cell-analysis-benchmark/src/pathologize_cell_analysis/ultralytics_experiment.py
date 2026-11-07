@@ -1087,19 +1087,9 @@ def _report_markdown(evidence: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def report_ultralytics(
-    experiment_path: Path, json_output: Path, markdown_output: Path
-) -> dict[str, object]:
+def report_ultralytics() -> dict[str, object]:
     root = _project_root()
-    expected_experiment = root / ULTRALYTICS_EXPERIMENT_PATH
-    if experiment_path.resolve() != expected_experiment.resolve():
-        raise ValueError(f"Ultralytics experiment must be {expected_experiment}")
-    if json_output != ULTRALYTICS_JSON_REPORT:
-        raise ValueError(f"Ultralytics JSON report must be {ULTRALYTICS_JSON_REPORT}")
-    if markdown_output != ULTRALYTICS_MARKDOWN_REPORT:
-        raise ValueError(
-            f"Ultralytics Markdown report must be {ULTRALYTICS_MARKDOWN_REPORT}"
-        )
+    experiment_path = root / ULTRALYTICS_EXPERIMENT_PATH
     experiment = load_ultralytics_experiment(experiment_path)
     output_root = _experiment_output_root(root, experiment)
     evidence = read_json(output_root / "evaluation" / "evidence.json")
