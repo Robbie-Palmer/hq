@@ -120,6 +120,16 @@ export type GuestActor = {
   guest_id?: string;
 };
 
+export type UpdateGuestCustomFieldOptions = {
+  guestId: string;
+  fieldId: string;
+  value: CustomFieldValue;
+  actor: GuestActor;
+  changedAt: string;
+  provenance?: string;
+  authorizer?: GuestFieldAuthorizer;
+};
+
 export function validateGuestDirectory(directory: GuestDirectory): void {
   const guestIds = uniqueIds(directory.guests, "Guest");
   const householdIds = uniqueIds(
@@ -354,13 +364,15 @@ export function updateGuest(
 
 export function updateGuestCustomField(
   directory: GuestDirectory,
-  guestId: string,
-  fieldId: string,
-  value: CustomFieldValue,
-  actor: GuestActor,
-  changedAt: string,
-  provenance = "manual",
-  authorizer: GuestFieldAuthorizer = guestFieldAuthorizer,
+  {
+    guestId,
+    fieldId,
+    value,
+    actor,
+    changedAt,
+    provenance = "manual",
+    authorizer = guestFieldAuthorizer,
+  }: UpdateGuestCustomFieldOptions,
 ): WeddingGuest {
   const actorType = changeActorType(actor);
   const field = `custom_fields.${fieldId}`;

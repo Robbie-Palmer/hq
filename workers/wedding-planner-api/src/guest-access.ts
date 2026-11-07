@@ -114,16 +114,15 @@ export function createGuestAccessService(
       const stored = await loadPlan(identity);
       requireGuestAccess(identity, stored.plan, guestId);
       const plan = structuredClone(stored.plan);
-      updateGuestCustomField(
-        plan,
+      updateGuestCustomField(plan, {
         guestId,
         fieldId,
         value,
-        identity.actor,
+        actor: identity.actor,
         changedAt,
-        "api",
-        cedarGuestFieldAuthorizer,
-      );
+        provenance: "api",
+        authorizer: cedarGuestFieldAuthorizer,
+      });
       const updated = await plans.update(
         identity.ownerId,
         stored.revision,
