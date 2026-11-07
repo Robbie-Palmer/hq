@@ -1095,7 +1095,6 @@ def report_ultralytics() -> dict[str, object]:
         raise TypeError("Ultralytics evidence must be a JSON object")
     write_json(ULTRALYTICS_JSON_REPORT_FILE, evidence)
     ULTRALYTICS_MARKDOWN_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ULTRALYTICS_MARKDOWN_REPORT_FILE.write_text(
-        _report_markdown(evidence), encoding="utf-8"
-    )
+    with ULTRALYTICS_MARKDOWN_REPORT_FILE.open("w", encoding="utf-8") as output:
+        output.write(_report_markdown(evidence))
     return dict(evidence)
