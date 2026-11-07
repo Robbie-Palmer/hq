@@ -1,0 +1,85 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "accelerator_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Accelerator Seconds"
+    },
+    "input_bytes": {
+      "minimum": 0,
+      "title": "Input Bytes",
+      "type": "integer"
+    },
+    "observed_cpu_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed Cpu Seconds"
+    },
+    "observed_peak_rss_bytes": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed Peak Rss Bytes"
+    },
+    "observed_wall_seconds": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observed Wall Seconds"
+    },
+    "pixels_read": {
+      "minimum": 0,
+      "title": "Pixels Read",
+      "type": "integer"
+    },
+    "prediction_bytes": {
+      "minimum": 0,
+      "title": "Prediction Bytes",
+      "type": "integer"
+    },
+    "samples": {
+      "minimum": 0,
+      "title": "Samples",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "samples",
+    "input_bytes",
+    "prediction_bytes",
+    "pixels_read"
+  ],
+  "title": "ResourceUsage",
+  "type": "object"
+}

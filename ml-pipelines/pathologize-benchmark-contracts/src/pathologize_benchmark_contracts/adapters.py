@@ -28,6 +28,9 @@ class ModelAdapter(Protocol):
     @property
     def adapter_id(self) -> str: ...
 
+    @property
+    def adapter_version(self) -> str: ...
+
     def predict(
         self,
         manifest: ExperimentManifest,
@@ -43,6 +46,7 @@ class AcceleratorTimeReporter(Protocol):
 
 class DeterministicColorBaseline:
     adapter_id = "deterministic-color-v1"
+    adapter_version = "1.0.0"
     artifact_labels: ClassVar[dict[tuple[int, int, int], int]] = {
         FOLD_LIKE: 1,
         MARK_LIKE: 2,
@@ -91,6 +95,7 @@ class DeterministicColorBaseline:
             tissue_labels=[int(pixel != BACKGROUND) for pixel in pixels],
             artifact_labels=artifact,
             reject_slide=any(artifact),
+            reject_probability=float(any(artifact)),
         )
 
     @staticmethod
@@ -117,6 +122,8 @@ class DeterministicColorBaseline:
             workstream=Workstream.TILING_POLICY,
             item_id=item.item_id,
             target_microns_per_pixel=float(manifest.parameters["target_microns_per_pixel"]),
+            source_microns_per_pixel_x=item.microns_per_pixel_x,
+            source_microns_per_pixel_y=item.microns_per_pixel_y,
             tiles=tiles,
         )
 
@@ -170,13 +177,14 @@ class DeterministicColorBaseline:
                 NucleusPrediction(
                     instance_id=len(instances) + 1,
                     class_name=color_classes[color],
+                    type_a_probability=float(color_classes[color] == "synthetic_type_a"),
                     pixels=sorted(component),
                 )
             )
         return instances
 
 
-def load_adapter(spec: AdapterSpec) -> ModelAdapter:
+def load_adapter(spec: AdapterSpec, root: Path) -> ModelAdapter:
     return load_shared_adapter(
         spec,
         builtins={
@@ -185,6 +193,7 @@ def load_adapter(spec: AdapterSpec) -> ModelAdapter:
             )
         },
         expected_type=ModelAdapter,
+        root=root,
     )
 
 

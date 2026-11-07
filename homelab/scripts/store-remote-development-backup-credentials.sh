@@ -27,7 +27,7 @@ if [[ ! ${access_key_id} =~ ^[0-9a-f]{32}$ ]]; then
   echo "Cloudflare Access Key ID must be 32 lowercase hexadecimal characters" >&2
   exit 1
 fi
-if [ -z "${secret_access_key}" ]; then
+if [[ -z "${secret_access_key}" ]]; then
   echo "Cloudflare Secret Access Key must not be empty" >&2
   exit 1
 fi

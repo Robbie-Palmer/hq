@@ -16,9 +16,10 @@ for value_name in idle_timeout_seconds idle_poll_seconds; do
       echo "${value_name} must be a non-negative integer" >&2
       exit 1
       ;;
+    *) ;;
   esac
 done
-if [ "$idle_poll_seconds" -eq 0 ]; then
+if [[ "$idle_poll_seconds" -eq 0 ]]; then
   echo "idle_poll_seconds must be greater than zero" >&2
   exit 1
 fi
@@ -30,7 +31,7 @@ target_images=$(
     | sed -n 's/^[[:space:]]*image: \(ghcr\.io\/robbie-palmer\/t3-code:[^[:space:]]*\)$/\1/p' \
     | sort -u
 )
-if [ "$(printf '%s\n' "$target_images" | sed '/^$/d' | wc -l)" -ne 1 ]; then
+if [[ "$(printf '%s\n' "$target_images" | sed '/^$/d' | wc -l)" -ne 1 ]]; then
   echo "Unable to resolve one t3-code image from ${overlay}" >&2
   exit 1
 fi
@@ -40,7 +41,7 @@ current_image=$(
     --output=jsonpath='{.spec.template.spec.containers[?(@.name=="t3-code")].image}'
 )
 
-if [ "$current_image" = "$target_image" ]; then
+if [[ "$current_image" = "$target_image" ]]; then
   echo "t3-code already uses ${target_image}"
   exit 0
 fi
@@ -60,7 +61,7 @@ while true; do
           | .metadata.name // empty
         '
   )
-  if [ -z "$pod" ]; then
+  if [[ -z "$pod" ]]; then
     echo "No ready t3-code pod is available for the idle check" >&2
     exit 1
   fi
@@ -77,7 +78,7 @@ while true; do
       break
       ;;
     20)
-      if [ "$SECONDS" -ge "$deadline" ]; then
+      if [[ "$SECONDS" -ge "$deadline" ]]; then
         echo "Timed out waiting for t3-code work to become idle" >&2
         exit 1
       fi
@@ -99,7 +100,7 @@ deployed_image=$(
   kubectl --context "$context" --namespace t3-code get deployment t3-code \
     --output=jsonpath='{.spec.template.spec.containers[?(@.name=="t3-code")].image}'
 )
-if [ "$deployed_image" != "$target_image" ]; then
+if [[ "$deployed_image" != "$target_image" ]]; then
   echo "Expected ${target_image}, found ${deployed_image}" >&2
   exit 1
 fi

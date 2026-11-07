@@ -57,7 +57,7 @@ function validateSubject(action, subject) {
   switch (action) {
     case "preview-up":
     case "preview-cleanup":
-      if (!/^[1-9][0-9]*$/.test(subject)) {
+      if (!/^[1-9]\d*$/.test(subject)) {
         throw new Error(`${action} requires a pull-request number`);
       }
       return;

@@ -3,4 +3,5 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
+unset UV_PYTHON
 exec uv run --project "$script_dir/../dvc-tool" --frozen -- dvc "$@"

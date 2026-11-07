@@ -193,16 +193,228 @@ double failureScore(const RunMetrics& metrics) {
          static_cast<double>(metrics.delivery_failures);
 }
 
-} // namespace
-
-SimulationTrace makeNetworkLaboratoryTrace(const NetworkLaboratoryConfig& config, uint64_t seed,
-                                           const ControllerConfig& controller) {
+void validateLaboratoryConfig(const NetworkLaboratoryConfig& config) {
   if (config.version != kNetworkScenarioVersion || config.step_ms == 0U ||
       config.duration_ms < 200U || config.duration_ms % config.step_ms != 0U ||
       config.scenario_id.empty() || config.configuration_id.empty() ||
       config.code_revision.empty()) {
     throw std::invalid_argument("invalid network laboratory scenario");
   }
+}
+
+void addMissionSchedule(SimulationFrame& frame) {
+  if (frame.now_ms == 0U || frame.now_ms == 130U) {
+    frame.mission_commands.push_back({0U, Coordinate(0.0F, -90.0F)});
+  }
+  if (frame.now_ms == 120U || frame.now_ms == 260U) {
+    for (NodeId node = 0U; node < 3U; ++node) {
+      frame.mission_completions.push_back({node});
+    }
+  }
+}
+
+void addContactSchedule(const NetworkLaboratoryConfig& config, SimulationFrame& frame) {
+  if (config.include_stale_contacts && frame.now_ms == 130U) {
+    frame.contact_updates.push_back({0U, 2U, true, false});
+  }
+  if (config.include_stale_contacts && frame.now_ms == 170U) {
+    frame.contact_updates.push_back({0U, 2U, true, true});
+  }
+  if (config.include_asymmetric_partition && frame.now_ms == 140U) {
+    frame.contact_updates.push_back({1U, 0U, true, false});
+    frame.contact_updates.push_back({0U, 1U, true, true});
+  }
+  if (config.include_asymmetric_partition && frame.now_ms == 180U) {
+    frame.contact_updates.push_back({1U, 0U, true, true});
+  }
+  if (config.include_partition && (frame.now_ms == 210U || frame.now_ms == 230U)) {
+    const bool connected = frame.now_ms == 230U;
+    frame.contact_updates.push_back({0U, 2U, true, connected});
+    frame.contact_updates.push_back({2U, 0U, true, connected});
+    frame.contact_updates.push_back({1U, 2U, true, connected});
+    frame.contact_updates.push_back({2U, 1U, true, connected});
+  }
+}
+
+void addResourceDisruptionSchedule(const NetworkLaboratoryConfig& config, SimulationFrame& frame) {
+  if (config.include_crash_and_reset && frame.now_ms == 150U) {
+    frame.node_crashes.push_back({2U});
+  }
+  if (config.include_crash_and_reset && frame.now_ms == 190U) {
+    frame.node_resets.push_back({2U});
+  }
+  if (config.include_storage_pressure && frame.now_ms == 150U) {
+    frame.storage_pressure_updates.push_back({1U, 0U});
+  }
+  if (config.include_storage_pressure && frame.now_ms == 190U) {
+    frame.storage_pressure_updates.push_back({1U, 64U});
+  }
+}
+
+SimulationFrame makeLaboratoryFrame(const NetworkLaboratoryConfig& config, uint32_t now_ms) {
+  SimulationFrame frame;
+  frame.now_ms = now_ms;
+  addMissionSchedule(frame);
+  addContactSchedule(config, frame);
+  addResourceDisruptionSchedule(config, frame);
+  return frame;
+}
+
+struct RunMeasurement {
+  RunMetrics metrics;
+  std::set<uint64_t> completed_missions;
+  std::set<uint64_t> delivered_packets;
+  std::vector<uint32_t> command_times;
+  std::vector<double> latencies;
+  std::array<uint64_t, kMaximumNodes> last_sent{};
+  std::array<uint64_t, kMaximumNodes> last_received{};
+  std::array<uint64_t, kMaximumNodes> last_dropped{};
+  std::array<uint64_t, kMaximumNodes> last_airtime{};
+  std::array<double, kMaximumNodes> last_energy{};
+};
+
+bool isUnsafeActiveMission(const NodeObservation& node, std::set<uint64_t>& active_missions) {
+  return !isValid(node.mission_key) || node.assigned_node != node.node_id ||
+         !active_missions.insert(missionId(node.mission_key)).second;
+}
+
+void measureFrame(const FrameObservation& frame, RunMetrics& metrics) {
+  std::set<uint64_t> active_missions;
+  for (const NodeObservation& node : frame.nodes) {
+    metrics.peak_buffer_occupancy = std::max(metrics.peak_buffer_occupancy, node.buffer_occupancy);
+    metrics.peak_transmit_queue_occupancy =
+        std::max(metrics.peak_transmit_queue_occupancy, node.transmit_queue_occupancy);
+    if (node.running && node.state == ControllerState::Active &&
+        isUnsafeActiveMission(node, active_missions)) {
+      ++metrics.safety_violations;
+    }
+  }
+}
+
+void recordResourceSample(const SimulationEvent& event, RunMeasurement& measurement) {
+  const auto node = static_cast<std::size_t>(event.node_id);
+  measurement.last_sent[node] = event.bytes_sent;
+  measurement.last_received[node] = event.bytes_received;
+  measurement.last_dropped[node] = event.bytes_dropped;
+  measurement.last_airtime[node] = event.airtime_microseconds;
+  measurement.last_energy[node] = event.estimated_energy_millijoules;
+  measurement.metrics.peak_buffer_occupancy =
+      std::max(measurement.metrics.peak_buffer_occupancy, event.peak_buffer_occupancy);
+  measurement.metrics.peak_transmit_queue_occupancy = std::max(
+      measurement.metrics.peak_transmit_queue_occupancy, event.peak_transmit_queue_occupancy);
+}
+
+void measureEvent(const SimulationEvent& event, RunMeasurement& measurement) {
+  if (event.type == SimulationEventType::MissionCommand && event.accepted) {
+    ++measurement.metrics.missions_started;
+    measurement.command_times.push_back(event.now_ms);
+    return;
+  }
+  if (event.type == SimulationEventType::StateChanged &&
+      event.current_state == ControllerState::Active &&
+      measurement.completed_missions.insert(missionId(event.mission_key)).second) {
+    const uint32_t start =
+        measurement.command_times.empty() ? event.now_ms : measurement.command_times.back();
+    measurement.latencies.push_back(static_cast<double>(event.now_ms - start));
+    return;
+  }
+  if (event.type == SimulationEventType::MessageDelivered ||
+      event.type == SimulationEventType::DelayedMessageDelivered) {
+    ++measurement.metrics.deliveries;
+    if (event.packet_size != 0U && measurement.delivered_packets.insert(event.packet_id).second) {
+      measurement.metrics.useful_bytes_delivered += event.packet_size;
+    }
+    return;
+  }
+  if (event.type == SimulationEventType::MessageDropped) {
+    ++measurement.metrics.delivery_failures;
+    return;
+  }
+  if (event.type == SimulationEventType::ResourceSample) {
+    recordResourceSample(event, measurement);
+  }
+}
+
+RunMetrics finishMeasurement(const SimulationTrace& trace, RunMeasurement measurement) {
+  RunMetrics& metrics = measurement.metrics;
+  metrics.missions_completed = static_cast<uint32_t>(measurement.completed_missions.size());
+  metrics.liveness_failures = metrics.missions_started > metrics.missions_completed
+                                  ? metrics.missions_started - metrics.missions_completed
+                                  : 0U;
+  for (const double latency : measurement.latencies) {
+    metrics.mean_assignment_latency_ms += latency;
+  }
+  if (!measurement.latencies.empty()) {
+    metrics.mean_assignment_latency_ms /= static_cast<double>(measurement.latencies.size());
+  }
+  for (std::size_t node = 0U; node < trace.nodes.size(); ++node) {
+    metrics.bytes_sent += measurement.last_sent[node];
+    metrics.bytes_received += measurement.last_received[node];
+    metrics.bytes_dropped += measurement.last_dropped[node];
+    metrics.airtime_microseconds += measurement.last_airtime[node];
+    metrics.estimated_energy_millijoules += measurement.last_energy[node];
+  }
+  if (metrics.useful_bytes_delivered != 0U) {
+    metrics.energy_per_delivered_byte_millijoules =
+        metrics.estimated_energy_millijoules / static_cast<double>(metrics.useful_bytes_delivered);
+  }
+  return metrics;
+}
+
+void validateVariants(const std::vector<ExperimentVariant>& variants) {
+  std::set<std::string> variant_ids;
+  for (const ExperimentVariant& variant : variants) {
+    if (variant.id.empty() || !variant_ids.insert(variant.id).second) {
+      throw std::invalid_argument("paired batch variant IDs must be nonempty and unique");
+    }
+  }
+}
+
+void appendSeedRuns(BatchReport& report, const NetworkLaboratoryConfig& config,
+                    const std::vector<ExperimentVariant>& variants, uint64_t seed) {
+  for (const ExperimentVariant& variant : variants) {
+    report.runs.push_back(runNetworkLaboratory(config, seed, variant));
+  }
+}
+
+void appendVariantSummary(BatchReport& report, const ExperimentVariant& variant) {
+  std::vector<double> completions;
+  std::vector<double> latencies;
+  std::vector<double> delivery_ratios;
+  std::vector<double> energy_costs;
+  const LaboratoryRun* worst = nullptr;
+  for (const LaboratoryRun& run : report.runs) {
+    if (run.variant_id != variant.id) {
+      continue;
+    }
+    const RunMetrics& metrics = run.metrics;
+    completions.push_back(metrics.missions_started == 0U
+                              ? 0.0
+                              : static_cast<double>(metrics.missions_completed) /
+                                    static_cast<double>(metrics.missions_started));
+    latencies.push_back(metrics.mean_assignment_latency_ms);
+    const uint64_t delivery_attempts = metrics.deliveries + metrics.delivery_failures;
+    delivery_ratios.push_back(delivery_attempts == 0U ? 0.0
+                                                      : static_cast<double>(metrics.deliveries) /
+                                                            static_cast<double>(delivery_attempts));
+    energy_costs.push_back(metrics.energy_per_delivered_byte_millijoules);
+    if (worst == nullptr || failureScore(metrics) > failureScore(worst->metrics)) {
+      worst = &run;
+    }
+  }
+  report.summaries.push_back({variant.id, interval(completions), interval(latencies),
+                              interval(delivery_ratios), interval(energy_costs)});
+  if (worst != nullptr) {
+    report.worst_failures.push_back(
+        {variant.id, worst->trace.provenance.seed, worst->trace, worst->metrics});
+  }
+}
+
+} // namespace
+
+SimulationTrace makeNetworkLaboratoryTrace(const NetworkLaboratoryConfig& config, uint64_t seed,
+                                           const ControllerConfig& controller) {
+  validateLaboratoryConfig(config);
 
   SimulationTrace trace;
   trace.provenance = {config.scenario_id, config.code_revision, config.configuration_id, seed};
@@ -223,134 +435,20 @@ SimulationTrace makeNetworkLaboratoryTrace(const NetworkLaboratoryConfig& config
   }
 
   for (uint32_t now_ms = 0U; now_ms <= config.duration_ms; now_ms += config.step_ms) {
-    SimulationFrame frame;
-    frame.now_ms = now_ms;
-    if (now_ms == 0U || now_ms == 130U) {
-      frame.mission_commands.push_back({0U, Coordinate(0.0F, -90.0F)});
-    }
-    if (now_ms == 120U || now_ms == 260U) {
-      for (NodeId node = 0U; node < 3U; ++node) {
-        frame.mission_completions.push_back({node});
-      }
-    }
-    if (config.include_stale_contacts && now_ms == 130U) {
-      frame.contact_updates.push_back({0U, 2U, true, false});
-    }
-    if (config.include_stale_contacts && now_ms == 170U) {
-      frame.contact_updates.push_back({0U, 2U, true, true});
-    }
-    if (config.include_asymmetric_partition && now_ms == 140U) {
-      frame.contact_updates.push_back({1U, 0U, true, false});
-      frame.contact_updates.push_back({0U, 1U, true, true});
-    }
-    if (config.include_asymmetric_partition && now_ms == 180U) {
-      frame.contact_updates.push_back({1U, 0U, true, true});
-    }
-    if (config.include_crash_and_reset && now_ms == 150U) {
-      frame.node_crashes.push_back({2U});
-    }
-    if (config.include_crash_and_reset && now_ms == 190U) {
-      frame.node_resets.push_back({2U});
-    }
-    if (config.include_storage_pressure && now_ms == 150U) {
-      frame.storage_pressure_updates.push_back({1U, 0U});
-    }
-    if (config.include_storage_pressure && now_ms == 190U) {
-      frame.storage_pressure_updates.push_back({1U, 64U});
-    }
-    if (config.include_partition && (now_ms == 210U || now_ms == 230U)) {
-      const bool connected = now_ms == 230U;
-      frame.contact_updates.push_back({0U, 2U, true, connected});
-      frame.contact_updates.push_back({2U, 0U, true, connected});
-      frame.contact_updates.push_back({1U, 2U, true, connected});
-      frame.contact_updates.push_back({2U, 1U, true, connected});
-    }
-    trace.frames.push_back(std::move(frame));
+    trace.frames.push_back(makeLaboratoryFrame(config, now_ms));
   }
   return trace;
 }
 
 RunMetrics measureRun(const SimulationTrace& trace, const SimulationResult& result) {
-  RunMetrics metrics;
-  std::set<uint64_t> completed_missions;
-  std::set<uint64_t> delivered_packets;
-  std::vector<uint32_t> command_times;
-  std::vector<double> latencies;
-  std::array<uint64_t, kMaximumNodes> last_sent{};
-  std::array<uint64_t, kMaximumNodes> last_received{};
-  std::array<uint64_t, kMaximumNodes> last_dropped{};
-  std::array<uint64_t, kMaximumNodes> last_airtime{};
-  std::array<double, kMaximumNodes> last_energy{};
-
+  RunMeasurement measurement;
   for (const FrameObservation& frame : result.frames) {
-    std::set<uint64_t> active_missions;
-    for (const NodeObservation& node : frame.nodes) {
-      metrics.peak_buffer_occupancy =
-          std::max(metrics.peak_buffer_occupancy, node.buffer_occupancy);
-      metrics.peak_transmit_queue_occupancy =
-          std::max(metrics.peak_transmit_queue_occupancy, node.transmit_queue_occupancy);
-      if (node.running && node.state == ControllerState::Active) {
-        if (!isValid(node.mission_key) || node.assigned_node != node.node_id ||
-            !active_missions.insert(missionId(node.mission_key)).second) {
-          ++metrics.safety_violations;
-        }
-      }
-    }
+    measureFrame(frame, measurement.metrics);
   }
-
   for (const SimulationEvent& event : result.events) {
-    if (event.type == SimulationEventType::MissionCommand && event.accepted) {
-      ++metrics.missions_started;
-      command_times.push_back(event.now_ms);
-    } else if (event.type == SimulationEventType::StateChanged &&
-               event.current_state == ControllerState::Active &&
-               completed_missions.insert(missionId(event.mission_key)).second) {
-      const uint32_t start = command_times.empty() ? event.now_ms : command_times.back();
-      latencies.push_back(static_cast<double>(event.now_ms - start));
-    } else if (event.type == SimulationEventType::MessageDelivered ||
-               event.type == SimulationEventType::DelayedMessageDelivered) {
-      ++metrics.deliveries;
-      if (event.packet_size != 0U && delivered_packets.insert(event.packet_id).second) {
-        metrics.useful_bytes_delivered += event.packet_size;
-      }
-    } else if (event.type == SimulationEventType::MessageDropped) {
-      ++metrics.delivery_failures;
-    } else if (event.type == SimulationEventType::ResourceSample) {
-      const auto node = static_cast<std::size_t>(event.node_id);
-      last_sent[node] = event.bytes_sent;
-      last_received[node] = event.bytes_received;
-      last_dropped[node] = event.bytes_dropped;
-      last_airtime[node] = event.airtime_microseconds;
-      last_energy[node] = event.estimated_energy_millijoules;
-      metrics.peak_buffer_occupancy =
-          std::max(metrics.peak_buffer_occupancy, event.peak_buffer_occupancy);
-      metrics.peak_transmit_queue_occupancy =
-          std::max(metrics.peak_transmit_queue_occupancy, event.peak_transmit_queue_occupancy);
-    }
+    measureEvent(event, measurement);
   }
-
-  metrics.missions_completed = static_cast<uint32_t>(completed_missions.size());
-  metrics.liveness_failures = metrics.missions_started > metrics.missions_completed
-                                  ? metrics.missions_started - metrics.missions_completed
-                                  : 0U;
-  for (const double latency : latencies) {
-    metrics.mean_assignment_latency_ms += latency;
-  }
-  if (!latencies.empty()) {
-    metrics.mean_assignment_latency_ms /= static_cast<double>(latencies.size());
-  }
-  for (std::size_t node = 0U; node < trace.nodes.size(); ++node) {
-    metrics.bytes_sent += last_sent[node];
-    metrics.bytes_received += last_received[node];
-    metrics.bytes_dropped += last_dropped[node];
-    metrics.airtime_microseconds += last_airtime[node];
-    metrics.estimated_energy_millijoules += last_energy[node];
-  }
-  if (metrics.useful_bytes_delivered != 0U) {
-    metrics.energy_per_delivered_byte_millijoules =
-        metrics.estimated_energy_millijoules / static_cast<double>(metrics.useful_bytes_delivered);
-  }
-  return metrics;
+  return finishMeasurement(trace, std::move(measurement));
 }
 
 LaboratoryRun runNetworkLaboratory(const NetworkLaboratoryConfig& config, uint64_t seed,
@@ -372,54 +470,110 @@ BatchReport runPairedBatch(const NetworkLaboratoryConfig& config,
   if (variants.empty() || seeds.empty()) {
     throw std::invalid_argument("paired batch requires variants and seeds");
   }
-  std::set<std::string> variant_ids;
-  for (const ExperimentVariant& variant : variants) {
-    if (variant.id.empty() || !variant_ids.insert(variant.id).second) {
-      throw std::invalid_argument("paired batch variant IDs must be nonempty and unique");
-    }
-  }
+  validateVariants(variants);
   BatchReport report;
   for (const uint64_t seed : seeds) {
-    for (const ExperimentVariant& variant : variants) {
-      report.runs.push_back(runNetworkLaboratory(config, seed, variant));
-    }
+    appendSeedRuns(report, config, variants, seed);
   }
 
   for (const ExperimentVariant& variant : variants) {
-    std::vector<double> completions;
-    std::vector<double> latencies;
-    std::vector<double> delivery_ratios;
-    std::vector<double> energy_costs;
-    const LaboratoryRun* worst = nullptr;
-    for (const LaboratoryRun& run : report.runs) {
-      if (run.variant_id != variant.id) {
-        continue;
-      }
-      const RunMetrics& metrics = run.metrics;
-      completions.push_back(metrics.missions_started == 0U
-                                ? 0.0
-                                : static_cast<double>(metrics.missions_completed) /
-                                      static_cast<double>(metrics.missions_started));
-      latencies.push_back(metrics.mean_assignment_latency_ms);
-      const uint64_t delivery_attempts = metrics.deliveries + metrics.delivery_failures;
-      delivery_ratios.push_back(delivery_attempts == 0U
-                                    ? 0.0
-                                    : static_cast<double>(metrics.deliveries) /
-                                          static_cast<double>(delivery_attempts));
-      energy_costs.push_back(metrics.energy_per_delivered_byte_millijoules);
-      if (worst == nullptr || failureScore(metrics) > failureScore(worst->metrics)) {
-        worst = &run;
-      }
-    }
-    report.summaries.push_back({variant.id, interval(completions), interval(latencies),
-                                interval(delivery_ratios), interval(energy_costs)});
-    if (worst != nullptr) {
-      report.worst_failures.push_back(
-          {variant.id, worst->trace.provenance.seed, worst->trace, worst->metrics});
-    }
+    appendVariantSummary(report, variant);
   }
   return report;
 }
+
+namespace {
+
+void writeDeliveryDecision(std::ostream& output, const SimulationEvent& event) {
+  output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
+         << R"(,"randomValue":)" << event.random_value << R"(,"decision":)"
+         << jsonString(decisionName(event.delivery_decision));
+  if (event.deliver_at_ms != 0U) {
+    output << R"(,"deliverAtMs":)" << event.deliver_at_ms;
+  }
+}
+
+void writeDeliveryEvidence(std::ostream& output, const SimulationEvent& event) {
+  output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node);
+  if (event.type == SimulationEventType::MessageDropped) {
+    output << R"(,"reason":)" << jsonString(dropReasonName(event.drop_reason));
+  }
+}
+
+void writePacketEvidence(std::ostream& output, const SimulationEvent& event) {
+  output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
+         << R"(,"transmitQueueOccupancy":)" << event.transmit_queue_occupancy
+         << R"(,"transmitQueueCapacity":)" << event.transmit_queue_capacity;
+  if (event.transmission_end_ms != 0U) {
+    output << R"(,"transmissionEndMs":)" << event.transmission_end_ms
+           << R"(,"airtimeMicroseconds":)" << event.airtime_microseconds;
+  }
+}
+
+void writeEventEvidence(std::ostream& output, const SimulationEvent& event) {
+  switch (event.type) {
+  case SimulationEventType::DeliveryDecision:
+    writeDeliveryDecision(output, event);
+    break;
+  case SimulationEventType::MessageDelivered:
+  case SimulationEventType::DelayedMessageDelivered:
+  case SimulationEventType::MessageDelayed:
+  case SimulationEventType::MessageDuplicated:
+  case SimulationEventType::MessageDropped:
+    writeDeliveryEvidence(output, event);
+    break;
+  case SimulationEventType::PacketQueued:
+  case SimulationEventType::TransmissionStarted:
+  case SimulationEventType::TransmissionCompleted:
+  case SimulationEventType::PacketForwarded:
+    writePacketEvidence(output, event);
+    break;
+  case SimulationEventType::ContactObserved:
+    output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
+           << R"(,"plannedConnected":)" << (event.planned_connected ? "true" : "false")
+           << R"(,"connected":)" << (event.connected ? "true" : "false");
+    break;
+  case SimulationEventType::ResourceSample:
+    output << R"(,"bufferOccupancy":)" << event.buffer_occupancy << R"(,"bufferCapacity":)"
+           << event.buffer_capacity << R"(,"peakBufferOccupancy":)" << event.peak_buffer_occupancy
+           << R"(,"transmitQueueOccupancy":)" << event.transmit_queue_occupancy
+           << R"(,"transmitQueueCapacity":)" << event.transmit_queue_capacity
+           << R"(,"peakTransmitQueueOccupancy":)" << event.peak_transmit_queue_occupancy
+           << R"(,"bytesSent":)" << event.bytes_sent << R"(,"bytesReceived":)"
+           << event.bytes_received << R"(,"bytesDropped":)" << event.bytes_dropped
+           << R"(,"airtimeMicroseconds":)" << event.airtime_microseconds
+           << R"(,"estimatedEnergyMillijoules":)" << event.estimated_energy_millijoules;
+    break;
+  case SimulationEventType::StoragePressureChanged:
+    output << R"(,"bufferOccupancy":)" << event.buffer_occupancy << R"(,"bufferCapacity":)"
+           << event.buffer_capacity;
+    break;
+  case SimulationEventType::NodeCrashed:
+  case SimulationEventType::NodeReset:
+    output << R"(,"running":)" << (event.running ? "true" : "false");
+    break;
+  case SimulationEventType::MissionCommand:
+    output << R"(,"accepted":)" << (event.accepted ? "true" : "false")
+           << R"(,"objective":{"longitudeDegrees":)" << event.objective.longitude_degrees
+           << R"(,"latitudeDegrees":)" << event.objective.latitude_degrees << '}';
+    break;
+  default:
+    break;
+  }
+}
+
+void writeEvent(std::ostream& output, const SimulationEvent& event) {
+  output << R"({"timeMs":)" << event.now_ms << R"(,"type":)" << jsonString(eventName(event.type))
+         << R"(,"nodeId":)" << static_cast<unsigned int>(event.node_id);
+  if (event.packet_id != 0U) {
+    output << R"(,"packetId":)" << event.packet_id << R"(,"packetSize":)" << event.packet_size
+           << R"(,"finalRecipientNode":)" << static_cast<unsigned int>(event.final_recipient_node);
+  }
+  writeEventEvidence(output, event);
+  output << '}';
+}
+
+} // namespace
 
 std::string serializeLaboratoryRun(const NetworkLaboratoryConfig& config,
                                    const LaboratoryRun& run) {
@@ -483,67 +637,7 @@ std::string serializeLaboratoryRun(const NetworkLaboratoryConfig& config,
   }
   output << R"(],"frameCount":)" << run.trace.frames.size() << R"(},"events":[)";
   for (std::size_t index = 0U; index < run.result.events.size(); ++index) {
-    const SimulationEvent& event = run.result.events[index];
-    output << R"({"timeMs":)" << event.now_ms << R"(,"type":)" << jsonString(eventName(event.type))
-           << R"(,"nodeId":)" << static_cast<unsigned int>(event.node_id);
-    if (event.packet_id != 0U) {
-      output << R"(,"packetId":)" << event.packet_id << R"(,"packetSize":)" << event.packet_size
-             << R"(,"finalRecipientNode":)"
-             << static_cast<unsigned int>(event.final_recipient_node);
-    }
-    if (event.type == SimulationEventType::DeliveryDecision) {
-      output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
-             << R"(,"randomValue":)" << event.random_value << R"(,"decision":)"
-             << jsonString(decisionName(event.delivery_decision));
-      if (event.deliver_at_ms != 0U) {
-        output << R"(,"deliverAtMs":)" << event.deliver_at_ms;
-      }
-    } else if (event.type == SimulationEventType::MessageDelivered ||
-               event.type == SimulationEventType::DelayedMessageDelivered ||
-               event.type == SimulationEventType::MessageDelayed ||
-               event.type == SimulationEventType::MessageDuplicated ||
-               event.type == SimulationEventType::MessageDropped) {
-      output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node);
-      if (event.type == SimulationEventType::MessageDropped) {
-        output << R"(,"reason":)" << jsonString(dropReasonName(event.drop_reason));
-      }
-    } else if (event.type == SimulationEventType::PacketQueued ||
-               event.type == SimulationEventType::TransmissionStarted ||
-               event.type == SimulationEventType::TransmissionCompleted ||
-               event.type == SimulationEventType::PacketForwarded) {
-      output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
-             << R"(,"transmitQueueOccupancy":)" << event.transmit_queue_occupancy
-             << R"(,"transmitQueueCapacity":)" << event.transmit_queue_capacity;
-      if (event.transmission_end_ms != 0U) {
-        output << R"(,"transmissionEndMs":)" << event.transmission_end_ms
-               << R"(,"airtimeMicroseconds":)" << event.airtime_microseconds;
-      }
-    } else if (event.type == SimulationEventType::ContactObserved) {
-      output << R"(,"recipientNode":)" << static_cast<unsigned int>(event.recipient_node)
-             << R"(,"plannedConnected":)" << (event.planned_connected ? "true" : "false")
-             << R"(,"connected":)" << (event.connected ? "true" : "false");
-    } else if (event.type == SimulationEventType::ResourceSample) {
-      output << R"(,"bufferOccupancy":)" << event.buffer_occupancy << R"(,"bufferCapacity":)"
-             << event.buffer_capacity << R"(,"peakBufferOccupancy":)" << event.peak_buffer_occupancy
-             << R"(,"transmitQueueOccupancy":)" << event.transmit_queue_occupancy
-             << R"(,"transmitQueueCapacity":)" << event.transmit_queue_capacity
-             << R"(,"peakTransmitQueueOccupancy":)" << event.peak_transmit_queue_occupancy
-             << R"(,"bytesSent":)" << event.bytes_sent << R"(,"bytesReceived":)"
-             << event.bytes_received << R"(,"bytesDropped":)" << event.bytes_dropped
-             << R"(,"airtimeMicroseconds":)" << event.airtime_microseconds
-             << R"(,"estimatedEnergyMillijoules":)" << event.estimated_energy_millijoules;
-    } else if (event.type == SimulationEventType::StoragePressureChanged) {
-      output << R"(,"bufferOccupancy":)" << event.buffer_occupancy << R"(,"bufferCapacity":)"
-             << event.buffer_capacity;
-    } else if (event.type == SimulationEventType::NodeCrashed ||
-               event.type == SimulationEventType::NodeReset) {
-      output << R"(,"running":)" << (event.running ? "true" : "false");
-    } else if (event.type == SimulationEventType::MissionCommand) {
-      output << R"(,"accepted":)" << (event.accepted ? "true" : "false")
-             << R"(,"objective":{"longitudeDegrees":)" << event.objective.longitude_degrees
-             << R"(,"latitudeDegrees":)" << event.objective.latitude_degrees << '}';
-    }
-    output << '}';
+    writeEvent(output, run.result.events[index]);
     if (index + 1U != run.result.events.size()) {
       output << ',';
     }

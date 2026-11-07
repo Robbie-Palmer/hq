@@ -2,7 +2,7 @@
 set -euo pipefail
 
 config_file=${WORKSPACE_BACKUP_CONFIG:-/etc/remote-development-workspace-backup/config}
-if [ ! -r "${config_file}" ]; then
+if [[ ! -r "${config_file}" ]]; then
   echo '{"schemaVersion":1,"state":"unconfigured","fresh":false}'
   exit 1
 fi
@@ -10,7 +10,7 @@ fi
 # shellcheck source=/dev/null
 source "${config_file}"
 
-if [ ! -r "${BACKUP_STATUS_FILE}" ]; then
+if [[ ! -r "${BACKUP_STATUS_FILE}" ]]; then
   jq --null-input \
     --arg workspaceId "${WORKSPACE_ID}" \
     --arg destinationProvider "${DESTINATION_PROVIDER}" \

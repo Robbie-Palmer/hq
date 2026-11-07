@@ -6,10 +6,10 @@ task-specific metric vocabulary.
 
 The package owns:
 
-- strict Pydantic base types for adapters, objectives, resource budgets, runs,
-  and gates;
-- pinned Python entrypoint loading with adapter identity and module-file digest
-  checks;
+- strict Pydantic base types for adapters, objectives, resource budgets, run
+  records, artifact references, failure reports, and gates;
+- pinned Python entrypoint loading with module digests, adapter identity, and
+  version checks;
 - metric and resource promotion gates.
 
 `packages/data-artifacts` owns canonical JSON and JSON Lines, hashing,

@@ -5,13 +5,15 @@ from pathlib import Path
 
 import pytest
 
+from pathologize_benchmark_contracts import pipeline
 from pathologize_benchmark_contracts.pipeline import (
     aggregate_scorecards,
+    compare_experiment,
+    compare_only_experiment,
     evaluate_experiment,
     evaluate_only_experiment,
     generate,
     load_experiments,
-    run_adapters,
     validate_contracts,
     write_schemas,
 )
@@ -33,6 +35,14 @@ def _copy_project(project_name: str, target: Path) -> Path:
     return target
 
 
+def _run_adapters_inline(root: Path) -> None:
+    for manifest in load_experiments(root):
+        items = pipeline._evaluation_items(root, manifest)
+        pipeline._run_adapter(root, manifest, manifest.baseline, items)
+        if manifest.candidate is not None:
+            pipeline._run_adapter(root, manifest, manifest.candidate, items)
+
+
 @pytest.fixture
 def configured_root(tmp_path: Path) -> Path:
     return _copy_project("pathologize-slide-quality-benchmark", tmp_path)
@@ -48,9 +58,10 @@ def reproduced_root(configured_root: Path) -> Path:
     write_schemas(root=configured_root)
     generate(configured_root)
     validate_contracts(configured_root)
-    run_adapters(configured_root)
+    _run_adapters_inline(configured_root)
     for manifest in load_experiments(configured_root):
         evaluate_experiment(manifest.experiment_id, configured_root)
+        compare_experiment(manifest.experiment_id, configured_root)
     aggregate_scorecards(configured_root)
     return configured_root
 
@@ -59,8 +70,9 @@ def reproduced_root(configured_root: Path) -> Path:
 def reproduced_benchmark_root(configured_benchmark_root: Path) -> Path:
     generate(configured_benchmark_root)
     validate_contracts(configured_benchmark_root)
-    run_adapters(configured_benchmark_root)
+    _run_adapters_inline(configured_benchmark_root)
     evaluate_only_experiment(configured_benchmark_root)
+    compare_only_experiment(configured_benchmark_root)
     aggregate_scorecards(configured_benchmark_root)
     return configured_benchmark_root
 
@@ -70,8 +82,9 @@ def reproduced_tiling_root(tmp_path: Path) -> Path:
     root = _copy_project("pathologize-tiling-benchmark", tmp_path)
     generate(root)
     validate_contracts(root)
-    run_adapters(root)
+    _run_adapters_inline(root)
     for manifest in load_experiments(root):
         evaluate_experiment(manifest.experiment_id, root)
+        compare_experiment(manifest.experiment_id, root)
     aggregate_scorecards(root)
     return root

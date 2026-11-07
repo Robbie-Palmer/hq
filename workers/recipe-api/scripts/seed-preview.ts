@@ -240,7 +240,7 @@ try {
   // members belong to one household from the start. The IDs are deterministic
   // (keeping the seed idempotent across retries within a run) and must be valid
   // UUIDs: the household routes accept `householdId`/`memberId` only as
-  // `z.string().uuid()`, the same shape `crypto.randomUUID()` produces for
+  // `z.uuid()`, the same shape `crypto.randomUUID()` produces for
   // households created at runtime.
   const HOUSEHOLD_ID = "11111111-1111-4111-8111-111111111111";
   const HOUSEHOLD_SLUG = "preview-shared-household";

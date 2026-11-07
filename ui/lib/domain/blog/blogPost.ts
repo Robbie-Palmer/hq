@@ -19,7 +19,7 @@ export const BlogPostSchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
-  canonicalUrl: z.string().url().optional(),
+  canonicalUrl: z.url().optional(),
   content: z.string(),
   readingTime: z.string(),
   image: z.string().regex(/^blog\/[a-z0-9_-]+-\d{4}-\d{2}-\d{2}$/),
