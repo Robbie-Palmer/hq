@@ -15,6 +15,7 @@ import { TermReviewEvidence } from "./term-review-evidence";
 import {
   emptyResolutionDraft,
   type ResolutionDraft,
+  resolutionDraftFor,
   type TermReviewMutation,
 } from "./term-review-types";
 
@@ -34,11 +35,13 @@ function useTermReviewData(enabled: boolean) {
     setQueue(nextQueue);
     setAudit(nextAudit);
     setSelected((index) => Math.min(index, Math.max(nextQueue.length - 1, 0)));
+    return nextQueue;
   }, []);
   useEffect(() => {
     if (!enabled) return;
     setPending(true);
     refresh()
+      .then((nextQueue) => setDraft(resolutionDraftFor(nextQueue[0])))
       .catch((loadError: unknown) =>
         setError(
           loadError instanceof Error
@@ -48,15 +51,16 @@ function useTermReviewData(enabled: boolean) {
       )
       .finally(() => setPending(false));
   }, [enabled, refresh]);
-  const mutate: TermReviewMutation = async (operation) => {
+  const mutate: TermReviewMutation = async (operation, successMessage) => {
     setPending(true);
     setError(null);
     setStatus("");
     try {
       await operation();
-      await refresh();
-      setDraft(emptyResolutionDraft);
-      setStatus("Decision saved and projections refreshed.");
+      const nextQueue = await refresh();
+      const nextIndex = Math.min(selected, Math.max(nextQueue.length - 1, 0));
+      setDraft(resolutionDraftFor(nextQueue[nextIndex]));
+      setStatus(successMessage ?? "Action completed.");
     } catch (mutationError) {
       setError(
         mutationError instanceof Error
@@ -100,10 +104,12 @@ function DashboardHeader() {
 }
 
 function ReviewQueue({
+  audit,
   queue,
   selected,
   select,
 }: Readonly<{
+  audit: TermResolutionAuditItem[];
   queue: TermReviewQueueItem[];
   selected: number;
   select: (index: number) => void;
@@ -122,10 +128,30 @@ function ReviewQueue({
           <span className="block rt-mono text-xs text-[var(--ink-3)]">
             {term.submissionCount} submissions · {term.tenantCount} accounts
           </span>
+          {audit.find(
+            (decision) =>
+              decision.kind === term.kind &&
+              decision.normalizedText === term.normalizedText &&
+              decision.locale === term.locale,
+          )?.action === "defer" && (
+            <span className="mt-1 inline-block rounded-full bg-[var(--paper-warm)] px-2 py-0.5 rt-mono text-xs text-[var(--ink-3)]">
+              Deferred · evidence retained
+            </span>
+          )}
         </button>
       ))}
     </nav>
   );
+}
+
+function resolutionSuccessMessage(action: ResolutionDraft["action"]): string {
+  if (action === "defer") {
+    return "Decision deferred. Evidence remains in the review queue and audit log.";
+  }
+  if (action === "reject") {
+    return "Term rejected. Evidence remains in the audit log and can be restored by reversal.";
+  }
+  return "Decision saved and projections refreshed.";
 }
 
 function reviewCommand(item: TermReviewQueueItem, draft: ResolutionDraft) {
@@ -180,7 +206,11 @@ function ReviewCard({
         </p>
       </div>
       <div className="mt-6">
-        <TermReviewEvidence item={item} />
+        <TermReviewEvidence
+          item={item}
+          selectedSlug={draft.targetSlug}
+          selectCandidate={(targetSlug) => setDraft({ ...draft, targetSlug })}
+        />
       </div>
       <TermResolutionForm
         draft={draft}
@@ -188,11 +218,13 @@ function ReviewCard({
         pending={pending}
         setDraft={setDraft}
         submit={() =>
-          mutate(() =>
-            submitTermResolution({
-              target: item,
-              command: reviewCommand(item, draft),
-            }),
+          mutate(
+            () =>
+              submitTermResolution({
+                target: item,
+                command: reviewCommand(item, draft),
+              }),
+            resolutionSuccessMessage(draft.action),
           )
         }
       />
@@ -214,11 +246,12 @@ function ReviewWorkspace({
   return (
     <div className="mt-6 grid gap-6 lg:grid-cols-[18rem_1fr]">
       <ReviewQueue
+        audit={data.audit}
         queue={data.queue}
         selected={data.selected}
         select={(index) => {
           data.setSelected(index);
-          data.setDraft(emptyResolutionDraft);
+          data.setDraft(resolutionDraftFor(data.queue[index]));
         }}
       />
       <ReviewCard

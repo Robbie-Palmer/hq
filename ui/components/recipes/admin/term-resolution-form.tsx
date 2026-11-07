@@ -2,64 +2,163 @@ import { LoaderCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { TermReviewQueueItem } from "@/lib/api/term-resolution";
-import type { ResolutionDraft } from "./term-review-types";
+import { type ResolutionDraft, rankedCandidates } from "./term-review-types";
 
 type DraftProps = Readonly<{
   draft: ResolutionDraft;
   setDraft: (draft: ResolutionDraft) => void;
 }>;
 
-function DecisionFields({ draft, setDraft }: DraftProps) {
-  const needsTarget = ["alias", "new_canonical", "merge"].includes(
-    draft.action,
+type CandidateDraftProps = DraftProps &
+  Readonly<{
+    candidateSlugs: string[];
+    item: TermReviewQueueItem;
+  }>;
+
+const decisionGuidance: Record<
+  ResolutionDraft["action"],
+  { title: string; description: string }
+> = {
+  alias: {
+    title: "Treat the wording as a synonym",
+    description:
+      "Map this authored wording to an existing canonical item. The original wording and evidence stay unchanged; no canonical items are combined.",
+  },
+  new_canonical: {
+    title: "Create a distinct canonical item",
+    description:
+      "Use this when no existing item represents the term. The new item is added to the canonical registry and these observations map to it.",
+  },
+  merge: {
+    title: "Record a consolidation decision",
+    description:
+      "Use this when competing names or candidates represent one item and the selected slug should survive. For an unresolved term the mapping matches an alias, while the audit records that this was a consolidation decision.",
+  },
+  defer: {
+    title: "Return to this later",
+    description:
+      "No registry mapping is created. The term stays in the review queue with every context and candidate, the defer decision remains in the audit log, and structured features stay limited until a later resolution.",
+  },
+  reject: {
+    title: "Exclude this term from active review",
+    description:
+      "No registry mapping is created. The term leaves the active queue, but its evidence and decision remain in the audit log and a reviewer can reverse the rejection later.",
+  },
+};
+
+function DecisionSelect({
+  draft,
+  item,
+  setDraft,
+  candidateSlugs,
+}: CandidateDraftProps) {
+  return (
+    <div>
+      <label
+        className="rt-body text-sm font-medium"
+        htmlFor="term-resolution-action"
+      >
+        Decision
+      </label>
+      <select
+        id="term-resolution-action"
+        aria-describedby="term-resolution-impact"
+        className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 rt-body"
+        value={draft.action}
+        onChange={(event) => {
+          const action = event.target.value as ResolutionDraft["action"];
+          const targetIsCandidate = candidateSlugs.includes(draft.targetSlug);
+          setDraft({
+            ...draft,
+            action,
+            targetSlug:
+              action === "new_canonical" && targetIsCandidate
+                ? ""
+                : draft.targetSlug || candidateSlugs[0] || "",
+            canonicalName:
+              action === "new_canonical"
+                ? draft.canonicalName || item.rawTexts[0] || ""
+                : draft.canonicalName,
+          });
+        }}
+      >
+        <option value="alias">Add alias</option>
+        <option value="new_canonical">Create canonical item</option>
+        <option value="merge">Merge into canonical item</option>
+        <option value="defer">Defer</option>
+        <option value="reject">Reject</option>
+      </select>
+    </div>
   );
+}
+
+function TargetSlugField({
+  draft,
+  setDraft,
+  candidateSlugs,
+}: CandidateDraftProps) {
+  if (!["alias", "new_canonical", "merge"].includes(draft.action)) return null;
+  return (
+    <div>
+      <label className="rt-body text-sm font-medium" htmlFor="term-target-slug">
+        Canonical slug
+      </label>
+      <Input
+        id="term-target-slug"
+        className="mt-1"
+        aria-describedby="term-target-slug-help"
+        required
+        value={draft.targetSlug}
+        onChange={(event) =>
+          setDraft({ ...draft, targetSlug: event.target.value })
+        }
+      />
+      <p
+        id="term-target-slug-help"
+        className="mt-1 rt-body text-xs text-[var(--ink-3)]"
+      >
+        {candidateSlugs.length > 0 && draft.action !== "new_canonical"
+          ? "Prefilled from the top-ranked candidate. Choose another candidate above or type a slug."
+          : "Enter the stable slug for the canonical item."}
+      </p>
+    </div>
+  );
+}
+
+function DecisionFields({
+  draft,
+  item,
+  setDraft,
+}: DraftProps & Readonly<{ item: TermReviewQueueItem }>) {
+  const props = {
+    draft,
+    item,
+    setDraft,
+    candidateSlugs: rankedCandidates(item).map(({ slug }) => slug),
+  };
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <label
-          className="rt-body text-sm font-medium"
-          htmlFor="term-resolution-action"
-        >
-          Decision
-        </label>
-        <select
-          id="term-resolution-action"
-          className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 rt-body"
-          value={draft.action}
-          onChange={(event) =>
-            setDraft({
-              ...draft,
-              action: event.target.value as ResolutionDraft["action"],
-            })
-          }
-        >
-          <option value="alias">Add alias</option>
-          <option value="new_canonical">Create canonical item</option>
-          <option value="merge">Merge into canonical item</option>
-          <option value="defer">Defer</option>
-          <option value="reject">Reject</option>
-        </select>
-      </div>
-      {needsTarget && (
-        <div>
-          <label
-            className="rt-body text-sm font-medium"
-            htmlFor="term-target-slug"
-          >
-            Canonical slug
-          </label>
-          <Input
-            id="term-target-slug"
-            className="mt-1"
-            required
-            value={draft.targetSlug}
-            onChange={(event) =>
-              setDraft({ ...draft, targetSlug: event.target.value })
-            }
-          />
-        </div>
-      )}
+      <DecisionSelect {...props} />
+      <TargetSlugField {...props} />
     </div>
+  );
+}
+
+function DecisionImpact({
+  action,
+}: Readonly<{ action: ResolutionDraft["action"] }>) {
+  const guidance = decisionGuidance[action];
+  return (
+    <section
+      id="term-resolution-impact"
+      aria-live="polite"
+      className="rounded-lg border border-[var(--line)] bg-[var(--paper-warm)] p-3"
+    >
+      <h3 className="rt-body font-medium">{guidance.title}</h3>
+      <p className="mt-1 rt-body text-sm text-[var(--ink-3)]">
+        {guidance.description}
+      </p>
+    </section>
   );
 }
 
@@ -110,7 +209,12 @@ function RequiredReview({
   item,
   setDraft,
 }: DraftProps & Readonly<{ item: TermReviewQueueItem }>) {
-  if (!item.localeReviewRequired && !item.collisionReviewRequired) return null;
+  if (
+    draft.action === "defer" ||
+    (!item.localeReviewRequired && !item.collisionReviewRequired)
+  ) {
+    return null;
+  }
   return (
     <fieldset className="space-y-2 rounded-lg border border-[var(--line-strong)] p-3">
       <legend className="px-1 rt-display text-lg">Required review</legend>
@@ -164,7 +268,8 @@ export function TermResolutionForm({
         void submit();
       }}
     >
-      <DecisionFields draft={draft} setDraft={setDraft} />
+      <DecisionFields draft={draft} item={item} setDraft={setDraft} />
+      <DecisionImpact action={draft.action} />
       <CanonicalNameField draft={draft} setDraft={setDraft} />
       <RationaleField draft={draft} setDraft={setDraft} />
       <RequiredReview draft={draft} item={item} setDraft={setDraft} />
