@@ -2543,6 +2543,171 @@ describe("delivery evidence persistence", () => {
         },
       ],
     });
+
+    const catalogV3 = {
+      repository: "example/work-graph",
+      sourceRevision: "catalog-v3",
+      targets: [
+        deliveryTarget("api", "production-api-v3"),
+        deliveryTarget("observer", "production-observer"),
+      ],
+    };
+    await repository.putDeliveryMetadataRevision(
+      catalogV3,
+      "2026-09-22T14:00:00.000Z",
+      { reconcileLinkedPullRequests: false },
+    );
+    const currentResolutionRevision = async () => {
+      const [current] = await db
+        .select({
+          sourceRevision:
+            schema.workItemPullRequestDeliveryResolution.metadataSourceRevision,
+        })
+        .from(schema.workItemPullRequestCurrentDeliveryResolution)
+        .innerJoin(
+          schema.workItemPullRequestDeliveryResolution,
+          eq(
+            schema.workItemPullRequestDeliveryResolution.id,
+            schema.workItemPullRequestCurrentDeliveryResolution.resolutionId,
+          ),
+        )
+        .where(
+          eq(
+            schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+            "generated-targets",
+          ),
+        );
+      return current?.sourceRevision;
+    };
+    await expect(currentResolutionRevision()).resolves.toBe("catalog-v2");
+
+    await repository.putDeliveryMetadataRevision(
+      catalogV3,
+      "2026-09-22T14:00:00.000Z",
+    );
+    await expect(currentResolutionRevision()).resolves.toBe("catalog-v3");
+  });
+
+  it("fails completion closed while delivery target resolution is stale", async () => {
+    const repositoryName = "example/stale-resolution";
+    const headSha = commitSha("e");
+    const mergeSha = commitSha("f");
+    const catalog = (sourceRevision: string, environment: string) => ({
+      repository: repositoryName,
+      sourceRevision,
+      targets: [
+        {
+          id: "delivery-target:stale-resolution/api",
+          projectId: "project:stale-resolution",
+          repository: repositoryName,
+          sourcePaths: [
+            {
+              path: "workers/api",
+              mode: "exclusive" as const,
+              subjects: ["component:stale-resolution/api"],
+            },
+          ],
+          subjects: ["component:stale-resolution/api"],
+          sharedHostId: null,
+          requiredCiNames: ["verify"],
+          productionEnvironments: [environment],
+        },
+      ],
+    });
+    await repository.createWorkItem({
+      id: "stale-resolution",
+      title: "Reject stale resolution",
+    });
+    await repository.putDeliveryMetadataRevision(
+      catalog("catalog-v1", "production-v1"),
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: repositoryName,
+      number: 93,
+      url: `https://github.com/${repositoryName}/pull/93`,
+      headSha,
+      acceptedHeadSha: headSha,
+      mergeCommitSha: mergeSha,
+      state: "merged",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/api/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "stale-resolution",
+      repository: repositoryName,
+      number: 93,
+      role: "implementation",
+    });
+    await repository.putCompletionPolicyRevision({
+      policyId: "stale-resolution-policy",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production-v1"],
+      automaticRelease: false,
+      createdAt: "2026-09-22T09:30:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "stale-resolution",
+      policyId: "stale-resolution-policy",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:31:00.000Z",
+    });
+    await storeObservation(80, {
+      repository: repositoryName,
+      externalId: "stale-resolution-pr",
+      commitSha: mergeSha,
+      kind: "pull_request",
+      name: null,
+      correlationKind: "pull_request_merge",
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await storeObservation(81, {
+      repository: repositoryName,
+      externalId: "stale-resolution-ci",
+      commitSha: headSha,
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await storeObservation(82, {
+      repository: repositoryName,
+      externalId: "stale-resolution-deployment",
+      commitSha: mergeSha,
+      kind: "deployment",
+      name: null,
+      environment: "production-v1",
+      correlationKind: "pull_request_merge",
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await expect(
+      repository.evaluateCompletionCandidate({
+        id: recordId(780),
+        workItemId: "stale-resolution",
+        evaluatedAt: "2026-09-22T12:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({ candidate: true, reasons: [] });
+
+    await repository.putDeliveryMetadataRevision(
+      catalog("catalog-v2", "production-v2"),
+      "2026-09-22T13:00:00.000Z",
+      { reconcileLinkedPullRequests: false },
+    );
+    await expect(
+      repository.evaluateCompletionCandidate({
+        id: recordId(781),
+        workItemId: "stale-resolution",
+        evaluatedAt: "2026-09-22T14:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      candidate: false,
+      reasons: expect.arrayContaining(["missing_delivery_target_resolution"]),
+    });
   });
 
   it("makes a replayed metadata revision current after a catalog revert", async () => {

@@ -250,6 +250,13 @@ export class GitHubDeliveryConsumer {
       } catch {
         // A broken connection cannot record its own failure. Preserve the
         // original classified error so an idempotent caller can retry it.
+        console.error(
+          JSON.stringify({
+            operation: "github-delivery-failure-recording-failed",
+            deliveryId: delivery.deliveryId,
+            failureCode,
+          }),
+        );
       }
       throw error;
     }
