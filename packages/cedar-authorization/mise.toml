@@ -1,0 +1,22 @@
+[tasks.install]
+description = "Install shared Cedar authorization dependencies"
+run = "pnpm install --frozen-lockfile --filter cedar-authorization..."
+
+[tasks.typecheck]
+description = "Typecheck the shared Cedar authorization package"
+depends = ["install"]
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Test the shared Cedar authorization package"
+depends = ["install"]
+run = "pnpm test"
+
+[tasks."test:coverage"]
+description = "Test shared Cedar authorization with coverage"
+depends = ["install"]
+run = "pnpm test:coverage"
+
+[tasks.check]
+description = "Check the shared Cedar authorization package"
+depends = ["typecheck", "test"]

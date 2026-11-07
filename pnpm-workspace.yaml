@@ -108,6 +108,7 @@ overrides:
   'zod@<4.6.6': '4.6.7'
 
 patchedDependencies:
+  '@cedar-policy/cedar-wasm@4.14.0': patches/@cedar-policy__cedar-wasm@4.14.0.patch
   '@cooklang/cooklang': patches/@cooklang__cooklang.patch
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
 

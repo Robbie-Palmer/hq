@@ -1,0 +1,31 @@
+diff --git a/esm/cedar_wasm.js b/esm/cedar_wasm.js
+index 6ecde73..61426f9 100644
+--- a/esm/cedar_wasm.js
++++ b/esm/cedar_wasm.js
+@@ -3,6 +3,23 @@
+-import * as wasm from "./cedar_wasm_bg.wasm";
++import * as wasmOrModule from "./cedar_wasm_bg.wasm";
++import * as imports from "./cedar_wasm_bg.js";
+ import { __wbg_set_wasm } from "./cedar_wasm_bg.js";
++
++// Bundlers instantiate the .wasm import, but workerd exposes it as a
++// WebAssembly.Module on the namespace's default export. Handle both forms so
++// the same package works in tests, frontend builds, and Cloudflare Workers.
++const maybeModule =
++    wasmOrModule instanceof WebAssembly.Module
++        ? wasmOrModule
++        : Reflect.get(wasmOrModule, "default");
++const wasm =
++    maybeModule instanceof WebAssembly.Module
++        ? new WebAssembly.Instance(maybeModule, {
++            "./cedar_wasm_bg.js": imports,
++        }).exports
++        : wasmOrModule;
+ __wbg_set_wasm(wasm);
+-wasm.__wbindgen_start();
++if (typeof wasm.__wbindgen_start === "function") {
++    wasm.__wbindgen_start();
++}
+ export {
+     checkParseContext, checkParseEntities, checkParsePolicySet, checkParseSchema, formatPolicies, getCedarLangVersion, getCedarSDKVersion, getCedarVersion, getValidRequestEnvsPolicy, getValidRequestEnvsTemplate, isAuthorized, isAuthorizedPartial, linkSchemas, policySetTextToParts, policyToJson, policyToText, preparsePolicySet, preparseSchema, schemaCompleteness, schemaToJson, schemaToJsonWithResolvedTypes, schemaToText, statefulIsAuthorized, templateToJson, templateToText, validate
+ } from "./cedar_wasm_bg.js";

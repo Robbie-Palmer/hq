@@ -1188,6 +1188,12 @@ slots:
       resource rules, RBAC, and policy engines make separate authorization
       trade-offs."
     kind: "policy"
+  - slug: "identity.authorization-engine"
+    title: "Application authorization engine"
+    description: "The evaluator used to apply a project's resource and action policy."
+    rationale: "Embedded policy engines and application predicates differ in schema
+      validation, explicit-deny behavior, audit output, and runtime cost."
+    opinionated: false
   - slug: "api-governance.contract-linter"
     title: "API contract linter"
     description: "Static correctness, security, and repository-policy checks for API
@@ -1881,6 +1887,17 @@ policies:
     decision: "personal-engineering-platform:034-identity-and-access-capability-con\
       tracts"
     prerequisites:
+      - requirement: "server-side-authorization"
+  - id: "identity-authorization-engine-2026-11-07"
+    layer: "identity"
+    slot: "identity.authorization-engine"
+    mode: "preferred"
+    effective_from: "2026-11-07T00:00:00Z"
+    decision: "personal-engineering-platform:049-cedar-authorization-engine"
+    prerequisites:
+      - slot: "project.primary-language"
+        technology: "typescript"
+      - slot: "identity.authorization-policy"
       - requirement: "server-side-authorization"
   - id: "api-governance-contract-linter-2026-09-29"
     layer: "api-governance"
@@ -2595,6 +2612,14 @@ selections:
       tracts"
     origin_projects: [ "recipe-site" ]
     evidence_adrs: [ "recipe-site:005-authorization-model" ]
+  - id: "identity-authorization-engine-cedar-2026-11-07"
+    slot: "identity.authorization-engine"
+    technology: "Cedar"
+    status: "Accepted"
+    effective_from: "2026-11-07T00:00:00Z"
+    decision: "personal-engineering-platform:049-cedar-authorization-engine"
+    origin_projects: [ "personal-engineering-platform" ]
+    evidence_adrs: [ "personal-engineering-platform:049-cedar-authorization-engine" ]
   - id: "quality-code-analysis-sonarqube-2026-09-15"
     slot: "quality.code-analysis"
     technology: "SonarQube"

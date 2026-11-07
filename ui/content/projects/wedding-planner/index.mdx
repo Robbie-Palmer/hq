@@ -3,17 +3,29 @@ title: "Wedding planner"
 description: "A personal wedding planner for accommodation, tables and music"
 date: "2026-10-01"
 status: "in_progress"
+platform_layers:
+  - layer: "identity"
+    adopted: "2026-11-07T00:00:00Z"
+    tracking: true
+    decision: "wedding-planner:000-cedar-guest-field-authorization"
+    slots:
+      - slot: "identity.authorization-policy"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "wedding-planner:000-cedar-guest-field-authorization"
+      - slot: "identity.authorization-engine"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "wedding-planner:000-cedar-guest-field-authorization"
 ---
 
 # Wedding planner
 
 This is a place for the wedding decisions that need more than a checklist. It matches guests to beds, rooms and cottages while respecting who is comfortable sharing and working out fair costs. The same guest list and confirmed couples feed a table planner. A shared music list collects guest requests without handing over the final DJ brief.
 
-The private planning data stays in the browser. The MVP does not sync with Joy, finance systems, or other third-party services.
+The current UI keeps private planning data in the browser while the authenticated API and relational persistence path are built. It does not yet sync with Joy, finance systems, or other third-party services.
 
 [Open the planner](/wedding-planner)
 
-Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. Accommodation and table choices do not sync between devices. Music suggestions and votes use a separate guest link, while moderation stays in the private planner.
+Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. Accommodation and table choices do not sync between devices in the current UI. Music suggestions and votes use a separate guest link, while moderation stays in the private planner.
 
 The shared guest model records attendance, invitations, couples and wedding roles independently of sleeping arrangements. Both planners use a domain package, with a repository for saving plans and adapters for browser storage and optimisation. Current versioned backups load through the same domain parser used by browser storage. Guests can be bridesmaids, groomsmen, parents of the bride or groom, and other wedding-party members. Their roles are separate from top-table placement and accommodation payments.
 

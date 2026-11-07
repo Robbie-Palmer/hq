@@ -1,0 +1,58 @@
+---
+title: "ADR 000: Adopt platform Cedar authorization"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Cedar"]
+---
+
+## Context
+
+The guest directory exposes different fields to the couple, a guest editing
+their own record, and export recipients. Built-in fields used a TypeScript role
+matrix, custom fields carried separate access lists, and another condition
+prevented one guest from accessing another guest's record.
+
+[Platform ADR 049](/projects/personal-engineering-platform/adrs/049-cedar-authorization-engine)
+selects Cedar for shared policy evaluation. Wedding Planner needs a local field
+vocabulary because private notes, relationship groups, provenance, and contact
+details have wedding-specific audiences.
+
+## Decision
+
+Adopt the platform Cedar engine as the canonical guest-field policy. Model the
+actor, view or edit action, target guest, and field access attributes in the
+Wedding Planner schema. Preserve the current couple, guest, and export-recipient
+decisions, including the guest self-only prohibition and read-only provenance
+fields. Custom field definitions continue to supply their configured roles as
+resource attributes.
+
+Ship a finite TypeScript decision table in the browser package. Exhaustive tests
+compare every built-in field, action, role, ownership relation, and custom-field
+combination with the Cedar policy. The checked-in Cedar schema and policy remain
+authoritative. A table change that disagrees with them fails the suite.
+
+Evaluate Cedar directly in the Wedding Planner API. Its guest-access service
+accepts an identity established by the authentication boundary, loads the
+persisted plan, derives custom-field permissions from that record, and checks
+each read or edit before returning data or writing a new revision. API routes
+must not accept roles, ownership, or custom-field access rules from request
+payloads.
+
+The browser decision table is a transitional offline implementation. It controls
+the current local-only planner, but it is not authority for synchronized data.
+Once a workflow moves to the API, the API's Cedar result is final even when the
+browser table reached the same decision.
+
+Guest validation, import provenance, optimization constraints, and history
+recording remain in the domain model.
+
+## Consequences
+
+The field matrix now has one declarative source and exhaustive equivalence tests.
+Browser and server code use the same actor and field vocabulary without treating
+a client decision as proof of access.
+
+The browser bundle does not include Cedar's WebAssembly evaluator. Policy changes
+therefore require editing the finite table and passing the full equivalence
+matrix. The Worker runtime loads Cedar directly through the repository's
+workerd compatibility patch.

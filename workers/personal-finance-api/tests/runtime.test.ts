@@ -20,17 +20,32 @@ describe("authenticated Worker runtime", () => {
   });
 
   it("keeps authorization separate from authentication", async () => {
-    const request = { action: "read", resourceId: "resource:test" };
+    const request = {
+      action: "household.read",
+      resource: {
+        type: "household",
+        id: "household:test",
+        ownerUserId: "user:test",
+        syntheticOnly: true,
+      },
+    };
     const session = {
       session: {},
       user: { id: "user:test" },
     } as never;
 
-    const denied = requireAuthorization(() => false, session, request);
+    const denied = requireAuthorization(() => ({
+      allowed: false,
+      reason: "policy-deny",
+      diagnostics: [],
+    }), session, request);
     await expect(denied).rejects.toBeInstanceOf(AuthorizationDeniedError);
     await expect(denied).rejects.toMatchObject({ request });
     await expect(
-      requireAuthorization(() => true, session, request),
+      requireAuthorization(() => ({
+        allowed: true,
+        determiningPolicies: ["test-policy"],
+      }), session, request),
     ).resolves.toBeUndefined();
   });
 
@@ -45,7 +60,10 @@ describe("authenticated Worker runtime", () => {
       handler: vi.fn(async () => new Response("auth")),
     } as never;
     const app = createRuntimeApp({
-      authorizationPolicy: () => true,
+      authorizationPolicy: () => ({
+        allowed: true,
+        determiningPolicies: ["test-policy"],
+      }),
       closeDatabase,
       connectDatabase: () => ({ client: {} as never, db: {} as never }),
       createAuth: () => auth,
@@ -53,8 +71,13 @@ describe("authenticated Worker runtime", () => {
         runtime.get("/api/resources/:id", async (context) => {
           const id = context.req.param("id");
           await authorizeProjectRequest(context, {
-            action: "read",
-            resourceId: `resource:${id}`,
+            action: "household.read",
+            resource: {
+              type: "household",
+              id: `household:${id}`,
+              ownerUserId: "user:test",
+              syntheticOnly: true,
+            },
           });
           return context.json({ id });
         });
