@@ -94,9 +94,11 @@ rules only. GitHub secrets and variables still come from Doppler through the
 existing sync flow and are absent from Terraform configuration and state.
 
 The same registry creates `cloudflare-token-bootstrap/ops_provisioner` and
-`production-cloudflare-token-bootstrap` for the account-owned Cloudflare API
-token provisioner. That GitHub environment accepts only `main`, requires a
-reviewer, and disables administrator bypass.
+`production-cloudflare-token-bootstrap` for two separate account-owned
+Cloudflare credentials. `CLOUDFLARE_TOKEN_PROVISIONER_TOKEN` creates scoped
+API tokens. `CLOUDFLARE_BOOTSTRAP_TOKEN` writes declared Worker secrets and
+cannot create API tokens. That GitHub environment accepts only `main`, requires
+a reviewer, and disables administrator bypass.
 The account-foundation apply creates the empty config and environment. A human
 then installs the first masked token and runs the dedicated credential-sync
 task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).

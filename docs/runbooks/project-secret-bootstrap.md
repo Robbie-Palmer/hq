@@ -181,6 +181,52 @@ through standard input, syncs the protected environment, and runs conformance
 before approving another apply. Never pass the token as an argument or print a
 provider response body.
 
+### Worker secret handoff rotation and recovery
+
+Use
+`infra/account-foundation/cloudflare-token-plans/worker-secret-handoff.yaml`
+to create or rotate `CLOUDFLARE_BOOTSTRAP_TOKEN`. The token has one
+account-scoped permission, `Workers Scripts Write`. Cloudflare applies that
+permission to the account rather than individual scripts. The reviewed
+bootstrap plan supplies the narrower Worker-name allowlist, and the protected
+`production-cloudflare-token-bootstrap` environment gates every remote run.
+Routine deployment and Terraform environments must not receive this token.
+
+Before rotation, call the verify endpoint with the active handoff token and
+record its token ID in the private operations record. Do not put the ID in this
+repository, the bootstrap plan, logs, or the resume file. Run the redacted plan
+and token-provisioner conformance check, then dispatch `Cloudflare Token
+Bootstrap` from `main` with this plan, apply enabled, and checkpoint
+`rotate-cloudflare-worker-secret-handoff` acknowledged. The first job creates
+the account-owned replacement and writes it as a masked value to
+`cloudflare-token-bootstrap/ops_provisioner` and
+`production-cloudflare-token-bootstrap`.
+
+The workflow starts a fresh protected job after distribution. It checks that
+the replacement is active, grants only `Workers Scripts Write`, and names only
+the declared account resource. The check uses the token-provisioner credential
+to read the handoff token policy. It never gives token-provisioning authority
+to the handoff token. The next step receives only the handoff token. It refuses
+to overwrite an existing `hq-worker-secret-handoff-proof` Worker, creates that
+disposable Worker, writes a generated `HANDOFF_PROOF` secret, verifies only the
+binding name and type, and deletes the Worker. A failed cleanup is a failed
+rotation and needs operator attention.
+
+Keep the old token active until the fresh protected job passes. Then revoke
+only the recorded old token ID and rerun handoff conformance with the
+replacement. Never revoke a token selected by name, since overlap rotation can
+leave two tokens with the same reviewed name.
+
+If the handoff token is lost or revoked, recover through the Cloudflare owner
+account and the separate token-provisioner authority. Restore the provisioner
+as described above if it is parked. Run the unchanged handoff plan to create
+and distribute a replacement, complete the disposable proof, and park the
+provisioner again. If creation succeeds but distribution or proof fails,
+preserve the previous handoff token, remove the disposable Worker if it remains,
+and revoke the orphan replacement by its privately recorded token ID before
+retrying. No recovery step copies a token value into a command argument,
+Terraform input, repository file, or log.
+
 Identity-provider consoles often require a consent screen, callback URI, or
 human approval. Record that action as a checkpoint and make the issued secret
 depend on it. The acknowledgement remains in the resume file, so the next run

@@ -236,6 +236,10 @@ cat > "$work_dir/account-foundation-secrets.json" <<'FIXTURE'
     "computed": "fixture-cloudflare-token",
     "computedVisibility": "masked"
   },
+  "CLOUDFLARE_BOOTSTRAP_TOKEN": {
+    "computed": "fixture-cloudflare-worker-secret-handoff-token",
+    "computedVisibility": "masked"
+  },
   "DOPPLER_TOKEN": {
     "computed": "fixture-doppler-token",
     "computedVisibility": "masked"
@@ -370,12 +374,37 @@ grep -Fxq -- \
   "secret set CLOUDFLARE_TOKEN_PROVISIONER_TOKEN production-cloudflare-token-bootstrap" \
   "$work_dir/github-calls"
 grep -Fxq -- \
+  "secret set CLOUDFLARE_BOOTSTRAP_TOKEN production-cloudflare-token-bootstrap" \
+  "$work_dir/github-calls"
+grep -Fxq -- \
   "variable set CLOUDFLARE_ACCOUNT_ID production-cloudflare-token-bootstrap" \
   "$work_dir/github-calls"
 if grep -Fq -- "DOPPLER_TOKEN" "$work_dir/github-calls"; then
   echo "The token-bootstrap sync exported the config-reader credential." >&2
   exit 1
 fi
+
+jq '.CLOUDFLARE_BOOTSTRAP_TOKEN.computedVisibility = "unmasked"' \
+  "$work_dir/account-foundation-secrets.json" > "$work_dir/unmasked-handoff.json"
+mv "$work_dir/unmasked-handoff.json" "$work_dir/account-foundation-secrets.json"
+: > "$work_dir/github-calls"
+if unmasked_handoff_output="$(
+  SYNC_TEST_DIRECTORY="$work_dir" \
+    PATH="$mock_bin:$PATH" \
+    bash "$script_dir/../../../scripts/sync-doppler-github-envs.sh" \
+      production-cloudflare-token-bootstrap 2>&1
+)"; then
+  echo "Expected an unmasked Worker-secret handoff token to fail before sync." >&2
+  exit 1
+fi
+[[ "$unmasked_handoff_output" == *"credential visibility mismatch: CLOUDFLARE_BOOTSTRAP_TOKEN"* ]]
+if [[ -s "$work_dir/github-calls" ]]; then
+  echo "The handoff visibility check ran after a partial sync." >&2
+  exit 1
+fi
+jq '.CLOUDFLARE_BOOTSTRAP_TOKEN.computedVisibility = "masked"' \
+  "$work_dir/account-foundation-secrets.json" > "$work_dir/masked-handoff.json"
+mv "$work_dir/masked-handoff.json" "$work_dir/account-foundation-secrets.json"
 
 jq '. + {
   "GITHUB_BOOTSTRAP_TOKEN": {

@@ -46,6 +46,10 @@ import {
   createCloudflareAccountToken,
   handoffCloudflareAccountTokenAuthority,
 } from "./cloudflare-account-token.js";
+import {
+  conformCloudflareWorkerSecretHandoff,
+  proveCloudflareWorkerSecretHandoff,
+} from "./cloudflare-worker-secret-handoff.js";
 
 const DEFAULT_REGISTRY =
   "ui/content/projects/personal-engineering-platform/project-template-sources.yaml";
@@ -414,7 +418,45 @@ async function runSecretBootstrapConformanceCommand(
   });
 }
 
+async function runWorkerSecretHandoffConformanceCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return conformCloudflareWorkerSecretHandoff({
+    plan: prepared.plan,
+    environment: process.env,
+  });
+}
+
+async function runWorkerSecretHandoffProofCommand(
+  context: CommandContext,
+  input: SecretBootstrapCommandInput,
+) {
+  const prepared = await prepareSecretBootstrapCommand(context, input);
+  return proveCloudflareWorkerSecretHandoff({
+    plan: prepared.plan,
+    environment: process.env,
+  });
+}
+
 export const projectGeneratorRouter = t.router({
+  workerSecretHandoffConformance: t.procedure
+    .meta({
+      description: "Check the Worker secret handoff token without writing",
+    })
+    .input(secretBootstrapCommandInput)
+    .query(({ ctx, input }) =>
+      runWorkerSecretHandoffConformanceCommand(ctx, input),
+    ),
+  workerSecretHandoffProof: t.procedure
+    .meta({
+      description: "Prove and clean up a disposable Worker secret handoff",
+    })
+    .input(secretBootstrapCommandInput)
+    .mutation(({ ctx, input }) =>
+      runWorkerSecretHandoffProofCommand(ctx, input),
+    ),
   secretBootstrapConformance: t.procedure
     .meta({
       description: "Check Cloudflare token-provisioning authority without writing",
