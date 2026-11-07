@@ -83,6 +83,24 @@ spec:
                   name: t3-code-preview-access
                   key: CLOUDFLARE_PAGES_HOST
                   optional: false
+            - name: POSTHOG_PROJECT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-posthog-read
+                  key: POSTHOG_PROJECT_ID
+                  optional: false
+            - name: POSTHOG_QUERY_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-posthog-read
+                  key: POSTHOG_QUERY_HOST
+                  optional: false
+            - name: POSTHOG_PERSONAL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-posthog-read
+                  key: POSTHOG_PERSONAL_API_KEY
+                  optional: false
             - name: WORK_GRAPH_API_URL
               valueFrom:
                 secretKeyRef:

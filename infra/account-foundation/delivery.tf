@@ -140,6 +140,7 @@ locals {
               "dev",
               "dev_personal",
               "dev_agent",
+              "dev_agent_observability",
               "dev_bootstrap_infra",
               "dev_infra",
               "dev_ml_pipelines",
