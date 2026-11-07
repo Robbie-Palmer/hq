@@ -1,5 +1,6 @@
 import {
   configureStore,
+  createAction,
   createSlice,
   type Middleware,
   type PayloadAction,
@@ -23,6 +24,15 @@ interface LocalDataState {
   status: LocalDataStatus;
   error: string | null;
 }
+
+interface ActionLogCheckpointPayload {
+  assetData: AssetDataState;
+  localData: LocalDataState;
+}
+
+const actionLogCheckpointed = createAction<ActionLogCheckpointPayload>(
+  "assetTracker/actionLogCheckpointed",
+);
 
 export interface LoadStartedPayload {
   requestId: number;
@@ -86,6 +96,11 @@ const assetDataSlice = createSlice({
     },
     commandRejected(_state, _action: PayloadAction<CommandRejectedPayload>) {},
   },
+  extraReducers: (builder) => {
+    builder.addCase(actionLogCheckpointed, (_state, action) => {
+      return action.payload.assetData;
+    });
+  },
 });
 
 const initialLocalDataState = (): LocalDataState => ({
@@ -131,6 +146,9 @@ const localDataSlice = createSlice({
         if (!action.payload.storageFailure) return;
         state.status = "error";
         state.error = action.payload.message;
+      })
+      .addCase(actionLogCheckpointed, (_state, action) => {
+        return action.payload.localData;
       });
   },
 });
@@ -140,12 +158,28 @@ export const assetTrackerEvents = assetDataSlice.actions;
 export const assetDataReducer = assetDataSlice.reducer;
 export const localDataReducer = localDataSlice.reducer;
 
+const ACTION_LOG_LIMIT = 100;
+
 function createActionRecorder() {
   const actions: UnknownAction[] = [];
-  const middleware: Middleware = () => (next) => (action) => {
+  const middleware: Middleware = (storeApi) => (next) => (action) => {
     const result = next(action);
     if (typeof action === "object" && action !== null && "type" in action) {
       actions.push(action as UnknownAction);
+      if (actions.length > ACTION_LOG_LIMIT) {
+        const state = storeApi.getState() as {
+          assetData: AssetDataState;
+          localData: LocalDataState;
+        };
+        actions.splice(
+          0,
+          actions.length,
+          actionLogCheckpointed({
+            assetData: structuredClone(state.assetData),
+            localData: structuredClone(state.localData),
+          }),
+        );
+      }
     }
     return result;
   };

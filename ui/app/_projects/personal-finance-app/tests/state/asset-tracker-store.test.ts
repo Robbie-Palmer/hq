@@ -129,6 +129,29 @@ describe("Asset Tracker reducers and selectors", () => {
     expect(selectLocalDataError(store.getState())).toBe("storage unavailable");
     expect(replayed).toEqual(store.getState());
   });
+
+  it("bounds long action logs without losing exact replay", () => {
+    const store = createAssetTrackerStore();
+    const data = euroDemoData();
+
+    for (let index = 0; index < 150; index += 1) {
+      store.dispatch(
+        assetTrackerEvents.commandStarted({ operation: `change ${index}` }),
+      );
+      store.dispatch(
+        assetTrackerEvents.commandCommitted({
+          operation: `change ${index}`,
+          data,
+          hasLocalChanges: true,
+        }),
+      );
+    }
+
+    const actions = store.getActionLog();
+    expect(actions.length).toBeLessThanOrEqual(100);
+    expect(actions[0]?.type).toBe("assetTracker/actionLogCheckpointed");
+    expect(replayAssetTrackerActions(actions)).toEqual(store.getState());
+  });
 });
 
 describe("Asset Tracker failure diagnostics", () => {
