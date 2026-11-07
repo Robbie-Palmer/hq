@@ -685,6 +685,7 @@ depends = [
     "//ml-pipelines/financial-document-idp-evaluation:test:coverage",
     "//ml-pipelines/pathologize-benchmark-contracts:test:coverage",
     "//ml-pipelines/pathologize-data-registry:test:coverage",
+    "//ml-pipelines/pathologize-tiling-benchmark:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//data-pipelines/work-graph-analytics:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",

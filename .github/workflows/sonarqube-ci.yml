@@ -161,6 +161,7 @@ jobs:
             ml-pipelines/financial-document-idp-evaluation/coverage.xml
             ml-pipelines/pathologize-benchmark-contracts/coverage.xml
             ml-pipelines/pathologize-data-registry/coverage.xml
+            ml-pipelines/pathologize-tiling-benchmark/coverage.xml
             ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info
