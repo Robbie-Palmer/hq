@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -115,19 +115,6 @@ def segment_nuclei(
     return predictions
 
 
-class Classifier(Protocol):
-    @property
-    def adapter_id(self) -> Literal["class-prior-v1", "morphology-logistic-v1"]: ...
-
-    classes: tuple[str, ...]
-
-    def fit(self, data_root: Path, items: list[SplitItem]) -> None: ...
-
-    def probabilities(
-        self, image: NDArray[np.uint8], predictions: list[PredictedNucleus]
-    ) -> FloatArray: ...
-
-
 class ClassPrior:
     adapter_id: Literal["class-prior-v1"] = "class-prior-v1"
 
@@ -168,7 +155,8 @@ class MorphologyLogistic:
                         random_state=random_seed,
                     ),
                 ),
-            ]
+            ],
+            memory=None,
         )
 
     def fit(self, data_root: Path, items: list[SplitItem]) -> None:
@@ -203,6 +191,9 @@ class MorphologyLogistic:
         fitted_classes = tuple(str(value) for value in self._model.classes_)
         indices = [fitted_classes.index(label) for label in self.classes]
         return np.asarray(probabilities[:, indices], dtype=np.float64)
+
+
+type Classifier = ClassPrior | MorphologyLogistic
 
 
 def annotation_bbox(annotation: Annotation) -> tuple[int, int, int, int]:
