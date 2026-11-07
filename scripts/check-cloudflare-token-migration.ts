@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -7,6 +7,9 @@ import { parse } from "yaml";
 import { z } from "zod";
 
 const execFileAsync = promisify(execFile);
+const WORKER_SECRET_HANDOFF_ENV = "CLOUDFLARE_BOOTSTRAP_TOKEN";
+const WORKER_SECRET_HANDOFF_WORKFLOW =
+  ".github/workflows/cloudflare-token-bootstrap.yml";
 
 export const MANIFEST_PATH =
   "infra/account-foundation/cloudflare-token-migration.yaml";
@@ -217,6 +220,81 @@ async function loadMiseTaskNames(repositoryRoot: string): Promise<Set<string>> {
 
 type Credential = CloudflareTokenMigrationManifest["credentials"][number];
 
+export function validateWorkerSecretHandoffBoundaries(input: {
+  readonly workflows: Readonly<Record<string, string>>;
+  readonly terraform: Readonly<Record<string, string>>;
+}): string[] {
+  const errors: string[] = [];
+  for (const [file, source] of Object.entries(input.workflows)) {
+    if (
+      source.includes(WORKER_SECRET_HANDOFF_ENV) &&
+      file !== WORKER_SECRET_HANDOFF_WORKFLOW
+    ) {
+      errors.push(
+        `Worker secret handoff credential must not enter routine workflow '${file}'`,
+      );
+    }
+  }
+  const dedicatedWorkflow = input.workflows[WORKER_SECRET_HANDOFF_WORKFLOW];
+  if (
+    !dedicatedWorkflow?.includes(
+      `secrets.${WORKER_SECRET_HANDOFF_ENV}`,
+    )
+  ) {
+    errors.push(
+      `Dedicated workflow '${WORKER_SECRET_HANDOFF_WORKFLOW}' must read the masked handoff secret`,
+    );
+  }
+  for (const [file, source] of Object.entries(input.terraform)) {
+    if (source.includes(WORKER_SECRET_HANDOFF_ENV)) {
+      errors.push(`Worker secret handoff credential must not enter Terraform file '${file}'`);
+    }
+  }
+  return errors;
+}
+
+async function readMatchingFiles(
+  repositoryRoot: string,
+  relativeDirectory: string,
+  matches: (file: string) => boolean,
+): Promise<Record<string, string>> {
+  const sources: Record<string, string> = {};
+  const visit = async (relativePath: string): Promise<void> => {
+    const entries = await readdir(path.join(repositoryRoot, relativePath), {
+      withFileTypes: true,
+    });
+    await Promise.all(
+      entries.map(async (entry) => {
+        const child = path.posix.join(relativePath, entry.name);
+        if (entry.isDirectory()) return visit(child);
+        if (entry.isFile() && matches(child)) {
+          sources[child] = await readFile(path.join(repositoryRoot, child), "utf8");
+        }
+      }),
+    );
+  };
+  await visit(relativeDirectory);
+  return sources;
+}
+
+async function workerSecretHandoffBoundaryErrors(
+  repositoryRoot: string,
+): Promise<string[]> {
+  const [workflows, terraform] = await Promise.all([
+    readMatchingFiles(
+      repositoryRoot,
+      ".github/workflows",
+      (file) => file.endsWith(".yml") || file.endsWith(".yaml"),
+    ),
+    readMatchingFiles(
+      repositoryRoot,
+      "infra",
+      (file) => file.endsWith(".tf") || file.endsWith(".tfvars"),
+    ),
+  ]);
+  return validateWorkerSecretHandoffBoundaries({ workflows, terraform });
+}
+
 function verificationTaskErrors(
   credential: Credential,
   taskNames: ReadonlySet<string>,
@@ -290,13 +368,16 @@ export async function validateCloudflareTokenMigrationRepositoryReferences(
   manifest: CloudflareTokenMigrationManifest,
   repositoryRoot: string,
 ): Promise<string[]> {
-  const taskNames = await loadMiseTaskNames(repositoryRoot);
+  const [taskNames, boundaryErrors] = await Promise.all([
+    loadMiseTaskNames(repositoryRoot),
+    workerSecretHandoffBoundaryErrors(repositoryRoot),
+  ]);
   const errors = await Promise.all(
     manifest.credentials.map((credential) =>
       credentialRepositoryReferenceErrors(credential, repositoryRoot, taskNames),
     ),
   );
-  return errors.flat();
+  return [...errors.flat(), ...boundaryErrors];
 }
 
 function validateCredential(
