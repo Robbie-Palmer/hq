@@ -46,7 +46,7 @@ export function resolutionDraftFor(
 }
 
 export type TermReviewMutation = (
-  operation: () => Promise<void>,
+  operation: (expectedRegistryVersion?: number) => Promise<unknown>,
   options?: Readonly<{
     offerUndo?: boolean;
     optimisticDelayMs?: number;

@@ -68,6 +68,11 @@ export type TermResolutionAuditItem = {
   } | null;
 };
 
+export type TermResolutionResult = {
+  decision: Omit<TermResolutionAuditItem, "reprojection">;
+  reprojection: NonNullable<TermResolutionAuditItem["reprojection"]>;
+};
+
 export async function loadTermReviewQueue(): Promise<TermReviewQueueItem[]> {
   const response = await apiRequest<{ items: TermReviewQueueItem[] }>(
     "/api/admin/term-resolutions/queue",
@@ -87,8 +92,8 @@ export async function loadTermResolutionAudit(): Promise<
 export async function submitTermResolution(input: {
   target: Pick<TermReviewQueueItem, "kind" | "normalizedText" | "locale">;
   command: Record<string, unknown>;
-}): Promise<void> {
-  await apiRequest("/api/admin/term-resolutions", {
+}): Promise<TermResolutionResult> {
+  return apiRequest<TermResolutionResult>("/api/admin/term-resolutions", {
     method: "POST",
     json: {
       target: {

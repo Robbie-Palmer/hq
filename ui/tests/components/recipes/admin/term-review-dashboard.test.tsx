@@ -231,14 +231,14 @@ describe("TermReviewDashboard", () => {
     let finishFirstSubmit: (() => void) | undefined;
     mocks.submit.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          finishFirstSubmit = resolve;
+        new Promise((resolve) => {
+          finishFirstSubmit = () =>
+            resolve({ decision: { registryVersion: 8 } });
         }),
     );
     mocks.loadQueue.mockReset();
     mocks.loadQueue
       .mockResolvedValueOnce([queueItem, secondQueueItem])
-      .mockResolvedValueOnce([secondQueueItem])
       .mockResolvedValueOnce([]);
     render(<TermReviewDashboard />);
 
@@ -306,14 +306,6 @@ describe("TermReviewDashboard", () => {
       await screen.findByRole("article", { name: "Review Shallot" }),
     ).toBeVisible();
     expect(mocks.loadQueue).toHaveBeenCalledOnce();
-
-    finishFirstSubmit?.();
-    expect(
-      await screen.findByText("Saved. The next term is ready."),
-    ).toBeVisible();
-    await waitFor(() => expect(mocks.loadQueue).toHaveBeenCalledTimes(2));
-
-    mocks.submit.mockClear();
     const nextCard = screen.getByRole("article", { name: "Review Shallot" });
     const nextBackdrop = nextCard.previousElementSibling as HTMLElement;
     fireEvent.touchStart(nextCard, {
@@ -332,11 +324,29 @@ describe("TermReviewDashboard", () => {
       changedTouches: [{ clientX: 20, clientY: 102 }],
     });
 
-    await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
+    await waitFor(() =>
+      expect(
+        screen.getByText("No terms are waiting for review."),
+      ).toBeVisible(),
+    );
+    expect(mocks.submit).toHaveBeenCalledOnce();
+    expect(screen.getByText("Saving 2 decisions…")).toBeVisible();
+
+    finishFirstSubmit?.();
+    await waitFor(() => expect(mocks.submit).toHaveBeenCalledTimes(2));
     expect(mocks.submit).toHaveBeenLastCalledWith({
       target: secondQueueItem,
-      command: expect.objectContaining({ action: "reject" }),
+      command: expect.objectContaining({
+        action: "reject",
+        expectedRegistryVersion: 8,
+      }),
     });
+    await waitFor(() => expect(mocks.loadQueue).toHaveBeenCalledTimes(2));
+    expect(
+      await screen.findByText(
+        "Removed from the review queue. You can undo this now or reverse it from the audit log.",
+      ),
+    ).toBeVisible();
   });
 
   it("restores an optimistically advanced card when the save fails", async () => {

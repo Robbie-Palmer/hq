@@ -32,6 +32,27 @@ function queueItemKey(item: TermReviewQueueItem): string {
   return `${item.kind}:${item.normalizedText}:${item.locale}`;
 }
 
+function resultRegistryVersion(result: unknown): number | undefined {
+  if (!result || typeof result !== "object" || !("decision" in result)) {
+    return undefined;
+  }
+  const decision = result.decision;
+  if (
+    !decision ||
+    typeof decision !== "object" ||
+    !("registryVersion" in decision)
+  ) {
+    return undefined;
+  }
+  return typeof decision.registryVersion === "number"
+    ? decision.registryVersion
+    : undefined;
+}
+
+function mutationErrorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
 function scheduleOptimisticAdvance(
   target: TermReviewQueueItem | undefined,
   delay: number,
@@ -39,20 +60,32 @@ function scheduleOptimisticAdvance(
   restore: (target: TermReviewQueueItem) => void,
 ) {
   let applied = false;
+  let ready = false;
+  let markReady: () => void = () => undefined;
+  const readyPromise = new Promise<void>((resolve) => {
+    markReady = () => {
+      if (ready) return;
+      ready = true;
+      resolve();
+    };
+  });
   const apply = () => {
     if (!target) return;
     applied = true;
     advance(target);
+    markReady();
   };
   let timer: number | undefined;
   if (target) {
     if (delay === 0) apply();
     else timer = window.setTimeout(apply, delay);
-  }
+  } else markReady();
   return {
     cancel: () => {
       if (timer !== undefined) window.clearTimeout(timer);
+      markReady();
     },
+    ready: readyPromise,
     restore: () => {
       if (target && applied) restore(target);
     },
@@ -65,16 +98,34 @@ function useTermReviewData(enabled: boolean) {
   const [selected, setSelected] = useState(0);
   const [draft, setDraft] = useState(emptyResolutionDraft);
   const [pending, setPending] = useState(false);
+  const [savingCount, setSavingCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("");
   const [undoDecision, setUndoDecision] =
     useState<TermResolutionAuditItem | null>(null);
+  const dismissedKeys = useRef(new Set<string>());
+  const latestRegistryVersion = useRef<number | undefined>(undefined);
+  const queuedMutationCount = useRef(0);
+  const successfulQueuedMutations = useRef(0);
+  const queuedSuccessMessage = useRef("");
+  const mutationQueue = useRef(Promise.resolve());
   const refresh = useCallback(async () => {
     const [nextQueue, nextAudit] = await Promise.all([
       loadTermReviewQueue(),
       loadTermResolutionAudit(),
     ]);
-    setQueue(nextQueue);
+    const versions = [
+      ...nextQueue.map(({ registryVersion }) => registryVersion),
+      ...nextAudit.map(({ registryVersion }) => registryVersion),
+    ];
+    if (versions.length > 0) {
+      latestRegistryVersion.current = Math.max(...versions);
+    }
+    setQueue(
+      nextQueue.filter(
+        (item) => !dismissedKeys.current.has(queueItemKey(item)),
+      ),
+    );
     setAudit(nextAudit);
     setSelected((index) => Math.min(index, Math.max(nextQueue.length - 1, 0)));
     return { nextAudit, nextQueue };
@@ -93,35 +144,139 @@ function useTermReviewData(enabled: boolean) {
       )
       .finally(() => setPending(false));
   }, [enabled, refresh]);
-  const mutate: TermReviewMutation = async (operation, options) => {
+
+  const recordQueuedSuccess = (
+    result: unknown,
+    successMessage: string | undefined,
+  ) => {
+    const registryVersion = resultRegistryVersion(result);
+    if (registryVersion !== undefined) {
+      latestRegistryVersion.current = registryVersion;
+    }
+    successfulQueuedMutations.current += 1;
+    queuedSuccessMessage.current = successMessage ?? "Action completed.";
+  };
+
+  const restoreQueuedFailure = async (
+    targetKey: string,
+    optimistic: ReturnType<typeof scheduleOptimisticAdvance>,
+    error: unknown,
+  ) => {
+    dismissedKeys.current.delete(targetKey);
+    optimistic.cancel();
+    optimistic.restore();
+    setError(mutationErrorMessage(error, "Could not save the decision."));
+    try {
+      await refresh();
+    } catch {
+      // Keep the mutation error visible when reconciliation also fails.
+    }
+  };
+
+  const refreshAfterQueuedMutations = async () => {
+    if (queuedMutationCount.current !== 0) return;
+    try {
+      const { nextAudit } = await refresh();
+      if (queuedMutationCount.current !== 0) return;
+      if (successfulQueuedMutations.current > 0) {
+        setUndoDecision(
+          nextAudit.find(({ action }) => action !== "reversal") ?? null,
+        );
+        setStatus(queuedSuccessMessage.current);
+      }
+      successfulQueuedMutations.current = 0;
+      queuedSuccessMessage.current = "";
+    } catch (refreshError) {
+      setError(
+        mutationErrorMessage(refreshError, "Could not refresh term review."),
+      );
+    }
+  };
+
+  const finishQueuedMutation = async (
+    operationSucceeded: boolean,
+    targetKey: string,
+    optimistic: ReturnType<typeof scheduleOptimisticAdvance>,
+  ) => {
+    if (operationSucceeded) dismissedKeys.current.delete(targetKey);
+    await optimistic.ready;
+    optimistic.cancel();
+    queuedMutationCount.current -= 1;
+    setSavingCount(queuedMutationCount.current);
+    await refreshAfterQueuedMutations();
+  };
+
+  const runQueuedMutation = async (
+    operation: Parameters<TermReviewMutation>[0],
+    successMessage: string | undefined,
+    targetKey: string,
+    optimistic: ReturnType<typeof scheduleOptimisticAdvance>,
+  ) => {
     let operationSucceeded = false;
+    try {
+      const result = await operation(latestRegistryVersion.current);
+      operationSucceeded = true;
+      recordQueuedSuccess(result, successMessage);
+    } catch (mutationError) {
+      await restoreQueuedFailure(targetKey, optimistic, mutationError);
+    } finally {
+      await finishQueuedMutation(operationSucceeded, targetKey, optimistic);
+    }
+  };
+
+  const mutate: TermReviewMutation = async (operation, options) => {
+    const optimisticTarget = options?.optimisticTarget;
+    if (optimisticTarget) {
+      const targetKey = queueItemKey(optimisticTarget);
+      dismissedKeys.current.add(targetKey);
+      queuedMutationCount.current += 1;
+      setSavingCount(queuedMutationCount.current);
+      setError(null);
+      setStatus("");
+      setUndoDecision(null);
+      const optimistic = scheduleOptimisticAdvance(
+        optimisticTarget,
+        options?.optimisticDelayMs ?? 0,
+        (target) => {
+          setQueue((current) =>
+            current.filter(
+              (item) => queueItemKey(item) !== queueItemKey(target),
+            ),
+          );
+          setSelected(0);
+          setDraft(emptyResolutionDraft);
+        },
+        (target) => {
+          setQueue((current) =>
+            current.some((item) => queueItemKey(item) === queueItemKey(target))
+              ? current
+              : [target, ...current],
+          );
+          setSelected(0);
+          setDraft(resolutionDraftFor(target));
+        },
+      );
+      const run = () =>
+        runQueuedMutation(
+          operation,
+          options?.successMessage,
+          targetKey,
+          optimistic,
+        );
+      mutationQueue.current = mutationQueue.current.then(run, run);
+      return;
+    }
+
     setPending(true);
     setError(null);
     setStatus("");
     setUndoDecision(null);
-    const optimistic = scheduleOptimisticAdvance(
-      options?.optimisticTarget,
-      options?.optimisticDelayMs ?? 0,
-      (target) => {
-        setQueue((current) =>
-          current.filter((item) => queueItemKey(item) !== queueItemKey(target)),
-        );
-        setSelected(0);
-        setDraft(emptyResolutionDraft);
-      },
-      (target) => {
-        setQueue((current) =>
-          current.some((item) => queueItemKey(item) === queueItemKey(target))
-            ? current
-            : [target, ...current],
-        );
-        setSelected(0);
-        setDraft(resolutionDraftFor(target));
-      },
-    );
     try {
-      await operation();
-      operationSucceeded = true;
+      const result = await operation(latestRegistryVersion.current);
+      const registryVersion = resultRegistryVersion(result);
+      if (registryVersion !== undefined) {
+        latestRegistryVersion.current = registryVersion;
+      }
       const previousDecisionIds = new Set(audit.map(({ id }) => id));
       const { nextAudit } = await refresh();
       setSelected(0);
@@ -136,14 +291,12 @@ function useTermReviewData(enabled: boolean) {
       }
       setStatus(options?.successMessage ?? "Action completed.");
     } catch (mutationError) {
-      if (!operationSucceeded) optimistic.restore();
       setError(
         mutationError instanceof Error
           ? mutationError.message
           : "Could not save the decision.",
       );
     } finally {
-      optimistic.cancel();
       setPending(false);
     }
   };
@@ -152,12 +305,14 @@ function useTermReviewData(enabled: boolean) {
     draft,
     error,
     mutate,
-    pending,
+    pending: pending || savingCount > 0,
     queue,
+    savingCount,
     selected,
     setDraft,
     setSelected,
     status,
+    swipeDisabled: pending,
     undoDecision,
   };
 }
@@ -234,6 +389,7 @@ function reviewCommand(
   item: TermReviewQueueItem,
   draft: ResolutionDraft,
   action = draft.action,
+  expectedRegistryVersion = item.registryVersion,
 ) {
   const requiresExplicitReview = action !== "defer";
   return {
@@ -241,7 +397,7 @@ function reviewCommand(
     idempotencyKey: crypto.randomUUID(),
     rationale:
       draft.rationale.trim() || defaultRationale(action, draft.targetSlug),
-    expectedRegistryVersion: item.registryVersion,
+    expectedRegistryVersion,
     evidence: item.contexts.flatMap((context) =>
       context.candidateMatches.map(
         (candidate) => `${candidate.slug}:${candidate.score.toFixed(4)}`,
@@ -465,6 +621,7 @@ type ReviewCardProps = Readonly<{
   mutate: TermReviewMutation;
   pending: boolean;
   setDraft: (draft: ResolutionDraft) => void;
+  swipeDisabled: boolean;
 }>;
 
 function swipeMatchAction(action: ResolutionDraft["action"]) {
@@ -479,10 +636,10 @@ function submitReviewDecision(
   optimisticDelayMs?: number,
 ) {
   return mutate(
-    () =>
+    (expectedRegistryVersion) =>
       submitTermResolution({
         target: item,
-        command: reviewCommand(item, draft, action),
+        command: reviewCommand(item, draft, action, expectedRegistryVersion),
       }),
     {
       offerUndo: true,
@@ -501,12 +658,13 @@ function ReviewCard({
   mutate,
   pending,
   setDraft,
+  swipeDisabled,
 }: ReviewCardProps) {
   const submitAction = (action = draft.action, optimisticDelayMs?: number) =>
     submitReviewDecision(item, draft, action, mutate, optimisticDelayMs);
   const matchAction = swipeMatchAction(draft.action);
   const swipe = useReviewSwipe(
-    pending,
+    swipeDisabled,
     matchAction && draft.targetSlug
       ? (exitDurationMs) => submitAction(matchAction, exitDurationMs)
       : null,
@@ -558,7 +716,7 @@ function ReviewWorkspace({
     data.setDraft(resolutionDraftFor(item));
   }, [data.setDraft, item]);
   if (!item) {
-    return data.pending ? null : (
+    return data.swipeDisabled ? null : (
       <p className="mt-8 rounded-xl border border-[var(--line)] p-6 rt-body">
         {deferred
           ? "No terms have been skipped for later."
@@ -584,6 +742,7 @@ function ReviewWorkspace({
         mutate={data.mutate}
         pending={data.pending}
         setDraft={data.setDraft}
+        swipeDisabled={data.swipeDisabled}
       />
     </div>
   );
@@ -632,7 +791,14 @@ function ReviewStatus({
       aria-live="polite"
       className="mt-4 flex min-h-9 flex-wrap items-center gap-3 rt-body"
     >
-      {data.pending && <span>Working…</span>}
+      {data.savingCount > 0 ? (
+        <span>
+          Saving {data.savingCount} decision
+          {data.savingCount === 1 ? "" : "s"}…
+        </span>
+      ) : (
+        data.pending && <span>Working…</span>
+      )}
       {data.status && <span>{data.status}</span>}
       {undoDecision && (
         <Button
