@@ -8,7 +8,16 @@ export * from "./assetTrackerQueries";
 export * from "./assetTrackerRepository";
 export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
+export * from "./businessValuation";
 export * from "./businessWealth";
+export {
+  consolidateHouseholdWealth,
+  type HouseholdBusinessReconciliation,
+  type HouseholdConsolidationInput,
+  type HouseholdConsolidationIssue,
+  type HouseholdWealthConsolidation,
+  type HouseholdWealthContribution,
+} from "./businessWealthConsolidation";
 export * from "./capitalFlow";
 export * from "./compoundGrowth";
 export * from "./currency";
