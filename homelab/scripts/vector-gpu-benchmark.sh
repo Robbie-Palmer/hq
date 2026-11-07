@@ -2,10 +2,13 @@
 set -euo pipefail
 
 namespace=gpu-benchmarks
+smoke_image=nvcr.io/nvidia/k8s/cuda-sample@sha256:7c7540bdf1f942d4fb6db97069fd6c289471b54ac29e3c7fcdf914cf77af7d41
 
 usage() {
-  echo "usage: vector-gpu-benchmark <create|status|logs|delete|list> [arguments]" >&2
+  echo "usage: vector-gpu-benchmark <create|profile|smoke|status|logs|delete|list> [arguments]" >&2
   echo "  create <run-id> <image@sha256:digest> [-- <container arguments...>]" >&2
+  echo "  profile <run-id> <image@sha256:digest> -- <profiled command...>" >&2
+  echo "  smoke [run-id]" >&2
   echo "  status|logs|delete <run-id>" >&2
   exit 2
 }
@@ -19,26 +22,31 @@ job_name() {
   printf 'gpu-%s\n' "${run_id}"
 }
 
-action=${1:-}
-case "${action}" in
-  create)
-    [[ $# -ge 3 ]] || usage
-    run_id=$2
-    name=$(job_name "${run_id}")
-    image=$3
-    shift 3
-    if [[ ${1:-} == -- ]]; then
-      shift
-    fi
-    if [[ ! ${image} =~ ^(nvcr\.io/nvidia/|docker\.io/nvidia/|ghcr\.io/robbie-palmer/)[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]; then
-      echo "image must use an approved registry and an exact sha256 digest" >&2
-      exit 2
-    fi
-    benchmark_args=$(jq --compact-output --null-input --args '$ARGS.positional' -- "$@")
-    jq --null-input \
+validate_image() {
+  local image=$1
+  if [[ ! ${image} =~ ^(nvcr\.io/nvidia/|docker\.io/nvidia/|ghcr\.io/robbie-palmer/)[a-z0-9._/-]+@sha256:[a-f0-9]{64}$ ]]; then
+    echo "image must use an approved registry and an exact sha256 digest" >&2
+    exit 2
+  fi
+}
+
+create_job() {
+  local mode=$1
+  local run_id=$2
+  local image=$3
+  local container_command=$4
+  shift 4
+  local name
+  local benchmark_args
+  name=$(job_name "${run_id}")
+  validate_image "${image}"
+  benchmark_args=$(jq --compact-output --null-input --args '$ARGS.positional' -- "$@")
+  jq --null-input \
       --arg image "${image}" \
+      --arg mode "${mode}" \
       --arg name "${name}" \
       --arg run_id "${run_id}" \
+      --argjson container_command "${container_command}" \
       --argjson benchmark_args "${benchmark_args}" \
       '{
         apiVersion: "batch/v1",
@@ -49,6 +57,7 @@ case "${action}" in
           labels: {
             "app.kubernetes.io/name": "gpu-benchmark",
             "app.kubernetes.io/managed-by": "t3-code",
+            "gpu-benchmark.homelab.dev/mode": $mode,
             "gpu-benchmark.homelab.dev/run-id": $run_id
           }
         },
@@ -63,6 +72,7 @@ case "${action}" in
               labels: {
                 "app.kubernetes.io/name": "gpu-benchmark",
                 "app.kubernetes.io/managed-by": "t3-code",
+                "gpu-benchmark.homelab.dev/mode": $mode,
                 "gpu-benchmark.homelab.dev/run-id": $run_id
               }
             },
@@ -87,6 +97,7 @@ case "${action}" in
                 name: "benchmark",
                 image: $image,
                 imagePullPolicy: "IfNotPresent",
+                command: $container_command,
                 args: $benchmark_args,
                 resources: {
                   requests: {
@@ -119,8 +130,68 @@ case "${action}" in
             }
           }
         }
-      }' \
-      | kubectl --namespace "${namespace}" create --filename -
+      }
+      | if $container_command == null then
+          del(.spec.template.spec.containers[0].command)
+        else
+          .
+        end' \
+    | kubectl --namespace "${namespace}" create --filename -
+}
+
+action=${1:-}
+case "${action}" in
+  create)
+    [[ $# -ge 3 ]] || usage
+    run_id=$2
+    image=$3
+    shift 3
+    if [[ ${1:-} == -- ]]; then
+      shift
+    fi
+    create_job benchmark "${run_id}" "${image}" null "$@"
+    ;;
+  profile)
+    [[ $# -ge 5 && $4 == -- ]] || usage
+    run_id=$2
+    image=$3
+    shift 4
+    profile_command=$(jq --compact-output --null-input '[
+      "nsys",
+      "profile",
+      "--sample=none",
+      "--trace=cuda,nvtx,osrt",
+      "--stats=true",
+      "--force-overwrite=true",
+      "--output=/tmp/profile"
+    ]')
+    create_job profile "${run_id}" "${image}" "${profile_command}" "$@"
+    ;;
+  smoke)
+    [[ $# -le 2 ]] || usage
+    run_id=${2:-smoke-$(date +%s)}
+    name=$(job_name "${run_id}")
+    cleanup_smoke() {
+      kubectl --namespace "${namespace}" delete job "${name}" \
+        --ignore-not-found=true \
+        --wait=true >/dev/null
+    }
+    trap cleanup_smoke EXIT
+    create_job smoke "${run_id}" "${smoke_image}" null
+    if ! kubectl --namespace "${namespace}" wait \
+      --for=condition=complete \
+      --timeout=5m \
+      "job/${name}"; then
+      kubectl --namespace "${namespace}" describe job "${name}" >&2 || true
+      kubectl --namespace "${namespace}" logs \
+        --container benchmark \
+        "job/${name}" >&2 || true
+      exit 1
+    fi
+    kubectl --namespace "${namespace}" logs \
+      --container benchmark \
+      "job/${name}" \
+      | grep -F "Test PASSED"
     ;;
   status)
     [[ $# -eq 2 ]] || usage
