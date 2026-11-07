@@ -1085,11 +1085,22 @@ def report_ultralytics(
 ) -> dict[str, object]:
     experiment = load_ultralytics_experiment(experiment_path)
     root = _root(experiment_path)
+    report_root = (root / "reports").resolve()
+    resolved_json_output = (root / json_output).resolve()
+    resolved_markdown_output = (root / markdown_output).resolve()
+    for output_path, expected_suffix in (
+        (resolved_json_output, ".json"),
+        (resolved_markdown_output, ".md"),
+    ):
+        if not output_path.is_relative_to(report_root):
+            raise ValueError("Ultralytics reports must stay within the project reports directory")
+        if output_path.suffix != expected_suffix:
+            raise ValueError(f"Ultralytics report must use the {expected_suffix} suffix")
     output_root = _experiment_output_root(root, experiment)
     evidence = read_json(output_root / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
         raise TypeError("Ultralytics evidence must be a JSON object")
-    write_json(json_output, evidence)
-    markdown_output.parent.mkdir(parents=True, exist_ok=True)
-    markdown_output.write_text(_report_markdown(evidence), encoding="utf-8")
+    write_json(resolved_json_output, evidence)
+    resolved_markdown_output.parent.mkdir(parents=True, exist_ok=True)
+    resolved_markdown_output.write_text(_report_markdown(evidence), encoding="utf-8")
     return dict(evidence)
