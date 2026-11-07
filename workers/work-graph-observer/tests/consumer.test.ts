@@ -18,7 +18,9 @@ vi.mock("work-graph-db", () => ({
   },
 }));
 import worker, {
+  createTargetScopedDeliveryConsumer,
   runScheduledReconciliation,
+  selectReconciliationTargets,
   type ObserverBindings,
 } from "../src/index";
 
@@ -76,5 +78,38 @@ describe("queue acknowledgments", () => {
     });
     expect(mocks.targets).toHaveBeenCalledOnce();
     expect(mocks.closeDb).toHaveBeenCalledOnce();
+  });
+
+  it("opens database connections only for one target at a time", async () => {
+    const delivery = { deliveryId: "delivery" } as GitHubDelivery;
+    mocks.consume.mockResolvedValue("processed");
+    const consumer = createTargetScopedDeliveryConsumer("postgres://test");
+
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+    await consumer.finishTarget();
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+    await consumer.finishTarget();
+
+    expect(mocks.createDb).toHaveBeenCalledTimes(2);
+    expect(mocks.closeDb).toHaveBeenCalledTimes(2);
+  });
+
+  it("rotates bounded reconciliation targets across six-hour slots", () => {
+    const targets = Array.from({ length: 12 }, (_, index) => ({
+      repository: "example/site",
+      number: index + 1,
+    }));
+
+    expect(
+      selectReconciliationTargets(targets, new Date(0)).map(
+        ({ number }) => number,
+      ),
+    ).toEqual([1, 2, 3]);
+    expect(
+      selectReconciliationTargets(
+        targets,
+        new Date(6 * 60 * 60 * 1_000),
+      ).map(({ number }) => number),
+    ).toEqual([4, 5, 6]);
   });
 });

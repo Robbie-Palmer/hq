@@ -5,6 +5,7 @@ import {
   recordDatabaseResultRow,
 } from "./query-metrics";
 import * as schema from "./schema";
+import { isClosedDatabaseConnectionFailure } from "./errors";
 
 type DbClient = postgres.Sql;
 export type Db = PostgresJsDatabase<typeof schema> & { $client: DbClient };
@@ -51,5 +52,10 @@ export function createDb(
 
 export async function closeDb(db: Db | undefined): Promise<void> {
   if (!db) return;
-  await db.$client.end({ timeout: 5 });
+  try {
+    await db.$client.end({ timeout: 5 });
+  } catch (error) {
+    // Closing an already-closed Hyperdrive socket has achieved the cleanup.
+    if (!isClosedDatabaseConnectionFailure(error)) throw error;
+  }
 }
