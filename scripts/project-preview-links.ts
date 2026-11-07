@@ -51,16 +51,6 @@ export function projectPreviewLinksFromProfiles(
   );
 }
 
-export function renderProjectPreviewLinks(
-  previewSiteUrl: string,
-  links: readonly ProjectPreviewLink[],
-): string[] {
-  return links.map(
-    ({ name, path: mountPath }) =>
-      `**${name}:** ${previewSiteUrl}${mountPath}`,
-  );
-}
-
 export async function loadProjectPreviewLinks(
   repositoryRoot: string,
 ): Promise<ProjectPreviewLink[]> {
@@ -85,26 +75,14 @@ export async function loadProjectPreviewLinks(
 export async function writeProjectPreviewLinks(
   repositoryRoot: string,
   githubOutput: string | undefined,
-  previewSiteUrl: string | undefined,
   output: TextOutput,
 ): Promise<void> {
-  const links = await loadProjectPreviewLinks(repositoryRoot);
-  const serializedLinks = JSON.stringify(links);
+  const links = JSON.stringify(await loadProjectPreviewLinks(repositoryRoot));
   if (githubOutput) {
-    if (!previewSiteUrl) {
-      throw new Error("PREVIEW_SITE_URL is required for GitHub Actions output");
-    }
-    const markdownLines = JSON.stringify(
-      renderProjectPreviewLinks(previewSiteUrl, links),
-    );
-    await appendFile(
-      githubOutput,
-      `links=${serializedLinks}\nmarkdown_lines=${markdownLines}\n`,
-      "utf8",
-    );
+    await appendFile(githubOutput, `links=${links}\n`, "utf8");
     return;
   }
-  output.write(`${serializedLinks}\n`);
+  output.write(`${links}\n`);
 }
 
 /* v8 ignore next 7 -- exercised through writeProjectPreviewLinks */
@@ -112,7 +90,6 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await writeProjectPreviewLinks(
     process.cwd(),
     process.env.GITHUB_OUTPUT,
-    process.env.PREVIEW_SITE_URL,
     process.stdout,
   );
 }

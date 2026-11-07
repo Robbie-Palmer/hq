@@ -284,7 +284,7 @@ jobs:
     if: needs.detect.result == 'success'
     runs-on: ubuntu-latest
     outputs:
-      project_preview_link_lines: ${{ steps.preview-links.outputs.markdown_lines }}
+      project_preview_links: ${{ steps.preview-links.outputs.links }}
     environment:
       name: preview-site-ui
     permissions:
@@ -314,8 +314,6 @@ jobs:
       - name: Resolve project preview links
         id: preview-links
         run: mise run //:preview:links
-        env:
-          PREVIEW_SITE_URL: https://pr-${{ github.event.pull_request.number }}.${{ vars.CLOUDFLARE_PAGES_HOST }}
 
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -363,7 +361,7 @@ jobs:
           PREVIEW_SITE_URL: https://pr-${{ github.event.pull_request.number }}.${{ vars.CLOUDFLARE_PAGES_HOST }}
           PREVIEW_WORKER_NAME: recipe-api-pr-${{ github.event.pull_request.number }}
           PREVIEW_BRANCH: preview-pr-${{ github.event.pull_request.number }}
-          PROJECT_PREVIEW_LINK_LINES: ${{ needs.frontend.outputs.project_preview_link_lines }}
+          PROJECT_PREVIEW_LINKS: ${{ needs.frontend.outputs.project_preview_links }}
           BACKEND_REQUESTED: ${{ needs.detect.outputs.backend }}
           BACKEND_RESULT: ${{ needs.backend.result }}
         with:
@@ -372,7 +370,7 @@ jobs:
             const endMarker = '<!-- preview-environment:end -->';
             const requested = process.env.BACKEND_REQUESTED === 'true';
             const ok = process.env.BACKEND_RESULT === 'success';
-            const projectLinkLines = JSON.parse(process.env.PROJECT_PREVIEW_LINK_LINES);
+            const projectLinks = JSON.parse(process.env.PROJECT_PREVIEW_LINKS);
 
             let backendLines;
             if (requested && ok) {
@@ -398,7 +396,9 @@ jobs:
               '### Preview environment',
               '',
               `**Personal site:** ${process.env.PREVIEW_SITE_URL}`,
-              ...projectLinkLines,
+              ...projectLinks.map(({ name, path }) =>
+                `**${name}:** ${process.env.PREVIEW_SITE_URL}${path}`,
+              ),
               ...backendLines,
               endMarker,
             ].join('\n');
