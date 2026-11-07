@@ -7,15 +7,22 @@ import { AccountHistoryImportDrawer } from "./account-history-import-drawer";
 import { AccountsTable } from "./accounts-table";
 import { AddAccountDrawer } from "./add-account-drawer";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { LogBalanceDrawer } from "./log-balance-drawer";
 import { RecordTransferDrawer } from "./record-transfer-drawer";
 
 const ACCOUNTS_PATH = "/assettracker/accounts";
+const select = selectAssetTrackerFields(
+  "accountDetails",
+  "household",
+  "householdAccounts",
+);
 
 export function AccountsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountDetails, household, householdAccounts } = useAssetTracker();
+  const { accountDetails, household, householdAccounts } =
+    useAssetTracker(select);
   const ownerLabels = Object.fromEntries(
     householdAccounts.map((account) => [
       account.id,
@@ -27,7 +34,6 @@ export function AccountsRoute() {
     accountDetails.find((account) => account.id === requestedAccountId) ?? null;
   const requestedUnknownAccount =
     requestedAccountId !== null && selectedAccount === null;
-
   function closeAccountDetail() {
     router.replace(ACCOUNTS_PATH, { scroll: false });
   }

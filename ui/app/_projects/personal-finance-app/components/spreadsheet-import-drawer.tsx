@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import {
   createSpreadsheetImportTrace,
   createSubmitSpreadsheetImportActor,
@@ -229,13 +230,20 @@ function SpreadsheetReview({
   );
 }
 
+const selectSpreadsheetImportDrawer = selectAssetTrackerFields(
+  "household",
+  "householdAccounts",
+  "importAccountHistory",
+  "importIncomeHistory",
+);
+
 export function SpreadsheetImportDrawer() {
   const {
     household,
     householdAccounts,
     importAccountHistory,
     importIncomeHistory,
-  } = useAssetTracker();
+  } = useAssetTracker(selectSpreadsheetImportDrawer);
   const [kind, setKind] = useState<SpreadsheetImportKind>("balances");
   const [accountId, setAccountId] = useState(householdAccounts[0]?.id ?? "");
   const initialOwnership = householdAccounts[0]?.ownership;

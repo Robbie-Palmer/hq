@@ -17,6 +17,13 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectIncomeHistoryImportDrawer = selectAssetTrackerFields(
+  "incomeHistory",
+  "importIncomeHistory",
+  "clearIncomeHistory",
+);
 
 function parseIncomeSource(source: string) {
   return source.trim() === ""
@@ -26,7 +33,7 @@ function parseIncomeSource(source: string) {
 
 export function IncomeHistoryImportDrawer() {
   const { incomeHistory, importIncomeHistory, clearIncomeHistory } =
-    useAssetTracker();
+    useAssetTracker(selectIncomeHistoryImportDrawer);
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState("");
   const [error, setError] = useState<string | null>(null);

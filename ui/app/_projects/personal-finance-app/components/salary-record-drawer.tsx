@@ -950,8 +950,13 @@ function SalaryFormFields({
 export function SalaryRecordDrawer({
   record,
 }: Readonly<{ record?: SalaryHistoryRecord }>) {
-  const { currentSalaryHistory, household, saveSalaryRecord } =
-    useAssetTracker();
+  const { currentSalaryHistory, household, saveSalaryRecord } = useAssetTracker(
+    ({ currentSalaryHistory, household, saveSalaryRecord }) => ({
+      currentSalaryHistory,
+      household,
+      saveSalaryRecord,
+    }),
+  );
   const employmentOptions = Array.from(
     new Map(
       [...(currentSalaryHistory ?? [])]

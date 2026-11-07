@@ -28,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 const EXTERNAL = "external";
 
@@ -200,6 +201,15 @@ function AccountFlowRow({
   );
 }
 
+const selectAccountFlows = selectAssetTrackerFields(
+  "accounts",
+  "recurringFlows",
+  "transfers",
+  "addRecurringFlow",
+  "deleteRecurringFlow",
+  "materializeFlow",
+);
+
 export function AccountFlows({ account }: Readonly<AccountFlowsProps>) {
   const {
     accounts,
@@ -208,7 +218,7 @@ export function AccountFlows({ account }: Readonly<AccountFlowsProps>) {
     addRecurringFlow,
     deleteRecurringFlow,
     materializeFlow,
-  } = useAssetTracker();
+  } = useAssetTracker(selectAccountFlows);
   const accountFlows = recurringFlows.filter(
     (flow) =>
       flow.fromAccountId === account.id || flow.toAccountId === account.id,

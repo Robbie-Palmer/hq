@@ -186,7 +186,27 @@ function AssumptionSetSummary({
 }
 
 function useForecastAssumptionManager() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      accounts,
+      addForecastAssumption,
+      createForecastAssumptionSet,
+      deleteForecastAssumption,
+      forecastAssumptionSets,
+      household,
+      taxEstimate,
+      versionForecastAssumptionSet,
+    }) => ({
+      accounts,
+      addForecastAssumption,
+      createForecastAssumptionSet,
+      deleteForecastAssumption,
+      forecastAssumptionSets,
+      household,
+      taxEstimate,
+      versionForecastAssumptionSet,
+    }),
+  );
   const eligibleAccounts = useMemo(
     () =>
       tracker.accounts.filter(

@@ -1386,6 +1386,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.16(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@reduxjs/toolkit':
+        specifier: ^2.10.1
+        version: 2.12.0(react-redux@9.3.0(@types/react@19.3.0)(react@19.3.0)(redux@5.0.1))(react@19.3.0)
       '@revealjs/react':
         specifier: 0.2.2
         version: 0.2.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)(reveal.js@6.0.2)
@@ -1509,6 +1512,9 @@ importers:
       react-leaflet:
         specifier: ^5.0.0
         version: 5.0.0(leaflet@1.9.4)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      react-redux:
+        specifier: ^9.2.0
+        version: 9.3.0(@types/react@19.3.0)(react@19.3.0)(redux@5.0.1)
       react-responsive:
         specifier: ^10.0.1
         version: 10.0.1(react@19.3.0)

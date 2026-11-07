@@ -15,12 +15,18 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 const UPCOMING_DAYS = 30;
 const MAX_ROWS = 12;
+const select = selectAssetTrackerFields(
+  "accounts",
+  "accountDetails",
+  "recurringFlows",
+);
 
 export function UpcomingFlows() {
-  const { accounts, accountDetails, recurringFlows } = useAssetTracker();
+  const { accounts, accountDetails, recurringFlows } = useAssetTracker(select);
 
   const occurrences = useMemo(() => {
     const from = todayIsoDate();

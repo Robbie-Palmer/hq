@@ -172,7 +172,23 @@ function useMortgageCalculatorState() {
     mortgageScenarios = [],
     recurringFlows = [],
     saveMortgageScenario,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      accountDetails,
+      baseCurrency,
+      housingPlanningPosition,
+      mortgageScenarios,
+      recurringFlows,
+      saveMortgageScenario,
+    }) => ({
+      accountDetails,
+      baseCurrency,
+      housingPlanningPosition,
+      mortgageScenarios,
+      recurringFlows,
+      saveMortgageScenario,
+    }),
+  );
   const mortgageAccount = accountDetails.find(
     (account) =>
       account.assetType === "mortgage" &&

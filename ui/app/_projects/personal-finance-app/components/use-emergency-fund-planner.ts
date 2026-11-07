@@ -65,7 +65,25 @@ function commaSeparatedText(value: string): string[] {
 }
 
 export function useEmergencyFundPlanner() {
-  const context = useAssetTracker();
+  const context = useAssetTracker(
+    ({
+      accountDetails,
+      analyseEmergencyFundDraft,
+      emergencyFundFacts,
+      emergencyFundPlans,
+      baseCurrency,
+      household,
+      saveEmergencyFundPlan,
+    }) => ({
+      accountDetails,
+      analyseEmergencyFundDraft,
+      emergencyFundFacts,
+      emergencyFundPlans,
+      baseCurrency,
+      household,
+      saveEmergencyFundPlan,
+    }),
+  );
   const plans = context.emergencyFundPlans ?? [];
   const activePlan = plans.find(({ status }) => status === "active");
   const fallback = useMemo(
