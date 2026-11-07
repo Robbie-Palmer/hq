@@ -1,5 +1,6 @@
 "use client";
 
+import { useMachine } from "@xstate/react";
 import { FileSpreadsheetIcon } from "lucide-react";
 import { type ChangeEvent, type SubmitEvent, useMemo, useState } from "react";
 import {
@@ -11,7 +12,6 @@ import {
   type Ownership,
   ownershipLabel,
   type PastedHistoryResult,
-  parsePastedHistory,
   personalOwnership,
   toCapitalFlowRows,
 } from "@/app/_projects/personal-finance-app/domain";
@@ -27,13 +27,18 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import {
+  createSpreadsheetImportTrace,
+  createSubmitSpreadsheetImportActor,
+  type SpreadsheetImportEvent,
+  type SpreadsheetImportRequest,
+  type SpreadsheetImportTraceEntry,
+  spreadsheetImportMachine,
+} from "./spreadsheet-import-machine";
 
 type SpreadsheetImportKind = "balances" | "capitalFlows" | "income";
 
 const EMPTY_RESULT: PastedHistoryResult = { rows: [], issues: [] };
-const MAX_SPREADSHEET_FILE_BYTES = 1_000_000;
-const FILE_NAME_PATTERN = /\.(csv|tsv)$/i;
-
 function ownerSelectionFor(
   ownership: Ownership | undefined,
   fallbackMemberId: string,
@@ -49,6 +54,110 @@ function ownershipForSelection(
   return selection === "shared"
     ? equalSharedOwnership(members)
     : personalOwnership(selection.slice(7));
+}
+
+function spreadsheetImportRequest(input: {
+  accountId: string;
+  capitalKind: CapitalFlowKind;
+  contributionFormat: ContributionHistoryFormat;
+  kind: SpreadsheetImportKind;
+  ownership: Ownership;
+  rows: PastedHistoryResult["rows"];
+}): SpreadsheetImportRequest {
+  if (input.kind === "income") {
+    return {
+      kind: input.kind,
+      ownership: input.ownership,
+      rows: input.rows,
+    };
+  }
+  if (input.kind === "balances") {
+    return {
+      kind: input.kind,
+      accountId: input.accountId,
+      ownership: input.ownership,
+      rows: input.rows,
+    };
+  }
+  return {
+    kind: input.kind,
+    accountId: input.accountId,
+    capitalKind: input.capitalKind,
+    contributionFormat: input.contributionFormat,
+    ownership: input.ownership,
+    rows: input.rows,
+  };
+}
+
+function reportSpreadsheetImportTrace(entry: SpreadsheetImportTraceEntry) {
+  if (process.env.NODE_ENV !== "development") return;
+  if (entry.kind === "transition") {
+    console.debug(
+      `[SpreadsheetImport] ${entry.event} -> ${entry.state ?? "unknown"}`,
+    );
+  }
+}
+
+function drawerVisibilityEvent(open: boolean): { type: "OPEN" | "CLOSE" } {
+  return { type: open ? "OPEN" : "CLOSE" };
+}
+
+async function runSpreadsheetImport(
+  request: SpreadsheetImportRequest,
+  importAccountHistory: ReturnType<
+    typeof useAssetTracker
+  >["importAccountHistory"],
+  importIncomeHistory: ReturnType<
+    typeof useAssetTracker
+  >["importIncomeHistory"],
+) {
+  if (request.kind === "income") {
+    await importIncomeHistory({
+      income: request.rows.map(({ date, value }) => ({ date, amount: value })),
+      ownership: request.ownership,
+    });
+    return;
+  }
+
+  if (request.kind === "balances") {
+    await importAccountHistory({
+      accountId: request.accountId,
+      balances: request.rows,
+      capitalFlows: [],
+      capitalFlowKind: "personalSaving",
+      replaceCapitalFlows: false,
+      ownership: request.ownership,
+    });
+    return;
+  }
+
+  await importAccountHistory({
+    accountId: request.accountId,
+    balances: [],
+    capitalFlows: toCapitalFlowRows(request.rows, request.contributionFormat),
+    capitalFlowKind: request.capitalKind,
+    replaceCapitalFlows: request.contributionFormat === "cumulative",
+    ownership: request.ownership,
+  });
+}
+
+function chooseSpreadsheetFile(
+  event: ChangeEvent<HTMLInputElement>,
+  send: (event: SpreadsheetImportEvent) => void,
+) {
+  const file = event.target.files?.[0];
+  event.target.value = "";
+  if (file) send({ type: "FILE.CHOSEN", file });
+}
+
+function spreadsheetImportButtonLabel(rowCount: number) {
+  return rowCount > 0 ? `Import ${rowCount} rows` : "Import reviewed rows";
+}
+
+function incomeReplacementCopy(kind: SpreadsheetImportKind, rowCount: number) {
+  return kind === "income" && rowCount > 0
+    ? " Confirming replaces the current household income history."
+    : "";
 }
 
 function SpreadsheetReview({
@@ -127,7 +236,6 @@ export function SpreadsheetImportDrawer() {
     importAccountHistory,
     importIncomeHistory,
   } = useAssetTracker();
-  const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<SpreadsheetImportKind>("balances");
   const [accountId, setAccountId] = useState(householdAccounts[0]?.id ?? "");
   const initialOwnership = householdAccounts[0]?.ownership;
@@ -138,105 +246,65 @@ export function SpreadsheetImportDrawer() {
     useState<ContributionHistoryFormat>("cumulative");
   const [capitalKind, setCapitalKind] =
     useState<CapitalFlowKind>("personalSaving");
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [source, setSource] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-  const result = useMemo(
-    () => (source === "" ? EMPTY_RESULT : parsePastedHistory(source)),
-    [source],
-  );
   const needsAccount = kind !== "income";
   const selectedOwnership = ownershipForSelection(
     ownerSelection,
     household.members,
   );
+  const machine = useMemo(
+    () =>
+      spreadsheetImportMachine.provide({
+        actors: {
+          submitSpreadsheetImport: createSubmitSpreadsheetImportActor(
+            (request) =>
+              runSpreadsheetImport(
+                request,
+                importAccountHistory,
+                importIncomeHistory,
+              ),
+            formatAssetTrackerError,
+          ),
+        },
+      }),
+    [importAccountHistory, importIncomeHistory],
+  );
+  const trace = useMemo(
+    () => createSpreadsheetImportTrace(reportSpreadsheetImportTrace),
+    [],
+  );
+  const [snapshot, send] = useMachine(machine, { inspect: trace.inspect });
+  const open = snapshot.matches("open");
+  const fileName = snapshot.context.review?.fileName ?? null;
+  const result = snapshot.context.review?.result ?? EMPTY_RESULT;
+  const error = snapshot.context.error;
+  const submitting = snapshot.matches({ open: "submitting" });
   const canImport =
     result.rows.length > 0 &&
     result.issues.length === 0 &&
     (!needsAccount || accountId !== "");
 
-  function clearFile() {
-    setFileName(null);
-    setSource("");
-  }
-
-  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
-
-    setError(null);
-    clearFile();
-    if (!FILE_NAME_PATTERN.test(file.name)) {
-      setError("Choose a CSV or TSV file exported from your spreadsheet.");
-      return;
-    }
-    if (file.size > MAX_SPREADSHEET_FILE_BYTES) {
-      setError("Choose a file smaller than 1 MB.");
-      return;
-    }
-
-    try {
-      const contents = await file.text();
-      setFileName(file.name);
-      setSource(contents);
-    } catch {
-      setError("Asset Tracker could not read that file.");
-    }
-  }
-
-  async function importRows() {
-    if (kind === "income") {
-      await importIncomeHistory({
-        income: result.rows.map(({ date, value }) => ({ date, amount: value })),
-        ownership: selectedOwnership,
-      });
-      return;
-    }
-
-    if (accountId === "") throw new Error("Choose an account");
-    if (kind === "balances") {
-      await importAccountHistory({
-        accountId,
-        balances: result.rows,
-        capitalFlows: [],
-        capitalFlowKind: "personalSaving",
-        replaceCapitalFlows: false,
-        ownership: selectedOwnership,
-      });
-      return;
-    }
-
-    await importAccountHistory({
-      accountId,
-      balances: [],
-      capitalFlows: toCapitalFlowRows(result.rows, contributionFormat),
-      capitalFlowKind: capitalKind,
-      replaceCapitalFlows: contributionFormat === "cumulative",
-      ownership: selectedOwnership,
-    });
-  }
-
-  async function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!canImport) return;
 
-    setSubmitting(true);
-    setError(null);
-    try {
-      await importRows();
-      clearFile();
-      setOpen(false);
-    } catch (err) {
-      setError(formatAssetTrackerError(err));
-    } finally {
-      setSubmitting(false);
-    }
+    const request = spreadsheetImportRequest({
+      accountId,
+      capitalKind,
+      contributionFormat,
+      kind,
+      ownership: selectedOwnership,
+      rows: result.rows,
+    });
+    send({ type: "SUBMIT.REQUESTED", request });
+  }
+
+  function handleOpenChange(nextOpen: boolean) {
+    if (submitting && !nextOpen) return;
+    send(drawerVisibilityEvent(nextOpen));
   }
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
+    <Drawer open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger asChild>
         <Button variant="outline">
           <FileSpreadsheetIcon />
@@ -276,7 +344,8 @@ export function SpreadsheetImportDrawer() {
                 id="spreadsheet-import-file"
                 type="file"
                 accept=".csv,.tsv,text/csv,text/tab-separated-values"
-                onChange={handleFileChange}
+                disabled={submitting}
+                onChange={(event) => chooseSpreadsheetFile(event, send)}
               />
               {fileName && (
                 <p className="text-xs text-muted-foreground">
@@ -434,19 +503,14 @@ export function SpreadsheetImportDrawer() {
             {error && <p className="text-sm text-destructive">{error}</p>}
             <p className="text-xs text-muted-foreground">
               Nothing changes until you confirm this review.
-              {kind === "income" && result.rows.length > 0
-                ? " Confirming replaces the current household income history."
-                : ""}
+              {incomeReplacementCopy(kind, result.rows.length)}
             </p>
             <div className="flex gap-2">
               <Button type="submit" disabled={submitting || !canImport}>
-                Import{" "}
-                {result.rows.length > 0
-                  ? `${result.rows.length} rows`
-                  : "reviewed rows"}
+                {spreadsheetImportButtonLabel(result.rows.length)}
               </Button>
               <DrawerClose asChild>
-                <Button type="button" variant="outline">
+                <Button type="button" variant="outline" disabled={submitting}>
                   Cancel
                 </Button>
               </DrawerClose>
