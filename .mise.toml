@@ -651,6 +651,7 @@ depends = [
     "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
+    "//packages/cedar-authorization:test:coverage",
     "//packages/data-artifacts:test:coverage",
     "//packages/drizzle-postgres:test:coverage",
     "//packages/finance-housing-indices:test:coverage",
@@ -692,6 +693,7 @@ depends = [
     "//workers/recipe-ingest:test:coverage",
     "//workers/finance-tax-monitor:test:coverage",
     "//workers/personal-finance-api:test:coverage",
+    "//workers/wedding-planner-api:test:coverage",
     "//workers/work-graph-api:test:coverage",
     "//workers/work-graph-observer:test:coverage",
 ]
