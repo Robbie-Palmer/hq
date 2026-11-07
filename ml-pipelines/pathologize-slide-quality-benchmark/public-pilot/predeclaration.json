@@ -2,6 +2,15 @@
   "schema_version": "1.0.0",
   "experiment_id": "airaqc-tcga-deterministic-public-pilot-v1",
   "declared_at": "2026-11-07T08:36:26Z",
+  "protocol_amendments": [
+    {
+      "amended_at": "2026-11-07T12:15:02Z",
+      "stage": "after_scanner_identity_audit_before_feature_extraction",
+      "prior_rule": "stop when any fixed-cohort slide lacks a stable native scanner device ID",
+      "amended_rule": "retain every slide in the primary evaluation and exclude only missing-device-ID slides from scanner-held-out slices",
+      "reason": "Missing scanner metadata limits scanner-stratified analysis but does not invalidate source integrity, slide labels, or deterministic feature extraction."
+    }
+  ],
   "cohort": {
     "source_partition": "Moutselos and Maglogiannis reproducibility deposit v1.0.1 fixed test_slides",
     "expected_slides": 24,
@@ -67,7 +76,8 @@
     "scanner_slice_minimum_n": 4,
     "scanner_slice_requires_both_classes": true,
     "maximum_scanner_accuracy_drop": 0.15,
-    "stop_on_missing_stable_scanner_id": true,
+    "stop_on_missing_stable_scanner_id": false,
+    "missing_scanner_id_handling": "include in the primary evaluation; exclude from scanner-held-out slices; report the omission",
     "stop_on_missing_clean_negatives": true,
     "stop_on_tissue_content_confounding": true,
     "stop_on_rights_failure": true,

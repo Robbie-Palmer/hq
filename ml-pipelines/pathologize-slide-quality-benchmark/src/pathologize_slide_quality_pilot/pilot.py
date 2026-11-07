@@ -136,17 +136,6 @@ def _output_bytes() -> int:
     return sum((OUTPUT_ROOT / name.value).stat().st_size for name in names)
 
 
-def _verify_corpus_assets(corpus: Corpus, source_root: Path) -> int:
-    verified_bytes = 0
-    for slide in corpus.slides:
-        for asset in (slide.source, slide.annotation):
-            path = source_root / asset.relative_path
-            if path.stat().st_size != asset.bytes or _sha256(path) != asset.sha256:
-                raise ValueError(f"source asset differs from corpus manifest: {path}")
-            verified_bytes += asset.bytes
-    return verified_bytes
-
-
 def _typed_annotation(
     annotation: np.ndarray, palette: dict[str, list[int]], maximum_distance: float
 ) -> tuple[np.ndarray, dict[str, int]]:
@@ -394,7 +383,8 @@ def _scanner_slices(
 ) -> list[dict[str, Any]]:
     stopping = declaration["stopping_rules"]
     slices: list[dict[str, Any]] = []
-    for scanner_id in sorted({row["scanner_id"] for row in rows}):
+    scanner_ids = sorted({row["scanner_id"] for row in rows if row["scanner_id"] is not None})
+    for scanner_id in scanner_ids:
         selected = [row for row in rows if row["scanner_id"] == scanner_id]
         metrics = _classification_metrics(selected)
         positives = sum(row["truth_reject"] for row in selected)
@@ -417,161 +407,28 @@ def _scanner_slices(
     return slices
 
 
-def _write_scanner_identity_stop(
-    corpus: Corpus,
-    declaration: dict[str, Any],
-    started_wall: float,
-    started_cpu: float,
-    started_io: dict[str, int],
-    verified_bytes: int,
-) -> None:
+def _scanner_identity_audit(corpus: Corpus) -> dict[str, Any]:
     missing = [slide for slide in corpus.slides if slide.scanner_id is None]
-    per_slide = [
-        {
-            "slide_id": slide.slide_id,
-            "patient_id": slide.patient_id,
-            "scanner_id": slide.scanner_id,
-            "scanner_model": slide.scanner_model,
-            "truth_reject": slide.truth_reject,
-            "annotation_counts": slide.annotation_counts,
-            "evaluation_status": "not_run_scanner_identity_preflight_stop",
-        }
-        for slide in corpus.slides
-    ]
-    metrics = {
-        "status": "not_run_scanner_identity_preflight_stop",
-        "slides": len(corpus.slides),
-        "evaluated_slides": 0,
-        "accuracy": None,
-        "sensitivity": None,
-        "specificity": None,
-        "balanced_accuracy": None,
-    }
-    _write_jsonl(ResultFile.FEATURES, [])
-    _write_jsonl(ResultFile.PER_SLIDE, per_slide)
-    _write_jsonl(ResultFile.SPATIAL, [])
-    _write_json(ResultFile.FAILURES, {"failures": []})
-    _write_json(ResultFile.METRICS, metrics)
-
-    ended_io = _process_io()
-    wall_seconds = time.perf_counter() - started_wall
-    cpu_seconds = time.process_time() - started_cpu
-    input_bytes = sum(slide.source.bytes + slide.annotation.bytes for slide in corpus.slides)
-    output_bytes = _output_bytes()
-    largest_asset_bytes = max(
-        max(slide.source.bytes, slide.annotation.bytes) for slide in corpus.slides
-    )
-    peak_disk_upper_bound = input_bytes * 2 + largest_asset_bytes + output_bytes
-    caps = declaration["resource_caps"]
-    stop_reasons = [f"stable native scanner ID is absent for {len(missing)} fixed-cohort slide(s)"]
-    if wall_seconds > caps["wall_seconds"]:
-        stop_reasons.append("wall-time cap exceeded")
-    if cpu_seconds > caps["cpu_seconds"]:
-        stop_reasons.append("CPU-time cap exceeded")
-    if input_bytes > caps["network_download_bytes"]:
-        stop_reasons.append("declared download cap exceeded")
-    if peak_disk_upper_bound > caps["peak_local_disk_bytes"]:
-        stop_reasons.append("declared peak local disk cap exceeded")
-    resources = {
-        "schema_version": "1.0.0",
-        "wall_seconds": wall_seconds,
-        "cpu_seconds": cpu_seconds,
-        "gpu_seconds": 0,
-        "peak_vram_bytes": 0,
-        "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024,
-        "source_bytes_manifested": input_bytes,
-        "source_bytes_verified_in_preflight": verified_bytes,
-        "acquisition_network_bytes": input_bytes,
-        "result_bytes_before_report": output_bytes,
-        "peak_local_disk_bytes_upper_bound": peak_disk_upper_bound,
-        "peak_local_disk_method": (
-            "Conservative logical upper bound: materialized inputs plus a complete DVC cache, "
-            "one largest-asset temporary copy, and result bytes."
-        ),
-        "pixels_read": 0,
-        "process_read_bytes": ended_io.get("read_bytes", 0) - started_io.get("read_bytes", 0),
-        "process_rchar": ended_io.get("rchar", 0) - started_io.get("rchar", 0),
-        "spatial_records": 0,
-    }
-    _write_json(ResultFile.RESOURCES, resources)
-    positive_slides = sum(slide.truth_reject for slide in corpus.slides)
     known_groups = Counter(
         slide.scanner_id for slide in corpus.slides if slide.scanner_id is not None
     )
-    report = {
-        "schema_version": "1.0.0",
-        "experiment_id": declaration["experiment_id"],
-        "corpus_id": corpus.corpus_id,
-        "decision": "stop",
-        "stop_stage": "scanner_identity_preflight",
-        "stop_reasons": stop_reasons,
-        "clinical_validity_claimed": False,
-        "candidate": {
-            **declaration["candidate"],
-            "evaluation_status": "not_run_due_to_predeclared_stop_gate",
-        },
-        "calibration": {
-            "applicable": False,
-            "reason": "No candidate score or probability was evaluated after the preflight stop.",
-        },
-        "metrics": metrics,
-        "constant_baselines": {
-            "status": "descriptive_only_not_tested_against_candidate",
-            "constant_accept_accuracy": (len(corpus.slides) - positive_slides) / len(corpus.slides),
-            "constant_reject_accuracy": positive_slides / len(corpus.slides),
-        },
-        "scanner_identity_audit": {
-            "known_native_groups": dict(sorted(known_groups.items())),
-            "missing": [
-                {
-                    "slide_id": slide.slide_id,
-                    "patient_id": slide.patient_id,
-                    "scanner_model": slide.scanner_model,
-                }
-                for slide in missing
-            ],
-        },
-        "scanner_held_out_slices": [],
-        "spatial_evidence_status": "not_produced_due_to_predeclared_preflight_stop",
-        "label_audit": {
-            "positive_slides": positive_slides,
-            "clean_negative_slides": len(corpus.slides) - positive_slides,
-            "tissue_gate_used_for_slide_label": False,
-            "content_conflation_gate": {
-                "passed": True,
-                "basis": (
-                    "Truth is any released artifact-palette pixel before tissue filtering; "
-                    "no feature aggregation was run."
-                ),
-            },
-            "annotation_pixels_by_type": {
-                name: sum(slide.annotation_counts[name] for slide in corpus.slides)
-                for name in declaration["labels"]["classes"]
-            },
-        },
-        "exclusions": corpus.exclusions,
-        "failed_acquisitions": corpus.failed_acquisitions,
-        "run_failures": [],
-        "rights_boundary": declaration["rights_boundary"],
-        "provenance": {
-            **corpus.provenance,
-            "registry_base_revision": corpus.registry_base_revision,
-            "registry_subset_id": corpus.registry_subset_id,
-            "registry_index_sha256": corpus.registry_index_sha256,
-            "registry_collection_manifest_sha256": (corpus.registry_collection_manifest_sha256),
-            "registry_subset_manifest_sha256": corpus.registry_subset_manifest_sha256,
-            "registry_asset_manifest_sha256": corpus.registry_asset_manifest_sha256,
-            "source_index_sha256": corpus.source_index_sha256,
-            "corpus_manifest_sha256": _sha256(CORPUS_PATH),
-            "predeclaration_sha256": _sha256(PREDECLARATION_PATH),
-        },
-        "resources": resources,
+    return {
+        "known_native_groups": dict(sorted(known_groups.items())),
+        "stable_identity_slides": len(corpus.slides) - len(missing),
+        "missing_identity_slides": len(missing),
+        "missing": [
+            {
+                "slide_id": slide.slide_id,
+                "patient_id": slide.patient_id,
+                "scanner_model": slide.scanner_model,
+            }
+            for slide in missing
+        ],
+        "handling": (
+            "All slides remain in the primary evaluation; slides without a stable native "
+            "device ID are omitted only from scanner-held-out slices."
+        ),
     }
-    _write_json(ResultFile.REPORT, report)
-    print(
-        f"Public pilot stopped at scanner identity preflight: "
-        f"missing={len(missing)}, slides={len(corpus.slides)}."
-    )
 
 
 def _extract_corpus(
@@ -672,23 +529,8 @@ def run() -> None:
     if len(corpus.slides) != declaration["cohort"]["expected_slides"]:
         raise ValueError("corpus size differs from the predeclaration")
     source_root = (PROJECT_ROOT / corpus.source_root).resolve()
-    if any(slide.scanner_id is None for slide in corpus.slides):
-        verified_bytes = _verify_corpus_assets(corpus, source_root)
-        _write_scanner_identity_stop(
-            corpus,
-            declaration,
-            started_wall,
-            started_cpu,
-            started_io,
-            verified_bytes,
-        )
-        return
-    features, per_slide, spatial, pixels_read = _extract_corpus(
-        corpus, source_root, declaration
-    )
-    metrics, comparisons, scanner_slices, stop_reasons = _evaluate_candidate(
-        per_slide, declaration
-    )
+    features, per_slide, spatial, pixels_read = _extract_corpus(corpus, source_root, declaration)
+    metrics, comparisons, scanner_slices, stop_reasons = _evaluate_candidate(per_slide, declaration)
 
     _write_jsonl(ResultFile.FEATURES, features)
     _write_jsonl(ResultFile.PER_SLIDE, per_slide)
@@ -742,13 +584,22 @@ def run() -> None:
         "decision": "stop" if stop_reasons else "continue",
         "stop_reasons": sorted(set(stop_reasons)),
         "clinical_validity_claimed": False,
+        "protocol_amendments": declaration.get("protocol_amendments", []),
         "candidate": declaration["candidate"],
+        "learned_candidate_decision": {
+            "evaluated": False,
+            "reason": (
+                "The 24-slide cohort is too small for leakage-safe grouped fitting, "
+                "calibration, and scanner-held-out evaluation of a learned candidate."
+            ),
+        },
         "calibration": {
             "applicable": False,
             "reason": "The deterministic quality risk is a threshold ratio, not a probability.",
         },
         "metrics": metrics,
         "constant_baselines": comparisons,
+        "scanner_identity_audit": _scanner_identity_audit(corpus),
         "scanner_held_out_slices": scanner_slices,
         "label_audit": {
             "positive_slides": sum(row["truth_reject"] for row in per_slide),

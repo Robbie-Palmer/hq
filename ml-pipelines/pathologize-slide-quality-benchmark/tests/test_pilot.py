@@ -62,6 +62,7 @@ def _declaration(expected_slides: int = 2) -> dict[str, Any]:
             "minimum_scanner_groups": 2,
             "scanner_slice_minimum_n": 4,
             "maximum_scanner_accuracy_drop": 0.15,
+            "stop_on_missing_stable_scanner_id": False,
         },
         "rights_boundary": {"allowed_public_artifacts": ["numeric evidence"]},
     }
@@ -115,10 +116,11 @@ def test_metrics_mcnemar_and_scanner_slices() -> None:
         {"scanner_id": "a", "truth_reject": False, "prediction_reject": False},
         {"scanner_id": "b", "truth_reject": True, "prediction_reject": False},
         {"scanner_id": "b", "truth_reject": False, "prediction_reject": False},
+        {"scanner_id": None, "truth_reject": True, "prediction_reject": True},
     ]
 
     metrics = pilot._classification_metrics(rows)
-    assert metrics["accuracy"] == 0.75
+    assert metrics["accuracy"] == 0.8
     assert pilot._mcnemar([True, True, True], [False, False, False])["one_sided_exact_p"] == 0.125
     slices = pilot._scanner_slices(rows, _declaration(4))
     assert [item["scanner_id"] for item in slices] == ["a", "b"]
@@ -248,9 +250,10 @@ def test_run_and_verify_write_a_stopped_negative_result(
     assert report["decision"] == "stop"
     assert len(report["stop_reasons"]) == 2
     assert report["metrics"]["accuracy"] == 1
+    assert report["learned_candidate_decision"]["evaluated"] is False
 
 
-def test_run_stops_before_features_when_scanner_identity_is_missing(
+def test_run_keeps_missing_scanner_identity_in_primary_evaluation(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     source = b"source"
@@ -293,12 +296,44 @@ def test_run_stops_before_features_when_scanner_identity_is_missing(
     monkeypatch.setattr(pilot, "OUTPUT_ROOT", output_root)
     monkeypatch.setattr(pilot, "PROJECT_ROOT", tmp_path)
 
+    evaluated: list[str] = []
+
+    def fake_extract(
+        slide: pilot.CorpusSlide, _root: Path, _declaration: dict[str, Any]
+    ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], int]:
+        evaluated.append(slide.slide_id)
+        features = {
+            "slide_id": slide.slide_id,
+            "patient_id": slide.patient_id,
+            "scanner_id": slide.scanner_id,
+            "eligible_tiles": 1,
+            "median_gradient": 0.1,
+            "blur_burden": float(slide.truth_reject),
+            "maximum_pen_fraction": 0.0,
+            "maximum_dark_fraction": 0.0,
+            "quality_risk_score": float(slide.truth_reject),
+        }
+        result = {
+            **features,
+            "truth_reject": slide.truth_reject,
+            "prediction_reject": slide.truth_reject,
+            "correct": True,
+            "reject_reasons": ["regional_blur"] if slide.truth_reject else [],
+            "annotation_counts": slide.annotation_counts,
+        }
+        return features, result, [{"slide_id": slide.slide_id}], 1
+
+    monkeypatch.setattr(pilot, "_extract_slide", fake_extract)
+
     pilot.run()
     pilot.verify()
 
     report = json.loads((output_root / "report.json").read_text(encoding="utf-8"))
+    assert evaluated == ["slide-1", "slide-2"]
     assert report["decision"] == "stop"
-    assert report["stop_stage"] == "scanner_identity_preflight"
-    assert report["metrics"]["evaluated_slides"] == 0
+    assert report["metrics"]["slides"] == 2
     assert report["scanner_identity_audit"]["missing"][0]["patient_id"] == "patient-1"
-    assert (output_root / "spatial-evidence.jsonl").read_text(encoding="utf-8") == ""
+    assert report["scanner_identity_audit"]["missing_identity_slides"] == 1
+    assert [item["scanner_id"] for item in report["scanner_held_out_slices"]] == ["scanner-2"]
+    assert all("scanner ID" not in reason for reason in report["stop_reasons"])
+    assert (output_root / "spatial-evidence.jsonl").read_text(encoding="utf-8")

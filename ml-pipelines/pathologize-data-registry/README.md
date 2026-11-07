@@ -23,8 +23,9 @@ reproducibility deposit. It keeps GDC file, case, and TCGA slide identities,
 plus stable domain-separated SHA-256 patient-group keys and native Aperio
 scanner serials where present. The pinned source index retains the public TCGA
 submitter-ID mapping. One Leica SCN400 slide has no native device identifier;
-the downstream pilot stops on that missing identity. Source SVS and annotation
-bytes must not be redistributed.
+the downstream pilot records that limitation, retains the slide in its primary
+evaluation, and excludes it only from scanner-held-out slices. Source SVS and
+annotation bytes must not be redistributed.
 
 The CPTAC-COAD series is a small pipeline fixture from NCI Imaging Data
 Commons. It is not a representative scientific cohort. CAMELYON16 and PANDA

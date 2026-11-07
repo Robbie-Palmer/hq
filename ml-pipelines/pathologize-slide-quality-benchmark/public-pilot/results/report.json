@@ -1,7 +1,7 @@
 {
   "calibration": {
     "applicable": false,
-    "reason": "No candidate score or probability was evaluated after the preflight stop."
+    "reason": "The deterministic quality risk is a threshold ratio, not a probability."
   },
   "candidate": {
     "blur": {
@@ -12,7 +12,6 @@
     "dark": {
       "minimum_tile_fraction": 0.12
     },
-    "evaluation_status": "not_run_due_to_predeclared_stop_gate",
     "kind": "deterministic_features",
     "learned_candidate": null,
     "minimum_tissue_fraction": 0.2,
@@ -24,9 +23,20 @@
   },
   "clinical_validity_claimed": false,
   "constant_baselines": {
-    "constant_accept_accuracy": 0.4166666666666667,
-    "constant_reject_accuracy": 0.5833333333333334,
-    "status": "descriptive_only_not_tested_against_candidate"
+    "constant_accept": {
+      "accuracy": 0.4166666666666667,
+      "baseline_only_correct": 8,
+      "candidate_only_correct": 10,
+      "discordant": 18,
+      "one_sided_exact_p": 0.40726470947265625
+    },
+    "constant_reject": {
+      "accuracy": 0.5833333333333334,
+      "baseline_only_correct": 4,
+      "candidate_only_correct": 2,
+      "discordant": 6,
+      "one_sided_exact_p": 1.0
+    }
   },
   "corpus_id": "airaqc-tcga-public-pilot-v1",
   "decision": "stop",
@@ -89,28 +99,43 @@
     },
     "clean_negative_slides": 10,
     "content_conflation_gate": {
-      "basis": "Truth is any released artifact-palette pixel before tissue filtering; no feature aggregation was run.",
+      "basis": "Truth is any released artifact-palette pixel before tissue filtering; tissue eligibility affects feature aggregation only.",
       "passed": true
     },
     "positive_slides": 14,
     "tissue_gate_used_for_slide_label": false
   },
-  "metrics": {
-    "accuracy": null,
-    "balanced_accuracy": null,
-    "evaluated_slides": 0,
-    "sensitivity": null,
-    "slides": 24,
-    "specificity": null,
-    "status": "not_run_scanner_identity_preflight_stop"
+  "learned_candidate_decision": {
+    "evaluated": false,
+    "reason": "The 24-slide cohort is too small for leakage-safe grouped fitting, calibration, and scanner-held-out evaluation of a learned candidate."
   },
+  "metrics": {
+    "accuracy": 0.5,
+    "balanced_accuracy": 0.4571428571428572,
+    "false_negative": 4,
+    "false_positive": 8,
+    "sensitivity": 0.7142857142857143,
+    "slides": 24,
+    "specificity": 0.2,
+    "true_negative": 2,
+    "true_positive": 10
+  },
+  "protocol_amendments": [
+    {
+      "amended_at": "2026-11-07T12:15:02Z",
+      "amended_rule": "retain every slide in the primary evaluation and exclude only missing-device-ID slides from scanner-held-out slices",
+      "prior_rule": "stop when any fixed-cohort slide lacks a stable native scanner device ID",
+      "reason": "Missing scanner metadata limits scanner-stratified analysis but does not invalidate source integrity, slide labels, or deterministic feature extraction.",
+      "stage": "after_scanner_identity_audit_before_feature_extraction"
+    }
+  ],
   "provenance": {
     "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
     "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
     "corpus_manifest_sha256": "5ed0b59f55b2a2390597a2b0c79e471dd1502c96960a06188312eaa773bea39f",
     "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
     "gdc_api": "https://api.gdc.cancer.gov/",
-    "predeclaration_sha256": "8071782851736aae337d3629c374e0bdb4d73546a01ebef734f249a88d9f709c",
+    "predeclaration_sha256": "a82ff866d84ecd62d6501771aa396f2fe34ab386c84f352de2a9561dad09eceb",
     "registry_asset_manifest_sha256": "507571b99950da7bfe73eecd4970fc40effde26db8391ae4c8650b8a84a4109e",
     "registry_base_revision": "5c4377dbbc01739bb28062ee6cfd7c217edc0cee",
     "registry_collection_manifest_sha256": "bbfb9e16126dccf9cc4cf13adfafa54a1475f368451bc4950dd4c96712268867",
@@ -146,21 +171,20 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 8.47741675,
+    "cpu_seconds": 96.64281334799999,
     "gpu_seconds": 0,
-    "peak_local_disk_bytes_upper_bound": 33707124493,
+    "peak_local_disk_bytes_upper_bound": 33708181738,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 58781696,
+    "peak_rss_bytes": 2618855424,
     "peak_vram_bytes": 0,
-    "pixels_read": 0,
-    "process_rchar": 15813776376,
-    "process_read_bytes": 339574784,
-    "result_bytes_before_report": 11987,
+    "pixels_read": 528941634,
+    "process_rchar": 16172980880,
+    "process_read_bytes": 0,
+    "result_bytes_before_report": 1069232,
     "schema_version": "1.0.0",
-    "source_bytes_manifested": 15813730059,
-    "source_bytes_verified_in_preflight": 15813730059,
-    "spatial_records": 0,
-    "wall_seconds": 8.573421641020104
+    "source_bytes_verified": 15813730059,
+    "spatial_records": 2251,
+    "wall_seconds": 96.85949646902736
   },
   "rights_boundary": {
     "allowed_public_artifacts": [
@@ -178,8 +202,154 @@
     "source_slides": "GDC open-access TCGA diagnostic slide images"
   },
   "run_failures": [],
-  "scanner_held_out_slices": [],
+  "scanner_held_out_slices": [
+    {
+      "accuracy": 0.6666666666666666,
+      "balanced_accuracy": 0.375,
+      "best_constant_accuracy": 0.8888888888888888,
+      "eligible_for_collapse_gate": true,
+      "false_negative": 2,
+      "false_positive": 1,
+      "negatives": 1,
+      "positives": 8,
+      "scanner_id": "SS1302",
+      "sensitivity": 0.75,
+      "slides": 9,
+      "specificity": 0.0,
+      "true_negative": 0,
+      "true_positive": 6
+    },
+    {
+      "accuracy": 0.0,
+      "balanced_accuracy": 0.5,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 1,
+      "false_positive": 0,
+      "negatives": 0,
+      "positives": 1,
+      "scanner_id": "SS1436CNTLR",
+      "sensitivity": 0.0,
+      "slides": 1,
+      "specificity": 1.0,
+      "true_negative": 0,
+      "true_positive": 0
+    },
+    {
+      "accuracy": 1.0,
+      "balanced_accuracy": 1.0,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 0,
+      "negatives": 0,
+      "positives": 1,
+      "scanner_id": "SS1511CNTLR",
+      "sensitivity": 1.0,
+      "slides": 1,
+      "specificity": 1.0,
+      "true_negative": 0,
+      "true_positive": 1
+    },
+    {
+      "accuracy": 1.0,
+      "balanced_accuracy": 1.0,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 0,
+      "negatives": 2,
+      "positives": 0,
+      "scanner_id": "SS1529",
+      "sensitivity": 1.0,
+      "slides": 2,
+      "specificity": 1.0,
+      "true_negative": 2,
+      "true_positive": 0
+    },
+    {
+      "accuracy": 0.0,
+      "balanced_accuracy": 0.5,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 2,
+      "negatives": 2,
+      "positives": 0,
+      "scanner_id": "SS1534CNTLR",
+      "sensitivity": 1.0,
+      "slides": 2,
+      "specificity": 0.0,
+      "true_negative": 0,
+      "true_positive": 0
+    },
+    {
+      "accuracy": 1.0,
+      "balanced_accuracy": 1.0,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 0,
+      "negatives": 0,
+      "positives": 1,
+      "scanner_id": "SS1546",
+      "sensitivity": 1.0,
+      "slides": 1,
+      "specificity": 1.0,
+      "true_negative": 0,
+      "true_positive": 1
+    },
+    {
+      "accuracy": 0.25,
+      "balanced_accuracy": 0.5,
+      "best_constant_accuracy": 0.75,
+      "eligible_for_collapse_gate": true,
+      "false_negative": 0,
+      "false_positive": 3,
+      "negatives": 3,
+      "positives": 1,
+      "scanner_id": "SS1763CNTLR",
+      "sensitivity": 1.0,
+      "slides": 4,
+      "specificity": 0.0,
+      "true_negative": 0,
+      "true_positive": 1
+    },
+    {
+      "accuracy": 0.0,
+      "balanced_accuracy": 0.5,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 2,
+      "negatives": 2,
+      "positives": 0,
+      "scanner_id": "SS1764CNTLR",
+      "sensitivity": 1.0,
+      "slides": 2,
+      "specificity": 0.0,
+      "true_negative": 0,
+      "true_positive": 0
+    },
+    {
+      "accuracy": 1.0,
+      "balanced_accuracy": 1.0,
+      "best_constant_accuracy": 1.0,
+      "eligible_for_collapse_gate": false,
+      "false_negative": 0,
+      "false_positive": 0,
+      "negatives": 0,
+      "positives": 1,
+      "scanner_id": "W1073404",
+      "sensitivity": 1.0,
+      "slides": 1,
+      "specificity": 1.0,
+      "true_negative": 0,
+      "true_positive": 1
+    }
+  ],
   "scanner_identity_audit": {
+    "handling": "All slides remain in the primary evaluation; slides without a stable native device ID are omitted only from scanner-held-out slices.",
     "known_native_groups": {
       "SS1302": 9,
       "SS1436CNTLR": 1,
@@ -197,12 +367,14 @@
         "scanner_model": "Leica SCN400",
         "slide_id": "airaqc-tcga:tcga-patient-sha256-a1e495798fb58349a5299d367601b29a0c8cbd90eb1e7b7f33064bae2caeb34c:6a7477b1-86f3-473f-9bf1-174a758142e9"
       }
-    ]
+    ],
+    "missing_identity_slides": 1,
+    "stable_identity_slides": 23
   },
   "schema_version": "1.0.0",
-  "spatial_evidence_status": "not_produced_due_to_predeclared_preflight_stop",
   "stop_reasons": [
-    "stable native scanner ID is absent for 1 fixed-cohort slide(s)"
-  ],
-  "stop_stage": "scanner_identity_preflight"
+    "deterministic candidate does not reject constant_accept",
+    "deterministic candidate does not reject constant_reject",
+    "scanner-held-out collapse on SS1763CNTLR"
+  ]
 }

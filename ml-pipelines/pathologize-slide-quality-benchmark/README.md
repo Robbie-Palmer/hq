@@ -29,23 +29,28 @@ tissue gate. That produces 14 defect-positive and 10 clean-negative slides.
 The later reproducibility deposit's 13/11 count depends on tissue eligibility,
 so it is not used as the slide truth here.
 
-The scanner-identity preflight stopped the experiment before feature
-evaluation. Twenty-three slides expose native Aperio `ScanScope ID` values.
-The remaining Leica SCN400 slide identifies its model but has no stable device
-identifier. The predeclaration required a stop in that case, so the benchmark
-did not compute candidate predictions, spatial features, probability
-calibration, scanner-held-out performance, or significance against either
-constant baseline. The label-only constant accept and constant reject
-accuracies are 0.417 and 0.583 respectively; they are descriptive and were not
-tested against a candidate.
+Twenty-three slides expose native Aperio `ScanScope ID` values. The remaining
+Leica SCN400 slide identifies its model but has no stable device identifier. A
+dated protocol amendment retains that slide in the primary evaluation and
+omits it only from scanner-held-out slices. The record preserves the original
+stop rule and the reason for changing it before feature extraction.
 
-The stopped run verified 15,813,730,059 source bytes in 8.57 wall seconds and
-8.48 CPU seconds. It used no GPU time or VRAM, peaked at 58,781,696 bytes of
-RSS, and conservatively bounded peak local disk at 33,707,124,493 bytes. The
-kernel reported 15,813,776,376 process characters and 339,574,784 physical
-read bytes. `public-pilot/results/report.json`
-contains the exact run record, exclusions, identity audit, rights boundary,
-resource record, and hashes for every provenance manifest.
+The deterministic candidate evaluated all 24 slides and stopped on substantive
+performance gates. Accuracy was 0.500 and balanced accuracy was 0.457. It did
+not beat constant accept (accuracy 0.417, one-sided exact McNemar p=0.407) or
+constant reject (accuracy 0.583, p=1.000). The eligible SS1763CNTLR slice fell
+to 0.250 accuracy versus 0.500 overall and a 0.750 within-slice constant. No
+learned candidate was run: 24 slides cannot support leakage-safe grouped
+fitting, calibration, and scanner-held-out evaluation.
+
+The run verified 15,813,730,059 source bytes, read 528,941,634 pixels, and wrote
+2,251 numeric spatial records in 96.86 wall seconds and 96.64 CPU seconds. It
+used no GPU time or VRAM, peaked at 2,618,855,424 bytes of RSS, and
+conservatively bounded peak local disk at 33,708,181,738 bytes. The kernel
+reported 16,172,980,880 process characters and zero physical read bytes.
+`public-pilot/results/report.json` contains the exact run record, exclusions,
+identity audit, rights boundary, resource record, and hashes for every
+provenance manifest.
 
 Source SVS files, annotation image files, and rendered patient imagery stay outside
 Git. The repository contains only source identifiers and checksums, numeric
