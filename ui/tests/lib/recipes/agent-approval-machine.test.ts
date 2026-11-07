@@ -375,7 +375,7 @@ describe("agentApprovalMachine graph", () => {
     expect([...reachedStateIds].sort()).toEqual(
       expect.arrayContaining(expectedStableStates),
     );
-    expect(shortestPaths.length).toBe(227);
+    expect(shortestPaths).toHaveLength(227);
   });
 
   it("keeps declared and traversed transitions within bounded paths", () => {
