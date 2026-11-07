@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -25,6 +26,7 @@ SUBSET_MANIFEST = Path("manifests/subsets/airaqc-tcga-public-pilot-v1.json")
 ASSET_MANIFEST = Path("manifests/assets/airaqc-tcga-public-pilot-v1.json")
 REGISTRY_INDEX = Path("registry.json")
 CORPUS_MANIFEST = Path("public-pilot/corpus.json")
+TCGA_PATIENT_ID = re.compile(r"^TCGA-[A-Z0-9]{2}-[A-Z0-9]{4}$")
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -40,6 +42,9 @@ def _write(root: Path, relative_path: Path, value: object) -> None:
     if not path.is_relative_to(resolved_root):
         raise ValueError(f"output must remain within {resolved_root}: {relative_path}")
     path.parent.mkdir(parents=True, exist_ok=True)
+    # This generator serializes only validated public TCGA submitter IDs and GDC UUIDs.
+    # They are de-identified research provenance, not private patient information.
+    # codeql[py/clear-text-storage-sensitive-data]
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -51,8 +56,23 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _canonical_uuid(value: str, field: str) -> str:
+    canonical = str(UUID(value))
+    if canonical != value:
+        raise ValueError(f"{field} is not a canonical UUID: {value}")
+    return canonical
+
+
+def _public_patient_id(value: str) -> str:
+    if TCGA_PATIENT_ID.fullmatch(value) is None:
+        raise ValueError(f"patient_id is not a public TCGA submitter ID: {value}")
+    return value
+
+
 def _slide_id(patient_id: str, source_id: str) -> str:
-    return f"airaqc-tcga:{patient_id.lower()}:{source_id.lower()}"
+    public_patient_id = _public_patient_id(patient_id)
+    canonical_source_id = _canonical_uuid(source_id, "file_id")
+    return f"airaqc-tcga:{public_patient_id.lower()}:{canonical_source_id}"
 
 
 def _labels(annotation_path: Path, declaration: dict[str, Any]) -> tuple[dict[str, int], bool]:
@@ -75,6 +95,9 @@ def build() -> None:
     slide_ids: list[str] = []
     total_bytes = 0
     for item in source_index["slides"]:
+        public_patient_id = _public_patient_id(item["patient_id"])
+        canonical_case_id = _canonical_uuid(item["case_id"], "case_id")
+        canonical_file_id = _canonical_uuid(item["file_id"], "file_id")
         slide_path = RAW_ROOT / "slides" / item["file_name"]
         annotation_path = RAW_ROOT / "annotations" / item["annotation_name"]
         if slide_path.stat().st_size != item["file_size"]:
@@ -96,16 +119,16 @@ def build() -> None:
             objective = float(slide.properties[openslide.PROPERTY_NAME_OBJECTIVE_POWER])
             mpp = float(slide.properties[openslide.PROPERTY_NAME_MPP_X])
             width, height = slide.dimensions
-        stable_slide_id = _slide_id(item["patient_id"], item["file_id"])
+        stable_slide_id = _slide_id(public_patient_id, canonical_file_id)
         slide_ids.append(stable_slide_id)
         counts, reject = _labels(annotation_path, declaration)
         slide_asset = {
             "relative_path": f"slides/{item['file_name']}",
-            "source_url": f"https://api.gdc.cancer.gov/data/{item['file_id']}",
+            "source_url": f"https://api.gdc.cancer.gov/data/{canonical_file_id}",
             "bytes": item["file_size"],
             "sha256": slide_sha256,
             "source_md5": item["md5sum"],
-            "source_identifier": item["file_id"],
+            "source_identifier": canonical_file_id,
             "format": "aperio_svs",
             "sop_instance_uid": None,
             "image_role": "whole_slide",
@@ -164,8 +187,8 @@ def build() -> None:
                 "collection_id": COLLECTION_ID,
                 "subset_id": SUBSET_ID,
                 "identity": {
-                    "patient_id": item["patient_id"],
-                    "case_id": item["case_id"],
+                    "patient_id": public_patient_id,
+                    "case_id": canonical_case_id,
                     "specimen_id": item["slide_barcode"],
                     "specimen_uid": None,
                     "slide_container_id": item["slide_barcode"],
@@ -201,8 +224,8 @@ def build() -> None:
         corpus_slides.append(
             {
                 "slide_id": stable_slide_id,
-                "patient_id": item["patient_id"],
-                "case_id": item["case_id"],
+                "patient_id": public_patient_id,
+                "case_id": canonical_case_id,
                 "project_id": item["project_id"],
                 "scanner_id": scanner_id,
                 "scanner_manufacturer": "Leica Biosystems",
@@ -342,9 +365,7 @@ def build() -> None:
     record_paths: list[str] = []
     for record in records:
         source_id = record["slide_id"].split(":")[-1]
-        canonical_source_id = str(UUID(source_id))
-        if canonical_source_id != source_id:
-            raise ValueError(f"slide source ID is not a canonical UUID: {source_id}")
+        canonical_source_id = _canonical_uuid(source_id, "slide source ID")
         relative_path = Path(f"records/slides/airaqc-tcga-{canonical_source_id}.json")
         record_paths.append(relative_path.as_posix())
         _write(REGISTRY_ROOT, relative_path, record)
