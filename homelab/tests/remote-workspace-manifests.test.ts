@@ -2540,6 +2540,10 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
     new URL("../hosts/remote-development/default.nix", import.meta.url),
     "utf8",
   );
+  const hostLifecycleModule = readFileSync(
+    new URL("../modules/host-lifecycle.nix", import.meta.url),
+    "utf8",
+  );
   const agentCoordinatorRunner = readFileSync(
     new URL(
       "../scripts/run-work-graph-agent-coordinator.sh",
@@ -2586,11 +2590,11 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('cacheBlockHardLimit = "30G"'));
   assert.ok(hostDefinition.includes('operatorInodeHardLimit = "3000000"'));
   assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
-  assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
-  assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
+  assert.ok(hostLifecycleModule.includes("containerLogMaxFiles = 3"));
+  assert.ok(hostLifecycleModule.includes('containerLogMaxSize = "20Mi"'));
   assert.match(
-    hostDefinition,
-    /trustedInterfaces = \[\s*"cni0"\s*"tailscale0"\s*\];/,
+    hostLifecycleModule,
+    /firewall\.trustedInterfaces = mkOption \{[\s\S]*?default = \[\s*"cni0"\s*"tailscale0"\s*\];/,
   );
   assert.ok(hostDefinition.includes("--request POST"));
   assert.ok(hostDefinition.includes('--data ""'));
@@ -2605,7 +2609,9 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(!netdataNotificationConfig.includes("robbie"));
   assert.ok(hostDefinition.includes("zramSwap = {"));
   assert.ok(hostDefinition.includes("memoryPercent = 25"));
-  assert.ok(hostDefinition.includes('memorySwap.swapBehavior = "NoSwap"'));
+  assert.ok(
+    hostLifecycleModule.includes('memorySwap.swapBehavior = "NoSwap"'),
+  );
   assert.ok(hostDefinition.includes('projectQuotaLayoutVersion = "2"'));
   assert.ok(hostDefinition.includes("chattr +P ${operatorDataPath}"));
   assert.ok(hostDefinition.includes("chattr +P ${cacheDataPath}"));
