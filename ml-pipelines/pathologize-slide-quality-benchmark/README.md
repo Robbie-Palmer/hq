@@ -1,11 +1,10 @@
 # Pathologize slide-quality benchmark
 
-This project evaluates whole-slide tissue and artifact quality contracts. Its
-manifest covers tissue IoU, artifact macro F1, artifact-free tissue Dice,
-slide rejection accuracy, and slide-rejection Brier score. The clean test case
-checks false rejection instead of testing only defective slides. The DVC graph
-writes execution records, evaluation results, a comparison scorecard, a
-benchmark index, and a DVC metrics file as separate outputs.
+This project evaluates whole-slide tissue and artifact quality contracts. The
+clean test case measures false-positive artifact detection instead of testing
+only defective slides. The DVC graph writes execution records, evaluation
+results, a comparison scorecard, a benchmark index, and a DVC metrics file as
+separate outputs.
 
 ```bash
 mise run //ml-pipelines/pathologize-slide-quality-benchmark:check
@@ -35,30 +34,31 @@ dated protocol amendment retains that slide in the primary evaluation and
 omits it only from scanner-held-out slices. The record preserves the original
 stop rule and the reason for changing it before feature extraction.
 
-The pilot does run an inference algorithm. It is a fixed, deterministic slide
-classifier rather than a learned model. At 2.5x it divides each slide into
-512-pixel tiles, keeps tiles with at least 20% tissue, and measures gradient,
-blue or teal pixel fraction, and dark pixel fraction. It rejects a slide when
-at least 10% of tissue tiles meet the blur rule, any tissue tile is at least
-0.2% blue or teal, or any tissue tile is at least 12% dark. The implementation
+The pilot runs a fixed, deterministic artifact detector rather than a learned
+model. At 2.5x it divides each slide into 512-pixel tiles, keeps tiles with at
+least 20% tissue, and measures gradient, blue or teal pixel fraction, and dark
+pixel fraction. It reports tile coordinates and signals, then aggregates
+whether any artifact signal is present for the performance gate. It never
+turns those findings into a usable or unusable disposition. The implementation
 is in
 [`pathologize_slide_quality_pilot/pilot.py`](src/pathologize_slide_quality_pilot/pilot.py)
 and the frozen thresholds are in
 [`public-pilot/predeclaration.json`](public-pilot/predeclaration.json).
 
-That classifier evaluated all 24 slides and stopped on substantive performance
-gates. Accuracy was 0.500 and balanced accuracy was 0.457. It did not beat
-constant accept (accuracy 0.417, one-sided exact McNemar p=0.407) or constant
-reject (accuracy 0.583, p=1.000). The eligible SS1763CNTLR slice fell to 0.250
+That detector evaluated all 24 slides and stopped on substantive performance
+gates. Artifact-presence accuracy was 0.500 and balanced accuracy was 0.457.
+It did not beat a detector that always reports no artifact (accuracy 0.417,
+one-sided exact McNemar p=0.407) or one that always reports an artifact
+(accuracy 0.583, p=1.000). The eligible SS1763CNTLR slice fell to 0.250
 accuracy versus 0.500 overall and a 0.750 within-slice constant. No learned
-candidate was run because 24 slides cannot support leakage-safe grouped fitting,
-calibration, and scanner-held-out evaluation.
+candidate was run because 24 slides cannot support leakage-safe grouped
+fitting, calibration, and scanner-held-out evaluation.
 
 The run verified 15,813,730,059 source bytes, read 528,941,634 pixels, and wrote
-2,251 numeric spatial records in 96.86 wall seconds and 96.64 CPU seconds. It
-used no GPU time or VRAM, peaked at 2,618,855,424 bytes of RSS, and
-conservatively bounded peak local disk at 33,708,181,738 bytes. The kernel
-reported 16,172,980,880 process characters and zero physical read bytes.
+2,251 numeric spatial records in 96.36 wall seconds and 96.03 CPU seconds. It
+used no GPU time or VRAM, peaked at 2,618,683,392 bytes of RSS, and
+conservatively bounded peak local disk at 33,708,407,007 bytes. The kernel
+reported 16,172,982,215 process characters and zero physical read bytes.
 `public-pilot/results/report.json` contains the exact run record, exclusions,
 identity audit, rights boundary, resource record, and hashes for every
 provenance manifest.

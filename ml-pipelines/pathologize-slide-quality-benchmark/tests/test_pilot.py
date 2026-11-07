@@ -58,6 +58,11 @@ def _declaration(expected_slides: int = 2) -> dict[str, Any]:
             },
             "maximum_rgb_distance": 60,
         },
+        "output_semantics": {
+            "task": "artifact_presence_detection_with_spatial_signals",
+            "usability_assessment": "not_assessed",
+            "usability_reason": "No downstream use case was declared.",
+        },
         "stopping_rules": {
             "minimum_scanner_groups": 2,
             "scanner_slice_minimum_n": 4,
@@ -81,7 +86,7 @@ def _slide(index: int, source: bytes, annotation: bytes) -> dict[str, Any]:
         "micrometres_per_pixel": 0.25,
         "source": _asset(f"slides/{index}.svs", source),
         "annotation": _asset(f"annotations/{index}.png", annotation),
-        "truth_reject": False,
+        "truth_artifact_present": False,
         "annotation_counts": {
             "out_of_focus": 0,
             "air_bubble": 0,
@@ -112,11 +117,31 @@ def test_typed_annotation_and_tile_features() -> None:
 
 def test_metrics_mcnemar_and_scanner_slices() -> None:
     rows = [
-        {"scanner_id": "a", "truth_reject": True, "prediction_reject": True},
-        {"scanner_id": "a", "truth_reject": False, "prediction_reject": False},
-        {"scanner_id": "b", "truth_reject": True, "prediction_reject": False},
-        {"scanner_id": "b", "truth_reject": False, "prediction_reject": False},
-        {"scanner_id": None, "truth_reject": True, "prediction_reject": True},
+        {
+            "scanner_id": "a",
+            "truth_artifact_present": True,
+            "predicted_artifact_present": True,
+        },
+        {
+            "scanner_id": "a",
+            "truth_artifact_present": False,
+            "predicted_artifact_present": False,
+        },
+        {
+            "scanner_id": "b",
+            "truth_artifact_present": True,
+            "predicted_artifact_present": False,
+        },
+        {
+            "scanner_id": "b",
+            "truth_artifact_present": False,
+            "predicted_artifact_present": False,
+        },
+        {
+            "scanner_id": None,
+            "truth_artifact_present": True,
+            "predicted_artifact_present": True,
+        },
     ]
 
     metrics = pilot._classification_metrics(rows)
@@ -166,17 +191,20 @@ def test_extract_slide_uses_fixed_features_and_spatial_evidence(
 
     monkeypatch.setattr(pilot.openslide, "OpenSlide", FakeSlide)
     slide_payload = _slide(1, source, annotation)
-    slide_payload["truth_reject"] = True
+    slide_payload["truth_artifact_present"] = True
     slide_payload["annotation_counts"]["out_of_focus"] = 1
     slide = pilot.CorpusSlide.model_validate(slide_payload)
 
     features, result, spatial, pixels_read = pilot._extract_slide(slide, tmp_path, _declaration(1))
 
     assert features["eligible_tiles"] == 1
-    assert result["truth_reject"] is True
-    assert result["prediction_reject"] is True
-    assert result["reject_reasons"] == ["regional_blur"]
+    assert result["truth_artifact_present"] is True
+    assert result["predicted_artifact_present"] is True
+    assert result["detected_signals"] == ["regional_blur_signal"]
+    assert result["usability_assessment"] == "not_assessed"
     assert spatial[0]["annotation_counts"]["out_of_focus"] == 1
+    assert spatial[0]["detected_signals"] == ["low_gradient_blur_signal"]
+    assert spatial[0]["usability_assessment"] == "not_assessed"
     assert pixels_read == 16
 
 
@@ -220,14 +248,15 @@ def test_run_and_verify_write_a_stopped_negative_result(
             "blur_burden": 0.0,
             "maximum_pen_fraction": 0.0,
             "maximum_dark_fraction": 0.0,
-            "quality_risk_score": float(truth),
+            "artifact_signal_score": float(truth),
         }
         result = {
             **features,
-            "truth_reject": truth,
-            "prediction_reject": truth,
-            "correct": True,
-            "reject_reasons": ["test"] if truth else [],
+            "truth_artifact_present": truth,
+            "predicted_artifact_present": truth,
+            "artifact_presence_correct": True,
+            "detected_signals": ["test"] if truth else [],
+            "usability_assessment": "not_assessed",
             "annotation_counts": {
                 "out_of_focus": int(truth),
                 "air_bubble": 0,
@@ -251,6 +280,8 @@ def test_run_and_verify_write_a_stopped_negative_result(
     assert len(report["stop_reasons"]) == 2
     assert report["metrics"]["accuracy"] == 1
     assert report["learned_candidate_decision"]["evaluated"] is False
+    assert report["usability_assessment"]["status"] == "not_assessed"
+    assert set(report["constant_baselines"]) == {"constant_absent", "constant_present"}
 
 
 def test_run_keeps_missing_scanner_identity_in_primary_evaluation(
@@ -265,7 +296,7 @@ def test_run_keeps_missing_scanner_identity_in_primary_evaluation(
     slides = [_slide(1, source, annotation), _slide(2, source, annotation)]
     slides[0]["scanner_id"] = None
     slides[0]["scanner_model"] = "Leica SCN400"
-    slides[0]["truth_reject"] = True
+    slides[0]["truth_artifact_present"] = True
     slides[0]["annotation_counts"]["fold"] = 1
     corpus = {
         "schema_version": "1.0.0",
@@ -308,17 +339,18 @@ def test_run_keeps_missing_scanner_identity_in_primary_evaluation(
             "scanner_id": slide.scanner_id,
             "eligible_tiles": 1,
             "median_gradient": 0.1,
-            "blur_burden": float(slide.truth_reject),
+            "blur_burden": float(slide.truth_artifact_present),
             "maximum_pen_fraction": 0.0,
             "maximum_dark_fraction": 0.0,
-            "quality_risk_score": float(slide.truth_reject),
+            "artifact_signal_score": float(slide.truth_artifact_present),
         }
         result = {
             **features,
-            "truth_reject": slide.truth_reject,
-            "prediction_reject": slide.truth_reject,
-            "correct": True,
-            "reject_reasons": ["regional_blur"] if slide.truth_reject else [],
+            "truth_artifact_present": slide.truth_artifact_present,
+            "predicted_artifact_present": slide.truth_artifact_present,
+            "artifact_presence_correct": True,
+            "detected_signals": (["regional_blur_signal"] if slide.truth_artifact_present else []),
+            "usability_assessment": "not_assessed",
             "annotation_counts": slide.annotation_counts,
         }
         return features, result, [{"slide_id": slide.slide_id}], 1

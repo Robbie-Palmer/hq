@@ -9,36 +9,44 @@ extraction retains the slide in the primary evaluation and excludes it only
 from scanner-held-out slices. No scanner identity was inferred and no slide was
 dropped from the main cohort.
 
-The pilot then ran a fixed, deterministic slide classifier on all 24 slides.
+The pilot then ran a fixed, deterministic artifact detector on all 24 slides.
 It is an inference algorithm, but it has no fitted parameters. The next section
-states its complete decision rule. Its 0.500 accuracy and 0.457 balanced
-accuracy failed to reject constant accept (p=0.407) or constant reject
-(p=1.000). The eligible SS1763CNTLR scanner slice also collapsed to 0.250
-accuracy. These performance gates stop the experiment. A 24-slide cohort
-cannot justify a learned candidate.
+states its complete detection rule. Its 0.500 artifact-presence accuracy and
+0.457 balanced accuracy failed to outperform constant artifact-absent
+(p=0.407) or constant artifact-present (p=1.000). The eligible SS1763CNTLR
+scanner slice also collapsed to 0.250 accuracy. These performance gates stop
+the experiment. A 24-slide cohort cannot justify a learned candidate.
 
 This is a valid negative pilot result and supports no claim about clinical
 utility.
 
-## Deterministic decision rule
+## Deterministic detection rule
 
-The classifier reads each slide at 2.5x in 512-pixel tiles. It retains tiles
-with at least 20% tissue and computes tissue fraction, mean edge gradient,
-blue or teal pixel fraction, and dark pixel fraction. It rejects a slide if
-any of these rules fires:
+The detector reads each slide at 2.5x in 512-pixel tiles. It retains tiles with
+at least 20% tissue and computes tissue fraction, mean edge gradient, blue or
+teal pixel fraction, and dark pixel fraction. It emits these spatial signals:
 
-- At least 10% of tissue tiles have mean gradient no greater than 0.018 and no
-  greater than 45% of that slide's median tissue-tile gradient.
-- Any tissue tile contains at least 0.2% blue or teal pixels.
-- Any tissue tile contains at least 12% dark pixels.
+- A low-gradient blur signal when a tile's mean gradient is no greater than
+  0.018 and no greater than 45% of that slide's median tissue-tile gradient.
+- A blue or teal signal when at least 0.2% of a tissue tile matches that colour
+  range.
+- A dark-material signal when at least 12% of a tissue tile is dark.
+
+The slide-level artifact-presence comparison reports a signal when blur affects
+at least 10% of tissue tiles or either colour rule fires in any tissue tile.
+That aggregation exists only to test the detector against constant baselines.
+It is not a slide disposition.
 
 The implementation is in
 [`pilot.py`](../src/pathologize_slide_quality_pilot/pilot.py). The thresholds
 were frozen before the run in [`predeclaration.json`](predeclaration.json).
-The classifier's Boolean decision supplies `prediction_reject`; the AIRAQc
-palette labels supply `truth_reject`. The confusion matrix and the exact
-one-sided McNemar comparisons against constant accept and constant reject come
-from those two fields.
+The detector supplies `predicted_artifact_present`; the AIRAQc palette labels
+supply `truth_artifact_present`. The confusion matrix and exact one-sided
+McNemar comparisons against constant absent and constant present come from
+those two fields. Every tile records its coordinates, numeric evidence,
+detected signals, annotation counts, and `usability_assessment: not_assessed`.
+No downstream clinical or computational use case was declared, so the pilot
+does not label any slide or region usable or unusable.
 
 ## Source selection
 
@@ -67,18 +75,18 @@ The selection was locked before source-slide download.
 | Item | Predeclared cap | Observed |
 | --- | ---: | ---: |
 | Network acquisition | 16,500,000,000 bytes | 15,813,730,059 bytes |
-| Peak local disk | 40,000,000,000 bytes | 33,707,124,493-byte conservative upper bound |
-| Feature-runner wall time | 7,200 seconds | 96.86 seconds |
-| Feature-runner CPU time | 28,800 seconds | 96.64 seconds |
+| Peak local disk | 40,000,000,000 bytes | 33,708,407,007-byte conservative upper bound |
+| Feature-runner wall time | 7,200 seconds | 96.36 seconds |
+| Feature-runner CPU time | 28,800 seconds | 96.03 seconds |
 | GPU time | 0 seconds | 0 seconds |
 | Peak VRAM | 0 bytes | 0 bytes |
-| Peak RSS | No separate cap | 2,618,855,424 bytes |
+| Peak RSS | No separate cap | 2,618,683,392 bytes |
 | Source bytes verified in preflight | 15,813,730,059 bytes | 15,813,730,059 bytes |
 
 The DVC cache and materialized pilot source occupy about 31.63 GB logically.
-The 33,708,181,738-byte disk upper bound adds one largest-file temporary copy
+The 33,708,407,007-byte disk upper bound adds one largest-file temporary copy
 and result bytes. The kernel reported zero physical read bytes during the final
-run; the process character count was 16,172,980,880.
+run; the process character count was 16,172,982,215.
 
 The palette audit finds 14 positive and 10 clean-negative slides. It does not
 use a tissue gate for truth, so tissue amount cannot change a slide label.

@@ -120,7 +120,7 @@
         "sha256": "d17659f6a5eebe01be0e11a4cb104300cc343ea4ee48a980dc0f2cc4a8f36562",
         "source_url": "https://api.gdc.cancer.gov/data/fe2cf123-87bc-44af-8240-5e1f830ddca1"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -154,7 +154,7 @@
         "sha256": "da00ee1688bb77d0255138e160b94177901dd2b42bb20cfe8d0d9c43658c1c93",
         "source_url": "https://api.gdc.cancer.gov/data/6a7477b1-86f3-473f-9bf1-174a758142e9"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -188,7 +188,7 @@
         "sha256": "67a42366df287ff34c9dd85119e844af0743f3cef368fbab3e75d7ea2347aeed",
         "source_url": "https://api.gdc.cancer.gov/data/a28f5d37-6ab4-4567-b945-79c73048ac5f"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -222,7 +222,7 @@
         "sha256": "2ea522c30e2eabbd868023e601a01b8025db0b7a5732ee2b2faa832c459295e7",
         "source_url": "https://api.gdc.cancer.gov/data/f8127af7-a598-48bf-94f7-f7d395ba0b52"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -256,7 +256,7 @@
         "sha256": "bf77599ad9190f903349b32ea5a06d3aad12bfb62f054759d9ea614e0486b786",
         "source_url": "https://api.gdc.cancer.gov/data/d0a9088a-7789-4960-aece-ee7695292990"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -290,7 +290,7 @@
         "sha256": "c4b7b6a96537df28ddad1ad05dbf38318ea8daa111bcd354b2d9d51ab357a8f8",
         "source_url": "https://api.gdc.cancer.gov/data/b802f195-c4c6-4fe4-9b1f-3c59027f4120"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -324,7 +324,7 @@
         "sha256": "0c3b4ed3d71622e048081f7a454498d4a304e9cd94a592f03ced6a1b2f5a3f6d",
         "source_url": "https://api.gdc.cancer.gov/data/e380d88e-e5ac-4ad1-bbdc-06294ccf1622"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -358,7 +358,7 @@
         "sha256": "62d9adac7f8665fdef18b2f02033cac97ca08fbf357aac7850215069d3e4ad4a",
         "source_url": "https://api.gdc.cancer.gov/data/504459dc-0403-4101-83fc-7a2c37de0f5e"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -392,7 +392,7 @@
         "sha256": "d050bac635055bbd61ec2fe62f182f055695739217e4c90a41c360f732f5fc5d",
         "source_url": "https://api.gdc.cancer.gov/data/2cc62ceb-4bea-4663-ae3b-63a8e8c7f1f4"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -426,7 +426,7 @@
         "sha256": "43dc22a4f75f0bc8b765b753bd90bd0d0fc9b5da50d5d1f97e75de2e0cdaca80",
         "source_url": "https://api.gdc.cancer.gov/data/d1dc4d16-e552-48bf-9fdf-4fcb072527c6"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -460,7 +460,7 @@
         "sha256": "393773c160c666bb034fdc36979984701a915d4564d538a11cfeb609be7f629c",
         "source_url": "https://api.gdc.cancer.gov/data/e9536fee-63cf-4d51-8247-1f97e3816991"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -494,7 +494,7 @@
         "sha256": "9a9b55c87f1fa3c507bf98c0b865e807c740258a9ae95a958aaf5ebf271183cd",
         "source_url": "https://api.gdc.cancer.gov/data/c9e28a52-98a1-40f0-91c8-c8ea09a87a36"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -528,7 +528,7 @@
         "sha256": "a05d21609136d223b121025fe9845a8a8a7d76f03bbaee7f8b26b1c8dda82d65",
         "source_url": "https://api.gdc.cancer.gov/data/762388c4-b240-467a-bc17-d2f60972f9bf"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -562,7 +562,7 @@
         "sha256": "7810939902cfd70ba6a9860eb01a4611f93565b794349d621d4a8cc4dc81f83c",
         "source_url": "https://api.gdc.cancer.gov/data/95f68385-c86f-4b87-aedb-b39375fa3172"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -596,7 +596,7 @@
         "sha256": "32f503e5d6e304fa960158933b90d83299c8857db484a3f76a2ede50668fa159",
         "source_url": "https://api.gdc.cancer.gov/data/eb295196-fd86-44e1-b176-58f5a4e07958"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -630,7 +630,7 @@
         "sha256": "5c4884c242a01558da5a73d6fb99ebb9d100aa411d3d8f77f360980283156c03",
         "source_url": "https://api.gdc.cancer.gov/data/dacb7269-b542-4d6b-8f88-1be1a094b463"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -664,7 +664,7 @@
         "sha256": "128bea8a858687b9e3d1a3d5cfabcedfced5dcfb315b01f0594e459c7c00b632",
         "source_url": "https://api.gdc.cancer.gov/data/37f5e1a2-4ac3-4b6b-a725-258c96d74037"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -698,7 +698,7 @@
         "sha256": "ced359f0b9a9810966fdaf01a6c01f914721fc77b3fe73d125d3daff46b4194b",
         "source_url": "https://api.gdc.cancer.gov/data/b4610dce-ba36-4d83-9e3d-0a4391876cad"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -732,7 +732,7 @@
         "sha256": "113bf2aa1689bcadd2eaf31c7ca98a86546ae35679575c7cc60e54158a05b1ed",
         "source_url": "https://api.gdc.cancer.gov/data/3ae9c66f-cfed-4bf8-b79a-130cd1a17523"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -766,7 +766,7 @@
         "sha256": "ceb291402f3104f88c652fe16eec32501273a9b54ce16161afeeb4cbec35dc67",
         "source_url": "https://api.gdc.cancer.gov/data/ba28ec65-861d-4dc2-8ee2-8f5c38cb3804"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -800,7 +800,7 @@
         "sha256": "8f10c7e81873b7109b8bd126c26ff9bd85a3eebc50c5ef56504c0d43ed42f8e0",
         "source_url": "https://api.gdc.cancer.gov/data/40660689-c487-4787-a2fa-586bb7cfec94"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -834,7 +834,7 @@
         "sha256": "ea5f05e6bb6f9e6d32e4b1fc37f72bdb2a5ba73e6d28342eba68a70adf01f841",
         "source_url": "https://api.gdc.cancer.gov/data/d22eb4ac-7a25-4c23-8f3d-f5851fa77309"
       },
-      "truth_reject": true
+      "truth_artifact_present": true
     },
     {
       "annotation": {
@@ -868,7 +868,7 @@
         "sha256": "af670600e042fcbef331163ae2c9f2828d76bca36ce0cc6406bd813815bce041",
         "source_url": "https://api.gdc.cancer.gov/data/5630717d-fb72-4d7e-924d-3bc1086ab551"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     },
     {
       "annotation": {
@@ -902,7 +902,7 @@
         "sha256": "ebf59945123fef1c93d1a6612ce850fc9a10fabd2ecf56a4d27258ba4900f48b",
         "source_url": "https://api.gdc.cancer.gov/data/44446d88-237b-4d0f-8978-d4db506a76ee"
       },
-      "truth_reject": false
+      "truth_artifact_present": false
     }
   ],
   "source_index_sha256": "8479acb24affcd192e739d6d916a973219b3f3bca128bd9a34aed7b579a3d821",

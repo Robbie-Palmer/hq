@@ -9,6 +9,13 @@
       "prior_rule": "stop when any fixed-cohort slide lacks a stable native scanner device ID",
       "amended_rule": "retain every slide in the primary evaluation and exclude only missing-device-ID slides from scanner-held-out slices",
       "reason": "Missing scanner metadata limits scanner-stratified analysis but does not invalidate source integrity, slide labels, or deterministic feature extraction."
+    },
+    {
+      "amended_at": "2026-11-07T13:34:00Z",
+      "stage": "after_first_completed_run_before_merge",
+      "prior_rule": "name any annotated artifact presence truth_reject and any detected signal prediction_reject",
+      "amended_rule": "name the same values truth_artifact_present and predicted_artifact_present; emit spatial signals; do not assess slide or region usability",
+      "reason": "AIRAQc labels artifact pixels, not fitness for an unspecified downstream use. The prior names conflated artifact detection with a product rejection policy. Thresholds, labels, cohort membership, and performance calculations are unchanged."
     }
   ],
   "cohort": {
@@ -22,7 +29,7 @@
     "annotations": "AIRAQc TCGA test annotations linked from the CC BY 4.0 MIDL 2025 paper; the Google Drive folder has no standalone licence file",
     "allowed_public_artifacts": [
       "source identifiers and checksums",
-      "numeric per-slide features and decisions",
+      "numeric per-slide features and artifact-presence outputs",
       "numeric tile-level spatial evidence",
       "aggregate metrics, exclusions, failures, and resource records"
     ],
@@ -70,9 +77,15 @@
     "slide_positive_rule": "at least one pixel within the declared distance of a typed palette colour",
     "tissue_gate_for_slide_label": false
   },
+  "output_semantics": {
+    "task": "artifact_presence_detection_with_spatial_signals",
+    "artifact_signal_interpretation": "Report the type, location, and extent of deterministic image signals without converting them into a clinical or product disposition.",
+    "usability_assessment": "not_assessed",
+    "usability_reason": "No downstream clinical or computational use case was declared."
+  },
   "stopping_rules": {
     "minimum_scanner_groups": 2,
-    "constant_baseline_test": "one-sided exact McNemar p < 0.05 against both constant accept and constant reject",
+    "constant_baseline_test": "one-sided exact McNemar p < 0.05 against both constant artifact-absent and constant artifact-present predictors",
     "scanner_slice_minimum_n": 4,
     "scanner_slice_requires_both_classes": true,
     "maximum_scanner_accuracy_drop": 0.15,

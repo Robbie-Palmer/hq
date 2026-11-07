@@ -1,7 +1,7 @@
 {
   "calibration": {
     "applicable": false,
-    "reason": "The deterministic quality risk is a threshold ratio, not a probability."
+    "reason": "The deterministic artifact signal score is a threshold ratio, not a probability."
   },
   "candidate": {
     "blur": {
@@ -23,14 +23,14 @@
   },
   "clinical_validity_claimed": false,
   "constant_baselines": {
-    "constant_accept": {
+    "constant_absent": {
       "accuracy": 0.4166666666666667,
       "baseline_only_correct": 8,
       "candidate_only_correct": 10,
       "discordant": 18,
       "one_sided_exact_p": 0.40726470947265625
     },
-    "constant_reject": {
+    "constant_present": {
       "accuracy": 0.5833333333333334,
       "baseline_only_correct": 4,
       "candidate_only_correct": 2,
@@ -97,12 +97,12 @@
       "out_of_focus": 31323751,
       "penmark": 11330023
     },
+    "artifact_positive_slides": 14,
     "clean_negative_slides": 10,
     "content_conflation_gate": {
       "basis": "Truth is any released artifact-palette pixel before tissue filtering; tissue eligibility affects feature aggregation only.",
       "passed": true
     },
-    "positive_slides": 14,
     "tissue_gate_used_for_slide_label": false
   },
   "learned_candidate_decision": {
@@ -127,15 +127,22 @@
       "prior_rule": "stop when any fixed-cohort slide lacks a stable native scanner device ID",
       "reason": "Missing scanner metadata limits scanner-stratified analysis but does not invalidate source integrity, slide labels, or deterministic feature extraction.",
       "stage": "after_scanner_identity_audit_before_feature_extraction"
+    },
+    {
+      "amended_at": "2026-11-07T13:34:00Z",
+      "amended_rule": "name the same values truth_artifact_present and predicted_artifact_present; emit spatial signals; do not assess slide or region usability",
+      "prior_rule": "name any annotated artifact presence truth_reject and any detected signal prediction_reject",
+      "reason": "AIRAQc labels artifact pixels, not fitness for an unspecified downstream use. The prior names conflated artifact detection with a product rejection policy. Thresholds, labels, cohort membership, and performance calculations are unchanged.",
+      "stage": "after_first_completed_run_before_merge"
     }
   ],
   "provenance": {
     "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
     "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
-    "corpus_manifest_sha256": "5ed0b59f55b2a2390597a2b0c79e471dd1502c96960a06188312eaa773bea39f",
+    "corpus_manifest_sha256": "ed1f9a22d2d0822bbc45f1d56bcbc6ed5efd3c0164198bf9df6a93ae0a2506a9",
     "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
     "gdc_api": "https://api.gdc.cancer.gov/",
-    "predeclaration_sha256": "a82ff866d84ecd62d6501771aa396f2fe34ab386c84f352de2a9561dad09eceb",
+    "predeclaration_sha256": "ef5687b6cfba9225355d1ce7e7d50cc54b7a555a0ccb9da7e5aab6d217ddcd3e",
     "registry_asset_manifest_sha256": "507571b99950da7bfe73eecd4970fc40effde26db8391ae4c8650b8a84a4109e",
     "registry_base_revision": "5c4377dbbc01739bb28062ee6cfd7c217edc0cee",
     "registry_collection_manifest_sha256": "bbfb9e16126dccf9cc4cf13adfafa54a1475f368451bc4950dd4c96712268867",
@@ -171,25 +178,25 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 96.64281334799999,
+    "cpu_seconds": 96.030898391,
     "gpu_seconds": 0,
-    "peak_local_disk_bytes_upper_bound": 33708181738,
+    "peak_local_disk_bytes_upper_bound": 33708407007,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 2618855424,
+    "peak_rss_bytes": 2618683392,
     "peak_vram_bytes": 0,
     "pixels_read": 528941634,
-    "process_rchar": 16172980880,
+    "process_rchar": 16172982215,
     "process_read_bytes": 0,
-    "result_bytes_before_report": 1069232,
+    "result_bytes_before_report": 1294501,
     "schema_version": "1.0.0",
     "source_bytes_verified": 15813730059,
     "spatial_records": 2251,
-    "wall_seconds": 96.85949646902736
+    "wall_seconds": 96.36481792293489
   },
   "rights_boundary": {
     "allowed_public_artifacts": [
       "source identifiers and checksums",
-      "numeric per-slide features and decisions",
+      "numeric per-slide features and artifact-presence outputs",
       "numeric tile-level spatial evidence",
       "aggregate metrics, exclusions, failures, and resource records"
     ],
@@ -373,8 +380,13 @@
   },
   "schema_version": "1.0.0",
   "stop_reasons": [
-    "deterministic candidate does not reject constant_accept",
-    "deterministic candidate does not reject constant_reject",
+    "artifact detector does not outperform constant_absent",
+    "artifact detector does not outperform constant_present",
     "scanner-held-out collapse on SS1763CNTLR"
-  ]
+  ],
+  "task": "artifact_presence_detection_with_spatial_signals",
+  "usability_assessment": {
+    "reason": "No downstream clinical or computational use case was declared.",
+    "status": "not_assessed"
+  }
 }

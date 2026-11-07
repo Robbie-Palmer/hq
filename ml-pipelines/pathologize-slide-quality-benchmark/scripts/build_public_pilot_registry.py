@@ -148,7 +148,7 @@ def build() -> None:
             width, height = slide.dimensions
         stable_slide_id = _slide_id(patient_group_id, canonical_file_id)
         slide_ids.append(stable_slide_id)
-        counts, reject = _labels(annotation_path, declaration)
+        counts, artifact_present = _labels(annotation_path, declaration)
         slide_asset = {
             "relative_path": f"slides/{item['file_name']}",
             "source_url": f"https://api.gdc.cancer.gov/data/{canonical_file_id}",
@@ -188,7 +188,7 @@ def build() -> None:
             },
             {
                 "name": "artifact_status",
-                "value": "defect" if reject else "clean",
+                "value": "defect" if artifact_present else "clean",
                 "code": None,
                 "coding_scheme": None,
                 "coding_scheme_version": None,
@@ -277,7 +277,7 @@ def build() -> None:
                     "publisher_md5": None,
                     "publisher_id": annotation_asset["source_identifier"],
                 },
-                "truth_reject": reject,
+                "truth_artifact_present": artifact_present,
                 "annotation_counts": counts,
             }
         )

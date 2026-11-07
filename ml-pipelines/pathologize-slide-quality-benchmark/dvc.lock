@@ -277,12 +277,12 @@ stages:
       size: 2839
     - path: public-pilot/corpus.json
       hash: md5
-      md5: a26b5320efae3e99a2b9f47dae4ff4a9
-      size: 43638
+      md5: ba1e289a6335e5dd2c9fe6c67e7d426a
+      size: 43878
     - path: public-pilot/predeclaration.json
       hash: md5
-      md5: 9c11365ea00b35ad143607dff2f87656
-      size: 3282
+      md5: c9bbd14d205fb447121d31d1a76e4730
+      size: 4377
     - path: public-pilot/source-index.json
       hash: md5
       md5: 4fbb086ec3636adf74da00cd3a3a504e
@@ -293,8 +293,8 @@ stages:
       size: 1425
     - path: src/pathologize_slide_quality_pilot
       hash: md5
-      md5: f803a6ed1c2cb2ab3d6e36e17f40c397.dir
-      size: 28496
+      md5: fa5fb1650f39e3fd91c1619ff33f8ac2.dir
+      size: 30416
       nfiles: 3
     - path: uv.lock
       hash: md5
@@ -303,6 +303,6 @@ stages:
     outs:
     - path: public-pilot/results
       hash: md5
-      md5: f869295588f3d5cc26330d36d262025a.dir
-      size: 1082627
+      md5: d454edd2590e39ed0ea16b8c3843eda1.dir
+      size: 1308771
       nfiles: 7

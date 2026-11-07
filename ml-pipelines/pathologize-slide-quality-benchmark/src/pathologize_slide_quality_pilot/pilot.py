@@ -57,7 +57,7 @@ class CorpusSlide(StrictModel):
     micrometres_per_pixel: float = Field(gt=0)
     source: SourceAsset
     annotation: SourceAsset
-    truth_reject: bool
+    truth_artifact_present: bool
     annotation_counts: dict[str, int]
 
 
@@ -217,10 +217,39 @@ def _annotation_counts_for_tile(
 
 
 def _require_manifest_labels(
-    slide: CorpusSlide, annotation_counts: dict[str, int], truth_reject: bool
+    slide: CorpusSlide, annotation_counts: dict[str, int], truth_artifact_present: bool
 ) -> None:
-    if annotation_counts != slide.annotation_counts or truth_reject != slide.truth_reject:
+    if (
+        annotation_counts != slide.annotation_counts
+        or truth_artifact_present != slide.truth_artifact_present
+    ):
         raise ValueError(f"annotation labels differ from corpus manifest: {slide.slide_id}")
+
+
+def _annotate_spatial_signals(
+    spatial: list[dict[str, Any]],
+    minimum_tissue: float,
+    median_gradient: float,
+    candidate: dict[str, Any],
+) -> None:
+    blur = candidate["blur"]
+    for tile in spatial:
+        detection_eligible = tile["tissue_fraction"] >= minimum_tissue
+        detected_signals = []
+        if detection_eligible:
+            low_gradient = tile["mean_gradient"] <= float(blur["maximum_mean_gradient"])
+            low_relative_gradient = tile["mean_gradient"] <= median_gradient * float(
+                blur["maximum_median_ratio"]
+            )
+            if low_gradient and low_relative_gradient:
+                detected_signals.append("low_gradient_blur_signal")
+            if tile["pen_fraction"] >= float(candidate["pen"]["minimum_tile_fraction"]):
+                detected_signals.append("blue_or_teal_signal")
+            if tile["dark_fraction"] >= float(candidate["dark"]["minimum_tile_fraction"]):
+                detected_signals.append("dark_material_signal")
+        tile["detection_eligible"] = detection_eligible
+        tile["detected_signals"] = detected_signals
+        tile["usability_assessment"] = "not_assessed"
 
 
 def _extract_slide(
@@ -241,8 +270,8 @@ def _extract_slide(
         label_spec["palette_rgb"],
         float(label_spec["maximum_rgb_distance"]),
     )
-    truth_reject = sum(annotation_counts.values()) > 0
-    _require_manifest_labels(slide_spec, annotation_counts, truth_reject)
+    truth_artifact_present = sum(annotation_counts.values()) > 0
+    _require_manifest_labels(slide_spec, annotation_counts, truth_artifact_present)
 
     candidate = declaration["candidate"]
     tile_pixels = int(candidate["tile_pixels"])
@@ -290,23 +319,21 @@ def _extract_slide(
         raise ValueError(f"no eligible tissue tiles for {slide_spec.slide_id}")
     median_gradient = float(np.median([tile["mean_gradient"] for tile in tissue_tiles]))
     blur = candidate["blur"]
+    _annotate_spatial_signals(spatial, minimum_tissue, median_gradient, candidate)
     blur_tiles = [
-        tile
-        for tile in tissue_tiles
-        if tile["mean_gradient"] <= float(blur["maximum_mean_gradient"])
-        and tile["mean_gradient"] <= median_gradient * float(blur["maximum_median_ratio"])
+        tile for tile in tissue_tiles if "low_gradient_blur_signal" in tile["detected_signals"]
     ]
     blur_burden = len(blur_tiles) / len(tissue_tiles)
     maximum_pen = max(tile["pen_fraction"] for tile in tissue_tiles)
     maximum_dark = max(tile["dark_fraction"] for tile in tissue_tiles)
-    reject_reasons = []
+    detected_signals = []
     if blur_burden >= float(blur["minimum_burden"]):
-        reject_reasons.append("regional_blur")
+        detected_signals.append("regional_blur_signal")
     if maximum_pen >= float(candidate["pen"]["minimum_tile_fraction"]):
-        reject_reasons.append("blue_or_teal_pen")
+        detected_signals.append("blue_or_teal_signal")
     if maximum_dark >= float(candidate["dark"]["minimum_tile_fraction"]):
-        reject_reasons.append("dark_fold_or_foreign_material")
-    prediction = bool(reject_reasons)
+        detected_signals.append("dark_material_signal")
+    predicted_artifact_present = bool(detected_signals)
     score = min(
         1.0,
         max(
@@ -324,24 +351,33 @@ def _extract_slide(
         "blur_burden": blur_burden,
         "maximum_pen_fraction": maximum_pen,
         "maximum_dark_fraction": maximum_dark,
-        "quality_risk_score": score,
+        "artifact_signal_score": score,
     }
     result = {
         **features,
-        "truth_reject": truth_reject,
-        "prediction_reject": prediction,
-        "correct": prediction == truth_reject,
-        "reject_reasons": reject_reasons,
+        "truth_artifact_present": truth_artifact_present,
+        "predicted_artifact_present": predicted_artifact_present,
+        "artifact_presence_correct": predicted_artifact_present == truth_artifact_present,
+        "detected_signals": detected_signals,
+        "usability_assessment": "not_assessed",
         "annotation_counts": annotation_counts,
     }
     return features, result, spatial, pixels_read
 
 
 def _classification_metrics(rows: list[dict[str, Any]]) -> dict[str, float | int]:
-    true_positive = sum(row["truth_reject"] and row["prediction_reject"] for row in rows)
-    true_negative = sum(not row["truth_reject"] and not row["prediction_reject"] for row in rows)
-    false_positive = sum(not row["truth_reject"] and row["prediction_reject"] for row in rows)
-    false_negative = sum(row["truth_reject"] and not row["prediction_reject"] for row in rows)
+    true_positive = sum(
+        row["truth_artifact_present"] and row["predicted_artifact_present"] for row in rows
+    )
+    true_negative = sum(
+        not row["truth_artifact_present"] and not row["predicted_artifact_present"] for row in rows
+    )
+    false_positive = sum(
+        not row["truth_artifact_present"] and row["predicted_artifact_present"] for row in rows
+    )
+    false_negative = sum(
+        row["truth_artifact_present"] and not row["predicted_artifact_present"] for row in rows
+    )
     sensitivity_denominator = true_positive + false_negative
     specificity_denominator = true_negative + false_positive
     sensitivity = true_positive / sensitivity_denominator if sensitivity_denominator else 1.0
@@ -387,7 +423,7 @@ def _scanner_slices(
     for scanner_id in scanner_ids:
         selected = [row for row in rows if row["scanner_id"] == scanner_id]
         metrics = _classification_metrics(selected)
-        positives = sum(row["truth_reject"] for row in selected)
+        positives = sum(row["truth_artifact_present"] for row in selected)
         negatives = len(selected) - positives
         eligible = (
             len(selected) >= int(stopping["scanner_slice_minimum_n"])
@@ -466,27 +502,27 @@ def _evaluate_candidate(
     per_slide: list[dict[str, Any]], declaration: dict[str, Any]
 ) -> tuple[dict[str, float | int], dict[str, Any], list[dict[str, Any]], list[str]]:
     metrics = _classification_metrics(per_slide)
-    candidate_correct = [bool(row["correct"]) for row in per_slide]
-    accept_correct = [not bool(row["truth_reject"]) for row in per_slide]
-    reject_correct = [bool(row["truth_reject"]) for row in per_slide]
+    candidate_correct = [bool(row["artifact_presence_correct"]) for row in per_slide]
+    absent_correct = [not bool(row["truth_artifact_present"]) for row in per_slide]
+    present_correct = [bool(row["truth_artifact_present"]) for row in per_slide]
     comparisons = {
-        "constant_accept": {
-            "accuracy": sum(accept_correct) / len(accept_correct),
-            **_mcnemar(candidate_correct, accept_correct),
+        "constant_absent": {
+            "accuracy": sum(absent_correct) / len(absent_correct),
+            **_mcnemar(candidate_correct, absent_correct),
         },
-        "constant_reject": {
-            "accuracy": sum(reject_correct) / len(reject_correct),
-            **_mcnemar(candidate_correct, reject_correct),
+        "constant_present": {
+            "accuracy": sum(present_correct) / len(present_correct),
+            **_mcnemar(candidate_correct, present_correct),
         },
     }
     scanner_slices = _scanner_slices(per_slide, declaration)
     stop_reasons: list[str] = []
-    if not any(not row["truth_reject"] for row in per_slide):
+    if not any(not row["truth_artifact_present"] for row in per_slide):
         stop_reasons.append("clean negatives are absent")
     if len(scanner_slices) < int(declaration["stopping_rules"]["minimum_scanner_groups"]):
         stop_reasons.append("fewer than two stable scanner groups are present")
     stop_reasons.extend(
-        f"deterministic candidate does not reject {name}"
+        f"artifact detector does not outperform {name}"
         for name, comparison in comparisons.items()
         if comparison["one_sided_exact_p"] >= 0.05
     )
@@ -584,6 +620,11 @@ def run() -> None:
         "decision": "stop" if stop_reasons else "continue",
         "stop_reasons": sorted(set(stop_reasons)),
         "clinical_validity_claimed": False,
+        "task": declaration["output_semantics"]["task"],
+        "usability_assessment": {
+            "status": declaration["output_semantics"]["usability_assessment"],
+            "reason": declaration["output_semantics"]["usability_reason"],
+        },
         "protocol_amendments": declaration.get("protocol_amendments", []),
         "candidate": declaration["candidate"],
         "learned_candidate_decision": {
@@ -595,15 +636,17 @@ def run() -> None:
         },
         "calibration": {
             "applicable": False,
-            "reason": "The deterministic quality risk is a threshold ratio, not a probability.",
+            "reason": (
+                "The deterministic artifact signal score is a threshold ratio, not a probability."
+            ),
         },
         "metrics": metrics,
         "constant_baselines": comparisons,
         "scanner_identity_audit": _scanner_identity_audit(corpus),
         "scanner_held_out_slices": scanner_slices,
         "label_audit": {
-            "positive_slides": sum(row["truth_reject"] for row in per_slide),
-            "clean_negative_slides": sum(not row["truth_reject"] for row in per_slide),
+            "artifact_positive_slides": sum(row["truth_artifact_present"] for row in per_slide),
+            "clean_negative_slides": sum(not row["truth_artifact_present"] for row in per_slide),
             "tissue_gate_used_for_slide_label": False,
             "content_conflation_gate": {
                 "passed": True,
