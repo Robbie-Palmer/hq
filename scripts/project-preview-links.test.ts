@@ -6,7 +6,6 @@ import { parseProjectProfile } from "../packages/project-generator/src/profile.j
 import {
   loadProjectPreviewLinks,
   projectPreviewLinksFromProfiles,
-  renderProjectPreviewLinks,
   writeProjectPreviewLinks,
 } from "./project-preview-links.js";
 
@@ -92,27 +91,12 @@ describe("project preview links", () => {
     );
   });
 
-  it("renders the Markdown lines consumed by the preview workflow", () => {
-    expect(
-      renderProjectPreviewLinks("https://pr-123.example.test", [
-        { name: "Recipes", path: "/recipes" },
-        { name: "Satellite swarm", path: "/satellite-swarm" },
-      ]),
-    ).toEqual([
-      "**Recipes:** https://pr-123.example.test/recipes",
-      "**Satellite swarm:** https://pr-123.example.test/satellite-swarm",
-    ]);
-  });
-
   it("writes JSON for local use", async () => {
     const output: string[] = [];
 
-    await writeProjectPreviewLinks(
-      repositoryRoot,
-      undefined,
-      undefined,
-      { write: (value) => output.push(value) },
-    );
+    await writeProjectPreviewLinks(repositoryRoot, undefined, {
+      write: (value) => output.push(value),
+    });
 
     expect(output).toEqual([
       '[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Recipes","path":"/recipes"},{"name":"Satellite swarm","path":"/satellite-swarm"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
@@ -129,25 +113,14 @@ describe("project preview links", () => {
       await writeProjectPreviewLinks(
         repositoryRoot,
         githubOutput,
-        "https://pr-123.example.test",
         process.stdout,
       );
 
       await expect(readFile(githubOutput, "utf8")).resolves.toBe(
-        'links=[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Recipes","path":"/recipes"},{"name":"Satellite swarm","path":"/satellite-swarm"},{"name":"Wedding planner","path":"/wedding-planner"}]\nmarkdown_lines=["**Asset Tracker:** https://pr-123.example.test/assettracker","**Recipes:** https://pr-123.example.test/recipes","**Satellite swarm:** https://pr-123.example.test/satellite-swarm","**Wedding planner:** https://pr-123.example.test/wedding-planner"]\n',
+        'links=[{"name":"Asset Tracker","path":"/assettracker"},{"name":"Recipes","path":"/recipes"},{"name":"Satellite swarm","path":"/satellite-swarm"},{"name":"Wedding planner","path":"/wedding-planner"}]\n',
       );
     } finally {
       await rm(temporaryDirectory, { recursive: true });
     }
-  });
-
-  it("requires a preview base URL for GitHub Actions output", async () => {
-    await expect(
-      writeProjectPreviewLinks(repositoryRoot, "github-output", undefined, {
-        write: () => undefined,
-      }),
-    ).rejects.toThrow(
-      "PREVIEW_SITE_URL is required for GitHub Actions output",
-    );
   });
 });
