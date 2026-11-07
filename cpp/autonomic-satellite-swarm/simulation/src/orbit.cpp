@@ -80,7 +80,8 @@ struct Sgp4Orbit::Implementation {
 
 bool isValid(const OrbitalStateVector& state) {
   const bool known_frame = state.frame == OrbitalCoordinateFrame::Teme ||
-                           state.frame == OrbitalCoordinateFrame::EarthFixed;
+                           state.frame == OrbitalCoordinateFrame::EarthFixed ||
+                           state.frame == OrbitalCoordinateFrame::Gcrf;
   const auto finite_vector = [](const CartesianVector& vector) {
     return std::isfinite(vector.x) && std::isfinite(vector.y) && std::isfinite(vector.z);
   };

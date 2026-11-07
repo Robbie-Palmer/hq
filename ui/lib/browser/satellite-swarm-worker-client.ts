@@ -4,7 +4,7 @@ import {
   type SatelliteSwarmSimulation,
 } from "@/lib/api/satellite-swarm-simulation";
 
-export const SATELLITE_SWARM_WORKER_PROTOCOL_VERSION = 5 as const;
+export const SATELLITE_SWARM_WORKER_PROTOCOL_VERSION = 6 as const;
 
 const WORKER_URL =
   "/simulations/autonomic-satellite-swarm/satellite-swarm.worker.mjs";

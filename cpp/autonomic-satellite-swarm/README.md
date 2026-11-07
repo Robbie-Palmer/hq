@@ -78,11 +78,10 @@ node 2: idle
 The [browser demonstration](https://robbiepalmer.me/satellite-swarm) runs the portable controller
 as WebAssembly in a module worker and draws the result on a self-hosted CesiumJS globe.
 
-`simulate:json` prints the versioned state, SGP4 position and velocity, message,
-controller-telemetry, transition, and network-fault record consumed by the CesiumJS view. Fixed
-checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall clock and
-network. The browser can compare the connected mission with a run where the winning assignment is
-dropped.
+`simulate:json` prints the versioned state, SGP4 position and velocity, GCRF maneuver trajectories,
+burn events, message, controller-telemetry, transition, and network-fault record consumed by the
+browser. Fixed checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall
+clock and network. A dropped winning assignment has no burn, transfer, or target-orbit record.
 
 `simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
 derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
