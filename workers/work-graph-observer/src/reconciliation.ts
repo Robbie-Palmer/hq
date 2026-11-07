@@ -361,7 +361,7 @@ export class GitHubReconciler {
           ? undefined
           : this.prefetchTarget(nextTarget);
       if ("error" in fetchResult) throw fetchResult.error;
-      let primaryError: unknown;
+      let hasPrimaryError = false;
       try {
         for (const delivery of fetchResult.deliveries) {
           // GitHub reads overlap, but database commits remain serial and ordered.
@@ -370,10 +370,10 @@ export class GitHubReconciler {
           deliveries += 1;
         }
       } catch (error) {
-        primaryError = error;
+        hasPrimaryError = true;
         throw error;
       } finally {
-        await this.finishTarget(primaryError);
+        await this.finishTarget(hasPrimaryError);
       }
     }
     if (counts.failed > 0) {
@@ -399,17 +399,17 @@ export class GitHubReconciler {
     );
   }
 
-  private async finishTarget(primaryError?: unknown): Promise<void> {
+  private async finishTarget(hasPrimaryError: boolean): Promise<void> {
     try {
       await this.consumer.finishTarget?.();
     } catch (error) {
       console.error(
         JSON.stringify({
           operation: "github-reconciliation-target-finish-failed",
-          primaryError: primaryError !== undefined,
+          primaryError: hasPrimaryError,
         }),
       );
-      if (primaryError === undefined) throw error;
+      if (!hasPrimaryError) throw error;
     }
   }
 
@@ -434,7 +434,7 @@ export class GitHubReconciler {
           throw error;
         }
         console.warn(JSON.stringify(retry));
-        await this.finishTarget(error);
+        await this.finishTarget(true);
       }
     }
     throw new GitHubReconciliationError(

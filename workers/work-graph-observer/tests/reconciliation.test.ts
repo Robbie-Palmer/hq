@@ -377,6 +377,39 @@ describe("GitHub reconciliation", () => {
     }
   });
 
+  it("preserves an undefined delivery rejection when cleanup also fails", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+    const reconciler = new GitHubReconciler(
+      {
+        appId: "123",
+        privateKey: privateKeyPem,
+        allowedInstallationIds: new Set([42]),
+        allowedRepositories: new Set([repository]),
+      },
+      {
+        consume: vi.fn(async () => Promise.reject(undefined)),
+        finishTarget: vi.fn(async () => {
+          throw new Error("cleanup failed");
+        }),
+      },
+      { fetch: githubFetch(), now: () => now },
+    );
+
+    try {
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toBeUndefined();
+      expect(errorLog).toHaveBeenCalledWith(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: true,
+        }),
+      );
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
+
   it("surfaces target cleanup failures after successful consumption", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     const reconciler = new GitHubReconciler(
