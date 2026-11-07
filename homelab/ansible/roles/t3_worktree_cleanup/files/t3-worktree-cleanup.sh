@@ -99,8 +99,8 @@ run_sql() {
   local parameter_name
   local parameter_value
   while [[ "$#" -gt 0 ]]; do
-    [[ "$#" -ge 2 ]] || die "SQL parameter $1 has no value"
     parameter_name=$1
+    [[ "$#" -ge 2 ]] || die "SQL parameter $parameter_name has no value"
     parameter_value=$2
     case "$parameter_name" in
       *[!A-Za-z0-9_]*) die "unsafe SQL parameter name: $parameter_name" ;;
