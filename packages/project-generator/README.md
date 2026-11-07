@@ -119,6 +119,13 @@ Plans that create Cloudflare account-owned tokens use the built-in
 `mise //:project:secret-bootstrap:conformance -- <plan.yaml>` before apply to
 check the bootstrap token and declared permission groups without creating a
 token.
+For the managed Worker-secret handoff token, run
+`mise //:project:secret-bootstrap:handoff:conformance -- <plan.yaml>` to inspect
+its exact policy through the separate token-provisioner credential. Run
+`mise //:project:secret-bootstrap:handoff:proof -- <plan.yaml>` only in the
+protected bootstrap environment. The proof creates a fixed disposable Worker,
+writes one generated secret, checks only its name and type, and deletes the
+Worker before returning.
 See the [runbook](../../docs/runbooks/project-secret-bootstrap.md) and the
 [example plan](../../infra/project-modules/examples/secret-bootstrap.yaml).
 

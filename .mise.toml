@@ -228,6 +228,16 @@ description = "Check Cloudflare token-provisioning authority without writing"
 depends = ["//packages/project-generator:install"]
 run = "pnpm exec tsx packages/project-generator/src/cli.ts secret-bootstrap-conformance"
 
+[tasks."project:secret-bootstrap:handoff:conformance"]
+description = "Check the Cloudflare Worker secret handoff token without writing"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts worker-secret-handoff-conformance"
+
+[tasks."project:secret-bootstrap:handoff:proof"]
+description = "Prove and clean up a disposable Cloudflare Worker secret handoff"
+depends = ["//packages/project-generator:install"]
+run = "pnpm exec tsx packages/project-generator/src/cli.ts worker-secret-handoff-proof"
+
 [tasks."project:secret-bootstrap:apply"]
 description = "Resume a reviewed project secret and identity bootstrap plan"
 depends = ["//packages/project-generator:install"]

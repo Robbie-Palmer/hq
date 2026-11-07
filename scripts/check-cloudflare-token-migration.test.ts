@@ -5,6 +5,7 @@ import {
   parseCloudflareTokenMigrationManifest,
   validateCloudflareTokenMigrationManifest,
   validateCloudflareTokenMigrationRepositoryReferences,
+  validateWorkerSecretHandoffBoundaries,
 } from "./check-cloudflare-token-migration.js";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..");
@@ -169,6 +170,37 @@ describe("Cloudflare token migration manifest", () => {
     ).toContain(
       `${credential.id}: committed bootstrap plan '${credential.bootstrap_plan_path}' does not exist`,
     );
+  });
+
+  it("keeps the Worker secret handoff out of routine workflows and Terraform", () => {
+    const dedicatedWorkflow =
+      ".github/workflows/cloudflare-token-bootstrap.yml";
+    expect(
+      validateWorkerSecretHandoffBoundaries({
+        workflows: {
+          [dedicatedWorkflow]:
+            `token: \${{ secrets.CLOUDFLARE_BOOTSTRAP_TOKEN }}`,
+        },
+        terraform: { "infra/example/main.tf": "resource \"example\" \"this\" {}" },
+      }),
+    ).toEqual([]);
+
+    expect(
+      validateWorkerSecretHandoffBoundaries({
+        workflows: {
+          [dedicatedWorkflow]: "name: missing-secret",
+          ".github/workflows/deploy.yml": "env: CLOUDFLARE_BOOTSTRAP_TOKEN",
+        },
+        terraform: {
+          "infra/example/variables.tf":
+            "variable \"CLOUDFLARE_BOOTSTRAP_TOKEN\" {}",
+        },
+      }),
+    ).toEqual([
+      "Worker secret handoff credential must not enter routine workflow '.github/workflows/deploy.yml'",
+      "Dedicated workflow '.github/workflows/cloudflare-token-bootstrap.yml' must read the masked handoff secret",
+      "Worker secret handoff credential must not enter Terraform file 'infra/example/variables.tf'",
+    ]);
   });
 
   it("rejects inventory records without an owner or migration ticket", async () => {
