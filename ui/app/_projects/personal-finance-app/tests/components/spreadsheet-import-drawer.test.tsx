@@ -216,4 +216,71 @@ describe("SpreadsheetImportDrawer", () => {
       }),
     );
   });
+
+  it("reports a local file read failure", async () => {
+    const user = userEvent.setup();
+    const file = spreadsheetFile("balances.csv", "2024-01-31,12500");
+    vi.mocked(file.text).mockRejectedValueOnce(new Error("Read failed"));
+    render(<SpreadsheetImportDrawer />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+    await user.upload(screen.getByLabelText("CSV or TSV file"), file);
+
+    expect(
+      await screen.findByText("Asset Tracker could not read that file."),
+    ).toBeVisible();
+    expect(importAccountHistory).not.toHaveBeenCalled();
+  });
+
+  it("retains a reviewed file for retry after submission fails", async () => {
+    importAccountHistory.mockRejectedValueOnce(new Error("Storage failed"));
+    const user = userEvent.setup();
+    render(<SpreadsheetImportDrawer />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+    await user.upload(
+      screen.getByLabelText("CSV or TSV file"),
+      spreadsheetFile("balances.csv", "2024-01-31,12500"),
+    );
+    await user.click(screen.getByRole("button", { name: "Import 1 rows" }));
+
+    expect(await screen.findByText("Something went wrong")).toBeVisible();
+    expect(screen.getByText("Reviewing balances.csv")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Import 1 rows" }));
+
+    await waitFor(() => expect(importAccountHistory).toHaveBeenCalledTimes(2));
+    expect(
+      screen.queryByRole("form", { name: "Import spreadsheet history" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("clears the local review when the drawer closes", async () => {
+    const user = userEvent.setup();
+    render(<SpreadsheetImportDrawer />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+    await user.upload(
+      screen.getByLabelText("CSV or TSV file"),
+      spreadsheetFile("balances.csv", "2024-01-31,12500"),
+    );
+    expect(await screen.findByText("Reviewing balances.csv")).toBeVisible();
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    await user.click(
+      screen.getByRole("button", { name: "Import spreadsheet" }),
+    );
+
+    expect(
+      screen.queryByText("Reviewing balances.csv"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Import reviewed rows" }),
+    ).toBeDisabled();
+  });
 });
