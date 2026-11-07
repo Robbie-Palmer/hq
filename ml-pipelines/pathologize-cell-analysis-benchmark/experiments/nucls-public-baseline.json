@@ -7,7 +7,7 @@
   "random_seed": 20261107,
   "test_fold": 1,
   "validation_fold": 2,
-  "detection_radius_pixels": 12.0,
+  "localization_tolerance_pixels": 12.0,
   "minimum_nucleus_pixels": 18,
   "watershed_minimum_distance_pixels": 4,
   "classification_minimum_gain": 0.01,

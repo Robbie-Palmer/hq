@@ -1,6 +1,6 @@
 # Pathologize cell-analysis benchmark
 
-This project evaluates nucleus detection, instance segmentation, and cell
+This project evaluates nucleus localization, instance segmentation, and cell
 classification as separate objectives. It has a deterministic synthetic path
 for contract tests and a bounded public-data path for a real baseline.
 
@@ -36,13 +36,25 @@ the remaining fold 1 training slides are train. The paper reports one slide per
 patient. The run derives patient IDs from TCGA barcodes and rejects any patient
 or slide overlap across splits.
 
-The transparent baseline assigns training-cohort class probabilities to every
-detected nucleus. The only candidate is a CPU logistic model over bounding-box,
-RGB, and optical-density summaries. Both use the same fixed hematoxylin
-threshold and watershed instances. Classification is scored on matched nuclei
-with one of the three source super-classes. Instance segmentation is scored
-only where NuCLS provides a polygon. Rectangle and point annotations are not
-turned into masks.
+Every NuCLS point, rectangle, or polygon contributes one centroid to the
+localization task. A prediction is localized when its centroid is matched
+one-to-one within the declared tolerance; no boundary is required. Instance
+segmentation is a separate conditional task scored only for successfully
+localized source polygons. Rectangle and point annotations are never treated as
+masks or evidence about shape and size.
+
+The published annotation schema used by this baseline has no focal-plane or
+shadow-nucleus label. The benchmark therefore reports that limitation instead
+of interpreting a faint or out-of-plane nucleus as an annotated absence.
+Localization precision measures agreement with the published single-rater
+centroids. Unmatched predictions may still represent biologically present
+nuclei.
+
+The transparent classification baseline assigns training-cohort class
+probabilities to every localized nucleus. The only classification candidate is
+a CPU logistic model over predicted bounding-box, RGB, and optical-density
+summaries. Classification is scored only on localized nuclei with one of the
+three source super-classes and always requires class probabilities.
 
 The bounded run rejected the candidate. Macro F1 improved from 0.1767 to 0.4368,
 but multiclass Brier score worsened from 0.6477 to 0.7067 and 10-bin expected

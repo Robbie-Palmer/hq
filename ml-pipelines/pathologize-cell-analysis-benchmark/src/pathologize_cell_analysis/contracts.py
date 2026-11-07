@@ -59,7 +59,7 @@ class Experiment(StrictModel):
     random_seed: int = Field(ge=0)
     test_fold: int = Field(ge=1, le=5)
     validation_fold: int = Field(ge=1, le=5)
-    detection_radius_pixels: float = Field(gt=0)
+    localization_tolerance_pixels: float = Field(gt=0)
     minimum_nucleus_pixels: int = Field(gt=0)
     watershed_minimum_distance_pixels: int = Field(gt=0)
     classification_minimum_gain: float = Field(gt=0)
@@ -126,11 +126,57 @@ class ResourceEvidence(StrictModel):
     aggregate_gpu_ceiling_seconds: int
 
 
-class RunEvidence(StrictModel):
+class LocalizationMetrics(StrictModel):
+    match_tolerance_pixels: float = Field(gt=0)
+    precision: float = Field(ge=0, le=1)
+    recall: float = Field(ge=0, le=1)
+    f1: float = Field(ge=0, le=1)
+    truth_points: int = Field(ge=0)
+    predicted_points: int = Field(ge=0)
+    matched_points: int = Field(ge=0)
+    truth_by_annotation_type: dict[str, int]
+
+
+class InstanceSegmentationMetrics(StrictModel):
+    eligible_polygon_instances: int = Field(ge=0)
+    localized_polygon_instances: int = Field(ge=0)
+    localization_coverage: float = Field(ge=0, le=1)
+    mean_instance_iou: float = Field(ge=0, le=1)
+    mean_instance_dice: float = Field(ge=0, le=1)
+    success_at_iou_0_5: float = Field(ge=0, le=1)
+
+
+class ClassificationMetrics(StrictModel):
+    evaluated_instances: int = Field(ge=0)
+    macro_f1: float = Field(ge=0, le=1)
+    brier: float = Field(ge=0)
+    ece_10_bin: float = Field(ge=0, le=1)
+    negative_log_likelihood: float = Field(ge=0)
+
+
+class MorphologyEvidence(StrictModel):
+    localization: LocalizationMetrics
+    instance_segmentation: InstanceSegmentationMetrics
+
+
+class TaskEvidence(MorphologyEvidence):
+    classification: ClassificationMetrics
+
+
+class RunEvidence(TaskEvidence):
     adapter_id: Literal["class-prior-v1", "morphology-logistic-v1"]
-    metrics: dict[str, float | int]
     per_class: dict[str, dict[str, float | int]]
-    site_slices: dict[str, dict[str, float | int]]
+    site_slices: dict[str, TaskEvidence]
+    exclusions: dict[str, int]
+    failures: list[dict[str, str]]
+    resources: ResourceEvidence
+
+
+class ClassificationRunEvidence(StrictModel):
+    adapter_id: Literal["class-prior-v1", "morphology-logistic-v1"]
+    classification: ClassificationMetrics
+    per_class: dict[str, dict[str, float | int]]
+    site_slices: dict[str, ClassificationMetrics]
     exclusions: dict[str, int]
     failures: list[dict[str, str]]
     resources: ResourceEvidence
@@ -145,14 +191,17 @@ class GateEvidence(StrictModel):
 
 
 class ExperimentEvidence(StrictModel):
-    schema_version: Literal["1.0.0"]
+    schema_version: Literal["1.1.0"]
     experiment_id: str
     dataset: dict[str, object]
     ontology: dict[str, object]
     split: dict[str, object]
     methods: dict[str, object]
-    baseline: RunEvidence
-    candidate: RunEvidence
+    localization: LocalizationMetrics
+    instance_segmentation: InstanceSegmentationMetrics
+    morphology_site_slices: dict[str, MorphologyEvidence]
+    baseline: ClassificationRunEvidence
+    candidate: ClassificationRunEvidence
     gates: list[GateEvidence]
     recommendation: Literal["promote_candidate", "reject_candidate"]
     stop_reason: str

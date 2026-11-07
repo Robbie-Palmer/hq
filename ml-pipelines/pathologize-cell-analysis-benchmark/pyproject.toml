@@ -1,9 +1,10 @@
 [project]
 name = "pathologize-cell-analysis-benchmark"
 version = "0.1.0"
-description = "Nucleus detection, segmentation, and cell classification benchmark"
+description = "Nucleus localization, instance segmentation, and classification benchmark"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "data-artifacts",
     "fire>=0.7.1,<0.8",
     "numpy>=2.2.0,<3",
     "pathologize-benchmark-contracts",

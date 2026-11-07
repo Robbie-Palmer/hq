@@ -7,6 +7,7 @@ from data_artifacts.files import (
     canonical_bytes,
     content_address,
     load_model,
+    md5_file,
     read_json,
     read_jsonl,
     read_yaml,
@@ -34,6 +35,7 @@ def test_json_artifacts_are_canonical_and_typed(tmp_path: Path) -> None:
     assert load_model(path, ExampleRecord) == record
     assert canonical_bytes({"b": 2, "a": 1}) == b'{"a":1,"b":2}\n'
     assert content_address("artifact", {"a": 1}).startswith("artifact:sha256:")
+    assert md5_file(path) == "77a50623fecf529de87538b0e01aaed7"
     assert len(sha256_file(path)) == 64
 
 

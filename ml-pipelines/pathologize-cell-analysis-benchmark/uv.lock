@@ -228,6 +228,7 @@ name = "pathologize-cell-analysis-benchmark"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "data-artifacts" },
     { name = "fire" },
     { name = "numpy" },
     { name = "pathologize-benchmark-contracts" },
@@ -248,6 +249,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "data-artifacts", editable = "../../packages/data-artifacts" },
     { name = "fire", specifier = ">=0.7.1,<0.8" },
     { name = "numpy", specifier = ">=2.2.0,<3" },
     { name = "pathologize-benchmark-contracts", editable = "../pathologize-benchmark-contracts" },

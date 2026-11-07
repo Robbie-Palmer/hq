@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
-import json
 import shutil
 import urllib.request
 import zipfile
@@ -10,9 +8,9 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import BaseModel, TypeAdapter
+from data_artifacts.files import load_model, md5_file, sha256_file, write_json
 
 from .contracts import (
     AcquisitionEvidence,
@@ -24,32 +22,8 @@ from .contracts import (
 )
 
 
-def read_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise TypeError(f"expected a JSON object in {path}")
-    return value
-
-
-def write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if isinstance(value, BaseModel):
-        value = value.model_dump(mode="json")
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
 def load_dataset_manifest(path: Path) -> DatasetManifest:
-    return DatasetManifest.model_validate(read_json(path))
-
-
-def _file_hashes(path: Path) -> tuple[str, str]:
-    md5 = hashlib.md5(usedforsecurity=False)
-    sha256 = hashlib.sha256()
-    with path.open("rb") as source:
-        while chunk := source.read(1024 * 1024):
-            md5.update(chunk)
-            sha256.update(chunk)
-    return md5.hexdigest(), sha256.hexdigest()
+    return load_model(path, DatasetManifest)
 
 
 def _download(archive: SourceArchive, destination: Path) -> None:
@@ -66,10 +40,9 @@ def _download(archive: SourceArchive, destination: Path) -> None:
         destination.open("wb") as target,
     ):
         shutil.copyfileobj(response, target, length=1024 * 1024)
-    md5, sha256 = _file_hashes(destination)
     if destination.stat().st_size != archive.bytes:
         raise ValueError(f"downloaded byte count differs for {archive.name}")
-    if md5 != archive.md5 or sha256 != archive.sha256:
+    if md5_file(destination) != archive.md5 or sha256_file(destination) != archive.sha256:
         raise ValueError(f"downloaded digest differs for {archive.name}")
 
 
@@ -295,4 +268,4 @@ def build_cohort(data_root: Path, test_fold: int, validation_fold: int) -> Cohor
 
 
 def load_cohort(path: Path) -> CohortEvidence:
-    return TypeAdapter(CohortEvidence).validate_python(read_json(path))
+    return load_model(path, CohortEvidence)

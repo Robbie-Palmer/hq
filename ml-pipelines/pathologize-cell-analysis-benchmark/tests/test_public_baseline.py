@@ -3,20 +3,33 @@ from __future__ import annotations
 import csv
 import hashlib
 import io
-import json
 import zipfile
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pytest
+from data_artifacts.files import read_jsonl, write_json
 from PIL import Image, ImageDraw
 from pydantic import ValidationError
 
 from pathologize_cell_analysis.contracts import DatasetManifest, Experiment
-from pathologize_cell_analysis.data import acquire_dataset, build_cohort, load_annotations
-from pathologize_cell_analysis.evaluation import _detection_matches
+from pathologize_cell_analysis.data import (
+    Annotation,
+    acquire_dataset,
+    build_cohort,
+    load_annotations,
+)
 from pathologize_cell_analysis.experiment import report, run
+from pathologize_cell_analysis.instance_segmentation import (
+    InstanceSegmentationRecords,
+    update_segmentation_records,
+)
+from pathologize_cell_analysis.localization import (
+    LocalizationRecords,
+    match_localizations,
+    update_localization_records,
+)
 from pathologize_cell_analysis.methods import PredictedNucleus, segment_nuclei
 
 CLASSES = ["nonTIL_stromal", "sTIL", "tumor_any"]
@@ -72,11 +85,6 @@ def _source_manifest(archives: list[dict[str, Any]] | None = None) -> dict[str, 
             "other_nucleus": "no biological super-class",
         },
     }
-
-
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value), encoding="utf-8")
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:
@@ -165,7 +173,7 @@ def _experiment() -> dict[str, Any]:
         "random_seed": 7,
         "test_fold": 1,
         "validation_fold": 2,
-        "detection_radius_pixels": 15.0,
+        "localization_tolerance_pixels": 15.0,
         "minimum_nucleus_pixels": 8,
         "watershed_minimum_distance_pixels": 4,
         "classification_minimum_gain": 0.01,
@@ -200,7 +208,7 @@ def test_acquisition_verifies_and_extracts(monkeypatch: pytest.MonkeyPatch, tmp_
             }
         )
     manifest_path = tmp_path / "source.json"
-    _write_json(manifest_path, _source_manifest(archives))
+    write_json(manifest_path, _source_manifest(archives))
 
     def fake_urlopen(request: Any, timeout: int) -> io.BytesIO:
         assert timeout == 60
@@ -227,7 +235,7 @@ def test_contracts_reject_incomplete_sources_and_equal_folds() -> None:
         Experiment.model_validate(experiment)
 
 
-def test_point_annotation_is_detection_only(tmp_path: Path) -> None:
+def test_point_annotation_is_localization_only(tmp_path: Path) -> None:
     path = tmp_path / "point.csv"
     path.write_text(
         ",raw_classification,main_classification,super_classification,type,xmin,ymin,"
@@ -238,6 +246,57 @@ def test_point_annotation_is_detection_only(tmp_path: Path) -> None:
     annotation = load_annotations(path)[0]
     assert annotation.annotation_type == "point"
     assert annotation.center == (5.0, 6.0)
+    prediction = PredictedNucleus(
+        instance_id=1,
+        center_x=5.0,
+        center_y=6.0,
+        xmin=5,
+        ymin=6,
+        xmax=5,
+        ymax=6,
+        flat_pixels=np.asarray([5 + 6 * 16], dtype=np.int64),
+    )
+    matches = match_localizations([annotation], [prediction], tolerance_pixels=1.0)
+    localization = LocalizationRecords()
+    update_localization_records(localization, [annotation], [prediction], matches)
+    assert localization.match_count == 1
+    segmentation = InstanceSegmentationRecords()
+    update_segmentation_records(segmentation, [annotation], [prediction], matches, (16, 16))
+    assert segmentation.eligible_count == 0
+    assert segmentation.localized_count == 0
+
+
+def test_localization_maximizes_matches_within_tolerance() -> None:
+    truth = [
+        Annotation(
+            class_name="tumor_any",
+            annotation_type="point",
+            xmin=center,
+            ymin=0,
+            xmax=center,
+            ymax=0,
+            coordinates_x=(center,),
+            coordinates_y=(0,),
+        )
+        for center in (0, 10)
+    ]
+    predictions = [
+        PredictedNucleus(
+            instance_id=index,
+            center_x=center,
+            center_y=row,
+            xmin=0,
+            ymin=0,
+            xmax=1,
+            ymax=1,
+            flat_pixels=np.asarray([0], dtype=np.int64),
+        )
+        for index, (center, row) in enumerate(((1, 0), (0, 9)), start=1)
+    ]
+    assert sorted(match_localizations(truth, predictions, tolerance_pixels=10.0)) == [
+        (0, 1),
+        (1, 0),
+    ]
 
 
 def test_cohort_run_and_report(tmp_path: Path) -> None:
@@ -246,9 +305,9 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
     experiment_path = project / "experiments/nucls-public-baseline.json"
     data_root = project / "data/nucls-corrected-single-rater"
     source = _source_manifest()
-    _write_json(source_path, source)
-    _write_json(experiment_path, _experiment())
-    _write_json(
+    write_json(source_path, source)
+    write_json(experiment_path, _experiment())
+    write_json(
         data_root / "acquisition.json",
         {
             "schema_version": "1.0.0",
@@ -283,11 +342,19 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
     assert annotations[0].center == (20.0, 20.0)
     result = run(experiment_path)
     assert result["baseline"]["resources"]["gpu_seconds"] == 0
-    assert result["candidate"]["metrics"]["classification_evaluated_instances"] > 0
+    assert result["candidate"]["classification"]["evaluated_instances"] > 0
+    assert result["localization"]["truth_by_annotation_type"] == {
+        "polyline": 3,
+        "rectangle": 1,
+    }
+    assert result["instance_segmentation"]["eligible_polygon_instances"] == 3
+    assert set(result["morphology_site_slices"]) == {"TE"}
+    assert "localization" not in result["baseline"]
+    assert "instance_segmentation" not in result["candidate"]
     prediction_path = project / _experiment()["output_directory"]
     predictions = prediction_path / "morphology-logistic-v1/predictions.jsonl"
     assert predictions.is_file()
-    first_prediction = json.loads(predictions.read_text(encoding="utf-8").splitlines()[0])
+    first_prediction = read_jsonl(predictions)[0]
     assert len(first_prediction["field_sha256"]) == 64
     assert {"item_id", "slide_id", "patient_id", "site_id"}.isdisjoint(first_prediction)
     report_result = report(
@@ -301,7 +368,7 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
     assert all(len(line) <= 120 for line in markdown.splitlines())
 
 
-def test_segmentation_and_detection_matching() -> None:
+def test_segmentation_and_localization_matching() -> None:
     image = np.full((64, 64, 3), 255, dtype=np.uint8)
     image[20:40, 20:40] = (70, 30, 80)
     predictions = segment_nuclei(image, minimum_pixels=8, minimum_distance=4)
@@ -330,5 +397,5 @@ def test_segmentation_and_detection_matching() -> None:
         coordinates_x=(5, 15, 15, 5),
         coordinates_y=(5, 5, 15, 15),
     )
-    assert _detection_matches([annotation], [predicted], 1.0) == [(0, 0)]
-    assert _detection_matches([], [predicted], 1.0) == []
+    assert match_localizations([annotation], [predicted], 1.0) == [(0, 0)]
+    assert match_localizations([], [predicted], 1.0) == []
