@@ -2661,6 +2661,7 @@ export class WorkGraphRepository {
   async putDeliveryMetadataRevision(
     input: GeneratedDeliveryMetadataRevision,
     createdAt = new Date().toISOString(),
+    options: { readonly reconcileLinkedPullRequests?: boolean } = {},
   ): Promise<GeneratedDeliveryMetadataRevision> {
     const normalized = normalizeGeneratedDeliveryMetadata(input);
     const timestamp = new Date(createdAt);
@@ -2670,8 +2671,21 @@ export class WorkGraphRepository {
         "A delivery metadata revision needs an ISO creation timestamp.",
       );
     }
-    return this.db.transaction(async (transaction) => {
+    const selection = await this.db.transaction(async (transaction) => {
       await this.lockEventSequence(transaction);
+      const [previousCurrent] = await transaction
+        .select({
+          sourceRevision:
+            repositoryCurrentDeliveryMetadataRevision.sourceRevision,
+        })
+        .from(repositoryCurrentDeliveryMetadataRevision)
+        .where(
+          eq(
+            repositoryCurrentDeliveryMetadataRevision.repository,
+            normalized.repository,
+          ),
+        )
+        .limit(1);
       await transaction
         .insert(deliveryMetadataRevision)
         .values({ ...normalized, createdAt: timestamp })
@@ -2724,42 +2738,56 @@ export class WorkGraphRepository {
             repositoryCurrentDeliveryMetadataRevision.sourceRevision,
         });
       if (selectedCurrent?.sourceRevision !== normalized.sourceRevision) {
-        return replayed;
+        return { replayed, reconcile: false };
       }
-      const resolutionAt = await readDatabaseClock(transaction);
-      const links = await transaction
-        .select({
-          workItemId: workItemPullRequest.workItemId,
-          number: workItemPullRequest.number,
-        })
-        .from(workItemPullRequest)
-        .innerJoin(
-          pullRequest,
-          and(
-            eq(pullRequest.repository, workItemPullRequest.repository),
-            eq(pullRequest.number, workItemPullRequest.number),
-          ),
-        )
-        .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
-        .where(
-          and(
-            eq(workItemPullRequest.repository, normalized.repository),
-            eq(workItemPullRequest.role, "implementation"),
-            eq(workItem.lifecycle, "open"),
-            isNotNull(pullRequest.changedPaths),
-          ),
-        );
-      for (const link of links) {
-        await this.reconcileDeliveryTargetsInTransaction(
-          transaction,
-          link.workItemId,
-          normalized.repository,
-          link.number,
-          resolutionAt.toISOString(),
-        );
-      }
-      return replayed;
+      return {
+        replayed,
+        reconcile:
+          previousCurrent?.sourceRevision !== normalized.sourceRevision,
+      };
     });
+    if (
+      !selection.reconcile ||
+      options.reconcileLinkedPullRequests === false
+    ) {
+      return selection.replayed;
+    }
+
+    // A catalog change can affect every open implementation PR. Commit each
+    // projection independently so one global refresh does not hold a single
+    // Hyperdrive transaction across the entire repository backlog.
+    const links = await this.db
+      .select({
+        workItemId: workItemPullRequest.workItemId,
+        number: workItemPullRequest.number,
+      })
+      .from(workItemPullRequest)
+      .innerJoin(
+        pullRequest,
+        and(
+          eq(pullRequest.repository, workItemPullRequest.repository),
+          eq(pullRequest.number, workItemPullRequest.number),
+        ),
+      )
+      .innerJoin(workItem, eq(workItem.id, workItemPullRequest.workItemId))
+      .where(
+        and(
+          eq(workItemPullRequest.repository, normalized.repository),
+          eq(workItemPullRequest.role, "implementation"),
+          eq(workItem.lifecycle, "open"),
+          isNotNull(pullRequest.changedPaths),
+        ),
+      );
+    const resolutionAt = await this.db.transaction(readDatabaseClock);
+    for (const link of links) {
+      await this.reconcileDeliveryTargetsForPullRequest(
+        link.workItemId,
+        normalized.repository,
+        link.number,
+        resolutionAt.toISOString(),
+      );
+    }
+    return selection.replayed;
   }
 
   async putDeliveryTargetOverride(

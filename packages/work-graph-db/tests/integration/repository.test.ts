@@ -152,6 +152,8 @@ describe("database timeout classification", () => {
     ["57P03", "the database system is starting up", "capacity"],
     ["58000", "Failed to acquire a connection from the pool.", "capacity"],
     ["58000", "Internal error.", "infrastructure"],
+    ["CONNECTION_CLOSED", "write CONNECTION_CLOSED", "infrastructure"],
+    ["CONNECTION_ENDED", "socket CONNECTION_ENDED", "infrastructure"],
     [
       "58000",
       "Server connection attempt failed: connection_refused",
@@ -170,6 +172,17 @@ describe("database timeout classification", () => {
     },
   );
 
+  it.each(["CONNECTION_CLOSED", "CONNECTION_ENDED"])(
+    "classifies retryable transport failure from its message: %s",
+    (transportCode) => {
+      expect(
+        classifyRetryableDatabaseFailure(
+          new Error(`write ${transportCode} hyperdrive.local:5432`),
+        ),
+      ).toBe("infrastructure");
+    },
+  );
+
   it.each([
     ["58000", "Unsupported Hyperdrive protocol operation"],
     ["28P01", "password authentication failed"],
@@ -180,6 +193,33 @@ describe("database timeout classification", () => {
         Object.assign(new Error(message), { code }),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("database connection cleanup", () => {
+  const databaseWithEnd = (end: () => Promise<void>) =>
+    ({ $client: { end } }) as unknown as NonNullable<
+      Parameters<typeof closeDb>[0]
+    >;
+
+  it("treats an already-closed transport as successful cleanup", async () => {
+    await expect(
+      closeDb(
+        databaseWithEnd(async () => {
+          throw new Error("write CONNECTION_CLOSED hyperdrive.local:5432");
+        }),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("preserves unrelated connection cleanup failures", async () => {
+    await expect(
+      closeDb(
+        databaseWithEnd(async () => {
+          throw new Error("cleanup failed");
+        }),
+      ),
+    ).rejects.toThrow("cleanup failed");
   });
 });
 
