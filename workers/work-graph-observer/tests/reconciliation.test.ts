@@ -208,6 +208,33 @@ describe("GitHub reconciliation", () => {
     ).toBe(true);
   });
 
+  it("keeps the global fetch receiver when no fetch is injected", async () => {
+    const receiverSensitiveFetch = vi.fn(async function (this: unknown) {
+      expect(this).toBe(globalThis);
+      return new Response(null, { status: 418 });
+    }) as typeof fetch;
+    vi.stubGlobal("fetch", receiverSensitiveFetch);
+    try {
+      const reconciler = new GitHubReconciler(
+        {
+          appId: "123",
+          privateKey: privateKeyPem,
+          allowedInstallationIds: new Set([42]),
+          allowedRepositories: new Set([repository]),
+        },
+        { consume: vi.fn() },
+        { now: () => now },
+      );
+
+      await expect(
+        reconciler.reconcile([{ repository, number: 7 }]),
+      ).rejects.toThrow("GitHub API request failed with HTTP 418");
+      expect(receiverSensitiveFetch).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("backfills current PR, CI, and deployment facts idempotently", async () => {
     const deliveries: GitHubDelivery[] = [];
     const consume = vi.fn(async (delivery: GitHubDelivery) => {
