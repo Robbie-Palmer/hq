@@ -22,6 +22,8 @@ from .data import build_cohort, load_dataset_manifest
 from .evaluation import evaluate_adapter
 from .methods import ClassPrior, MorphologyLogistic
 
+FOUR_COLUMN_TABLE_ALIGNMENT = "| --- | ---: | ---: | ---: |"
+
 
 def _load_experiment(path: Path) -> Experiment:
     return load_model(path, Experiment)
@@ -434,7 +436,7 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "## Per-class classification",
         "",
         "| Source super-class | Baseline F1 | Candidate F1 | Test support |",
-        "| --- | ---: | ---: | ---: |",
+        FOUR_COLUMN_TABLE_ALIGNMENT,
         class_rows,
         "",
         "## Held-out site slices",
@@ -443,11 +445,11 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "The published files used here have no scanner metadata.",
         "",
         "| Site | Localization F1 | Polygon localization coverage | Mean instance IoU |",
-        "| --- | ---: | ---: | ---: |",
+        FOUR_COLUMN_TABLE_ALIGNMENT,
         morphology_site_rows,
         "",
         "| Site | Baseline macro F1 | Candidate macro F1 | Evaluated nuclei |",
-        "| --- | ---: | ---: | ---: |",
+        FOUR_COLUMN_TABLE_ALIGNMENT,
         site_rows,
         "",
         "## Failed gates",
