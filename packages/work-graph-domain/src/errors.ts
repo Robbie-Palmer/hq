@@ -1,4 +1,5 @@
 export type WorkGraphErrorCode =
+  | "architecture_decision_not_found"
   | "attention_request_already_resolved"
   | "attention_request_not_found"
   | "critical_path_projection_too_large"

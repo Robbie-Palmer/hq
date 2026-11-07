@@ -44,6 +44,7 @@ const repository: WorkGraphApiRepository = {
   createWorkItem: unavailable,
   putWorkItemContext: unavailable,
   putWorkItemArchitectureDecision: unavailable,
+  removeWorkItemArchitectureDecision: unavailable,
   putWorkItemReference: unavailable,
   refreshPullRequest: unavailable,
   putWorkItemPullRequest: unavailable,

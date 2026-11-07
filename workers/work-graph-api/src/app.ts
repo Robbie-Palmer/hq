@@ -95,6 +95,7 @@ import {
   WorkGraphError,
   type WorkItem,
   type WorkItemArchitectureDecision,
+  type WorkItemArchitectureDecisionIdentity,
   type WorkItemContext,
   type WorkItemDependency,
   type WorkItemPullRequest,
@@ -153,6 +154,7 @@ const WORK_ITEM_EVENT_TYPES = [
   "delivery_action.result_recorded",
   "delivery_recovery.recorded",
   "delivery_recovery.delivery_reserved",
+  "context.removed",
   "context.put",
   "lease.claimed",
   "lease.ended",
@@ -1121,6 +1123,14 @@ const putWorkItemContextBodySchema = z.union([
   workItemTextContextSchema.omit({ workItemId: true }).strict(),
   workItemArchitectureDecisionSchema.omit({ workItemId: true }).strict(),
 ]);
+const deleteWorkItemArchitectureDecisionBodySchema =
+  workItemArchitectureDecisionSchema
+    .pick({ url: true })
+    .strict();
+const workItemArchitectureDecisionIdentitySchema =
+  workItemArchitectureDecisionSchema
+    .pick({ workItemId: true, url: true })
+    .openapi("WorkItemArchitectureDecisionIdentity");
 const putWorkItemReferenceBodySchema = workItemReferenceSchema
   .omit({ workItemId: true })
   .strict();
@@ -2112,6 +2122,40 @@ const putWorkItemContextRoute = createRoute({
   },
 });
 
+const deleteWorkItemArchitectureDecisionRoute = createRoute({
+  method: "delete",
+  path: "/api/work-items/{workItemId}/contexts/architecture-decisions",
+  operationId: "deleteWorkItemArchitectureDecision",
+  summary: "Remove an architecture-decision link",
+  description:
+    "Removes one architecture-decision link by URL without changing the work item or the decision document.",
+  tags: ["work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    headers: idempotencyHeadersSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: deleteWorkItemArchitectureDecisionBodySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Architecture-decision link removed or matching mutation replayed",
+      content: {
+        "application/json": {
+          schema: workItemArchitectureDecisionIdentitySchema,
+        },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
 const putWorkItemReferenceRoute = createRoute({
   method: "put",
   path: "/api/work-items/{workItemId}/references",
@@ -2715,6 +2759,10 @@ export interface WorkGraphApiRepository {
     input: WorkItemArchitectureDecision,
     options?: IdempotentMutationOptions,
   ): Promise<WorkItemArchitectureDecision>;
+  removeWorkItemArchitectureDecision(
+    input: WorkItemArchitectureDecisionIdentity,
+    options?: IdempotentMutationOptions,
+  ): Promise<WorkItemArchitectureDecisionIdentity>;
   putWorkItemReference(
     input: WorkItemReference,
     options?: IdempotentMutationOptions,
@@ -2964,6 +3012,7 @@ const validationHook: Hook<unknown, Env, string, Response | void> = (
 const statusForWorkGraphError = (error: WorkGraphError): 400 | 404 | 409 => {
   if (
     error.code === "work_item_not_found" ||
+    error.code === "architecture_decision_not_found" ||
     error.code === "attention_request_not_found" ||
     error.code === "external_delivery_not_found" ||
     error.code === "knowledge_scope_not_found" ||
@@ -3621,6 +3670,19 @@ export const createWorkGraphApp = (
     }
     return context.json(
       await repository.putWorkItemContext({ workItemId, ...request }, options),
+      200,
+    );
+  });
+
+  app.openapi(deleteWorkItemArchitectureDecisionRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    return context.json(
+      await repository.removeWorkItemArchitectureDecision(
+        { workItemId, ...context.req.valid("json") },
+        idempotencyOptions(
+          context.req.valid("header")["idempotency-key"],
+        ),
+      ),
       200,
     );
   });

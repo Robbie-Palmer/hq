@@ -190,6 +190,7 @@ const buildRepository = (): WorkGraphApiRepository => ({
   })),
   putWorkItemContext: vi.fn(async (input) => input),
   putWorkItemArchitectureDecision: vi.fn(async (input) => input),
+  removeWorkItemArchitectureDecision: vi.fn(async (input) => input),
   putWorkItemReference: vi.fn(async (input) => input),
   refreshPullRequest: vi.fn(async (input) => input),
   putWorkItemPullRequest: vi.fn(async (input) => input),
@@ -904,6 +905,19 @@ describe("Given work items with derived readiness", () => {
         role: "governing",
       }),
     });
+    const removedDecision = await app.request(
+      "/api/work-items/ticket/contexts/architecture-decisions",
+      {
+        method: "DELETE",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": removeIdempotencyKey,
+        },
+        body: JSON.stringify({
+          url: "https://example.test/adrs/context-ordering",
+        }),
+      },
+    );
     const reference = await app.request("/api/work-items/ticket/references", {
       method: "PUT",
       headers: { "content-type": "application/json" },
@@ -916,6 +930,7 @@ describe("Given work items with derived readiness", () => {
 
     expect(brief.status).toBe(200);
     expect(decision.status).toBe(200);
+    expect(removedDecision.status).toBe(200);
     expect(reference.status).toBe(200);
     expect(repository.putWorkItemContext).toHaveBeenCalledWith(
       {
@@ -934,6 +949,17 @@ describe("Given work items with derived readiness", () => {
       },
       {},
     );
+    expect(repository.removeWorkItemArchitectureDecision).toHaveBeenCalledWith(
+      {
+        workItemId: "ticket",
+        url: "https://example.test/adrs/context-ordering",
+      },
+      { idempotencyKey: removeIdempotencyKey },
+    );
+    expect(await responseJson(removedDecision)).toEqual({
+      workItemId: "ticket",
+      url: "https://example.test/adrs/context-ordering",
+    });
     expect(repository.putWorkItemReference).toHaveBeenCalledWith(
       {
         workItemId: "ticket",
