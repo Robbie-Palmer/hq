@@ -120,3 +120,56 @@ stages:
       - uv.lock
     outs:
       - outputs/public/nucls-public-baseline-v1
+
+  prepare_ultralytics_artifacts:
+    cmd: uv run --locked pathologize-cell-analysis acquire-ultralytics
+    deps:
+      - experiments/nucls-ultralytics-baseline.json
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/ultralytics_conversion.py
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - models/ultralytics/8.4.0
+
+  prepare_nucls_ultralytics_layout:
+    cmd: uv run --locked pathologize-cell-analysis prepare-ultralytics
+    deps:
+      - data/nucls-corrected-single-rater
+      - experiments/nucls-ultralytics-baseline.json
+      - sources/nucls-corrected-single-rater.json
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/ultralytics_conversion.py
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - data/derived/nucls-ultralytics-yolo26n-v1
+
+  train_nucls_ultralytics:
+    cmd: uv run --locked pathologize-cell-analysis train-ultralytics
+    deps:
+      - data/derived/nucls-ultralytics-yolo26n-v1
+      - models/ultralytics/8.4.0
+      - experiments/nucls-ultralytics-baseline.json
+      - src/pathologize_cell_analysis
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - outputs/public/nucls-ultralytics-yolo26n-v1/training
+
+  evaluate_nucls_ultralytics:
+    cmd: uv run --locked pathologize-cell-analysis evaluate-ultralytics
+    deps:
+      - data/nucls-corrected-single-rater
+      - data/derived/nucls-ultralytics-yolo26n-v1
+      - outputs/public/nucls-ultralytics-yolo26n-v1/training
+      - experiments/nucls-ultralytics-baseline.json
+      - reports/nucls-public-baseline.json
+      - src/pathologize_cell_analysis
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation
