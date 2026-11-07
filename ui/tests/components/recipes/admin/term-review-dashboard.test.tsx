@@ -1,6 +1,6 @@
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@/tests/test-utils";
+import { fireEvent, render, screen, waitFor, within } from "@/tests/test-utils";
 
 const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
@@ -221,10 +221,12 @@ describe("TermReviewDashboard", () => {
     const card = await screen.findByRole("article", {
       name: "Review Green Onion",
     });
+    const backdrop = card.previousElementSibling as HTMLElement;
     expect(
       screen.getByRole("button", { name: "Match to spring-onion" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: "Not a term" })).toBeVisible();
+    expect(card).toHaveClass("duration-200", "motion-reduce:transition-none");
 
     const slugInput = screen.getByLabelText("Canonical slug");
     fireEvent.touchStart(slugInput, {
@@ -238,6 +240,32 @@ describe("TermReviewDashboard", () => {
     fireEvent.touchStart(card, {
       touches: [{ clientX: 20, clientY: 100 }],
     });
+    fireEvent.touchMove(card, {
+      touches: [{ clientX: 70, clientY: 102 }],
+    });
+    expect(card).toHaveStyle({
+      transform: "translateX(50px) rotate(1.25deg)",
+    });
+    fireEvent.touchEnd(card, {
+      changedTouches: [{ clientX: 70, clientY: 102 }],
+    });
+    expect(card).toHaveStyle({
+      transform: "translateX(0px) rotate(0deg)",
+    });
+    expect(mocks.submit).not.toHaveBeenCalled();
+
+    fireEvent.touchStart(card, {
+      touches: [{ clientX: 20, clientY: 100 }],
+    });
+    fireEvent.touchMove(card, {
+      touches: [{ clientX: 100, clientY: 102 }],
+    });
+    expect(card).toHaveStyle({
+      transform: "translateX(80px) rotate(2deg)",
+    });
+    expect(
+      within(backdrop).getByText("Match spring onion", { exact: true }),
+    ).toHaveStyle({ opacity: "1" });
     fireEvent.touchEnd(card, {
       changedTouches: [{ clientX: 120, clientY: 102 }],
     });
@@ -253,11 +281,25 @@ describe("TermReviewDashboard", () => {
     expect(
       await screen.findByText("Saved. The next term is ready."),
     ).toBeVisible();
+    await waitFor(() =>
+      expect(card).toHaveStyle({
+        transform: "translateX(0px) rotate(0deg)",
+      }),
+    );
 
     mocks.submit.mockClear();
     fireEvent.touchStart(card, {
       touches: [{ clientX: 120, clientY: 100 }],
     });
+    fireEvent.touchMove(card, {
+      touches: [{ clientX: 40, clientY: 102 }],
+    });
+    expect(card).toHaveStyle({
+      transform: "translateX(-80px) rotate(-2deg)",
+    });
+    expect(
+      within(backdrop).getByText("Not a term", { exact: true }),
+    ).toHaveStyle({ opacity: "1" });
     fireEvent.touchEnd(card, {
       changedTouches: [{ clientX: 20, clientY: 102 }],
     });

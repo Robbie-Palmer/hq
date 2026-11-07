@@ -254,40 +254,97 @@ function EvidenceDisclosure({
 
 function useReviewSwipe(
   disabled: boolean,
-  match: () => void,
-  reject: () => void,
+  match: (() => Promise<void>) | null,
+  reject: () => Promise<void>,
 ) {
   const start = useRef<{ x: number; y: number } | null>(null);
-  return {
+  const [offset, setOffset] = useState(0);
+  const [dragging, setDragging] = useState(false);
+  const [settling, setSettling] = useState(false);
+
+  const reset = () => {
+    start.current = null;
+    setDragging(false);
+    setOffset(0);
+  };
+  const finish = async (direction: -1 | 1, action: () => Promise<void>) => {
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    setDragging(false);
+    setSettling(true);
+    setOffset(reduceMotion ? 0 : direction * Math.max(window.innerWidth, 480));
+    try {
+      await Promise.all([
+        action(),
+        new Promise((resolve) =>
+          window.setTimeout(resolve, reduceMotion ? 0 : 180),
+        ),
+      ]);
+    } finally {
+      setOffset(0);
+      setSettling(false);
+    }
+  };
+  const handlers = {
     onTouchStart(event: TouchEvent<HTMLElement>) {
       const target = event.target;
       if (
-        target instanceof Element &&
-        target.closest("button, input, textarea, select, a, summary")
+        disabled ||
+        settling ||
+        (target instanceof Element &&
+          target.closest("button, input, textarea, select, a, summary"))
       ) {
-        start.current = null;
+        reset();
         return;
       }
       const touch = event.touches[0];
       start.current = touch ? { x: touch.clientX, y: touch.clientY } : null;
     },
+    onTouchMove(event: TouchEvent<HTMLElement>) {
+      const touch = event.touches[0];
+      const origin = start.current;
+      if (disabled || settling || !touch || !origin) return;
+      const xDistance = touch.clientX - origin.x;
+      const yDistance = touch.clientY - origin.y;
+      if (
+        Math.abs(xDistance) <= Math.abs(yDistance) ||
+        (xDistance > 0 && !match)
+      ) {
+        setDragging(false);
+        setOffset(0);
+        return;
+      }
+      setDragging(true);
+      setOffset(Math.sign(xDistance) * Math.min(Math.abs(xDistance), 160));
+    },
     onTouchEnd(event: TouchEvent<HTMLElement>) {
       const touch = event.changedTouches[0];
       const origin = start.current;
       start.current = null;
-      if (disabled || !touch || !origin) return;
+      if (disabled || settling || !touch || !origin) {
+        reset();
+        return;
+      }
       const xDistance = touch.clientX - origin.x;
       const yDistance = touch.clientY - origin.y;
       if (
         Math.abs(xDistance) < 72 ||
         Math.abs(xDistance) < Math.abs(yDistance) * 1.5
       ) {
+        reset();
         return;
       }
-      if (xDistance > 0) match();
-      else reject();
+      const action = xDistance > 0 ? match : reject;
+      if (!action) {
+        reset();
+        return;
+      }
+      void finish(xDistance > 0 ? 1 : -1, action);
     },
+    onTouchCancel: reset,
   };
+  return { dragging, handlers, offset };
 }
 
 function ReviewSwipeHint({
@@ -310,6 +367,53 @@ function ReviewSwipeHint({
   );
 }
 
+function SwipeActionBackdrop({
+  action,
+  offset,
+  targetSlug,
+}: Readonly<{
+  action: "alias" | "new_canonical" | null;
+  offset: number;
+  targetSlug: string;
+}>) {
+  const opacity = Math.min(Math.abs(offset) / 72, 1);
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-0 flex items-center justify-between bg-[var(--paper-warm)] px-5 rt-body font-semibold"
+    >
+      {action && (
+        <span
+          className="text-[var(--sage)]"
+          style={{ opacity: offset > 0 ? opacity : 0 }}
+        >
+          {action === "new_canonical" ? "Create" : "Match"}{" "}
+          {targetSlug.replaceAll("-", " ")}
+        </span>
+      )}
+      <span
+        className="text-[var(--berry)]"
+        style={{ opacity: offset < 0 ? opacity : 0 }}
+      >
+        Not a term
+      </span>
+    </div>
+  );
+}
+
+type ReviewCardProps = Readonly<{
+  deferred: boolean;
+  draft: ResolutionDraft;
+  item: TermReviewQueueItem;
+  mutate: TermReviewMutation;
+  pending: boolean;
+  setDraft: (draft: ResolutionDraft) => void;
+}>;
+
+function swipeMatchAction(action: ResolutionDraft["action"]) {
+  return action === "alias" || action === "new_canonical" ? action : null;
+}
+
 function ReviewCard({
   deferred,
   draft,
@@ -317,14 +421,7 @@ function ReviewCard({
   mutate,
   pending,
   setDraft,
-}: Readonly<{
-  deferred: boolean;
-  draft: ResolutionDraft;
-  item: TermReviewQueueItem;
-  mutate: TermReviewMutation;
-  pending: boolean;
-  setDraft: (draft: ResolutionDraft) => void;
-}>) {
+}: ReviewCardProps) {
   const submitAction = (action = draft.action) =>
     mutate(
       () =>
@@ -337,35 +434,41 @@ function ReviewCard({
         successMessage: resolutionSuccessMessage(action),
       },
     );
-  const matchAction =
-    draft.action === "alias" || draft.action === "new_canonical"
-      ? draft.action
-      : null;
+  const matchAction = swipeMatchAction(draft.action);
   const swipe = useReviewSwipe(
     pending,
-    () => {
-      if (matchAction && draft.targetSlug) void submitAction(matchAction);
-    },
-    () => void submitAction("reject"),
+    matchAction && draft.targetSlug ? () => submitAction(matchAction) : null,
+    () => submitAction("reject"),
   );
   return (
-    <article
-      aria-label={`Review ${item.rawTexts[0]}`}
-      className="touch-pan-y rounded-xl border border-[var(--line)] bg-[var(--card)] p-5 sm:p-6"
-      {...swipe}
-    >
-      <ReviewCardHeader item={item} />
-      <ReviewSwipeHint action={matchAction} targetSlug={draft.targetSlug} />
-      <EvidenceDisclosure draft={draft} item={item} setDraft={setDraft} />
-      <TermResolutionForm
-        deferred={deferred}
-        draft={draft}
-        item={item}
-        pending={pending}
-        setDraft={setDraft}
-        submit={submitAction}
+    <div className="relative overflow-hidden rounded-xl">
+      <SwipeActionBackdrop
+        action={matchAction}
+        offset={swipe.offset}
+        targetSlug={draft.targetSlug}
       />
-    </article>
+      <article
+        aria-label={`Review ${item.rawTexts[0]}`}
+        className="relative touch-pan-y rounded-xl border border-[var(--line)] bg-[var(--card)] p-5 transition-transform duration-200 ease-out motion-reduce:transition-none sm:p-6"
+        style={{
+          transform: `translateX(${swipe.offset}px) rotate(${swipe.offset / 40}deg)`,
+          transitionDuration: swipe.dragging ? "0ms" : undefined,
+        }}
+        {...swipe.handlers}
+      >
+        <ReviewCardHeader item={item} />
+        <ReviewSwipeHint action={matchAction} targetSlug={draft.targetSlug} />
+        <EvidenceDisclosure draft={draft} item={item} setDraft={setDraft} />
+        <TermResolutionForm
+          deferred={deferred}
+          draft={draft}
+          item={item}
+          pending={pending}
+          setDraft={setDraft}
+          submit={submitAction}
+        />
+      </article>
+    </div>
   );
 }
 
