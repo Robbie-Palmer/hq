@@ -39,12 +39,12 @@
     "resources": {
       "accelerator": "none",
       "aggregate_gpu_ceiling_seconds": 86400,
-      "cpu_seconds": 9.895370827,
+      "cpu_seconds": 11.142350492,
       "gpu_seconds": 0,
-      "peak_rss_bytes": 233922560,
+      "peak_rss_bytes": 233971712,
       "peak_vram_bytes": 0,
       "per_run_wall_ceiling_seconds": 1800,
-      "wall_seconds": 9.9196939090034
+      "wall_seconds": 11.181505371001549
     },
     "site_slices": {
       "A1": {
@@ -117,12 +117,12 @@
     "resources": {
       "accelerator": "none",
       "aggregate_gpu_ceiling_seconds": 86400,
-      "cpu_seconds": 22.822635619999996,
+      "cpu_seconds": 26.590282115999997,
       "gpu_seconds": 0,
-      "peak_rss_bytes": 239427584,
+      "peak_rss_bytes": 240455680,
       "peak_vram_bytes": 0,
       "per_run_wall_ceiling_seconds": 1800,
-      "wall_seconds": 19.271335688070394
+      "wall_seconds": 23.055320197017863
     },
     "site_slices": {
       "A1": {
@@ -252,7 +252,7 @@
     {
       "detail": "Each adapter has an independent 30-minute wall-time ceiling.",
       "gate": "per_run_wall_budget",
-      "observed": 19.271335688070394,
+      "observed": 23.055320197017863,
       "passed": true,
       "threshold": 1800.0
     }

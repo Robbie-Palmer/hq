@@ -70,11 +70,11 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 1ae6fb111b00d18764654ce2f08e0e4f
+      md5: 0443843eead538aac8dc4fa0381247a4
       size: 2006
     - path: uv.lock
       hash: md5
-      md5: 6586133e7f19a1e91ff35c81594c051c
+      md5: f6a45ad8d2d1659981ab4016471edbe6
       size: 62093
     outs:
     - path: data/synthetic
@@ -144,11 +144,11 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 1ae6fb111b00d18764654ce2f08e0e4f
+      md5: 0443843eead538aac8dc4fa0381247a4
       size: 2006
     - path: uv.lock
       hash: md5
-      md5: 6586133e7f19a1e91ff35c81594c051c
+      md5: f6a45ad8d2d1659981ab4016471edbe6
       size: 62093
     outs:
     - path: outputs/runs
@@ -261,7 +261,7 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 1ae6fb111b00d18764654ce2f08e0e4f
+      md5: 0443843eead538aac8dc4fa0381247a4
       size: 2006
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
@@ -269,19 +269,19 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 0a82728ae0341a82c3b487701192b849
-      size: 997
+      md5: 540436e84329d2b148ec633c5afaca41
+      size: 1640
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
       md5: 49831cd665acd0d53133e1739161e24d
       size: 6583
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
-      md5: de5961c248dec133464918fb6dc4bb3c
-      size: 10877
+      md5: 08e9c08c064f637353c24c432e4f58e2
+      size: 11011
     - path: uv.lock
       hash: md5
-      md5: 6586133e7f19a1e91ff35c81594c051c
+      md5: f6a45ad8d2d1659981ab4016471edbe6
       size: 62093
     outs:
     - path: data/nucls-corrected-single-rater
@@ -307,7 +307,7 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 1ae6fb111b00d18764654ce2f08e0e4f
+      md5: 0443843eead538aac8dc4fa0381247a4
       size: 2006
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
@@ -315,16 +315,16 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: 670ec485dcda2fcfe40c64d022e5b3c2.dir
-      size: 65561
+      md5: ea874f02e3b3f8f86a5e3c7ef70be0e0.dir
+      size: 66338
       nfiles: 10
     - path: uv.lock
       hash: md5
-      md5: 6586133e7f19a1e91ff35c81594c051c
+      md5: f6a45ad8d2d1659981ab4016471edbe6
       size: 62093
     outs:
     - path: outputs/public/nucls-public-baseline-v1
       hash: md5
-      md5: 2e130e0d3f74c876be0ed55cfbe07a25.dir
-      size: 25607231
+      md5: ad30db121b240d4c0891b08192c2e4d6.dir
+      size: 25607239
       nfiles: 6

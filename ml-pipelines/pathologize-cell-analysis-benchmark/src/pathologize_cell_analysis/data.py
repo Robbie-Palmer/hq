@@ -185,6 +185,8 @@ def build_cohort(data_root: Path, test_fold: int, validation_fold: int) -> Cohor
     validation_slides = set(validation_sites)
     if not validation_slides.issubset(test_train_sites):
         raise ValueError("validation fold is not a subset of the test fold's training cohort")
+    if set(test_sites).intersection(test_train_sites):
+        raise ValueError("test fold overlaps the test fold's training cohort")
     train_sites = {
         slide: site for slide, site in test_train_sites.items() if slide not in validation_slides
     }

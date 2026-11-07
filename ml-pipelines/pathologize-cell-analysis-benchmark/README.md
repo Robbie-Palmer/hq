@@ -56,9 +56,9 @@ a CPU logistic model over predicted bounding-box, RGB, and optical-density
 summaries. Classification is scored only on localized nuclei with one of the
 three source super-classes and always requires class probabilities.
 
-The bounded run rejected the candidate. Macro F1 improved from 0.1767 to 0.4368,
-but multiclass Brier score worsened from 0.6477 to 0.7067 and 10-bin expected
-calibration error worsened from 0.0543 to 0.2194. No second candidate was tried.
+The bounded run rejected the candidate. Macro F1 improved from 0.1768 to 0.4367,
+but multiclass Brier score worsened from 0.6476 to 0.7061 and 10-bin expected
+calibration error worsened from 0.0540 to 0.2190. No second candidate was tried.
 See [the full evidence report](reports/nucls-public-baseline.md) for per-class,
 site, failure, exclusion, and resource results.
 

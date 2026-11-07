@@ -368,6 +368,17 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
     assert all(len(line) <= 120 for line in markdown.splitlines())
 
 
+def test_cohort_rejects_raw_test_train_slide_overlap(tmp_path: Path) -> None:
+    split_root = tmp_path / "splits"
+    overlapping_slide = "TCGA-OV-0001-DX1"
+    _write_split(split_root / "fold_1_train.csv", [(overlapping_slide, "OV")])
+    _write_split(split_root / "fold_1_test.csv", [(overlapping_slide, "OV")])
+    _write_split(split_root / "fold_2_test.csv", [])
+
+    with pytest.raises(ValueError, match="test fold overlaps"):
+        build_cohort(tmp_path, 1, 2)
+
+
 def test_segmentation_and_localization_matching() -> None:
     image = np.full((64, 64, 3), 255, dtype=np.uint8)
     image[20:40, 20:40] = (70, 30, 80)

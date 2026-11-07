@@ -255,7 +255,7 @@ requires-dist = [
     { name = "pathologize-benchmark-contracts", editable = "../pathologize-benchmark-contracts" },
     { name = "pillow", specifier = ">=11.1.0,<13" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },
-    { name = "scikit-image", specifier = ">=0.25.0,<0.27" },
+    { name = "scikit-image", specifier = ">=0.26.0,<0.27" },
     { name = "scikit-learn", specifier = ">=1.6.0,<1.9" },
     { name = "scipy", specifier = ">=1.15.0,<2" },
 ]
