@@ -31,21 +31,24 @@ from 961 to 976 lines because the 75-line local React state core was replaced
 by store creation, command events, and selector wiring while the existing
 command facade stayed in place. Selector migration across 49 consumer modules
 brings the complete production diff to 1,352 additions and 460 deletions, a net
-increase of 892 lines. The pilot adds 335 lines of direct tests across 11
-cases.
+increase of 892 lines. The pilot initially added 335 lines of direct tests
+across 11 cases. The quality-gate repair added a 311-line provider contract
+suite, taking the direct evidence to 646 lines across 15 cases without changing
+production code.
 
-The focused 20-test suite ran in 9.59 seconds. Its 11-test coverage run took
-8.27 seconds.
+The final focused 24-test suite ran in 7.98 seconds. Its 15-test coverage run
+took 5.29 seconds.
 The new `state` directory reached 99.00% line, 98.21% statement, 97.22%
-function, and 83.33% branch coverage. The full 843-test Personal Finance run
-took 63.25 seconds and hit two timeouts under concurrent load. Both timed-out
-files passed together on immediate replay, with 59 tests completing in 13.54
-seconds. The later aggregate UI run took 188.44 seconds and exposed the provider
-mock defect described below plus 10 timeout failures across seven Recipe,
-Wedding Planner, platform, and Personal Finance files. After the mock fix, its
-13 affected files passed 109 tests in 17.84 seconds; the seven timeout files
-passed 64 tests in 27.50 seconds. Focused replays remain the reliable evidence
-on this host.
+function, and 83.33% branch coverage. The provider reached 94.70% line coverage
+after the contract suite exercised every command mapping and browser export.
+The full 843-test Personal Finance run took 63.25 seconds and hit two timeouts
+under concurrent load. Both timed-out files passed together on immediate
+replay, with 59 tests completing in 13.54 seconds. The later aggregate UI run
+took 188.44 seconds and exposed the provider mock defect described below plus
+10 timeout failures across seven Recipe, Wedding Planner, platform, and
+Personal Finance files. After the mock fix, its 13 affected files passed 109
+tests in 17.84 seconds; the seven timeout files passed 64 tests in 27.50
+seconds. Focused replays remain the reliable evidence on this host.
 
 The action log was useful for separating storage failures from rejected domain
 commands. A failed transition prints its operation, reason, and JSON action
@@ -96,6 +99,14 @@ provider module with complete test doubles. Exporting the selector factory from
 that module made those doubles fail during import. Keeping the pure factory in
 its own module preserves the existing provider mock boundary and lets the
 selectors remain shared.
+
+The first Sonar analysis found that the direct store and adapter tests left 98
+new provider-facade lines unexecuted, putting new-code coverage at 57.6%. A
+provider contract test now verifies every public mutation's adapter method and
+event-shaped operation name, the reset and lifecycle paths, all three browser
+downloads, backup preview, selector-field extraction, and the missing-provider
+invariant. Focused provider line coverage rose to 94.70%; no coverage exclusion
+or ignored path was added.
 
 ## Assessment
 
