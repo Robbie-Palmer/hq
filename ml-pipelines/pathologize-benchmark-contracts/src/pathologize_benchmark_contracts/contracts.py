@@ -42,6 +42,7 @@ class LeakageUnit(StrEnum):
     SLIDE = "slide_id"
     ACQUISITION = "acquisition_id"
     SITE = "site_id"
+    SCANNER = "scanner_id"
 
 
 class LeakageKeys(StrictModel):
@@ -51,6 +52,8 @@ class LeakageKeys(StrictModel):
     slide_id: str = Field(min_length=1)
     acquisition_id: str = Field(min_length=1)
     site_id: str = Field(min_length=1)
+    scanner_id: str = Field(min_length=1)
+    stain_protocol_id: str = Field(min_length=1)
 
 
 class FixturePlanCase(StrictModel):
@@ -73,6 +76,11 @@ class FixturePlan(StrictModel):
             raise ValueError("fixture case IDs must be unique")
         if {case.split for case in self.cases} != set(Split):
             raise ValueError("fixture plan must contain train, validation, and test cases")
+        test_variants = {case.variant for case in self.cases if case.split == Split.TEST}
+        if test_variants != {"clean", "fold_like", "mark_like"}:
+            raise ValueError(
+                "fixture test split must contain clean, fold-like, and mark-like cases"
+            )
         return self
 
 
@@ -87,6 +95,7 @@ class NucleusTruth(StrictModel):
 class FixtureItem(StrictModel):
     item_id: str = Field(pattern=r"^synthetic-[a-z0-9-]+$")
     split: Split
+    variant: Literal["clean", "fold_like", "mark_like"]
     synthetic: Literal[True]
     image_path: str
     tissue_mask_path: str
@@ -108,6 +117,13 @@ class FixtureManifest(StrictModel):
     seed: int = Field(ge=0)
     items: list[FixtureItem] = Field(min_length=1)
 
+    @model_validator(mode="after")
+    def require_unique_items(self) -> Self:
+        item_ids = [item.item_id for item in self.items]
+        if len(item_ids) != len(set(item_ids)):
+            raise ValueError("fixture item IDs must be unique")
+        return self
+
 
 class RegistryExport(BaseModel):
     model_config = ConfigDict(extra="allow", frozen=True)
@@ -127,6 +143,18 @@ class RegistryExport(BaseModel):
             raise ValueError(
                 "registry exports contain source metadata only; downstream fields found: "
                 + ", ".join(sorted(forbidden))
+            )
+
+        unsafe_ground_truth = [
+            annotation.croissant_record_id
+            for annotation in self.annotations
+            if annotation.ground_truth
+            and _includes_generated_pixels(by_id, annotation.derived_from_representation)
+        ]
+        if unsafe_ground_truth:
+            raise ValueError(
+                "ground-truth annotations cannot derive from generated pixels: "
+                + ", ".join(sorted(unsafe_ground_truth))
             )
         return self
 
@@ -161,9 +189,15 @@ class SplitPolicy(StrictModel):
             LeakageUnit.SPECIMEN,
             LeakageUnit.BLOCK,
             LeakageUnit.SLIDE,
+            LeakageUnit.ACQUISITION,
+            LeakageUnit.SITE,
+            LeakageUnit.SCANNER,
         }
         if not required.issubset(self.leakage_units):
-            raise ValueError("leakage units must include subject, specimen, block, and slide")
+            raise ValueError(
+                "leakage units must include subject, specimen, block, slide, acquisition, site, "
+                "and scanner"
+            )
         if len(self.leakage_units) != len(set(self.leakage_units)):
             raise ValueError("leakage units must be unique")
         return self
@@ -200,6 +234,28 @@ class ExperimentManifest(StrictModel):
             raise ValueError("objective metric names must be unique")
         if self.candidate and self.candidate.adapter_id == self.baseline.adapter_id:
             raise ValueError("candidate adapter must differ from baseline adapter")
+        roles = {objective.role for objective in self.objectives}
+        if "robustness" not in roles:
+            raise ValueError("every experiment requires a robustness objective")
+        if (
+            self.workstream in {Workstream.SLIDE_QUALITY, Workstream.NUCLEI}
+            and "calibration" not in roles
+        ):
+            raise ValueError("classification experiments require a calibration objective")
+        if self.workstream == Workstream.TILING_POLICY:
+            tile_size = self.parameters.get("tile_size")
+            minimum_tissue = self.parameters.get("minimum_tissue_fraction")
+            target_mpp = self.parameters.get("target_microns_per_pixel")
+            if not isinstance(tile_size, int) or tile_size <= 0:
+                raise ValueError("tile_size must be a positive integer")
+            if not isinstance(minimum_tissue, (int, float)) or not 0 <= minimum_tissue <= 1:
+                raise ValueError("minimum_tissue_fraction must be between zero and one")
+            if not isinstance(target_mpp, (int, float)) or target_mpp <= 0:
+                raise ValueError("target_microns_per_pixel must be positive")
+        if self.workstream == Workstream.NUCLEI:
+            match_iou = self.parameters.get("instance_match_iou")
+            if not isinstance(match_iou, (int, float)) or not 0 <= match_iou <= 1:
+                raise ValueError("instance_match_iou must be between zero and one")
         return self
 
 
@@ -211,6 +267,13 @@ class QualityPrediction(StrictModel):
     tissue_labels: list[int]
     artifact_labels: list[int]
     reject_slide: bool
+    reject_probability: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def require_consistent_rejection(self) -> Self:
+        if self.reject_slide != (self.reject_probability >= 0.5):
+            raise ValueError("slide rejection must match its probability threshold")
+        return self
 
 
 class TilePrediction(StrictModel):
@@ -224,13 +287,23 @@ class TilingPrediction(StrictModel):
     workstream: Literal[Workstream.TILING_POLICY]
     item_id: str
     target_microns_per_pixel: float = Field(gt=0)
+    source_microns_per_pixel_x: float = Field(gt=0)
+    source_microns_per_pixel_y: float = Field(gt=0)
     tiles: list[TilePrediction]
 
 
 class NucleusPrediction(StrictModel):
     instance_id: int = Field(gt=0)
     class_name: NucleusClass
+    type_a_probability: float = Field(ge=0, le=1)
     pixels: list[int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def require_consistent_classification(self) -> Self:
+        expected = "synthetic_type_a" if self.type_a_probability >= 0.5 else "synthetic_type_b"
+        if self.class_name != expected:
+            raise ValueError("nucleus class must match its probability threshold")
+        return self
 
 
 class NucleiPrediction(StrictModel):

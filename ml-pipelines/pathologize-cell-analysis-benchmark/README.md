@@ -2,8 +2,9 @@
 
 This project evaluates nucleus detection, instance segmentation, and synthetic
 cell classification as separate objectives. Its manifest covers detection F1,
-semantic Dice, mean matched-instance IoU, macro class F1, and diagnostic binary
-panoptic quality. Panoptic quality cannot decide promotion on its own.
+semantic Dice, mean matched-instance IoU, macro class F1, classification Brier
+score, and diagnostic binary panoptic quality. Panoptic quality cannot decide
+promotion on its own.
 
 ```bash
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:check

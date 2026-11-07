@@ -64,26 +64,32 @@ def resource_gates(budget: ResourceBudget, run_role: str, run: RunSummary) -> li
     limits = {
         "input_bytes": budget.max_input_bytes,
         "prediction_bytes": budget.max_prediction_bytes,
-        "pixels_read": budget.max_pixels_read,
-        "accelerator_seconds": budget.max_accelerator_seconds,
+        "input_pixels": budget.max_input_pixels,
+        "wall_seconds": budget.max_wall_seconds,
+        "cpu_seconds": budget.max_cpu_seconds,
+        "peak_rss_bytes": budget.max_peak_rss_bytes,
+        "accelerator_wall_seconds": budget.max_accelerator_wall_seconds,
+        "peak_accelerator_memory_bytes": budget.max_accelerator_memory_bytes,
     }
     resource_values = {
         "input_bytes": run.resources.input_bytes,
         "prediction_bytes": run.resources.prediction_bytes,
-        "pixels_read": run.resources.pixels_read,
-        "accelerator_seconds": run.resources.accelerator_seconds,
+        "input_pixels": run.resources.input_pixels,
+        "wall_seconds": run.resources.wall_seconds,
+        "cpu_seconds": run.resources.cpu_seconds,
+        "peak_rss_bytes": run.resources.peak_rss_bytes,
+        "accelerator_wall_seconds": run.resources.accelerator_wall_seconds,
+        "peak_accelerator_memory_bytes": run.resources.peak_accelerator_memory_bytes,
     }
-    gates: list[GateResult] = []
-    for name, observed in resource_values.items():
-        gates.append(
-            GateResult(
-                gate=f"{run_role}-resource:{name}",
-                passed=observed is not None and observed <= limits[name],
-                observed=float(observed) if observed is not None else None,
-                threshold=float(limits[name]),
-            )
+    return [
+        GateResult(
+            gate=f"{run_role}-resource:{name}",
+            passed=observed <= limits[name],
+            observed=float(observed),
+            threshold=float(limits[name]),
         )
-    return gates
+        for name, observed in resource_values.items()
+    ]
 
 
 def evaluate_gates(

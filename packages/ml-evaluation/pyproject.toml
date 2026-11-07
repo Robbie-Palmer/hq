@@ -3,7 +3,7 @@ name = "ml-evaluation"
 version = "0.1.0"
 description = "Typed contracts and promotion gates for machine-learning evaluations"
 readme = "README.md"
-requires-python = ">=3.12,<3.15"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "data-artifacts",
     "pydantic>=2.12.5,<3",

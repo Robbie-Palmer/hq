@@ -2,7 +2,7 @@
 name = "pathologize-cell-analysis-benchmark"
 version = "0.1.0"
 description = "Nucleus detection, segmentation, and synthetic cell classification benchmark"
-requires-python = ">=3.12,<3.15"
+requires-python = ">=3.12,<3.13"
 dependencies = ["pathologize-benchmark-contracts"]
 
 [tool.uv]

@@ -33,10 +33,9 @@ The generated JSON Schemas define:
 
 Every experiment pins its source, evaluation split, split-isolation identity fields, adapters,
 metric direction and gates, resource limits, and disabled super-resolution
-seam. Candidate adapters must pin a version and the SHA-256 of the Python module
-file that contains their entrypoint. The loader verifies that digest before it
-imports the module. An adapter must report accelerator time after prediction;
-an unavailable measurement fails the accelerator resource gate. The checked-in
+seam. Candidate adapters must pin a version, module path, artifact SHA-256, and
+execution device. The loader resolves the module path and verifies its digest
+before importing the module. The checked-in
 baseline reads fixture colors and makes no network, model, or GPU call. It tests
 the contracts and metric arithmetic. It is not a model choice.
 
@@ -52,8 +51,8 @@ The schema calls these identity fields `leakage_units`. Each listed identity
 must occur in only one of the train, validation, or test splits. This prevents
 related samples from crossing a split boundary and inflating evaluation
 results. Every policy isolates `subject_id`, `specimen_id`, `block_id`, and
-`slide_id`. The current projects also isolate `acquisition_id`. Registry IDs
-remain opaque strings.
+`slide_id`. The current projects also isolate `acquisition_id`, `site_id`, and
+`scanner_id`. Registry IDs remain opaque strings.
 
 An external registry experiment must pin contract
 `pathologize.data-registry-export/v1`, a 40-character Git revision, registry
@@ -81,10 +80,13 @@ owned split assignments and validate split isolation before evaluation.
 
 ## Resource and cost boundary
 
-Experiment manifests bound bytes, pixels, and accelerator time. Scorecards
-record those measurements plus optional wall time, CPU time, and peak resident
-memory. Provider authorization and monetary cost are outside this benchmark
-contract.
+Experiment manifests bound input bytes, prediction bytes, input pixels, wall
+time, CPU time, peak resident memory, accelerator wall time, and peak accelerator
+memory. Scorecards record every value. Accelerator adapters are supported and
+receive time and memory gates. The local runner uses NVIDIA NVML for
+process-level memory enforcement. Kubernetes GPU utilization, power, health,
+and workload telemetry belong to the cluster's DCGM and OpenTelemetry stack.
+Provider authorization and monetary cost are outside this benchmark contract.
 
 If a future adapter uses metered provider inference, its run telemetry must use
 the platform's shared `Money` and `ResourceQuantity` semantics. Funding policy

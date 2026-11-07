@@ -8,6 +8,18 @@
           "title": "Adapter Id",
           "type": "string"
         },
+        "artifact_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Artifact Path"
+        },
         "artifact_sha256": {
           "anyOf": [
             {
@@ -25,6 +37,10 @@
           "minLength": 1,
           "title": "Entrypoint",
           "type": "string"
+        },
+        "execution_device": {
+          "$ref": "#/$defs/ExecutionDevice",
+          "default": "cpu"
         },
         "kind": {
           "enum": [
@@ -48,6 +64,14 @@
       ],
       "title": "AdapterSpec",
       "type": "object"
+    },
+    "ExecutionDevice": {
+      "enum": [
+        "cpu",
+        "accelerator"
+      ],
+      "title": "ExecutionDevice",
+      "type": "string"
     },
     "GateResult": {
       "additionalProperties": false,
@@ -122,66 +146,34 @@
     "ResourceUsage": {
       "additionalProperties": false,
       "properties": {
-        "accelerator_seconds": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Accelerator Seconds"
+        "accelerator_wall_seconds": {
+          "minimum": 0,
+          "title": "Accelerator Wall Seconds",
+          "type": "number"
+        },
+        "cpu_seconds": {
+          "minimum": 0,
+          "title": "Cpu Seconds",
+          "type": "number"
         },
         "input_bytes": {
           "minimum": 0,
           "title": "Input Bytes",
           "type": "integer"
         },
-        "observed_cpu_seconds": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Observed Cpu Seconds"
-        },
-        "observed_peak_rss_bytes": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Observed Peak Rss Bytes"
-        },
-        "observed_wall_seconds": {
-          "anyOf": [
-            {
-              "minimum": 0,
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Observed Wall Seconds"
-        },
-        "pixels_read": {
+        "input_pixels": {
           "minimum": 0,
-          "title": "Pixels Read",
+          "title": "Input Pixels",
+          "type": "integer"
+        },
+        "peak_accelerator_memory_bytes": {
+          "minimum": 0,
+          "title": "Peak Accelerator Memory Bytes",
+          "type": "integer"
+        },
+        "peak_rss_bytes": {
+          "minimum": 0,
+          "title": "Peak Rss Bytes",
           "type": "integer"
         },
         "prediction_bytes": {
@@ -193,15 +185,49 @@
           "minimum": 0,
           "title": "Samples",
           "type": "integer"
+        },
+        "wall_seconds": {
+          "minimum": 0,
+          "title": "Wall Seconds",
+          "type": "number"
         }
       },
       "required": [
         "samples",
         "input_bytes",
         "prediction_bytes",
-        "pixels_read"
+        "input_pixels",
+        "wall_seconds",
+        "cpu_seconds",
+        "peak_rss_bytes",
+        "accelerator_wall_seconds",
+        "peak_accelerator_memory_bytes"
       ],
       "title": "ResourceUsage",
+      "type": "object"
+    },
+    "RunFailure": {
+      "additionalProperties": false,
+      "properties": {
+        "error_type": {
+          "title": "Error Type",
+          "type": "string"
+        },
+        "item_id": {
+          "title": "Item Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_id",
+        "error_type",
+        "message"
+      ],
+      "title": "RunFailure",
       "type": "object"
     },
     "RunSummary": {
@@ -209,6 +235,13 @@
       "properties": {
         "adapter": {
           "$ref": "#/$defs/AdapterSpec"
+        },
+        "failures": {
+          "items": {
+            "$ref": "#/$defs/RunFailure"
+          },
+          "title": "Failures",
+          "type": "array"
         },
         "metrics": {
           "items": {
@@ -224,7 +257,8 @@
       "required": [
         "adapter",
         "metrics",
-        "resources"
+        "resources",
+        "failures"
       ],
       "title": "RunSummary",
       "type": "object"

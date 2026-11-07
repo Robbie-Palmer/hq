@@ -1,26 +1,32 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
-from data_artifacts.files import load_model, read_json, write_json
+from data_artifacts.files import load_model, read_json, read_jsonl, write_json
 from ml_evaluation.contracts import ResourceUsage
 from ml_evaluation.gates import evaluate_gates
 from pydantic import ValidationError
 
-from pathologize_benchmark_contracts import cli
+from pathologize_benchmark_contracts import cli, pipeline
 from pathologize_benchmark_contracts.contracts import (
     AggregateScorecard,
     ExperimentManifest,
     FixtureManifest,
     QualityPrediction,
     Scorecard,
+    Split,
+    TilingPrediction,
     Workstream,
 )
 from pathologize_benchmark_contracts.metrics import evaluate_predictions
 from pathologize_benchmark_contracts.pipeline import (
     evaluate_experiment,
+    generate,
     load_experiments,
+    run_adapters,
     validate_contracts,
     verify,
     write_schemas,
@@ -40,7 +46,8 @@ def test_full_pipeline_builds_typed_hill_climbable_scorecards(
     assert all(scorecard.clinical_validity is False for scorecard in aggregate.scorecards)
     assert all(gate.passed for scorecard in aggregate.scorecards for gate in scorecard.gates)
     assert all(
-        scorecard.baseline.resources.accelerator_seconds == 0 for scorecard in aggregate.scorecards
+        scorecard.baseline.resources.accelerator_wall_seconds == 0
+        for scorecard in aggregate.scorecards
     )
 
     metrics = read_json(reproduced_benchmark_root / "outputs/scorecard/metrics.json")
@@ -62,8 +69,39 @@ def test_scorecard_metrics_match_declared_objectives(reproduced_root: Path) -> N
         assert {metric.metric for metric in scorecard.baseline.metrics} == {
             objective.metric for objective in manifest.objectives
         }
-        assert scorecard.baseline.resources.samples == 2
-        assert scorecard.baseline.resources.observed_wall_seconds is None
+        assert scorecard.baseline.resources.samples == 3
+        assert scorecard.baseline.resources.wall_seconds > 0
+        assert scorecard.baseline.resources.cpu_seconds > 0
+        assert scorecard.baseline.resources.peak_rss_bytes > 0
+
+
+def test_nvml_monitor_records_current_process_memory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+    handle = object()
+    monkeypatch.setattr(pipeline, "nvmlInit", lambda: calls.append("init"))
+    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: calls.append("shutdown"))
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
+    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
+    monkeypatch.setattr(
+        pipeline,
+        "nvmlDeviceGetComputeRunningProcesses",
+        lambda _handle: [
+            SimpleNamespace(pid=os.getpid(), usedGpuMemory=32 * 1024 * 1024),
+            SimpleNamespace(pid=os.getpid() + 1, usedGpuMemory=64 * 1024 * 1024),
+        ],
+    )
+
+    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
+    monitor.start()
+    monitor.stop()
+
+    assert monitor.available
+    assert monitor.sampled
+    assert monitor.peak_bytes == 32 * 1024 * 1024
+    assert monitor.error_message is None
+    assert calls == ["init", "shutdown"]
 
 
 def test_prediction_count_mismatch_fails_closed(reproduced_root: Path) -> None:
@@ -92,9 +130,78 @@ def test_quality_mask_length_mismatch_fails_closed(reproduced_root: Path) -> Non
         tissue_labels=[1],
         artifact_labels=[0],
         reject_slide=False,
+        reject_probability=0,
     )
     with pytest.raises(ValueError, match="mask length"):
         evaluate_predictions(manifest, [item], [prediction], reproduced_root)
+
+
+def test_slide_rejection_fixture_contains_a_negative_case(reproduced_root: Path) -> None:
+    manifest = load_model(
+        reproduced_root / "experiments/whole-slide-quality.json", ExperimentManifest
+    )
+    fixture = load_model(reproduced_root / "data/synthetic/manifest.json", FixtureManifest)
+    items = [item for item in fixture.items if item.split == Split.TEST]
+    prediction_path = (
+        reproduced_root
+        / "outputs/runs/whole-slide-quality-contract-v1"
+        / "deterministic-color-v1/predictions.jsonl"
+    )
+    predictions = [QualityPrediction.model_validate(value) for value in read_jsonl(prediction_path)]
+    always_reject = [
+        prediction.model_copy(update={"reject_slide": True, "reject_probability": 1.0})
+        for prediction in predictions
+    ]
+
+    assert {item.variant for item in items} == {"clean", "fold_like", "mark_like"}
+    assert (
+        evaluate_predictions(manifest, items, always_reject, reproduced_root)[
+            "slide_rejection_accuracy"
+        ]
+        < 1
+    )
+
+
+def test_tiling_scale_error_uses_item_metadata(reproduced_tiling_root: Path) -> None:
+    manifest = load_model(
+        reproduced_tiling_root / "experiments/tiling-magnification.json", ExperimentManifest
+    )
+    fixture = load_model(reproduced_tiling_root / "data/synthetic/manifest.json", FixtureManifest)
+    items = [
+        item.model_copy(update={"microns_per_pixel_x": 1.0, "microns_per_pixel_y": 1.0})
+        for item in fixture.items
+        if item.split == Split.TEST
+    ]
+    prediction_path = (
+        reproduced_tiling_root
+        / "outputs/runs/tiling-magnification-contract-v1"
+        / "deterministic-color-v1/predictions.jsonl"
+    )
+    predictions = [TilingPrediction.model_validate(value) for value in read_jsonl(prediction_path)]
+
+    assert (
+        evaluate_predictions(manifest, items, predictions, reproduced_tiling_root)[
+            "magnification_relative_error"
+        ]
+        == 0.5
+    )
+
+
+def test_adapter_failure_writes_machine_readable_context(configured_root: Path) -> None:
+    generate(configured_root)
+    fixture = load_model(configured_root / "data/synthetic/manifest.json", FixtureManifest)
+    test_item = next(item for item in fixture.items if item.split == Split.TEST)
+    (configured_root / test_item.image_path).write_text("not a PNM", encoding="ascii")
+
+    with pytest.raises(ValueError, match="unsupported PNM"):
+        run_adapters(configured_root)
+
+    failures = read_json(
+        configured_root
+        / "outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json"
+    )
+    assert failures[0]["item_id"] == test_item.item_id
+    assert failures[0]["error_type"] == "ValueError"
 
 
 def test_verify_detects_scorecard_tampering(reproduced_root: Path) -> None:
@@ -201,11 +308,12 @@ def test_candidate_must_improve_without_breaking_resource_budget(
                 samples=baseline_resources.samples,
                 input_bytes=baseline_resources.input_bytes,
                 prediction_bytes=manifest.resource_budget.max_prediction_bytes + 1,
-                pixels_read=baseline_resources.pixels_read,
-                accelerator_seconds=baseline_resources.accelerator_seconds,
-                observed_wall_seconds=None,
-                observed_cpu_seconds=None,
-                observed_peak_rss_bytes=None,
+                input_pixels=baseline_resources.input_pixels,
+                wall_seconds=baseline_resources.wall_seconds,
+                cpu_seconds=baseline_resources.cpu_seconds,
+                peak_rss_bytes=baseline_resources.peak_rss_bytes,
+                accelerator_wall_seconds=baseline_resources.accelerator_wall_seconds,
+                peak_accelerator_memory_bytes=(baseline_resources.peak_accelerator_memory_bytes),
             ),
         }
     )
@@ -217,7 +325,7 @@ def test_candidate_must_improve_without_breaking_resource_budget(
         candidate,
     )
 
-    assert next(
+    assert not next(
         gate for gate in gates if gate.gate == "candidate-improvement:tile_selection_f1"
     ).passed
     assert not next(

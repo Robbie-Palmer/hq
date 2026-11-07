@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
-from typing import cast
 
 import pytest
 from data_artifacts.files import (
@@ -17,11 +16,7 @@ from data_artifacts.files import (
 from ml_evaluation.contracts import AdapterSpec
 from pydantic import ValidationError
 
-from pathologize_benchmark_contracts.adapters import (
-    ModelAdapter,
-    load_adapter,
-    reported_accelerator_seconds,
-)
+from pathologize_benchmark_contracts.adapters import load_adapter
 from pathologize_benchmark_contracts.contracts import (
     ExperimentManifest,
     FixtureManifest,
@@ -86,6 +81,16 @@ def test_minimum_fixture_geometry_stays_inside_tissue_and_outside_artifacts(
                     "variant": "mark_like",
                 },
                 {"case_id": "synthetic-test-clean", "split": "test", "variant": "clean"},
+                {
+                    "case_id": "synthetic-test-fold",
+                    "split": "test",
+                    "variant": "fold_like",
+                },
+                {
+                    "case_id": "synthetic-test-mark",
+                    "split": "test",
+                    "variant": "mark_like",
+                },
             ],
         },
     )
@@ -133,7 +138,7 @@ def test_experiment_contract_rejects_unsafe_or_unpinned_changes(
 
     value = read_json(configured_root / "experiments/whole-slide-quality.json")
     value["split_policy"]["leakage_units"].remove("slide_id")
-    with pytest.raises(ValidationError, match="subject, specimen, block, and slide"):
+    with pytest.raises(ValidationError, match="subject, specimen, block, slide"):
         ExperimentManifest.model_validate(value)
 
     value = read_json(configured_root / "experiments/whole-slide-quality.json")
@@ -143,9 +148,10 @@ def test_experiment_contract_rejects_unsafe_or_unpinned_changes(
 
     adapter = value["baseline"] | {
         "kind": "python_entrypoint",
+        "artifact_path": None,
         "artifact_sha256": None,
     }
-    with pytest.raises(ValidationError, match="artifact SHA-256"):
+    with pytest.raises(ValidationError, match="artifact path and SHA-256"):
         AdapterSpec.model_validate(adapter)
 
 
@@ -277,7 +283,7 @@ def test_adapter_loader_rejects_bad_entrypoints_and_ids(
     configured_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     baseline = read_json(configured_root / "experiments/whole-slide-quality.json")["baseline"]
-    adapter = load_adapter(AdapterSpec.model_validate(baseline))
+    adapter = load_adapter(AdapterSpec.model_validate(baseline), configured_root)
     assert adapter.adapter_id == "deterministic-color-v1"
 
     module_path = tmp_path / "external_pathologize_adapter.py"
@@ -286,6 +292,7 @@ def test_adapter_loader_rejects_bad_entrypoints_and_ids(
         "    adapter_id = 'external-adapter-v1'\n\n"
         "class WrongIdentity:\n"
         "    adapter_id = 'other-v1'\n"
+        "    adapter_version = '1.0.0'\n"
         "    def predict(self, manifest, item, root):\n"
         "        return None\n",
         encoding="utf-8",
@@ -294,37 +301,15 @@ def test_adapter_loader_rejects_bad_entrypoints_and_ids(
     external = baseline | {
         "adapter_id": "external-adapter-v1",
         "kind": "python_entrypoint",
-        "entrypoint": "external_pathologize_adapter:WrongAdapter",
+        "entrypoint": "invalid",
+        "artifact_path": module_path.name,
         "artifact_sha256": sha256_file(module_path),
     }
     external_spec = AdapterSpec.model_validate(external)
-    with pytest.raises(TypeError, match="does not implement"):
-        load_adapter(external_spec)
-
-    external["entrypoint"] = "builtins.dict"
-    external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(ValueError, match="module:attribute"):
-        load_adapter(external_spec)
+        load_adapter(external_spec, tmp_path)
 
     external["entrypoint"] = "external_pathologize_adapter:WrongIdentity"
     external_spec = AdapterSpec.model_validate(external)
     with pytest.raises(ValueError, match="adapter ID"):
-        load_adapter(external_spec)
-
-
-def test_missing_or_invalid_accelerator_telemetry_is_conservative() -> None:
-    class MissingTelemetry:
-        pass
-
-    class NegativeTelemetry:
-        @staticmethod
-        def accelerator_seconds() -> float:
-            return -1.0
-
-    missing = MissingTelemetry()
-    negative = NegativeTelemetry()
-    missing_adapter = cast(ModelAdapter, missing)
-    negative_adapter = cast(ModelAdapter, negative)
-    assert reported_accelerator_seconds(missing_adapter) is None
-    with pytest.raises(ValueError, match="non-negative"):
-        reported_accelerator_seconds(negative_adapter)
+        load_adapter(external_spec, tmp_path)

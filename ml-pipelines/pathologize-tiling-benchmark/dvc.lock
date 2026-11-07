@@ -1,197 +1,5 @@
 schema: '2.0'
 stages:
-  generate_synthetic_fixtures:
-    cmd: uv run --locked pathologize-benchmark generate-fixtures
-    deps:
-    - path: ../pathologize-benchmark-contracts/src
-      hash: md5
-      md5: eec2abe7e65e89b67a4a39a4378c2e88.dir
-      size: 58929
-      nfiles: 8
-    - path: fixtures/spec.json
-      hash: md5
-      md5: d8aeaf96aa58609e503388b743adbb66
-      size: 608
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
-    - path: pyproject.toml
-      hash: md5
-      md5: 52f38e44c41fe0d037aaeaf7bb8359e3
-      size: 512
-    - path: uv.lock
-      hash: md5
-      md5: 0066e2dff868d6f44aaeb9b7323e7658
-      size: 42545
-    outs:
-    - path: data/synthetic
-      hash: md5
-      md5: a9631559e91fa3a6a0bc5d90bbfd4f3e.dir
-      size: 447612
-      nfiles: 25
-  validate_contracts:
-    cmd: uv run --locked pathologize-benchmark validate-contracts
-    deps:
-    - path: ../pathologize-benchmark-contracts/src
-      hash: md5
-      md5: eec2abe7e65e89b67a4a39a4378c2e88.dir
-      size: 58929
-      nfiles: 8
-    - path: data/synthetic/manifest.json
-      hash: md5
-      md5: f2bf1f8812801362b6b21821a8b0bafd
-      size: 7191
-    - path: experiments/tiling-magnification.json
-      hash: md5
-      md5: b3237f9ef31c3ff4e3df661d6daf6753
-      size: 2182
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
-    - path: params.yaml
-      hash: md5
-      md5: 9d05cf9a407777cc8ebb57d366d86eeb
-      size: 204
-    params:
-      params.yaml:
-        benchmark_id: pathologize.tiling-magnification/v1
-        experiments:
-        - experiments/tiling-magnification.json
-        workstream: tiling_magnification_policy
-    outs:
-    - path: outputs/contracts/validation.json
-      hash: md5
-      md5: b11f845db412ee100b9fe668092aecda
-      size: 271
-  run_baseline:
-    cmd: uv run --locked pathologize-benchmark run-adapters
-    deps:
-    - path: ../pathologize-benchmark-contracts/src
-      hash: md5
-      md5: eec2abe7e65e89b67a4a39a4378c2e88.dir
-      size: 58929
-      nfiles: 8
-    - path: data/synthetic
-      hash: md5
-      md5: a9631559e91fa3a6a0bc5d90bbfd4f3e.dir
-      size: 447612
-      nfiles: 25
-    - path: experiments/tiling-magnification.json
-      hash: md5
-      md5: b3237f9ef31c3ff4e3df661d6daf6753
-      size: 2182
-    - path: outputs/contracts/validation.json
-      hash: md5
-      md5: b11f845db412ee100b9fe668092aecda
-      size: 271
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
-    - path: pyproject.toml
-      hash: md5
-      md5: 52f38e44c41fe0d037aaeaf7bb8359e3
-      size: 512
-    - path: uv.lock
-      hash: md5
-      md5: 0066e2dff868d6f44aaeb9b7323e7658
-      size: 42545
-    outs:
-    - path: outputs/runs
-      hash: md5
-      md5: e2aef73a7c095d31e5473f37cc535ef5.dir
-      size: 1692
-      nfiles: 2
-  evaluate_tiling_magnification:
-    cmd: uv run --locked pathologize-benchmark eval-only
-    deps:
-    - path: ../pathologize-benchmark-contracts/src
-      hash: md5
-      md5: eec2abe7e65e89b67a4a39a4378c2e88.dir
-      size: 58929
-      nfiles: 8
-    - path: data/synthetic
-      hash: md5
-      md5: a9631559e91fa3a6a0bc5d90bbfd4f3e.dir
-      size: 447612
-      nfiles: 25
-    - path: experiments/tiling-magnification.json
-      hash: md5
-      md5: b3237f9ef31c3ff4e3df661d6daf6753
-      size: 2182
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
-    - path: outputs/runs/tiling-magnification-contract-v1
-      hash: md5
-      md5: 5a3545223f693f71efb4135c8a245c37.dir
-      size: 1692
-      nfiles: 2
-    outs:
-    - path: outputs/scorecards/tiling-magnification-contract-v1.json
-      hash: md5
-      md5: e256ef140153f962ed2273cde2d54118
-      size: 2746
-  write_scorecard:
-    cmd: uv run --locked pathologize-benchmark aggregate
-    deps:
-    - path: ../pathologize-benchmark-contracts/src
-      hash: md5
-      md5: eec2abe7e65e89b67a4a39a4378c2e88.dir
-      size: 58929
-      nfiles: 8
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
-    - path: outputs/scorecards/tiling-magnification-contract-v1.json
-      hash: md5
-      md5: e256ef140153f962ed2273cde2d54118
-      size: 2746
-    - path: params.yaml
-      hash: md5
-      md5: 9d05cf9a407777cc8ebb57d366d86eeb
-      size: 204
-    outs:
-    - path: outputs/scorecard/benchmark.json
-      hash: md5
-      md5: 8d8e9af344f02cb96da740bee71cd104
-      size: 3374
-    - path: outputs/scorecard/metrics.json
-      hash: md5
-      md5: eee49458c74d8a5aff7b377ccb313545
-      size: 196
-  pin_ml_evaluation:
-    cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
-    deps:
-    - path: ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
-      hash: md5
-      md5: bacbc6c23e7549f4a065f9d4cf9adf70
-      size: 192
-    - path: ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
-      hash: md5
-      md5: 73243d6b00dcb168e2fec1ac56481707
-      size: 2640
-    - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
-      hash: md5
-      md5: d29da3b42f56e88f432fc05773e6df81
-      size: 3380
-    - path: ../../packages/ml-evaluation/src/ml_evaluation/gates.py
-      hash: md5
-      md5: 65c3f65da25932472a7ab03a0845f4b2
-      size: 4211
-    - path: outputs/data-artifacts-source.sha256
-      hash: md5
-      md5: 8ee5638ed3f7e5fd180df557f65b2139
-      size: 65
-    outs:
-    - path: outputs/ml-evaluation-source.sha256
-      hash: md5
-      md5: 28e7c5b71a749f917fb49fd735f8cc72
-      size: 65
   pin_data_artifacts:
     cmd: uv run --locked data-artifacts fingerprint data_artifacts
     deps:
@@ -216,3 +24,195 @@ stages:
       hash: md5
       md5: 8ee5638ed3f7e5fd180df557f65b2139
       size: 65
+  pin_ml_evaluation:
+    cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
+    deps:
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
+      hash: md5
+      md5: bacbc6c23e7549f4a065f9d4cf9adf70
+      size: 192
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
+      hash: md5
+      md5: d3135c1d3ab7e723958458ec4897d56b
+      size: 3060
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
+      hash: md5
+      md5: 29a63bbfea168223615a5472c43d35e4
+      size: 4441
+    - path: ../../packages/ml-evaluation/src/ml_evaluation/gates.py
+      hash: md5
+      md5: b906c81072773c604244755fb571b435
+      size: 4563
+    - path: outputs/data-artifacts-source.sha256
+      hash: md5
+      md5: 8ee5638ed3f7e5fd180df557f65b2139
+      size: 65
+    outs:
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-benchmark generate-fixtures
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
+      size: 172930
+      nfiles: 15
+    - path: fixtures/spec.json
+      hash: md5
+      md5: 4a854e821a33887068abca8347c2b0a3
+      size: 686
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+    - path: pyproject.toml
+      hash: md5
+      md5: 957f6f475b09e2a9ed0849aa56b70303
+      size: 512
+    - path: uv.lock
+      hash: md5
+      md5: 7560aa4cbb65b0128fd19d9b9d76abde
+      size: 27184
+    outs:
+    - path: data/synthetic
+      hash: md5
+      md5: 809e1ab513d9fce5b2e40c183339f22f.dir
+      size: 523243
+      nfiles: 29
+  validate_contracts:
+    cmd: uv run --locked pathologize-benchmark validate-contracts
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
+      size: 172930
+      nfiles: 15
+    - path: data/synthetic/manifest.json
+      hash: md5
+      md5: 38db48abe9059b1579208b45b833778c
+      size: 9283
+    - path: experiments/tiling-magnification.json
+      hash: md5
+      md5: b4c4932a71c08e32229df81561aaa701
+      size: 2348
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+    - path: params.yaml
+      hash: md5
+      md5: 9d05cf9a407777cc8ebb57d366d86eeb
+      size: 204
+    params:
+      params.yaml:
+        benchmark_id: pathologize.tiling-magnification/v1
+        experiments:
+        - experiments/tiling-magnification.json
+        workstream: tiling_magnification_policy
+    outs:
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: 21458e79b6d8af0cd1c779cc6a5f26af
+      size: 271
+  run_baseline:
+    cmd: uv run --locked pathologize-benchmark run-adapters
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
+      size: 172930
+      nfiles: 15
+    - path: data/synthetic
+      hash: md5
+      md5: 809e1ab513d9fce5b2e40c183339f22f.dir
+      size: 523243
+      nfiles: 29
+    - path: experiments/tiling-magnification.json
+      hash: md5
+      md5: b4c4932a71c08e32229df81561aaa701
+      size: 2348
+    - path: outputs/contracts/validation.json
+      hash: md5
+      md5: 21458e79b6d8af0cd1c779cc6a5f26af
+      size: 271
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+    - path: pyproject.toml
+      hash: md5
+      md5: 957f6f475b09e2a9ed0849aa56b70303
+      size: 512
+    - path: uv.lock
+      hash: md5
+      md5: 7560aa4cbb65b0128fd19d9b9d76abde
+      size: 27184
+    outs:
+    - path: outputs/runs
+      hash: md5
+      md5: 216f6638e37b461b418018420e2b69f0.dir
+      size: 2682
+      nfiles: 3
+  evaluate_tiling_magnification:
+    cmd: uv run --locked pathologize-benchmark eval-only
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
+      size: 172930
+      nfiles: 15
+    - path: data/synthetic
+      hash: md5
+      md5: 809e1ab513d9fce5b2e40c183339f22f.dir
+      size: 523243
+      nfiles: 29
+    - path: experiments/tiling-magnification.json
+      hash: md5
+      md5: b4c4932a71c08e32229df81561aaa701
+      size: 2348
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+    - path: outputs/runs/tiling-magnification-contract-v1
+      hash: md5
+      md5: 633bbfa63aaabaed9d87439686c2020e.dir
+      size: 2682
+      nfiles: 3
+    outs:
+    - path: outputs/scorecards/tiling-magnification-contract-v1.json
+      hash: md5
+      md5: 6e46948673b40ffb0987c958122f75e3
+      size: 3492
+  write_scorecard:
+    cmd: uv run --locked pathologize-benchmark aggregate
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
+      size: 172930
+      nfiles: 15
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 0aaf5c267591733a91d96299b70db10b
+      size: 65
+    - path: outputs/scorecards/tiling-magnification-contract-v1.json
+      hash: md5
+      md5: 6e46948673b40ffb0987c958122f75e3
+      size: 3492
+    - path: params.yaml
+      hash: md5
+      md5: 9d05cf9a407777cc8ebb57d366d86eeb
+      size: 204
+    outs:
+    - path: outputs/scorecard/benchmark.json
+      hash: md5
+      md5: 8dc3975504c6e8e306e52ae284c27403
+      size: 4232
+    - path: outputs/scorecard/metrics.json
+      hash: md5
+      md5: 522a32fe873633fbf7e6e5a10c5e6a9e
+      size: 202

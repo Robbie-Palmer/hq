@@ -5,7 +5,7 @@ from collections.abc import Callable, Mapping
 from importlib.machinery import PathFinder
 from pathlib import Path
 
-from data_artifacts.files import sha256_file
+from data_artifacts.files import resolve_under, sha256_file
 
 from .contracts import AdapterSpec
 
@@ -32,12 +32,15 @@ def _adapter_module_path(module_name: str) -> Path:
     return path
 
 
-def _verify_external_artifact(spec: AdapterSpec, module_name: str) -> None:
-    if spec.artifact_sha256 is None:
-        raise ValueError("python entrypoint adapters require an artifact SHA-256")
+def _verify_external_artifact(spec: AdapterSpec, module_name: str, root: Path) -> None:
+    if spec.artifact_path is None or spec.artifact_sha256 is None:
+        raise ValueError("python entrypoint adapter artifact pin is incomplete")
     module_path = _adapter_module_path(module_name)
-    if sha256_file(module_path) != spec.artifact_sha256:
-        raise ValueError("Python adapter module SHA-256 differs from the pinned artifact")
+    artifact_path = resolve_under(root, spec.artifact_path)
+    if artifact_path.resolve() != module_path.resolve():
+        raise ValueError("python adapter artifact path differs from the resolved module")
+    if sha256_file(artifact_path) != spec.artifact_sha256:
+        raise ValueError("python adapter artifact SHA-256 mismatch")
 
 
 def load_adapter[AdapterT](
@@ -45,6 +48,7 @@ def load_adapter[AdapterT](
     *,
     builtins: Mapping[str, Callable[[], object]],
     expected_type: type[AdapterT],
+    root: Path,
 ) -> AdapterT:
     if spec.kind == "builtin":
         try:
@@ -55,7 +59,7 @@ def load_adapter[AdapterT](
         module_name, separator, attribute = spec.entrypoint.partition(":")
         if not separator:
             raise ValueError("python adapter entrypoint must use module:attribute")
-        _verify_external_artifact(spec, module_name)
+        _verify_external_artifact(spec, module_name, root)
         factory = getattr(importlib.import_module(module_name), attribute)
         adapter = factory()
     if not isinstance(adapter, expected_type):
@@ -63,4 +67,6 @@ def load_adapter[AdapterT](
     typed_adapter = adapter
     if getattr(typed_adapter, "adapter_id", None) != spec.adapter_id:
         raise ValueError("loaded adapter ID differs from the pinned manifest")
+    if getattr(typed_adapter, "adapter_version", None) != spec.version:
+        raise ValueError("loaded adapter version differs from the pinned manifest")
     return typed_adapter

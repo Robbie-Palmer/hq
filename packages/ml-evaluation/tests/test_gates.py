@@ -30,9 +30,14 @@ def _run(value: float, *, input_bytes: int = 5) -> RunSummary:
             samples=1,
             input_bytes=input_bytes,
             prediction_bytes=2,
-            pixels_read=4,
-            accelerator_seconds=0,
+            input_pixels=4,
+            wall_seconds=0.1,
+            cpu_seconds=0.1,
+            peak_rss_bytes=50,
+            accelerator_wall_seconds=0,
+            peak_accelerator_memory_bytes=0,
         ),
+        failures=[],
     )
 
 
@@ -52,14 +57,18 @@ def _budget() -> ResourceBudget:
     return ResourceBudget(
         max_input_bytes=10,
         max_prediction_bytes=10,
-        max_pixels_read=10,
-        max_accelerator_seconds=0,
+        max_input_pixels=10,
+        max_wall_seconds=1,
+        max_cpu_seconds=1,
+        max_peak_rss_bytes=100,
+        max_accelerator_wall_seconds=0,
+        max_accelerator_memory_bytes=0,
     )
 
 
 def test_evaluates_metric_and_resource_gates() -> None:
     gates = evaluate_gates([_objective()], _budget(), _run(0.8), _run(0.9))
-    assert len(gates) == 11
+    assert len(gates) == 19
     assert all(gate.passed for gate in gates)
     assert recommendation(_run(0.9), gates) == "promote_candidate"
 
@@ -70,18 +79,6 @@ def test_rejects_failed_candidate_and_handles_baseline_only() -> None:
     assert recommendation(_run(0.7), gates) == "reject_candidate"
     baseline_gates = evaluate_gates([_objective()], _budget(), _run(0.8), None)
     assert recommendation(None, baseline_gates) == "baseline_only"
-
-
-def test_unknown_accelerator_usage_fails_its_resource_gate() -> None:
-    run = _run(0.8)
-    unknown_resources = run.resources.model_copy(update={"accelerator_seconds": None})
-    unknown_run = run.model_copy(update={"resources": unknown_resources})
-    gates = evaluate_gates([_objective()], _budget(), unknown_run, None)
-    accelerator_gate = next(
-        gate for gate in gates if gate.gate == "baseline-resource:accelerator_seconds"
-    )
-    assert accelerator_gate.observed is None
-    assert not accelerator_gate.passed
 
 
 def test_diagnostic_objectives_have_no_metric_gates() -> None:

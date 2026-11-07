@@ -12,7 +12,7 @@
   },
   "split_policy": {
     "evaluation_split": "test",
-    "leakage_units": ["subject_id", "specimen_id", "block_id", "slide_id", "acquisition_id"]
+    "leakage_units": ["subject_id", "specimen_id", "block_id", "slide_id", "acquisition_id", "site_id", "scanner_id"]
   },
   "baseline": {
     "adapter_id": "deterministic-color-v1",
@@ -23,16 +23,21 @@
   },
   "candidate": null,
   "objectives": [
-    {"metric": "artifact_free_tissue_dice", "role": "primary", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": 0.0, "candidate_max_regression": 0.0},
-    {"metric": "artifact_macro_f1", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
+    {"metric": "artifact_free_tissue_dice", "role": "primary", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": 0.001, "candidate_max_regression": 0.0},
+    {"metric": "artifact_macro_f1", "role": "robustness", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
     {"metric": "slide_rejection_accuracy", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
+    {"metric": "slide_rejection_brier", "role": "calibration", "direction": "minimize", "unit": "ratio", "baseline_floor": 0.0, "candidate_min_delta": null, "candidate_max_regression": 0.01},
     {"metric": "tissue_iou", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01}
   ],
   "resource_budget": {
     "max_input_bytes": 200000,
     "max_prediction_bytes": 200000,
-    "max_pixels_read": 10000,
-    "max_accelerator_seconds": 0
+    "max_input_pixels": 20000,
+    "max_wall_seconds": 10,
+    "max_cpu_seconds": 10,
+    "max_peak_rss_bytes": 1073741824,
+    "max_accelerator_wall_seconds": 0,
+    "max_accelerator_memory_bytes": 0
   },
   "super_resolution": {
     "enabled": false,
