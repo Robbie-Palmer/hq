@@ -54,7 +54,24 @@ def test_ultralytics_report_writes_only_pinned_paths(
         tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY / "evaluation" / "evidence.json",
         evidence,
     )
-    monkeypatch.setattr(ultralytics_experiment, "_project_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        ultralytics_experiment, "ULTRALYTICS_EXPERIMENT_FILE", experiment_path
+    )
+    monkeypatch.setattr(
+        ultralytics_experiment,
+        "ULTRALYTICS_OUTPUT_ROOT",
+        tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY,
+    )
+    monkeypatch.setattr(
+        ultralytics_experiment,
+        "ULTRALYTICS_JSON_REPORT_FILE",
+        tmp_path / ULTRALYTICS_JSON_REPORT,
+    )
+    monkeypatch.setattr(
+        ultralytics_experiment,
+        "ULTRALYTICS_MARKDOWN_REPORT_FILE",
+        tmp_path / ULTRALYTICS_MARKDOWN_REPORT,
+    )
 
     observed = report_ultralytics()
 
