@@ -535,15 +535,14 @@ def run_experiment(root: Path | None = None) -> ExperimentResult:
     return result
 
 
-def verify_experiment(root: Path | None = None, *, write_report: bool = False) -> dict[str, object]:
-    root = (root or Path.cwd()).resolve()
-    result = ExperimentResult.model_validate_json((root / RESULT_PATH).read_text(encoding="utf-8"))
-    spec = _load_spec(root)
-    _validate_design(spec)
+def _verify_result_status(result: ExperimentResult) -> None:
     if result.status != "passed" or not result.adapters[0].passed:
         raise ValueError("primary physical-scale experiment did not pass")
     if not result.echo_control_rejected or result.adapters[1].passed:
         raise ValueError("requested-scale echo control was not rejected")
+
+
+def _verify_provenance(root: Path, result: ExperimentResult, spec: ExperimentSpec) -> None:
     if _sha256(root / result.provenance.derived_manifest) != (
         result.provenance.derived_manifest_sha256
     ):
@@ -556,12 +555,25 @@ def verify_experiment(root: Path | None = None, *, write_report: bool = False) -
     ):
         if _sha256(path) != expected:
             raise ValueError(f"provenance SHA-256 differs for {path}")
+
+
+def _verify_tiles(root: Path, result: ExperimentResult) -> None:
     for adapter in result.adapters:
         for case in adapter.cases:
             if case.tile is not None and _sha256(root / case.tile.output_path) != (
                 case.tile.output_sha256
             ):
                 raise ValueError(f"tile SHA-256 differs for {case.case_id}")
+
+
+def verify_experiment(root: Path | None = None, *, write_report: bool = False) -> dict[str, object]:
+    root = (root or Path.cwd()).resolve()
+    result = ExperimentResult.model_validate_json((root / RESULT_PATH).read_text(encoding="utf-8"))
+    spec = _load_spec(root)
+    _validate_design(spec)
+    _verify_result_status(result)
+    _verify_provenance(root, result, spec)
+    _verify_tiles(root, result)
     report: dict[str, object] = {
         "schema_version": "2.0.0",
         "experiment_id": result.experiment_id,

@@ -165,7 +165,6 @@ def test_extract_tiles_rejects_missing_slide(tmp_path: Path) -> None:
     [
         (SourceScale(0.5, 0.5, 1.0), (16, 18)),
         (SourceScale(0.5, 0.75, 1.0), (16, 12)),
-        (SourceScale(0.5, 0.5, 1.0), (16, 18)),
         (SourceScale(0.5, 0.5, 4.0), (4, 4)),
     ],
 )
@@ -287,13 +286,14 @@ def test_slide_and_raster_reads_reject_missing_paths(tmp_path: Path) -> None:
         output_size=(8, 6),
         target_microns_per_pixel=(1.0, 1.0),
     )
+    source_scale = SourceScale(0.5, 0.5, 1.0)
     with pytest.raises(FileNotFoundError, match="Slide does not exist"):
         read_physical_tile(tmp_path / "missing.dcm", request)
     with pytest.raises(FileNotFoundError, match="Image does not exist"):
         read_raster_physical_tile(
             tmp_path / "missing.png",
             request,
-            source_scale=SourceScale(0.5, 0.5, 1.0),
+            source_scale=source_scale,
         )
     with pytest.raises(FileNotFoundError, match="Slide does not exist"):
         inspect_slide(tmp_path / "missing.dcm")

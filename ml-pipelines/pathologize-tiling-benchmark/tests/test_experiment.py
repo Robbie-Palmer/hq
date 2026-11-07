@@ -103,8 +103,9 @@ def test_spec_rejects_incomplete_category_coverage() -> None:
     corrupted = next(case for case in value["cases"] if case["category"] == "corrupted_metadata")
     corrupted["category"] = "anisotropic_pixels"
 
+    payload = json.dumps(value)
     with pytest.raises(ValidationError, match="every required perturbation category"):
-        ExperimentSpec.model_validate_json(json.dumps(value))
+        ExperimentSpec.model_validate_json(payload)
 
 
 def test_run_rejects_incorrect_machine_checkable_magnitude(
