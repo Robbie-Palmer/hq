@@ -6,6 +6,7 @@ import {
   type GithubPageItems,
 } from "github-client";
 import { bytesToHex, sha256Bytes, sha256Hex } from "ts-base/crypto";
+import { receiverSafeFetch } from "ts-base/http";
 import { canonicalJson } from "ts-base/json";
 import { base64UrlEncode } from "ts-base/strings";
 import type {
@@ -303,7 +304,7 @@ export class GitHubReconciler {
     private readonly consumer: Pick<GitHubDeliveryConsumer, "consume">,
     dependencies: GitHubReconciliationDependencies = {},
   ) {
-    this.fetcher = dependencies.fetch ?? fetch;
+    this.fetcher = receiverSafeFetch(dependencies.fetch);
     this.now = dependencies.now ?? (() => new Date());
   }
 
