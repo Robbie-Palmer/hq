@@ -28,7 +28,13 @@ def test_croissant_export_maps_source_registry_without_downstream_policy() -> No
     assert payload.registry_revision == revision
     assert "split" not in croissant_json(payload)
     assert "leakage" not in croissant_json(payload)
-    assert len(payload.distribution) == 6
+    expected_assets = sum(len(manifest.assets) for manifest in registry.asset_manifests.values())
+    assert len(payload.distribution) == expected_assets
+    assert {item.encoding_format for item in payload.distribution} == {
+        "application/dicom",
+        "image/png",
+        "image/tiff",
+    }
     assert all(isinstance(item, BaseModel) for item in payload.distribution)
     record_sets = {item.identifier: item for item in payload.record_sets}
     assert set(record_sets) == {
@@ -44,7 +50,9 @@ def test_croissant_export_maps_source_registry_without_downstream_policy() -> No
         for record_set in payload.record_sets
         for field in record_set.fields
     )
-    slide = record_sets["slides"].data[0]
+    slide = next(
+        item for item in record_sets["slides"].data if item["slides/patient_id"] == "09CO003"
+    )
     assert slide["slides/patient_id"] == "09CO003"
     assert slide["slides/scanner_manufacturer"] == "Leica Biosystems"
     assert slide["slides/micrometres_per_pixel_x"] == 0.2501

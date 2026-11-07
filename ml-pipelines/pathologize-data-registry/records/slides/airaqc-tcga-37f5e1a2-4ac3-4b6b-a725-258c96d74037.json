@@ -1,0 +1,61 @@
+{
+  "asset_paths": [
+    "slides/TCGA-EA-A3HU-01Z-00-DX1.74B5BF15-FB92-4426-99F3-C3D58CD9FE18.svs",
+    "annotations/TCGA-EA-A3HU-01Z-00-DX1.74B5BF15-FB92-4426-99F3-C3D58CD9FE18.png"
+  ],
+  "collection_id": "airaqc-tcga",
+  "identity": {
+    "case_id": "9912432e-74bc-4846-93b4-fa2bf8070bd1",
+    "identity_basis": "GDC case UUID and TCGA submitter ID identify the patient; the TCGA slide barcode and GDC file UUID identify the slide asset.",
+    "patient_id": "TCGA-EA-A3HU",
+    "series_instance_uid": null,
+    "slide_container_id": "TCGA-EA-A3HU-01Z-00-DX1",
+    "specimen_id": "TCGA-EA-A3HU-01Z-00-DX1",
+    "specimen_uid": null,
+    "study_instance_uid": null
+  },
+  "label_limitations": "A clean label means no pixel matches the four released AIRAQc palette classes. It does not prove that the slide has no unannotated defect.",
+  "physical_resolution": {
+    "micrometres_per_pixel_x": 0.248,
+    "micrometres_per_pixel_y": 0.248,
+    "source_instance_path": "slides/TCGA-EA-A3HU-01Z-00-DX1.74B5BF15-FB92-4426-99F3-C3D58CD9FE18.svs",
+    "total_pixel_matrix_columns": 74255,
+    "total_pixel_matrix_rows": 91479
+  },
+  "scanner": {
+    "conversion_note": "Native GDC Aperio SVS; no registry conversion.",
+    "device_serial_number": "SS1511CNTLR",
+    "manufacturer": "Leica Biosystems",
+    "model": "Aperio ScanScope",
+    "objective_power": 40.0
+  },
+  "schema_version": 1,
+  "slide_id": "airaqc-tcga:tcga-ea-a3hu:37f5e1a2-4ac3-4b6b-a725-258c96d74037",
+  "source_native_labels": [
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "project_id",
+      "provenance": "NCI GDC files API",
+      "value": "TCGA-CESC"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_status",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "defect"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_type",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "penmark"
+    }
+  ],
+  "subset_id": "airaqc-tcga-public-pilot-v1"
+}

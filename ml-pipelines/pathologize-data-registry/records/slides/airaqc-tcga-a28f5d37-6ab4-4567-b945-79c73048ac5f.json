@@ -1,0 +1,53 @@
+{
+  "asset_paths": [
+    "slides/TCGA-49-4490-01Z-00-DX2.1b491bd7-60d2-40a6-96cd-01385bce2b0f.svs",
+    "annotations/TCGA-49-4490-01Z-00-DX2.1b491bd7-60d2-40a6-96cd-01385bce2b0f.png"
+  ],
+  "collection_id": "airaqc-tcga",
+  "identity": {
+    "case_id": "6c3655ca-8ae7-4ad7-b3e4-0c3ec293fba7",
+    "identity_basis": "GDC case UUID and TCGA submitter ID identify the patient; the TCGA slide barcode and GDC file UUID identify the slide asset.",
+    "patient_id": "TCGA-49-4490",
+    "series_instance_uid": null,
+    "slide_container_id": "TCGA-49-4490-01Z-00-DX2",
+    "specimen_id": "TCGA-49-4490-01Z-00-DX2",
+    "specimen_uid": null,
+    "study_instance_uid": null
+  },
+  "label_limitations": "A clean label means no pixel matches the four released AIRAQc palette classes. It does not prove that the slide has no unannotated defect.",
+  "physical_resolution": {
+    "micrometres_per_pixel_x": 0.252,
+    "micrometres_per_pixel_y": 0.252,
+    "source_instance_path": "slides/TCGA-49-4490-01Z-00-DX2.1b491bd7-60d2-40a6-96cd-01385bce2b0f.svs",
+    "total_pixel_matrix_columns": 119905,
+    "total_pixel_matrix_rows": 60981
+  },
+  "scanner": {
+    "conversion_note": "Native GDC Aperio SVS; no registry conversion.",
+    "device_serial_number": "SS1302",
+    "manufacturer": "Leica Biosystems",
+    "model": "Aperio ScanScope",
+    "objective_power": 40.0
+  },
+  "schema_version": 1,
+  "slide_id": "airaqc-tcga:tcga-49-4490:a28f5d37-6ab4-4567-b945-79c73048ac5f",
+  "source_native_labels": [
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "project_id",
+      "provenance": "NCI GDC files API",
+      "value": "TCGA-LUAD"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_status",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "clean"
+    }
+  ],
+  "subset_id": "airaqc-tcga-public-pilot-v1"
+}

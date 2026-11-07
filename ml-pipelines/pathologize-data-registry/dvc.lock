@@ -40,3 +40,50 @@ stages:
       md5: f5c467788e1301a842f27b1c97d25238.dir
       size: 18701962
       nfiles: 6
+  acquire_airaqc_tcga_public_pilot:
+    cmd: uv run --locked pathologize-registry acquire --subset airaqc-tcga-public-pilot-v1 --max-bytes 16500000000
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifests/assets/airaqc-tcga-public-pilot-v1.json
+      hash: md5
+      md5: c707ce7cf369482bb2d1d72d9180972d
+      size: 26684
+    - path: manifests/collections/airaqc-tcga.json
+      hash: md5
+      md5: d5df42f0933d00ef4fb5c05411c2cffe
+      size: 2378
+    - path: manifests/subsets/airaqc-tcga-public-pilot-v1.json
+      hash: md5
+      md5: b76e83b33e95b24ae60c69cb0f262ec6
+      size: 2326
+    - path: pyproject.toml
+      hash: md5
+      md5: d13bdc29d409aaffbc306c0ba399c5c8
+      size: 1491
+    - path: records
+      hash: md5
+      md5: 968ec0acca3942447cf9a76efb1c85a7.dir
+      size: 57560
+      nfiles: 25
+    - path: registry.json
+      hash: md5
+      md5: 74582db3f031170391a723c439e9482e
+      size: 3271
+    - path: src/pathologize_data_registry
+      hash: md5
+      md5: c184c5c36af70e431ebc97b379aa4a13.dir
+      size: 61674
+      nfiles: 7
+    - path: uv.lock
+      hash: md5
+      md5: cc0aec9bf7d88412d9f3ea1e01da8dd0
+      size: 177482
+    outs:
+    - path: data/raw/airaqc-tcga/public-pilot-v1
+      hash: md5
+      md5: f85e0ea28f63c511654b51eee8565516.dir
+      size: 15813730059
+      nfiles: 48

@@ -1,0 +1,42 @@
+{
+  "asset_count": 48,
+  "asset_manifest_id": "airaqc-tcga-public-pilot-v1-assets",
+  "asset_root": "data/raw/airaqc-tcga/public-pilot-v1",
+  "collection_id": "airaqc-tcga",
+  "description": "The fixed 24-slide test partition from the cited v1.0.1 reliability deposit.",
+  "schema_version": 1,
+  "selection": {
+    "method": "Use test_slides verbatim from Moutselos and Maglogiannis Zenodo v1.0.1 before inspecting deterministic feature outcomes.",
+    "selected_at": "2026-11-07",
+    "source_index_version": "10.5281/zenodo.22932961 v1.0.1",
+    "task_split": null
+  },
+  "slide_ids": [
+    "airaqc-tcga:tcga-33-4538:fe2cf123-87bc-44af-8240-5e1f830ddca1",
+    "airaqc-tcga:tcga-3c-aali:6a7477b1-86f3-473f-9bf1-174a758142e9",
+    "airaqc-tcga:tcga-49-4490:a28f5d37-6ab4-4567-b945-79c73048ac5f",
+    "airaqc-tcga:tcga-56-8628:f8127af7-a598-48bf-94f7-f7d395ba0b52",
+    "airaqc-tcga:tcga-62-a46p:d0a9088a-7789-4960-aece-ee7695292990",
+    "airaqc-tcga:tcga-64-5774:b802f195-c4c6-4fe4-9b1f-3c59027f4120",
+    "airaqc-tcga:tcga-66-2737:e380d88e-e5ac-4ad1-bbdc-06294ccf1622",
+    "airaqc-tcga:tcga-69-7979:504459dc-0403-4101-83fc-7a2c37de0f5e",
+    "airaqc-tcga:tcga-78-7152:2cc62ceb-4bea-4663-ae3b-63a8e8c7f1f4",
+    "airaqc-tcga:tcga-85-6560:d1dc4d16-e552-48bf-9fdf-4fcb072527c6",
+    "airaqc-tcga:tcga-85-8070:e9536fee-63cf-4d51-8247-1f97e3816991",
+    "airaqc-tcga:tcga-86-8075:c9e28a52-98a1-40f0-91c8-c8ea09a87a36",
+    "airaqc-tcga:tcga-a7-a6vy:762388c4-b240-467a-bc17-d2f60972f9bf",
+    "airaqc-tcga:tcga-an-a0xn:95f68385-c86f-4b87-aedb-b39375fa3172",
+    "airaqc-tcga:tcga-bh-a0dh:eb295196-fd86-44e1-b176-58f5a4e07958",
+    "airaqc-tcga:tcga-br-8058:dacb7269-b542-4d6b-8f88-1be1a094b463",
+    "airaqc-tcga:tcga-ea-a3hu:37f5e1a2-4ac3-4b6b-a725-258c96d74037",
+    "airaqc-tcga:tcga-hu-a4gc:b4610dce-ba36-4d83-9e3d-0a4391876cad",
+    "airaqc-tcga:tcga-hu-a4gf:3ae9c66f-cfed-4bf8-b79a-130cd1a17523",
+    "airaqc-tcga:tcga-ll-a6fq:ba28ec65-861d-4dc2-8ee2-8f5c38cb3804",
+    "airaqc-tcga:tcga-sp-a6qi:40660689-c487-4787-a2fa-586bb7cfec94",
+    "airaqc-tcga:tcga-vq-a91a:d22eb4ac-7a25-4c23-8f3d-f5851fa77309",
+    "airaqc-tcga:tcga-wc-a882:5630717d-fb72-4d7e-924d-3bc1086ab551",
+    "airaqc-tcga:tcga-xm-a8rb:44446d88-237b-4d0f-8978-d4db506a76ee"
+  ],
+  "subset_id": "airaqc-tcga-public-pilot-v1",
+  "total_bytes": 15813730059
+}

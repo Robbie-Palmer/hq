@@ -17,6 +17,7 @@ from pathologize_data_registry.repository import (
     PROJECT_DIR,
     RegistryValidationError,
     require_valid_registry,
+    validate_subset_assets,
 )
 from pathologize_data_registry.schemas import SchemaDriftError, write_schemas
 
@@ -31,6 +32,16 @@ class RegistryApplication:
             f"Valid registry: {len(registry.collections)} collections, "
             f"{len(registry.subsets)} acquired subset, {len(registry.slides)} slide."
         )
+
+    def validate_subset(
+        self,
+        subset: str = "cptac-coad-idc-v23-smallest-series",
+    ) -> None:
+        registry = require_valid_registry(self.root)
+        issues = validate_subset_assets(registry, subset)
+        if issues:
+            raise RegistryValidationError("\n".join(sorted(issues)))
+        print(f"Valid source assets for {subset}.")
 
     def acquire(
         self,
@@ -62,7 +73,9 @@ class RegistryApplication:
                 downloaded += 1
             else:
                 reused += 1
-        require_valid_registry(self.root, require_assets=True)
+        issues = validate_subset_assets(registry, subset)
+        if issues:
+            raise RegistryValidationError("\n".join(sorted(issues)))
         print(
             f"Verified {subset_manifest.total_bytes} bytes in {subset_manifest.asset_count} files "
             f"for {subset}: downloaded {downloaded}, reused {reused}."

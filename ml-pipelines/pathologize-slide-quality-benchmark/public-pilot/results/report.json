@@ -1,0 +1,208 @@
+{
+  "calibration": {
+    "applicable": false,
+    "reason": "No candidate score or probability was evaluated after the preflight stop."
+  },
+  "candidate": {
+    "blur": {
+      "maximum_mean_gradient": 0.018,
+      "maximum_median_ratio": 0.45,
+      "minimum_burden": 0.1
+    },
+    "dark": {
+      "minimum_tile_fraction": 0.12
+    },
+    "evaluation_status": "not_run_due_to_predeclared_stop_gate",
+    "kind": "deterministic_features",
+    "learned_candidate": null,
+    "minimum_tissue_fraction": 0.2,
+    "pen": {
+      "minimum_tile_fraction": 0.002
+    },
+    "target_magnification": 2.5,
+    "tile_pixels": 512
+  },
+  "clinical_validity_claimed": false,
+  "constant_baselines": {
+    "constant_accept_accuracy": 0.4166666666666667,
+    "constant_reject_accuracy": 0.5833333333333334,
+    "status": "descriptive_only_not_tested_against_candidate"
+  },
+  "corpus_id": "airaqc-tcga-public-pilot-v1",
+  "decision": "stop",
+  "exclusions": [
+    {
+      "reason": "unused_by_fixed_partition",
+      "slide_id": "TCGA-34-5232-01Z-00-DX1.7483c36b-8473-439b-a726-2821ec834fc2.svs"
+    },
+    {
+      "reason": "unused_by_fixed_partition",
+      "slide_id": "TCGA-BH-A0H5-01Z-00-DX1.28F24D4D-EE80-4EDA-BC30-A194E22FD61C.svs"
+    },
+    {
+      "reason": "source_partition_marked_unusable",
+      "slide_id": "TCGA-55-8207-01Z-00-DX1.2dafc442-f927-4b0d-b197-cc8c5f86d0fc.svs"
+    },
+    {
+      "reason": "source_partition_marked_unusable",
+      "slide_id": "TCGA-QR-A70H-01A-01-TS1.2310E34C-0EA5-4876-9F87-BAD0B7A44513.svs"
+    },
+    {
+      "eligible_patches": 1,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-BJ-A0ZE-01A-01-BSA.d2d55ca3-6401-4f6e-bfe0-a5e249939ba5.svs"
+    },
+    {
+      "eligible_patches": 2,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-FL-A1YN-11A-01-TS1.F81E300C-262D-4000-B85D-BCAF01258372.svs"
+    },
+    {
+      "eligible_patches": 1,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-HU-A4G9-01Z-00-DX1.806F4C5A-D2F8-4457-B6F9-99B67105C676.svs"
+    },
+    {
+      "eligible_patches": 1,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-HU-A4GD-01Z-00-DX1.7CF261C2-D7FE-4D42-BC4B-BC86B7A802DB.svs"
+    },
+    {
+      "eligible_patches": 1,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-HU-A4HB-01Z-00-DX1.445FEB47-B91A-4186-BBE0-01FB7AA6A72F.svs"
+    },
+    {
+      "eligible_patches": 1,
+      "reason": "source_partition_low_tissue",
+      "slide_id": "TCGA-L5-A4OH-11A-01-TS1.A7A3D1E9-16BF-45E8-A590-8493CB1DCF85.svs"
+    }
+  ],
+  "experiment_id": "airaqc-tcga-deterministic-public-pilot-v1",
+  "failed_acquisitions": [],
+  "label_audit": {
+    "annotation_pixels_by_type": {
+      "air_bubble": 395198,
+      "fold": 1090436,
+      "out_of_focus": 31323751,
+      "penmark": 11330023
+    },
+    "clean_negative_slides": 10,
+    "content_conflation_gate": {
+      "basis": "Truth is any released artifact-palette pixel before tissue filtering; no feature aggregation was run.",
+      "passed": true
+    },
+    "positive_slides": 14,
+    "tissue_gate_used_for_slide_label": false
+  },
+  "metrics": {
+    "accuracy": null,
+    "balanced_accuracy": null,
+    "evaluated_slides": 0,
+    "sensitivity": null,
+    "slides": 24,
+    "specificity": null,
+    "status": "not_run_scanner_identity_preflight_stop"
+  },
+  "provenance": {
+    "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
+    "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
+    "corpus_manifest_sha256": "1a5dab7c6dfdde5f5543cdf401154b8e6881b0114a2f939d8492a74466cceca7",
+    "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
+    "gdc_api": "https://api.gdc.cancer.gov/",
+    "predeclaration_sha256": "8071782851736aae337d3629c374e0bdb4d73546a01ebef734f249a88d9f709c",
+    "registry_asset_manifest_sha256": "507571b99950da7bfe73eecd4970fc40effde26db8391ae4c8650b8a84a4109e",
+    "registry_base_revision": "5c4377dbbc01739bb28062ee6cfd7c217edc0cee",
+    "registry_collection_manifest_sha256": "e99d9a7b64cb0d4198012a991a180f4d7befa4e8922e99c7a93bb15717d4488d",
+    "registry_index_sha256": "c984ca469d96a8cd2a94270426167c662ce797a260d5a6fbf32a27f9f876ff4c",
+    "registry_subset_id": "airaqc-tcga-public-pilot-v1",
+    "registry_subset_manifest_sha256": "141180ca3559c96eb80401dcc3f1da77a3bbd364ac48d93417ca9e9e1f09b8c6",
+    "reliability_deposit_archive_sha256": "76f76a1eb8405a87e2bd4466a242c6280fc086daa31364adc97c9c635c3192da",
+    "reliability_deposit_doi": "10.5281/zenodo.22932961",
+    "retrieved_at": "2026-11-07",
+    "source_index_sha256": "8479acb24affcd192e739d6d916a973219b3f3bca128bd9a34aed7b579a3d821",
+    "source_review": [
+      {
+        "decision": "selected",
+        "reason": "Fixed patient-level slides, clean negatives, four pixel-level defect classes, GDC source identity, and Aperio scanner serials.",
+        "source": "AIRAQc TCGA test annotations"
+      },
+      {
+        "decision": "rejected_as_ground_truth",
+        "reason": "Model-produced masks are non-commercial and are not reference labels.",
+        "source": "GrandQC TCGA masks"
+      },
+      {
+        "decision": "rejected",
+        "reason": "No declared licence or stable patient and scanner identities.",
+        "source": "HistoArtifacts"
+      },
+      {
+        "decision": "rejected_for_this_pilot",
+        "reason": "Strong scanner and rating metadata, but a bounded stable download route was not documented well enough before the acquisition decision.",
+        "source": "Augsburg scanner comparison"
+      }
+    ]
+  },
+  "resources": {
+    "acquisition_network_bytes": 15813730059,
+    "cpu_seconds": 8.28539163,
+    "gpu_seconds": 0,
+    "peak_local_disk_bytes_upper_bound": 33707121037,
+    "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
+    "peak_rss_bytes": 58351616,
+    "peak_vram_bytes": 0,
+    "pixels_read": 0,
+    "process_rchar": 15813772920,
+    "process_read_bytes": 0,
+    "result_bytes_before_report": 8531,
+    "schema_version": "1.0.0",
+    "source_bytes_manifested": 15813730059,
+    "source_bytes_verified_in_preflight": 15813730059,
+    "spatial_records": 0,
+    "wall_seconds": 8.300753889023326
+  },
+  "rights_boundary": {
+    "allowed_public_artifacts": [
+      "source identifiers and checksums",
+      "numeric per-slide features and decisions",
+      "numeric tile-level spatial evidence",
+      "aggregate metrics, exclusions, failures, and resource records"
+    ],
+    "annotations": "AIRAQc TCGA test annotations linked from the CC BY 4.0 MIDL 2025 paper; the Google Drive folder has no standalone licence file",
+    "forbidden_public_artifacts": [
+      "source SVS bytes",
+      "annotation PNG bytes",
+      "rendered source or annotation imagery"
+    ],
+    "source_slides": "GDC open-access TCGA diagnostic slide images"
+  },
+  "run_failures": [],
+  "scanner_held_out_slices": [],
+  "scanner_identity_audit": {
+    "known_native_groups": {
+      "SS1302": 9,
+      "SS1436CNTLR": 1,
+      "SS1511CNTLR": 1,
+      "SS1529": 2,
+      "SS1534CNTLR": 2,
+      "SS1546": 1,
+      "SS1763CNTLR": 4,
+      "SS1764CNTLR": 2,
+      "W1073404": 1
+    },
+    "missing": [
+      {
+        "patient_id": "TCGA-3C-AALI",
+        "scanner_model": "Leica SCN400",
+        "slide_id": "airaqc-tcga:tcga-3c-aali:6a7477b1-86f3-473f-9bf1-174a758142e9"
+      }
+    ]
+  },
+  "schema_version": "1.0.0",
+  "spatial_evidence_status": "not_produced_due_to_predeclared_preflight_stop",
+  "stop_reasons": [
+    "stable native scanner ID is absent for 1 fixed-cohort slide(s)"
+  ],
+  "stop_stage": "scanner_identity_preflight"
+}
