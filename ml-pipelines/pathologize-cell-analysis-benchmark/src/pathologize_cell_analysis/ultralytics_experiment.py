@@ -42,6 +42,11 @@ ULTRALYTICS_EXPERIMENT_PATH = Path("experiments/nucls-ultralytics-baseline.json"
 ULTRALYTICS_OUTPUT_DIRECTORY = Path("outputs/public/nucls-ultralytics-yolo26n-v1")
 ULTRALYTICS_JSON_REPORT = Path("reports/nucls-ultralytics-baseline.json")
 ULTRALYTICS_MARKDOWN_REPORT = Path("reports/nucls-ultralytics-baseline.md")
+ULTRALYTICS_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+ULTRALYTICS_EXPERIMENT_FILE = ULTRALYTICS_PROJECT_ROOT / ULTRALYTICS_EXPERIMENT_PATH
+ULTRALYTICS_OUTPUT_ROOT = ULTRALYTICS_PROJECT_ROOT / ULTRALYTICS_OUTPUT_DIRECTORY
+ULTRALYTICS_JSON_REPORT_FILE = ULTRALYTICS_PROJECT_ROOT / ULTRALYTICS_JSON_REPORT
+ULTRALYTICS_MARKDOWN_REPORT_FILE = ULTRALYTICS_PROJECT_ROOT / ULTRALYTICS_MARKDOWN_REPORT
 
 
 @dataclass
@@ -72,10 +77,6 @@ class ResumeEvidence:
 
 def _root(experiment_path: Path) -> Path:
     return experiment_path.resolve().parent.parent
-
-
-def _project_root() -> Path:
-    return Path(__file__).resolve().parents[2]
 
 
 def _experiment_output_root(root: Path, experiment: UltralyticsExperiment) -> Path:
@@ -1088,15 +1089,13 @@ def _report_markdown(evidence: dict[str, Any]) -> str:
 
 
 def report_ultralytics() -> dict[str, object]:
-    root = _project_root()
-    experiment_path = root / ULTRALYTICS_EXPERIMENT_PATH
-    experiment = load_ultralytics_experiment(experiment_path)
-    output_root = _experiment_output_root(root, experiment)
-    evidence = read_json(output_root / "evaluation" / "evidence.json")
+    load_ultralytics_experiment(ULTRALYTICS_EXPERIMENT_FILE)
+    evidence = read_json(ULTRALYTICS_OUTPUT_ROOT / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
         raise TypeError("Ultralytics evidence must be a JSON object")
-    write_json(root / ULTRALYTICS_JSON_REPORT, evidence)
-    markdown_path = root / ULTRALYTICS_MARKDOWN_REPORT
-    markdown_path.parent.mkdir(parents=True, exist_ok=True)
-    markdown_path.write_text(_report_markdown(evidence), encoding="utf-8")
+    write_json(ULTRALYTICS_JSON_REPORT_FILE, evidence)
+    ULTRALYTICS_MARKDOWN_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    ULTRALYTICS_MARKDOWN_REPORT_FILE.write_text(
+        _report_markdown(evidence), encoding="utf-8"
+    )
     return dict(evidence)
