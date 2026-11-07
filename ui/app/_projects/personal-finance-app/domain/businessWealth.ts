@@ -194,6 +194,18 @@ export const SignedMonetaryStateSchema = z.discriminatedUnion("state", [
 ]);
 export type SignedMonetaryState = z.infer<typeof SignedMonetaryStateSchema>;
 
+export const SignedMonetaryRangeSchema = z
+  .object({
+    currency: CurrencySchema,
+    lowerBound: z.number(),
+    upperBound: z.number(),
+  })
+  .refine(({ lowerBound, upperBound }) => lowerBound <= upperBound, {
+    message: "A monetary range lower bound must not exceed its upper bound",
+    path: ["upperBound"],
+  });
+export type SignedMonetaryRange = z.infer<typeof SignedMonetaryRangeSchema>;
+
 export const EntityObligationSchema = z.object({
   ...TemporalRecordShape,
   obligationId: z.string().trim().min(1),
@@ -238,12 +250,33 @@ export const CompanyEquityValuationSchema = z
     validAt: z.iso.date(),
     acceptedAt: z.iso.datetime({ offset: true }),
     method: z.enum(["adjusted-net-assets", "manual", "externally-supported"]),
+    evidenceKind: z.enum(["calculation", "observation"]),
+    evidenceAt: z.iso.datetime({ offset: true }),
     amount: SignedMonetaryStateSchema,
+    range: SignedMonetaryRangeSchema.optional(),
+    operatingReserve: z
+      .object({
+        amount: MonetaryStateSchema,
+        unavailableForExtraction: z.literal(true),
+        assumptionId: RecordIdSchema,
+      })
+      .optional(),
     lineage: FinancialRecordLineageSchema,
     correctsId: RecordIdSchema.optional(),
     inputs: CompanyValuationInputsSchema.optional(),
   })
   .superRefine((valuation, context) => {
+    const expectedEvidenceKind =
+      valuation.method === "adjusted-net-assets"
+        ? "calculation"
+        : "observation";
+    if (valuation.evidenceKind !== expectedEvidenceKind) {
+      context.addIssue({
+        code: "custom",
+        message: `${valuation.method} valuations must record ${expectedEvidenceKind} evidence`,
+        path: ["evidenceKind"],
+      });
+    }
     if (
       valuation.method === "adjusted-net-assets" &&
       valuation.inputs == null
@@ -253,6 +286,51 @@ export const CompanyEquityValuationSchema = z
         message:
           "Adjusted-net-assets valuations must retain their account, liability, obligation, exchange-rate, assumption, and calculation inputs",
         path: ["inputs"],
+      });
+    }
+    if (
+      valuation.range != null &&
+      valuation.amount.currency !== valuation.range.currency
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Valuation amount and range must use the same currency",
+        path: ["range", "currency"],
+      });
+    }
+    if (
+      valuation.range != null &&
+      valuation.amount.state === "known" &&
+      (valuation.amount.amount < valuation.range.lowerBound ||
+        valuation.amount.amount > valuation.range.upperBound)
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Known valuation amount must fall within its range",
+        path: ["amount", "amount"],
+      });
+    }
+    if (
+      valuation.operatingReserve != null &&
+      valuation.operatingReserve.amount.currency !== valuation.amount.currency
+    ) {
+      context.addIssue({
+        code: "custom",
+        message: "Operating reserve and valuation must use the same currency",
+        path: ["operatingReserve", "amount", "currency"],
+      });
+    }
+    if (
+      valuation.operatingReserve != null &&
+      !valuation.inputs?.assumptionIds.includes(
+        valuation.operatingReserve.assumptionId,
+      )
+    ) {
+      context.addIssue({
+        code: "custom",
+        message:
+          "An operating reserve must be retained in the valuation assumption lineage",
+        path: ["inputs", "assumptionIds"],
       });
     }
   });
