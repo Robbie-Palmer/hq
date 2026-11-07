@@ -1,0 +1,494 @@
+from __future__ import annotations
+
+import csv
+import json
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pytest
+import torch
+from data_artifacts.files import write_json
+from PIL import Image
+from pydantic import ValidationError
+
+from pathologize_cell_analysis.contracts import (
+    SplitItem,
+    UltralyticsExperiment,
+)
+from pathologize_cell_analysis.data import Annotation
+from pathologize_cell_analysis.ultralytics_conversion import (
+    acquire_ultralytics_artifacts,
+    bbox_to_yolo,
+    convert_annotations,
+    load_ultralytics_experiment,
+    polygon_to_yolo,
+    prepare_ultralytics_layout,
+    yolo_to_bbox,
+    yolo_to_polygon,
+)
+from pathologize_cell_analysis.ultralytics_experiment import (
+    _as_predicted_nucleus,
+    _clean_failed_training_output,
+    _clear_ultralytics_caches,
+    _clear_ultralytics_runtime_config,
+    _evaluate_records,
+    _normalize_result,
+    _prediction_arguments,
+    _report_markdown,
+    _resume_evidence,
+    _seed_training_monitor,
+    _training_curve_summary,
+    training_arguments,
+)
+
+
+def _fixture() -> dict[str, Any]:
+    path = Path(__file__).parents[1] / "fixtures/ultralytics-conversion.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _annotations(rows: list[dict[str, Any]]) -> list[Annotation]:
+    return [
+        Annotation(
+            class_name=row["class_name"],
+            annotation_type=row["annotation_type"],
+            xmin=row["xmin"],
+            ymin=row["ymin"],
+            xmax=row["xmax"],
+            ymax=row["ymax"],
+            coordinates_x=tuple(row["coordinates_x"]),
+            coordinates_y=tuple(row["coordinates_y"]),
+        )
+        for row in rows
+    ]
+
+
+def test_golden_ultralytics_conversion() -> None:
+    fixture = _fixture()
+    image_size = fixture["image_width"], fixture["image_height"]
+    annotations = _annotations(fixture["annotations"])
+    observed_exclusions: dict[str, dict[str, int]] = {}
+    for task, expected_key in (
+        ("detect", "expected_detection_labels"),
+        ("segment", "expected_segmentation_labels"),
+    ):
+        result = convert_annotations(
+            annotations,
+            image_size,
+            fixture["ontology_labels"],
+            task,
+        )
+        assert list(result.labels) == fixture[expected_key]
+        reasons: dict[str, int] = {}
+        for exclusion in result.exclusions:
+            reasons[exclusion.reason] = reasons.get(exclusion.reason, 0) + 1
+        observed_exclusions[task] = reasons
+    assert observed_exclusions == fixture["expected_exclusions"]
+
+
+def test_coordinate_round_trips_preserve_source_pixels() -> None:
+    image_size = (100, 80)
+    bbox = (10.0, 20.0, 30.0, 40.0)
+    normalized_bbox = bbox_to_yolo(bbox, image_size)
+    assert yolo_to_bbox(normalized_bbox, image_size) == pytest.approx(bbox, abs=1e-9)
+    polygon = ((10.0, 20.0), (30.0, 20.0), (30.0, 40.0), (10.0, 40.0))
+    normalized_polygon = polygon_to_yolo(polygon, image_size)
+    observed_polygon = yolo_to_polygon(normalized_polygon, image_size)
+    for observed, expected in zip(observed_polygon, polygon, strict=True):
+        assert observed == pytest.approx(expected, abs=1e-9)
+
+
+def test_conversion_rejects_fabricated_geometry() -> None:
+    with pytest.raises(ValueError, match="positive area"):
+        bbox_to_yolo((10.0, 10.0, 10.0, 10.0), (100, 100))
+    with pytest.raises(ValueError, match="three unique points"):
+        polygon_to_yolo(((1.0, 1.0), (2.0, 2.0), (1.0, 1.0)), (100, 100))
+
+
+def test_conversion_records_bounded_source_border_clipping() -> None:
+    annotation = Annotation(
+        class_name="tumor_any",
+        annotation_type="polyline",
+        xmin=80,
+        ymin=60,
+        xmax=102,
+        ymax=82,
+        coordinates_x=(80, 102, 102, 80, 80),
+        coordinates_y=(60, 60, 82, 82, 60),
+    )
+    detection = convert_annotations(
+        [annotation], (100, 80), _fixture()["ontology_labels"], "detect", 2.0
+    )
+    segmentation = convert_annotations(
+        [annotation], (100, 80), _fixture()["ontology_labels"], "segment", 2.0
+    )
+    assert not detection.exclusions
+    assert not segmentation.exclusions
+    assert detection.adjustments[0].reason == "clipped_to_image_bounds"
+    assert segmentation.adjustments[0].reason == "clipped_to_image_bounds"
+    rejected = convert_annotations(
+        [annotation], (99, 79), _fixture()["ontology_labels"], "detect", 2.0
+    )
+    assert rejected.exclusions[0].reason == "invalid_source_box"
+
+
+def test_predeclaration_is_strict_and_complete() -> None:
+    path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-baseline.json"
+    document = json.loads(path.read_text(encoding="utf-8"))
+    experiment = UltralyticsExperiment.model_validate(document)
+    assert set(experiment.models) == {"detect", "segment"}
+    assert experiment.limits.aggregate_gpu_seconds == 86400
+    document["models"].pop("segment")
+    with pytest.raises(ValidationError):
+        UltralyticsExperiment.model_validate(document)
+
+
+def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:
+    task_output = tmp_path / "detect"
+    weights = task_output / "weights"
+    weights.mkdir(parents=True)
+    (weights / "last.pt").write_bytes(b"checkpoint")
+    (task_output / "results.csv").write_text(
+        "epoch,time,metrics/mAP50-95(B),val/box_loss,val/cls_loss\n"
+        "1,12.5,0.1,2.0,1.0\n"
+        "2,23.0,0.2,1.5,0.8\n",
+        encoding="utf-8",
+    )
+    resume = _resume_evidence(task_output)
+    assert resume is not None
+    assert resume.completed_epochs == 2
+    assert resume.elapsed_seconds_upper_bound == 23.0
+    monitor = _seed_training_monitor(
+        [
+            {
+                "metrics/mAP50-95(B)": 0.1,
+                "val/box_loss": 2.0,
+                "val/cls_loss": 1.0,
+            },
+            {
+                "metrics/mAP50-95(B)": 0.2,
+                "val/box_loss": 1.5,
+                "val/cls_loss": 0.8,
+            },
+        ]
+    )
+    assert monitor.best_map50_95 == 0.2
+    assert monitor.best_validation_loss == 2.3
+    assert monitor.stop_reason is None
+
+
+def test_failed_training_cleanup_preserves_resumable_output(tmp_path: Path) -> None:
+    empty_output = tmp_path / "empty"
+    empty_output.mkdir()
+    _clean_failed_training_output(empty_output, output_root_existed=False)
+    assert not empty_output.exists()
+
+    resumable_output = tmp_path / "resumable"
+    checkpoint = resumable_output / "detect" / "weights" / "last.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    _clean_failed_training_output(resumable_output, output_root_existed=False)
+    assert checkpoint.is_file()
+
+    preexisting_output = tmp_path / "preexisting"
+    preexisting_output.mkdir()
+    _clean_failed_training_output(preexisting_output, output_root_existed=True)
+    assert preexisting_output.is_dir()
+
+
+def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as target:
+        writer = csv.writer(target)
+        writer.writerow(["", "slide_name", "hospital", "type", "fold"])
+        for index, (slide, site) in enumerate(rows):
+            writer.writerow([index, slide, site, "test", 1])
+
+
+def _write_annotation(path: Path, *, empty: bool = False) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as target:
+        fields = [
+            "",
+            "raw_classification",
+            "main_classification",
+            "super_classification",
+            "type",
+            "xmin",
+            "ymin",
+            "xmax",
+            "ymax",
+            "coords_x",
+            "coords_y",
+        ]
+        writer = csv.DictWriter(target, fieldnames=fields)
+        writer.writeheader()
+        if not empty:
+            writer.writerow(
+                {
+                    "": 0,
+                    "raw_classification": "tumor",
+                    "main_classification": "tumor_nonMitotic",
+                    "super_classification": "tumor_any",
+                    "type": "polyline",
+                    "xmin": 10,
+                    "ymin": 20,
+                    "xmax": 30,
+                    "ymax": 40,
+                    "coords_x": "10,30,30,10,10",
+                    "coords_y": "20,20,40,40,20",
+                }
+            )
+
+
+def _write_item(root: Path, slide: str, *, empty: bool = False) -> str:
+    item_id = f"{slide}_id-fixture_left-0_top-0_bottom-80_right-100"
+    image_path = root / "rgb" / f"{item_id}.png"
+    image_path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (100, 80), "white").save(image_path)
+    _write_annotation(root / "annotations" / f"{item_id}.csv", empty=empty)
+    return item_id
+
+
+def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Path) -> None:
+    repository_root = Path(__file__).parents[1]
+    source = json.loads(
+        (repository_root / "sources/nucls-corrected-single-rater.json").read_text(encoding="utf-8")
+    )
+    experiment = json.loads(
+        (repository_root / "experiments/nucls-ultralytics-baseline.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    write_json(tmp_path / experiment["dataset_manifest"], source)
+    experiment_path = tmp_path / "experiments/nucls-ultralytics-baseline.json"
+    write_json(experiment_path, experiment)
+    data_root = tmp_path / experiment["data_directory"]
+    train_slide = "TCGA-TR-0001-DX1"
+    validation_slide = "TCGA-VA-0002-DX1"
+    test_slide = "TCGA-TE-0003-DX1"
+    _write_item(data_root, train_slide)
+    _write_item(data_root, validation_slide)
+    test_item = _write_item(data_root, test_slide, empty=True)
+    split_root = data_root / "splits"
+    _write_split(split_root / "fold_1_train.csv", [(train_slide, "TR"), (validation_slide, "VA")])
+    _write_split(split_root / "fold_1_test.csv", [(test_slide, "TE")])
+    _write_split(split_root / "fold_2_test.csv", [(validation_slide, "VA")])
+
+    result: Any = prepare_ultralytics_layout(experiment_path)
+    assert result["source_ontology"] == experiment["ontology_labels"]
+    assert result["split"]["patient_intersections"]["train_test"] == []
+    layout = tmp_path / experiment["layout_directory"]
+    assert (layout / f"detect/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
+    assert (layout / f"segment/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
+    assert "train: images/train" in (layout / "detect.yaml").read_text(encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        prepare_ultralytics_layout(experiment_path)
+
+
+def test_acquire_model_artifacts_writes_provenance(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    repository_root = Path(__file__).parents[1]
+    document = json.loads(
+        (repository_root / "experiments/nucls-ultralytics-baseline.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    experiment_path = tmp_path / "experiments/nucls-ultralytics-baseline.json"
+    write_json(experiment_path, document)
+
+    def fake_download(url: str, output: Path, size: int | None, digest: str) -> None:
+        del url, size, digest
+        output.write_bytes(output.name.encode())
+
+    monkeypatch.setattr(
+        "pathologize_cell_analysis.ultralytics_conversion._download_pinned_file",
+        fake_download,
+    )
+    result: Any = acquire_ultralytics_artifacts(experiment_path)
+    assert len(result["artifacts"]) == 4
+    assert result["package"]["version"] == "8.4.202"
+    with pytest.raises(FileExistsError):
+        acquire_ultralytics_artifacts(experiment_path)
+
+
+def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Path) -> None:
+    class Boxes:
+        xyxy = torch.tensor([[10.0, 20.0, 30.0, 40.0]])
+        conf = torch.tensor([0.9])
+        cls = torch.tensor([2.0])
+
+    class Masks:
+        def __init__(self) -> None:
+            self.xy = [np.asarray([[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]])]
+
+    class Result:
+        orig_shape = (80, 100)
+        boxes = Boxes()
+        masks = Masks()
+
+    item = SplitItem(
+        item_id="item",
+        slide_id="TCGA-TE-0003-DX1",
+        patient_id="TCGA-TE-0003",
+        site_id="TE",
+        split="test",
+        image_path="rgb/item.png",
+        annotation_path="annotations/item.csv",
+    )
+    _write_annotation(tmp_path / item.annotation_path)
+    record, rejections = _normalize_result(Result(), item, "segment", _fixture()["ontology_labels"])
+    assert not rejections
+    assert record.predictions[0].polygon_xy_pixels is not None
+    predicted = _as_predicted_nucleus(record.predictions[0], (80, 100))
+    assert predicted.flat_pixels.size > 0
+    evidence: Any = _evaluate_records(
+        "segment",
+        [record],
+        {item.item_id: item},
+        tmp_path,
+        _fixture()["ontology_labels"],
+        1.0,
+    )
+    assert evidence["localization"]["f1"] == 1.0
+    assert evidence["instance_segmentation"]["mean_instance_iou"] == 1.0
+    assert evidence["held_out_site_slices"]["TE"]["localization"]["f1"] == 1.0
+
+
+def test_predeclared_runtime_arguments_and_report_helpers(tmp_path: Path) -> None:
+    path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-baseline.json"
+    experiment = load_ultralytics_experiment(path)
+    train = training_arguments(experiment, tmp_path, "detect")
+    predict = _prediction_arguments(experiment, "segment")
+    assert train["optimizer"] == "AdamW"
+    assert train["seed"] == 20261107
+    assert train["workers"] == 0
+    assert train["plots"] is False
+    assert predict["conf"] == 0.05
+    assert predict["retina_masks"] is True
+    cache = tmp_path / "labels.cache"
+    cache.write_text("cache", encoding="utf-8")
+    _clear_ultralytics_caches(tmp_path)
+    assert not cache.exists()
+    runtime_config = tmp_path / "ultralytics-config"
+    runtime_config.mkdir()
+    (runtime_config / "settings.json").write_text("{}", encoding="utf-8")
+    _clear_ultralytics_runtime_config(tmp_path)
+    assert not runtime_config.exists()
+
+    curve: Any = _training_curve_summary(
+        [
+            {
+                "epoch": 1.0,
+                "train/box_loss": 2.0,
+                "val/box_loss": 3.0,
+                "metrics/mAP50(B)": 0.1,
+                "metrics/mAP50-95(B)": 0.05,
+            },
+            {
+                "epoch": 2.0,
+                "train/box_loss": 1.0,
+                "val/box_loss": 2.0,
+                "metrics/mAP50(B)": 0.2,
+                "metrics/mAP50-95(B)": 0.1,
+            },
+        ],
+        {"metrics/mAP50(B)": 0.2, "metrics/mAP50-95(B)": 0.1},
+        2,
+    )
+    assert curve["best_checkpoint"]["epoch"] == 2
+    assert curve["stopped_by"] == "epoch_ceiling"
+
+    guard_stop: Any = _training_curve_summary(
+        [
+            {
+                "epoch": 1.0,
+                "train/box_loss": 2.0,
+                "val/box_loss": 3.0,
+                "metrics/mAP50(B)": 0.1,
+                "metrics/mAP50-95(B)": 0.05,
+            }
+        ],
+        {"metrics/mAP50(B)": 0.1, "metrics/mAP50-95(B)": 0.05},
+        2,
+        stop_reason="persistent_validation_regression",
+    )
+    assert guard_stop["stopped_by"] == "persistent_validation_regression"
+    assert guard_stop["convergence_assessment"] == "stopped_by_guard"
+
+    wall_stop: Any = _training_curve_summary(
+        [
+            {
+                "epoch": 1.0,
+                "train/box_loss": 2.0,
+                "val/box_loss": 3.0,
+                "metrics/mAP50(B)": 0.1,
+                "metrics/mAP50-95(B)": 0.05,
+            }
+        ],
+        {"metrics/mAP50(B)": 0.1, "metrics/mAP50-95(B)": 0.05},
+        2,
+        stopped_for_wall_time=True,
+    )
+    assert wall_stop["stopped_by"] == "wall_time_guard"
+    assert wall_stop["convergence_assessment"] == "stopped_by_guard"
+
+    patience_curve = _training_curve_summary(
+        [{"epoch": 1.0, "train/box_loss": 2.0, "val/box_loss": 3.0}],
+        {},
+        2,
+    )
+    assert patience_curve["stopped_by"] == "validation_patience"
+    assert patience_curve["convergence_assessment"] == ("validation_plateau_supports_convergence")
+
+    evidence: dict[str, Any] = {
+        "experiment": experiment.model_dump(mode="json"),
+        "tasks": {
+            "detect": {
+                "per_class": {
+                    label: {"localization": {"f1": 0.5}} for label in experiment.ontology_labels
+                },
+                "held_out_site_slices": {"TE": {"localization": {"f1": 0.5}}},
+            },
+            "segment": {
+                "per_class": {
+                    label: {"instance_segmentation": {"mean_instance_iou": 0.4}}
+                    for label in experiment.ontology_labels
+                },
+                "held_out_site_slices": {
+                    "TE": {"instance_segmentation": {"mean_instance_iou": 0.4}}
+                },
+            },
+        },
+        "training_curves": {
+            "detect": curve,
+            "segment": {
+                **curve,
+                "metrics": {
+                    "metrics/mAP50(M)": curve["metrics"]["metrics/mAP50(B)"],
+                    "metrics/mAP50-95(M)": curve["metrics"]["metrics/mAP50-95(B)"],
+                },
+                "best_checkpoint": {
+                    "epoch": 2,
+                    "metrics": {"metrics/mAP50(M)": 0.2, "metrics/mAP50-95(M)": 0.1},
+                },
+            },
+        },
+        "comparison": {
+            "transparent_baseline": {
+                "localization_f1": 0.3,
+                "conditional_instance_mean_iou": 0.2,
+            },
+            "ultralytics": {
+                "detection_localization_f1": 0.5,
+                "conditional_instance_mean_iou": 0.4,
+            },
+        },
+        "resources": {"aggregate_gpu_seconds": 10.0, "aggregate_gpu_ceiling_seconds": 86400},
+        "failures": [],
+    }
+    markdown = _report_markdown(evidence)
+    assert "YOLO26 nano" in markdown
+    assert all(len(line) <= 120 for line in markdown.splitlines())
