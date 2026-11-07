@@ -6,6 +6,13 @@ import { useMemo } from "react";
 import type { CashFlowDecision } from "@/app/_projects/personal-finance-app/domain";
 import { formatCurrency } from "@/app/_projects/personal-finance-app/lib";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectDecisionScenarioSummary = selectAssetTrackerFields(
+  "futureCashFlows",
+  "compareDecisionScenario",
+  "baseCurrency",
+);
 
 function signedCurrency(value: number, currency: "GBP" | "USD" | "EUR") {
   const rounded = Math.round(value);
@@ -41,13 +48,7 @@ export function goalDateChange(
 }
 
 export function DecisionScenarioSummary() {
-  const tracker = useAssetTracker(
-    ({ futureCashFlows, compareDecisionScenario, baseCurrency }) => ({
-      futureCashFlows,
-      compareDecisionScenario,
-      baseCurrency,
-    }),
-  );
+  const tracker = useAssetTracker(selectDecisionScenarioSummary);
   const decisions = tracker.futureCashFlows.filter(
     (record): record is CashFlowDecision => record.kind === "decision",
   );

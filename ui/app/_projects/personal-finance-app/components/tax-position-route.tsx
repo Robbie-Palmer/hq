@@ -28,6 +28,7 @@ import {
   type AssetTrackerContextValue,
   useAssetTracker,
 } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { SoleTraderScenarios } from "./sole-trader-scenarios";
 import {
   AnnualAllowanceUsageChart,
@@ -41,6 +42,12 @@ const componentLabels = {
   nationalInsurance: "Employee National Insurance",
   capitalGainsTax: "Capital Gains Tax",
 } as const;
+
+const selectTaxPositionRoute = selectAssetTrackerFields(
+  "exportTaxEstimate",
+  "household",
+  "taxEstimate",
+);
 
 type TaxSetupRow = TaxProfileSetup & { annualTaxableIncome: string };
 function selectTaxSetupTracker(tracker: AssetTrackerContextValue) {
@@ -602,11 +609,7 @@ function TaxPositionHeader({
 
 export function TaxPositionRoute() {
   const { exportTaxEstimate, household, taxEstimate } = useAssetTracker(
-    ({ exportTaxEstimate, household, taxEstimate }) => ({
-      exportTaxEstimate,
-      household,
-      taxEstimate,
-    }),
+    selectTaxPositionRoute,
   );
   const [showExplanations, setShowExplanations] = useState(false);
   const activeScope = household.activeScope;

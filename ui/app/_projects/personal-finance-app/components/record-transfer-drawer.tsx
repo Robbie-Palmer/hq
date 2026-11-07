@@ -23,6 +23,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectView = selectAssetTrackerFields("accounts", "recordTransfer");
 
 const EXTERNAL = "external";
 
@@ -36,9 +39,7 @@ export function RecordTransferDrawer({
   fromAccountId,
   trigger,
 }: Readonly<RecordTransferDrawerProps>) {
-  const { accounts, recordTransfer } = useAssetTracker(
-    ({ accounts, recordTransfer }) => ({ accounts, recordTransfer }),
-  );
+  const { accounts, recordTransfer } = useAssetTracker(selectView);
   const openAccounts = accounts.filter((account) => account.isOpen);
   const lockedFrom = fromAccountId != null;
   const sourceAccount = accounts.find((a) => a.id === fromAccountId);

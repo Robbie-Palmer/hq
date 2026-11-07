@@ -28,6 +28,9 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectView = selectAssetTrackerFields("importSalaryHistory");
 
 const MAX_FILE_BYTES = 5_000_000;
 
@@ -92,9 +95,7 @@ function formatGrossPay(grossPay: number | undefined): string {
 }
 
 export function SalaryHistoryImportDrawer() {
-  const { importSalaryHistory } = useAssetTracker(
-    ({ importSalaryHistory }) => ({ importSalaryHistory }),
-  );
+  const { importSalaryHistory } = useAssetTracker(selectView);
   const [open, setOpen] = useState(false);
   const [sheet, setSheet] = useState<SalaryImportSheet | null>(null);
   const [mapping, setMapping] = useState<SalaryColumnMapping>({});

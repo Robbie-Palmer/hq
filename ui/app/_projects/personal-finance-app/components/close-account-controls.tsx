@@ -14,8 +14,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 const KEEP_BALANCE = "keep";
+const selectView = selectAssetTrackerFields("accounts", "closeAccount");
 
 interface CloseAccountControlsProps {
   account: AccountDetailView;
@@ -29,9 +31,7 @@ interface CloseAccountControlsProps {
 export function CloseAccountControls({
   account,
 }: Readonly<CloseAccountControlsProps>) {
-  const { accounts, closeAccount } = useAssetTracker(
-    ({ accounts, closeAccount }) => ({ accounts, closeAccount }),
-  );
+  const { accounts, closeAccount } = useAssetTracker(selectView);
   const [confirming, setConfirming] = useState(false);
   const [transferTargetId, setTransferTargetId] = useState(KEEP_BALANCE);
   const [error, setError] = useState<string | null>(null);

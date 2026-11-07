@@ -9,11 +9,13 @@ import {
 } from "@/app/_projects/personal-finance-app/domain";
 import { Button } from "@/components/ui/button";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 const HISTORY_LABELS: Record<AccountHistoryKind, string> = {
   balances: "balance",
   capitalFlows: "deposit/withdrawal",
 };
+const selectView = selectAssetTrackerFields("clearAccountHistory");
 
 export function ClearAccountHistoryButton({
   accountId,
@@ -24,9 +26,7 @@ export function ClearAccountHistoryButton({
   kind: AccountHistoryKind;
   count: number;
 }>) {
-  const { clearAccountHistory } = useAssetTracker(
-    ({ clearAccountHistory }) => ({ clearAccountHistory }),
-  );
+  const { clearAccountHistory } = useAssetTracker(selectView);
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);

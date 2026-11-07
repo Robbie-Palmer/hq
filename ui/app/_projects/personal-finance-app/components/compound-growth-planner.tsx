@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { CompoundGrowthAssumptions } from "./compound-growth-assumptions";
 import {
   buildGrowthScenario,
@@ -20,10 +21,10 @@ import {
 } from "./compound-growth-planner-model";
 import { CompoundGrowthResults } from "./compound-growth-results";
 
+const select = selectAssetTrackerFields("accountDetails", "baseCurrency");
+
 export function CompoundGrowthPlanner() {
-  const { accountDetails = [], baseCurrency = "GBP" } = useAssetTracker(
-    ({ accountDetails, baseCurrency }) => ({ accountDetails, baseCurrency }),
-  );
+  const { accountDetails = [], baseCurrency = "GBP" } = useAssetTracker(select);
   const [draft, setDraft] = useStoredGrowthDraft();
   const availableAccounts = accountDetails.filter(
     (account) =>

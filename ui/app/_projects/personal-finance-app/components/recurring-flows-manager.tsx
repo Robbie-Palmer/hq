@@ -10,11 +10,12 @@ import {
 } from "@/components/ui/select";
 import { AccountFlows } from "./account-flows";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectRecurringFlowsManager = selectAssetTrackerFields("accountDetails");
 
 export function RecurringFlowsManager() {
-  const { accountDetails } = useAssetTracker(({ accountDetails }) => ({
-    accountDetails,
-  }));
+  const { accountDetails } = useAssetTracker(selectRecurringFlowsManager);
   const openAccounts = accountDetails.filter((account) => account.isOpen);
   const [accountId, setAccountId] = useState(openAccounts[0]?.id ?? "");
   const selectedAccount =

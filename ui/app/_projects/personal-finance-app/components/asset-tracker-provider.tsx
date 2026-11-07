@@ -688,9 +688,9 @@ type AssetTrackerActions = Omit<
 
 const AssetTrackerContext = createContext<AssetTrackerActions | null>(null);
 
-export function AssetTrackerProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+type AssetTrackerProviderProps = Readonly<{ children: ReactNode }>;
+
+export function AssetTrackerProvider({ children }: AssetTrackerProviderProps) {
   const [store] = useState(createAssetTrackerStore);
   const adapter = useMemo(
     () => createAssetTrackerCommandAdapter(store),
