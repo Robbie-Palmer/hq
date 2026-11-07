@@ -38,6 +38,7 @@ from .methods import PredictedNucleus
 from .ultralytics_conversion import load_ultralytics_experiment
 
 Task = Literal["detect", "segment"]
+ULTRALYTICS_OUTPUT_DIRECTORY = Path("outputs/public/nucls-ultralytics-yolo26n-v1")
 
 
 @dataclass
@@ -68,6 +69,79 @@ class ResumeEvidence:
 
 def _root(experiment_path: Path) -> Path:
     return experiment_path.resolve().parent.parent
+
+
+def _experiment_output_root(root: Path, experiment: UltralyticsExperiment) -> Path:
+    expected = ULTRALYTICS_OUTPUT_DIRECTORY.as_posix()
+    if experiment.output_directory != expected:
+        raise ValueError(f"Ultralytics output directory must be {expected}")
+    return root / ULTRALYTICS_OUTPUT_DIRECTORY
+
+
+def _safe_checkpoint_globals() -> list[type[Any]]:
+    from torch.nn import (
+        BatchNorm2d,
+        Conv2d,
+        ConvTranspose2d,
+        Identity,
+        MaxPool2d,
+        ModuleList,
+        Sequential,
+        SiLU,
+        Upsample,
+    )
+    from ultralytics.nn.modules.block import (
+        C2PSA,
+        SPPF,
+        Attention,
+        Bottleneck,
+        C3k,
+        C3k2,
+        Proto26,
+        PSABlock,
+    )
+    from ultralytics.nn.modules.conv import Concat, Conv, DWConv
+    from ultralytics.nn.modules.head import Detect, Segment26
+    from ultralytics.nn.tasks import DetectionModel, SegmentationModel
+
+    return [
+        Attention,
+        BatchNorm2d,
+        Bottleneck,
+        C2PSA,
+        C3k,
+        C3k2,
+        Concat,
+        Conv,
+        Conv2d,
+        ConvTranspose2d,
+        DWConv,
+        Detect,
+        DetectionModel,
+        Identity,
+        MaxPool2d,
+        ModuleList,
+        PSABlock,
+        Proto26,
+        SPPF,
+        Segment26,
+        SegmentationModel,
+        Sequential,
+        SiLU,
+        Upsample,
+    ]
+
+
+def _load_safe_checkpoint(torch_module: Any, checkpoint_path: Path) -> dict[str, Any]:
+    with torch_module.serialization.safe_globals(_safe_checkpoint_globals()):
+        checkpoint = torch_module.load(
+            checkpoint_path,
+            map_location="cpu",
+            weights_only=True,
+        )
+    if not isinstance(checkpoint, dict):
+        raise TypeError("Ultralytics checkpoint must be a dictionary")
+    return checkpoint
 
 
 def training_arguments(
@@ -184,8 +258,7 @@ def _seed_training_monitor(rows: list[dict[str, float]]) -> TrainingMonitor:
             state.stop_reason = "non_finite_validation_metric"
             return state
         regressed = (
-            validation_loss > state.best_validation_loss * 1.1
-            and map50_95 < state.best_map50_95
+            validation_loss > state.best_validation_loss * 1.1 and map50_95 < state.best_map50_95
         )
         state.regression_epochs = state.regression_epochs + 1 if regressed else 0
         state.best_map50_95 = max(state.best_map50_95, map50_95)
@@ -216,8 +289,7 @@ def _monitor_training(trainer: Any, state: TrainingMonitor, patience: int) -> No
         return
     validation_loss = sum(validation_losses)
     regressed = (
-        validation_loss > state.best_validation_loss * 1.1
-        and map50_95 < state.best_map50_95
+        validation_loss > state.best_validation_loss * 1.1 and map50_95 < state.best_map50_95
     )
     state.regression_epochs = state.regression_epochs + 1 if regressed else 0
     state.best_map50_95 = max(state.best_map50_95, map50_95)
@@ -236,11 +308,7 @@ def _load_training_model(
 ) -> Any:
     if resume is None:
         return yolo(str(weights), task=task)
-    checkpoint = torch_module.load(
-        resume.checkpoint,
-        map_location="cpu",
-        weights_only=False,
-    )
+    checkpoint = _load_safe_checkpoint(torch_module, resume.checkpoint)
     required_state = {"optimizer", "ema", "scaler", "stopper", "train_args"}
     if not required_state.issubset(checkpoint):
         raise ValueError(f"{task} checkpoint lacks exact resume state")
@@ -270,7 +338,7 @@ def _fit_training_model(
 def train_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no cover
     experiment = load_ultralytics_experiment(experiment_path)
     root = _root(experiment_path)
-    output_root = root / experiment.output_directory / "training"
+    output_root = _experiment_output_root(root, experiment) / "training"
     if (output_root / "manifest.json").exists():
         raise FileExistsError(f"training output already exists: {output_root}")
     output_root.mkdir(parents=True, exist_ok=True)
@@ -294,9 +362,7 @@ def train_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no
             rows = _training_rows(task_output)
             prior_task_seconds = resume.elapsed_seconds_upper_bound if resume else 0.0
             deadline = (
-                time.monotonic()
-                + experiment.limits.per_task_wall_seconds
-                - prior_task_seconds
+                time.monotonic() + experiment.limits.per_task_wall_seconds - prior_task_seconds
             )
             wall_start = time.monotonic()
             cpu_start = time.process_time()
@@ -376,9 +442,7 @@ def train_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no
                 "resume_checkpoint": (
                     resume.checkpoint.relative_to(root).as_posix() if resume else None
                 ),
-                "completed_epochs_before_resume": (
-                    resume.completed_epochs if resume else 0
-                ),
+                "completed_epochs_before_resume": (resume.completed_epochs if resume else 0),
                 "interrupted_elapsed_seconds_upper_bound": prior_task_seconds,
                 "continuation_cuda_event_seconds": continuation_gpu_seconds,
             }
@@ -612,10 +676,7 @@ def _evaluate_records(
 
 
 def _aggregate_loss(rows: list[dict[str, float]], prefix: str) -> list[float]:
-    return [
-        sum(value for key, value in row.items() if key.startswith(prefix))
-        for row in rows
-    ]
+    return [sum(value for key, value in row.items() if key.startswith(prefix)) for row in rows]
 
 
 def _series_summary(rows: list[dict[str, float]], key: str) -> dict[str, float | int]:
@@ -657,9 +718,7 @@ def _training_curve_summary(
         ),
     )
     completed_epochs = int(rows[-1]["epoch"])
-    stopped_by = (
-        "epoch_ceiling" if completed_epochs >= maximum_epochs else "validation_patience"
-    )
+    stopped_by = "epoch_ceiling" if completed_epochs >= maximum_epochs else "validation_patience"
     convergence = (
         "validation_plateau_supports_convergence"
         if stopped_by == "validation_patience"
@@ -690,7 +749,7 @@ def _training_curve_summary(
 def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma: no cover
     experiment = load_ultralytics_experiment(experiment_path)
     root = _root(experiment_path)
-    run_root = root / experiment.output_directory
+    run_root = _experiment_output_root(root, experiment)
     training_manifest_path = run_root / "training" / "manifest.json"
     if not training_manifest_path.is_file():
         raise FileNotFoundError("training manifest is missing")
@@ -776,14 +835,12 @@ def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma:
         training_curves: dict[str, object] = {}
         for task in ("detect", "segment"):
             task_training_root = run_root / "training" / task
-            checkpoint = torch.load(
+            checkpoint = _load_safe_checkpoint(
+                torch,
                 task_training_root / "weights" / "best.pt",
-                map_location="cpu",
-                weights_only=False,
             )
             checkpoint_metrics = {
-                str(key): float(value)
-                for key, value in checkpoint["train_metrics"].items()
+                str(key): float(value) for key, value in checkpoint["train_metrics"].items()
             }
             training_curves[task] = _training_curve_summary(
                 _training_rows(task_training_root),
@@ -807,9 +864,9 @@ def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma:
             "ultralytics": {
                 "detection_localization_f1": task_evidence["detect"]["localization"]["f1"],
                 "segmentation_localization_f1": task_evidence["segment"]["localization"]["f1"],
-                "conditional_instance_mean_iou": task_evidence["segment"][
-                    "instance_segmentation"
-                ]["mean_instance_iou"],
+                "conditional_instance_mean_iou": task_evidence["segment"]["instance_segmentation"][
+                    "mean_instance_iou"
+                ],
             },
         }
         layout_manifest = read_json(root / experiment.layout_directory / "manifest.json")
@@ -827,9 +884,7 @@ def evaluate_ultralytics(experiment_path: Path) -> dict[str, object]:  # pragma:
             },
             "predictions": {
                 task: {
-                    "path": (output_root / task / "predictions.jsonl")
-                    .relative_to(root)
-                    .as_posix(),
+                    "path": (output_root / task / "predictions.jsonl").relative_to(root).as_posix(),
                     "sha256": sha256_file(output_root / task / "predictions.jsonl"),
                 }
                 for task in ("detect", "segment")
@@ -909,9 +964,7 @@ def _report_markdown(evidence: dict[str, Any]) -> str:
     segment_curve = curves["segment"]
     class_lines: list[str] = []
     for label, values in detection["per_class"].items():
-        mean_iou = segmentation["per_class"][label]["instance_segmentation"][
-            "mean_instance_iou"
-        ]
+        mean_iou = segmentation["per_class"][label]["instance_segmentation"]["mean_instance_iou"]
         class_lines.append(
             f"| `{label}` | {_number(values['localization']['f1'])} | {_number(mean_iou)} |"
         )
@@ -1032,7 +1085,8 @@ def report_ultralytics(
 ) -> dict[str, object]:
     experiment = load_ultralytics_experiment(experiment_path)
     root = _root(experiment_path)
-    evidence = read_json(root / experiment.output_directory / "evaluation" / "evidence.json")
+    output_root = _experiment_output_root(root, experiment)
+    evidence = read_json(output_root / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
         raise TypeError("Ultralytics evidence must be a JSON object")
     write_json(json_output, evidence)
