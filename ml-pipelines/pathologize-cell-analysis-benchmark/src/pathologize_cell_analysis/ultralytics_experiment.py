@@ -38,7 +38,10 @@ from .methods import PredictedNucleus
 from .ultralytics_conversion import load_ultralytics_experiment
 
 Task = Literal["detect", "segment"]
+ULTRALYTICS_EXPERIMENT_PATH = Path("experiments/nucls-ultralytics-baseline.json")
 ULTRALYTICS_OUTPUT_DIRECTORY = Path("outputs/public/nucls-ultralytics-yolo26n-v1")
+ULTRALYTICS_JSON_REPORT = Path("reports/nucls-ultralytics-baseline.json")
+ULTRALYTICS_MARKDOWN_REPORT = Path("reports/nucls-ultralytics-baseline.md")
 
 
 @dataclass
@@ -69,6 +72,10 @@ class ResumeEvidence:
 
 def _root(experiment_path: Path) -> Path:
     return experiment_path.resolve().parent.parent
+
+
+def _project_root() -> Path:
+    return Path(__file__).resolve().parents[2]
 
 
 def _experiment_output_root(root: Path, experiment: UltralyticsExperiment) -> Path:
@@ -1083,24 +1090,23 @@ def _report_markdown(evidence: dict[str, Any]) -> str:
 def report_ultralytics(
     experiment_path: Path, json_output: Path, markdown_output: Path
 ) -> dict[str, object]:
+    root = _project_root()
+    expected_experiment = root / ULTRALYTICS_EXPERIMENT_PATH
+    if experiment_path.resolve() != expected_experiment.resolve():
+        raise ValueError(f"Ultralytics experiment must be {expected_experiment}")
+    if json_output != ULTRALYTICS_JSON_REPORT:
+        raise ValueError(f"Ultralytics JSON report must be {ULTRALYTICS_JSON_REPORT}")
+    if markdown_output != ULTRALYTICS_MARKDOWN_REPORT:
+        raise ValueError(
+            f"Ultralytics Markdown report must be {ULTRALYTICS_MARKDOWN_REPORT}"
+        )
     experiment = load_ultralytics_experiment(experiment_path)
-    root = _root(experiment_path)
-    report_root = (root / "reports").resolve()
-    resolved_json_output = (root / json_output).resolve()
-    resolved_markdown_output = (root / markdown_output).resolve()
-    for output_path, expected_suffix in (
-        (resolved_json_output, ".json"),
-        (resolved_markdown_output, ".md"),
-    ):
-        if not output_path.is_relative_to(report_root):
-            raise ValueError("Ultralytics reports must stay within the project reports directory")
-        if output_path.suffix != expected_suffix:
-            raise ValueError(f"Ultralytics report must use the {expected_suffix} suffix")
     output_root = _experiment_output_root(root, experiment)
     evidence = read_json(output_root / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
         raise TypeError("Ultralytics evidence must be a JSON object")
-    write_json(resolved_json_output, evidence)
-    resolved_markdown_output.parent.mkdir(parents=True, exist_ok=True)
-    resolved_markdown_output.write_text(_report_markdown(evidence), encoding="utf-8")
+    write_json(root / ULTRALYTICS_JSON_REPORT, evidence)
+    markdown_path = root / ULTRALYTICS_MARKDOWN_REPORT
+    markdown_path.parent.mkdir(parents=True, exist_ok=True)
+    markdown_path.write_text(_report_markdown(evidence), encoding="utf-8")
     return dict(evidence)
