@@ -1,0 +1,168 @@
+---
+title: "ADR 003: Acquire sources on demand and retain bounded experiment inputs"
+date: "2026-11-07"
+status: "Accepted"
+implements_product_decisions:
+  - "pathologize:001-one-versioned-pathology-data-registry"
+  - "pathologize:002-public-source-provenance-boundary"
+---
+
+## Context
+
+Pathologize needs repeatable experiment inputs, but it does not need a paid
+mirror of every registered collection. The first registry names three
+collections totalling 1,244,606,366,083 bytes, or 1,244.606 decimal GB:
+
+| Collection                  | Recorded size | Source terms                                                                                                                                                                   | Acquisition boundary                                                                                                   |
+| --------------------------- | ------------: | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| CPTAC-COAD DICOM conversion |     70.234 GB | [CC BY 3.0](https://zenodo.org/records/13351625)                                                                                                                               | Public download. Preserve attribution, the licence notice, and any changes.                                            |
+| CAMELYON16                  |    762.472 GB | [CC0](https://registry.opendata.aws/camelyon/)                                                                                                                                 | Public download. Preserve the dataset citation even though CC0 does not require it.                                    |
+| PANDA                       |    411.900 GB | [CC BY-NC-SA 4.0](https://panda.grand-challenge.org/data/) plus accepted [Kaggle competition rules](https://www.kaggle.com/competitions/prostate-cancer-grade-assessment/data) | An operator must accept the source terms and acquire it. Do not turn that access into a public or unattended download. |
+
+The CAMELYON total comes from listing the official AWS Open Data
+`CAMELYON16/` prefix on 2026-11-06. Its 1,366 objects total
+762,471,984,787 bytes. The registry already records 70,234,381,296 bytes for
+CPTAC-COAD, and Kaggle reports 411.9 GB for PANDA.
+
+[ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary)
+keeps registry references separate from image bytes.
+[ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary)
+keeps provider funding outside benchmark manifests. The current implementation
+only acquires one verified 18.7 MB CPTAC-COAD series. CAMELYON16 and PANDA are
+manifest-only until an experiment selects a bounded subset.
+
+The repository has two realistic hosted storage paths. ML pipelines use a
+shared Cloudflare R2 DVC bucket. A separate personal archive uses Backblaze B2,
+which has an S3-compatible API and established private-bucket infrastructure.
+Neither existing use makes a 1.245 TB Pathologize safety copy free.
+
+## Decision
+
+Do not create a hosted Pathologize DVC remote or mirror complete source
+collections during the experimental phase. Acquire source data from its named
+publisher when an experiment needs it. Retain only the verified source inputs
+and derived artifacts that the experiment pins.
+
+Git is authoritative for collection identity, source and access terms,
+citations, retrieval evidence, selected slide IDs, byte counts, and SHA-256
+digests. The publisher remains the source of bulk bytes. Before an experiment
+uses a source asset, add or verify its bounded subset and asset manifests. Do
+not accept a filename, mutable URL, or DVC content hash as a replacement for
+the recorded publisher digest.
+
+Use this acquisition sequence:
+
+1. Fetch the permitted source while the publisher is available.
+2. Verify the source byte count and SHA-256 digest before processing it.
+3. Extract or select only the slides and other inputs declared by the
+   experiment.
+4. Track those selected inputs and required derived artifacts with DVC, then
+   add them to the DVC cache.
+5. Push the cache to an ignored filesystem remote configured in
+   `.dvc/config.local` when an offline copy is useful.
+6. Delete download staging, rejected samples, and unselected source bytes after
+   the retained inputs pass verification.
+
+The filesystem remote may live on an attached disk or another machine-owned
+volume. It provides offline working storage without permanent independent
+durability. A lost local copy is rebuilt from the publisher while that route
+still works. This accepts upstream loss as a project risk instead of paying a
+recurring storage bill before the experiments establish value.
+
+PANDA stays outside automated acquisition. An operator who accepted its source
+terms may place a selected local subset in their private cache. CI, preview
+deployments, public releases, and contributors who have not accepted those
+terms must not receive it. Derived PANDA tiles, masks, embeddings, and model
+outputs remain subject to the source licence and competition terms until a
+documented review permits publication.
+
+Keep public metadata and slide bytes separate:
+
+* Git may contain manifests, citations, terms, checksums, synthetic fixtures,
+  and aggregate metrics. It must not contain clinical slide bytes.
+* Public CI may acquire the registered six-file CPTAC-COAD fixture. It does not
+  receive PANDA credentials or hosted DVC credentials.
+* A public result may identify source revisions and slide IDs without
+  redistributing source images.
+* Every release of source or derived image data needs a licence and access-term
+  review for that collection.
+
+Before adding any hosted remote, measure the bytes the experiments actually
+retain, how often a clean machine needs them, how long reconstruction takes,
+and how many months they need offsite durability. Record the approved monthly
+budget and run a clean restore before changing registry commands or CI.
+
+## Cost comparison
+
+[Cloudflare R2 Standard](https://developers.cloudflare.com/r2/pricing/) costs
+$0.015 per GB-month and includes 10 GB-month each month. Mirroring the current
+1,244.606 GB corpus would cost about $18.53 per month or $222.30 per year when
+the free allowance is available.
+
+[Backblaze B2](https://www.backblaze.com/cloud-storage/pricing) costs $6.95 per
+TB per 30 days, includes the first 10 GB, has no minimum storage duration, and
+includes egress up to three times average monthly storage. The same complete
+mirror would cost about $8.58 per month or $102.97 per year. B2 is less than
+half the R2 storage price, but that is still a recurring bill for data the
+project can currently reacquire.
+
+Bounded retention changes the calculation:
+
+| Continuously retained bytes | R2 Standard | Backblaze B2 |
+| --------------------------: | ----------: | -----------: |
+|                       10 GB |       $0.00 |        $0.00 |
+|                       50 GB |       $0.60 |        $0.28 |
+|                      100 GB |       $1.35 |        $0.63 |
+
+These estimates exclude any free allowance already consumed by another
+workload. B2 calculates its egress allowance from average stored bytes, so a
+large object uploaded briefly and downloaded before deletion may not receive a
+full free restore. That does not affect the default workflow because it reads
+bulk bytes from the publisher and keeps the selected working set locally.
+
+Backblaze exposes an
+[S3-compatible API](https://www.backblaze.com/docs/cloud-storage-s3-compatible-api),
+so DVC can use it through the same S3 remote type with a different endpoint.
+If measured retained artifacts later need a hosted copy, B2 is the first
+provider to evaluate. That follow-up must use a separate private bucket,
+bucket-scoped application keys, and its own restore evidence. This ADR does not
+provision that bucket or approve an upload.
+
+## Consequences
+
+The project pays no new recurring storage charge while experiments are small.
+Local disks hold only the data under active study instead of all registered
+collections. A contributor can reproduce a public experiment by acquiring its
+declared inputs and verifying their recorded digests.
+
+The tradeoff is real. If a publisher removes or changes an asset after every
+verified local copy has been deleted, that experiment may no longer be fully
+reconstructable. The registry will still prove which bytes were used, but it
+cannot recreate them. A slow or fragile acquisition route may also make a
+future clean run inconvenient.
+
+The project should revisit hosted storage when measured reconstruction cost or
+upstream-loss risk becomes more expensive than retaining the bounded working
+set. It should not use the nominal size of every registered collection as the
+storage forecast.
+
+## Alternatives considered
+
+### Mirror every source in Cloudflare R2
+
+This follows the repository's existing DVC convention and has free egress. It
+was rejected because the current corpus costs about $222 per year before the
+project has a benchmark result that needs the copy.
+
+### Mirror every source in Backblaze B2
+
+B2 is S3-compatible, already used elsewhere in the repository, and cuts the
+full-corpus estimate to about $103 per year. It was rejected for the same
+reason as R2. Cheaper unnecessary storage is still unnecessary storage.
+
+### Keep no experiment inputs
+
+Re-downloading and re-extracting everything for every run minimises retained
+bytes but makes local iteration slow and leaves derived results without a
+practical offline replay. The decision instead keeps each experiment's bounded
+inputs in its local DVC cache and optional filesystem remote.
