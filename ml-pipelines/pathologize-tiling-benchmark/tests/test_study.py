@@ -71,9 +71,11 @@ def test_study_records_case_evidence_and_rejects_echo_control(study_root: Path) 
     corrupted = next(
         case for case in primary.cases if case.case_id == "anisotropic-y-copied-from-x"
     )
-    assert absent.status == "rejected" and absent.response_matched
+    assert absent.status == "rejected"
+    assert absent.response_matched
     assert absent.presented_source_mpp_x is None
-    assert implausible.status == "rejected" and implausible.response_matched
+    assert implausible.status == "rejected"
+    assert implausible.response_matched
     assert anisotropic.produced_tile is not None
     assert (
         anisotropic.produced_tile.source_width_pixels,
@@ -99,8 +101,9 @@ def test_study_records_case_evidence_and_rejects_echo_control(study_root: Path) 
 
 
 def test_nonresponsive_primary_stops_after_writing_evidence(study_root: Path) -> None:
+    adapter = RequestedScaleEchoAdapter()
     with pytest.raises(StudyStoppedError, match="not responsive"):
-        run_study(study_root, primary_adapter=RequestedScaleEchoAdapter())
+        run_study(study_root, primary_adapter=adapter)
 
     result = StudyResult.model_validate_json((study_root / RESULT_PATH).read_text(encoding="utf-8"))
     assert result.status == "stopped"
@@ -118,8 +121,9 @@ def test_spec_rejects_incomplete_category_coverage() -> None:
         (PROJECT_ROOT / "fixtures/mpp-perturbations.json").read_text(encoding="utf-8")
     )
     value["cases"] = [case for case in value["cases"] if case["category"] != "corrupted_metadata"]
+    serialized = json.dumps(value)
     with pytest.raises(ValidationError, match="every required perturbation category"):
-        StudySpec.model_validate_json(json.dumps(value))
+        StudySpec.model_validate_json(serialized)
 
 
 def test_run_rejects_incorrect_machine_checkable_magnitude(study_root: Path) -> None:

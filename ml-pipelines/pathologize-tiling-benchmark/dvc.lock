@@ -277,8 +277,8 @@ stages:
       size: 1690
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 8a03e3bcfc8cc50f7c45659253ac2ca5.dir
-      size: 32169
+      md5: 87a04fa07a30f9eeabd990e9e36f1b2a.dir
+      size: 32179
       nfiles: 4
     - path: uv.lock
       hash: md5
@@ -287,7 +287,7 @@ stages:
     outs:
     - path: outputs/perturbations/mpp-study.json
       hash: md5
-      md5: 51c46b56c9eb447d8238aa5ac8455595
+      md5: dec2d977f1828d306b52355990249f32
       size: 33237
   verify_mpp_perturbation_study:
     cmd: uv run --locked pathologize-tiling-study verify --write-report
@@ -310,12 +310,12 @@ stages:
       size: 686
     - path: outputs/perturbations/mpp-study.json
       hash: md5
-      md5: 51c46b56c9eb447d8238aa5ac8455595
+      md5: dec2d977f1828d306b52355990249f32
       size: 33237
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 8a03e3bcfc8cc50f7c45659253ac2ca5.dir
-      size: 32169
+      md5: 87a04fa07a30f9eeabd990e9e36f1b2a.dir
+      size: 32179
       nfiles: 4
     outs:
     - path: outputs/perturbations/verification.json

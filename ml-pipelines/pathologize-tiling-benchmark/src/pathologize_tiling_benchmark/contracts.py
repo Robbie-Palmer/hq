@@ -6,6 +6,9 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+IDENTIFIER_PATTERN = r"^[a-z0-9][a-z0-9-]+$"
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
@@ -18,7 +21,7 @@ class ExpectedResponse(StrEnum):
 
 
 class GeometryProfile(StrictModel):
-    profile_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    profile_id: str = Field(pattern=IDENTIFIER_PATTERN)
     pixel_width: int = Field(gt=0)
     pixel_height: int = Field(gt=0)
     physical_width_microns: float = Field(gt=0)
@@ -39,7 +42,7 @@ class FixtureSource(StrictModel):
     intended_use: Literal["physical_scale_contract_test_only"]
     clinical_validity: Literal[False]
     fixture_plan: str
-    fixture_plan_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fixture_plan_sha256: str = Field(pattern=SHA256_PATTERN)
     fixture_manifest: str
     fixture_case_id: str
     image_path: str
@@ -81,7 +84,7 @@ class PlausibleMppRange(StrictModel):
 
 
 class PerturbationCase(StrictModel):
-    case_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    case_id: str = Field(pattern=IDENTIFIER_PATTERN)
     category: Literal[
         "isotropic_pixels",
         "anisotropic_pixels",
@@ -126,7 +129,7 @@ class PerturbationCase(StrictModel):
 
 
 class MonotonicityCheck(StrictModel):
-    check_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+    check_id: str = Field(pattern=IDENTIFIER_PATTERN)
     case_ids: list[str] = Field(min_length=3)
 
 
@@ -222,7 +225,7 @@ class CaseResult(StrictModel):
     reported_source_mpp_y: float | None = Field(default=None, gt=0)
     bytes_read: int = Field(ge=0)
     runtime_seconds: float = Field(ge=0)
-    source_image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_image_sha256: str = Field(pattern=SHA256_PATTERN)
     failure: CaseFailure | None
 
 
@@ -260,13 +263,13 @@ class Provenance(StrictModel):
     clinical_validity: Literal[False]
     fixture_case_id: str
     fixture_plan: str
-    fixture_plan_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fixture_plan_sha256: str = Field(pattern=SHA256_PATTERN)
     fixture_manifest: str
-    fixture_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fixture_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
     source_image: str
-    source_image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    source_image_sha256: str = Field(pattern=SHA256_PATTERN)
     generator_module: str
-    generator_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    generator_sha256: str = Field(pattern=SHA256_PATTERN)
     derivation: str
 
 

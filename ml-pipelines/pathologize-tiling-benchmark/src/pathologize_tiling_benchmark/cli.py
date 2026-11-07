@@ -6,7 +6,7 @@ from pathlib import Path
 import fire
 from pydantic import ValidationError
 
-from .study import StudyStoppedError, run_study, verify_study
+from .study import run_study, verify_study
 
 
 class TilingStudyApplication:
@@ -28,7 +28,7 @@ def main(command: Sequence[str] | None = None) -> int:
             TilingStudyApplication,
             command=list(command) if command is not None else None,
         )
-    except (OSError, StudyStoppedError, ValidationError, ValueError) as error:
+    except (OSError, ValidationError, ValueError) as error:
         print(error)
         return 2
     return 0
