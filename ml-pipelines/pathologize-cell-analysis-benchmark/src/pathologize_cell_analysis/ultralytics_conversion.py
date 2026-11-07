@@ -38,6 +38,13 @@ class ConversionResult:
     adjustments: tuple[ConversionExclusion, ...]
 
 
+@dataclass(frozen=True)
+class AnnotationConversion:
+    values: tuple[float, ...] | None = None
+    exclusion: ConversionExclusion | None = None
+    adjustment: ConversionExclusion | None = None
+
+
 def load_ultralytics_experiment(path: Path) -> UltralyticsExperiment:
     return load_model(path, UltralyticsExperiment)
 
@@ -178,6 +185,105 @@ def _format_label(class_index: int, values: tuple[float, ...]) -> str:
     return " ".join((str(class_index), *(f"{value:.8f}" for value in values)))
 
 
+def _convert_box(
+    annotation: Annotation,
+    annotation_index: int,
+    image_size: tuple[int, int],
+    maximum_border_clip_pixels: float,
+) -> AnnotationConversion:
+    if annotation.annotation_type == "point":
+        return AnnotationConversion(
+            exclusion=ConversionExclusion(
+                "detect", "point_has_no_area", annotation_index, annotation.class_name
+            )
+        )
+    width, height = image_size
+    source_bbox = (
+        float(annotation.xmin),
+        float(annotation.ymin),
+        float(annotation.xmax),
+        float(annotation.ymax),
+    )
+    clipped_bbox = (
+        min(max(source_bbox[0], 0.0), float(width)),
+        min(max(source_bbox[1], 0.0), float(height)),
+        min(max(source_bbox[2], 0.0), float(width)),
+        min(max(source_bbox[3], 0.0), float(height)),
+    )
+    maximum_clip = max(
+        abs(source - clipped) for source, clipped in zip(source_bbox, clipped_bbox, strict=True)
+    )
+    invalid = ConversionExclusion(
+        "detect", "invalid_source_box", annotation_index, annotation.class_name
+    )
+    if maximum_clip > maximum_border_clip_pixels:
+        return AnnotationConversion(exclusion=invalid)
+    try:
+        values = bbox_to_yolo(clipped_bbox, image_size)
+    except ValueError:
+        return AnnotationConversion(exclusion=invalid)
+    adjustment = (
+        ConversionExclusion(
+            "detect", "clipped_to_image_bounds", annotation_index, annotation.class_name
+        )
+        if clipped_bbox != source_bbox
+        else None
+    )
+    return AnnotationConversion(values=values, adjustment=adjustment)
+
+
+def _convert_polygon(
+    annotation: Annotation,
+    annotation_index: int,
+    image_size: tuple[int, int],
+    maximum_border_clip_pixels: float,
+) -> AnnotationConversion:
+    if annotation.annotation_type != "polyline":
+        return AnnotationConversion(
+            exclusion=ConversionExclusion(
+                "segment",
+                f"{annotation.annotation_type}_has_no_polygon",
+                annotation_index,
+                annotation.class_name,
+            )
+        )
+    source_coordinates = tuple(zip(annotation.coordinates_x, annotation.coordinates_y, strict=True))
+    width, height = image_size
+    coordinates = tuple(
+        (
+            min(max(float(x), 0.0), float(width)),
+            min(max(float(y), 0.0), float(height)),
+        )
+        for x, y in source_coordinates
+    )
+    maximum_clip = max(
+        (
+            max(abs(source_x - clipped_x), abs(source_y - clipped_y))
+            for (source_x, source_y), (clipped_x, clipped_y) in zip(
+                source_coordinates, coordinates, strict=True
+            )
+        ),
+        default=0.0,
+    )
+    invalid = ConversionExclusion(
+        "segment", "invalid_source_polygon", annotation_index, annotation.class_name
+    )
+    if maximum_clip > maximum_border_clip_pixels:
+        return AnnotationConversion(exclusion=invalid)
+    try:
+        values = polygon_to_yolo(coordinates, image_size)
+    except ValueError:
+        return AnnotationConversion(exclusion=invalid)
+    adjustment = (
+        ConversionExclusion(
+            "segment", "clipped_to_image_bounds", annotation_index, annotation.class_name
+        )
+        if coordinates != source_coordinates
+        else None
+    )
+    return AnnotationConversion(values=values, adjustment=adjustment)
+
+
 def convert_annotations(
     annotations: list[Annotation],
     image_size: tuple[int, int],
@@ -197,95 +303,19 @@ def convert_annotations(
                 )
             )
             continue
-        if task == "detect":
-            if annotation.annotation_type == "point":
-                exclusions.append(
-                    ConversionExclusion(task, "point_has_no_area", index, annotation.class_name)
-                )
-                continue
-            width, height = image_size
-            source_bbox = (
-                float(annotation.xmin),
-                float(annotation.ymin),
-                float(annotation.xmax),
-                float(annotation.ymax),
-            )
-            clipped_bbox = (
-                min(max(source_bbox[0], 0.0), float(width)),
-                min(max(source_bbox[1], 0.0), float(height)),
-                min(max(source_bbox[2], 0.0), float(width)),
-                min(max(source_bbox[3], 0.0), float(height)),
-            )
-            maximum_clip = max(
-                abs(source - clipped)
-                for source, clipped in zip(source_bbox, clipped_bbox, strict=True)
-            )
-            if maximum_clip > maximum_border_clip_pixels:
-                exclusions.append(
-                    ConversionExclusion(task, "invalid_source_box", index, annotation.class_name)
-                )
-                continue
-            try:
-                values = bbox_to_yolo(clipped_bbox, image_size)
-            except ValueError:
-                exclusions.append(
-                    ConversionExclusion(task, "invalid_source_box", index, annotation.class_name)
-                )
-                continue
-            if clipped_bbox != source_bbox:
-                adjustments.append(
-                    ConversionExclusion(
-                        task, "clipped_to_image_bounds", index, annotation.class_name
-                    )
-                )
-        else:
-            if annotation.annotation_type != "polyline":
-                reason = f"{annotation.annotation_type}_has_no_polygon"
-                exclusions.append(ConversionExclusion(task, reason, index, annotation.class_name))
-                continue
-            source_coordinates = tuple(
-                zip(annotation.coordinates_x, annotation.coordinates_y, strict=True)
-            )
-            width, height = image_size
-            coordinates = tuple(
-                (
-                    min(max(float(x), 0.0), float(width)),
-                    min(max(float(y), 0.0), float(height)),
-                )
-                for x, y in source_coordinates
-            )
-            maximum_clip = max(
-                (
-                    max(abs(source_x - clipped_x), abs(source_y - clipped_y))
-                    for (source_x, source_y), (clipped_x, clipped_y) in zip(
-                        source_coordinates, coordinates, strict=True
-                    )
-                ),
-                default=0.0,
-            )
-            if maximum_clip > maximum_border_clip_pixels:
-                exclusions.append(
-                    ConversionExclusion(
-                        task, "invalid_source_polygon", index, annotation.class_name
-                    )
-                )
-                continue
-            try:
-                values = polygon_to_yolo(coordinates, image_size)
-            except ValueError:
-                exclusions.append(
-                    ConversionExclusion(
-                        task, "invalid_source_polygon", index, annotation.class_name
-                    )
-                )
-                continue
-            if coordinates != source_coordinates:
-                adjustments.append(
-                    ConversionExclusion(
-                        task, "clipped_to_image_bounds", index, annotation.class_name
-                    )
-                )
-        labels.append(_format_label(class_indices[annotation.class_name], values))
+        converted = (
+            _convert_box(annotation, index, image_size, maximum_border_clip_pixels)
+            if task == "detect"
+            else _convert_polygon(annotation, index, image_size, maximum_border_clip_pixels)
+        )
+        if converted.exclusion is not None:
+            exclusions.append(converted.exclusion)
+            continue
+        if converted.adjustment is not None:
+            adjustments.append(converted.adjustment)
+        if converted.values is None:
+            raise RuntimeError("annotation conversion produced no result")
+        labels.append(_format_label(class_indices[annotation.class_name], converted.values))
     return ConversionResult(tuple(labels), tuple(exclusions), tuple(adjustments))
 
 
@@ -380,9 +410,7 @@ def prepare_ultralytics_layout(experiment_path: Path) -> dict[str, object]:
                     "label_count": len(converted.labels),
                     "empty_image": not converted.labels,
                     "exclusions": [exclusion.__dict__ for exclusion in converted.exclusions],
-                    "adjustments": [
-                        adjustment.__dict__ for adjustment in converted.adjustments
-                    ],
+                    "adjustments": [adjustment.__dict__ for adjustment in converted.adjustments],
                 }
             record["tasks"] = task_records
             item_records.append(record)
