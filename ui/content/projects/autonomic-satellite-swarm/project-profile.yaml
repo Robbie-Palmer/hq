@@ -10,6 +10,10 @@ components:
     name: "Autonomic Satellite Swarm"
     kind: "cpp-project"
 
+preview_links:
+  - name: "Satellite swarm"
+    mount_path: "/satellite-swarm"
+
 layers:
   - layer: "governance"
   - layer: "base"

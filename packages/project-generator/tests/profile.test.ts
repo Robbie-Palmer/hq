@@ -307,6 +307,7 @@ describe("project profile contracts", () => {
       opentelemetry: { enabled: false },
     }));
     expect(parsed.components[0]?.task_exceptions).toEqual([]);
+    expect(parsed.preview_links).toEqual([]);
     expect(parsed).toMatchObject({
       requirements: [],
       overrides: [],
@@ -346,7 +347,15 @@ describe("project profile contracts", () => {
     [{ components: [
       { id: "first", name: "First", kind: "project-ui", mount_path: "/same" },
       { id: "second", name: "Second", kind: "project-ui", mount_path: "/same" },
-    ] }, /duplicate project UI mount paths/],
+    ] }, /duplicate preview mount paths/],
+    [{
+      components: [{ id: "web", name: "Web", kind: "project-ui", mount_path: "/same" }],
+      preview_links: [{ name: "Shared UI", mount_path: "/same" }],
+    }, /duplicate preview mount paths/],
+    [{ preview_links: [
+      { name: "Shared UI", mount_path: "/one" },
+      { name: "Shared UI", mount_path: "/two" },
+    ] }, /duplicate preview link names/],
     [{ layers: [{ layer: "base" }, { layer: "base" }] }, /duplicate layers/],
     [{ requirements: ["one", "one"] }, /duplicate requirements/],
     [{ overrides: [

@@ -38,9 +38,10 @@ The preview workflow adds a managed section to each internal PR description.
 Project-owned browser applications get their links from
 `ui/content/projects/*/project-profile.yaml`. A component with
 `kind: project-ui` contributes its `name` and `mount_path`, so adding another
-project UI does not require a workflow edit. The Recipe Site and Satellite
-Swarm links remain workflow-owned until their shared frontend ownership is
-represented by the same metadata.
+project UI does not require a workflow edit. Shared-host and embedded browser
+UIs use the same profile's `preview_links` list, whose `name` and `mount_path`
+fields control the rendered link. Adding or renaming a previewable GUI changes
+the PR section through its profile alone.
 
 ## Runtime safeguards
 
