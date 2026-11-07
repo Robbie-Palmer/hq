@@ -1,0 +1,156 @@
+{
+  "RecipeSite": {
+    "entityTypes": {
+      "Actor": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "grantVerified": { "type": "Boolean" },
+            "kind": { "type": "String" },
+            "userId": { "type": "String" }
+          }
+        }
+      },
+      "Recipe": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "ownerId": { "type": "String" },
+            "visibility": { "type": "String" }
+          }
+        }
+      },
+      "OwnedResource": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "ownerId": { "type": "String" }
+          }
+        }
+      },
+      "Household": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "ownerId": { "type": "String" }
+          }
+        }
+      },
+      "CapabilityInvocation": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "capability": { "type": "String" },
+            "delegatedUserId": { "type": "String" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "agent.capability.execute": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "recipe.read": {
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["Recipe"],
+          "context": {
+            "type": "Record",
+            "attributes": {
+              "sharesHouseholdWithOwner": { "type": "Boolean" }
+            }
+          }
+        }
+      },
+      "resource.owner.manage": {
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["OwnedResource"]
+        }
+      },
+      "household.membership.manage": {
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["Household"]
+        }
+      },
+      "recipes.search": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "recipes.read": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "recipes.dataset.inspect": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "recipe_import.create": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "recipe_import.status": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "pantry.read": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "pantry.reconcile": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "shopping_list.read": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "cook_log.read": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "cook_log.append": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      },
+      "cooking_insights.read": {
+        "memberOf": [{ "id": "agent.capability.execute" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["CapabilityInvocation"]
+        }
+      }
+    }
+  }
+}

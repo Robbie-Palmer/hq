@@ -16,8 +16,10 @@
     "lint:api": "pnpm openapi:check && spectral lint openapi.json --ruleset .spectral.yaml --fail-severity error"
   },
   "dependencies": {
+    "@cedar-policy/cedar-wasm": "4.14.0",
     "@hono/zod-openapi": "1.6.3",
     "@modelcontextprotocol/sdk": "1.32.2",
+    "cedar-authorization": "workspace:*",
     "hono": "^4.7.11",
     "ts-base": "workspace:*",
     "work-graph-db": "workspace:*",

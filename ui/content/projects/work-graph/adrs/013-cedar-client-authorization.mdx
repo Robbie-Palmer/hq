@@ -1,0 +1,47 @@
+---
+title: "ADR 013: Adopt platform Cedar authorization"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Cedar"]
+---
+
+## Context
+
+[ADR 004](/projects/work-graph/adrs/004-cloudflare-access-service-auth)
+authenticates people and service clients before a request reaches the Worker.
+Every authenticated client still receives the same application access even
+though operators, coordination workers, observers, and later user interfaces
+need different API subsets.
+
+[Platform ADR 049](/projects/personal-engineering-platform/adrs/049-cedar-authorization-engine)
+selects Cedar for shared policy evaluation. Work Graph needs local authority
+profiles and action mappings across its REST and MCP adapters.
+
+## Decision
+
+Adopt the platform Cedar engine for Work Graph client authorization. Map each
+trusted client to a named authority profile and map REST and MCP requests to
+typed actions before a handler reaches the repository. The initial profiles are
+full access and read-only access. Read-only clients may call read actions and
+are explicitly prohibited from API mutations and MCP invocation.
+
+Cloudflare Access remains the edge authentication layer. A trusted runtime
+adapter resolves the principal and profile from authenticated client state.
+Request bodies, worker IDs, lease holders, and MCP arguments cannot select the
+profile.
+
+Database constraints, lease fencing, idempotency, completion evaluation, and
+lifecycle transitions remain in the domain and repository layers. A Cedar
+permit allows a caller to attempt an operation; it does not make an invalid
+transition valid.
+
+## Consequences
+
+REST and MCP share one application action vocabulary. A later observer or user
+interface can receive read access without inheriting mutation authority.
+
+The client-identity adapter becomes security-sensitive and must fail closed when
+Access identity cannot be mapped. The initial production client retains full
+access, so separate credentials and trusted profile mapping are still required
+before the policy reduces production blast radius. Cedar also increases the
+Worker bundle and makes policy-schema validation part of startup.

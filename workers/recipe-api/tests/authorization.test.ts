@@ -12,6 +12,13 @@ import {
   requireAuthenticatedUser,
 } from "../src/http/authorization";
 import { createAuth } from "../src/auth";
+import {
+  agentRecipePrincipal,
+  anonymousRecipePrincipal,
+  authorizeRecipePolicy,
+} from "../src/authorization/recipe-authorization";
+import reviewedRecipePolicy from "../src/authorization/recipe.cedar";
+import { RECIPE_AUTHORIZATION_POLICY } from "../src/authorization/recipe-policy";
 
 vi.mock("../src/auth", () => ({ createAuth: vi.fn() }));
 
@@ -112,6 +119,75 @@ describe("authorization policies", () => {
       status: 403,
       error: "Authorization required",
     });
+  });
+});
+
+describe("Cedar recipe policy", () => {
+  it("keeps the runtime policy synchronized with the reviewed Cedar file", () => {
+    expect(RECIPE_AUTHORIZATION_POLICY.trim()).toBe(
+      reviewedRecipePolicy.trim(),
+    );
+  });
+
+  it("names the policy that permits an anonymous public read", () => {
+    expect(
+      authorizeRecipePolicy({
+        principal: anonymousRecipePrincipal(),
+        action: "recipe.read",
+        resource: {
+          type: "Recipe",
+          id: "recipe:public",
+          attrs: { ownerId: "owner", visibility: "public" },
+        },
+        context: { sharesHouseholdWithOwner: false },
+      }),
+    ).toEqual({
+      allowed: true,
+      determiningPolicies: ["read-public-recipe"],
+    });
+  });
+
+  it("requires the delegated grant layer before a capability can run", () => {
+    const request = {
+      action: "pantry.reconcile" as const,
+      resource: {
+        type: "CapabilityInvocation" as const,
+        id: "capability:pantry.reconcile",
+        attrs: {
+          capability: "pantry.reconcile",
+          delegatedUserId: "user:one",
+        },
+      },
+    };
+    expect(
+      authorizeRecipePolicy({
+        ...request,
+        principal: agentRecipePrincipal("agent:one", "user:one", false),
+      }).allowed,
+    ).toBe(false);
+    expect(
+      authorizeRecipePolicy({
+        ...request,
+        principal: agentRecipePrincipal("agent:one", "user:one", true),
+      }),
+    ).toEqual({
+      allowed: true,
+      determiningPolicies: ["execute-verified-delegated-capability"],
+    });
+  });
+
+  it("forbids delegated household membership management", () => {
+    expect(
+      authorizeRecipePolicy({
+        principal: agentRecipePrincipal("agent:one", "owner", true),
+        action: "household.membership.manage",
+        resource: {
+          type: "Household",
+          id: "household:one",
+          attrs: { ownerId: "owner" },
+        },
+      }).allowed,
+    ).toBe(false);
   });
 });
 
