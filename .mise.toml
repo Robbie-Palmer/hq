@@ -7,6 +7,7 @@ config_roots = [
     "infra/bootstrap",
     "infra/cloudflare-access",
     "infra/oci-registry-spike",
+    "infra/oci-r2-artifact-spike",
     "infra/personal-finance",
     "infra/project-modules",
     "infra/public-platform",
