@@ -51,10 +51,13 @@ machine.
 
 Set the live installer's address. The task checks the NixOS live environment
 and the NVMe EUI, model, serial, and size. It requires the disk serial to be
-typed before erasing the disk and prompts twice for the LUKS passphrase.
+typed before erasing the disk and prompts twice for the LUKS passphrase. Read
+the installer's Ed25519 host-key fingerprint on its local console before the
+first connection.
 
 ```bash
 export VECTOR_DEVELOPMENT_TARGET=root@192.0.2.10
+export VECTOR_DEVELOPMENT_HOST_KEY_SHA256=SHA256:verified-console-fingerprint
 export VECTOR_DEVELOPMENT_INSTALL=WIPE
 mise run //homelab:vector-install
 ```

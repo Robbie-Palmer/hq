@@ -113,8 +113,43 @@ in
     ./hardware-configuration.nix
   ];
 
-  networking = {
+  homelab.hostLifecycle = {
+    enable = true;
+    profile = "hardware";
     hostName = "vector-development";
+    stateVersion = "26.05";
+    operator = {
+      authorizedKeys = operatorKeys;
+      extraGroups = [
+        "docker"
+        "networkmanager"
+        "video"
+        "wheel"
+      ];
+      mutablePassword = true;
+      wheelNeedsPassword = true;
+    };
+    k3s = {
+      nodeLabels = [
+        "homelab.dev/location=home"
+        "homelab.dev/capability=agent-workspace"
+        "homelab.dev/power-profile=mains-dependent"
+        "homelab.dev/accelerator=nvidia"
+      ];
+      extraFlags = [
+        "--kubelet-arg=node-ip=0.0.0.0"
+        "--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"
+      ];
+      extraKubeletConfig.systemReserved = {
+        cpu = "2";
+        memory = "4Gi";
+      };
+    };
+    requiredMounts = [ "/" ];
+    secretBootstrapPaths = [ initrdHostKey ];
+  };
+
+  networking = {
     networkmanager = {
       enable = true;
       # NetworkManager.conf requires the numeric NMSettingWiredWakeOnLan flag.
@@ -139,15 +174,6 @@ in
     interfaces.enp58s0.wakeOnLan = {
       enable = true;
       policy = [ "magic" ];
-    };
-    firewall = {
-      enable = true;
-      checkReversePath = "loose";
-      allowedUDPPorts = [ config.services.tailscale.port ];
-      trustedInterfaces = [
-        "cni0"
-        "tailscale0"
-      ];
     };
   };
 
@@ -185,12 +211,8 @@ in
         };
       };
     };
-    loader.systemd-boot = {
-      enable = true;
-      configurationLimit = 10;
-    };
+    loader.systemd-boot.enable = true;
     loader.efi.canTouchEfiVariables = true;
-    tmp.cleanOnBoot = true;
   };
 
   nixpkgs.config.allowUnfree = true;
@@ -252,56 +274,6 @@ in
       alsa.support32Bit = true;
       pulse.enable = true;
     };
-    openssh = {
-      enable = true;
-      openFirewall = true;
-      settings = {
-        AllowUsers = [
-          "root"
-          "robbie"
-        ];
-        KbdInteractiveAuthentication = false;
-        PasswordAuthentication = false;
-        PermitRootLogin = "prohibit-password";
-        X11Forwarding = false;
-      };
-    };
-    tailscale = {
-      enable = true;
-      extraSetFlags = [ "--ssh" ];
-    };
-    k3s = {
-      enable = true;
-      role = "server";
-      nodeName = "vector-development";
-      nodeLabel = [
-        "homelab.dev/location=home"
-        "homelab.dev/capability=agent-workspace"
-        "homelab.dev/power-profile=mains-dependent"
-        "homelab.dev/accelerator=nvidia"
-      ];
-      disable = [
-        "servicelb"
-        "traefik"
-      ];
-      extraFlags = [
-        "--kubelet-arg=node-ip=0.0.0.0"
-        "--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"
-        "--secrets-encryption"
-        "--write-kubeconfig-mode=0640"
-      ];
-      gracefulNodeShutdown.enable = true;
-      extraKubeletConfig = {
-        containerLogMaxFiles = 3;
-        containerLogMaxSize = "20Mi";
-        failSwapOn = false;
-        memorySwap.swapBehavior = "NoSwap";
-        systemReserved = {
-          cpu = "2";
-          memory = "4Gi";
-        };
-      };
-    };
     logind.settings.Login = {
       HandleLidSwitch = "suspend";
       HandleLidSwitchExternalPower = "ignore";
@@ -332,33 +304,16 @@ in
       '';
     };
     rtkit.enable = true;
-    sudo.wheelNeedsPassword = true;
   };
 
   users = {
-    mutableUsers = true;
     groups.t3code.gid = 2000;
-    users = {
-      root.openssh.authorizedKeys.keys = operatorKeys;
-      robbie = {
-        isNormalUser = true;
-        uid = 1000;
-        description = "Robbie Palmer";
-        extraGroups = [
-          "docker"
-          "networkmanager"
-          "video"
-          "wheel"
-        ];
-        openssh.authorizedKeys.keys = operatorKeys;
-      };
-      t3code = {
-        isSystemUser = true;
-        uid = 2000;
-        group = "t3code";
-        home = "${operatorDataPath}/home";
-        createHome = false;
-      };
+    users.t3code = {
+      isSystemUser = true;
+      uid = 2000;
+      group = "t3code";
+      home = "${operatorDataPath}/home";
+      createHome = false;
     };
   };
 
@@ -613,23 +568,6 @@ in
     };
   };
 
-  nix = {
-    settings = {
-      experimental-features = [
-        "nix-command"
-        "flakes"
-      ];
-      auto-optimise-store = true;
-    };
-    gc = {
-      automatic = true;
-      dates = "Sun 04:15";
-      options = "--delete-older-than 30d";
-    };
-  };
-
-  system.autoUpgrade.enable = false;
   time.timeZone = "Europe/London";
   i18n.defaultLocale = "en_GB.UTF-8";
-  system.stateVersion = "26.05";
 }
