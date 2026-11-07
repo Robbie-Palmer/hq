@@ -57,6 +57,8 @@
         system:
         let
           pkgs = pkgsFor system;
+          remoteLifecycle = self.nixosConfigurations.remote-development.config.homelab.hostLifecycle;
+          vectorLifecycle = self.nixosConfigurations.vector-development.config.homelab.hostLifecycle;
         in
         {
           flake-contract =
@@ -66,6 +68,7 @@
             assert self.devShells.${system} ? default;
             assert builtins.hasAttr system self.formatter;
             assert builtins.hasAttr "configuration-revision" self.nixosModules;
+            assert builtins.hasAttr "host-lifecycle" self.nixosModules;
             assert self.nixosConfigurations ? asus-desktop;
             assert self.nixosConfigurations ? remote-development;
             assert self.nixosConfigurations ? vector-development;
@@ -73,6 +76,53 @@
               test ${toString self.lib.flakeContract.version} = 1
               touch "$out"
             '';
+
+          host-lifecycle-contract =
+            assert remoteLifecycle.enable;
+            assert remoteLifecycle.profile == "vm";
+            assert remoteLifecycle.requiredMounts == [
+              "/"
+              "/srv/remote-development"
+            ];
+            assert vectorLifecycle.enable;
+            assert vectorLifecycle.profile == "hardware";
+            assert vectorLifecycle.requiredMounts == [ "/" ];
+            assert builtins.length remoteLifecycle.k3s.nodeLabels == 3;
+            assert builtins.length vectorLifecycle.k3s.nodeLabels == 4;
+            pkgs.runCommand "homelab-host-lifecycle-contract-v1" { } ''
+              touch "$out"
+            '';
+        }
+        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
+          host-lifecycle-vm = pkgs.testers.runNixOSTest {
+            name = "host-lifecycle-vm";
+            nodes.machine = {
+              imports = [ self.nixosModules.host-lifecycle ];
+              system.configurationRevision = "disposable-vm-test";
+              homelab.hostLifecycle = {
+                enable = true;
+                profile = "vm";
+                hostName = "lifecycle-test";
+                stateVersion = "25.11";
+                operator.authorizedKeys = [
+                  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxWk5kYSL6V6jYwB6XRmOLb3NmDdxwjcA6B3QyVAQ6M lifecycle-test"
+                ];
+                k3s.enable = false;
+                requiredMounts = [ "/" ];
+                secretBootstrapPaths = [ "/run/keys/lifecycle-test" ];
+              };
+            };
+            testScript = ''
+              machine.start()
+              machine.wait_for_unit("multi-user.target")
+              machine.succeed("test $(hostname) = lifecycle-test")
+              machine.succeed("id robbie")
+              machine.succeed("systemctl is-enabled sshd.service")
+              machine.succeed("systemctl is-enabled tailscaled.service")
+              machine.succeed("test $(nixos-version --configuration-revision) = disposable-vm-test")
+              machine.succeed("nix show-config | grep '^experimental-features = ' | grep -F flakes | grep -F nix-command")
+            '';
+          };
         }
       );
 
@@ -90,6 +140,8 @@
         system.configurationRevision = if self ? rev then self.rev else self.dirtyRev or null;
       };
 
+      nixosModules.host-lifecycle = import ./modules/host-lifecycle.nix;
+
       nixosConfigurations.asus-desktop = nixpkgs.lib.nixosSystem {
         system = "x86_64-linux";
         modules = [
@@ -102,6 +154,7 @@
         system = "x86_64-linux";
         modules = [
           disko.nixosModules.disko
+          self.nixosModules.host-lifecycle
           ./hosts/remote-development
           self.nixosModules.configuration-revision
         ];
@@ -111,6 +164,7 @@
         system = "x86_64-linux";
         modules = [
           disko.nixosModules.disko
+          self.nixosModules.host-lifecycle
           ./hosts/vector-development
           self.nixosModules.configuration-revision
         ];
