@@ -21,6 +21,7 @@ import {
 import {
   AUTHORED_TERM_KINDS,
   AUTHORED_TERM_RESOLUTION_STATUSES,
+  TERM_RESOLUTION_ACTIONS,
   type AuthoredTermCandidate,
   type AuthoredTermProvenance,
   type AuthoredTermSourceContext,
@@ -906,6 +907,210 @@ export const authoredTerm = pgTable(
     index("authored_term_canonical_slug_idx").on(
       table.kind,
       table.canonicalSlug,
+    ),
+  ],
+);
+
+export const termResolutionActionEnum = pgEnum(
+  "term_resolution_action",
+  TERM_RESOLUTION_ACTIONS,
+);
+export const termReprojectionStatusEnum = pgEnum("term_reprojection_status", [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+]);
+
+/** Immutable context and match evidence retained for each distinct submission. */
+export const authoredTermObservation = pgTable(
+  "authored_term_observation",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    termId: uuid()
+      .notNull()
+      .references(() => authoredTerm.id, { onDelete: "cascade" }),
+    observationKey: text().notNull(),
+    rawText: text().notNull(),
+    locale: text().notNull(),
+    sourceContext: jsonb().$type<AuthoredTermSourceContext>().notNull(),
+    provenance: jsonb().$type<AuthoredTermProvenance>().notNull(),
+    candidateMatches: jsonb()
+      .$type<AuthoredTermCandidate[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+    submissionCount: integer().notNull().default(1),
+    firstSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    lastSeenAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("authored_term_observation_term_key_uidx").on(
+      table.termId,
+      table.observationKey,
+    ),
+    index("authored_term_observation_term_time_idx").on(
+      table.termId,
+      table.lastSeenAt.desc(),
+    ),
+    check(
+      "authored_term_observation_submission_count_check",
+      sql`${table.submissionCount} > 0`,
+    ),
+  ],
+);
+
+/** One immutable reviewer command, including the state needed for reversal. */
+export const termResolutionDecision = pgTable(
+  "term_resolution_decision",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    idempotencyKey: uuid().notNull(),
+    kind: authoredTermKindEnum().notNull(),
+    normalizedText: text().notNull(),
+    locale: text().notNull(),
+    action: termResolutionActionEnum().notNull(),
+    targetSlug: text(),
+    canonicalName: text(),
+    rationale: text().notNull(),
+    evidence: jsonb().$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    localeReview: boolean().notNull().default(false),
+    collisionReview: boolean().notNull().default(false),
+    decidedByUserId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    reversesDecisionId: uuid().references(
+      (): AnyPgColumn => termResolutionDecision.id,
+      { onDelete: "restrict" },
+    ),
+    registryVersion: bigint({ mode: "number" }),
+    beforeState: jsonb().$type<Record<string, unknown>>().notNull(),
+    afterState: jsonb().$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("term_resolution_decision_idempotency_uidx").on(
+      table.idempotencyKey,
+    ),
+    index("term_resolution_decision_term_time_idx").on(
+      table.kind,
+      table.normalizedText,
+      table.locale,
+      table.createdAt.desc(),
+    ),
+    index("term_resolution_decision_reversal_idx").on(
+      table.reversesDecisionId,
+    ),
+  ],
+);
+
+/** Append-only registry history. Identity allocation serializes versions safely. */
+export const termRegistryRevision = pgTable(
+  "term_registry_revision",
+  {
+    version: bigint({ mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    decisionId: uuid()
+      .notNull()
+      .references(() => termResolutionDecision.id, { onDelete: "restrict" }),
+    kind: authoredTermKindEnum().notNull(),
+    normalizedText: text().notNull(),
+    locale: text().notNull(),
+    action: termResolutionActionEnum().notNull(),
+    canonicalSlug: text(),
+    canonicalName: text(),
+    createdByUserId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("term_registry_revision_decision_uidx").on(table.decisionId),
+    index("term_registry_revision_term_idx").on(
+      table.kind,
+      table.normalizedText,
+      table.locale,
+    ),
+  ],
+);
+
+/** Current registry projection. Every row points at the revision that produced it. */
+export const termRegistryEntry = pgTable(
+  "term_registry_entry",
+  {
+    kind: authoredTermKindEnum().notNull(),
+    normalizedText: text().notNull(),
+    locale: text().notNull(),
+    canonicalSlug: text().notNull(),
+    canonicalName: text(),
+    registryVersion: bigint({ mode: "number" })
+      .notNull()
+      .references(() => termRegistryRevision.version, { onDelete: "restrict" }),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.kind, table.normalizedText, table.locale],
+      name: "term_registry_entry_pk",
+    }),
+    index("term_registry_entry_canonical_idx").on(
+      table.kind,
+      table.canonicalSlug,
+    ),
+  ],
+);
+
+/** Canonical structure restored beside raw source text, never by rewriting it. */
+export const authoredTermProjection = pgTable(
+  "authored_term_projection",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    termId: uuid()
+      .notNull()
+      .references(() => authoredTerm.id, { onDelete: "cascade" }),
+    decisionId: uuid()
+      .notNull()
+      .references(() => termResolutionDecision.id, { onDelete: "restrict" }),
+    sourceKey: text().notNull(),
+    sourceContext: jsonb().$type<AuthoredTermSourceContext>().notNull(),
+    canonicalSlug: text().notNull(),
+    registryVersion: bigint({ mode: "number" }).notNull(),
+    projectedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("authored_term_projection_term_source_uidx").on(
+      table.termId,
+      table.sourceKey,
+    ),
+    index("authored_term_projection_source_idx").on(
+      table.sourceKey,
+      table.canonicalSlug,
+    ),
+  ],
+);
+
+/** Retry ledger for each decision's idempotent projection run. */
+export const termReprojectionRun = pgTable(
+  "term_reprojection_run",
+  {
+    id: uuid().primaryKey().defaultRandom(),
+    decisionId: uuid()
+      .notNull()
+      .references(() => termResolutionDecision.id, { onDelete: "restrict" }),
+    status: termReprojectionStatusEnum().notNull().default("pending"),
+    attemptCount: integer().notNull().default(0),
+    projectedTermCount: integer().notNull().default(0),
+    projectedContextCount: integer().notNull().default(0),
+    lastError: text(),
+    startedAt: timestamp({ withTimezone: true }),
+    completedAt: timestamp({ withTimezone: true }),
+    updatedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("term_reprojection_run_decision_uidx").on(table.decisionId),
+    check(
+      "term_reprojection_run_attempt_count_check",
+      sql`${table.attemptCount} >= 0`,
     ),
   ],
 );

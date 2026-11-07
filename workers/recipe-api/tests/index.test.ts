@@ -102,6 +102,13 @@ const authzMock = vi.hoisted(() => ({
   session: null as unknown,
 }));
 
+const termResolutionMock = vi.hoisted(() => ({
+  listAudit: vi.fn(),
+  listQueue: vi.fn(),
+  reproject: vi.fn(),
+  resolve: vi.fn(),
+}));
+
 const dbMock = vi.hoisted(() => {
   const date = new Date("2026-01-01T00:00:00.000Z");
   type UserRow = {
@@ -1027,58 +1034,65 @@ const dbMock = vi.hoisted(() => {
     return undefined;
   }
 
+  function insertAuthoredTermRow(params: unknown[]): QueryRows {
+    const jsonValue = <T>(value: unknown): T =>
+      (typeof value === "string" ? JSON.parse(value) : value) as T;
+    const row: AuthoredTermRow = {
+      id: crypto.randomUUID(),
+      userId: (params[0] as string | null) ?? null,
+      organizationId: (params[1] as string | null) ?? null,
+      kind: params[2] as AuthoredTermRow["kind"],
+      rawText: params[3] as string,
+      normalizedText: params[4] as string,
+      locale: params[5] as string,
+      sourceContext: jsonValue(params[6]),
+      provenance: jsonValue(params[7]),
+      candidateMatches: jsonValue(params[8]),
+      canonicalSlug: (params[10] as string | null) ?? null,
+      frequency: 1,
+      createdAt: date,
+      lastSeenAt: params[11] as Date,
+      updatedAt: params[12] as Date,
+    };
+    const existing = state.authoredTerms.find(
+      (candidate) =>
+        candidate.userId === row.userId &&
+        candidate.organizationId === row.organizationId &&
+        candidate.kind === row.kind &&
+        candidate.normalizedText === row.normalizedText,
+    );
+    if (existing) return [];
+    state.authoredTerms.push(row);
+    return [[row.id]];
+  }
+
+  function updateAuthoredTermRow(params: unknown[]): QueryRows {
+    const normalizedText = params.at(-1) as string;
+    const kind = params.at(-2) as AuthoredTermRow["kind"];
+    const ownerId = params.at(-3) as string;
+    const row = state.authoredTerms.find(
+      (candidate) =>
+        (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
+        candidate.kind === kind &&
+        candidate.normalizedText === normalizedText,
+    );
+    if (row) {
+      row.rawText = params[0] as string;
+      row.frequency += 1;
+    }
+    return row ? [[row.id]] : [];
+  }
+
   function authoredTermRows(
     query: string,
     params: unknown[],
   ): QueryRows | undefined {
-    const jsonValue = <T>(value: unknown): T =>
-      (typeof value === "string" ? JSON.parse(value) : value) as T;
-
+    if (query.startsWith('insert into "authored_term_observation"')) return [];
     if (query.startsWith('insert into "authored_term"')) {
-      const row: AuthoredTermRow = {
-        id: crypto.randomUUID(),
-        userId: (params[0] as string | null) ?? null,
-        organizationId: (params[1] as string | null) ?? null,
-        kind: params[2] as AuthoredTermRow["kind"],
-        rawText: params[3] as string,
-        normalizedText: params[4] as string,
-        locale: params[5] as string,
-        sourceContext: jsonValue(params[6]),
-        provenance: jsonValue(params[7]),
-        candidateMatches: jsonValue(params[8]),
-        canonicalSlug: (params[10] as string | null) ?? null,
-        frequency: 1,
-        createdAt: date,
-        lastSeenAt: params[11] as Date,
-        updatedAt: params[12] as Date,
-      };
-      const existing = state.authoredTerms.find(
-        (candidate) =>
-          candidate.userId === row.userId &&
-          candidate.organizationId === row.organizationId &&
-          candidate.kind === row.kind &&
-          candidate.normalizedText === row.normalizedText,
-      );
-      if (existing) return [];
-      state.authoredTerms.push(row);
-      return [[row.id]];
+      return insertAuthoredTermRow(params);
     }
-
     if (query.startsWith('update "authored_term"')) {
-      const normalizedText = params.at(-1) as string;
-      const kind = params.at(-2) as AuthoredTermRow["kind"];
-      const ownerId = params.at(-3) as string;
-      const row = state.authoredTerms.find(
-        (candidate) =>
-          (candidate.userId === ownerId || candidate.organizationId === ownerId) &&
-          candidate.kind === kind &&
-          candidate.normalizedText === normalizedText,
-      );
-      if (row) {
-        row.rawText = params[0] as string;
-        row.frequency += 1;
-      }
-      return [];
+      return updateAuthoredTermRow(params);
     }
 
     if (query.includes('from "authored_term"')) {
@@ -2912,6 +2926,18 @@ vi.mock("../src/http/authorization", async (importOriginal) => {
   };
 });
 
+vi.mock("../src/term-resolution", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("../src/term-resolution")>();
+  return {
+    ...actual,
+    listTermResolutionAudit: termResolutionMock.listAudit,
+    listTermReviewQueue: termResolutionMock.listQueue,
+    resolveAuthoredTerm: termResolutionMock.resolve,
+    runTermReprojection: termResolutionMock.reproject,
+  };
+});
+
 vi.mock("postgres", () => ({
   default: vi.fn(() => {
     // drizzle-orm/postgres-js/driver.js writes transparent parsers into
@@ -2948,6 +2974,10 @@ vi.mock("jose", () => ({
 
 import handler, { app } from "../src/index";
 import { encryptAgentApprovalCode } from "../src/notifications";
+import {
+  TermResolutionConflictError,
+  TermResolutionNotFoundError,
+} from "../src/term-resolution";
 
 // Route ids are validated as UUIDs before any query runs, so seeded rows and
 // request paths use fixed UUID ids.
@@ -2960,7 +2990,12 @@ const PENDING_INVITATION_ID = "55555555-5555-4555-8555-555555555555";
 const ALIAS_INVITATION_ID = "66666666-6666-4666-8666-666666666666";
 const EXPIRING_INVITATION_ID = "77777777-7777-4777-8777-777777777777";
 
-function sessionFor(user: { id: string; email: string; name: string }) {
+function sessionFor(user: {
+  id: string;
+  email: string;
+  name: string;
+  role?: string;
+}) {
   const email = user.email.toLowerCase();
   if (!dbMock.state.userEmails.some((candidate) => candidate.email === email)) {
     dbMock.state.userEmails.push({
@@ -2977,6 +3012,7 @@ function sessionFor(user: { id: string; email: string; name: string }) {
       id: user.id,
       email,
       name: user.name,
+      role: user.role ?? "user",
       emailVerified: true,
       createdAt: dbMock.date,
       updatedAt: dbMock.date,
@@ -3170,6 +3206,15 @@ function seedDietCatalog() {
 beforeEach(() => {
   authzMock.session = null;
   dbMock.reset();
+  termResolutionMock.listAudit.mockReset().mockResolvedValue([]);
+  termResolutionMock.listQueue.mockReset().mockResolvedValue([]);
+  termResolutionMock.reproject.mockReset().mockResolvedValue({
+    status: "succeeded",
+  });
+  termResolutionMock.resolve.mockReset().mockResolvedValue({
+    decision: { id: "22222222-2222-4222-8222-222222222222" },
+    reprojection: { status: "succeeded" },
+  });
 });
 
 const env = {
@@ -3217,6 +3262,217 @@ describe("GET /health", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "ok" });
+  });
+});
+
+describe("admin term resolution routes", () => {
+  const decisionId = "22222222-2222-4222-8222-222222222222";
+  const mutationHeaders = {
+    "content-type": "application/json",
+    origin: "http://localhost:3000",
+  };
+  const resolutionBody = {
+    target: {
+      kind: "ingredient",
+      normalizedText: "green onion",
+      locale: "en-US",
+    },
+    command: {
+      action: "reject",
+      idempotencyKey: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      rationale: "Not a supported ingredient term.",
+      evidence: [],
+      localeReview: false,
+      collisionReview: false,
+    },
+  };
+
+  function signIn(role: "admin" | "user" = "admin") {
+    authzMock.session = sessionFor({
+      id: `${role}-user`,
+      email: `${role}@example.test`,
+      name: role === "admin" ? "Reviewer" : "Cook",
+      role,
+    });
+  }
+
+  it("keeps cross-account queue access admin-only", async () => {
+    signIn("user");
+
+    const response = await app.request(
+      "/api/admin/term-resolutions/queue",
+      {},
+      env,
+    );
+
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({ error: "Authorization required" });
+    expect(termResolutionMock.listQueue).not.toHaveBeenCalled();
+  });
+
+  it("returns the ranked queue and bounded audit history to admins", async () => {
+    signIn();
+    termResolutionMock.listQueue.mockResolvedValueOnce([{ submissionCount: 7 }]);
+    termResolutionMock.listAudit.mockResolvedValueOnce([{ id: decisionId }]);
+
+    const queueResponse = await app.request(
+      "/api/admin/term-resolutions/queue",
+      {},
+      env,
+    );
+    const auditResponse = await app.request(
+      "/api/admin/term-resolutions/audit?limit=25",
+      {},
+      env,
+    );
+
+    expect(queueResponse.status).toBe(200);
+    expect(await queueResponse.json()).toEqual({
+      items: [{ submissionCount: 7 }],
+    });
+    expect(await auditResponse.json()).toEqual({ items: [{ id: decisionId }] });
+    expect(termResolutionMock.listAudit).toHaveBeenCalledWith(
+      expect.anything(),
+      25,
+    );
+  });
+
+  it("validates mutation CSRF, decision bodies, and reprojection IDs", async () => {
+    signIn();
+    const csrfResponse = await app.request(
+      "/api/admin/term-resolutions",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(resolutionBody),
+      },
+      env,
+    );
+    const bodyResponse = await app.request(
+      "/api/admin/term-resolutions",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify({ target: resolutionBody.target, command: {} }),
+      },
+      env,
+    );
+    const idResponse = await app.request(
+      "/api/admin/term-resolutions/not-a-uuid/reproject",
+      { method: "POST", headers: mutationHeaders },
+      env,
+    );
+
+    expect(csrfResponse.status).toBe(403);
+    expect(bodyResponse.status).toBe(400);
+    expect(idResponse.status).toBe(400);
+    expect(await idResponse.json()).toEqual({ error: "Invalid decision ID" });
+    expect(termResolutionMock.resolve).not.toHaveBeenCalled();
+    expect(termResolutionMock.reproject).not.toHaveBeenCalled();
+  });
+
+  it("records decisions and retries reprojection for an admin", async () => {
+    signIn();
+    const decisionResponse = await app.request(
+      "/api/admin/term-resolutions",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify(resolutionBody),
+      },
+      env,
+    );
+    const reprojectionResponse = await app.request(
+      `/api/admin/term-resolutions/${decisionId}/reproject`,
+      { method: "POST", headers: mutationHeaders },
+      env,
+    );
+
+    expect(decisionResponse.status).toBe(200);
+    expect(termResolutionMock.resolve).toHaveBeenCalledWith(
+      expect.anything(),
+      "admin-user",
+      resolutionBody.target,
+      resolutionBody.command,
+    );
+    expect(await reprojectionResponse.json()).toEqual({
+      reprojection: { status: "succeeded" },
+    });
+    expect(termResolutionMock.reproject).toHaveBeenCalledWith(
+      expect.anything(),
+      decisionId,
+    );
+  });
+
+  it("maps resolution conflicts and missing reprojections", async () => {
+    signIn();
+    termResolutionMock.resolve.mockRejectedValueOnce(
+      new TermResolutionConflictError("Registry version changed"),
+    );
+    termResolutionMock.reproject.mockRejectedValueOnce(
+      new TermResolutionNotFoundError("Decision not found"),
+    );
+
+    const conflictResponse = await app.request(
+      "/api/admin/term-resolutions",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify(resolutionBody),
+      },
+      env,
+    );
+    const missingResponse = await app.request(
+      `/api/admin/term-resolutions/${decisionId}/reproject`,
+      { method: "POST", headers: mutationHeaders },
+      env,
+    );
+
+    expect(conflictResponse.status).toBe(409);
+    expect(await conflictResponse.json()).toEqual({
+      error: "Registry version changed",
+    });
+    expect(missingResponse.status).toBe(404);
+    expect(await missingResponse.json()).toEqual({ error: "Decision not found" });
+  });
+
+  it("keeps unexpected decision and reprojection failures observable", async () => {
+    signIn();
+    const consoleError = vi
+      .spyOn(console, "error")
+      .mockImplementation(() => {});
+    termResolutionMock.resolve.mockRejectedValueOnce(
+      new Error("Unexpected decision failure"),
+    );
+    termResolutionMock.reproject.mockRejectedValueOnce(
+      new Error("Unexpected reprojection failure"),
+    );
+
+    const decisionResponse = await app.request(
+      "/api/admin/term-resolutions",
+      {
+        method: "POST",
+        headers: mutationHeaders,
+        body: JSON.stringify(resolutionBody),
+      },
+      env,
+    );
+    const reprojectionResponse = await app.request(
+      `/api/admin/term-resolutions/${decisionId}/reproject`,
+      { method: "POST", headers: mutationHeaders },
+      env,
+    );
+
+    expect(decisionResponse.status).toBe(502);
+    expect(await decisionResponse.json()).toEqual({
+      error: "Database mutation failed",
+    });
+    expect(reprojectionResponse.status).toBe(502);
+    expect(consoleError).toHaveBeenCalledWith(
+      "POST /api/admin/term-resolutions failed",
+      expect.any(Error),
+    );
+    consoleError.mockRestore();
   });
 });
 

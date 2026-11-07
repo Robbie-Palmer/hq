@@ -286,8 +286,8 @@ beforeAll(async () => {
     )
     order by group_key, ingredient_slug
   `;
-  expect(migrationCount?.count).toBe(33);
-  expect(tableCount?.count).toBe(67);
+  expect(migrationCount?.count).toBe(34);
+  expect(tableCount?.count).toBe(73);
   expect(catalogRows).toEqual([
     { category: "dairy", name: "almond milk", slug: "almond-milk" },
     {

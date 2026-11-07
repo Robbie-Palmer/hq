@@ -216,3 +216,10 @@ export function authorizeHouseholdMembershipManagement(
   });
   return decision.allowed ? allow() : forbidden();
 }
+
+export function authorizeTermReview(
+  user: AuthenticatedUser | null | undefined,
+): AuthorizationDecision {
+  if (!user) return unauthenticated();
+  return user.role === "admin" ? allow() : forbidden();
+}
