@@ -1,12 +1,6 @@
 from __future__ import annotations
 
-import os
 import random
-import resource
-import threading
-import time
-from concurrent.futures import ProcessPoolExecutor
-from multiprocessing import get_context
 from pathlib import Path
 from typing import Any
 
@@ -25,29 +19,25 @@ from data_artifacts.files import (
 from data_artifacts.schemas import write_schemas as write_schema_artifacts
 from ml_evaluation.contracts import (
     AdapterSpec,
-    ExecutionDevice,
+    ArtifactReference,
+    FailureReport,
     MetricResult,
     ResourceUsage,
     RunFailure,
-    RunSummary,
+    RunRecord,
 )
 from ml_evaluation.gates import evaluate_gates, recommendation
 from pydantic import BaseModel
-from pynvml import (
-    NVMLError,
-    nvmlDeviceGetComputeRunningProcesses,
-    nvmlDeviceGetCount,
-    nvmlDeviceGetHandleByIndex,
-    nvmlInit,
-    nvmlShutdown,
-)
 
-from .adapters import load_adapter
+from .adapters import load_adapter, reported_accelerator_seconds
 from .artifacts import contract_root, project_root
 from .contracts import (
     SCHEMA_MODELS,
-    AggregateScorecard,
+    BenchmarkIndex,
     BenchmarkProject,
+    ComparisonInput,
+    ComparisonScorecard,
+    EvaluationResult,
     ExperimentManifest,
     FixtureItem,
     FixtureManifest,
@@ -56,7 +46,7 @@ from .contracts import (
     QualityPrediction,
     RegistryExport,
     RegistrySource,
-    Scorecard,
+    ScorecardReference,
     Split,
     SyntheticSource,
     TilingPrediction,
@@ -64,108 +54,6 @@ from .contracts import (
 )
 from .metrics import evaluate_predictions
 from .synthetic import generate_fixtures
-
-
-class _NvmlProcessMonitor:
-    def __init__(self, *, poll_seconds: float = 0.02) -> None:
-        self.poll_seconds = poll_seconds
-        self.peak_bytes = 0
-        self.available = False
-        self.sampled = False
-        self.error_message: str | None = None
-        self.stop_event = threading.Event()
-        self.thread: threading.Thread | None = None
-        self.handles: list[Any] = []
-        self.initialized = False
-        self.process_ids: set[int] = set()
-        self.baseline_pids: set[int] = set()
-        self.baseline_sampled = False
-        self.attributed = False
-
-    def _resolve_process_ids(self) -> None:
-        self.process_ids = {os.getpid()}
-        try:
-            status = Path("/proc/self/status").read_text(encoding="utf-8")
-        except OSError:
-            return
-        namespace_line = next(
-            (line for line in status.splitlines() if line.startswith("NSpid:")), None
-        )
-        if namespace_line is None:
-            return
-        _, _, values = namespace_line.partition(":")
-        try:
-            self.process_ids.update(int(value) for value in values.split())
-        except ValueError:
-            self.process_ids.clear()
-            self.error_message = "NVML PID namespace attribution is unavailable"
-
-    def _sample(self) -> None:
-        if not self.available:
-            return
-        try:
-            observed = 0
-            reported_pids: set[int] = set()
-            for handle in self.handles:
-                for process in nvmlDeviceGetComputeRunningProcesses(handle):
-                    reported_pids.add(process.pid)
-                    used_memory = process.usedGpuMemory
-                    belongs_to_run = (
-                        process.pid in self.process_ids
-                        or (
-                            self.baseline_sampled
-                            and process.pid not in self.baseline_pids
-                        )
-                    )
-                    if belongs_to_run and isinstance(used_memory, int):
-                        observed += used_memory
-                        self.attributed = True
-            if not self.baseline_sampled:
-                self.baseline_pids = reported_pids
-                self.baseline_sampled = True
-            self.peak_bytes = max(self.peak_bytes, observed)
-            self.sampled = True
-        except NVMLError as error:
-            self.error_message = str(error)
-
-    def _run(self) -> None:
-        while not self.stop_event.wait(self.poll_seconds):
-            self._sample()
-
-    def start(self) -> None:
-        self._resolve_process_ids()
-        if not self.process_ids:
-            return
-        try:
-            nvmlInit()
-            self.initialized = True
-            self.handles = [
-                nvmlDeviceGetHandleByIndex(index) for index in range(nvmlDeviceGetCount())
-            ]
-        except NVMLError as error:
-            self.error_message = str(error)
-            if self.initialized:
-                nvmlShutdown()
-                self.initialized = False
-            return
-        if not self.handles:
-            self.error_message = "NVML reported no visible NVIDIA devices"
-            nvmlShutdown()
-            self.initialized = False
-            return
-        self.available = True
-        self._sample()
-        self.thread = threading.Thread(target=self._run, daemon=True)
-        self.thread.start()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-        if self.thread is not None:
-            self.thread.join()
-        self._sample()
-        if self.initialized:
-            nvmlShutdown()
-            self.initialized = False
 
 
 def _configuration(root: Path) -> BenchmarkProject:
@@ -292,49 +180,18 @@ def _run_directory(root: Path, experiment_id: str, adapter_id: str) -> Path:
     return root / "outputs/runs" / experiment_id / adapter_id
 
 
-def _telemetry_start_failure(
-    adapter_spec: AdapterSpec, monitor: _NvmlProcessMonitor
-) -> RunFailure | None:
-    if adapter_spec.execution_device != ExecutionDevice.ACCELERATOR or monitor.available:
-        return None
-    return RunFailure(
-        item_id="evaluation-cohort",
-        error_type="AcceleratorTelemetryUnavailable",
-        message=(
-            "accelerator adapters require NVML telemetry: "
-            + (monitor.error_message or "NVML initialization failed")
-        ),
+def _artifact_reference(root: Path, path: Path) -> ArtifactReference:
+    return ArtifactReference(
+        path=path.relative_to(root).as_posix(),
+        sha256=sha256_file(path),
     )
 
 
-def _telemetry_result_failure(
-    adapter_spec: AdapterSpec, monitor: _NvmlProcessMonitor
-) -> RunFailure | None:
-    if adapter_spec.execution_device == ExecutionDevice.CPU and monitor.peak_bytes > 0:
-        return RunFailure(
-            item_id="evaluation-cohort",
-            error_type="UndeclaredAcceleratorUse",
-            message="CPU adapter allocated NVIDIA accelerator memory",
-        )
-    telemetry_failed = not monitor.sampled or monitor.error_message is not None
-    telemetry_failed = telemetry_failed or not monitor.attributed
-    if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR and telemetry_failed:
-        detail = monitor.error_message
-        if detail is None:
-            detail = (
-                "no workload GPU process was attributed"
-                if monitor.sampled and not monitor.attributed
-                else "no sample was recorded"
-            )
-        return RunFailure(
-            item_id="evaluation-cohort",
-            error_type="AcceleratorTelemetryFailed",
-            message=(
-                "NVML could not sample accelerator memory: "
-                + detail
-            ),
-        )
-    return None
+def _validated_artifact(root: Path, reference: ArtifactReference) -> Path:
+    path = resolve_under(root, reference.path)
+    if sha256_file(path) != reference.sha256:
+        raise ValueError(f"artifact SHA-256 mismatch for {reference.path}")
+    return path
 
 
 def _run_adapter(
@@ -349,7 +206,7 @@ def _run_adapter(
     def write_failures(values: list[RunFailure]) -> None:
         write_json(
             output / "failures.json",
-            [value.model_dump(mode="json") for value in values],
+            FailureReport(schema_version="1.0.0", failures=values),
         )
 
     def predict() -> list[QualityPrediction | TilingPrediction | NucleiPrediction]:
@@ -370,24 +227,18 @@ def _run_adapter(
                 raise
         return predictions
 
-    accelerator_monitor = _NvmlProcessMonitor()
-    accelerator_monitor.start()
-    if failure := _telemetry_start_failure(adapter_spec, accelerator_monitor):
-        write_failures([failure])
-        raise ValueError(failure.message)
     try:
         adapter = load_adapter(adapter_spec, root)
-        wall_start = time.perf_counter()
-        cpu_start = time.process_time()
-        predictions = predict()
-        wall_seconds = time.perf_counter() - wall_start
-        cpu_seconds = time.process_time() - cpu_start
-        repeated_predictions = predict()
-    finally:
-        accelerator_monitor.stop()
-    if failure := _telemetry_result_failure(adapter_spec, accelerator_monitor):
+    except Exception as error:
+        failure = RunFailure(
+            item_id="evaluation-cohort",
+            error_type=type(error).__name__,
+            message=str(error),
+        )
         write_failures([failure])
-        raise ValueError(failure.message)
+        raise
+    predictions = predict()
+    repeated_predictions = predict()
     serialized = [prediction.model_dump(mode="json") for prediction in predictions]
     repeated_serialized = [
         prediction.model_dump(mode="json") for prediction in repeated_predictions
@@ -401,43 +252,52 @@ def _run_adapter(
         write_failures([failure])
         raise ValueError(failure.message)
 
-    prediction_bytes = write_jsonl(output / "predictions.jsonl", predictions)
+    prediction_path = output / "predictions.jsonl"
+    prediction_bytes = write_jsonl(prediction_path, predictions)
     write_failures(failures)
     input_paths = [resolve_under(root, item.image_path) for item in items]
-    peak_rss_bytes = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024
+    try:
+        accelerator_seconds = reported_accelerator_seconds(adapter)
+    except Exception as error:
+        failure = RunFailure(
+            item_id="evaluation-cohort",
+            error_type=type(error).__name__,
+            message=str(error),
+        )
+        write_failures([failure])
+        raise
     resources = ResourceUsage(
         samples=len(items),
         input_bytes=sum(path.stat().st_size for path in input_paths),
         prediction_bytes=prediction_bytes,
-        input_pixels=sum(item.width * item.height for item in items),
-        wall_seconds=wall_seconds,
-        cpu_seconds=cpu_seconds,
-        peak_rss_bytes=peak_rss_bytes,
-        accelerator_wall_seconds=(
-            wall_seconds if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR else 0
-        ),
-        peak_accelerator_memory_bytes=accelerator_monitor.peak_bytes,
+        pixels_read=sum(item.width * item.height for item in items),
+        accelerator_seconds=accelerator_seconds,
+        observed_wall_seconds=None,
+        observed_cpu_seconds=None,
+        observed_peak_rss_bytes=None,
     )
-    write_json(output / "resources.json", resources)
-
-
-def _run_adapter_isolated(
-    root: Path,
-    manifest: ExperimentManifest,
-    adapter_spec: AdapterSpec,
-    items: list[FixtureItem],
-) -> None:
-    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as executor:
-        executor.submit(_run_adapter, root, manifest, adapter_spec, items).result()
+    resources_path = output / "resources.json"
+    failures_path = output / "failures.json"
+    write_json(resources_path, resources)
+    body = {
+        "schema_version": "1.0.0",
+        "experiment_id": manifest.experiment_id,
+        "adapter": adapter_spec.model_dump(mode="json"),
+        "predictions": _artifact_reference(root, prediction_path).model_dump(mode="json"),
+        "resources": _artifact_reference(root, resources_path).model_dump(mode="json"),
+        "failure_report": _artifact_reference(root, failures_path).model_dump(mode="json"),
+    }
+    record = RunRecord(run_id=content_address("run", body), **body)
+    write_json(output / "run-record.json", record)
 
 
 def run_adapters(root: Path | None = None) -> None:
     root = root or project_root()
     for manifest in load_experiments(root):
         items = _evaluation_items(root, manifest)
-        _run_adapter_isolated(root, manifest, manifest.baseline, items)
+        _run_adapter(root, manifest, manifest.baseline, items)
         if manifest.candidate is not None:
-            _run_adapter_isolated(root, manifest, manifest.candidate, items)
+            _run_adapter(root, manifest, manifest.candidate, items)
 
 
 def _prediction_type(workstream: Workstream) -> type[BaseModel]:
@@ -448,23 +308,36 @@ def _prediction_type(workstream: Workstream) -> type[BaseModel]:
     return NucleiPrediction
 
 
-def _read_run(
+def _experiment_manifest_path(root: Path, experiment_id: str) -> Path:
+    for path in experiment_paths(root):
+        if read_json(path).get("experiment_id") == experiment_id:
+            return path
+    raise ValueError(f"unknown experiment: {experiment_id}")
+
+
+def _data_manifest_path(root: Path, manifest: ExperimentManifest) -> Path:
+    if isinstance(manifest.data_source, SyntheticSource):
+        return resolve_under(root, manifest.data_source.fixture_manifest)
+    return resolve_under(root, manifest.data_source.export_manifest)
+
+
+def _evaluation_path(root: Path, experiment_id: str, adapter_id: str) -> Path:
+    return root / "outputs/evaluations" / experiment_id / f"{adapter_id}.json"
+
+
+def _evaluate_adapter(
     root: Path,
     manifest: ExperimentManifest,
     spec: AdapterSpec,
     items: list[FixtureItem],
-) -> RunSummary:
+) -> EvaluationResult:
     directory = _run_directory(root, manifest.experiment_id, spec.adapter_id)
-    failures = [
-        RunFailure.model_validate(value) for value in read_json(directory / "failures.json")
-    ]
-    if failures:
-        raise ValueError(f"adapter run contains {len(failures)} recorded failure(s)")
+    failure_report = load_model(directory / "failures.json", FailureReport)
+    if failure_report.failures:
+        raise ValueError(f"adapter run contains {len(failure_report.failures)} recorded failure(s)")
     prediction_type = _prediction_type(manifest.workstream)
-    predictions = [
-        prediction_type.model_validate(value)
-        for value in read_jsonl(directory / "predictions.jsonl")
-    ]
+    prediction_path = directory / "predictions.jsonl"
+    predictions = [prediction_type.model_validate(value) for value in read_jsonl(prediction_path)]
     typed_predictions = [
         prediction
         for prediction in predictions
@@ -484,19 +357,27 @@ def _read_run(
         )
         for name, value in sorted(measured.items())
     ]
-    return RunSummary(
-        adapter=spec,
-        metrics=metrics,
-        resources=load_model(directory / "resources.json", ResourceUsage),
-        failures=failures,
-    )
+    body = {
+        "schema_version": "1.0.0",
+        "experiment_id": manifest.experiment_id,
+        "workstream": manifest.workstream,
+        "adapter_id": spec.adapter_id,
+        "adapter_version": spec.version,
+        "data_source_kind": manifest.data_source.kind,
+        "experiment_manifest": _artifact_reference(
+            root, _experiment_manifest_path(root, manifest.experiment_id)
+        ).model_dump(mode="json"),
+        "data_manifest": _artifact_reference(root, _data_manifest_path(root, manifest)).model_dump(
+            mode="json"
+        ),
+        "predictions": _artifact_reference(root, prediction_path).model_dump(mode="json"),
+        "metrics": [metric.model_dump(mode="json") for metric in metrics],
+        "clinical_validity": False,
+    }
+    return EvaluationResult(evaluation_id=content_address("evaluation", body), **body)
 
 
-def _scorecard_id(scorecard: dict[str, Any]) -> str:
-    return content_address("scorecard", scorecard)
-
-
-def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scorecard:
+def evaluate_experiment(experiment_id: str, root: Path | None = None) -> list[EvaluationResult]:
     root = root or project_root()
     manifest = next(
         (item for item in load_experiments(root) if item.experiment_id == experiment_id), None
@@ -504,19 +385,91 @@ def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scoreca
     if manifest is None:
         raise ValueError(f"unknown experiment: {experiment_id}")
     items = _evaluation_items(root, manifest)
-    baseline = _read_run(root, manifest, manifest.baseline, items)
-    candidate = (
-        _read_run(root, manifest, manifest.candidate, items)
+    specs = [manifest.baseline]
+    if manifest.candidate is not None:
+        specs.append(manifest.candidate)
+    evaluations = [_evaluate_adapter(root, manifest, spec, items) for spec in specs]
+    for evaluation in evaluations:
+        write_json(
+            _evaluation_path(root, experiment_id, evaluation.adapter_id),
+            evaluation,
+        )
+    write_json(
+        root / "outputs/evaluations" / experiment_id / "metrics.json",
+        {
+            evaluation.adapter_id: {metric.metric: metric.value for metric in evaluation.metrics}
+            for evaluation in evaluations
+        },
+    )
+    return evaluations
+
+
+def evaluate_only_experiment(root: Path | None = None) -> list[EvaluationResult]:
+    root = root or project_root()
+    manifests = load_experiments(root)
+    if len(manifests) != 1:
+        raise ValueError("eval-only requires exactly one configured experiment")
+    return evaluate_experiment(manifests[0].experiment_id, root)
+
+
+def _validate_content_id(model: BaseModel, field: str, prefix: str) -> None:
+    body = model.model_dump(mode="json", exclude={field})
+    if getattr(model, field) != content_address(prefix, body):
+        raise ValueError(f"{prefix} ID mismatch")
+
+
+def _comparison_input(
+    root: Path,
+    manifest: ExperimentManifest,
+    spec: AdapterSpec,
+) -> tuple[ComparisonInput, EvaluationResult, ResourceUsage]:
+    evaluation = load_model(
+        _evaluation_path(root, manifest.experiment_id, spec.adapter_id),
+        EvaluationResult,
+    )
+    _validate_content_id(evaluation, "evaluation_id", "evaluation")
+    run_directory = _run_directory(root, manifest.experiment_id, spec.adapter_id)
+    run = load_model(run_directory / "run-record.json", RunRecord)
+    _validate_content_id(run, "run_id", "run")
+    if evaluation.adapter_id != run.adapter.adapter_id:
+        raise ValueError("evaluation adapter differs from its run record")
+    if evaluation.predictions != run.predictions:
+        raise ValueError("evaluation predictions differ from its run record")
+    resources = load_model(_validated_artifact(root, run.resources), ResourceUsage)
+    reference = ComparisonInput(
+        adapter_id=spec.adapter_id,
+        run_id=run.run_id,
+        evaluation_id=evaluation.evaluation_id,
+    )
+    return reference, evaluation, resources
+
+
+def compare_experiment(experiment_id: str, root: Path | None = None) -> ComparisonScorecard:
+    root = root or project_root()
+    manifest = next(
+        (item for item in load_experiments(root) if item.experiment_id == experiment_id), None
+    )
+    if manifest is None:
+        raise ValueError(f"unknown experiment: {experiment_id}")
+    baseline, baseline_evaluation, baseline_resources = _comparison_input(
+        root, manifest, manifest.baseline
+    )
+    candidate_result = (
+        _comparison_input(root, manifest, manifest.candidate)
         if manifest.candidate is not None
         else None
     )
+    candidate = candidate_result[0] if candidate_result else None
+    candidate_evaluation = candidate_result[1] if candidate_result else None
+    candidate_resources = candidate_result[2] if candidate_result else None
     gates = evaluate_gates(
         manifest.objectives,
         manifest.resource_budget,
-        baseline,
-        candidate,
+        baseline_evaluation.metrics,
+        baseline_resources,
+        candidate_evaluation.metrics if candidate_evaluation else None,
+        candidate_resources,
     )
-    experiment_recommendation = recommendation(candidate, gates)
     body = {
         "schema_version": "1.0.0",
         "experiment_id": manifest.experiment_id,
@@ -526,46 +479,45 @@ def evaluate_experiment(experiment_id: str, root: Path | None = None) -> Scoreca
         "baseline": baseline.model_dump(mode="json"),
         "candidate": candidate.model_dump(mode="json") if candidate else None,
         "gates": [gate.model_dump(mode="json") for gate in gates],
-        "recommendation": experiment_recommendation,
+        "recommendation": recommendation(candidate is not None, gates),
         "clinical_validity": False,
     }
-    scorecard = Scorecard(scorecard_id=_scorecard_id(body), **body)
+    scorecard = ComparisonScorecard(scorecard_id=content_address("scorecard", body), **body)
     write_json(root / f"outputs/scorecards/{experiment_id}.json", scorecard)
     return scorecard
 
 
-def evaluate_only_experiment(root: Path | None = None) -> Scorecard:
+def compare_only_experiment(root: Path | None = None) -> ComparisonScorecard:
     root = root or project_root()
     manifests = load_experiments(root)
     if len(manifests) != 1:
-        raise ValueError("eval-only requires exactly one configured experiment")
-    return evaluate_experiment(manifests[0].experiment_id, root)
+        raise ValueError("compare-only requires exactly one configured experiment")
+    return compare_experiment(manifests[0].experiment_id, root)
 
 
-def aggregate_scorecards(root: Path | None = None) -> AggregateScorecard:
+def aggregate_scorecards(root: Path | None = None) -> BenchmarkIndex:
     root = root or project_root()
-    scorecards = [
-        load_model(root / f"outputs/scorecards/{manifest.experiment_id}.json", Scorecard)
-        for manifest in load_experiments(root)
-    ]
+    references: list[ScorecardReference] = []
+    for manifest in load_experiments(root):
+        path = root / f"outputs/scorecards/{manifest.experiment_id}.json"
+        scorecard = load_model(path, ComparisonScorecard)
+        _validate_content_id(scorecard, "scorecard_id", "scorecard")
+        references.append(
+            ScorecardReference(
+                experiment_id=manifest.experiment_id,
+                scorecard_id=scorecard.scorecard_id,
+                artifact=_artifact_reference(root, path),
+            )
+        )
     body = {
         "schema_version": "1.0.0",
-        "scorecards": [scorecard.model_dump(mode="json") for scorecard in scorecards],
+        "scorecards": [reference.model_dump(mode="json") for reference in references],
         "clinical_validity": False,
     }
     benchmark_id = content_address("benchmark", body)
-    aggregate = AggregateScorecard(benchmark_id=benchmark_id, **body)
-    write_json(root / "outputs/scorecard/benchmark.json", aggregate)
-    write_json(
-        root / "outputs/scorecard/metrics.json",
-        {
-            scorecard.experiment_id: {
-                metric.metric: metric.value for metric in scorecard.baseline.metrics
-            }
-            for scorecard in scorecards
-        },
-    )
-    return aggregate
+    index = BenchmarkIndex(benchmark_id=benchmark_id, **body)
+    write_json(root / "outputs/benchmark/index.json", index)
+    return index
 
 
 def write_schemas(*, check: bool = False, root: Path | None = None) -> None:
@@ -573,26 +525,58 @@ def write_schemas(*, check: bool = False, root: Path | None = None) -> None:
     write_schema_artifacts(SCHEMA_MODELS, root=root, check=check)
 
 
-def _validate_scorecard_id(scorecard: Scorecard) -> None:
-    body = scorecard.model_dump(mode="json", exclude={"scorecard_id"})
-    if scorecard.scorecard_id != _scorecard_id(body):
-        raise ValueError(f"scorecard ID mismatch for {scorecard.experiment_id}")
+def _verify_comparison_input(
+    root: Path,
+    experiment_id: str,
+    reference: ComparisonInput,
+) -> None:
+    evaluation = load_model(
+        _evaluation_path(root, experiment_id, reference.adapter_id),
+        EvaluationResult,
+    )
+    _validate_content_id(evaluation, "evaluation_id", "evaluation")
+    if evaluation.evaluation_id != reference.evaluation_id:
+        raise ValueError(f"evaluation reference mismatch for {reference.adapter_id}")
+    for artifact in (
+        evaluation.experiment_manifest,
+        evaluation.data_manifest,
+        evaluation.predictions,
+    ):
+        _validated_artifact(root, artifact)
+
+    run = load_model(
+        _run_directory(root, experiment_id, reference.adapter_id) / "run-record.json",
+        RunRecord,
+    )
+    _validate_content_id(run, "run_id", "run")
+    if run.run_id != reference.run_id:
+        raise ValueError(f"run reference mismatch for {reference.adapter_id}")
+    for artifact in (run.predictions, run.resources, run.failure_report):
+        _validated_artifact(root, artifact)
+    if run.predictions != evaluation.predictions:
+        raise ValueError("evaluation predictions differ from its run record")
+    failures = load_model(resolve_under(root, run.failure_report.path), FailureReport).failures
+    if failures:
+        raise ValueError(f"run contains {len(failures)} recorded failure(s)")
 
 
 def verify(root: Path | None = None) -> None:
     root = root or project_root()
     validate_contracts(root, write_report=False)
-    aggregate = load_model(root / "outputs/scorecard/benchmark.json", AggregateScorecard)
-    for scorecard in aggregate.scorecards:
-        _validate_scorecard_id(scorecard)
+    index = load_model(root / "outputs/benchmark/index.json", BenchmarkIndex)
+    _validate_content_id(index, "benchmark_id", "benchmark")
+    for reference in index.scorecards:
+        scorecard = load_model(_validated_artifact(root, reference.artifact), ComparisonScorecard)
+        _validate_content_id(scorecard, "scorecard_id", "scorecard")
+        if scorecard.scorecard_id != reference.scorecard_id:
+            raise ValueError(f"scorecard reference mismatch for {reference.experiment_id}")
         if not scorecard.synthetic_evidence_only:
             raise ValueError("initial scorecards must use synthetic contract evidence")
         if not all(gate.passed for gate in scorecard.gates):
             raise ValueError(f"failed benchmark gate in {scorecard.experiment_id}")
-    body = aggregate.model_dump(mode="json", exclude={"benchmark_id"})
-    expected = content_address("benchmark", body)
-    if aggregate.benchmark_id != expected:
-        raise ValueError("aggregate benchmark ID mismatch")
+        _verify_comparison_input(root, scorecard.experiment_id, scorecard.baseline)
+        if scorecard.candidate is not None:
+            _verify_comparison_input(root, scorecard.experiment_id, scorecard.candidate)
 
 
 def generate(root: Path | None = None) -> None:

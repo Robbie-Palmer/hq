@@ -73,23 +73,18 @@ def test_resource_and_split_contracts_are_domain_neutral() -> None:
     budget = ResourceBudget(
         max_input_bytes=10,
         max_prediction_bytes=10,
-        max_input_pixels=10,
-        max_wall_seconds=1,
-        max_cpu_seconds=1,
-        max_peak_rss_bytes=100,
-        max_accelerator_wall_seconds=0,
-        max_accelerator_memory_bytes=0,
+        max_pixels_read=10,
+        max_accelerator_seconds=0,
     )
     usage = ResourceUsage(
         samples=1,
         input_bytes=1,
         prediction_bytes=1,
-        input_pixels=1,
-        wall_seconds=0.1,
-        cpu_seconds=0.1,
-        peak_rss_bytes=50,
-        accelerator_wall_seconds=0,
-        peak_accelerator_memory_bytes=0,
+        pixels_read=1,
+        accelerator_seconds=0,
+        observed_wall_seconds=0.1,
+        observed_cpu_seconds=0.1,
+        observed_peak_rss_bytes=50,
     )
     assert usage.input_bytes <= budget.max_input_bytes
     assert set(Split) == {Split.TRAIN, Split.VALIDATION, Split.TEST}

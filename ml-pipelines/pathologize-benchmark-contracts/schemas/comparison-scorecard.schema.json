@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "ComparisonInput": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "evaluation_id": {
+          "pattern": "^evaluation:sha256:[a-f0-9]{64}$",
+          "title": "Evaluation Id",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^run:sha256:[a-f0-9]{64}$",
+          "title": "Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "adapter_id",
+        "run_id",
+        "evaluation_id"
+      ],
+      "title": "ComparisonInput",
+      "type": "object"
+    },
+    "GateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "title": "Gate",
+          "type": "string"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Observed"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "threshold": {
+          "title": "Threshold",
+          "type": "number"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "observed",
+        "threshold"
+      ],
+      "title": "GateResult",
+      "type": "object"
+    },
+    "Workstream": {
+      "enum": [
+        "whole_slide_tissue_artifact_quality",
+        "tiling_magnification_policy",
+        "nucleus_detection_segmentation_classification"
+      ],
+      "title": "Workstream",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "baseline": {
+      "$ref": "#/$defs/ComparisonInput"
+    },
+    "candidate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComparisonInput"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "clinical_validity": {
+      "const": false,
+      "title": "Clinical Validity",
+      "type": "boolean"
+    },
+    "data_source_kind": {
+      "enum": [
+        "synthetic_fixture",
+        "pathologize_registry"
+      ],
+      "title": "Data Source Kind",
+      "type": "string"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "gates": {
+      "items": {
+        "$ref": "#/$defs/GateResult"
+      },
+      "title": "Gates",
+      "type": "array"
+    },
+    "recommendation": {
+      "enum": [
+        "baseline_only",
+        "promote_candidate",
+        "reject_candidate"
+      ],
+      "title": "Recommendation",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scorecard_id": {
+      "pattern": "^scorecard:sha256:[a-f0-9]{64}$",
+      "title": "Scorecard Id",
+      "type": "string"
+    },
+    "synthetic_evidence_only": {
+      "title": "Synthetic Evidence Only",
+      "type": "boolean"
+    },
+    "workstream": {
+      "$ref": "#/$defs/Workstream"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scorecard_id",
+    "experiment_id",
+    "workstream",
+    "data_source_kind",
+    "synthetic_evidence_only",
+    "baseline",
+    "candidate",
+    "gates",
+    "recommendation",
+    "clinical_validity"
+  ],
+  "title": "ComparisonScorecard",
+  "type": "object"
+}

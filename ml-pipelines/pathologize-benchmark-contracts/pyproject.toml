@@ -3,12 +3,11 @@ name = "pathologize-benchmark-contracts"
 version = "0.1.0"
 description = "Shared contracts and deterministic runners for Pathologize benchmarks"
 readme = "README.md"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12,<3.15"
 dependencies = [
     "data-artifacts",
     "fire>=0.7.1,<0.8",
     "ml-evaluation",
-    "nvidia-ml-py>=13.590.44,<14",
     "pydantic>=2.12.5,<3",
 ]
 

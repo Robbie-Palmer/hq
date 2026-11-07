@@ -38,10 +38,6 @@
           "title": "Entrypoint",
           "type": "string"
         },
-        "execution_device": {
-          "$ref": "#/$defs/ExecutionDevice",
-          "default": "cpu"
-        },
         "kind": {
           "enum": [
             "builtin",
@@ -64,14 +60,6 @@
       ],
       "title": "AdapterSpec",
       "type": "object"
-    },
-    "ExecutionDevice": {
-      "enum": [
-        "cpu",
-        "accelerator"
-      ],
-      "title": "ExecutionDevice",
-      "type": "string"
     },
     "LeakageUnit": {
       "enum": [
@@ -224,19 +212,9 @@
     "ResourceBudget": {
       "additionalProperties": false,
       "properties": {
-        "max_accelerator_memory_bytes": {
+        "max_accelerator_seconds": {
           "minimum": 0,
-          "title": "Max Accelerator Memory Bytes",
-          "type": "integer"
-        },
-        "max_accelerator_wall_seconds": {
-          "minimum": 0,
-          "title": "Max Accelerator Wall Seconds",
-          "type": "number"
-        },
-        "max_cpu_seconds": {
-          "exclusiveMinimum": 0,
-          "title": "Max Cpu Seconds",
+          "title": "Max Accelerator Seconds",
           "type": "number"
         },
         "max_input_bytes": {
@@ -244,36 +222,22 @@
           "title": "Max Input Bytes",
           "type": "integer"
         },
-        "max_input_pixels": {
+        "max_pixels_read": {
           "exclusiveMinimum": 0,
-          "title": "Max Input Pixels",
-          "type": "integer"
-        },
-        "max_peak_rss_bytes": {
-          "exclusiveMinimum": 0,
-          "title": "Max Peak Rss Bytes",
+          "title": "Max Pixels Read",
           "type": "integer"
         },
         "max_prediction_bytes": {
           "exclusiveMinimum": 0,
           "title": "Max Prediction Bytes",
           "type": "integer"
-        },
-        "max_wall_seconds": {
-          "exclusiveMinimum": 0,
-          "title": "Max Wall Seconds",
-          "type": "number"
         }
       },
       "required": [
         "max_input_bytes",
         "max_prediction_bytes",
-        "max_input_pixels",
-        "max_wall_seconds",
-        "max_cpu_seconds",
-        "max_peak_rss_bytes",
-        "max_accelerator_wall_seconds",
-        "max_accelerator_memory_bytes"
+        "max_pixels_read",
+        "max_accelerator_seconds"
       ],
       "title": "ResourceBudget",
       "type": "object"

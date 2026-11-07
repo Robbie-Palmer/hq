@@ -31,12 +31,8 @@
   "resource_budget": {
     "max_input_bytes": 200000,
     "max_prediction_bytes": 200000,
-    "max_input_pixels": 20000,
-    "max_wall_seconds": 10,
-    "max_cpu_seconds": 10,
-    "max_peak_rss_bytes": 1073741824,
-    "max_accelerator_wall_seconds": 0,
-    "max_accelerator_memory_bytes": 0
+    "max_pixels_read": 20000,
+    "max_accelerator_seconds": 0
   },
   "super_resolution": {
     "enabled": false,

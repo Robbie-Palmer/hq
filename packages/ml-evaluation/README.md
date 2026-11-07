@@ -6,8 +6,8 @@ task-specific metric vocabulary.
 
 The package owns:
 
-- strict Pydantic base types for adapters, objectives, resource budgets, runs,
-  and gates;
+- strict Pydantic base types for adapters, objectives, resource budgets, run
+  records, artifact references, failure reports, and gates;
 - pinned Python entrypoint loading with module digests, adapter identity, and
   version checks;
 - metric and resource promotion gates.

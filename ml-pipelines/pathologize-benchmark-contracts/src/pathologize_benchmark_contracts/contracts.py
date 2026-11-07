@@ -7,10 +7,14 @@ from typing import Annotated, Literal, Self
 from ml_evaluation.contracts import (
     SHA256_PATTERN,
     AdapterSpec,
+    ArtifactReference,
+    FailureReport,
     GateResult,
     MetricObjective,
+    MetricResult,
     ResourceBudget,
-    RunSummary,
+    ResourceUsage,
+    RunRecord,
     Split,
     StrictModel,
 )
@@ -326,15 +330,43 @@ class NucleiPrediction(StrictModel):
 Prediction = QualityPrediction | TilingPrediction | NucleiPrediction
 
 
-class Scorecard(StrictModel):
+class EvaluationResult(StrictModel):
+    schema_version: Literal["1.0.0"]
+    evaluation_id: str = Field(pattern=r"^evaluation:sha256:[a-f0-9]{64}$")
+    experiment_id: str
+    workstream: Workstream
+    adapter_id: str
+    adapter_version: str
+    data_source_kind: Literal["synthetic_fixture", "pathologize_registry"]
+    experiment_manifest: ArtifactReference
+    data_manifest: ArtifactReference
+    predictions: ArtifactReference
+    metrics: list[MetricResult] = Field(min_length=1)
+    clinical_validity: Literal[False]
+
+    @model_validator(mode="after")
+    def require_unique_metrics(self) -> Self:
+        names = [metric.metric for metric in self.metrics]
+        if len(names) != len(set(names)):
+            raise ValueError("evaluation metric names must be unique")
+        return self
+
+
+class ComparisonInput(StrictModel):
+    adapter_id: str
+    run_id: str = Field(pattern=r"^run:sha256:[a-f0-9]{64}$")
+    evaluation_id: str = Field(pattern=r"^evaluation:sha256:[a-f0-9]{64}$")
+
+
+class ComparisonScorecard(StrictModel):
     schema_version: Literal["1.0.0"]
     scorecard_id: str = Field(pattern=r"^scorecard:sha256:[a-f0-9]{64}$")
     experiment_id: str
     workstream: Workstream
     data_source_kind: Literal["synthetic_fixture", "pathologize_registry"]
     synthetic_evidence_only: bool
-    baseline: RunSummary
-    candidate: RunSummary | None
+    baseline: ComparisonInput
+    candidate: ComparisonInput | None
     gates: list[GateResult]
     recommendation: Literal["baseline_only", "promote_candidate", "reject_candidate"]
     clinical_validity: Literal[False]
@@ -343,14 +375,42 @@ class Scorecard(StrictModel):
     def require_synthetic_evidence_label(self) -> Self:
         if self.data_source_kind == "synthetic_fixture" and not self.synthetic_evidence_only:
             raise ValueError("synthetic fixtures require synthetic evidence only")
+        if self.candidate is None and self.recommendation != "baseline_only":
+            raise ValueError("baseline-only comparisons require a baseline-only recommendation")
+        if self.candidate is not None and self.recommendation == "baseline_only":
+            raise ValueError("candidate comparisons require a candidate recommendation")
+        if self.candidate is not None:
+            expected = (
+                "promote_candidate"
+                if all(gate.passed for gate in self.gates)
+                else "reject_candidate"
+            )
+            if self.recommendation != expected:
+                raise ValueError("candidate recommendation must match the recorded gates")
         return self
 
 
-class AggregateScorecard(StrictModel):
+class ScorecardReference(StrictModel):
+    experiment_id: str
+    scorecard_id: str = Field(pattern=r"^scorecard:sha256:[a-f0-9]{64}$")
+    artifact: ArtifactReference
+
+
+class BenchmarkIndex(StrictModel):
     schema_version: Literal["1.0.0"]
     benchmark_id: str = Field(pattern=r"^benchmark:sha256:[a-f0-9]{64}$")
-    scorecards: list[Scorecard] = Field(min_length=1)
+    scorecards: list[ScorecardReference] = Field(min_length=1)
     clinical_validity: Literal[False]
+
+    @model_validator(mode="after")
+    def require_unique_scorecards(self) -> Self:
+        experiment_ids = [scorecard.experiment_id for scorecard in self.scorecards]
+        scorecard_ids = [scorecard.scorecard_id for scorecard in self.scorecards]
+        if len(experiment_ids) != len(set(experiment_ids)):
+            raise ValueError("benchmark experiment references must be unique")
+        if len(scorecard_ids) != len(set(scorecard_ids)):
+            raise ValueError("benchmark scorecard references must be unique")
+        return self
 
 
 SCHEMA_MODELS: dict[str, type[BaseModel]] = {
@@ -358,6 +418,10 @@ SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "experiment-manifest.schema.json": ExperimentManifest,
     "fixture-manifest.schema.json": FixtureManifest,
     "pathologize-registry-export.schema.json": RegistryExport,
-    "scorecard.schema.json": Scorecard,
-    "aggregate-scorecard.schema.json": AggregateScorecard,
+    "resource-usage.schema.json": ResourceUsage,
+    "failure-report.schema.json": FailureReport,
+    "run-record.schema.json": RunRecord,
+    "evaluation-result.schema.json": EvaluationResult,
+    "comparison-scorecard.schema.json": ComparisonScorecard,
+    "benchmark-index.schema.json": BenchmarkIndex,
 }

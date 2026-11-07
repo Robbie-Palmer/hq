@@ -5,8 +5,9 @@ from typing import Literal
 from .contracts import (
     GateResult,
     MetricObjective,
+    MetricResult,
     ResourceBudget,
-    RunSummary,
+    ResourceUsage,
 )
 
 
@@ -60,47 +61,47 @@ def metric_gates(
     return gates
 
 
-def resource_gates(budget: ResourceBudget, run_role: str, run: RunSummary) -> list[GateResult]:
+def resource_gates(
+    budget: ResourceBudget, run_role: str, resources: ResourceUsage
+) -> list[GateResult]:
     limits = {
         "input_bytes": budget.max_input_bytes,
         "prediction_bytes": budget.max_prediction_bytes,
-        "input_pixels": budget.max_input_pixels,
-        "wall_seconds": budget.max_wall_seconds,
-        "cpu_seconds": budget.max_cpu_seconds,
-        "peak_rss_bytes": budget.max_peak_rss_bytes,
-        "accelerator_wall_seconds": budget.max_accelerator_wall_seconds,
-        "peak_accelerator_memory_bytes": budget.max_accelerator_memory_bytes,
+        "pixels_read": budget.max_pixels_read,
+        "accelerator_seconds": budget.max_accelerator_seconds,
     }
     resource_values = {
-        "input_bytes": run.resources.input_bytes,
-        "prediction_bytes": run.resources.prediction_bytes,
-        "input_pixels": run.resources.input_pixels,
-        "wall_seconds": run.resources.wall_seconds,
-        "cpu_seconds": run.resources.cpu_seconds,
-        "peak_rss_bytes": run.resources.peak_rss_bytes,
-        "accelerator_wall_seconds": run.resources.accelerator_wall_seconds,
-        "peak_accelerator_memory_bytes": run.resources.peak_accelerator_memory_bytes,
+        "input_bytes": resources.input_bytes,
+        "prediction_bytes": resources.prediction_bytes,
+        "pixels_read": resources.pixels_read,
+        "accelerator_seconds": resources.accelerator_seconds,
     }
-    return [
-        GateResult(
-            gate=f"{run_role}-resource:{name}",
-            passed=observed <= limits[name],
-            observed=float(observed),
-            threshold=float(limits[name]),
+    gates: list[GateResult] = []
+    for name, observed in resource_values.items():
+        gates.append(
+            GateResult(
+                gate=f"{run_role}-resource:{name}",
+                passed=observed is not None and observed <= limits[name],
+                observed=float(observed) if observed is not None else None,
+                threshold=float(limits[name]),
+            )
         )
-        for name, observed in resource_values.items()
-    ]
+    return gates
 
 
 def evaluate_gates(
     objectives: list[MetricObjective],
     budget: ResourceBudget,
-    baseline: RunSummary,
-    candidate: RunSummary | None,
+    baseline_metrics: list[MetricResult],
+    baseline_resources: ResourceUsage,
+    candidate_metrics: list[MetricResult] | None,
+    candidate_resources: ResourceUsage | None,
 ) -> list[GateResult]:
-    baseline_values = {metric.metric: metric.value for metric in baseline.metrics}
+    baseline_values = {metric.metric: metric.value for metric in baseline_metrics}
     candidate_values = (
-        {metric.metric: metric.value for metric in candidate.metrics} if candidate else {}
+        {metric.metric: metric.value for metric in candidate_metrics}
+        if candidate_metrics is not None
+        else {}
     )
     gates: list[GateResult] = []
     for objective in objectives:
@@ -111,16 +112,16 @@ def evaluate_gates(
                 candidate_values.get(objective.metric),
             )
         )
-    gates.extend(resource_gates(budget, "baseline", baseline))
-    if candidate is not None:
-        gates.extend(resource_gates(budget, "candidate", candidate))
+    gates.extend(resource_gates(budget, "baseline", baseline_resources))
+    if candidate_resources is not None:
+        gates.extend(resource_gates(budget, "candidate", candidate_resources))
     return gates
 
 
 def recommendation(
-    candidate: RunSummary | None, gates: list[GateResult]
+    candidate_present: bool, gates: list[GateResult]
 ) -> Literal["baseline_only", "promote_candidate", "reject_candidate"]:
-    if candidate is None:
+    if not candidate_present:
         return "baseline_only"
     if all(gate.passed for gate in gates):
         return "promote_candidate"

@@ -1,0 +1,141 @@
+{
+  "$defs": {
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "MetricResult": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "title": "Direction",
+          "type": "string"
+        },
+        "metric": {
+          "title": "Metric",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "unit": {
+          "title": "Unit",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "number"
+        }
+      },
+      "required": [
+        "metric",
+        "value",
+        "unit",
+        "role",
+        "direction"
+      ],
+      "title": "MetricResult",
+      "type": "object"
+    },
+    "Workstream": {
+      "enum": [
+        "whole_slide_tissue_artifact_quality",
+        "tiling_magnification_policy",
+        "nucleus_detection_segmentation_classification"
+      ],
+      "title": "Workstream",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "adapter_id": {
+      "title": "Adapter Id",
+      "type": "string"
+    },
+    "adapter_version": {
+      "title": "Adapter Version",
+      "type": "string"
+    },
+    "clinical_validity": {
+      "const": false,
+      "title": "Clinical Validity",
+      "type": "boolean"
+    },
+    "data_manifest": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "data_source_kind": {
+      "enum": [
+        "synthetic_fixture",
+        "pathologize_registry"
+      ],
+      "title": "Data Source Kind",
+      "type": "string"
+    },
+    "evaluation_id": {
+      "pattern": "^evaluation:sha256:[a-f0-9]{64}$",
+      "title": "Evaluation Id",
+      "type": "string"
+    },
+    "experiment_id": {
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "experiment_manifest": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "metrics": {
+      "items": {
+        "$ref": "#/$defs/MetricResult"
+      },
+      "minItems": 1,
+      "title": "Metrics",
+      "type": "array"
+    },
+    "predictions": {
+      "$ref": "#/$defs/ArtifactReference"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "workstream": {
+      "$ref": "#/$defs/Workstream"
+    }
+  },
+  "required": [
+    "schema_version",
+    "evaluation_id",
+    "experiment_id",
+    "workstream",
+    "adapter_id",
+    "adapter_version",
+    "data_source_kind",
+    "experiment_manifest",
+    "data_manifest",
+    "predictions",
+    "metrics",
+    "clinical_validity"
+  ],
+  "title": "EvaluationResult",
+  "type": "object"
+}

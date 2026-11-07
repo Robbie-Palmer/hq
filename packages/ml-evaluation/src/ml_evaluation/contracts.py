@@ -19,17 +19,11 @@ class Split(StrEnum):
     TEST = "test"
 
 
-class ExecutionDevice(StrEnum):
-    CPU = "cpu"
-    ACCELERATOR = "accelerator"
-
-
 class AdapterSpec(StrictModel):
     adapter_id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]+$")
     kind: Literal["builtin", "python_entrypoint"]
     entrypoint: str = Field(min_length=1)
     version: str = Field(min_length=1)
-    execution_device: ExecutionDevice = ExecutionDevice.CPU
     artifact_path: str | None = None
     artifact_sha256: str | None = Field(default=None, pattern=SHA256_PATTERN)
 
@@ -83,24 +77,19 @@ class MetricObjective(StrictModel):
 class ResourceBudget(StrictModel):
     max_input_bytes: int = Field(gt=0)
     max_prediction_bytes: int = Field(gt=0)
-    max_input_pixels: int = Field(gt=0)
-    max_wall_seconds: float = Field(gt=0)
-    max_cpu_seconds: float = Field(gt=0)
-    max_peak_rss_bytes: int = Field(gt=0)
-    max_accelerator_wall_seconds: float = Field(ge=0)
-    max_accelerator_memory_bytes: int = Field(ge=0)
+    max_pixels_read: int = Field(gt=0)
+    max_accelerator_seconds: float = Field(ge=0)
 
 
 class ResourceUsage(StrictModel):
     samples: int = Field(ge=0)
     input_bytes: int = Field(ge=0)
     prediction_bytes: int = Field(ge=0)
-    input_pixels: int = Field(ge=0)
-    wall_seconds: float = Field(ge=0)
-    cpu_seconds: float = Field(ge=0)
-    peak_rss_bytes: int = Field(ge=0)
-    accelerator_wall_seconds: float = Field(ge=0)
-    peak_accelerator_memory_bytes: int = Field(ge=0)
+    pixels_read: int = Field(ge=0)
+    accelerator_seconds: float | None = Field(default=None, ge=0)
+    observed_wall_seconds: float | None = Field(default=None, ge=0)
+    observed_cpu_seconds: float | None = Field(default=None, ge=0)
+    observed_peak_rss_bytes: int | None = Field(default=None, ge=0)
 
 
 class RunFailure(StrictModel):
@@ -124,11 +113,29 @@ class GateResult(StrictModel):
     threshold: float
 
 
-class RunSummary(StrictModel):
-    adapter: AdapterSpec
-    metrics: list[MetricResult]
-    resources: ResourceUsage
+class ArtifactReference(StrictModel):
+    path: str
+    sha256: str = Field(pattern=SHA256_PATTERN)
+
+    @model_validator(mode="after")
+    def require_project_relative_path(self) -> Self:
+        require_relative_path(self.path)
+        return self
+
+
+class FailureReport(StrictModel):
+    schema_version: Literal["1.0.0"]
     failures: list[RunFailure]
+
+
+class RunRecord(StrictModel):
+    schema_version: Literal["1.0.0"]
+    run_id: str = Field(pattern=r"^run:sha256:[a-f0-9]{64}$")
+    experiment_id: str
+    adapter: AdapterSpec
+    predictions: ArtifactReference
+    resources: ArtifactReference
+    failure_report: ArtifactReference
 
 
 def require_relative_path(path: str) -> str:

@@ -28,16 +28,24 @@ The generated JSON Schemas define:
 - typed experiment manifests;
 - deterministic fixture manifests;
 - the future Pathologize registry export boundary;
-- per-experiment scorecards; and
-- aggregate scorecards.
+- adapter run records and failure reports;
+- per-adapter evaluation results;
+- per-experiment comparison scorecards; and
+- benchmark indexes that reference scorecards without copying them.
 
-Every experiment pins its source, evaluation split, split-isolation identity fields, adapters,
-metric direction and gates, resource limits, and disabled super-resolution
-seam. Candidate adapters must pin a version, module path, artifact SHA-256, and
-execution device. The loader resolves the module path and verifies its digest
-before importing the module. The checked-in
-baseline reads fixture colors and makes no network, model, or GPU call. It tests
-the contracts and metric arithmetic. It is not a model choice.
+These files are separate DVC outputs. Prediction or data changes rerun metric
+evaluation. Resource changes rerun comparison without recomputing metrics. A
+scorecard change rebuilds the benchmark index without rerunning either stage.
+Every reference includes a SHA-256 digest, and every run, evaluation,
+scorecard, and benchmark index has a content-derived ID.
+
+Every experiment pins its source, evaluation split, split-isolation identity
+fields, adapters, metric direction and gates, resource limits, and disabled
+super-resolution seam. Candidate adapters must pin a version, module path, and
+artifact SHA-256. The loader resolves the module path and verifies its digest
+before importing the module. The checked-in baseline reads fixture colors and
+makes no network, model, or GPU call. It tests the contracts and metric
+arithmetic. It is not a model choice.
 
 Run the package checks through mise:
 
@@ -80,15 +88,16 @@ owned split assignments and validate split isolation before evaluation.
 
 ## Resource and cost boundary
 
-Experiment manifests bound input bytes, prediction bytes, input pixels, wall
-time, CPU time, peak resident memory, accelerator wall time, and peak accelerator
-memory. Scorecards record every value. Accelerator adapters are supported and
-receive time and memory gates. The local runner uses NVIDIA NVML for
-process-level memory enforcement, maps container and host PIDs from Linux
-namespace metadata, and runs each adapter in a fresh process so its peak RSS is
-independent. Kubernetes GPU utilization, power, health, and workload telemetry
-belong to the cluster's DCGM and OpenTelemetry stack. Provider authorization and
-monetary cost are outside this benchmark contract.
+Experiment manifests bound input bytes, prediction bytes, pixels read, and
+adapter-reported accelerator time. Run records reference the resource file.
+Comparison scorecards record the resulting gates, not raw telemetry. Wall time,
+CPU time, and peak resident memory are optional observations and are not
+promotion gates because local measurements are not portable across runners.
+
+Kubernetes GPU utilization, memory, power, health, and workload attribution
+belong to the cluster's DCGM and OpenTelemetry stack. Those measurements are not
+copied into local benchmark scorecards. Provider authorization and monetary
+cost are outside this benchmark contract.
 
 If a future adapter uses metered provider inference, its run telemetry must use
 the platform's shared `Money` and `ResourceQuantity` semantics. Funding policy

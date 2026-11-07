@@ -1,23 +1,29 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
-from data_artifacts.files import load_model, read_json, read_jsonl, write_json
-from ml_evaluation.contracts import ResourceUsage
+from data_artifacts.files import (
+    load_model,
+    read_json,
+    read_jsonl,
+    read_yaml,
+    resolve_under,
+    write_json,
+)
+from ml_evaluation.contracts import FailureReport, ResourceUsage, RunRecord
 from ml_evaluation.gates import evaluate_gates
 from pydantic import ValidationError
 
 from pathologize_benchmark_contracts import cli, pipeline
 from pathologize_benchmark_contracts.contracts import (
-    AggregateScorecard,
+    BenchmarkIndex,
+    ComparisonScorecard,
+    EvaluationResult,
     ExperimentManifest,
     FixtureItem,
     FixtureManifest,
     QualityPrediction,
-    Scorecard,
     Split,
     TilingPrediction,
     Workstream,
@@ -37,152 +43,65 @@ from pathologize_benchmark_contracts.pipeline import (
 def test_full_pipeline_builds_typed_hill_climbable_scorecards(
     reproduced_benchmark_root: Path,
 ) -> None:
-    aggregate = load_model(
-        reproduced_benchmark_root / "outputs/scorecard/benchmark.json", AggregateScorecard
+    index = load_model(reproduced_benchmark_root / "outputs/benchmark/index.json", BenchmarkIndex)
+    assert index.benchmark_id.startswith("benchmark:sha256:")
+    assert len(index.scorecards) == 1
+    reference = index.scorecards[0]
+    scorecard = load_model(
+        resolve_under(reproduced_benchmark_root, reference.artifact.path), ComparisonScorecard
     )
-    assert aggregate.benchmark_id.startswith("benchmark:sha256:")
-    assert len(aggregate.scorecards) == 1
-    assert {scorecard.recommendation for scorecard in aggregate.scorecards} == {"baseline_only"}
-    assert all(scorecard.synthetic_evidence_only for scorecard in aggregate.scorecards)
-    assert all(scorecard.clinical_validity is False for scorecard in aggregate.scorecards)
-    assert all(gate.passed for scorecard in aggregate.scorecards for gate in scorecard.gates)
-    assert all(
-        scorecard.baseline.resources.accelerator_wall_seconds == 0
-        for scorecard in aggregate.scorecards
-    )
+    assert scorecard.recommendation == "baseline_only"
+    assert scorecard.synthetic_evidence_only
+    assert scorecard.clinical_validity is False
+    assert all(gate.passed for gate in scorecard.gates)
 
-    metrics = read_json(reproduced_benchmark_root / "outputs/scorecard/metrics.json")
-    experiment_id = aggregate.scorecards[0].experiment_id
     manifest = load_experiments(reproduced_benchmark_root)[0]
-    assert set(metrics[experiment_id]) == {objective.metric for objective in manifest.objectives}
+    run = load_model(
+        reproduced_benchmark_root
+        / f"outputs/runs/{manifest.experiment_id}/{manifest.baseline.adapter_id}/run-record.json",
+        RunRecord,
+    )
+    resources = load_model(
+        resolve_under(reproduced_benchmark_root, run.resources.path), ResourceUsage
+    )
+    assert resources.accelerator_seconds == 0
+    metrics = read_json(
+        reproduced_benchmark_root / f"outputs/evaluations/{manifest.experiment_id}/metrics.json"
+    )
+    baseline_metrics = metrics[manifest.baseline.adapter_id]
+    assert set(baseline_metrics) == {objective.metric for objective in manifest.objectives}
     primary = next(objective for objective in manifest.objectives if objective.role == "primary")
     assert primary.baseline_floor is not None
-    assert metrics[experiment_id][primary.metric] >= primary.baseline_floor
+    assert baseline_metrics[primary.metric] >= primary.baseline_floor
     verify(reproduced_benchmark_root)
 
 
-def test_scorecard_metrics_match_declared_objectives(reproduced_root: Path) -> None:
+def test_evaluations_and_runs_keep_separate_evidence(reproduced_root: Path) -> None:
     for manifest in load_experiments(reproduced_root):
-        scorecard = load_model(
-            reproduced_root / f"outputs/scorecards/{manifest.experiment_id}.json",
-            Scorecard,
+        evaluation = load_model(
+            reproduced_root
+            / f"outputs/evaluations/{manifest.experiment_id}/{manifest.baseline.adapter_id}.json",
+            EvaluationResult,
         )
-        assert {metric.metric for metric in scorecard.baseline.metrics} == {
+        run = load_model(
+            reproduced_root
+            / "outputs/runs"
+            / manifest.experiment_id
+            / manifest.baseline.adapter_id
+            / "run-record.json",
+            RunRecord,
+        )
+        resources = load_model(resolve_under(reproduced_root, run.resources.path), ResourceUsage)
+        assert {metric.metric for metric in evaluation.metrics} == {
             objective.metric for objective in manifest.objectives
         }
-        assert scorecard.baseline.resources.samples == 3
-        assert scorecard.baseline.resources.wall_seconds > 0
-        assert scorecard.baseline.resources.cpu_seconds > 0
-        assert scorecard.baseline.resources.peak_rss_bytes > 0
-
-
-def test_nvml_monitor_records_current_process_memory(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[str] = []
-    handle = object()
-    monkeypatch.setattr(pipeline, "nvmlInit", lambda: calls.append("init"))
-    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: calls.append("shutdown"))
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
-    monkeypatch.setattr(
-        pipeline,
-        "nvmlDeviceGetComputeRunningProcesses",
-        lambda _handle: [
-            SimpleNamespace(pid=os.getpid(), usedGpuMemory=32 * 1024 * 1024),
-            SimpleNamespace(pid=os.getpid() + 1, usedGpuMemory=64 * 1024 * 1024),
-        ],
-    )
-
-    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
-    monitor.start()
-    monitor.stop()
-
-    assert monitor.available
-    assert monitor.sampled
-    assert monitor.peak_bytes == 32 * 1024 * 1024
-    assert monitor.error_message is None
-    assert calls == ["init", "shutdown"]
-
-
-def test_nvml_monitor_maps_host_pid_from_namespace(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    handle = object()
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 7)
-    monkeypatch.setattr(
-        pipeline.Path,
-        "read_text",
-        lambda _path, **_kwargs: "Name:\tpython\nNSpid:\t100 7\n",
-    )
-    monkeypatch.setattr(pipeline, "nvmlInit", lambda: None)
-    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: None)
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
-    monkeypatch.setattr(
-        pipeline,
-        "nvmlDeviceGetComputeRunningProcesses",
-        lambda _handle: [SimpleNamespace(pid=100, usedGpuMemory=16 * 1024 * 1024)],
-    )
-
-    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
-    monitor.start()
-    monitor.stop()
-
-    assert monitor.process_ids == {7, 100}
-    assert monitor.peak_bytes == 16 * 1024 * 1024
-
-
-def test_nvml_monitor_attributes_new_host_pid_to_isolated_run(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    handle = object()
-    samples = iter(
-        [
-            [],
-            [SimpleNamespace(pid=9001, usedGpuMemory=24 * 1024 * 1024)],
-        ]
-    )
-    monkeypatch.setattr(pipeline, "nvmlInit", lambda: None)
-    monkeypatch.setattr(pipeline, "nvmlShutdown", lambda: None)
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetCount", lambda: 1)
-    monkeypatch.setattr(pipeline, "nvmlDeviceGetHandleByIndex", lambda _index: handle)
-    monkeypatch.setattr(
-        pipeline,
-        "nvmlDeviceGetComputeRunningProcesses",
-        lambda _handle: next(samples),
-    )
-
-    monitor = pipeline._NvmlProcessMonitor(poll_seconds=60)
-    monitor.start()
-    monitor.stop()
-
-    assert monitor.baseline_pids == set()
-    assert monitor.attributed
-    assert monitor.peak_bytes == 24 * 1024 * 1024
-
-
-class _MonitorStub:
-    def __init__(
-        self,
-        *,
-        available: bool = True,
-        sampled: bool = True,
-        peak_bytes: int = 0,
-        error_message: str | None = None,
-        attributed: bool = True,
-    ) -> None:
-        self.available = available
-        self.sampled = sampled
-        self.peak_bytes = peak_bytes
-        self.error_message = error_message
-        self.attributed = attributed
-
-    def start(self) -> None:
-        pass
-
-    def stop(self) -> None:
-        pass
+        assert evaluation.predictions == run.predictions
+        assert resources.samples == 3
+        assert resources.pixels_read > 0
+        assert resources.accelerator_seconds == 0
+        assert resources.observed_wall_seconds is None
+        assert resources.observed_cpu_seconds is None
+        assert resources.observed_peak_rss_bytes is None
 
 
 def _quality_run_inputs(root: Path) -> tuple[ExperimentManifest, FixtureManifest]:
@@ -220,7 +139,6 @@ def test_changed_repeated_predictions_write_failure(
             return prediction.model_copy(update={"tissue_labels": labels})
 
     monkeypatch.setattr(pipeline, "load_adapter", lambda _spec, _root: ChangingAdapter())
-    monkeypatch.setattr(pipeline, "_NvmlProcessMonitor", _MonitorStub)
 
     with pytest.raises(ValueError, match="predictions changed"):
         pipeline._run_adapter(configured_root, manifest, manifest.baseline, items)
@@ -229,58 +147,16 @@ def test_changed_repeated_predictions_write_failure(
         configured_root
         / "outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json"
     )
-    assert failures == [
-        {
-            "error_type": "NonDeterministicPredictions",
-            "item_id": "evaluation-cohort",
-            "message": "adapter predictions changed after resetting the experiment seed",
-        }
-    ]
-
-
-@pytest.mark.parametrize(
-    ("execution_device", "monitor", "error_type"),
-    [
-        ("cpu", _MonitorStub(peak_bytes=1), "UndeclaredAcceleratorUse"),
-        (
-            "accelerator",
-            _MonitorStub(available=False, sampled=False, error_message="unavailable"),
-            "AcceleratorTelemetryUnavailable",
-        ),
-        (
-            "accelerator",
-            _MonitorStub(sampled=False, error_message="sampling failed"),
-            "AcceleratorTelemetryFailed",
-        ),
-        (
-            "accelerator",
-            _MonitorStub(attributed=False),
-            "AcceleratorTelemetryFailed",
-        ),
-    ],
-)
-def test_accelerator_guardrails_write_failures(
-    configured_root: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    execution_device: str,
-    monitor: _MonitorStub,
-    error_type: str,
-) -> None:
-    manifest, fixture = _quality_run_inputs(configured_root)
-    items = [item for item in fixture.items if item.split == Split.TEST]
-    adapter = pipeline.load_adapter(manifest.baseline, configured_root)
-    spec = manifest.baseline.model_copy(update={"execution_device": execution_device})
-    monkeypatch.setattr(pipeline, "load_adapter", lambda _spec, _root: adapter)
-    monkeypatch.setattr(pipeline, "_NvmlProcessMonitor", lambda: monitor)
-
-    with pytest.raises(ValueError):
-        pipeline._run_adapter(configured_root, manifest, spec, items)
-
-    failures = read_json(
-        configured_root
-        / f"outputs/runs/{manifest.experiment_id}/{spec.adapter_id}/failures.json"
-    )
-    assert failures[0]["error_type"] == error_type
+    assert failures == {
+        "schema_version": "1.0.0",
+        "failures": [
+            {
+                "error_type": "NonDeterministicPredictions",
+                "item_id": "evaluation-cohort",
+                "message": "adapter predictions changed after resetting the experiment seed",
+            }
+        ],
+    }
 
 
 def test_prediction_count_mismatch_fails_closed(reproduced_root: Path) -> None:
@@ -379,8 +255,8 @@ def test_adapter_failure_writes_machine_readable_context(configured_root: Path) 
         configured_root
         / "outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json"
     )
-    assert failures[0]["item_id"] == test_item.item_id
-    assert failures[0]["error_type"] == "ValueError"
+    assert failures["failures"][0]["item_id"] == test_item.item_id
+    assert failures["failures"][0]["error_type"] == "ValueError"
 
 
 def test_evaluation_rejects_recorded_adapter_failures(reproduced_root: Path) -> None:
@@ -391,13 +267,16 @@ def test_evaluation_rejects_recorded_adapter_failures(reproduced_root: Path) -> 
     )
     write_json(
         failure_path,
-        [
-            {
-                "item_id": "evaluation-cohort",
-                "error_type": "SyntheticFailure",
-                "message": "stale predictions must not be scored",
-            }
-        ],
+        FailureReport(
+            schema_version="1.0.0",
+            failures=[
+                {
+                    "item_id": "evaluation-cohort",
+                    "error_type": "SyntheticFailure",
+                    "message": "stale predictions must not be scored",
+                }
+            ],
+        ),
     )
 
     with pytest.raises(ValueError, match="recorded failure"):
@@ -405,17 +284,18 @@ def test_evaluation_rejects_recorded_adapter_failures(reproduced_root: Path) -> 
 
 
 def test_verify_detects_scorecard_tampering(reproduced_root: Path) -> None:
-    path = reproduced_root / "outputs/scorecard/benchmark.json"
+    manifest = load_experiments(reproduced_root)[0]
+    path = reproduced_root / f"outputs/scorecards/{manifest.experiment_id}.json"
     value = read_json(path)
-    value["scorecards"][0]["baseline"]["metrics"][0]["value"] = 0.0
+    value["recommendation"] = "reject_candidate"
     write_json(path, value)
-    with pytest.raises(ValueError, match="scorecard ID mismatch"):
+    with pytest.raises(ValueError, match="artifact SHA-256 mismatch"):
         verify(reproduced_root)
 
 
 def test_schema_drift_check_fails_closed(configured_root: Path) -> None:
     write_schemas(root=configured_root)
-    path = configured_root / "schemas/scorecard.schema.json"
+    path = configured_root / "schemas/comparison-scorecard.schema.json"
     write_json(path, {})
     with pytest.raises(ValueError, match="JSON Schema drift"):
         write_schemas(check=True, root=configured_root)
@@ -471,7 +351,7 @@ def test_scorecard_rejects_mislabelled_synthetic_evidence(reproduced_root: Path)
     value = read_json(reproduced_root / f"outputs/scorecards/{manifest.experiment_id}.json")
     value["synthetic_evidence_only"] = False
     with pytest.raises(ValidationError, match="synthetic evidence only"):
-        Scorecard.model_validate(value)
+        ComparisonScorecard.model_validate(value)
 
 
 def test_dvc_dag_keeps_workstreams_independent(configured_root: Path) -> None:
@@ -479,13 +359,35 @@ def test_dvc_dag_keeps_workstreams_independent(configured_root: Path) -> None:
     assert "evaluate_slide_quality" in dag
     assert "evaluate_tiling_magnification" not in dag
     assert "evaluate_cell_analysis" not in dag
-    assert "write_scorecard" in dag
-    assert "outputs/scorecard/metrics.json" in dag
+    assert "compare_slide_quality" in dag
+    assert "write_benchmark_index" in dag
+    assert "outputs/evaluations/whole-slide-quality-contract-v1/metrics.json" in dag
+
+
+def test_dvc_dag_tracks_artifact_boundaries(configured_root: Path) -> None:
+    stages = read_yaml(configured_root / "dvc.yaml")["stages"]
+    evaluation_dependencies = stages["evaluate_slide_quality"]["deps"]
+    assert any(path.endswith("predictions.jsonl") for path in evaluation_dependencies)
+    assert any(path.endswith("failures.json") for path in evaluation_dependencies)
+    assert not any(path.endswith("resources.json") for path in evaluation_dependencies)
+    assert not any(path.endswith("run-record.json") for path in evaluation_dependencies)
+
+    comparison_dependencies = stages["compare_slide_quality"]["deps"]
+    assert any(path.endswith("deterministic-color-v1.json") for path in comparison_dependencies)
+    assert any(path.endswith("run-record.json") for path in comparison_dependencies)
+
+    index_dependencies = stages["write_benchmark_index"]["deps"]
+    assert any(path.startswith("outputs/scorecards/") for path in index_dependencies)
+    assert not any(path.startswith("outputs/runs/") for path in index_dependencies)
+    assert not any(path.startswith("outputs/evaluations/") for path in index_dependencies)
 
 
 def test_re_evaluation_is_content_stable(reproduced_root: Path) -> None:
     manifest = load_experiments(reproduced_root)[0]
-    path = reproduced_root / f"outputs/scorecards/{manifest.experiment_id}.json"
+    path = (
+        reproduced_root
+        / f"outputs/evaluations/{manifest.experiment_id}/{manifest.baseline.adapter_id}.json"
+    )
     before = path.read_bytes()
     evaluate_experiment(manifest.experiment_id, reproduced_root)
     assert path.read_bytes() == before
@@ -495,34 +397,31 @@ def test_candidate_must_improve_without_breaking_resource_budget(
     reproduced_tiling_root: Path,
 ) -> None:
     manifest = load_experiments(reproduced_tiling_root)[0]
-    scorecard = load_model(
-        reproduced_tiling_root / f"outputs/scorecards/{manifest.experiment_id}.json",
-        Scorecard,
+    evaluation = load_model(
+        reproduced_tiling_root
+        / f"outputs/evaluations/{manifest.experiment_id}/{manifest.baseline.adapter_id}.json",
+        EvaluationResult,
     )
-    candidate_adapter = manifest.baseline.model_copy(update={"adapter_id": "candidate-adapter-v1"})
-    baseline_resources = scorecard.baseline.resources
-    candidate = scorecard.baseline.model_copy(
+    run = load_model(
+        reproduced_tiling_root
+        / f"outputs/runs/{manifest.experiment_id}/{manifest.baseline.adapter_id}/run-record.json",
+        RunRecord,
+    )
+    baseline_resources = load_model(
+        resolve_under(reproduced_tiling_root, run.resources.path), ResourceUsage
+    )
+    candidate_resources = baseline_resources.model_copy(
         update={
-            "adapter": candidate_adapter,
-            "resources": ResourceUsage(
-                samples=baseline_resources.samples,
-                input_bytes=baseline_resources.input_bytes,
-                prediction_bytes=manifest.resource_budget.max_prediction_bytes + 1,
-                input_pixels=baseline_resources.input_pixels,
-                wall_seconds=baseline_resources.wall_seconds,
-                cpu_seconds=baseline_resources.cpu_seconds,
-                peak_rss_bytes=baseline_resources.peak_rss_bytes,
-                accelerator_wall_seconds=baseline_resources.accelerator_wall_seconds,
-                peak_accelerator_memory_bytes=(baseline_resources.peak_accelerator_memory_bytes),
-            ),
+            "prediction_bytes": manifest.resource_budget.max_prediction_bytes + 1,
         }
     )
-    candidate_manifest = manifest.model_copy(update={"candidate": candidate_adapter})
     gates = evaluate_gates(
-        candidate_manifest.objectives,
-        candidate_manifest.resource_budget,
-        scorecard.baseline,
-        candidate,
+        manifest.objectives,
+        manifest.resource_budget,
+        evaluation.metrics,
+        baseline_resources,
+        evaluation.metrics,
+        candidate_resources,
     )
 
     assert not next(

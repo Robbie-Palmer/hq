@@ -8,6 +8,8 @@ import pytest
 from pathologize_benchmark_contracts import pipeline
 from pathologize_benchmark_contracts.pipeline import (
     aggregate_scorecards,
+    compare_experiment,
+    compare_only_experiment,
     evaluate_experiment,
     evaluate_only_experiment,
     generate,
@@ -59,6 +61,7 @@ def reproduced_root(configured_root: Path) -> Path:
     _run_adapters_inline(configured_root)
     for manifest in load_experiments(configured_root):
         evaluate_experiment(manifest.experiment_id, configured_root)
+        compare_experiment(manifest.experiment_id, configured_root)
     aggregate_scorecards(configured_root)
     return configured_root
 
@@ -69,6 +72,7 @@ def reproduced_benchmark_root(configured_benchmark_root: Path) -> Path:
     validate_contracts(configured_benchmark_root)
     _run_adapters_inline(configured_benchmark_root)
     evaluate_only_experiment(configured_benchmark_root)
+    compare_only_experiment(configured_benchmark_root)
     aggregate_scorecards(configured_benchmark_root)
     return configured_benchmark_root
 
@@ -81,5 +85,6 @@ def reproduced_tiling_root(tmp_path: Path) -> Path:
     _run_adapters_inline(root)
     for manifest in load_experiments(root):
         evaluate_experiment(manifest.experiment_id, root)
+        compare_experiment(manifest.experiment_id, root)
     aggregate_scorecards(root)
     return root

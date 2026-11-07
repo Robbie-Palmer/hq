@@ -64,20 +64,33 @@ stages:
     deps:
       - data/synthetic
       - experiments/whole-slide-quality.json
-      - outputs/runs/whole-slide-quality-contract-v1
+      - outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json
+      - outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/predictions.jsonl
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+    outs:
+      - outputs/evaluations/whole-slide-quality-contract-v1/deterministic-color-v1.json
+    metrics:
+      - outputs/evaluations/whole-slide-quality-contract-v1/metrics.json
+
+  compare_slide_quality:
+    cmd: uv run --locked pathologize-benchmark compare-only
+    deps:
+      - experiments/whole-slide-quality.json
+      - outputs/evaluations/whole-slide-quality-contract-v1/deterministic-color-v1.json
+      - outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/run-record.json
       - ../pathologize-benchmark-contracts/src
       - outputs/ml-evaluation-source.sha256
     outs:
       - outputs/scorecards/whole-slide-quality-contract-v1.json
 
-  write_scorecard:
+  write_benchmark_index:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
+      - experiments/whole-slide-quality.json
       - outputs/scorecards/whole-slide-quality-contract-v1.json
       - params.yaml
       - ../pathologize-benchmark-contracts/src
       - outputs/ml-evaluation-source.sha256
     outs:
-      - outputs/scorecard/benchmark.json
-    metrics:
-      - outputs/scorecard/metrics.json
+      - outputs/benchmark/index.json

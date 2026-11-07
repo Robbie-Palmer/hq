@@ -37,12 +37,12 @@ stages:
       size: 4461
     - path: ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
       hash: md5
-      md5: 29a63bbfea168223615a5472c43d35e4
-      size: 4441
+      md5: 1f08041c4333962d4284891e0e8e8cea
+      size: 4659
     - path: ../../packages/ml-evaluation/src/ml_evaluation/gates.py
       hash: md5
-      md5: b906c81072773c604244755fb571b435
-      size: 4563
+      md5: 117ae06c58f7a39ad1be1bd5282d529f
+      size: 4414
     - path: outputs/data-artifacts-source.sha256
       hash: md5
       md5: 8ee5638ed3f7e5fd180df557f65b2139
@@ -50,15 +50,15 @@ stages:
     outs:
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 0433c06cf05ec212c991de80e4d81ee8.dir
-      size: 168201
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -66,7 +66,7 @@ stages:
       size: 686
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -74,8 +74,8 @@ stages:
       size: 520
     - path: uv.lock
       hash: md5
-      md5: c80e9cb738fb5ff2a12db53d1a99936b
-      size: 27191
+      md5: 835a5a06cb66253ab2a1dc2108d5d6da
+      size: 17305
     outs:
     - path: data/synthetic
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 0433c06cf05ec212c991de80e4d81ee8.dir
-      size: 168201
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -96,11 +96,11 @@ stages:
       size: 9283
     - path: experiments/whole-slide-quality.json
       hash: md5
-      md5: 8a6dc858335ffbd7546da052f57f1170
-      size: 2482
+      md5: c5030abcbeb161e9221347a97ce663a2
+      size: 2344
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
     - path: params.yaml
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 0433c06cf05ec212c991de80e4d81ee8.dir
-      size: 168201
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -132,15 +132,15 @@ stages:
       nfiles: 29
     - path: experiments/whole-slide-quality.json
       hash: md5
-      md5: 8a6dc858335ffbd7546da052f57f1170
-      size: 2482
+      md5: c5030abcbeb161e9221347a97ce663a2
+      size: 2344
     - path: outputs/contracts/validation.json
       hash: md5
       md5: 06f79690b71a65bb338d3904f2d9250e
       size: 270
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -148,21 +148,21 @@ stages:
       size: 520
     - path: uv.lock
       hash: md5
-      md5: c80e9cb738fb5ff2a12db53d1a99936b
-      size: 27191
+      md5: 835a5a06cb66253ab2a1dc2108d5d6da
+      size: 17305
     outs:
     - path: outputs/runs
       hash: md5
-      md5: cacaf43aa01373d41c03d1b667b06e9d.dir
-      size: 50010
-      nfiles: 3
+      md5: aad352b7ee9883de9c631bfd0afec68f.dir
+      size: 51048
+      nfiles: 4
   evaluate_slide_quality:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 0433c06cf05ec212c991de80e4d81ee8.dir
-      size: 168201
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -171,48 +171,84 @@ stages:
       nfiles: 29
     - path: experiments/whole-slide-quality.json
       hash: md5
-      md5: 8a6dc858335ffbd7546da052f57f1170
-      size: 2482
+      md5: c5030abcbeb161e9221347a97ce663a2
+      size: 2344
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
-    - path: outputs/runs/whole-slide-quality-contract-v1
+    - path: outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/failures.json
       hash: md5
-      md5: 001559f3525411b408fcf2ac750e3f56.dir
-      size: 50010
-      nfiles: 3
+      md5: f508b159fe9d8c3b2ebca9ac0e3f7e29
+      size: 50
+    - path: outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/predictions.jsonl
+      hash: md5
+      md5: 8a9db511ffa650661888248581264980
+      size: 49727
+    outs:
+    - path: outputs/evaluations/whole-slide-quality-contract-v1/deterministic-color-v1.json
+      hash: md5
+      md5: eda4148f6bbd2122d2c0a59b0a3b9682
+      size: 1695
+    - path: outputs/evaluations/whole-slide-quality-contract-v1/metrics.json
+      hash: md5
+      md5: cd6131e1e1799c5b2062facee6509848
+      size: 199
+  compare_slide_quality:
+    cmd: uv run --locked pathologize-benchmark compare-only
+    deps:
+    - path: ../pathologize-benchmark-contracts/src
+      hash: md5
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
+      nfiles: 15
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: c5030abcbeb161e9221347a97ce663a2
+      size: 2344
+    - path: outputs/evaluations/whole-slide-quality-contract-v1/deterministic-color-v1.json
+      hash: md5
+      md5: eda4148f6bbd2122d2c0a59b0a3b9682
+      size: 1695
+    - path: outputs/ml-evaluation-source.sha256
+      hash: md5
+      md5: 314e743e9e194abac2b6d383ed0d4e54
+      size: 65
+    - path: outputs/runs/whole-slide-quality-contract-v1/deterministic-color-v1/run-record.json
+      hash: md5
+      md5: 680a8b7b3df1bd765990d30f4c445cdc
+      size: 1044
     outs:
     - path: outputs/scorecards/whole-slide-quality-contract-v1.json
       hash: md5
-      md5: 6a0c64fc51dbf389ac4bd43386ea8495
-      size: 3750
-  write_scorecard:
+      md5: 6606cb7d53c95455179744ee580950de
+      size: 1884
+  write_benchmark_index:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 0433c06cf05ec212c991de80e4d81ee8.dir
-      size: 168201
+      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
+      size: 172597
       nfiles: 15
+    - path: experiments/whole-slide-quality.json
+      hash: md5
+      md5: c5030abcbeb161e9221347a97ce663a2
+      size: 2344
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 6c29a47424e7088b672a0f1614a2366b
+      md5: 314e743e9e194abac2b6d383ed0d4e54
       size: 65
     - path: outputs/scorecards/whole-slide-quality-contract-v1.json
       hash: md5
-      md5: 6a0c64fc51dbf389ac4bd43386ea8495
-      size: 3750
+      md5: 6606cb7d53c95455179744ee580950de
+      size: 1884
     - path: params.yaml
       hash: md5
       md5: 10d0241c3386cb6b7001e2455ee4d317
       size: 204
     outs:
-    - path: outputs/scorecard/benchmark.json
+    - path: outputs/benchmark/index.json
       hash: md5
-      md5: 746695cbd70475f16f97269c8fd83bc1
-      size: 4542
-    - path: outputs/scorecard/metrics.json
-      hash: md5
-      md5: 76606fc12c9de2fe063048cd5657871e
-      size: 208
+      md5: 6f85dc9848a2217cb707e035c995d08b
+      size: 553

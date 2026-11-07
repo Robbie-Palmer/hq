@@ -39,6 +39,11 @@ class ModelAdapter(Protocol):
     ) -> Prediction: ...
 
 
+@runtime_checkable
+class AcceleratorTimeReporter(Protocol):
+    def accelerator_seconds(self) -> float | None: ...
+
+
 class DeterministicColorBaseline:
     adapter_id = "deterministic-color-v1"
     adapter_version = "1.0.0"
@@ -46,6 +51,10 @@ class DeterministicColorBaseline:
         FOLD_LIKE: 1,
         MARK_LIKE: 2,
     }
+
+    @staticmethod
+    def accelerator_seconds() -> float:
+        return 0.0
 
     @staticmethod
     def _pixels(item: FixtureItem, root: Path) -> list[tuple[int, int, int]]:
@@ -186,3 +195,12 @@ def load_adapter(spec: AdapterSpec, root: Path) -> ModelAdapter:
         expected_type=ModelAdapter,
         root=root,
     )
+
+
+def reported_accelerator_seconds(adapter: ModelAdapter) -> float | None:
+    if not isinstance(adapter, AcceleratorTimeReporter):
+        return None
+    duration = adapter.accelerator_seconds()
+    if duration is not None and duration < 0:
+        raise ValueError("adapter-reported accelerator seconds must be non-negative")
+    return duration
