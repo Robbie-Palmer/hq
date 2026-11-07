@@ -39,15 +39,15 @@ constant baseline. The label-only constant accept and constant reject
 accuracies are 0.417 and 0.583 respectively; they are descriptive and were not
 tested against a candidate.
 
-The stopped run verified 15,813,730,059 source bytes in 8.30 wall seconds and
-8.29 CPU seconds. It used no GPU time or VRAM, peaked at 58,351,616 bytes of
+The stopped run verified 15,813,730,059 source bytes in 8.32 wall seconds and
+8.30 CPU seconds. It used no GPU time or VRAM, peaked at 58,527,744 bytes of
 RSS, and conservatively bounded peak local disk at 33,707,121,037 bytes. The
 kernel reported 15,813,772,920 process characters and zero physical read bytes
 because the source files were cached. `public-pilot/results/report.json`
 contains the exact run record, exclusions, identity audit, rights boundary,
 resource record, and hashes for every provenance manifest.
 
-Source SVS files, annotation PNGs, and rendered patient imagery stay outside
+Source SVS files, annotation image files, and rendered patient imagery stay outside
 Git. The repository contains only source identifiers and checksums, numeric
 per-slide label evidence, empty spatial output documenting the preflight stop,
 and aggregate results. The annotation folder has no standalone licence file,

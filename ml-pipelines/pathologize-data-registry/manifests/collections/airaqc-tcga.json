@@ -14,7 +14,7 @@
   "collection_id": "airaqc-tcga",
   "description": "The 50 TCGA slides manually annotated for the AIRAQc MIDL 2025 test set, with a bounded 24-slide public-pilot subset.",
   "known_scale": {
-    "basis": "Fifty linked GDC slide filenames resolved through the GDC files API on 2026-11-07; byte total excludes the small annotation PNGs.",
+    "basis": "Fifty linked GDC slide filenames resolved through the GDC files API on 2026-11-07; byte total excludes the small annotation image files.",
     "bytes": 26076869767,
     "slides_or_series": 50
   },

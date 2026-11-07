@@ -38,11 +38,11 @@ The selection was locked before source-slide download.
 | --- | ---: | ---: |
 | Network acquisition | 16,500,000,000 bytes | 15,813,730,059 bytes |
 | Peak local disk | 40,000,000,000 bytes | 33,707,121,037-byte conservative upper bound |
-| Feature-runner wall time | 7,200 seconds | 8.30 seconds |
-| Feature-runner CPU time | 28,800 seconds | 8.29 seconds |
+| Feature-runner wall time | 7,200 seconds | 8.32 seconds |
+| Feature-runner CPU time | 28,800 seconds | 8.30 seconds |
 | GPU time | 0 seconds | 0 seconds |
 | Peak VRAM | 0 bytes | 0 bytes |
-| Peak RSS | No separate cap | 58,351,616 bytes |
+| Peak RSS | No separate cap | 58,527,744 bytes |
 | Source bytes verified in preflight | 15,813,730,059 bytes | 15,813,730,059 bytes |
 
 The DVC cache and materialized pilot source occupy about 31.63 GB logically.

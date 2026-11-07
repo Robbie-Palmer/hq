@@ -53,8 +53,8 @@ stages:
       size: 26684
     - path: manifests/collections/airaqc-tcga.json
       hash: md5
-      md5: d5df42f0933d00ef4fb5c05411c2cffe
-      size: 2378
+      md5: 166ca3bbf2f4fe83abf973ad482d88c1
+      size: 2385
     - path: manifests/subsets/airaqc-tcga-public-pilot-v1.json
       hash: md5
       md5: b76e83b33e95b24ae60c69cb0f262ec6

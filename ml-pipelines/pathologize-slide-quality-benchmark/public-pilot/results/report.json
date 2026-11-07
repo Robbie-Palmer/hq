@@ -107,13 +107,13 @@
   "provenance": {
     "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
     "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
-    "corpus_manifest_sha256": "1a5dab7c6dfdde5f5543cdf401154b8e6881b0114a2f939d8492a74466cceca7",
+    "corpus_manifest_sha256": "8b6da87889126fdaf7927018a99f1c8ffb480e84a73a5647ffd0d8c0b2c0e766",
     "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
     "gdc_api": "https://api.gdc.cancer.gov/",
     "predeclaration_sha256": "8071782851736aae337d3629c374e0bdb4d73546a01ebef734f249a88d9f709c",
     "registry_asset_manifest_sha256": "507571b99950da7bfe73eecd4970fc40effde26db8391ae4c8650b8a84a4109e",
     "registry_base_revision": "5c4377dbbc01739bb28062ee6cfd7c217edc0cee",
-    "registry_collection_manifest_sha256": "e99d9a7b64cb0d4198012a991a180f4d7befa4e8922e99c7a93bb15717d4488d",
+    "registry_collection_manifest_sha256": "bbfb9e16126dccf9cc4cf13adfafa54a1475f368451bc4950dd4c96712268867",
     "registry_index_sha256": "c984ca469d96a8cd2a94270426167c662ce797a260d5a6fbf32a27f9f876ff4c",
     "registry_subset_id": "airaqc-tcga-public-pilot-v1",
     "registry_subset_manifest_sha256": "141180ca3559c96eb80401dcc3f1da77a3bbd364ac48d93417ca9e9e1f09b8c6",
@@ -146,11 +146,11 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 8.28539163,
+    "cpu_seconds": 8.30218677,
     "gpu_seconds": 0,
     "peak_local_disk_bytes_upper_bound": 33707121037,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 58351616,
+    "peak_rss_bytes": 58527744,
     "peak_vram_bytes": 0,
     "pixels_read": 0,
     "process_rchar": 15813772920,
@@ -160,7 +160,7 @@
     "source_bytes_manifested": 15813730059,
     "source_bytes_verified_in_preflight": 15813730059,
     "spatial_records": 0,
-    "wall_seconds": 8.300753889023326
+    "wall_seconds": 8.317355177015997
   },
   "rights_boundary": {
     "allowed_public_artifacts": [

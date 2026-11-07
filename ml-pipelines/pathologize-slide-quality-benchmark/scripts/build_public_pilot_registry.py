@@ -281,7 +281,7 @@ def build() -> None:
                 "bytes": source_index["known_slide_bytes"],
                 "basis": (
                     "Fifty linked GDC slide filenames resolved through the GDC files API on "
-                    "2026-11-07; byte total excludes the small annotation PNGs."
+                    "2026-11-07; byte total excludes the small annotation image files."
                 ),
             },
             "source_native_label_domains": [
