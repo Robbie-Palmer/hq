@@ -2,7 +2,6 @@
 
 #include "SGP4.h"
 
-#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -10,7 +9,6 @@
 #include <limits>
 #include <stdexcept>
 #include <string_view>
-#include <utility>
 
 namespace satellite_swarm::simulation {
 namespace {

@@ -26,6 +26,15 @@
       }
     },
     {
+      "name": "safe-buffers",
+      "inherits": "base",
+      "displayName": "Clang unsafe-buffer audit",
+      "cacheVariables": {
+        "BUILD_TESTING": "OFF",
+        "SATELLITE_SWARM_ENABLE_SAFE_BUFFER_DIAGNOSTICS": "ON"
+      }
+    },
+    {
       "name": "coverage",
       "inherits": "base",
       "displayName": "Coverage",
@@ -37,6 +46,7 @@
   "buildPresets": [
     { "name": "dev", "configurePreset": "dev" },
     { "name": "sanitizers", "configurePreset": "sanitizers" },
+    { "name": "safe-buffers", "configurePreset": "safe-buffers" },
     { "name": "coverage", "configurePreset": "coverage" }
   ],
   "testPresets": [

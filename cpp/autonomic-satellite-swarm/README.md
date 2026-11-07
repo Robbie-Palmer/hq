@@ -121,6 +121,28 @@ It writes SonarQube's generic coverage report and rejects line coverage below 80
 below 70%. The monorepo's SonarQube workflow imports that report alongside its JavaScript and Python
 coverage.
 
+The static-analysis tasks cover separate failure modes:
+
+```shell
+mise run lint
+mise run analyze:safe-buffers
+mise run analyze:ctu
+```
+
+`lint` runs clang-tidy, including unused include detection. Missing direct includes are not gated
+until the existing transitive-include backlog has been reduced. `analyze:safe-buffers`
+builds the maintained host targets with a pinned Clang and reports raw buffer operations without
+rejecting the build. `analyze:ctu` runs Clang Static Analyzer through CodeChecker across translation
+units and writes `build/codechecker.sarif`. Findings remain advisory during the initial trial, while
+analyzer failures still fail the task. CI publishes the SARIF report to GitHub code scanning.
+
+The repository's advanced CodeQL workflow traces the native and firmware builds and runs the
+`security-extended` query suite. GitHub does not permit default and advanced CodeQL uploads at the
+same time. After `.github/workflows/codeql.yml` reaches the default branch, an administrator must
+set the repository variable `CODEQL_ADVANCED_ENABLED` to `true`, disable CodeQL default setup, and
+dispatch the CodeQL workflow once. Keep default setup enabled until those first two steps are ready
+to avoid a scanning gap.
+
 ## Architecture
 
 ```text

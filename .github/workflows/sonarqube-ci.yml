@@ -125,6 +125,9 @@ jobs:
           path: |
             ai-review/coverage/lcov.info
             cpp/autonomic-satellite-swarm/coverage/sonarqube.xml
+            cpp/autonomic-satellite-swarm/build/coverage/compile_commands.json
+            cpp/autonomic-satellite-swarm/build/coverage/_deps/catch2-src/src
+            cpp/autonomic-satellite-swarm/build/coverage/_deps/catch2-build/generated-includes
             ui/coverage/lcov.info
             packages/agent-auth/coverage/lcov.info
             packages/agent-auth-mcp/coverage/lcov.info
@@ -206,6 +209,9 @@ jobs:
       - name: Setup mise
         uses: $/.github/actions/setup-mise
 
+      - name: Install the compiler described by the C++ compilation database
+        run: mise install --jobs 1 --cd cpp/autonomic-satellite-swarm conda:gxx
+
       - name: Get pnpm store directory
         id: pnpm-store
         shell: bash
@@ -258,6 +264,10 @@ jobs:
           PROFILE_JASMIN: ${{ github.event_name == 'workflow_dispatch' && inputs.profile_jasmin }}
         run: |
           args=()
+
+          args+=(
+            "-Dsonar.cfamily.compile-commands=$GITHUB_WORKSPACE/cpp/autonomic-satellite-swarm/build/coverage/compile_commands.json"
+          )
 
           if [ -n "$PROJECT_VERSION" ]; then
             args+=("-Dsonar.projectVersion=$PROJECT_VERSION")
