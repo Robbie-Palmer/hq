@@ -16,6 +16,12 @@ tech_stack:
   - "RO-Crate"
   - "OpenSlide"
   - "PyTorch"
+  - "fastai"
+  - "timm"
+  - "Ultralytics"
+  - "Hugging Face"
+  - "Transformers"
+  - "torchmil"
   - "DuckDB"
   - "Parquet"
 tags:
@@ -56,6 +62,9 @@ The initial proposals define the intended research boundary:
   outputs and failures alongside aggregate scores.
 * [PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) proposes
   evaluating image restoration as uncertain reconstruction and as a possible input to downstream models.
+* [PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development) proposes matching
+  classification, regression, detection, segmentation and multiple instance learning to task-native
+  supervision and prediction contracts.
 
 # Architecture decisions
 
@@ -70,6 +79,16 @@ The accepted implementation boundaries are:
   artifact helpers, reusable ML evaluation contracts, and Pathologize domain code.
 * [ADR 003](/projects/pathologize/adrs/003-on-demand-source-acquisition) acquires source data when an
   experiment needs it, retains bounded verified inputs locally, and defers paid hosted storage.
+* [ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts) uses each
+  training library directly and standardizes predictions, resources, failures, and run evidence afterward.
+* [ADR 005](/projects/pathologize/adrs/005-fastai-timm-transfer-learning-baselines) adopts fastai and
+  timm for supervised image and patch transfer-learning baselines.
+* [ADR 006](/projects/pathologize/adrs/006-ultralytics-spatial-instance-baselines) adopts Ultralytics
+  for object-detection and instance-segmentation baselines under the repository's AGPL distribution model.
+* [ADR 007](/projects/pathologize/adrs/007-transformers-foundation-model-workflows) adopts pinned
+  Transformers and Hugging Face model revisions through framework-native experiment code.
+* [ADR 008](/projects/pathologize/adrs/008-torchmil-multiple-instance-baselines) adopts torchmil for
+  learned multiple instance baselines while retaining simple project-owned pooling controls.
 
 # Research programme
 

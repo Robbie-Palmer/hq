@@ -1,0 +1,96 @@
+---
+title: "ADR 008: torchmil multiple-instance-learning baselines"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["torchmil"]
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:004-inspectable-spatial-evidence"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+Whole-slide labels usually supervise a variable-size bag of patch features
+rather than individual patches. Multiple instance learning needs bag-aware
+collation, pooling, attention or set models, and subject-level evaluation.
+Treating the slide label as a label for every patch would introduce false
+supervision.
+
+The original
+[attention-based MIL method](https://proceedings.mlr.press/v80/ilse18a.html)
+defines a permutation-invariant learned aggregation over instances. The current
+[torchmil model catalog](https://torchmil.readthedocs.io/en/main/api/models/)
+implements ABMIL, CLAM, DSMIL, TransMIL, graph models, and simpler pooling
+methods behind a common PyTorch library. Version 1.0.2 is published under
+Apache-2.0 according to its
+[PyPI metadata](https://pypi.org/project/torchmil/).
+
+[ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts)
+keeps training framework-native and standardizes the resulting evidence.
+
+## Decision
+
+Use torchmil model and data components directly for the first learned multiple
+instance baselines. Start each task with a project-owned mean-pooling or
+max-pooling baseline and a linear head. Add torchmil ABMIL as the first learned
+aggregator. Evaluate more complex models only after those baselines pass the
+task contract.
+
+Pathologize owns bag construction. Build bags from pinned patch-feature
+artifacts and retain subject, case, specimen, slide, patch, coordinate, physical
+scale, encoder revision, and feature digest references. Do not use a library
+dataset helper to redefine the cohort or its split. The experiment must support
+empty and truncated bags explicitly and record every exclusion.
+
+Keep feature extraction separate from aggregation. A change to the patch
+encoder, tiling policy, stain transform, feature precision, or coordinate
+encoding creates a new input artifact and model comparison. Cache features
+only when their complete provenance and shape contract are pinned.
+
+Normalize bag predictions, uncertainty, and optional instance scores into
+Pathologize records. Attention and instance scores are inspectable model
+behavior. They are not causal explanations or region ground truth.
+
+Use torchmil's training utility directly when it helps the experiment.
+Pathologize owns patient-level metrics, calibration, external-cohort slices,
+resource gates, checkpoint identity, and comparison with simple pooling.
+
+## Consequences
+
+Pathologize can compare established MIL families without copying each research
+implementation. The initial mean-pooling and ABMIL pair gives a cheap baseline
+and a learned attention baseline before expensive slide transformers or graph
+models enter the benchmark.
+
+Torchmil is a younger dependency than PyTorch, fastai, timm, Transformers, or
+Ultralytics. Its implementations may behave differently from another codebase
+with the same model name. An upstream implementation is worth adding only when
+a controlled benchmark shows behavior Pathologize needs.
+
+Bag construction and feature provenance become first-class experiment inputs.
+Cached features reduce GPU work but can hide encoder and tiling changes if the
+artifact identity is incomplete. Multiple slides per subject also need an
+explicit early-fusion or late-fusion rule.
+
+## Alternatives considered
+
+### Implement all MIL models in Pathologize
+
+Simple pooling remains local because it is an important control. Reimplementing
+ABMIL, CLAM, transformer, and graph variants would add validation work without
+improving the benchmark contract.
+
+### Use Patho-Bench as the MIL trainer
+
+Patho-Bench is valuable comparison evidence and already supports pooling and
+patient-level tasks. Adopting its complete experiment structure would overlap
+Pathologize's source registry, split, execution, metric, and scorecard
+ownership.
+
+### Use one pathology model repository per method
+
+Native repositories bring incompatible feature formats, environments, and
+output conventions. Add one only when a concrete experiment needs behavior
+torchmil does not provide or when it wins a controlled comparison by enough to
+justify its maintenance cost.
