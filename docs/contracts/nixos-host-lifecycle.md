@@ -102,7 +102,7 @@ Each host configuration must declare all of these items:
 | Runtime | K3s supplies the standard containerd runtime; another runtime needs an explicit host requirement |
 | K3s | Single server role, encrypted Kubernetes secrets, bounded container logs, graceful node shutdown, and unique `key=value` node labels |
 | Secrets | Runtime paths and owning services are declared; secret values come from Doppler or another named authority after activation |
-| Revisions | `system.configurationRevision` records the Git revision or dirty revision used to build the generation |
+| Revisions | `system.configurationRevision` records the Git revision, dirty revision, or flake source-store hash used to build the generation |
 | Upgrades | Automatic NixOS upgrades disabled; a reviewed lock update builds every host before a guarded switch |
 | Binary caches | `cache.nixos.org` by default; each additional HTTPS substituter includes its public signing key |
 | Recovery | Boot generation retention, off-host backups for durable data, repository recovery steps, and an out-of-band console path |

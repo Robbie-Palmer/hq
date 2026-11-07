@@ -33,6 +33,17 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       pkgsFor = system: import nixpkgs { inherit system; };
+      configurationRevision =
+        let
+          cleanRevision = self.rev or null;
+          dirtyRevision = self.dirtyRev or null;
+        in
+        if cleanRevision != null then
+          cleanRevision
+        else if dirtyRevision != null then
+          dirtyRevision
+        else
+          "source-${builtins.baseNameOf (toString self.outPath)}";
     in
     {
       lib.flakeContract = {
@@ -78,6 +89,8 @@
             '';
 
           host-lifecycle-contract =
+            assert self.nixosConfigurations.remote-development.config.system.configurationRevision != null;
+            assert self.nixosConfigurations.vector-development.config.system.configurationRevision != null;
             assert remoteLifecycle.enable;
             assert remoteLifecycle.profile == "vm";
             assert remoteLifecycle.requiredMounts == [
@@ -93,42 +106,45 @@
               touch "$out"
             '';
         }
-        // nixpkgs.lib.optionalAttrs (system == "x86_64-linux") {
-          host-lifecycle-vm = pkgs.testers.runNixOSTest {
-            name = "host-lifecycle-vm";
-            nodes.machine = {
-              imports = [ self.nixosModules.host-lifecycle ];
-              system.configurationRevision = "disposable-vm-test";
-              homelab.hostLifecycle = {
-                enable = true;
-                profile = "vm";
-                hostName = "lifecycle-test";
-                stateVersion = "25.11";
-                operator.authorizedKeys = [
-                  "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxWk5kYSL6V6jYwB6XRmOLb3NmDdxwjcA6B3QyVAQ6M lifecycle-test"
-                ];
-                k3s.enable = false;
-                requiredMounts = [ "/" ];
-                secretBootstrapPaths = [ "/run/keys/lifecycle-test" ];
-              };
-            };
-            testScript = ''
-              machine.start()
-              machine.wait_for_unit("multi-user.target")
-              machine.succeed("test $(hostname) = lifecycle-test")
-              machine.succeed("id robbie")
-              machine.succeed("systemctl is-enabled sshd.service")
-              machine.succeed("systemctl is-enabled tailscaled.service")
-              machine.succeed("test $(nixos-version --configuration-revision) = disposable-vm-test")
-              machine.succeed("nix show-config | grep '^experimental-features = ' | grep -F flakes | grep -F nix-command")
-            '';
-          };
-        }
       );
 
       formatter = forAllSystems (system: (pkgsFor system).nixfmt-rfc-style);
 
       packages.x86_64-linux.nixos-anywhere = nixos-anywhere.packages.x86_64-linux.default;
+
+      packages.x86_64-linux.host-lifecycle-vm-test =
+        let
+          pkgs = pkgsFor "x86_64-linux";
+        in
+        pkgs.testers.runNixOSTest {
+          name = "host-lifecycle-vm";
+          nodes.machine = {
+            imports = [ self.nixosModules.host-lifecycle ];
+            system.configurationRevision = "disposable-vm-test";
+            homelab.hostLifecycle = {
+              enable = true;
+              profile = "vm";
+              hostName = "lifecycle-test";
+              stateVersion = "25.11";
+              operator.authorizedKeys = [
+                "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKxWk5kYSL6V6jYwB6XRmOLb3NmDdxwjcA6B3QyVAQ6M lifecycle-test"
+              ];
+              k3s.enable = false;
+              requiredMounts = [ "/" ];
+              secretBootstrapPaths = [ "/run/keys/lifecycle-test" ];
+            };
+          };
+          testScript = ''
+            machine.start()
+            machine.wait_for_unit("multi-user.target")
+            machine.succeed("test $(hostname) = lifecycle-test")
+            machine.succeed("id robbie")
+            machine.succeed("systemctl is-enabled sshd.service")
+            machine.succeed("systemctl is-enabled tailscaled.service")
+            machine.succeed("test $(nixos-version --configuration-revision) = disposable-vm-test")
+            machine.succeed("nix show-config | grep '^experimental-features = ' | grep -F flakes | grep -F nix-command")
+          '';
+        };
 
       apps.x86_64-linux.nixos-anywhere = {
         type = "app";
@@ -137,7 +153,7 @@
       };
 
       nixosModules.configuration-revision = {
-        system.configurationRevision = if self ? rev then self.rev else self.dirtyRev or null;
+        system.configurationRevision = configurationRevision;
       };
 
       nixosModules.host-lifecycle = import ./modules/host-lifecycle.nix;
