@@ -1,0 +1,235 @@
+---
+title: "ADR 048: XState for complex client workflows"
+date: "2026-11-04"
+status: "Proposed"
+tech_stack: ["XState"]
+---
+
+## Context
+
+[ADR 021](/projects/personal-engineering-platform/adrs/021-tanstack-query-for-client-server-state)
+assigns remote-data synchronization to TanStack Query. It leaves local state in
+components, context, or URLs, but does not define how to model a client workflow
+whose valid events depend on its current phase.
+
+Redux, Zustand, Jotai, and TanStack Store primarily answer where state lives,
+how it is updated, and who subscribes. A workflow orchestrator answers which
+states are possible, which events are allowed, how asynchronous work starts and
+stops, and what happens after interruption, failure, cancellation, or retry.
+Adopting a state container would not by itself make those rules explicit.
+
+The shared frontend now has several workflow candidates. On 2026-11-01, 166
+production TypeScript files referenced `useState`; none referenced
+`useReducer`. `AgentApprovalView` has ten local state variables across request
+loading, approval, denial, reauthentication, an OAuth redirect, resumption, and
+final results. `useRecipeOnboarding` has ten across loading, step navigation,
+two saves, retry, and completion. `useRecipeDraftImport` has seven plus a mutable
+request identity for cancellation and stale responses. Personal Finance import
+drawers independently coordinate file reading, validation, review, submission,
+failure, retry, and cleanup.
+
+These are not arguments for converting ordinary form fields, filters, or
+disclosure controls. They are evidence that some features have an event graph
+and effect lifecycle that the code currently expresses through setters and
+effects.
+
+The Personal Engineering Platform optimizes for agent-first development. A
+larger API is acceptable when it provides machine-readable constraints and
+fast, local feedback. The relevant signals are:
+
+* typed events and states that expose invalid edits during typechecking;
+* a declared transition graph that can be inspected without reconstructing it
+  from handlers;
+* deterministic tests that run without rendering React;
+* generated reachability or path checks that reveal omitted states and
+  transitions;
+* observable event, transition, and actor traces for diagnosis; and
+* explicit ownership of asynchronous work, including cancellation and retry.
+
+## Decision
+
+Add `web-app.client-workflow-orchestrator` as a proposed Personal Engineering
+Platform capability. Select stable XState 5, with `@xstate/react` at the React
+boundary, for complex client workflows. Do not use the XState 6 alpha while its
+APIs and behavior remain subject to change.
+
+This selects a workflow orchestrator, not a general client-state store. Keep the
+existing ownership boundaries:
+
+* TanStack Query owns synchronization and caching of server state.
+* The URL owns state that must survive navigation, refresh, or sharing.
+* `useState` owns independent local values and ordinary form drafts.
+* `useReducer` remains suitable for a flat, synchronous group of transitions
+  that does not need graph tooling, actor lifecycles, or inspection.
+* XState owns a feature's control state when behavior depends on both the
+  current phase and an event, especially when the feature includes
+  interruption, cancellation, retry, timeout, nested phases, concurrent work,
+  or spawned and invoked actors.
+* Existing external stores remain supported. State lifetime and subscription
+  scope do not, on their own, justify an XState migration.
+
+Define machines in framework-neutral TypeScript modules with XState's typed
+`setup` API. Use named events, guards, actions, and actor sources. React
+components may subscribe with `@xstate/react`, but rendering and DOM concerns
+must not enter the machine definition. Keep canonical remote data in TanStack
+Query; pass the identifiers or immutable inputs needed to make a workflow
+decision rather than copying a query cache into machine context.
+
+Every adopted machine must provide all of the following feedback:
+
+* direct Vitest tests for normal, recovery, cancellation, and forbidden paths;
+* bounded `xstate/graph` checks: shortest paths to reach every explicit state,
+  plus targeted event sequences or bounded simple paths to exercise every
+  declared transition;
+* replaceable actor implementations so tests can control success, failure,
+  delay, and cancellation without a browser or network;
+* an event and transition trace available in development and attached to a
+  failing test when a sequence matters; and
+* a stable, product-owned schema for any resumable data. Do not persist raw
+  XState snapshots during the pilots because snapshot compatibility would
+  couple stored user data to the machine and library version.
+
+The decision must not depend on paid Stately Studio features. XState's open
+source runtime, inspection API, graph utilities, TypeScript support, React
+adapter, and Vitest tests are the required platform surface. Studio may be used
+as an optional design and visualization aid.
+
+Run two pilots before accepting this ADR:
+
+1. Model `AgentApprovalView` in Recipe Site, including reauthentication, OAuth
+   interruption and resumption, denial, request failure, and final result.
+2. Model one Personal Finance import drawer, including file-read failure,
+   invalid review, submission failure, retry, cancellation or closure, and
+   successful cleanup.
+
+Each pilot must preserve its component-level behavior tests and add direct
+machine tests plus generated path checks. It must demonstrate that an invalid
+event cannot enter an impossible state, that an in-flight actor is stopped when
+its owning state exits, and that a failing sequence produces a useful trace.
+Record implementation size, test runtime, graph size, defects or missing cases
+found, and the amount of React effect code removed or retained.
+
+Accept this ADR only if both pilots meet those checks without duplicating
+TanStack Query, hiding product state in machine context, or requiring Studio.
+If XState 6 becomes stable before the second pilot finishes, record a focused
+migration assessment before acceptance rather than changing major versions
+inside a pilot.
+
+## Ecosystem review
+
+The review treats state containers and workflow orchestrators as separate
+categories. Redux Toolkit's listener middleware is included because it crosses
+that boundary and explicitly supports long-running workflows.
+
+| Candidate               | Explicit workflow model                                             | Async and cancellation                                                              | Agent feedback                                                                                           | Repository fit                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| XState 5                | Hierarchical and parallel statecharts with actors                   | Invoked and spawned actor lifecycles                                                | Typed events, inspection events, graph path generation, direct actor tests                               | Best fit for interrupted and resumable React workflows; highest local API cost                                                       |
+| Machina 8               | Typed finite and hierarchical state machines                        | Effects are started from synchronous lifecycle handlers and reported back as inputs | Structural inspection, unreachable-state checks, graph matchers, property-based walks, replayable traces | Strong runner-up; React adapter is experimental and client-only, and async ownership is more manual                                  |
+| Robot3                  | Small functional finite-state machines                              | Promise invocation and transitions                                                  | Small test surface and a visualization package                                                           | Easy to introduce, but lacks comparable official inspection and path-coverage tooling                                                |
+| Redux Toolkit listeners | Action and state listeners, not a declared state graph              | First-class pause, condition, fork, and cancellation primitives                     | Redux action history, TypeScript, effect tests                                                           | Strong if Redux already owns application state; this repository would first need a Redux store and still would not gain a statechart |
+| Redux Saga or RxJS      | Generator effects or observable streams, not a declared state graph | Powerful concurrency and cancellation                                               | Testable effect descriptions or streams                                                                  | Solves effect orchestration at the cost of another mental model; Redux recommends listeners before either for most workflows         |
+| Native reducer          | A state machine only when the team builds that convention           | Manual effect and cancellation adapters                                             | Type exhaustiveness and event-sequence tests                                                             | Good baseline for flat synchronous transitions; no standard graph, actor lifecycle, inspection protocol, or generated paths          |
+
+### XState 5
+
+XState is the only reviewed option that combines a statechart, an actor runtime,
+a maintained React adapter, runtime
+[inspection](https://stately.ai/docs/inspection), and official
+[graph utilities](https://stately.ai/docs/graph). Its
+[testing guidance](https://stately.ai/docs/testing) supports direct actor tests
+with Vitest, while graph-generated paths add a different signal from example
+tests. The [`@xstate/react` adapter](https://stately.ai/docs/xstate-react)
+creates actors with component lifetimes and exposes typed snapshots and events.
+
+Those capabilities match the repository's hardest cases: an OAuth redirect can
+interrupt and later resume approval, and import work should stop when its state
+or component exits. XState also has the broadest documentation and example
+surface among the statechart finalists, which reduces the amount of local
+convention an agent must infer.
+
+The costs are real. XState adds a domain-specific language, actor concepts, and
+more structure than most components need. Statecharts can hide data flow when
+context becomes a second cache or actions become anonymous closures. XState 6
+is currently [in alpha](https://stately.ai/docs/xstate/v6/xstate-v5-to-v6)
+and changes authoring and effect APIs. Pinning the pilots to stable v5 and
+requiring named, replaceable implementations bounds those risks.
+
+### Machina 8
+
+[Machina](https://machina-js.org/guide/introduction/) is the closest alternative
+under the agent-first criteria. Its companion
+[inspection tools](https://machina-js.org/tools/machina-inspect/) can report
+unreachable states, entry loops, and missing handlers. Its
+[test tools](https://machina-js.org/tools/machina-test/) add graph matchers and
+property-based walks with replayable seeds and input traces. That is unusually
+good CI feedback and makes Machina a serious option rather than a token
+comparison.
+
+It loses narrowly on integration and effect lifecycle. Machina's methods are
+synchronous, so asynchronous work starts in lifecycle handlers and must feed a
+later input back into the machine. Its
+[React package](https://machina-js.org/tools/machina-react/) describes itself as
+experimental and client-only; it does not create or own machine instances and
+throws during server rendering. That is workable behind a Next.js client
+boundary, but it leaves more lifecycle policy for this platform to invent.
+Machina is the fallback if the pilots show XState's actor model adds more
+ceremony than diagnostic value.
+
+### Robot3
+
+[Robot3](https://github.com/matthewp/robot) offers a compact functional API,
+immutable transitions, React integration, promise invocation, and a separate
+visualization tool. It would be the smallest conceptual step beyond a native
+reducer. The project does not provide an official equivalent to XState's actor
+inspection and path generation or Machina's structural linting and replayable
+walks. Its smaller API therefore also produces weaker automated feedback for
+agents.
+
+### Redux workflow tools
+
+Redux Toolkit
+[recommends listener middleware](https://redux.js.org/usage/side-effects-approaches)
+for reactive and long-running workflows. Listeners use `async`/`await` and
+provide conditions, delays, child tasks, and cancellation. They are the right
+comparison to XState when a Redux application needs workflow effects.
+
+This repository does not use Redux, and its server-state boundary is already
+TanStack Query. Introducing Redux solely to obtain listeners would add a global
+store and middleware protocol without declaring the workflow's allowed state
+graph. Redux's own guidance says reducers tend to be partial machines and notes
+that XState supplies true machine execution. Redux Saga and Redux Observable
+remain more powerful for specialized concurrency, but the same guidance cites
+generator indirection and weak TypeScript support for sagas, and RxJS
+complexity, debugging difficulty, and bundle cost for observables.
+
+### State containers and component toolkits
+
+Redux Toolkit reducers, Zustand, Jotai, TanStack Store, and XState Store remain
+valid state-container choices when ownership, subscription granularity, or
+shared updates are the problem. They do not require a transition graph, so they
+are not alternatives to this decision. Revisit that category separately if the
+two hand-written shared stores show repeated subscription or persistence
+plumbing that product-specific rules do not explain.
+
+[Zag](https://zagjs.com/overview/introduction) uses state machines to implement
+accessible component interactions across frameworks. It is a component-system
+toolkit for concerns such as focus, keyboard behavior, and ARIA semantics, not a
+general orchestrator for product workflows, so it is outside this decision.
+
+## Consequences
+
+Complex workflows gain one declared event graph, explicit actor ownership,
+generated reachability checks, and a standard trace. Agents can inspect the
+machine, reproduce a failing event sequence, and receive type or test feedback
+without first driving the browser through every phase.
+
+The platform takes on XState's DSL, two packages, authoring conventions, graph
+test budgets, and eventual major-version migration. Machine definitions can
+still become difficult to read, especially if context accumulates remote data
+or actions perform hidden work. The activation boundary and pilot evidence are
+therefore part of the decision, not optional guidance.
+
+Most frontend code will continue using `useState`, forms, URLs, and TanStack
+Query. `useReducer` remains useful, but it is no longer the proposed ceiling for
+workflows whose correctness depends on asynchronous lifecycle and a
+non-trivial transition graph.
