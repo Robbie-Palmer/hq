@@ -49,6 +49,8 @@ export type TermReviewMutation = (
   operation: () => Promise<void>,
   options?: Readonly<{
     offerUndo?: boolean;
+    optimisticDelayMs?: number;
+    optimisticTarget?: TermReviewQueueItem;
     successMessage?: string;
   }>,
 ) => Promise<void>;

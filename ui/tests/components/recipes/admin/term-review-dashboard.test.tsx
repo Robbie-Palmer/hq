@@ -84,6 +84,18 @@ const queueItem = {
   ],
 };
 
+const secondQueueItem = {
+  ...queueItem,
+  normalizedText: "shallot",
+  rawTexts: ["Shallot"],
+  submissionCount: 3,
+  contexts: queueItem.contexts.map((context) => ({
+    ...context,
+    termId: "22222222-2222-4222-8222-222222222222",
+    rawText: "Shallot",
+  })),
+};
+
 describe("TermReviewDashboard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -216,6 +228,18 @@ describe("TermReviewDashboard", () => {
   });
 
   it("supports swipe shortcuts without removing the equivalent controls", async () => {
+    let finishFirstSubmit: (() => void) | undefined;
+    mocks.submit.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirstSubmit = resolve;
+        }),
+    );
+    mocks.loadQueue.mockReset();
+    mocks.loadQueue
+      .mockResolvedValueOnce([queueItem, secondQueueItem])
+      .mockResolvedValueOnce([secondQueueItem])
+      .mockResolvedValueOnce([]);
     render(<TermReviewDashboard />);
 
     const card = await screen.findByRole("article", {
@@ -279,36 +303,74 @@ describe("TermReviewDashboard", () => {
       }),
     });
     expect(
+      await screen.findByRole("article", { name: "Review Shallot" }),
+    ).toBeVisible();
+    expect(mocks.loadQueue).toHaveBeenCalledOnce();
+
+    finishFirstSubmit?.();
+    expect(
       await screen.findByText("Saved. The next term is ready."),
     ).toBeVisible();
-    await waitFor(() =>
-      expect(card).toHaveStyle({
-        transform: "translateX(0px) rotate(0deg)",
-      }),
-    );
+    await waitFor(() => expect(mocks.loadQueue).toHaveBeenCalledTimes(2));
 
     mocks.submit.mockClear();
-    fireEvent.touchStart(card, {
+    const nextCard = screen.getByRole("article", { name: "Review Shallot" });
+    const nextBackdrop = nextCard.previousElementSibling as HTMLElement;
+    fireEvent.touchStart(nextCard, {
       touches: [{ clientX: 120, clientY: 100 }],
     });
-    fireEvent.touchMove(card, {
+    fireEvent.touchMove(nextCard, {
       touches: [{ clientX: 40, clientY: 102 }],
     });
-    expect(card).toHaveStyle({
+    expect(nextCard).toHaveStyle({
       transform: "translateX(-80px) rotate(-2deg)",
     });
     expect(
-      within(backdrop).getByText("Not a term", { exact: true }),
+      within(nextBackdrop).getByText("Not a term", { exact: true }),
     ).toHaveStyle({ opacity: "1" });
-    fireEvent.touchEnd(card, {
+    fireEvent.touchEnd(nextCard, {
       changedTouches: [{ clientX: 20, clientY: 102 }],
     });
 
     await waitFor(() => expect(mocks.submit).toHaveBeenCalledOnce());
     expect(mocks.submit).toHaveBeenLastCalledWith({
-      target: queueItem,
+      target: secondQueueItem,
       command: expect.objectContaining({ action: "reject" }),
     });
+  });
+
+  it("restores an optimistically advanced card when the save fails", async () => {
+    let failSubmit: ((error: Error) => void) | undefined;
+    mocks.submit.mockImplementationOnce(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          failSubmit = reject;
+        }),
+    );
+    mocks.loadQueue.mockResolvedValueOnce([queueItem, secondQueueItem]);
+    render(<TermReviewDashboard />);
+
+    const card = await screen.findByRole("article", {
+      name: "Review Green Onion",
+    });
+    fireEvent.touchStart(card, {
+      touches: [{ clientX: 20, clientY: 100 }],
+    });
+    fireEvent.touchEnd(card, {
+      changedTouches: [{ clientX: 120, clientY: 102 }],
+    });
+
+    expect(
+      await screen.findByRole("article", { name: "Review Shallot" }),
+    ).toBeVisible();
+    failSubmit?.(new Error("Registry changed. Try again."));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Registry changed. Try again.",
+    );
+    expect(
+      screen.getByRole("article", { name: "Review Green Onion" }),
+    ).toBeVisible();
   });
 
   it("generates the slug and display name when creating a canonical item", async () => {

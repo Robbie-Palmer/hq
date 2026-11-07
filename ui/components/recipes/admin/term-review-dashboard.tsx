@@ -28,6 +28,37 @@ import {
   type TermReviewMutation,
 } from "./term-review-types";
 
+function queueItemKey(item: TermReviewQueueItem): string {
+  return `${item.kind}:${item.normalizedText}:${item.locale}`;
+}
+
+function scheduleOptimisticAdvance(
+  target: TermReviewQueueItem | undefined,
+  delay: number,
+  advance: (target: TermReviewQueueItem) => void,
+  restore: (target: TermReviewQueueItem) => void,
+) {
+  let applied = false;
+  const apply = () => {
+    if (!target) return;
+    applied = true;
+    advance(target);
+  };
+  let timer: number | undefined;
+  if (target) {
+    if (delay === 0) apply();
+    else timer = window.setTimeout(apply, delay);
+  }
+  return {
+    cancel: () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+    },
+    restore: () => {
+      if (target && applied) restore(target);
+    },
+  };
+}
+
 function useTermReviewData(enabled: boolean) {
   const [queue, setQueue] = useState<TermReviewQueueItem[]>([]);
   const [audit, setAudit] = useState<TermResolutionAuditItem[]>([]);
@@ -63,12 +94,34 @@ function useTermReviewData(enabled: boolean) {
       .finally(() => setPending(false));
   }, [enabled, refresh]);
   const mutate: TermReviewMutation = async (operation, options) => {
+    let operationSucceeded = false;
     setPending(true);
     setError(null);
     setStatus("");
     setUndoDecision(null);
+    const optimistic = scheduleOptimisticAdvance(
+      options?.optimisticTarget,
+      options?.optimisticDelayMs ?? 0,
+      (target) => {
+        setQueue((current) =>
+          current.filter((item) => queueItemKey(item) !== queueItemKey(target)),
+        );
+        setSelected(0);
+        setDraft(emptyResolutionDraft);
+      },
+      (target) => {
+        setQueue((current) =>
+          current.some((item) => queueItemKey(item) === queueItemKey(target))
+            ? current
+            : [target, ...current],
+        );
+        setSelected(0);
+        setDraft(resolutionDraftFor(target));
+      },
+    );
     try {
       await operation();
+      operationSucceeded = true;
       const previousDecisionIds = new Set(audit.map(({ id }) => id));
       const { nextAudit } = await refresh();
       setSelected(0);
@@ -83,12 +136,14 @@ function useTermReviewData(enabled: boolean) {
       }
       setStatus(options?.successMessage ?? "Action completed.");
     } catch (mutationError) {
+      if (!operationSucceeded) optimistic.restore();
       setError(
         mutationError instanceof Error
           ? mutationError.message
           : "Could not save the decision.",
       );
     } finally {
+      optimistic.cancel();
       setPending(false);
     }
   };
@@ -138,7 +193,7 @@ function ReviewQueue({
     <nav aria-label="Unresolved terms" className="space-y-2">
       {queue.map((term, index) => (
         <button
-          key={`${term.kind}:${term.normalizedText}:${term.locale}`}
+          key={queueItemKey(term)}
           type="button"
           aria-current={index === selected ? "true" : undefined}
           className="w-full rounded-lg border border-[var(--line)] p-3 text-left aria-[current=true]:border-[var(--terracotta)] aria-[current=true]:bg-[var(--paper-warm)]"
@@ -254,8 +309,8 @@ function EvidenceDisclosure({
 
 function useReviewSwipe(
   disabled: boolean,
-  match: (() => Promise<void>) | null,
-  reject: () => Promise<void>,
+  match: ((exitDurationMs: number) => Promise<void>) | null,
+  reject: (exitDurationMs: number) => Promise<void>,
 ) {
   const start = useRef<{ x: number; y: number } | null>(null);
   const [offset, setOffset] = useState(0);
@@ -267,19 +322,21 @@ function useReviewSwipe(
     setDragging(false);
     setOffset(0);
   };
-  const finish = async (direction: -1 | 1, action: () => Promise<void>) => {
+  const finish = async (
+    direction: -1 | 1,
+    action: (exitDurationMs: number) => Promise<void>,
+  ) => {
     const reduceMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
+    const exitDurationMs = reduceMotion ? 0 : 180;
     setDragging(false);
     setSettling(true);
     setOffset(reduceMotion ? 0 : direction * Math.max(window.innerWidth, 480));
     try {
       await Promise.all([
-        action(),
-        new Promise((resolve) =>
-          window.setTimeout(resolve, reduceMotion ? 0 : 180),
-        ),
+        action(exitDurationMs),
+        new Promise((resolve) => window.setTimeout(resolve, exitDurationMs)),
       ]);
     } finally {
       setOffset(0);
@@ -414,6 +471,29 @@ function swipeMatchAction(action: ResolutionDraft["action"]) {
   return action === "alias" || action === "new_canonical" ? action : null;
 }
 
+function submitReviewDecision(
+  item: TermReviewQueueItem,
+  draft: ResolutionDraft,
+  action: ResolutionDraft["action"],
+  mutate: TermReviewMutation,
+  optimisticDelayMs?: number,
+) {
+  return mutate(
+    () =>
+      submitTermResolution({
+        target: item,
+        command: reviewCommand(item, draft, action),
+      }),
+    {
+      offerUndo: true,
+      successMessage: resolutionSuccessMessage(action),
+      ...(optimisticDelayMs === undefined
+        ? {}
+        : { optimisticDelayMs, optimisticTarget: item }),
+    },
+  );
+}
+
 function ReviewCard({
   deferred,
   draft,
@@ -422,23 +502,15 @@ function ReviewCard({
   pending,
   setDraft,
 }: ReviewCardProps) {
-  const submitAction = (action = draft.action) =>
-    mutate(
-      () =>
-        submitTermResolution({
-          target: item,
-          command: reviewCommand(item, draft, action),
-        }),
-      {
-        offerUndo: true,
-        successMessage: resolutionSuccessMessage(action),
-      },
-    );
+  const submitAction = (action = draft.action, optimisticDelayMs?: number) =>
+    submitReviewDecision(item, draft, action, mutate, optimisticDelayMs);
   const matchAction = swipeMatchAction(draft.action);
   const swipe = useReviewSwipe(
     pending,
-    matchAction && draft.targetSlug ? () => submitAction(matchAction) : null,
-    () => submitAction("reject"),
+    matchAction && draft.targetSlug
+      ? (exitDurationMs) => submitAction(matchAction, exitDurationMs)
+      : null,
+    (exitDurationMs) => submitAction("reject", exitDurationMs),
   );
   return (
     <div className="relative overflow-hidden rounded-xl">
@@ -505,6 +577,7 @@ function ReviewWorkspace({
         }}
       />
       <ReviewCard
+        key={queueItemKey(item)}
         deferred={deferred}
         draft={data.draft}
         item={item}
