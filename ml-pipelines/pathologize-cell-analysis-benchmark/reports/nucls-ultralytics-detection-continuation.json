@@ -1,0 +1,383 @@
+{
+  "artifacts": {
+    "checkpoint_sha256": "14bff1cf321e76024be4510833cbffb840feedbd2b06b2d973a7f9b2851622fd",
+    "predictions_sha256": "1747b8954b7f069c20ef78c9b865ca70a6ebd3e8e94c685f6e3de145beb715d5",
+    "training_manifest_sha256": "07c131b50a82931494b34f0e09cb2dfcb4c6a10fea3d20342a49ee5db4e6c5ab"
+  },
+  "clinical_validity": false,
+  "comparison": {
+    "base_detector_localization_f1": 0.5206736940371076,
+    "continuation_localization_f1": 0.5128528623245545,
+    "transparent_baseline_localization_f1": 0.2636319961566178
+  },
+  "experiment": {
+    "additional_epoch_ceiling": 40,
+    "base_best_map50_95": 0.186,
+    "base_experiment": "experiments/nucls-ultralytics-baseline.json",
+    "base_report": "reports/nucls-ultralytics-baseline.json",
+    "base_report_sha256": "a81f9b32ea159617567df38965db9320af887fa120c0bb9697eb36ddceefaf88",
+    "base_training_manifest": "outputs/public/nucls-ultralytics-yolo26n-v1/training/manifest.json",
+    "base_training_manifest_sha256": "52f50e0e0a6df266c17143076ae87576abbf664e2efd68fa25b9aaf799ac6c44",
+    "experiment_id": "nucls-ultralytics-yolo26n-detect-continuation-v1",
+    "limits": {
+      "aggregate_gpu_seconds": 86400,
+      "maximum_peak_vram_bytes": 12884901888,
+      "per_task_wall_seconds": 14400
+    },
+    "minimum_map50_95_improvement": 0.0,
+    "output_directory": "outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1",
+    "schema_version": "1.0.0",
+    "starting_checkpoint": "outputs/public/nucls-ultralytics-yolo26n-v1/training/detect/weights/best.pt",
+    "starting_checkpoint_sha256": "0ab99642c404e6c56841d8e8c840dbf58181a38fb444178b5f4c563d88f40da8",
+    "stop_rules": [
+      "Treat this as a separate fine-tuning continuation because the completed base checkpoint has no optimizer, scaler, EMA, or early-stopper state.",
+      "Keep the frozen NuCLS split, YOLO26n checkpoint, random seed, AdamW configuration, preprocessing, augmentation, inference, and normalization contracts unchanged.",
+      "Stop after eight consecutive validation epochs without exceeding the base or continuation best box mAP50-95.",
+      "Stop on non-finite loss or validation metrics, after 40 additional epochs, after four wall-clock hours, or before aggregate GPU time exceeds 86400 seconds.",
+      "Do not inspect the frozen test fold until validation stopping has settled, and evaluate it once without threshold tuning.",
+      "Do not rerun segmentation, train another model, or use the continuation to make a clinical claim."
+    ],
+    "validation_patience": 8
+  },
+  "failures": [],
+  "resources": {
+    "aggregate_gpu_ceiling_seconds": 86400,
+    "aggregate_gpu_seconds": 251.82517431640628,
+    "inference": {
+      "accelerator": "cuda:0",
+      "aggregate_gpu_ceiling_seconds": 86400,
+      "cpu_seconds": 7.876119541,
+      "gpu_seconds": 4.85901806640625,
+      "measurement": "CUDA event elapsed time and PyTorch peak allocated memory",
+      "peak_rss_bytes": 1831505920,
+      "peak_vram_bytes": 6473990144,
+      "wall_ceiling_seconds": 14400,
+      "wall_seconds": 7.1255810459842905
+    },
+    "training": {
+      "accelerator": "cuda:0",
+      "aggregate_gpu_ceiling_seconds": 86400,
+      "cpu_seconds": 558.5373541270001,
+      "gpu_seconds": 246.96615625,
+      "measurement": "CUDA event elapsed time and PyTorch peak allocated memory",
+      "peak_rss_bytes": 3229036544,
+      "peak_vram_bytes": 1556419584,
+      "wall_ceiling_seconds": 14400,
+      "wall_seconds": 247.0353123639943
+    }
+  },
+  "schema_version": "1.0.0",
+  "selection": {
+    "promote_continuation": false,
+    "reason": "held_out_localization_f1_did_not_improve",
+    "selected_checkpoint": "base_detector"
+  },
+  "task": {
+    "held_out_site_slices": {
+      "A1": {
+        "localization": {
+          "f1": 0.4898100172711572,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 709,
+          "precision": 0.33923444976076556,
+          "predicted_points": 2090,
+          "recall": 0.8807453416149068,
+          "truth_by_annotation_type": {
+            "point": 5,
+            "polyline": 409,
+            "rectangle": 391
+          },
+          "truth_points": 805
+        }
+      },
+      "AC": {
+        "localization": {
+          "f1": 0.5884707766212971,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 735,
+          "precision": 0.4260869565217391,
+          "predicted_points": 1725,
+          "recall": 0.9508408796895214,
+          "truth_by_annotation_type": {
+            "polyline": 275,
+            "rectangle": 498
+          },
+          "truth_points": 773
+        }
+      },
+      "BH": {
+        "localization": {
+          "f1": 0.5107654451182001,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 2906,
+          "precision": 0.3592088998763906,
+          "predicted_points": 8090,
+          "recall": 0.8835512313773183,
+          "truth_by_annotation_type": {
+            "point": 6,
+            "polyline": 1035,
+            "rectangle": 2248
+          },
+          "truth_points": 3289
+        }
+      },
+      "OL": {
+        "localization": {
+          "f1": 0.5013966480446927,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 2154,
+          "precision": 0.34141702330004753,
+          "predicted_points": 6309,
+          "recall": 0.9434954007884363,
+          "truth_by_annotation_type": {
+            "point": 1,
+            "polyline": 1017,
+            "rectangle": 1265
+          },
+          "truth_points": 2283
+        }
+      }
+    },
+    "localization": {
+      "f1": 0.5128528623245545,
+      "match_tolerance_pixels": 12.0,
+      "matched_points": 6504,
+      "precision": 0.3570879543208521,
+      "predicted_points": 18214,
+      "recall": 0.9096503496503496,
+      "truth_by_annotation_type": {
+        "point": 12,
+        "polyline": 2736,
+        "rectangle": 4402
+      },
+      "truth_points": 7150
+    },
+    "per_class": {
+      "AMBIGUOUS": {
+        "localization": {
+          "f1": 0.21632061805890873,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 224,
+          "precision": 0.18285714285714286,
+          "predicted_points": 1225,
+          "recall": 0.2647754137115839,
+          "truth_by_annotation_type": {
+            "point": 5,
+            "polyline": 280,
+            "rectangle": 561
+          },
+          "truth_points": 846
+        }
+      },
+      "nonTIL_stromal": {
+        "localization": {
+          "f1": 0.28307197426618413,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 704,
+          "precision": 0.19120043454644214,
+          "predicted_points": 3682,
+          "recall": 0.544891640866873,
+          "truth_by_annotation_type": {
+            "point": 2,
+            "polyline": 426,
+            "rectangle": 864
+          },
+          "truth_points": 1292
+        }
+      },
+      "other_nucleus": {
+        "localization": {
+          "f1": 0.0,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 0,
+          "precision": 0.0,
+          "predicted_points": 2,
+          "recall": 0.0,
+          "truth_by_annotation_type": {
+            "polyline": 5,
+            "rectangle": 2
+          },
+          "truth_points": 7
+        }
+      },
+      "sTIL": {
+        "localization": {
+          "f1": 0.5664136622390892,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 1791,
+          "precision": 0.4284688995215311,
+          "predicted_points": 4180,
+          "recall": 0.8353544776119403,
+          "truth_by_annotation_type": {
+            "point": 3,
+            "polyline": 1144,
+            "rectangle": 997
+          },
+          "truth_points": 2144
+        }
+      },
+      "tumor_any": {
+        "localization": {
+          "f1": 0.3851159686300684,
+          "match_tolerance_pixels": 12.0,
+          "matched_points": 2308,
+          "precision": 0.2529315068493151,
+          "predicted_points": 9125,
+          "recall": 0.8067109402306886,
+          "truth_by_annotation_type": {
+            "point": 2,
+            "polyline": 881,
+            "rectangle": 1978
+          },
+          "truth_points": 2861
+        }
+      }
+    }
+  },
+  "training": {
+    "base_best_map50_95": 0.186,
+    "base_experiment_id": "nucls-ultralytics-yolo26n-v1",
+    "checkpoint": {
+      "best": "outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training/detect/weights/best.pt",
+      "best_sha256": "14bff1cf321e76024be4510833cbffb840feedbd2b06b2d973a7f9b2851622fd",
+      "last": "outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training/detect/weights/last.pt",
+      "last_sha256": "a1bd1b781d8cd29a91aadc2282ed4b8d308b5970eab7404329843d73c577276a",
+      "starting": "outputs/public/nucls-ultralytics-yolo26n-v1/training/detect/weights/best.pt",
+      "starting_sha256": "0ab99642c404e6c56841d8e8c840dbf58181a38fb444178b5f4c563d88f40da8"
+    },
+    "completed_additional_epochs": 10,
+    "continuation_best_map50_95": 0.18688,
+    "epochs_without_improvement": 8,
+    "experiment": {
+      "additional_epoch_ceiling": 40,
+      "base_best_map50_95": 0.186,
+      "base_experiment": "experiments/nucls-ultralytics-baseline.json",
+      "base_report": "reports/nucls-ultralytics-baseline.json",
+      "base_report_sha256": "a81f9b32ea159617567df38965db9320af887fa120c0bb9697eb36ddceefaf88",
+      "base_training_manifest": "outputs/public/nucls-ultralytics-yolo26n-v1/training/manifest.json",
+      "base_training_manifest_sha256": "52f50e0e0a6df266c17143076ae87576abbf664e2efd68fa25b9aaf799ac6c44",
+      "experiment_id": "nucls-ultralytics-yolo26n-detect-continuation-v1",
+      "limits": {
+        "aggregate_gpu_seconds": 86400,
+        "maximum_peak_vram_bytes": 12884901888,
+        "per_task_wall_seconds": 14400
+      },
+      "minimum_map50_95_improvement": 0.0,
+      "output_directory": "outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1",
+      "schema_version": "1.0.0",
+      "starting_checkpoint": "outputs/public/nucls-ultralytics-yolo26n-v1/training/detect/weights/best.pt",
+      "starting_checkpoint_sha256": "0ab99642c404e6c56841d8e8c840dbf58181a38fb444178b5f4c563d88f40da8",
+      "stop_rules": [
+        "Treat this as a separate fine-tuning continuation because the completed base checkpoint has no optimizer, scaler, EMA, or early-stopper state.",
+        "Keep the frozen NuCLS split, YOLO26n checkpoint, random seed, AdamW configuration, preprocessing, augmentation, inference, and normalization contracts unchanged.",
+        "Stop after eight consecutive validation epochs without exceeding the base or continuation best box mAP50-95.",
+        "Stop on non-finite loss or validation metrics, after 40 additional epochs, after four wall-clock hours, or before aggregate GPU time exceeds 86400 seconds.",
+        "Do not inspect the frozen test fold until validation stopping has settled, and evaluate it once without threshold tuning.",
+        "Do not rerun segmentation, train another model, or use the continuation to make a clinical claim."
+      ],
+      "validation_patience": 8
+    },
+    "improved_over_base": true,
+    "optimizer_reset_reason": "Ultralytics stripped optimizer state after the completed base run",
+    "optimizer_state_continued": false,
+    "resource": {
+      "accelerator": "cuda:0",
+      "aggregate_gpu_ceiling_seconds": 86400,
+      "cpu_seconds": 558.5373541270001,
+      "gpu_seconds": 246.96615625,
+      "measurement": "CUDA event elapsed time and PyTorch peak allocated memory",
+      "peak_rss_bytes": 3229036544,
+      "peak_vram_bytes": 1556419584,
+      "wall_ceiling_seconds": 14400,
+      "wall_seconds": 247.0353123639943
+    },
+    "schema_version": "1.0.0",
+    "stop_reason": "validation_patience",
+    "training_config": {
+      "amp": true,
+      "batch": 8,
+      "bgr": 0.0,
+      "cache": false,
+      "close_mosaic": 10,
+      "cls_remap": false,
+      "copy_paste": 0.0,
+      "cos_lr": false,
+      "cutmix": 0.0,
+      "data": "/data/home/.t3/worktrees/hq/t3-pathologize-ultralytics-nucls-baseline/ml-pipelines/pathologize-cell-analysis-benchmark/data/derived/nucls-ultralytics-yolo26n-v1/detect.yaml",
+      "degrees": 90.0,
+      "deterministic": true,
+      "device": 0,
+      "epochs": 40,
+      "fliplr": 0.5,
+      "flipud": 0.5,
+      "hsv_h": 0.015,
+      "hsv_s": 0.7,
+      "hsv_v": 0.4,
+      "imgsz": 640,
+      "lr0": 0.001,
+      "lrf": 0.01,
+      "mixup": 0.0,
+      "momentum": 0.9,
+      "mosaic": 0.5,
+      "multi_scale": false,
+      "optimizer": "AdamW",
+      "patience": 41,
+      "perspective": 0.0,
+      "plots": false,
+      "rect": false,
+      "save": true,
+      "save_period": -1,
+      "scale": 0.5,
+      "seed": 20261107,
+      "shear": 0.0,
+      "translate": 0.1,
+      "val": true,
+      "verbose": true,
+      "warmup_epochs": 3.0,
+      "weight_decay": 0.0005,
+      "workers": 0
+    }
+  },
+  "training_curve": {
+    "best_checkpoint": {
+      "epoch": 2,
+      "metrics": {
+        "fitness": 0.18688,
+        "metrics/mAP50(B)": 0.39354,
+        "metrics/mAP50-95(B)": 0.18688,
+        "metrics/precision(B)": 0.36534,
+        "metrics/recall(B)": 0.44594,
+        "val/box_loss": 1.77493,
+        "val/cls_loss": 1.58685,
+        "val/l1_loss": 0.00941
+      }
+    },
+    "completed_epochs": 10,
+    "convergence_assessment": "validation_plateau_supports_convergence",
+    "metrics": {
+      "metrics/mAP50(B)": {
+        "best": 0.40844,
+        "best_epoch": 7,
+        "final": 0.39021,
+        "first": 0.37974
+      },
+      "metrics/mAP50-95(B)": {
+        "best": 0.18688,
+        "best_epoch": 2,
+        "final": 0.16535,
+        "first": 0.14042
+      }
+    },
+    "stopped_by": "validation_patience",
+    "training_loss": {
+      "final": 3.29145,
+      "first": 3.42604,
+      "minimum": 3.29145
+    },
+    "validation_loss": {
+      "final": 3.52665,
+      "first": 3.8156499999999998,
+      "minimum": 3.37119
+    }
+  }
+}

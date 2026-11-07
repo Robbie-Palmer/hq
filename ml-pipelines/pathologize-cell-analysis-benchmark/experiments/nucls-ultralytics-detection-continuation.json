@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "nucls-ultralytics-yolo26n-detect-continuation-v1",
+  "base_experiment": "experiments/nucls-ultralytics-baseline.json",
+  "base_training_manifest": "outputs/public/nucls-ultralytics-yolo26n-v1/training/manifest.json",
+  "base_training_manifest_sha256": "52f50e0e0a6df266c17143076ae87576abbf664e2efd68fa25b9aaf799ac6c44",
+  "starting_checkpoint": "outputs/public/nucls-ultralytics-yolo26n-v1/training/detect/weights/best.pt",
+  "starting_checkpoint_sha256": "0ab99642c404e6c56841d8e8c840dbf58181a38fb444178b5f4c563d88f40da8",
+  "base_report": "reports/nucls-ultralytics-baseline.json",
+  "base_report_sha256": "a81f9b32ea159617567df38965db9320af887fa120c0bb9697eb36ddceefaf88",
+  "base_best_map50_95": 0.186,
+  "output_directory": "outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1",
+  "additional_epoch_ceiling": 40,
+  "validation_patience": 8,
+  "minimum_map50_95_improvement": 0.0,
+  "limits": {
+    "per_task_wall_seconds": 14400,
+    "aggregate_gpu_seconds": 86400,
+    "maximum_peak_vram_bytes": 12884901888
+  },
+  "stop_rules": [
+    "Treat this as a separate fine-tuning continuation because the completed base checkpoint has no optimizer, scaler, EMA, or early-stopper state.",
+    "Keep the frozen NuCLS split, YOLO26n checkpoint, random seed, AdamW configuration, preprocessing, augmentation, inference, and normalization contracts unchanged.",
+    "Stop after eight consecutive validation epochs without exceeding the base or continuation best box mAP50-95.",
+    "Stop on non-finite loss or validation metrics, after 40 additional epochs, after four wall-clock hours, or before aggregate GPU time exceeds 86400 seconds.",
+    "Do not inspect the frozen test fold until validation stopping has settled, and evaluate it once without threshold tuning.",
+    "Do not rerun segmentation, train another model, or use the continuation to make a clinical claim."
+  ]
+}

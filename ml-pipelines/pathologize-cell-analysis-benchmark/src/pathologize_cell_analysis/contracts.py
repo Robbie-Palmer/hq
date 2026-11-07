@@ -197,6 +197,25 @@ class UltralyticsExperiment(StrictModel):
         return self
 
 
+class DetectionContinuationExperiment(StrictModel):
+    schema_version: Literal["1.0.0"]
+    experiment_id: Literal["nucls-ultralytics-yolo26n-detect-continuation-v1"]
+    base_experiment: str
+    base_training_manifest: str
+    base_training_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    starting_checkpoint: str
+    starting_checkpoint_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    base_report: str
+    base_report_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    base_best_map50_95: float = Field(ge=0, le=1)
+    output_directory: str
+    additional_epoch_ceiling: int = Field(gt=0)
+    validation_patience: int = Field(gt=0)
+    minimum_map50_95_improvement: float = Field(ge=0)
+    limits: ResourceLimits
+    stop_rules: list[str] = Field(min_length=1)
+
+
 class ArchiveEvidence(StrictModel):
     name: str
     url: str
