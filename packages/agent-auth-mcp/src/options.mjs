@@ -3,13 +3,13 @@ import { parseArgs } from "node:util";
 import { z } from "zod";
 
 const optionalText = z.string().min(1).optional();
-const optionalUrl = z.string().url().optional();
+const optionalUrl = z.url().optional();
 const configurationSchema = z.object({
   storageDir: optionalText,
   directoryUrl: optionalUrl,
   hostName: optionalText,
   noBrowser: z.boolean(),
-  urls: z.array(z.string().url()).min(1).optional(),
+  urls: z.array(z.url()).min(1).optional(),
 });
 const positionalSchema = z.union([
   z.tuple([]),

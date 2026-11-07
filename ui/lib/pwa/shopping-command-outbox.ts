@@ -28,11 +28,11 @@ export const ShoppingCommandOutboxRecordSchema =
     resourceId: z.string().min(1),
     householdId: z.string().min(1).nullable(),
     outcome: ShoppingCommandOutcomeSchema,
-    attempts: z.number().int().nonnegative().safe(),
-    nextAttemptAt: z.number().int().nonnegative().safe(),
+    attempts: z.number().int().nonnegative(),
+    nextAttemptAt: z.number().int().nonnegative(),
     lastError: z.string().optional(),
-    createdAt: z.number().int().nonnegative().safe(),
-    updatedAt: z.number().int().nonnegative().safe(),
+    createdAt: z.number().int().nonnegative(),
+    updatedAt: z.number().int().nonnegative(),
   }).strict();
 
 export type ShoppingCommandOutboxRecord = z.infer<

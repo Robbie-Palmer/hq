@@ -34,6 +34,7 @@ case ${output_archive} in
     echo "output archive must be outside the workspace source" >&2
     exit 1
     ;;
+  *) ;;
 esac
 if [ -e "${output_archive}" ]; then
   echo "output archive already exists" >&2

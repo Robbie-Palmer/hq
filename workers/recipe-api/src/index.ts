@@ -7094,7 +7094,7 @@ registerRoute("delete", "/recipes/:slug", async (c) => {
 // This API owns recipe photo import auth, quotas, job creation,
 // and status reads; the recipe-ingest Workflow owns the parsing chain.
 
-const recipeImportIdSchema = z.string().uuid();
+const recipeImportIdSchema = z.uuid();
 
 function importJobResponse(job: RecipeImportJob) {
   return {

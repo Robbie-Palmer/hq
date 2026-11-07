@@ -475,14 +475,14 @@ export function PublicPlaylist() {
               moments={guest.playlist.moments}
               busy={guest.busy}
               onChange={guest.changeForm}
-              onSubmit={() => void guest.suggest()}
+              onSubmit={guest.suggest}
             />
             <GuestPicks
               playlist={guest.playlist}
               busy={guest.busy}
               canRefresh={Boolean(guest.access)}
-              onRefresh={() => void guest.refresh()}
-              onVote={(songId, selected) => void guest.vote(songId, selected)}
+              onRefresh={guest.refresh}
+              onVote={guest.vote}
             />
           </>
         )}

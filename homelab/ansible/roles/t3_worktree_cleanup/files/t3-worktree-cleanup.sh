@@ -45,10 +45,11 @@ require_non_negative_integer() {
   name=$2
   case "$value" in
     ''|*[!0-9]*) die "$name must be a non-negative integer" ;;
+    *) ;;
   esac
 }
 
-while [ "$#" -gt 0 ]; do
+while [[ "$#" -gt 0 ]]; do
   case "$1" in
     --apply)
       mode="apply"
@@ -59,7 +60,7 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --database|--worktree-root|--state-dir|--sql-dir|--deleted-days|--archived-days|--settled-days)
-      [ "$#" -ge 2 ] || die "$1 requires a value"
+      [[ "$#" -ge 2 ]] || die "$1 requires a value"
       option=$1
       value=$2
       shift 2
@@ -71,6 +72,7 @@ while [ "$#" -gt 0 ]; do
         --deleted-days) deleted_days=$value ;;
         --archived-days) archived_days=$value ;;
         --settled-days) settled_days=$value ;;
+        *) die "unsupported option: $option" ;;
       esac
       ;;
     -h|--help)
@@ -91,17 +93,18 @@ run_sql() {
   local sql_filename=$1
   shift
   local sql_path="${sql_dir}/${sql_filename}"
-  [ -f "$sql_path" ] || die "SQL file does not exist: $sql_path"
+  [[ -f "$sql_path" ]] || die "SQL file does not exist: $sql_path"
 
   local -a sqlite_arguments=(-readonly -bail -cmd '.parameter init')
   local parameter_name
   local parameter_value
-  while [ "$#" -gt 0 ]; do
-    [ "$#" -ge 2 ] || die "SQL parameter $1 has no value"
+  while [[ "$#" -gt 0 ]]; do
+    [[ "$#" -ge 2 ]] || die "SQL parameter $1 has no value"
     parameter_name=$1
     parameter_value=$2
     case "$parameter_name" in
       *[!A-Za-z0-9_]*) die "unsafe SQL parameter name: $parameter_name" ;;
+      *) ;;
     esac
     case "$parameter_value" in
       *"'"*) die "unsafe value for SQL parameter $parameter_name" ;;
@@ -117,19 +120,19 @@ git_binary=/usr/bin/git
 sqlite_binary=/usr/bin/sqlite3
 ps_binary=/bin/ps
 
-[ -x "$git_binary" ] || die "Git is unavailable at $git_binary"
-[ -x "$sqlite_binary" ] || die "SQLite is unavailable at $sqlite_binary"
-[ -x "$ps_binary" ] || die "ps is unavailable at $ps_binary"
-[ -f "$database" ] || die "T3 state database does not exist: $database"
-[ -d "$worktree_root" ] || die "T3 worktree root does not exist: $worktree_root"
-[ -d "$sql_dir" ] || die "T3 cleanup SQL directory does not exist: $sql_dir"
+[[ -x "$git_binary" ]] || die "Git is unavailable at $git_binary"
+[[ -x "$sqlite_binary" ]] || die "SQLite is unavailable at $sqlite_binary"
+[[ -x "$ps_binary" ]] || die "ps is unavailable at $ps_binary"
+[[ -f "$database" ]] || die "T3 state database does not exist: $database"
+[[ -d "$worktree_root" ]] || die "T3 worktree root does not exist: $worktree_root"
+[[ -d "$sql_dir" ]] || die "T3 cleanup SQL directory does not exist: $sql_dir"
 
 umask 077
 mkdir -p "$state_dir"
 lock_dir="${state_dir}/lock"
 if ! mkdir "$lock_dir" 2>/dev/null; then
   lock_pid=$(cat "${lock_dir}/pid" 2>/dev/null || true)
-  if [ -n "$lock_pid" ] \
+  if [[ -n "$lock_pid" ]] \
     && kill -0 "$lock_pid" 2>/dev/null \
     && "$ps_binary" -p "$lock_pid" -o command= | grep -q 't3-worktree-cleanup'; then
     log "SKIP cleanup process ${lock_pid} already holds $lock_dir"
@@ -173,7 +176,7 @@ provider_session_runtime:status'
 
 while IFS=: read -r table_name column_name; do
   present=$(run_sql check-column.sql table_name "$table_name" column_name "$column_name")
-  [ "$present" = "1" ] || die "unsupported T3 database schema: missing ${table_name}.${column_name}"
+  [[ "$present" = "1" ]] || die "unsupported T3 database schema: missing ${table_name}.${column_name}"
 done <<EOF
 $required_columns
 EOF
@@ -190,7 +193,7 @@ skipped_count=0
 archived_change_count=0
 
 while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
-  [ -n "$thread_id" ] || continue
+  [[ -n "$thread_id" ]] || continue
 
   case "$thread_id" in
     *[!A-Za-z0-9._-]*)
@@ -198,9 +201,10 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
       skipped_count=$((skipped_count + 1))
       continue
       ;;
+    *) ;;
   esac
 
-  if [ ! -d "$worktree_path" ]; then
+  if [[ ! -d "$worktree_path" ]]; then
     continue
   fi
   candidate_count=$((candidate_count + 1))
@@ -226,7 +230,7 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
       | sed -n 's/^worktree //p' \
       | head -n 1
   )
-  if [ -z "$main_worktree" ] || [ ! -d "$main_worktree" ] || [ "$main_worktree" = "$worktree_physical" ]; then
+  if [[ -z "$main_worktree" ]] || [[ ! -d "$main_worktree" ]] || [[ "$main_worktree" = "$worktree_physical" ]]; then
     log "SKIP ${thread_id} cannot resolve a separate primary worktree"
     skipped_count=$((skipped_count + 1))
     continue
@@ -237,7 +241,7 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
     /*) ;;
     *) git_dir="${worktree_physical}/${git_dir}" ;;
   esac
-  if [ -e "${git_dir}/index.lock" ]; then
+  if [[ -e "${git_dir}/index.lock" ]]; then
     log "SKIP ${thread_id} has an active Git index lock"
     skipped_count=$((skipped_count + 1))
     continue
@@ -257,7 +261,7 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
     archived_days "$archived_days" \
     settled_days "$settled_days")
   eligible_thread=${still_eligible%%$'\t'*}
-  if [ "$eligible_thread" != "$thread_id" ]; then
+  if [[ "$eligible_thread" != "$thread_id" ]]; then
     log "SKIP ${thread_id} became active or protected during cleanup"
     skipped_count=$((skipped_count + 1))
     continue
@@ -265,9 +269,9 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
 
   status_output=$("$git_binary" -C "$worktree_physical" status --porcelain=v1 --untracked-files=all)
   dirty=false
-  [ -n "$status_output" ] && dirty=true
+  [[ -n "$status_output" ]] && dirty=true
 
-  if [ "$mode" = "dry-run" ]; then
+  if [[ "$mode" = "dry-run" ]]; then
     log "DRY-RUN remove ${lifecycle} worktree thread=${thread_id} dirty=${dirty} since=${lifecycle_at} path=${worktree_physical}"
     continue
   fi
@@ -281,18 +285,18 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
     log "ARCHIVE ${thread_id} detached HEAD saved as ${head_ref}"
   fi
 
-  if [ "$dirty" = true ]; then
+  if [[ "$dirty" = true ]]; then
     stash_before=$("$git_binary" -C "$worktree_physical" rev-parse -q --verify refs/stash 2>/dev/null || true)
     "$git_binary" -C "$worktree_physical" stash push --include-untracked \
       --message "t3-worktree-cleanup thread=${thread_id} lifecycle=${lifecycle} at=${timestamp}" >/dev/null
     stash_oid=$("$git_binary" -C "$worktree_physical" rev-parse -q --verify refs/stash 2>/dev/null || true)
-    if [ -z "$stash_oid" ] || [ "$stash_oid" = "$stash_before" ]; then
+    if [[ -z "$stash_oid" ]] || [[ "$stash_oid" = "$stash_before" ]]; then
       die "failed to create a recovery stash for ${thread_id}"
     fi
     archive_ref="refs/t3-worktree-archive/${thread_id}/stash-${timestamp}"
     "$git_binary" -C "$worktree_physical" update-ref "$archive_ref" "$stash_oid"
     "$git_binary" -C "$worktree_physical" cat-file -e "${archive_ref}^{commit}"
-    if [ -n "$("$git_binary" -C "$worktree_physical" status --porcelain=v1 --untracked-files=all)" ]; then
+    if [[ -n "$("$git_binary" -C "$worktree_physical" status --porcelain=v1 --untracked-files=all)" ]]; then
       die "worktree remained dirty after archiving changes for ${thread_id}"
     fi
     archived_change_count=$((archived_change_count + 1))
@@ -310,4 +314,4 @@ while IFS=$'\t' read -r thread_id worktree_path lifecycle lifecycle_at; do
 done <"$candidate_file"
 
 log "SUMMARY mode=${mode} candidates=${candidate_count} removed=${removed_count} failed=${failed_count} archived_changes=${archived_change_count} skipped=${skipped_count}"
-[ "$failed_count" -eq 0 ] || exit 1
+[[ "$failed_count" -eq 0 ]] || exit 1

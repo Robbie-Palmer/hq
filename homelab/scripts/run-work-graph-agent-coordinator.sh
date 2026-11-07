@@ -14,12 +14,12 @@ required_values=(
   WORK_GRAPH_COORDINATOR_RELAUNCH_AFTER_SECONDS
 )
 for name in "${required_values[@]}"; do
-  if [ -z "${!name:-}" ]; then
+  if [[ -z "${!name:-}" ]]; then
     echo "${name} is required by the Work Graph agent coordinator runner" >&2
     exit 1
   fi
 done
-if [ ! -r "${WORK_GRAPH_COORDINATOR_SCRIPT}" ]; then
+if [[ ! -r "${WORK_GRAPH_COORDINATOR_SCRIPT}" ]]; then
   echo "cannot read ${WORK_GRAPH_COORDINATOR_SCRIPT}" >&2
   exit 1
 fi
@@ -47,13 +47,13 @@ for _ in $(seq 1 120); do
         ' \
       || true
   )
-  if [ -n "${pod_record}" ]; then
+  if [[ -n "${pod_record}" ]]; then
     read -r pod pod_uid <<<"${pod_record}"
     break
   fi
   sleep 2
 done
-if [ -z "${pod}" ] || [ -z "${pod_uid}" ]; then
+if [[ -z "${pod}" ]] || [[ -z "${pod_uid}" ]]; then
   echo "no ready T3 Code pod became available" >&2
   exit 1
 fi
