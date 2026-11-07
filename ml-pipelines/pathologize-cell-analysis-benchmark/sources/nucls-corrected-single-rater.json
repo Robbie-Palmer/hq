@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "nucls-corrected-single-rater-20220301",
+  "title": "NuCLS corrected single-rater dataset",
+  "doi": "10.5524/102207",
+  "paper_doi": "10.1093/gigascience/giac037",
+  "license": {
+    "spdx_id": "CC0-1.0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "evidence_url": "https://sites.google.com/view/nucls/single-rater"
+  },
+  "publisher": "GigaScience Database",
+  "publisher_record": "https://gigadb.org/dataset/102207",
+  "archives": [
+    {
+      "name": "rgb",
+      "url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/102001_103000/102207/RGB/rgb-20220301T093104Z-001.zip",
+      "bytes": 392849752,
+      "md5": "eb3cd6ca1cf770b4b5ed6a489ae26206",
+      "sha256": "4d603df5551ccb5ec49d9a1be5fe4356191f3adbf116c9a7e61db1aee211e850",
+      "member_prefix": "rgb/",
+      "member_suffix": ".png"
+    },
+    {
+      "name": "annotations",
+      "url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/102001_103000/102207/Tabular/csv-20220301T093059Z-001.zip",
+      "bytes": 3352937,
+      "md5": "969fa5492a9ec60bd8dcb2f58c753246",
+      "sha256": "104a7882b3df8ac53dded84cb4044c6846a92140f89e99f0136596e244a21195",
+      "member_prefix": "csv/",
+      "member_suffix": ".csv"
+    },
+    {
+      "name": "splits",
+      "url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/102001_103000/102207/Tabular/train_test_splits-20220301T093106Z-001.zip",
+      "bytes": 8013,
+      "md5": "dd86de320cb1167877eac00415409d70",
+      "sha256": "5315dc3d19423ad2f8b2219b96653a805d056f6afaf3cc5ce32b43f74d2d00bf",
+      "member_prefix": "train_test_splits/",
+      "member_suffix": ".csv"
+    }
+  ],
+  "classification_field": "super_classification",
+  "classification_labels": ["nonTIL_stromal", "sTIL", "tumor_any"],
+  "unmappable_categories": {
+    "AMBIGUOUS": "The source marks the nucleus as ambiguous rather than assigning a biological super-class.",
+    "other_nucleus": "The source does not map this category to one of its three biological super-classes."
+  }
+}

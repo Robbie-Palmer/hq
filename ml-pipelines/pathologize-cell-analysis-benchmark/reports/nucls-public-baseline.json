@@ -1,0 +1,480 @@
+{
+  "baseline": {
+    "adapter_id": "class-prior-v1",
+    "exclusions": {
+      "AMBIGUOUS": 780,
+      "other_nucleus": 7
+    },
+    "failures": [],
+    "metrics": {
+      "classification_brier": 0.6477022775632232,
+      "classification_ece_10_bin": 0.05425657137031287,
+      "classification_evaluated_instances": 5779,
+      "classification_macro_f1": 0.1766925261774556,
+      "classification_negative_log_likelihood": 1.0669097679056383,
+      "detection_f1": 0.2628713267675554,
+      "detection_matched_instances": 6566,
+      "detection_precision": 0.1533897117226557,
+      "detection_predicted_instances": 42806,
+      "detection_recall": 0.9183216783216783,
+      "detection_truth_instances": 7150,
+      "segmentation_boundary_instances": 2736,
+      "segmentation_detection_coverage": 0.966374269005848,
+      "segmentation_matched_boundary_instances": 2644,
+      "segmentation_mean_instance_dice": 0.6416675022564041,
+      "segmentation_mean_instance_iou": 0.530730905470675,
+      "segmentation_success_at_iou_0_5": 0.596444780635401
+    },
+    "per_class": {
+      "nonTIL_stromal": {
+        "brier": 0.16752348791504668,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 1229
+      },
+      "sTIL": {
+        "brier": 0.2335158826412434,
+        "f1": 0.5300775785323668,
+        "precision": 0.3606160235334833,
+        "recall": 1.0,
+        "support": 2084
+      },
+      "tumor_any": {
+        "brier": 0.24666290700693294,
+        "f1": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "support": 2466
+      }
+    },
+    "resources": {
+      "accelerator": "none",
+      "aggregate_gpu_ceiling_seconds": 86400,
+      "cpu_seconds": 9.658011285999999,
+      "gpu_seconds": 0,
+      "peak_rss_bytes": 179441664,
+      "peak_vram_bytes": 0,
+      "per_run_wall_ceiling_seconds": 1800,
+      "wall_seconds": 9.685659136041068
+    },
+    "site_slices": {
+      "A1": {
+        "classification_brier": 0.6115386710994435,
+        "classification_ece_10_bin": 0.016911513042230708,
+        "classification_evaluated_instances": 667,
+        "classification_macro_f1": 0.20104712041884817,
+        "classification_negative_log_likelihood": 1.0054896602432304,
+        "detection_f1": 0.3142616743794699,
+        "detection_matched_instances": 747,
+        "detection_precision": 0.18916181311724486,
+        "detection_predicted_instances": 3949,
+        "detection_recall": 0.9279503105590062,
+        "detection_truth_instances": 805,
+        "segmentation_boundary_instances": 409,
+        "segmentation_detection_coverage": 0.9559902200488998,
+        "segmentation_matched_boundary_instances": 391,
+        "segmentation_mean_instance_dice": 0.6125990293332789,
+        "segmentation_mean_instance_iou": 0.4865414089722682,
+        "segmentation_success_at_iou_0_5": 0.5396419437340153
+      },
+      "AC": {
+        "classification_brier": 0.627807853581195,
+        "classification_ece_10_bin": 0.07310044300506213,
+        "classification_evaluated_instances": 711,
+        "classification_macro_f1": 0.16981132075471697,
+        "classification_negative_log_likelihood": 1.0311593127119045,
+        "detection_f1": 0.2847367420642464,
+        "detection_matched_instances": 749,
+        "detection_precision": 0.16688948306595366,
+        "detection_predicted_instances": 4488,
+        "detection_recall": 0.9689521345407504,
+        "detection_truth_instances": 773,
+        "segmentation_boundary_instances": 275,
+        "segmentation_detection_coverage": 0.9927272727272727,
+        "segmentation_matched_boundary_instances": 273,
+        "segmentation_mean_instance_dice": 0.6725885318256563,
+        "segmentation_mean_instance_iou": 0.5616593695447414,
+        "segmentation_success_at_iou_0_5": 0.6886446886446886
+      },
+      "BH": {
+        "classification_brier": 0.6292834490553744,
+        "classification_ece_10_bin": 0.03286785930790054,
+        "classification_evaluated_instances": 2534,
+        "classification_macro_f1": 0.18427565200837617,
+        "classification_negative_log_likelihood": 1.035124676480427,
+        "detection_f1": 0.21285556229701272,
+        "detection_matched_instances": 2982,
+        "detection_precision": 0.12058228871815609,
+        "detection_predicted_instances": 24730,
+        "detection_recall": 0.9066585588324719,
+        "detection_truth_instances": 3289,
+        "segmentation_boundary_instances": 1035,
+        "segmentation_detection_coverage": 0.9758454106280193,
+        "segmentation_matched_boundary_instances": 1010,
+        "segmentation_mean_instance_dice": 0.58960147480665,
+        "segmentation_mean_instance_iou": 0.4800198850829819,
+        "segmentation_success_at_iou_0_5": 0.5396039603960396
+      },
+      "OL": {
+        "classification_brier": 0.6931973886513066,
+        "classification_ece_10_bin": 0.10153569077953278,
+        "classification_evaluated_instances": 1867,
+        "classification_macro_f1": 0.1590538336052202,
+        "classification_negative_log_likelihood": 1.1456077899329853,
+        "detection_f1": 0.35027679919476595,
+        "detection_matched_instances": 2088,
+        "detection_precision": 0.2166199813258637,
+        "detection_predicted_instances": 9639,
+        "detection_recall": 0.9145860709592641,
+        "detection_truth_instances": 2283,
+        "segmentation_boundary_instances": 1017,
+        "segmentation_detection_coverage": 0.9537856440511308,
+        "segmentation_matched_boundary_instances": 970,
+        "segmentation_mean_instance_dice": 0.6988953574778348,
+        "segmentation_mean_instance_iou": 0.5926409601410121,
+        "segmentation_success_at_iou_0_5": 0.6525773195876289
+      }
+    }
+  },
+  "candidate": {
+    "adapter_id": "morphology-logistic-v1",
+    "exclusions": {
+      "AMBIGUOUS": 780,
+      "other_nucleus": 7
+    },
+    "failures": [],
+    "metrics": {
+      "classification_brier": 0.7066998400001583,
+      "classification_ece_10_bin": 0.21939658062788786,
+      "classification_evaluated_instances": 5779,
+      "classification_macro_f1": 0.4367561116510368,
+      "classification_negative_log_likelihood": 1.3077244325396242,
+      "detection_f1": 0.2628713267675554,
+      "detection_matched_instances": 6566,
+      "detection_precision": 0.1533897117226557,
+      "detection_predicted_instances": 42806,
+      "detection_recall": 0.9183216783216783,
+      "detection_truth_instances": 7150,
+      "segmentation_boundary_instances": 2736,
+      "segmentation_detection_coverage": 0.966374269005848,
+      "segmentation_matched_boundary_instances": 2644,
+      "segmentation_mean_instance_dice": 0.6416675022564041,
+      "segmentation_mean_instance_iou": 0.530730905470675,
+      "segmentation_success_at_iou_0_5": 0.596444780635401
+    },
+    "per_class": {
+      "nonTIL_stromal": {
+        "brier": 0.1746737282943445,
+        "f1": 0.22905027932960895,
+        "precision": 0.36541889483065954,
+        "recall": 0.16680227827502034,
+        "support": 1229
+      },
+      "sTIL": {
+        "brier": 0.2764788071349784,
+        "f1": 0.5540035412158174,
+        "precision": 0.46948982994331445,
+        "recall": 0.6756238003838771,
+        "support": 2084
+      },
+      "tumor_any": {
+        "brier": 0.25554730457083535,
+        "f1": 0.5272145144076841,
+        "precision": 0.5565570076611086,
+        "recall": 0.5008110300081103,
+        "support": 2466
+      }
+    },
+    "resources": {
+      "accelerator": "none",
+      "aggregate_gpu_ceiling_seconds": 86400,
+      "cpu_seconds": 22.191762543000003,
+      "gpu_seconds": 0,
+      "peak_rss_bytes": 195592192,
+      "peak_vram_bytes": 0,
+      "per_run_wall_ceiling_seconds": 1800,
+      "wall_seconds": 18.62592558003962
+    },
+    "site_slices": {
+      "A1": {
+        "classification_brier": 0.4685022733986237,
+        "classification_ece_10_bin": 0.048433730861765605,
+        "classification_evaluated_instances": 667,
+        "classification_macro_f1": 0.5226000524682809,
+        "classification_negative_log_likelihood": 0.8270665405337942,
+        "detection_f1": 0.3142616743794699,
+        "detection_matched_instances": 747,
+        "detection_precision": 0.18916181311724486,
+        "detection_predicted_instances": 3949,
+        "detection_recall": 0.9279503105590062,
+        "detection_truth_instances": 805,
+        "segmentation_boundary_instances": 409,
+        "segmentation_detection_coverage": 0.9559902200488998,
+        "segmentation_matched_boundary_instances": 391,
+        "segmentation_mean_instance_dice": 0.6125990293332789,
+        "segmentation_mean_instance_iou": 0.4865414089722682,
+        "segmentation_success_at_iou_0_5": 0.5396419437340153
+      },
+      "AC": {
+        "classification_brier": 0.791947723548684,
+        "classification_ece_10_bin": 0.2881376784449705,
+        "classification_evaluated_instances": 711,
+        "classification_macro_f1": 0.35916817269826956,
+        "classification_negative_log_likelihood": 1.4569897186496625,
+        "detection_f1": 0.2847367420642464,
+        "detection_matched_instances": 749,
+        "detection_precision": 0.16688948306595366,
+        "detection_predicted_instances": 4488,
+        "detection_recall": 0.9689521345407504,
+        "detection_truth_instances": 773,
+        "segmentation_boundary_instances": 275,
+        "segmentation_detection_coverage": 0.9927272727272727,
+        "segmentation_matched_boundary_instances": 273,
+        "segmentation_mean_instance_dice": 0.6725885318256563,
+        "segmentation_mean_instance_iou": 0.5616593695447414,
+        "segmentation_success_at_iou_0_5": 0.6886446886446886
+      },
+      "BH": {
+        "classification_brier": 0.6963796199236068,
+        "classification_ece_10_bin": 0.23483783328853075,
+        "classification_evaluated_instances": 2534,
+        "classification_macro_f1": 0.41626978185918456,
+        "classification_negative_log_likelihood": 1.308415298093909,
+        "detection_f1": 0.21285556229701272,
+        "detection_matched_instances": 2982,
+        "detection_precision": 0.12058228871815609,
+        "detection_predicted_instances": 24730,
+        "detection_recall": 0.9066585588324719,
+        "detection_truth_instances": 3289,
+        "segmentation_boundary_instances": 1035,
+        "segmentation_detection_coverage": 0.9758454106280193,
+        "segmentation_matched_boundary_instances": 1010,
+        "segmentation_mean_instance_dice": 0.58960147480665,
+        "segmentation_mean_instance_iou": 0.4800198850829819,
+        "segmentation_success_at_iou_0_5": 0.5396039603960396
+      },
+      "OL": {
+        "classification_brier": 0.7733404234999992,
+        "classification_ece_10_bin": 0.258129231035175,
+        "classification_evaluated_instances": 1867,
+        "classification_macro_f1": 0.34353639277444187,
+        "classification_negative_log_likelihood": 1.4216615199681693,
+        "detection_f1": 0.35027679919476595,
+        "detection_matched_instances": 2088,
+        "detection_precision": 0.2166199813258637,
+        "detection_predicted_instances": 9639,
+        "detection_recall": 0.9145860709592641,
+        "detection_truth_instances": 2283,
+        "segmentation_boundary_instances": 1017,
+        "segmentation_detection_coverage": 0.9537856440511308,
+        "segmentation_matched_boundary_instances": 970,
+        "segmentation_mean_instance_dice": 0.6988953574778348,
+        "segmentation_mean_instance_iou": 0.5926409601410121,
+        "segmentation_success_at_iou_0_5": 0.6525773195876289
+      }
+    }
+  },
+  "clinical_validity": false,
+  "dataset": {
+    "acquisition_evidence": "data/nucls-corrected-single-rater/acquisition.json",
+    "acquisition_sha256": "f9d3c810989848da5b111826ea49b00f317a53358046267523b8f7aaa0e9fd51",
+    "dataset_id": "nucls-corrected-single-rater-20220301",
+    "doi": "10.5524/102207",
+    "license": {
+      "evidence_url": "https://sites.google.com/view/nucls/single-rater",
+      "spdx_id": "CC0-1.0",
+      "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+    },
+    "paper_doi": "10.1093/gigascience/giac037",
+    "publisher_record": "https://gigadb.org/dataset/102207",
+    "title": "NuCLS corrected single-rater dataset"
+  },
+  "experiment_id": "nucls-public-baseline-v1",
+  "gates": [
+    {
+      "detail": "Candidate minus baseline on matched, class-supported test nuclei.",
+      "gate": "classification_macro_f1_gain",
+      "observed": 0.2600635854735812,
+      "passed": true,
+      "threshold": 0.01
+    },
+    {
+      "detail": "Multiclass Brier change must be no greater than zero.",
+      "gate": "classification_brier_no_regression",
+      "observed": 0.0589975624369351,
+      "passed": false,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Ten-bin expected calibration error change must be no greater than zero.",
+      "gate": "classification_ece_no_regression",
+      "observed": 0.165140009257575,
+      "passed": false,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Both adapters use the same fixed detection and segmentation method.",
+      "gate": "detection_f1_no_regression",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Both adapters use the same fixed detection and segmentation method.",
+      "gate": "segmentation_mean_instance_iou_no_regression",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Both adapters use the same fixed detection and segmentation method.",
+      "gate": "segmentation_mean_instance_dice_no_regression",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "The least-supported evaluated source class cannot regress.",
+      "gate": "rare_class_nonTIL_stromal_f1_no_regression",
+      "observed": 0.22905027932960895,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Each test-site slice must avoid a classification macro-F1 regression.",
+      "gate": "held_out_site_A1_macro_f1_no_regression",
+      "observed": 0.3215529320494327,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Each test-site slice must avoid a classification macro-F1 regression.",
+      "gate": "held_out_site_AC_macro_f1_no_regression",
+      "observed": 0.1893568519435526,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Each test-site slice must avoid a classification macro-F1 regression.",
+      "gate": "held_out_site_BH_macro_f1_no_regression",
+      "observed": 0.2319941298508084,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "Each test-site slice must avoid a classification macro-F1 regression.",
+      "gate": "held_out_site_OL_macro_f1_no_regression",
+      "observed": 0.18448255916922165,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "The baseline must finish every selected field of view.",
+      "gate": "baseline_failures",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "The candidate must finish every selected field of view.",
+      "gate": "candidate_failures",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 0.0
+    },
+    {
+      "detail": "No GPU was used because neither method justifies accelerator inference.",
+      "gate": "aggregate_gpu_budget",
+      "observed": 0.0,
+      "passed": true,
+      "threshold": 86400.0
+    },
+    {
+      "detail": "Each adapter has an independent 30-minute wall-time ceiling.",
+      "gate": "per_run_wall_budget",
+      "observed": 18.62592558003962,
+      "passed": true,
+      "threshold": 1800.0
+    }
+  ],
+  "methods": {
+    "accelerator_decision": "CPU only. Thresholding, watershed, and logistic regression do not justify GPU inference overhead.",
+    "baseline": "Training-cohort source-class prevalence as a constant probability vector.",
+    "candidate": "Balanced multinomial logistic regression over bounding-box size, aspect, RGB, and optical-density summary features.",
+    "classification_scope": "Probabilistic three-class prediction only for matched detections with one of the source's supported biological super-classes.",
+    "detection_match": "One-to-one centroid assignment within 12.0 pixels.",
+    "segmentation_scope": "Instance IoU and Dice only for source annotations marked polyline and matched by the detection rule. Rectangle-only annotations are not treated as masks.",
+    "shared_detection_and_segmentation": "Hematoxylin optical-density thresholding, small-object filtering, distance transform, local maxima, and marker-controlled watershed."
+  },
+  "ontology": {
+    "classification_field": "super_classification",
+    "evaluated_labels": [
+      "nonTIL_stromal",
+      "sTIL",
+      "tumor_any"
+    ],
+    "mapping_performed": false,
+    "test_source_counts": {
+      "AMBIGUOUS": 846,
+      "nonTIL_stromal": 1292,
+      "other_nucleus": 7,
+      "sTIL": 2144,
+      "tumor_any": 2861
+    },
+    "unmappable_categories": {
+      "AMBIGUOUS": "The source marks the nucleus as ambiguous rather than assigning a biological super-class.",
+      "other_nucleus": "The source does not map this category to one of its three biological super-classes."
+    }
+  },
+  "recommendation": "reject_candidate",
+  "schema_version": "1.0.0",
+  "split": {
+    "cohort_artifact": "outputs/public/nucls-public-baseline-v1/cohort.json",
+    "cohort_sha256": "54217b05acf34e0c19afccaf66999223f31d6d4d55e503a6742391be6dce222d",
+    "held_out_test_sites": [
+      "A1",
+      "AC",
+      "BH",
+      "OL"
+    ],
+    "item_counts": {
+      "test": 263,
+      "train": 976,
+      "validation": 505
+    },
+    "patient_counts": {
+      "test": 22,
+      "train": 75,
+      "validation": 27
+    },
+    "patient_intersections": {
+      "train_test": [],
+      "train_validation": [],
+      "validation_test": []
+    },
+    "policy": "Official fold 1 test slides are test; official fold 2 test slides are validation; the remaining fold 1 training slides are train.",
+    "site_intersections": {
+      "train_test": [],
+      "train_validation": [],
+      "validation_test": []
+    },
+    "site_item_counts": {
+      "A1": 23,
+      "AC": 18,
+      "BH": 108,
+      "OL": 114
+    },
+    "slide_counts": {
+      "test": 22,
+      "train": 75,
+      "validation": 27
+    },
+    "slide_intersections": {
+      "train_test": [],
+      "train_validation": [],
+      "validation_test": []
+    }
+  },
+  "stop_reason": "The candidate failed one or more decision or guardrail gates. The bounded search stops after this single locally runnable candidate."
+}

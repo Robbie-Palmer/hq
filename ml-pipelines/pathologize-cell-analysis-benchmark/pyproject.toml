@@ -1,14 +1,78 @@
 [project]
 name = "pathologize-cell-analysis-benchmark"
 version = "0.1.0"
-description = "Nucleus detection, segmentation, and synthetic cell classification benchmark"
+description = "Nucleus detection, segmentation, and cell classification benchmark"
 requires-python = ">=3.12,<3.13"
-dependencies = ["pathologize-benchmark-contracts"]
+dependencies = [
+    "fire>=0.7.1,<0.8",
+    "numpy>=2.2.0,<3",
+    "pathologize-benchmark-contracts",
+    "pillow>=11.1.0,<13",
+    "pydantic>=2.12.5,<3",
+    "scikit-image>=0.25.0,<0.27",
+    "scikit-learn>=1.6.0,<1.9",
+    "scipy>=1.15.0,<2",
+]
+
+[project.scripts]
+pathologize-cell-analysis = "pathologize_cell_analysis.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3,<10",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
+    "ty>=0.0.75",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
 
 [tool.uv]
-package = false
+package = true
+
+[tool.uv.build-backend]
+module-name = "pathologize_cell_analysis"
 
 [tool.uv.sources]
 data-artifacts = { path = "../../packages/data-artifacts", editable = true }
 ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=pathologize_cell_analysis --cov-report=term-missing --cov-fail-under=85"
+testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "ignore"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = [
+    "ANN401", # JSON reports contain heterogeneous values.
+    "T201",   # stdout is the CLI result.
+    "TRY003", # Experiment failures name the violated evidence contract.
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 14
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]

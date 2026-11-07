@@ -94,3 +94,27 @@ stages:
       - outputs/ml-evaluation-source.sha256
     outs:
       - outputs/benchmark/index.json
+
+  prepare_nucls_public_data:
+    cmd: uv run --locked pathologize-cell-analysis acquire
+    deps:
+      - sources/nucls-corrected-single-rater.json
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - data/nucls-corrected-single-rater
+
+  evaluate_nucls_public_baseline:
+    cmd: uv run --locked pathologize-cell-analysis run
+    deps:
+      - data/nucls-corrected-single-rater
+      - experiments/nucls-public-baseline.json
+      - sources/nucls-corrected-single-rater.json
+      - src/pathologize_cell_analysis
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - outputs/public/nucls-public-baseline-v1
