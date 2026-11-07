@@ -193,9 +193,11 @@ function hasPreferredSlotUse(
 }
 
 function getAdoptionProvenance(
+  manifest: PlatformManifest,
   policy: LayerSlotPolicy,
   effectiveUses: ProjectLayerUse[],
   instant: string,
+  visitedLayers = new Set<LayerSlug>(),
 ): Pick<EffectiveDefaultUseBase, "adoptionDecision" | "adoptionRationale"> {
   const layerUse = effectiveUses.find(
     (use) => use.layer === policy.layer && isUseEffectiveAt(use, instant),
@@ -207,9 +209,38 @@ function getAdoptionProvenance(
         )
       : undefined;
   const adoption = slotUse ?? layerUse;
+  if (adoption) {
+    return {
+      adoptionDecision: adoption.decision,
+      adoptionRationale: adoption.rationale,
+    };
+  }
+
+  if (visitedLayers.has(policy.layer)) return {};
+  const visited = new Set(visitedLayers).add(policy.layer);
+  const activation = manifest.layers.find(
+    (layer) => layer.slug === policy.layer,
+  )?.activatedBy;
+  const activatingPolicy = activation
+    ? manifest.policies.find(
+        (candidate) =>
+          candidate.slot === activation.slot &&
+          isEffectiveAt(candidate, instant),
+      )
+    : undefined;
+  if (activatingPolicy) {
+    return getAdoptionProvenance(
+      manifest,
+      activatingPolicy,
+      effectiveUses,
+      instant,
+      visited,
+    );
+  }
+
   return {
-    adoptionDecision: adoption?.decision,
-    adoptionRationale: adoption?.rationale,
+    adoptionDecision: undefined,
+    adoptionRationale: undefined,
   };
 }
 
@@ -275,6 +306,7 @@ function resolvePolicy(
   const resolved = state.resolvedSlots.get(policy.slot);
   const candidateValues = new Set<string>();
   const adoption = getAdoptionProvenance(
+    state.manifest,
     policy,
     state.effectiveUses,
     state.instant,

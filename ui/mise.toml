@@ -126,6 +126,11 @@ description = "Reject new or worsened React component hotspots with tsmetrics"
 depends = ["//ui:install"]
 run = "pnpm exec tsx scripts/audit-react-components.ts"
 
+[tasks."audit:platform-readiness"]
+description = "Audit platform provenance and Personal Finance adoption readiness"
+depends = ["//ui:build"]
+run = "pnpm exec tsx scripts/audit-platform-readiness.ts --out=out"
+
 [tasks."lint:duplicate-jsx"]
 description = "Reject repeated JSX subtrees with React Doctor"
 depends = ["//ui:install"]
