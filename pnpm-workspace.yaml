@@ -111,6 +111,7 @@ patchedDependencies:
   '@cedar-policy/cedar-wasm@4.14.0': patches/@cedar-policy__cedar-wasm@4.14.0.patch
   '@cooklang/cooklang': patches/@cooklang__cooklang.patch
   gray-matter@4.0.3: patches/gray-matter@4.0.3.patch
+  next@15.5.29: patches/next@15.5.29.patch
 
 minimumReleaseAgeExclude:
   # Exact ADR 065 bridge pin; reviewed as part of the adopting change.
