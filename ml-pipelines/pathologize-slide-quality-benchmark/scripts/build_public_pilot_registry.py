@@ -363,10 +363,10 @@ def build() -> None:
         },
     )
     record_paths: list[str] = []
-    for record in records:
-        source_id = record["slide_id"].split(":")[-1]
-        canonical_source_id = _canonical_uuid(source_id, "slide source ID")
-        relative_path = Path(f"records/slides/airaqc-tcga-{canonical_source_id}.json")
+    for position, record in enumerate(records):
+        relative_path = Path(
+            f"records/slides/airaqc-tcga-public-pilot-v1-{position:02d}.json"
+        )
         record_paths.append(relative_path.as_posix())
         _write(REGISTRY_ROOT, relative_path, record)
     registry_index = _read(REGISTRY_ROOT / REGISTRY_INDEX)
@@ -376,6 +376,11 @@ def build() -> None:
         "asset_manifests": [ASSET_MANIFEST.as_posix()],
         "slide_records": record_paths,
     }
+    registry_index["slide_records"] = [
+        path
+        for path in registry_index["slide_records"]
+        if not Path(path).name.startswith("airaqc-tcga-")
+    ]
     for field, paths in additions.items():
         registry_index[field] = sorted(set(registry_index[field]) | set(paths))
     _write(REGISTRY_ROOT, REGISTRY_INDEX, registry_index)

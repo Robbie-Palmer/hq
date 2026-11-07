@@ -38,17 +38,17 @@ The selection was locked before source-slide download.
 | --- | ---: | ---: |
 | Network acquisition | 16,500,000,000 bytes | 15,813,730,059 bytes |
 | Peak local disk | 40,000,000,000 bytes | 33,707,124,493-byte conservative upper bound |
-| Feature-runner wall time | 7,200 seconds | 10.88 seconds |
-| Feature-runner CPU time | 28,800 seconds | 10.43 seconds |
+| Feature-runner wall time | 7,200 seconds | 8.57 seconds |
+| Feature-runner CPU time | 28,800 seconds | 8.48 seconds |
 | GPU time | 0 seconds | 0 seconds |
 | Peak VRAM | 0 bytes | 0 bytes |
-| Peak RSS | No separate cap | 58,462,208 bytes |
+| Peak RSS | No separate cap | 58,781,696 bytes |
 | Source bytes verified in preflight | 15,813,730,059 bytes | 15,813,730,059 bytes |
 
 The DVC cache and materialized pilot source occupy about 31.63 GB logically.
 The disk upper bound adds one largest-file temporary copy and result bytes.
-The kernel reported 15,565,721,600 physical read bytes during the final run;
-the process character count was 15,813,776,380.
+The kernel reported 339,574,784 physical read bytes during the final run; the
+process character count was 15,813,776,376.
 
 The palette audit finds 14 positive and 10 clean-negative slides. It does not
 use a tissue gate for truth, so tissue amount cannot change a slide label.

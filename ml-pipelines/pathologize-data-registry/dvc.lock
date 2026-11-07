@@ -65,13 +65,13 @@ stages:
       size: 1491
     - path: records
       hash: md5
-      md5: 10291d2365e1b690e577eb05e524ce40.dir
+      md5: e3b1df0ffc2963f47fdf5d79c544c6dd.dir
       size: 63512
       nfiles: 25
     - path: registry.json
       hash: md5
-      md5: 74582db3f031170391a723c439e9482e
-      size: 3271
+      md5: 09002d1259bc7edc956929b30ce0a468
+      size: 2839
     - path: src/pathologize_data_registry
       hash: md5
       md5: c184c5c36af70e431ebc97b379aa4a13.dir

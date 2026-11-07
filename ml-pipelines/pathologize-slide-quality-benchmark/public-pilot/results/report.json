@@ -107,14 +107,14 @@
   "provenance": {
     "airaqc_annotation_folder": "https://drive.google.com/drive/folders/1Z3oNTqG2JZdbj--b0te8TMPzFlzhN0oN?usp=sharing",
     "airaqc_paper": "https://openreview.net/pdf?id=XNNsQqs1UP",
-    "corpus_manifest_sha256": "1c234a1786ba4ad3070d346428f05df0373f40353a16a635c8dff1a7948d5924",
+    "corpus_manifest_sha256": "5ed0b59f55b2a2390597a2b0c79e471dd1502c96960a06188312eaa773bea39f",
     "fixed_partition_sha256": "a2e353eb5c3404c299cf4624d3d96470cfd51c679877348c0921ef0b07ed191c",
     "gdc_api": "https://api.gdc.cancer.gov/",
     "predeclaration_sha256": "8071782851736aae337d3629c374e0bdb4d73546a01ebef734f249a88d9f709c",
     "registry_asset_manifest_sha256": "507571b99950da7bfe73eecd4970fc40effde26db8391ae4c8650b8a84a4109e",
     "registry_base_revision": "5c4377dbbc01739bb28062ee6cfd7c217edc0cee",
     "registry_collection_manifest_sha256": "bbfb9e16126dccf9cc4cf13adfafa54a1475f368451bc4950dd4c96712268867",
-    "registry_index_sha256": "c984ca469d96a8cd2a94270426167c662ce797a260d5a6fbf32a27f9f876ff4c",
+    "registry_index_sha256": "2a978116baca1769193df6d2e02aff749f8ef177181712e918a0d7b5e3fcb010",
     "registry_subset_id": "airaqc-tcga-public-pilot-v1",
     "registry_subset_manifest_sha256": "48bfd200d20ccca51261eb8f478caecc03fba59509c1841e191f7fd25cf38f76",
     "reliability_deposit_archive_sha256": "76f76a1eb8405a87e2bd4466a242c6280fc086daa31364adc97c9c635c3192da",
@@ -146,21 +146,21 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 10.431136652,
+    "cpu_seconds": 8.47741675,
     "gpu_seconds": 0,
     "peak_local_disk_bytes_upper_bound": 33707124493,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 58462208,
+    "peak_rss_bytes": 58781696,
     "peak_vram_bytes": 0,
     "pixels_read": 0,
-    "process_rchar": 15813776380,
-    "process_read_bytes": 15565721600,
+    "process_rchar": 15813776376,
+    "process_read_bytes": 339574784,
     "result_bytes_before_report": 11987,
     "schema_version": "1.0.0",
     "source_bytes_manifested": 15813730059,
     "source_bytes_verified_in_preflight": 15813730059,
     "spatial_records": 0,
-    "wall_seconds": 10.884003621991724
+    "wall_seconds": 8.573421641020104
   },
   "rights_boundary": {
     "allowed_public_artifacts": [
