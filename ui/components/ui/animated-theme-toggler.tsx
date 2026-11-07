@@ -12,6 +12,35 @@ interface AnimatedThemeTogglerProps
   duration?: number;
 }
 
+const animateThemeTransition = (
+  button: HTMLButtonElement | null,
+  duration: number,
+) => {
+  if (!button) return;
+
+  const { top, left, width, height } = button.getBoundingClientRect();
+  const x = left + width / 2;
+  const y = top + height / 2;
+  const maxRadius = Math.hypot(
+    Math.max(left, window.innerWidth - left),
+    Math.max(top, window.innerHeight - top),
+  );
+
+  document.documentElement.animate(
+    {
+      clipPath: [
+        `circle(0px at ${x}px ${y}px)`,
+        `circle(${maxRadius}px at ${x}px ${y}px)`,
+      ],
+    },
+    {
+      duration,
+      easing: "ease-in-out",
+      pseudoElement: "::view-transition-new(root)",
+    },
+  );
+};
+
 export const AnimatedThemeToggler = ({
   className,
   duration = 400,
@@ -57,32 +86,7 @@ export const AnimatedThemeToggler = ({
     }
 
     await document.startViewTransition(updateDOM).ready;
-
-    // The button can unmount while the transition runs.
-    const button = buttonRef.current;
-    if (!button) return;
-
-    const { top, left, width, height } = button.getBoundingClientRect();
-    const x = left + width / 2;
-    const y = top + height / 2;
-    const maxRadius = Math.hypot(
-      Math.max(left, window.innerWidth - left),
-      Math.max(top, window.innerHeight - top),
-    );
-
-    document.documentElement.animate(
-      {
-        clipPath: [
-          `circle(0px at ${x}px ${y}px)`,
-          `circle(${maxRadius}px at ${x}px ${y}px)`,
-        ],
-      },
-      {
-        duration,
-        easing: "ease-in-out",
-        pseudoElement: "::view-transition-new(root)",
-      },
-    );
+    animateThemeTransition(buttonRef.current, duration);
   }, [isDark, duration]);
 
   return (
