@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import shutil
+import textwrap
 from collections import Counter
 from pathlib import Path
 from typing import Any
@@ -427,7 +428,21 @@ def _markdown(evidence: ExperimentEvidence) -> str:
         "justified GPU inference, so the run used no GPU.",
         "",
     ]
-    return "\n".join(lines)
+    wrapped: list[str] = []
+    for line in lines:
+        if len(line) <= 120 or line.startswith("|"):
+            wrapped.append(line)
+            continue
+        wrapped.extend(
+            textwrap.wrap(
+                line,
+                width=100,
+                subsequent_indent="  " if line.startswith("- ") else "",
+                break_long_words=False,
+                break_on_hyphens=False,
+            )
+        )
+    return "\n".join(wrapped)
 
 
 def report(experiment_path: Path, json_output: Path, markdown_output: Path) -> dict[str, Any]:

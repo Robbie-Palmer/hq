@@ -292,7 +292,9 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
         project / "reports/result.md",
     )
     assert report_result["recommendation"] in {"promote_candidate", "reject_candidate"}
-    assert "## Resources" in (project / "reports/result.md").read_text(encoding="utf-8")
+    markdown = (project / "reports/result.md").read_text(encoding="utf-8")
+    assert "## Resources" in markdown
+    assert all(len(line) <= 120 for line in markdown.splitlines())
 
 
 def test_segmentation_and_detection_matching() -> None:

@@ -1,10 +1,13 @@
 # NuCLS public nucleus baseline
 
-This is a bounded, non-clinical baseline on the corrected single-rater NuCLS dataset. The source is GigaDB DOI `10.5524/102207` under CC0 1.0. The official slide folds have no patient or slide overlap among train, validation, and test.
+This is a bounded, non-clinical baseline on the corrected single-rater NuCLS dataset. The source is
+GigaDB DOI `10.5524/102207` under CC0 1.0. The official slide folds have no patient or slide overlap
+among train, validation, and test.
 
 ## Decision
 
-`reject_candidate`. The candidate failed one or more decision or guardrail gates. The bounded search stops after this single locally runnable candidate.
+`reject_candidate`. The candidate failed one or more decision or guardrail gates. The bounded search
+stops after this single locally runnable candidate.
 
 ## Aggregate results
 
@@ -27,7 +30,8 @@ This is a bounded, non-clinical baseline on the corrected single-rater NuCLS dat
 
 ## Held-out site slices
 
-The `site` field is the TCGA tissue-source-site code in the NuCLS split files. The published files used here have no scanner metadata.
+The `site` field is the TCGA tissue-source-site code in the NuCLS split files. The published files
+used here have no scanner metadata.
 
 | Site | Baseline macro F1 | Candidate macro F1 | Evaluated nuclei |
 | --- | ---: | ---: | ---: |
@@ -38,16 +42,20 @@ The `site` field is the TCGA tissue-source-site code in the NuCLS split files. T
 
 ## Failed gates
 
-- `classification_brier_no_regression`: Multiclass Brier change must be no greater than zero.
-- `classification_ece_no_regression`: Ten-bin expected calibration error change must be no greater than zero.
+- `classification_brier_no_regression`: Multiclass Brier change must be no greater than zero. -
+  `classification_ece_no_regression`: Ten-bin expected calibration error change must be no greater
+  than zero.
 
 ## Scope and exclusions
 
 - Detection uses every published nucleus annotation in the test fields.
-- Instance segmentation uses only source annotations marked `polyline`. Rectangle annotations are not converted into masks.
-- Classification uses matched detections labeled `nonTIL_stromal`, `sTIL`, or `tumor_any` and emits a probability for every supported class.
+- Instance segmentation uses only source annotations marked `polyline`. Rectangle annotations are
+  not converted into masks.
+- Classification uses matched detections labeled `nonTIL_stromal`, `sTIL`, or `tumor_any` and emits
+  a probability for every supported class.
 - Unmappable matched categories were excluded without relabeling: `AMBIGUOUS` 780, `other_nucleus` 7.
-- The corrected single-rater tier has pathologist-supervised quality control. It is not the multi-rater inferred P-truth tier.
+- The corrected single-rater tier has pathologist-supervised quality control. It is not the
+  multi-rater inferred P-truth tier.
 - This experiment makes no clinical-validity claim.
 
 ## Resources
@@ -57,4 +65,5 @@ The `site` field is the TCGA tissue-source-site code in the NuCLS split files. T
 | Class-prior baseline | 9.69 s | 9.66 s | 0 s | 179,441,664 bytes | 0 bytes |
 | Morphology logistic candidate | 18.63 s | 22.19 s | 0 s | 195,592,192 bytes | 0 bytes |
 
-Each adapter had a 1800-second wall ceiling. The aggregate accelerator ceiling was 86400 seconds. Neither method justified GPU inference, so the run used no GPU.
+Each adapter had a 1800-second wall ceiling. The aggregate accelerator ceiling was 86400 seconds.
+Neither method justified GPU inference, so the run used no GPU.
