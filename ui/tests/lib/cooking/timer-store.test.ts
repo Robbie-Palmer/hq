@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { clearCookingTimerStorage } from "@/lib/cooking/cookingTimerPersistence";
 import {
   formatCountdown,
   selectCookingTimers,
@@ -239,6 +240,19 @@ describe("Recipe Site cooking timer store", () => {
     expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
     expect(localStorage.getItem("cooking-timers:v2:another-user")).toBeNull();
     expect(selectCookingTimers(bundle.store.getState())).toHaveLength(0);
+  });
+
+  it("does not abort cleanup when the browser storage getter throws", () => {
+    const storageGetter = vi
+      .spyOn(globalThis, "localStorage", "get")
+      .mockImplementation(() => {
+        throw new DOMException("Storage is blocked", "SecurityError");
+      });
+    try {
+      expect(clearCookingTimerStorage).not.toThrow();
+    } finally {
+      storageGetter.mockRestore();
+    }
   });
 
   it("formats countdowns", () => {

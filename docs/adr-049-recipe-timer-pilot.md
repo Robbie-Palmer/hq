@@ -25,7 +25,7 @@ continues to own remote recipe data.
 
 | Measure | Before | Pilot | Result |
 | --- | ---: | ---: | --- |
-| Production timer-store infrastructure | 448 lines | 932 lines | +484 lines, or 108% |
+| Production timer-store infrastructure | 448 lines | 936 lines | +488 lines, or 109% |
 | Baseline timer regression suite | 47 tests in 2.78 seconds | Not applicable | Pre-migration measurement |
 | Pilot evidence suite | Not applicable | 55 tests in 5.40 seconds | Includes behavior, reducer, selector, adapter, replay, and render-isolation tests |
 | Identity-scoped persistence code | About 87 lines | 118 lines | Same v2 envelope and key format, now isolated in one adapter |

@@ -114,5 +114,9 @@ export function createCookingTimerPersistence(
 }
 
 export function clearCookingTimerStorage(): void {
-  createCookingTimerPersistence().clearAll();
+  try {
+    createCookingTimerPersistence().clearAll();
+  } catch {
+    // Blocked browser storage must not abort the remaining private-data cleanup.
+  }
 }
