@@ -63,7 +63,7 @@ function createDefaultAdapters(): CookingTimerEffectAdapters {
 }
 
 function cloneAction(action: UnknownAction): UnknownAction {
-  return JSON.parse(JSON.stringify(action)) as UnknownAction;
+  return structuredClone(action);
 }
 
 export function createRecipeClientStore(

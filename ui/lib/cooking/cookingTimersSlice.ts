@@ -113,7 +113,7 @@ export const cookingTimersSlice = createSlice({
     ) {
       if (!Number.isFinite(payload.nowMs)) return;
       const timer = state.timers.find(({ id }) => id === payload.id);
-      if (!timer || timer.state !== "running" || timer.endTimeMs === null) {
+      if (timer?.state !== "running" || timer.endTimeMs === null) {
         return;
       }
       timer.state = "paused";
@@ -126,7 +126,7 @@ export const cookingTimersSlice = createSlice({
     ) {
       if (!Number.isFinite(payload.nowMs)) return;
       const timer = state.timers.find(({ id }) => id === payload.id);
-      if (!timer || timer.state !== "paused" || timer.remainingSeconds <= 0) {
+      if (timer?.state !== "paused" || timer.remainingSeconds <= 0) {
         return;
       }
       timer.state = "running";
