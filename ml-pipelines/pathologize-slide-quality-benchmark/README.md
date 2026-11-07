@@ -35,13 +35,24 @@ dated protocol amendment retains that slide in the primary evaluation and
 omits it only from scanner-held-out slices. The record preserves the original
 stop rule and the reason for changing it before feature extraction.
 
-The deterministic candidate evaluated all 24 slides and stopped on substantive
-performance gates. Accuracy was 0.500 and balanced accuracy was 0.457. It did
-not beat constant accept (accuracy 0.417, one-sided exact McNemar p=0.407) or
-constant reject (accuracy 0.583, p=1.000). The eligible SS1763CNTLR slice fell
-to 0.250 accuracy versus 0.500 overall and a 0.750 within-slice constant. No
-learned candidate was run: 24 slides cannot support leakage-safe grouped
-fitting, calibration, and scanner-held-out evaluation.
+The pilot does run an inference algorithm. It is a fixed, deterministic slide
+classifier rather than a learned model. At 2.5x it divides each slide into
+512-pixel tiles, keeps tiles with at least 20% tissue, and measures gradient,
+blue or teal pixel fraction, and dark pixel fraction. It rejects a slide when
+at least 10% of tissue tiles meet the blur rule, any tissue tile is at least
+0.2% blue or teal, or any tissue tile is at least 12% dark. The implementation
+is in
+[`pathologize_slide_quality_pilot/pilot.py`](src/pathologize_slide_quality_pilot/pilot.py)
+and the frozen thresholds are in
+[`public-pilot/predeclaration.json`](public-pilot/predeclaration.json).
+
+That classifier evaluated all 24 slides and stopped on substantive performance
+gates. Accuracy was 0.500 and balanced accuracy was 0.457. It did not beat
+constant accept (accuracy 0.417, one-sided exact McNemar p=0.407) or constant
+reject (accuracy 0.583, p=1.000). The eligible SS1763CNTLR slice fell to 0.250
+accuracy versus 0.500 overall and a 0.750 within-slice constant. No learned
+candidate was run because 24 slides cannot support leakage-safe grouped fitting,
+calibration, and scanner-held-out evaluation.
 
 The run verified 15,813,730,059 source bytes, read 528,941,634 pixels, and wrote
 2,251 numeric spatial records in 96.86 wall seconds and 96.64 CPU seconds. It
@@ -52,12 +63,12 @@ reported 16,172,980,880 process characters and zero physical read bytes.
 identity audit, rights boundary, resource record, and hashes for every
 provenance manifest.
 
-Source SVS files, annotation image files, and rendered patient imagery stay outside
-Git. The repository contains only source identifiers and checksums, numeric
-per-slide label evidence, empty spatial output documenting the preflight stop,
-and aggregate results. The annotation folder has no standalone licence file,
-so this conservative boundary applies even though the linked paper is CC BY
-4.0 and GDC marks the slides open access.
+Source SVS files, annotation image files, and rendered patient imagery stay
+outside Git. The repository contains only source identifiers and checksums,
+numeric per-slide label evidence, numeric tile-level spatial evidence, and
+aggregate results. The annotation folder has no standalone licence file, so
+this conservative boundary applies even though the linked paper is CC BY 4.0
+and GDC marks the slides open access.
 
 Reproduce the registry acquisition and stopped pilot with:
 

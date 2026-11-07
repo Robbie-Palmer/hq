@@ -9,14 +9,36 @@ extraction retains the slide in the primary evaluation and excludes it only
 from scanner-held-out slices. No scanner identity was inferred and no slide was
 dropped from the main cohort.
 
-The deterministic candidate then evaluated all 24 slides. Its 0.500 accuracy
-and 0.457 balanced accuracy failed to reject constant accept (p=0.407) or
-constant reject (p=1.000). The eligible SS1763CNTLR scanner slice also
-collapsed to 0.250 accuracy. These performance gates stop the experiment. A
-24-slide cohort cannot justify a learned candidate.
+The pilot then ran a fixed, deterministic slide classifier on all 24 slides.
+It is an inference algorithm, but it has no fitted parameters. The next section
+states its complete decision rule. Its 0.500 accuracy and 0.457 balanced
+accuracy failed to reject constant accept (p=0.407) or constant reject
+(p=1.000). The eligible SS1763CNTLR scanner slice also collapsed to 0.250
+accuracy. These performance gates stop the experiment. A 24-slide cohort
+cannot justify a learned candidate.
 
 This is a valid negative pilot result and supports no claim about clinical
 utility.
+
+## Deterministic decision rule
+
+The classifier reads each slide at 2.5x in 512-pixel tiles. It retains tiles
+with at least 20% tissue and computes tissue fraction, mean edge gradient,
+blue or teal pixel fraction, and dark pixel fraction. It rejects a slide if
+any of these rules fires:
+
+- At least 10% of tissue tiles have mean gradient no greater than 0.018 and no
+  greater than 45% of that slide's median tissue-tile gradient.
+- Any tissue tile contains at least 0.2% blue or teal pixels.
+- Any tissue tile contains at least 12% dark pixels.
+
+The implementation is in
+[`pilot.py`](../src/pathologize_slide_quality_pilot/pilot.py). The thresholds
+were frozen before the run in [`predeclaration.json`](predeclaration.json).
+The classifier's Boolean decision supplies `prediction_reject`; the AIRAQc
+palette labels supply `truth_reject`. The confusion matrix and the exact
+one-sided McNemar comparisons against constant accept and constant reject come
+from those two fields.
 
 ## Source selection
 
