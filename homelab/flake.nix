@@ -33,6 +33,17 @@
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
       pkgsFor = system: import nixpkgs { inherit system; };
+      configurationRevision =
+        let
+          cleanRevision = self.rev or null;
+          dirtyRevision = self.dirtyRev or null;
+        in
+        if cleanRevision != null then
+          cleanRevision
+        else if dirtyRevision != null then
+          dirtyRevision
+        else
+          "source-${builtins.baseNameOf (toString self.outPath)}";
     in
     {
       lib.flakeContract = {
@@ -78,6 +89,8 @@
             '';
 
           host-lifecycle-contract =
+            assert self.nixosConfigurations.remote-development.config.system.configurationRevision != null;
+            assert self.nixosConfigurations.vector-development.config.system.configurationRevision != null;
             assert remoteLifecycle.enable;
             assert remoteLifecycle.profile == "vm";
             assert remoteLifecycle.requiredMounts == [
@@ -137,7 +150,7 @@
       };
 
       nixosModules.configuration-revision = {
-        system.configurationRevision = if self ? rev then self.rev else self.dirtyRev or null;
+        system.configurationRevision = configurationRevision;
       };
 
       nixosModules.host-lifecycle = import ./modules/host-lifecycle.nix;
