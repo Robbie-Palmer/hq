@@ -102,7 +102,23 @@ export function HistoryRoute() {
     baseCurrency,
     incomeHistory,
     salaryHistory,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      netWorthDataByCurrency,
+      contributionData,
+      assetAllocationHistory,
+      baseCurrency,
+      incomeHistory,
+      salaryHistory,
+    }) => ({
+      netWorthDataByCurrency,
+      contributionData,
+      assetAllocationHistory,
+      baseCurrency,
+      incomeHistory,
+      salaryHistory,
+    }),
+  );
   const [historyCurrency, setHistoryCurrency] = useState(baseCurrency);
   const availableCurrencies = useMemo(
     () =>

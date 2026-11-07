@@ -81,7 +81,23 @@ export function HouseholdScopeControl() {
     renameHouseholdMember,
     setAccountOwnership,
     setActiveHouseholdScope,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      household,
+      householdAccounts,
+      addHouseholdMember,
+      renameHouseholdMember,
+      setAccountOwnership,
+      setActiveHouseholdScope,
+    }) => ({
+      household,
+      householdAccounts,
+      addHouseholdMember,
+      renameHouseholdMember,
+      setAccountOwnership,
+      setActiveHouseholdScope,
+    }),
+  );
   const [newMemberName, setNewMemberName] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);

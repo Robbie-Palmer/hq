@@ -70,7 +70,13 @@ function PlannerResults({
 }
 
 export function RetirementStressPlanner() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({ spendingBaselines, accountDetails, baseCurrency }) => ({
+      spendingBaselines,
+      accountDetails,
+      baseCurrency,
+    }),
+  );
   const currentMonth = `${new Date().toISOString().slice(0, 7)}-01`;
   const [draft, setDraft] = useStoredRetirementStressDraft(
     defaultAnnualSpending({

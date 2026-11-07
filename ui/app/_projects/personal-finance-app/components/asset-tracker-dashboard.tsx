@@ -24,7 +24,9 @@ function staleObservationMessage(
 }
 
 function PropertyValuesInNetWorth() {
-  const { propertyValueHistories = [] } = useAssetTracker();
+  const { propertyValueHistories = [] } = useAssetTracker(
+    ({ propertyValueHistories }) => ({ propertyValueHistories }),
+  );
   if (propertyValueHistories.length === 0) return null;
   return (
     <details className="rounded-lg border p-4">
@@ -56,7 +58,29 @@ export function AssetTrackerDashboard() {
     baseCurrency,
     valuationDate,
     valuationIssues,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      accountDetails,
+      contributionData,
+      assetAllocation,
+      portfolioReturn,
+      positionSummary,
+      inflation,
+      baseCurrency,
+      valuationDate,
+      valuationIssues,
+    }) => ({
+      accountDetails,
+      contributionData,
+      assetAllocation,
+      portfolioReturn,
+      positionSummary,
+      inflation,
+      baseCurrency,
+      valuationDate,
+      valuationIssues,
+    }),
+  );
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
   const missingPrices = valuationIssues.filter(
     (issue) => issue.kind === "missing_price" || issue.kind === "stale_price",

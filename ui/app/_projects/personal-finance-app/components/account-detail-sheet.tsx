@@ -106,7 +106,29 @@ export function AccountDetailSheet({
     propertyComparableViews = [],
     propertyValueHistories = [],
     setPropertyValueSelection,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      accounts,
+      accountDetails,
+      recurringFlows,
+      inflation,
+      transfers,
+      netWorthData,
+      propertyComparableViews,
+      propertyValueHistories,
+      setPropertyValueSelection,
+    }) => ({
+      accounts,
+      accountDetails,
+      recurringFlows,
+      inflation,
+      transfers,
+      netWorthData,
+      propertyComparableViews,
+      propertyValueHistories,
+      setPropertyValueSelection,
+    }),
+  );
   const account =
     accountDetails.find((detail) => detail.id === accountId) ?? null;
   if (!account) return null;
@@ -321,7 +343,9 @@ function EquityCard({
 }
 
 function BalanceHistory({ account }: Readonly<{ account: AccountDetailView }>) {
-  const { deleteSnapshot } = useAssetTracker();
+  const { deleteSnapshot } = useAssetTracker(({ deleteSnapshot }) => ({
+    deleteSnapshot,
+  }));
   const [error, setError] = useState<string | null>(null);
   const [deletingDate, setDeletingDate] = useState<string | null>(null);
 
@@ -386,7 +410,9 @@ function BalanceHistory({ account }: Readonly<{ account: AccountDetailView }>) {
 function CapitalFlowHistory({
   account,
 }: Readonly<{ account: AccountDetailView }>) {
-  const { deleteCapitalFlow } = useAssetTracker();
+  const { deleteCapitalFlow } = useAssetTracker(({ deleteCapitalFlow }) => ({
+    deleteCapitalFlow,
+  }));
   const [error, setError] = useState<string | null>(null);
   const [deletingFlowKey, setDeletingFlowKey] = useState<string | null>(null);
 
@@ -453,7 +479,9 @@ function CapitalFlowHistory({
 }
 
 function TransfersList({ account }: Readonly<{ account: AccountDetailView }>) {
-  const { accounts, transfers } = useAssetTracker();
+  const { accounts, transfers } = useAssetTracker(
+    ({ accounts, transfers }) => ({ accounts, transfers }),
+  );
   const accountTransfers = transfers.filter(
     (t) => t.fromAccountId === account.id || t.toAccountId === account.id,
   );

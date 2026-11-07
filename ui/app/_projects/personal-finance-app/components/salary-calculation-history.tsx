@@ -245,7 +245,9 @@ function CalculationDetail({
 }
 
 export function SalaryCalculationHistory() {
-  const { currentSalaryHistory } = useAssetTracker();
+  const { currentSalaryHistory } = useAssetTracker(
+    ({ currentSalaryHistory }) => ({ currentSalaryHistory }),
+  );
   const calculations = calculateSalaryHistory(currentSalaryHistory).toSorted(
     (left, right) => right.effectiveFrom.localeCompare(left.effectiveFrom),
   );

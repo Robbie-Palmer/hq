@@ -20,7 +20,9 @@ interface ExpectedReturnEditorProps {
 export function ExpectedReturnEditor({
   account,
 }: Readonly<ExpectedReturnEditorProps>) {
-  const { setExpectedReturn } = useAssetTracker();
+  const { setExpectedReturn } = useAssetTracker(({ setExpectedReturn }) => ({
+    setExpectedReturn,
+  }));
   const [ratePercent, setRatePercent] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState(todayIsoDate());
   const [error, setError] = useState<string | null>(null);

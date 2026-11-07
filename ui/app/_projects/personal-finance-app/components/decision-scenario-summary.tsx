@@ -41,7 +41,13 @@ export function goalDateChange(
 }
 
 export function DecisionScenarioSummary() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({ futureCashFlows, compareDecisionScenario, baseCurrency }) => ({
+      futureCashFlows,
+      compareDecisionScenario,
+      baseCurrency,
+    }),
+  );
   const decisions = tracker.futureCashFlows.filter(
     (record): record is CashFlowDecision => record.kind === "decision",
   );

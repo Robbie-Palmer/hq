@@ -15,7 +15,13 @@ const ACCOUNTS_PATH = "/assettracker/accounts";
 export function AccountsRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accountDetails, household, householdAccounts } = useAssetTracker();
+  const { accountDetails, household, householdAccounts } = useAssetTracker(
+    ({ accountDetails, household, householdAccounts }) => ({
+      accountDetails,
+      household,
+      householdAccounts,
+    }),
+  );
   const ownerLabels = Object.fromEntries(
     householdAccounts.map((account) => [
       account.id,

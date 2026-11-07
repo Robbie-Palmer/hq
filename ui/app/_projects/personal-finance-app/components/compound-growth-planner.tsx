@@ -21,7 +21,9 @@ import {
 import { CompoundGrowthResults } from "./compound-growth-results";
 
 export function CompoundGrowthPlanner() {
-  const { accountDetails = [], baseCurrency = "GBP" } = useAssetTracker();
+  const { accountDetails = [], baseCurrency = "GBP" } = useAssetTracker(
+    ({ accountDetails, baseCurrency }) => ({ accountDetails, baseCurrency }),
+  );
   const [draft, setDraft] = useStoredGrowthDraft();
   const availableAccounts = accountDetails.filter(
     (account) =>

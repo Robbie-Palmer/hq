@@ -208,7 +208,23 @@ export function AccountFlows({ account }: Readonly<AccountFlowsProps>) {
     addRecurringFlow,
     deleteRecurringFlow,
     materializeFlow,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      accounts,
+      recurringFlows,
+      transfers,
+      addRecurringFlow,
+      deleteRecurringFlow,
+      materializeFlow,
+    }) => ({
+      accounts,
+      recurringFlows,
+      transfers,
+      addRecurringFlow,
+      deleteRecurringFlow,
+      materializeFlow,
+    }),
+  );
   const accountFlows = recurringFlows.filter(
     (flow) =>
       flow.fromAccountId === account.id || flow.toAccountId === account.id,

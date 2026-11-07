@@ -104,7 +104,31 @@ function FormField({
 }
 
 function useFutureCashFlowManager() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      accounts,
+      addCashFlowDecision,
+      addCommitment,
+      createPlanningCase,
+      deleteFutureCashFlow,
+      futureCashFlows,
+      planningCases,
+      recordActualCashFlow,
+      setCashFlowDecisionStatus,
+      setCommitmentStatus,
+    }) => ({
+      accounts,
+      addCashFlowDecision,
+      addCommitment,
+      createPlanningCase,
+      deleteFutureCashFlow,
+      futureCashFlows,
+      planningCases,
+      recordActualCashFlow,
+      setCashFlowDecisionStatus,
+      setCommitmentStatus,
+    }),
+  );
   const eligibleAccounts = useMemo(
     () =>
       tracker.accounts.filter(

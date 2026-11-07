@@ -36,7 +36,9 @@ export function RecordTransferDrawer({
   fromAccountId,
   trigger,
 }: Readonly<RecordTransferDrawerProps>) {
-  const { accounts, recordTransfer } = useAssetTracker();
+  const { accounts, recordTransfer } = useAssetTracker(
+    ({ accounts, recordTransfer }) => ({ accounts, recordTransfer }),
+  );
   const openAccounts = accounts.filter((account) => account.isOpen);
   const lockedFrom = fromAccountId != null;
   const sourceAccount = accounts.find((a) => a.id === fromAccountId);

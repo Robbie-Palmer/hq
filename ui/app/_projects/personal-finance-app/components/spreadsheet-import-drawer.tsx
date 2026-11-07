@@ -126,7 +126,19 @@ export function SpreadsheetImportDrawer() {
     householdAccounts,
     importAccountHistory,
     importIncomeHistory,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      household,
+      householdAccounts,
+      importAccountHistory,
+      importIncomeHistory,
+    }) => ({
+      household,
+      householdAccounts,
+      importAccountHistory,
+      importIncomeHistory,
+    }),
+  );
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<SpreadsheetImportKind>("balances");
   const [accountId, setAccountId] = useState(householdAccounts[0]?.id ?? "");

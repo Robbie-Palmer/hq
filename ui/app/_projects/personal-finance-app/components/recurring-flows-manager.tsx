@@ -12,7 +12,9 @@ import { AccountFlows } from "./account-flows";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 export function RecurringFlowsManager() {
-  const { accountDetails } = useAssetTracker();
+  const { accountDetails } = useAssetTracker(({ accountDetails }) => ({
+    accountDetails,
+  }));
   const openAccounts = accountDetails.filter((account) => account.isOpen);
   const [accountId, setAccountId] = useState(openAccounts[0]?.id ?? "");
   const selectedAccount =

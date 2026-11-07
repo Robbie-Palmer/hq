@@ -29,7 +29,9 @@ interface CloseAccountControlsProps {
 export function CloseAccountControls({
   account,
 }: Readonly<CloseAccountControlsProps>) {
-  const { accounts, closeAccount } = useAssetTracker();
+  const { accounts, closeAccount } = useAssetTracker(
+    ({ accounts, closeAccount }) => ({ accounts, closeAccount }),
+  );
   const [confirming, setConfirming] = useState(false);
   const [transferTargetId, setTransferTargetId] = useState(KEEP_BALANCE);
   const [error, setError] = useState<string | null>(null);

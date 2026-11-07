@@ -31,7 +31,12 @@ import { MortgageInvestmentSensitivityTable } from "./mortgage-investment-sensit
 function MortgageValuationBasis({
   model,
 }: Readonly<{ model: MortgageInvestmentModel }>) {
-  const { baseCurrency, housingPlanningPosition } = useAssetTracker();
+  const { baseCurrency, housingPlanningPosition } = useAssetTracker(
+    ({ baseCurrency, housingPlanningPosition }) => ({
+      baseCurrency,
+      housingPlanningPosition,
+    }),
+  );
   const values = housingPlanningPosition?.valuationBasis ?? [];
   if (values.length === 0) return null;
   const money = (value: number) =>
@@ -65,7 +70,13 @@ export function MortgageInvestmentComparison() {
     accountDetails = [],
     baseCurrency,
     housingPlanningPosition: position,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({ accountDetails, baseCurrency, housingPlanningPosition }) => ({
+      accountDetails,
+      baseCurrency,
+      housingPlanningPosition,
+    }),
+  );
   const [editedAssumptions, setEditedAssumptions] =
     useState<MortgageInvestmentAssumptions | null>(null);
   const mortgage = accountDetails.find(

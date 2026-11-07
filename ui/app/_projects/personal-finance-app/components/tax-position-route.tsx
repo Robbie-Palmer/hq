@@ -24,7 +24,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { useAssetTracker } from "./asset-tracker-provider";
+import {
+  type AssetTrackerContextValue,
+  useAssetTracker,
+} from "./asset-tracker-provider";
 import { SoleTraderScenarios } from "./sole-trader-scenarios";
 import {
   AnnualAllowanceUsageChart,
@@ -40,7 +43,26 @@ const componentLabels = {
 } as const;
 
 type TaxSetupRow = TaxProfileSetup & { annualTaxableIncome: string };
-type AssetTracker = ReturnType<typeof useAssetTracker>;
+function selectTaxSetupTracker(tracker: AssetTrackerContextValue) {
+  const {
+    currentSalaryHistory,
+    household,
+    saveTaxSetup,
+    taxEstimate,
+    taxPosition,
+    taxSetupIncomeSuggestions,
+  } = tracker;
+  return {
+    currentSalaryHistory,
+    household,
+    saveTaxSetup,
+    taxEstimate,
+    taxPosition,
+    taxSetupIncomeSuggestions,
+  };
+}
+
+type AssetTracker = ReturnType<typeof selectTaxSetupTracker>;
 type TaxSetupUpdate = <K extends keyof TaxSetupRow>(
   memberId: string,
   key: K,
@@ -318,7 +340,7 @@ function TaxSetupFormFields({ tracker }: Readonly<{ tracker: AssetTracker }>) {
 }
 
 function TaxSetupForm() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(selectTaxSetupTracker);
   const configured = new Set(
     tracker.taxPosition?.profiles.map(({ memberId }) => memberId) ?? [],
   );
@@ -579,7 +601,13 @@ function TaxPositionHeader({
 }
 
 export function TaxPositionRoute() {
-  const { exportTaxEstimate, household, taxEstimate } = useAssetTracker();
+  const { exportTaxEstimate, household, taxEstimate } = useAssetTracker(
+    ({ exportTaxEstimate, household, taxEstimate }) => ({
+      exportTaxEstimate,
+      household,
+      taxEstimate,
+    }),
+  );
   const [showExplanations, setShowExplanations] = useState(false);
   const activeScope = household.activeScope;
   const visiblePeople =

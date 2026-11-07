@@ -26,7 +26,13 @@ function parseIncomeSource(source: string) {
 
 export function IncomeHistoryImportDrawer() {
   const { incomeHistory, importIncomeHistory, clearIncomeHistory } =
-    useAssetTracker();
+    useAssetTracker(
+      ({ incomeHistory, importIncomeHistory, clearIncomeHistory }) => ({
+        incomeHistory,
+        importIncomeHistory,
+        clearIncomeHistory,
+      }),
+    );
   const [open, setOpen] = useState(false);
   const [source, setSource] = useState("");
   const [error, setError] = useState<string | null>(null);

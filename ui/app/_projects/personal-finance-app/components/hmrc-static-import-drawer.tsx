@@ -103,7 +103,19 @@ function useHmrcStaticImport() {
     hmrcEmploymentObservations,
     household,
     salaryHistory,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      acceptHmrcImport,
+      hmrcEmploymentObservations,
+      household,
+      salaryHistory,
+    }) => ({
+      acceptHmrcImport,
+      hmrcEmploymentObservations,
+      household,
+      salaryHistory,
+    }),
+  );
   const [open, setOpen] = useState(false);
   const [memberId, setMemberId] = useState(
     household.members[0]?.id ?? "primary",

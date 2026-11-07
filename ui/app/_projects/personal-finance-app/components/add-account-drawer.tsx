@@ -137,8 +137,14 @@ function OpeningBalanceFields({
 }
 
 export function AddAccountDrawer() {
-  const { accounts, baseCurrency, createAccount, household } =
-    useAssetTracker();
+  const { accounts, baseCurrency, createAccount, household } = useAssetTracker(
+    ({ accounts, baseCurrency, createAccount, household }) => ({
+      accounts,
+      baseCurrency,
+      createAccount,
+      household,
+    }),
+  );
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );

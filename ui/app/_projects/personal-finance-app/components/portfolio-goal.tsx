@@ -145,7 +145,25 @@ export function PortfolioGoal({
     financialIndependence,
     withdrawalRate,
     setWithdrawalRate,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      accounts,
+      netWorthData,
+      baseCurrency,
+      incomeHistory,
+      financialIndependence,
+      withdrawalRate,
+      setWithdrawalRate,
+    }) => ({
+      accounts,
+      netWorthData,
+      baseCurrency,
+      incomeHistory,
+      financialIndependence,
+      withdrawalRate,
+      setWithdrawalRate,
+    }),
+  );
   const [error, setError] = useState<string | null>(null);
   const [withdrawalRateDraft, setWithdrawalRateDraft] = useState(() =>
     String(withdrawalRate * 100),

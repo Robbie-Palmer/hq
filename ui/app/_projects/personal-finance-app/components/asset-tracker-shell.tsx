@@ -210,7 +210,19 @@ function AssetTrackerShellBody({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const { hasLocalChanges, localDataError, localDataStatus, retryLocalData } =
-    useAssetTracker();
+    useAssetTracker(
+      ({
+        hasLocalChanges,
+        localDataError,
+        localDataStatus,
+        retryLocalData,
+      }) => ({
+        hasLocalChanges,
+        localDataError,
+        localDataStatus,
+        retryLocalData,
+      }),
+    );
   let content = children;
   if (localDataStatus === "loading") {
     content = <AssetTrackerLoadingState />;

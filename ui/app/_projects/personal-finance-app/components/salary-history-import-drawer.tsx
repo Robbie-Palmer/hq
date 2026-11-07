@@ -92,7 +92,9 @@ function formatGrossPay(grossPay: number | undefined): string {
 }
 
 export function SalaryHistoryImportDrawer() {
-  const { importSalaryHistory } = useAssetTracker();
+  const { importSalaryHistory } = useAssetTracker(
+    ({ importSalaryHistory }) => ({ importSalaryHistory }),
+  );
   const [open, setOpen] = useState(false);
   const [sheet, setSheet] = useState<SalaryImportSheet | null>(null);
   const [mapping, setMapping] = useState<SalaryColumnMapping>({});

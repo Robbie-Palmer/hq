@@ -20,7 +20,13 @@ const UPCOMING_DAYS = 30;
 const MAX_ROWS = 12;
 
 export function UpcomingFlows() {
-  const { accounts, accountDetails, recurringFlows } = useAssetTracker();
+  const { accounts, accountDetails, recurringFlows } = useAssetTracker(
+    ({ accounts, accountDetails, recurringFlows }) => ({
+      accounts,
+      accountDetails,
+      recurringFlows,
+    }),
+  );
 
   const occurrences = useMemo(() => {
     const from = todayIsoDate();

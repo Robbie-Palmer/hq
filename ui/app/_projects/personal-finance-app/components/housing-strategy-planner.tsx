@@ -55,7 +55,12 @@ function warningsFor(
 }
 
 export function HousingStrategyPlanner() {
-  const { baseCurrency, housingPlanningPosition } = useAssetTracker();
+  const { baseCurrency, housingPlanningPosition } = useAssetTracker(
+    ({ baseCurrency, housingPlanningPosition }) => ({
+      baseCurrency,
+      housingPlanningPosition,
+    }),
+  );
   const [editedAssumptions, setEditedAssumptions] = useState<
     HousingStrategyAssumptions[] | null
   >(null);

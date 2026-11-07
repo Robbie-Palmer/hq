@@ -24,7 +24,9 @@ export function ClearAccountHistoryButton({
   kind: AccountHistoryKind;
   count: number;
 }>) {
-  const { clearAccountHistory } = useAssetTracker();
+  const { clearAccountHistory } = useAssetTracker(
+    ({ clearAccountHistory }) => ({ clearAccountHistory }),
+  );
   const [confirming, setConfirming] = useState(false);
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
