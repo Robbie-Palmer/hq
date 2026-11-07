@@ -13,8 +13,8 @@ stages:
       size: 2211
     - path: ../../packages/data-artifacts/src/data_artifacts/files.py
       hash: md5
-      md5: 7b2f2782381e3977151d852c1b94e624
-      size: 2968
+      md5: 73a3be9501c998640dc8b0f9ccb656ae
+      size: 3334
     - path: ../../packages/data-artifacts/src/data_artifacts/schemas.py
       hash: md5
       md5: 4bb3b5e701569c73b6af07e499daf1bf
@@ -22,7 +22,7 @@ stages:
     outs:
     - path: outputs/data-artifacts-source.sha256
       hash: md5
-      md5: 8ee5638ed3f7e5fd180df557f65b2139
+      md5: f62a4716a516038d37a482a759edf175
       size: 65
   pin_ml_evaluation:
     cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
@@ -45,12 +45,12 @@ stages:
       size: 4414
     - path: outputs/data-artifacts-source.sha256
       hash: md5
-      md5: 8ee5638ed3f7e5fd180df557f65b2139
+      md5: f62a4716a516038d37a482a759edf175
       size: 65
     outs:
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
@@ -66,7 +66,7 @@ stages:
       size: 686
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -74,8 +74,8 @@ stages:
       size: 1808
     - path: uv.lock
       hash: md5
-      md5: f17ea37a8a66028921e0f78e0662690b
-      size: 50678
+      md5: 20148efc84e93807edfdb88a6868c4c4
+      size: 79506
     outs:
     - path: data/synthetic
       hash: md5
@@ -100,7 +100,7 @@ stages:
       size: 2210
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: params.yaml
       hash: md5
@@ -140,7 +140,7 @@ stages:
       size: 271
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: pyproject.toml
       hash: md5
@@ -148,8 +148,8 @@ stages:
       size: 1808
     - path: uv.lock
       hash: md5
-      md5: f17ea37a8a66028921e0f78e0662690b
-      size: 50678
+      md5: 20148efc84e93807edfdb88a6868c4c4
+      size: 79506
     outs:
     - path: outputs/runs
       hash: md5
@@ -175,18 +175,21 @@ stages:
       size: 2210
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path: outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/failures.json
+    - path:
+        outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/failures.json
       hash: md5
       md5: f508b159fe9d8c3b2ebca9ac0e3f7e29
       size: 50
-    - path: outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/predictions.jsonl
+    - path:
+        outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/predictions.jsonl
       hash: md5
       md5: 7cdd490d875ed3b42dd801f72534be29
       size: 2401
     outs:
-    - path: outputs/evaluations/tiling-magnification-contract-v1/deterministic-color-v1.json
+    - path:
+        outputs/evaluations/tiling-magnification-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: 1945719332d99514d26fc1132c0b6bd7
       size: 1561
@@ -206,15 +209,17 @@ stages:
       hash: md5
       md5: bd0c1c5264679f7e3d6f555eca0e92fb
       size: 2210
-    - path: outputs/evaluations/tiling-magnification-contract-v1/deterministic-color-v1.json
+    - path:
+        outputs/evaluations/tiling-magnification-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: 1945719332d99514d26fc1132c0b6bd7
       size: 1561
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path: outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/run-record.json
+    - path:
+        outputs/runs/tiling-magnification-contract-v1/deterministic-color-v1/run-record.json
       hash: md5
       md5: 29087bb2c752446a3d325cfe59d8bc3f
       size: 1048
@@ -237,7 +242,7 @@ stages:
       size: 2210
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
       hash: md5
@@ -257,22 +262,25 @@ stages:
     deps:
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
       hash: md5
-      md5: 69cf13709a047f30f3b1e7b39a674bf6
-      size: 535
+      md5: bf5ac694662167ad367e66cf9208ad75
+      size: 1318
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       hash: md5
       md5: acfdc75eaa8b3c12040fe17f914653c3
       size: 14311
-    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+    - path:
+        ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
       md5: f5c467788e1301a842f27b1c97d25238.dir
       size: 18701962
       nfiles: 6
-    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+    - path:
+        ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
       hash: md5
       md5: ba0870e8cb93562f0c69128afe5d1e3e
       size: 3225
-    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+    - path:
+        ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
       hash: md5
       md5: d7c616c4d81cd71ddef4bf1f402f5bec
       size: 2882
@@ -291,8 +299,8 @@ stages:
       nfiles: 4
     - path: uv.lock
       hash: md5
-      md5: f17ea37a8a66028921e0f78e0662690b
-      size: 50678
+      md5: 20148efc84e93807edfdb88a6868c4c4
+      size: 79506
     outs:
     - path: data/mpp-experiment
       hash: md5
@@ -304,22 +312,25 @@ stages:
     deps:
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
       hash: md5
-      md5: 69cf13709a047f30f3b1e7b39a674bf6
-      size: 535
+      md5: bf5ac694662167ad367e66cf9208ad75
+      size: 1318
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       hash: md5
       md5: acfdc75eaa8b3c12040fe17f914653c3
       size: 14311
-    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+    - path:
+        ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
       md5: f5c467788e1301a842f27b1c97d25238.dir
       size: 18701962
       nfiles: 6
-    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+    - path:
+        ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
       hash: md5
       md5: ba0870e8cb93562f0c69128afe5d1e3e
       size: 3225
-    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+    - path:
+        ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
       hash: md5
       md5: d7c616c4d81cd71ddef4bf1f402f5bec
       size: 2882
@@ -343,13 +354,13 @@ stages:
       nfiles: 4
     - path: uv.lock
       hash: md5
-      md5: f17ea37a8a66028921e0f78e0662690b
-      size: 50678
+      md5: 20148efc84e93807edfdb88a6868c4c4
+      size: 79506
     outs:
     - path: outputs/perturbations/mpp-experiment.json
       hash: md5
-      md5: 31eac5739f0d848f0b33b9fe1ffab680
-      size: 32022
+      md5: 030df33e752f0faee163a5f40fe7a611
+      size: 32024
     - path: outputs/perturbations/tiles
       hash: md5
       md5: 547422927573f4f6eb68692a1141b678.dir
@@ -360,22 +371,25 @@ stages:
     deps:
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/__init__.py
       hash: md5
-      md5: 69cf13709a047f30f3b1e7b39a674bf6
-      size: 535
+      md5: bf5ac694662167ad367e66cf9208ad75
+      size: 1318
     - path: ../../packages/pathologize-tiler/src/pathologize_tiler/tiling.py
       hash: md5
       md5: acfdc75eaa8b3c12040fe17f914653c3
       size: 14311
-    - path: ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
+    - path:
+        ../pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
       hash: md5
       md5: f5c467788e1301a842f27b1c97d25238.dir
       size: 18701962
       nfiles: 6
-    - path: ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
+    - path:
+        ../pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json
       hash: md5
       md5: ba0870e8cb93562f0c69128afe5d1e3e
       size: 3225
-    - path: ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
+    - path:
+        ../pathologize-data-registry/records/slides/cptac-coad-idc-09co003-0b1ee2c0.json
       hash: md5
       md5: d7c616c4d81cd71ddef4bf1f402f5bec
       size: 2882
@@ -390,8 +404,8 @@ stages:
       size: 6415
     - path: outputs/perturbations/mpp-experiment.json
       hash: md5
-      md5: 31eac5739f0d848f0b33b9fe1ffab680
-      size: 32022
+      md5: 030df33e752f0faee163a5f40fe7a611
+      size: 32024
     - path: outputs/perturbations/tiles
       hash: md5
       md5: 547422927573f4f6eb68692a1141b678.dir

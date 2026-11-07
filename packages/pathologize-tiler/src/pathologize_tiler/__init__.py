@@ -1,3 +1,21 @@
+from .cuda import (
+    CudaArrayImage,
+    CudaDecoderCapability,
+    DeviceDecodeBatch,
+    DeviceDecodeUnavailableError,
+    NvImageCodecDecoder,
+    decode_dicom_frames_nvimagecodec,
+    decode_frames_nvimagecodec,
+    probe_nvimagecodec,
+)
+from .dicom import (
+    DicomAssociatedImage,
+    DicomLevelMetadata,
+    DicomSlide,
+    DicomSlideMetadata,
+    EncodedDicomFrame,
+    HostDicomTile,
+)
 from .tiling import (
     PhysicalTileRead,
     PhysicalTileRequest,
@@ -13,15 +31,29 @@ from .tiling import (
 )
 
 __all__ = [
+    "CudaArrayImage",
+    "CudaDecoderCapability",
+    "DeviceDecodeBatch",
+    "DeviceDecodeUnavailableError",
+    "DicomAssociatedImage",
+    "DicomLevelMetadata",
+    "DicomSlide",
+    "DicomSlideMetadata",
+    "EncodedDicomFrame",
+    "HostDicomTile",
+    "NvImageCodecDecoder",
     "PhysicalTileRead",
     "PhysicalTileRequest",
     "ScaleMetadataError",
     "SlideMetadata",
     "SourceScale",
     "build_pyramid",
+    "decode_dicom_frames_nvimagecodec",
+    "decode_frames_nvimagecodec",
     "extract_tiles",
     "inspect_slide",
     "plan_batches",
+    "probe_nvimagecodec",
     "read_physical_tile",
     "read_raster_physical_tile",
 ]
