@@ -25,6 +25,10 @@ components:
     name: "Recipe dataset pipeline"
     kind: "python-pipeline"
 
+preview_links:
+  - name: "Recipes"
+    mount_path: "/recipes"
+
 layers:
   - layer: "governance"
   - layer: "base"

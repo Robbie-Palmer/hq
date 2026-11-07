@@ -99,6 +99,13 @@ const webMountPathSchema = z
   .string()
   .regex(/^\/[a-z0-9]+(?:[a-z0-9/-]*[a-z0-9])?$/);
 
+const previewLinkSchema = z
+  .object({
+    name: z.string().min(1),
+    mount_path: webMountPathSchema,
+  })
+  .strict();
+
 const taskExceptionSchema = z
   .object({
     task: taskNameSchema,
@@ -459,6 +466,7 @@ const projectProfileVersion1FieldsSchema = z
       })
       .strict(),
     components: z.array(componentSchema).min(1),
+    preview_links: z.array(previewLinkSchema).default([]),
     layers: z.array(layerUseSchema).min(1),
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
@@ -511,10 +519,18 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     context,
   );
   addDuplicateIssues(
-    profile.components.flatMap(({ mount_path }) =>
-      mount_path === undefined ? [] : [mount_path],
-    ),
-    "project UI mount paths",
+    [
+      ...profile.components.flatMap(({ mount_path }) =>
+        mount_path === undefined ? [] : [mount_path],
+      ),
+      ...profile.preview_links.map(({ mount_path }) => mount_path),
+    ],
+    "preview mount paths",
+    context,
+  );
+  addDuplicateIssues(
+    profile.preview_links.map(({ name }) => name),
+    "preview link names",
     context,
   );
   const runtimeRoles = profile.components.flatMap(({ runtime_role }) =>

@@ -18,8 +18,12 @@ interface TextOutput {
 export function projectPreviewLinksFromProfiles(
   profiles: readonly ReturnType<typeof parseProjectProfile>[],
 ): ProjectPreviewLink[] {
-  const links = profiles.flatMap((profile) =>
-    profile.components.flatMap((component) => {
+  const links = profiles.flatMap((profile) => [
+    ...profile.preview_links.map(({ name, mount_path: mountPath }) => ({
+      name,
+      path: mountPath,
+    })),
+    ...profile.components.flatMap((component) => {
       if (component.kind !== "project-ui") return [];
       const mountPath = component.mount_path;
       if (!mountPath) {
@@ -29,7 +33,7 @@ export function projectPreviewLinksFromProfiles(
       }
       return [{ name: component.name, path: mountPath }];
     }),
-  );
+  ]);
 
   const duplicatePath = links.find(
     (candidate, index) =>
@@ -44,6 +48,16 @@ export function projectPreviewLinksFromProfiles(
 
   return links.toSorted((left, right) =>
     left.name.localeCompare(right.name, "en"),
+  );
+}
+
+export function renderProjectPreviewLinks(
+  previewSiteUrl: string,
+  links: readonly ProjectPreviewLink[],
+): string[] {
+  return links.map(
+    ({ name, path: mountPath }) =>
+      `**${name}:** ${previewSiteUrl}${mountPath}`,
   );
 }
 
@@ -71,14 +85,26 @@ export async function loadProjectPreviewLinks(
 export async function writeProjectPreviewLinks(
   repositoryRoot: string,
   githubOutput: string | undefined,
+  previewSiteUrl: string | undefined,
   output: TextOutput,
 ): Promise<void> {
-  const links = JSON.stringify(await loadProjectPreviewLinks(repositoryRoot));
+  const links = await loadProjectPreviewLinks(repositoryRoot);
+  const serializedLinks = JSON.stringify(links);
   if (githubOutput) {
-    await appendFile(githubOutput, `links=${links}\n`, "utf8");
+    if (!previewSiteUrl) {
+      throw new Error("PREVIEW_SITE_URL is required for GitHub Actions output");
+    }
+    const markdownLines = JSON.stringify(
+      renderProjectPreviewLinks(previewSiteUrl, links),
+    );
+    await appendFile(
+      githubOutput,
+      `links=${serializedLinks}\nmarkdown_lines=${markdownLines}\n`,
+      "utf8",
+    );
     return;
   }
-  output.write(`${links}\n`);
+  output.write(`${serializedLinks}\n`);
 }
 
 /* v8 ignore next 7 -- exercised through writeProjectPreviewLinks */
@@ -86,6 +112,7 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   await writeProjectPreviewLinks(
     process.cwd(),
     process.env.GITHUB_OUTPUT,
+    process.env.PREVIEW_SITE_URL,
     process.stdout,
   );
 }

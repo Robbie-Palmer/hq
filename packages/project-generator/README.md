@@ -60,6 +60,12 @@ resolved targets as catalog records. Profile version 1 remains valid and still
 resolves to blueprint version 2. Version 2 remains valid and resolves to
 blueprint version 3.
 
+All profile versions accept `preview_links`, a list of user-facing names and
+mount paths for browser UIs that do not own a `project-ui` component. Preview
+automation combines these entries with `project-ui` component `name` and
+`mount_path` fields. Validation rejects duplicate names and any mount path used
+by both sources in one profile.
+
 Profiles that own a stateful serverless service can declare
 `rollout.stateful_operations`. The contract names repository mise hooks,
 protected GitHub environments, and redacted `doppler://project/config`
