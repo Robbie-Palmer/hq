@@ -6,6 +6,7 @@ import math
 import resource
 import time
 from collections import Counter
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,17 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORPUS_PATH = PROJECT_ROOT / "public-pilot/corpus.json"
 PREDECLARATION_PATH = PROJECT_ROOT / "public-pilot/predeclaration.json"
 OUTPUT_ROOT = PROJECT_ROOT / "public-pilot/results"
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
+
+class ResultFile(StrEnum):
+    FAILURES = "failures.json"
+    FEATURES = "features.jsonl"
+    METRICS = "metrics.json"
+    PER_SLIDE = "per-slide.jsonl"
+    REPORT = "report.json"
+    RESOURCES = "resources.json"
+    SPATIAL = "spatial-evidence.jsonl"
 
 
 class StrictModel(BaseModel):
@@ -28,7 +40,7 @@ class SourceAsset(StrictModel):
     relative_path: str
     source_url: str
     bytes: int = Field(gt=0)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=SHA256_PATTERN)
     publisher_md5: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     publisher_id: str
 
@@ -54,11 +66,11 @@ class Corpus(StrictModel):
     corpus_id: str
     registry_base_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
     registry_subset_id: str
-    registry_index_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    registry_collection_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    registry_subset_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    registry_asset_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    source_index_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    registry_index_sha256: str = Field(pattern=SHA256_PATTERN)
+    registry_collection_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
+    registry_subset_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
+    registry_asset_manifest_sha256: str = Field(pattern=SHA256_PATTERN)
+    source_index_sha256: str = Field(pattern=SHA256_PATTERN)
     source_root: str
     slides: list[CorpusSlide] = Field(min_length=1)
     exclusions: list[dict[str, Any]]
@@ -81,15 +93,17 @@ def _read_json(path: Path) -> dict[str, Any]:
     return value
 
 
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _write_json(name: ResultFile, value: object) -> None:
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
+    (OUTPUT_ROOT / name.value).write_text(
+        json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
 
-def _write_jsonl(path: Path, values: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _write_jsonl(name: ResultFile, values: list[dict[str, Any]]) -> None:
+    OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     body = "".join(json.dumps(value, sort_keys=True) + "\n" for value in values)
-    path.write_text(body, encoding="utf-8")
+    (OUTPUT_ROOT / name.value).write_text(body, encoding="utf-8")
 
 
 def _sha256(path: Path) -> str:
@@ -113,13 +127,13 @@ def _process_io() -> dict[str, int]:
 
 def _output_bytes() -> int:
     names = (
-        "failures.json",
-        "features.jsonl",
-        "metrics.json",
-        "per-slide.jsonl",
-        "spatial-evidence.jsonl",
+        ResultFile.FAILURES,
+        ResultFile.FEATURES,
+        ResultFile.METRICS,
+        ResultFile.PER_SLIDE,
+        ResultFile.SPATIAL,
     )
-    return sum((OUTPUT_ROOT / name).stat().st_size for name in names)
+    return sum((OUTPUT_ROOT / name.value).stat().st_size for name in names)
 
 
 def _verify_corpus_assets(corpus: Corpus, source_root: Path) -> int:
@@ -433,11 +447,11 @@ def _write_scanner_identity_stop(
         "specificity": None,
         "balanced_accuracy": None,
     }
-    _write_jsonl(OUTPUT_ROOT / "features.jsonl", [])
-    _write_jsonl(OUTPUT_ROOT / "per-slide.jsonl", per_slide)
-    _write_jsonl(OUTPUT_ROOT / "spatial-evidence.jsonl", [])
-    _write_json(OUTPUT_ROOT / "failures.json", {"failures": []})
-    _write_json(OUTPUT_ROOT / "metrics.json", metrics)
+    _write_jsonl(ResultFile.FEATURES, [])
+    _write_jsonl(ResultFile.PER_SLIDE, per_slide)
+    _write_jsonl(ResultFile.SPATIAL, [])
+    _write_json(ResultFile.FAILURES, {"failures": []})
+    _write_json(ResultFile.METRICS, metrics)
 
     ended_io = _process_io()
     wall_seconds = time.perf_counter() - started_wall
@@ -479,7 +493,7 @@ def _write_scanner_identity_stop(
         "process_rchar": ended_io.get("rchar", 0) - started_io.get("rchar", 0),
         "spatial_records": 0,
     }
-    _write_json(OUTPUT_ROOT / "resources.json", resources)
+    _write_json(ResultFile.RESOURCES, resources)
     positive_slides = sum(slide.truth_reject for slide in corpus.slides)
     known_groups = Counter(
         slide.scanner_id for slide in corpus.slides if slide.scanner_id is not None
@@ -553,33 +567,16 @@ def _write_scanner_identity_stop(
         },
         "resources": resources,
     }
-    _write_json(OUTPUT_ROOT / "report.json", report)
+    _write_json(ResultFile.REPORT, report)
     print(
         f"Public pilot stopped at scanner identity preflight: "
         f"missing={len(missing)}, slides={len(corpus.slides)}."
     )
 
 
-def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, and stop evidence.
-    started_wall = time.perf_counter()
-    started_cpu = time.process_time()
-    started_io = _process_io()
-    declaration = _read_json(PREDECLARATION_PATH)
-    corpus = Corpus.model_validate(_read_json(CORPUS_PATH))
-    if len(corpus.slides) != declaration["cohort"]["expected_slides"]:
-        raise ValueError("corpus size differs from the predeclaration")
-    source_root = (PROJECT_ROOT / corpus.source_root).resolve()
-    if any(slide.scanner_id is None for slide in corpus.slides):
-        verified_bytes = _verify_corpus_assets(corpus, source_root)
-        _write_scanner_identity_stop(
-            corpus,
-            declaration,
-            started_wall,
-            started_cpu,
-            started_io,
-            verified_bytes,
-        )
-        return
+def _extract_corpus(
+    corpus: Corpus, source_root: Path, declaration: dict[str, Any]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], int]:
     features: list[dict[str, Any]] = []
     per_slide: list[dict[str, Any]] = []
     spatial: list[dict[str, Any]] = []
@@ -603,22 +600,25 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
                 }
             )
     if failures:
-        _write_json(OUTPUT_ROOT / "failures.json", {"failures": failures})
+        _write_json(ResultFile.FAILURES, {"failures": failures})
         raise ValueError(f"public pilot recorded {len(failures)} slide failure(s)")
+    return features, per_slide, spatial, pixels_read
 
+
+def _evaluate_candidate(
+    per_slide: list[dict[str, Any]], declaration: dict[str, Any]
+) -> tuple[dict[str, float | int], dict[str, Any], list[dict[str, Any]], list[str]]:
     metrics = _classification_metrics(per_slide)
     candidate_correct = [bool(row["correct"]) for row in per_slide]
     accept_correct = [not bool(row["truth_reject"]) for row in per_slide]
     reject_correct = [bool(row["truth_reject"]) for row in per_slide]
-    constant_accept_accuracy = sum(accept_correct) / len(accept_correct)
-    constant_reject_accuracy = sum(reject_correct) / len(reject_correct)
     comparisons = {
         "constant_accept": {
-            "accuracy": constant_accept_accuracy,
+            "accuracy": sum(accept_correct) / len(accept_correct),
             **_mcnemar(candidate_correct, accept_correct),
         },
         "constant_reject": {
-            "accuracy": constant_reject_accuracy,
+            "accuracy": sum(reject_correct) / len(reject_correct),
             **_mcnemar(candidate_correct, reject_correct),
         },
     }
@@ -628,9 +628,11 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
         stop_reasons.append("clean negatives are absent")
     if len(scanner_slices) < int(declaration["stopping_rules"]["minimum_scanner_groups"]):
         stop_reasons.append("fewer than two stable scanner groups are present")
-    for name, comparison in comparisons.items():
-        if comparison["one_sided_exact_p"] >= 0.05:
-            stop_reasons.append(f"deterministic candidate does not reject {name}")
+    stop_reasons.extend(
+        f"deterministic candidate does not reject {name}"
+        for name, comparison in comparisons.items()
+        if comparison["one_sided_exact_p"] >= 0.05
+    )
     maximum_drop = float(declaration["stopping_rules"]["maximum_scanner_accuracy_drop"])
     stop_reasons.extend(
         f"scanner-held-out collapse on {scanner_slice['scanner_id']}"
@@ -639,12 +641,60 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
         and scanner_slice["accuracy"] < scanner_slice["best_constant_accuracy"]
         and metrics["accuracy"] - scanner_slice["accuracy"] > maximum_drop
     )
+    return metrics, comparisons, scanner_slices, stop_reasons
 
-    _write_jsonl(OUTPUT_ROOT / "features.jsonl", features)
-    _write_jsonl(OUTPUT_ROOT / "per-slide.jsonl", per_slide)
-    _write_jsonl(OUTPUT_ROOT / "spatial-evidence.jsonl", spatial)
-    _write_json(OUTPUT_ROOT / "failures.json", {"failures": []})
-    _write_json(OUTPUT_ROOT / "metrics.json", metrics)
+
+def _resource_stop_reasons(
+    wall_seconds: float,
+    cpu_seconds: float,
+    input_bytes: int,
+    peak_disk_upper_bound: int,
+    caps: dict[str, Any],
+) -> list[str]:
+    reasons = []
+    if wall_seconds > caps["wall_seconds"]:
+        reasons.append("wall-time cap exceeded")
+    if cpu_seconds > caps["cpu_seconds"]:
+        reasons.append("CPU-time cap exceeded")
+    if input_bytes > caps["network_download_bytes"]:
+        reasons.append("declared download cap exceeded")
+    if peak_disk_upper_bound > caps["peak_local_disk_bytes"]:
+        reasons.append("declared peak local disk cap exceeded")
+    return reasons
+
+
+def run() -> None:
+    started_wall = time.perf_counter()
+    started_cpu = time.process_time()
+    started_io = _process_io()
+    declaration = _read_json(PREDECLARATION_PATH)
+    corpus = Corpus.model_validate(_read_json(CORPUS_PATH))
+    if len(corpus.slides) != declaration["cohort"]["expected_slides"]:
+        raise ValueError("corpus size differs from the predeclaration")
+    source_root = (PROJECT_ROOT / corpus.source_root).resolve()
+    if any(slide.scanner_id is None for slide in corpus.slides):
+        verified_bytes = _verify_corpus_assets(corpus, source_root)
+        _write_scanner_identity_stop(
+            corpus,
+            declaration,
+            started_wall,
+            started_cpu,
+            started_io,
+            verified_bytes,
+        )
+        return
+    features, per_slide, spatial, pixels_read = _extract_corpus(
+        corpus, source_root, declaration
+    )
+    metrics, comparisons, scanner_slices, stop_reasons = _evaluate_candidate(
+        per_slide, declaration
+    )
+
+    _write_jsonl(ResultFile.FEATURES, features)
+    _write_jsonl(ResultFile.PER_SLIDE, per_slide)
+    _write_jsonl(ResultFile.SPATIAL, spatial)
+    _write_json(ResultFile.FAILURES, {"failures": []})
+    _write_json(ResultFile.METRICS, metrics)
 
     ended_io = _process_io()
     wall_seconds = time.perf_counter() - started_wall
@@ -675,16 +725,16 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
         "process_rchar": ended_io.get("rchar", 0) - started_io.get("rchar", 0),
         "spatial_records": len(spatial),
     }
-    caps = declaration["resource_caps"]
-    if wall_seconds > caps["wall_seconds"]:
-        stop_reasons.append("wall-time cap exceeded")
-    if cpu_seconds > caps["cpu_seconds"]:
-        stop_reasons.append("CPU-time cap exceeded")
-    if input_bytes > caps["network_download_bytes"]:
-        stop_reasons.append("declared download cap exceeded")
-    if peak_disk_upper_bound > caps["peak_local_disk_bytes"]:
-        stop_reasons.append("declared peak local disk cap exceeded")
-    _write_json(OUTPUT_ROOT / "resources.json", resources)
+    stop_reasons.extend(
+        _resource_stop_reasons(
+            wall_seconds,
+            cpu_seconds,
+            input_bytes,
+            peak_disk_upper_bound,
+            declaration["resource_caps"],
+        )
+    )
+    _write_json(ResultFile.RESOURCES, resources)
     report = {
         "schema_version": "1.0.0",
         "experiment_id": declaration["experiment_id"],
@@ -738,7 +788,7 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
         },
         "resources": resources,
     }
-    _write_json(OUTPUT_ROOT / "report.json", report)
+    _write_json(ResultFile.REPORT, report)
     print(
         f"Public pilot {report['decision']}: accuracy={metrics['accuracy']:.3f}, "
         f"slides={metrics['slides']}, stop_reasons={len(report['stop_reasons'])}."
@@ -746,8 +796,8 @@ def run() -> None:  # noqa: C901 - the run gate keeps acquisition, evaluation, a
 
 
 def verify() -> None:
-    report = _read_json(OUTPUT_ROOT / "report.json")
-    resources = _read_json(OUTPUT_ROOT / "resources.json")
+    report = _read_json(OUTPUT_ROOT / ResultFile.REPORT.value)
+    resources = _read_json(OUTPUT_ROOT / ResultFile.RESOURCES.value)
     corpus = Corpus.model_validate(_read_json(CORPUS_PATH))
     declaration = _read_json(PREDECLARATION_PATH)
     if report["decision"] not in {"stop", "continue"}:
@@ -762,16 +812,7 @@ def verify() -> None:
         raise ValueError("public-pilot used undeclared GPU time")
     if resources["peak_vram_bytes"] != declaration["resource_caps"]["peak_vram_bytes"]:
         raise ValueError("public-pilot used undeclared VRAM")
-    expected_outputs = {
-        "failures.json",
-        "features.jsonl",
-        "metrics.json",
-        "per-slide.jsonl",
-        "report.json",
-        "resources.json",
-        "spatial-evidence.jsonl",
-    }
-    missing = [name for name in expected_outputs if not (OUTPUT_ROOT / name).is_file()]
+    missing = [name.value for name in ResultFile if not (OUTPUT_ROOT / name.value).is_file()]
     if missing:
         raise ValueError(f"public-pilot outputs are missing: {', '.join(sorted(missing))}")
     accuracy = report["metrics"]["accuracy"]

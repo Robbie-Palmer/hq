@@ -146,11 +146,11 @@
   },
   "resources": {
     "acquisition_network_bytes": 15813730059,
-    "cpu_seconds": 8.30218677,
+    "cpu_seconds": 8.301098618,
     "gpu_seconds": 0,
     "peak_local_disk_bytes_upper_bound": 33707121037,
     "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
-    "peak_rss_bytes": 58527744,
+    "peak_rss_bytes": 59179008,
     "peak_vram_bytes": 0,
     "pixels_read": 0,
     "process_rchar": 15813772920,
@@ -160,7 +160,7 @@
     "source_bytes_manifested": 15813730059,
     "source_bytes_verified_in_preflight": 15813730059,
     "spatial_records": 0,
-    "wall_seconds": 8.317355177015997
+    "wall_seconds": 8.316500236047432
   },
   "rights_boundary": {
     "allowed_public_artifacts": [

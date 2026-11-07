@@ -42,7 +42,7 @@ The selection was locked before source-slide download.
 | Feature-runner CPU time | 28,800 seconds | 8.30 seconds |
 | GPU time | 0 seconds | 0 seconds |
 | Peak VRAM | 0 bytes | 0 bytes |
-| Peak RSS | No separate cap | 58,527,744 bytes |
+| Peak RSS | No separate cap | 59,179,008 bytes |
 | Source bytes verified in preflight | 15,813,730,059 bytes | 15,813,730,059 bytes |
 
 The DVC cache and materialized pilot source occupy about 31.63 GB logically.

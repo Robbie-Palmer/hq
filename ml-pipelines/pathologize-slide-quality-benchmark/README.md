@@ -40,7 +40,7 @@ accuracies are 0.417 and 0.583 respectively; they are descriptive and were not
 tested against a candidate.
 
 The stopped run verified 15,813,730,059 source bytes in 8.32 wall seconds and
-8.30 CPU seconds. It used no GPU time or VRAM, peaked at 58,527,744 bytes of
+8.30 CPU seconds. It used no GPU time or VRAM, peaked at 59,179,008 bytes of
 RSS, and conservatively bounded peak local disk at 33,707,121,037 bytes. The
 kernel reported 15,813,772,920 process characters and zero physical read bytes
 because the source files were cached. `public-pilot/results/report.json`

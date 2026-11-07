@@ -293,8 +293,8 @@ stages:
       size: 1425
     - path: src/pathologize_slide_quality_pilot
       hash: md5
-      md5: 2dc2897b732c63d6b4ea713fc9a3564d.dir
-      size: 33837
+      md5: 9ca4831816b78606b8b371abe1d1be33.dir
+      size: 34738
       nfiles: 3
     - path: uv.lock
       hash: md5
