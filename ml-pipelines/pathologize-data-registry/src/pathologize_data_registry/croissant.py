@@ -15,10 +15,16 @@ from pathologize_data_registry.repository import LoadedRegistry
 
 CROISSANT_CONFORMS_TO = "http://mlcommons.org/croissant/1.1"
 EXPORT_CONTRACT = "pathologize.data-registry-export/v1"
+JSON_LD_LANGUAGE = "@language"
+JSON_LD_TYPE = "@type"
+OWNING_REGISTRY_COLLECTION = "Owning registry collection."
+SCHEMA_FLOAT = "sc:Float"
+SCHEMA_TEXT = "sc:Text"
+SCHEMA_URL = "sc:URL"
 type JsonValue = str | int | float | bool | list[JsonValue] | dict[str, JsonValue] | None
 
 CROISSANT_CONTEXT: dict[str, JsonValue] = {
-    "@language": "en",
+    JSON_LD_LANGUAGE: "en",
     "@vocab": "https://schema.org/",
     "arrayShape": "cr:arrayShape",
     "citeAs": "cr:citeAs",
@@ -27,12 +33,12 @@ CROISSANT_CONTEXT: dict[str, JsonValue] = {
     "containedIn": "cr:containedIn",
     "cr": "http://mlcommons.org/croissant/",
     "rai": "http://mlcommons.org/croissant/RAI/",
-    "data": {"@id": "cr:data", "@type": "@json"},
-    "dataType": {"@id": "cr:dataType", "@type": "@vocab"},
+    "data": {"@id": "cr:data", JSON_LD_TYPE: "@json"},
+    "dataType": {"@id": "cr:dataType", JSON_LD_TYPE: "@vocab"},
     "dct": "http://purl.org/dc/terms/",
-    "description": {"@container": "@language"},
+    "description": {"@container": JSON_LD_LANGUAGE},
     "equivalentProperty": "cr:equivalentProperty",
-    "examples": {"@id": "cr:examples", "@type": "@json"},
+    "examples": {"@id": "cr:examples", JSON_LD_TYPE: "@json"},
     "extract": "cr:extract",
     "field": "cr:field",
     "fileProperty": "cr:fileProperty",
@@ -45,7 +51,7 @@ CROISSANT_CONTEXT: dict[str, JsonValue] = {
     "jsonPath": "cr:jsonPath",
     "key": "cr:key",
     "md5": "cr:md5",
-    "name": {"@container": "@language"},
+    "name": {"@container": JSON_LD_LANGUAGE},
     "parentField": "cr:parentField",
     "path": "cr:path",
     "recordSet": "cr:recordSet",
@@ -168,7 +174,7 @@ class CroissantReference(ExportModel):
 
 
 class CroissantField(ExportModel):
-    field_type: Literal["cr:Field"] = Field(default="cr:Field", alias="@type")
+    field_type: Literal["cr:Field"] = Field(default="cr:Field", alias=JSON_LD_TYPE)
     identifier: str = Field(alias="@id")
     name: str
     description: str
@@ -176,7 +182,7 @@ class CroissantField(ExportModel):
 
 
 class CroissantFileObject(ExportModel):
-    object_type: Literal["cr:FileObject"] = Field(default="cr:FileObject", alias="@type")
+    object_type: Literal["cr:FileObject"] = Field(default="cr:FileObject", alias=JSON_LD_TYPE)
     identifier: str = Field(alias="@id")
     name: str
     description: str
@@ -187,7 +193,7 @@ class CroissantFileObject(ExportModel):
 
 
 class CroissantRecordSet(ExportModel):
-    record_set_type: Literal["cr:RecordSet"] = Field(default="cr:RecordSet", alias="@type")
+    record_set_type: Literal["cr:RecordSet"] = Field(default="cr:RecordSet", alias=JSON_LD_TYPE)
     identifier: str = Field(alias="@id")
     name: str
     description: str
@@ -198,7 +204,7 @@ class CroissantRecordSet(ExportModel):
 
 class CroissantExport(ExportModel):
     context: dict[str, JsonValue] = Field(alias="@context")
-    dataset_type: Literal["sc:Dataset"] = Field(default="sc:Dataset", alias="@type")
+    dataset_type: Literal["sc:Dataset"] = Field(default="sc:Dataset", alias=JSON_LD_TYPE)
     name: str
     description: str
     url: AnyHttpUrl
@@ -418,21 +424,21 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "Collection provenance, retrieval evidence, access terms, and licence scope.",
             "collection_id",
             _field_definitions(
-                ("collection_id", "sc:Text", "Stable registry collection identifier."),
-                ("title", "sc:Text", "Source collection title."),
-                ("description", "sc:Text", "Source collection description."),
-                ("registration_status", "sc:Text", "Registry acquisition status."),
-                ("publisher", "sc:Text", "Source publisher."),
-                ("landing_page_url", "sc:URL", "Source landing page."),
-                ("doi", "sc:Text", "Source DOI when one exists."),
-                ("source_version", "sc:Text", "Version reported by the source."),
+                ("collection_id", SCHEMA_TEXT, "Stable registry collection identifier."),
+                ("title", SCHEMA_TEXT, "Source collection title."),
+                ("description", SCHEMA_TEXT, "Source collection description."),
+                ("registration_status", SCHEMA_TEXT, "Registry acquisition status."),
+                ("publisher", SCHEMA_TEXT, "Source publisher."),
+                ("landing_page_url", SCHEMA_URL, "Source landing page."),
+                ("doi", SCHEMA_TEXT, "Source DOI when one exists."),
+                ("source_version", SCHEMA_TEXT, "Version reported by the source."),
                 ("retrieved_at", "sc:Date", "Date the source evidence was retrieved."),
-                ("license_name", "sc:Text", "Source licence name."),
-                ("license_spdx_id", "sc:Text", "SPDX licence identifier."),
-                ("license_url", "sc:URL", "Licence document URL."),
-                ("license_scope", "sc:Text", "Evidence for the licence scope."),
-                ("redistribution", "sc:Text", "Registry redistribution policy."),
-                ("citation", "sc:Text", "Source citation."),
+                ("license_name", SCHEMA_TEXT, "Source licence name."),
+                ("license_spdx_id", SCHEMA_TEXT, "SPDX licence identifier."),
+                ("license_url", SCHEMA_URL, "Licence document URL."),
+                ("license_scope", SCHEMA_TEXT, "Evidence for the licence scope."),
+                ("redistribution", SCHEMA_TEXT, "Registry redistribution policy."),
+                ("citation", SCHEMA_TEXT, "Source citation."),
             ),
             _collection_records(registry),
         ),
@@ -442,10 +448,10 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "Landing pages and documentation used to review each source collection.",
             "document_id",
             _field_definitions(
-                ("document_id", "sc:Text", "Stable evidence document identifier."),
-                ("collection_id", "sc:Text", "Owning registry collection."),
-                ("role", "sc:Text", "Document role."),
-                ("url", "sc:URL", "Evidence document URL."),
+                ("document_id", SCHEMA_TEXT, "Stable evidence document identifier."),
+                ("collection_id", SCHEMA_TEXT, OWNING_REGISTRY_COLLECTION),
+                ("role", SCHEMA_TEXT, "Document role."),
+                ("url", SCHEMA_URL, "Evidence document URL."),
             ),
             _collection_document_records(registry),
         ),
@@ -455,9 +461,9 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "Label domains described by each source without a cross-dataset mapping.",
             "label_domain_id",
             _field_definitions(
-                ("label_domain_id", "sc:Text", "Stable label-domain record identifier."),
-                ("collection_id", "sc:Text", "Owning registry collection."),
-                ("source_native_label_domain", "sc:Text", "Label domain named by the source."),
+                ("label_domain_id", SCHEMA_TEXT, "Stable label-domain record identifier."),
+                ("collection_id", SCHEMA_TEXT, OWNING_REGISTRY_COLLECTION),
+                ("source_native_label_domain", SCHEMA_TEXT, "Label domain named by the source."),
             ),
             _label_domain_records(registry),
         ),
@@ -467,27 +473,27 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "Stable source identities, scanner evidence, and physical scale for acquired slides.",
             "slide_id",
             _field_definitions(
-                ("slide_id", "sc:Text", "Stable registry slide identifier."),
-                ("collection_id", "sc:Text", "Owning registry collection."),
-                ("subset_id", "sc:Text", "Owning acquired subset."),
-                ("patient_id", "sc:Text", "Source patient identifier."),
-                ("case_id", "sc:Text", "Source case identifier."),
-                ("specimen_id", "sc:Text", "Source specimen identifier."),
-                ("specimen_uid", "sc:Text", "DICOM specimen UID."),
-                ("slide_container_id", "sc:Text", "Source slide container identifier."),
-                ("study_instance_uid", "sc:Text", "DICOM Study Instance UID."),
-                ("series_instance_uid", "sc:Text", "DICOM Series Instance UID."),
-                ("identity_basis", "sc:Text", "Evidence used for the source identities."),
-                ("scanner_manufacturer", "sc:Text", "Scanner manufacturer."),
-                ("scanner_model", "sc:Text", "Scanner or conversion model."),
-                ("scanner_serial_number", "sc:Text", "Scanner serial number when supplied."),
-                ("objective_power", "sc:Float", "Objective lens power."),
-                ("conversion_note", "sc:Text", "Source conversion note."),
-                ("micrometres_per_pixel_x", "sc:Float", "Horizontal physical pixel size."),
-                ("micrometres_per_pixel_y", "sc:Float", "Vertical physical pixel size."),
+                ("slide_id", SCHEMA_TEXT, "Stable registry slide identifier."),
+                ("collection_id", SCHEMA_TEXT, OWNING_REGISTRY_COLLECTION),
+                ("subset_id", SCHEMA_TEXT, "Owning acquired subset."),
+                ("patient_id", SCHEMA_TEXT, "Source patient identifier."),
+                ("case_id", SCHEMA_TEXT, "Source case identifier."),
+                ("specimen_id", SCHEMA_TEXT, "Source specimen identifier."),
+                ("specimen_uid", SCHEMA_TEXT, "DICOM specimen UID."),
+                ("slide_container_id", SCHEMA_TEXT, "Source slide container identifier."),
+                ("study_instance_uid", SCHEMA_TEXT, "DICOM Study Instance UID."),
+                ("series_instance_uid", SCHEMA_TEXT, "DICOM Series Instance UID."),
+                ("identity_basis", SCHEMA_TEXT, "Evidence used for the source identities."),
+                ("scanner_manufacturer", SCHEMA_TEXT, "Scanner manufacturer."),
+                ("scanner_model", SCHEMA_TEXT, "Scanner or conversion model."),
+                ("scanner_serial_number", SCHEMA_TEXT, "Scanner serial number when supplied."),
+                ("objective_power", SCHEMA_FLOAT, "Objective lens power."),
+                ("conversion_note", SCHEMA_TEXT, "Source conversion note."),
+                ("micrometres_per_pixel_x", SCHEMA_FLOAT, "Horizontal physical pixel size."),
+                ("micrometres_per_pixel_y", SCHEMA_FLOAT, "Vertical physical pixel size."),
                 ("total_pixel_matrix_columns", "sc:Integer", "Total source matrix width."),
                 ("total_pixel_matrix_rows", "sc:Integer", "Total source matrix height."),
-                ("label_limitations", "sc:Text", "Limits on source-native label interpretation."),
+                ("label_limitations", SCHEMA_TEXT, "Limits on source-native label interpretation."),
             ),
             [_slide_record(slide) for slide in registry.slides.values()],
         ),
@@ -497,14 +503,18 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "Labels and codes copied from the source without ontology harmonisation.",
             "label_id",
             _field_definitions(
-                ("label_id", "sc:Text", "Stable label record identifier."),
-                ("slide_id", "sc:Text", "Source slide identifier."),
-                ("name", "sc:Text", "Source label field name."),
-                ("value", "sc:Text", "Source label value."),
-                ("code", "sc:Text", "Source terminology code when supplied."),
-                ("coding_scheme", "sc:Text", "Source coding scheme when supplied."),
-                ("coding_scheme_version", "sc:Text", "Source coding scheme version when supplied."),
-                ("provenance", "sc:Text", "Source field or sequence that supplied the label."),
+                ("label_id", SCHEMA_TEXT, "Stable label record identifier."),
+                ("slide_id", SCHEMA_TEXT, "Source slide identifier."),
+                ("name", SCHEMA_TEXT, "Source label field name."),
+                ("value", SCHEMA_TEXT, "Source label value."),
+                ("code", SCHEMA_TEXT, "Source terminology code when supplied."),
+                ("coding_scheme", SCHEMA_TEXT, "Source coding scheme when supplied."),
+                (
+                    "coding_scheme_version",
+                    SCHEMA_TEXT,
+                    "Source coding scheme version when supplied.",
+                ),
+                ("provenance", SCHEMA_TEXT, "Source field or sequence that supplied the label."),
             ),
             _source_label_records(registry),
         ),
@@ -514,13 +524,13 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
             "DICOM source objects and their stable image identities.",
             "asset_id",
             _field_definitions(
-                ("asset_id", "sc:Text", "Stable asset and Croissant distribution identifier."),
-                ("subset_id", "sc:Text", "Owning acquired subset."),
-                ("slide_id", "sc:Text", "Owning registry slide."),
-                ("relative_path", "sc:Text", "Registry-relative source object path."),
-                ("sop_instance_uid", "sc:Text", "DICOM SOP Instance UID."),
-                ("image_role", "sc:Text", "DICOM image role."),
-                ("distribution_id", "sc:Text", "Referenced Croissant FileObject identifier."),
+                ("asset_id", SCHEMA_TEXT, "Stable asset and Croissant distribution identifier."),
+                ("subset_id", SCHEMA_TEXT, "Owning acquired subset."),
+                ("slide_id", SCHEMA_TEXT, "Owning registry slide."),
+                ("relative_path", SCHEMA_TEXT, "Registry-relative source object path."),
+                ("sop_instance_uid", SCHEMA_TEXT, "DICOM SOP Instance UID."),
+                ("image_role", SCHEMA_TEXT, "DICOM image role."),
+                ("distribution_id", SCHEMA_TEXT, "Referenced Croissant FileObject identifier."),
             ),
             asset_records,
         ),
