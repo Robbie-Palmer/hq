@@ -8,6 +8,7 @@ from typing import Self
 
 from PIL import Image
 from pydicom import dcmread
+from pydicom.errors import InvalidDicomError
 from wsidicom import WsiDicom
 from wsidicom.group.level import Level
 
@@ -68,20 +69,54 @@ def _series_files(path: Path) -> tuple[Path, ...]:
     return tuple(sorted(path.glob("*.dcm")))
 
 
-def _associated_images(path: Path) -> tuple[DicomAssociatedImage, ...]:
+def _associated_instance_uids(slide: WsiDicom) -> frozenset[str]:
+    selected_uids: set[str] = set()
+    series = (slide.labels, slide.overviews, slide.pyramid.thumbnails)
+    for associated_series in series:
+        if associated_series is None:
+            continue
+        for instance in associated_series.instances:
+            for dataset in instance.datasets:
+                sop_instance_uid = getattr(dataset.as_dataset(), "SOPInstanceUID", None)
+                if sop_instance_uid is not None:
+                    selected_uids.add(str(sop_instance_uid))
+    return frozenset(selected_uids)
+
+
+def _associated_images(path: Path, slide: WsiDicom) -> tuple[DicomAssociatedImage, ...]:
+    selected_uids = _associated_instance_uids(slide)
     images: list[DicomAssociatedImage] = []
     for source_path in _series_files(path):
-        dataset = dcmread(source_path, stop_before_pixels=True)
-        image_type = tuple(str(value).lower() for value in dataset.ImageType)
+        try:
+            dataset = dcmread(source_path, stop_before_pixels=True)
+        except InvalidDicomError:
+            continue
+        sop_instance_uid = getattr(dataset, "SOPInstanceUID", None)
+        if sop_instance_uid is None or str(sop_instance_uid) not in selected_uids:
+            continue
+        image_type = tuple(str(value).lower() for value in getattr(dataset, "ImageType", ()))
         role = image_type[2] if len(image_type) > 2 else "unknown"
         if role == "volume":
+            continue
+        columns = getattr(dataset, "Columns", None)
+        rows = getattr(dataset, "Rows", None)
+        photometric_interpretation = getattr(dataset, "PhotometricInterpretation", None)
+        transfer_syntax_uid = getattr(
+            getattr(dataset, "file_meta", None), "TransferSyntaxUID", None
+        )
+        if (
+            columns is None
+            or rows is None
+            or photometric_interpretation is None
+            or transfer_syntax_uid is None
+        ):
             continue
         images.append(
             DicomAssociatedImage(
                 role=role,
-                dimensions=(int(dataset.Columns), int(dataset.Rows)),
-                transfer_syntax_uid=str(dataset.file_meta.TransferSyntaxUID),
-                photometric_interpretation=str(dataset.PhotometricInterpretation),
+                dimensions=(int(columns), int(rows)),
+                transfer_syntax_uid=str(transfer_syntax_uid),
+                photometric_interpretation=str(photometric_interpretation),
                 source_path=source_path,
             )
         )
@@ -112,6 +147,7 @@ class DicomSlide:
     def __init__(self, source: Path, slide: WsiDicom) -> None:
         self.source = source
         self._slide = slide
+        self._level_metadata_cache: dict[int, DicomLevelMetadata] = {}
 
     @classmethod
     def open(cls, source: Path) -> Self:
@@ -137,17 +173,25 @@ class DicomSlide:
     def metadata(self) -> DicomSlideMetadata:
         return DicomSlideMetadata(
             levels=tuple(
-                _level_metadata(self._slide.levels[pyramid_index], pyramid_index)
+                self._metadata_for_level(self._slide.levels[pyramid_index], pyramid_index)
                 for pyramid_index in range(len(self._slide.levels))
             ),
-            associated_images=_associated_images(self.source),
+            associated_images=_associated_images(self.source, self._slide),
         )
 
-    def _level(self, logical_level: int) -> Level:
+    def _metadata_for_level(self, level: Level, pyramid_index: int) -> DicomLevelMetadata:
+        logical_level = int(level.level)
+        metadata = self._level_metadata_cache.get(logical_level)
+        if metadata is None:
+            metadata = _level_metadata(level, pyramid_index)
+            self._level_metadata_cache[logical_level] = metadata
+        return metadata
+
+    def _level(self, logical_level: int) -> tuple[int, Level]:
         for index in range(len(self._slide.levels)):
             level = self._slide.levels[index]
             if int(level.level) == logical_level:
-                return level
+                return index, level
         available = ", ".join(
             str(self._slide.levels[index].level) for index in range(len(self._slide.levels))
         )
@@ -171,9 +215,9 @@ class DicomSlide:
         logical_level: int,
         tile_coordinate: tuple[int, int],
     ) -> EncodedDicomFrame:
-        level = self._level(logical_level)
+        pyramid_index, level = self._level(logical_level)
         tiled_width, _ = self._validate_tile(level, tile_coordinate)
-        metadata = _level_metadata(level, 0)
+        metadata = self._metadata_for_level(level, pyramid_index)
         tile_x, tile_y = tile_coordinate
         matrix_position = (
             tile_x * metadata.tile_size[0],
@@ -204,9 +248,9 @@ class DicomSlide:
         logical_level: int,
         tile_coordinate: tuple[int, int],
     ) -> HostDicomTile:
-        level = self._level(logical_level)
+        pyramid_index, level = self._level(logical_level)
         self._validate_tile(level, tile_coordinate)
-        metadata = _level_metadata(level, 0)
+        metadata = self._metadata_for_level(level, pyramid_index)
         with self._slide.read_tile(logical_level, tile_coordinate) as decoded:
             image = decoded.convert("RGB")
         return HostDicomTile(

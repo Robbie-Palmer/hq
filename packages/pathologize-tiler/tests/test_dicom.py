@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from pydicom.errors import InvalidDicomError
 
 from pathologize_tiler.dicom import DicomSlide
 
@@ -41,8 +42,15 @@ class FakeLevel:
 
 
 class FakeSlide:
-    def __init__(self, levels: list[FakeLevel] | None = None) -> None:
+    def __init__(
+        self,
+        levels: list[FakeLevel] | None = None,
+        associated_uids: tuple[str, ...] = (),
+    ) -> None:
         self.levels = levels or [FakeLevel()]
+        self.labels = _associated_series(associated_uids)
+        self.overviews = None
+        self.pyramid = SimpleNamespace(thumbnails=None)
         self.closed = False
 
     def close(self) -> None:
@@ -62,8 +70,23 @@ class FakeSlide:
         return Image.new("RGB", (2, 2), (12, 34, 56))
 
 
-def _header(role: str) -> SimpleNamespace:
+def _associated_series(uids: tuple[str, ...]) -> SimpleNamespace | None:
+    if not uids:
+        return None
+    instances = [
+        SimpleNamespace(
+            datasets=[
+                SimpleNamespace(as_dataset=lambda uid=uid: SimpleNamespace(SOPInstanceUID=uid))
+            ]
+        )
+        for uid in uids
+    ]
+    return SimpleNamespace(instances=instances)
+
+
+def _header(role: str, sop_instance_uid: str) -> SimpleNamespace:
     return SimpleNamespace(
+        SOPInstanceUID=sop_instance_uid,
         ImageType=("DERIVED", "PRIMARY", role.upper(), "NONE"),
         Columns=2,
         Rows=3,
@@ -77,13 +100,15 @@ def test_dicom_slide_exposes_metadata_frames_and_host_tiles(tmp_path: Path) -> N
     label = tmp_path / "label.dcm"
     volume.touch()
     label.touch()
-    fake = FakeSlide()
+    fake = FakeSlide(associated_uids=("label",))
 
     with (
         patch("pathologize_tiler.dicom.WsiDicom.open", return_value=fake),
         patch(
             "pathologize_tiler.dicom.dcmread",
-            side_effect=lambda path, **_kwargs: _header("label" if path == label else "volume"),
+            side_effect=lambda path, **_kwargs: _header(
+                "label" if path == label else "volume", path.stem
+            ),
         ),
         DicomSlide.open(tmp_path) as slide,
     ):
@@ -101,6 +126,52 @@ def test_dicom_slide_exposes_metadata_frames_and_host_tiles(tmp_path: Path) -> N
     assert frame.payload == b"encoded"
     assert tile.image.getpixel((0, 0)) == (12, 34, 56)
     tile.image.close()
+
+
+def test_associated_images_are_limited_to_selected_slide_instances(
+    tmp_path: Path,
+) -> None:
+    selected = tmp_path / "selected.dcm"
+    foreign = tmp_path / "foreign.dcm"
+    report = tmp_path / "report.dcm"
+    invalid = tmp_path / "invalid.dcm"
+    for path in (selected, foreign, report, invalid):
+        path.touch()
+    fake = FakeSlide(associated_uids=("selected", "report"))
+
+    def read_header(path: Path, **_kwargs: object) -> SimpleNamespace:
+        if path == invalid:
+            raise InvalidDicomError
+        if path == report:
+            return SimpleNamespace(SOPInstanceUID="report")
+        return _header("label", path.stem)
+
+    with (
+        patch("pathologize_tiler.dicom.WsiDicom.open", return_value=fake),
+        patch("pathologize_tiler.dicom.dcmread", side_effect=read_header),
+        DicomSlide.open(tmp_path) as slide,
+    ):
+        associated_images = slide.metadata.associated_images
+
+    assert len(associated_images) == 1
+    assert associated_images[0].source_path == selected
+
+
+def test_associated_image_without_image_type_uses_unknown_role(tmp_path: Path) -> None:
+    source = tmp_path / "associated.dcm"
+    source.touch()
+    fake = FakeSlide(associated_uids=("associated",))
+    header = _header("label", "associated")
+    del header.ImageType
+
+    with (
+        patch("pathologize_tiler.dicom.WsiDicom.open", return_value=fake),
+        patch("pathologize_tiler.dicom.dcmread", return_value=header),
+        DicomSlide.open(tmp_path) as slide,
+    ):
+        associated_images = slide.metadata.associated_images
+
+    assert associated_images[0].role == "unknown"
 
 
 def test_dicom_slide_validates_paths_levels_coordinates_and_payloads(tmp_path: Path) -> None:

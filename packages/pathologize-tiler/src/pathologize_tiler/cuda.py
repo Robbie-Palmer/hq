@@ -53,7 +53,7 @@ def _nvimagecodec_module() -> Any:  # noqa: ANN401 - optional extension has no s
 def probe_nvimagecodec() -> CudaDecoderCapability:
     try:
         NvImageCodecDecoder()
-    except (DeviceDecodeUnavailableError, RuntimeError) as error:
+    except DeviceDecodeUnavailableError as error:
         return CudaDecoderCapability("nvimagecodec", False, str(error))
     return CudaDecoderCapability("nvimagecodec", True, None)
 
