@@ -57,8 +57,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -153,16 +153,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 202b0cecddc223070fef117e5129efe9.dir
-      size: 2684
+      md5: 5df8fd352166a6fec601685c374a82e3.dir
+      size: 2683
       nfiles: 3
   evaluate_tiling_magnification:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -179,21 +179,21 @@ stages:
       size: 65
     - path: outputs/runs/tiling-magnification-contract-v1
       hash: md5
-      md5: a70d70ee809f54c8242ce92db51048d6.dir
-      size: 2684
+      md5: 4f5a791a069c87888d47e50896e6d33d.dir
+      size: 2683
       nfiles: 3
     outs:
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
       hash: md5
-      md5: 8eb7a52a4119c26996d4fec0ead45c52
-      size: 3496
+      md5: 7e350c565f3830292f04584333205747
+      size: 3494
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
@@ -201,8 +201,8 @@ stages:
       size: 65
     - path: outputs/scorecards/tiling-magnification-contract-v1.json
       hash: md5
-      md5: 8eb7a52a4119c26996d4fec0ead45c52
-      size: 3496
+      md5: 7e350c565f3830292f04584333205747
+      size: 3494
     - path: params.yaml
       hash: md5
       md5: 9d05cf9a407777cc8ebb57d366d86eeb
@@ -210,8 +210,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: 5a17e43d70ebbc9be1ab207dc450f601
-      size: 4236
+      md5: d565dbb0400150105135fa2e9ab39957
+      size: 4234
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: 522a32fe873633fbf7e6e5a10c5e6a9e

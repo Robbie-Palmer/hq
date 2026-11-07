@@ -57,8 +57,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -153,16 +153,16 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 682538dbf8597e6cf28c048fb19715ee.dir
-      size: 2506
+      md5: eafdc8fb5c95f215fd3a47658bf51197.dir
+      size: 2515
       nfiles: 3
   evaluate_cell_analysis:
     cmd: uv run --locked pathologize-benchmark eval-only
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -179,21 +179,21 @@ stages:
       size: 65
     - path: outputs/runs/cell-analysis-contract-v1
       hash: md5
-      md5: 106bea24a4d6bce41c14db98ec178f6d.dir
-      size: 2506
+      md5: dcbe8a0825f13316d809c5f2b88d4dbc.dir
+      size: 2515
       nfiles: 3
     outs:
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 07655fd1f23440d12c9b6d92bbc73e3b
-      size: 3879
+      md5: 52f3bbecb2f1b4cb48fa7cb400374cad
+      size: 3897
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 8ee64c8f8858f81b2e26e1f5f70cc08c.dir
-      size: 176157
+      md5: fc0386abb50c7ec24f776745599f3ccf.dir
+      size: 176096
       nfiles: 15
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
@@ -201,8 +201,8 @@ stages:
       size: 65
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 07655fd1f23440d12c9b6d92bbc73e3b
-      size: 3879
+      md5: 52f3bbecb2f1b4cb48fa7cb400374cad
+      size: 3897
     - path: params.yaml
       hash: md5
       md5: bc0b3999abcf6c13a3a91e8510804c10
@@ -210,8 +210,8 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: 5b9a867e186fb37690a783e82cddcc78
-      size: 4699
+      md5: 66c23bf20bfa6cc521a665332ba064c2
+      size: 4717
     - path: outputs/scorecard/metrics.json
       hash: md5
       md5: 5075955c9383b07e487f3f80c002f67b

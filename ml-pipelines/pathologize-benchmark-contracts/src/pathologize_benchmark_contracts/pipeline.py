@@ -431,14 +431,13 @@ def _run_adapter_isolated(
         executor.submit(_run_adapter, root, manifest, adapter_spec, items).result()
 
 
-def run_adapters(root: Path | None = None, *, isolated: bool = True) -> None:
+def run_adapters(root: Path | None = None) -> None:
     root = root or project_root()
-    runner = _run_adapter_isolated if isolated else _run_adapter
     for manifest in load_experiments(root):
         items = _evaluation_items(root, manifest)
-        runner(root, manifest, manifest.baseline, items)
+        _run_adapter_isolated(root, manifest, manifest.baseline, items)
         if manifest.candidate is not None:
-            runner(root, manifest, manifest.candidate, items)
+            _run_adapter_isolated(root, manifest, manifest.candidate, items)
 
 
 def _prediction_type(workstream: Workstream) -> type[BaseModel]:
